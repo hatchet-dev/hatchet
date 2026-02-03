@@ -28,9 +28,9 @@ class StepRunEventSeverity(str, Enum):
     """
     allowed enum values
     """
-    INFO = "INFO"
-    WARNING = "WARNING"
-    CRITICAL = "CRITICAL"
+    INFO = 'INFO'
+    WARNING = 'WARNING'
+    CRITICAL = 'CRITICAL'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

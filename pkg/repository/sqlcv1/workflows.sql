@@ -306,8 +306,8 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('isDurable')::boolean, false)
 ) RETURNING *;
 
--- name: CreateStepSlotRequirements :exec
-INSERT INTO v1_step_slot_requirement (
+-- name: CreateStepSlotRequests :exec
+INSERT INTO v1_step_slot_request (
     tenant_id,
     step_id,
     slot_type,

@@ -177,7 +177,7 @@ export default function WorkerDetail() {
     return <Loading />;
   }
 
-  const slotCapacityEntries = Object.entries(worker.slotCapacities || {}).sort(
+  const slotCapacityEntries = Object.entries(worker.slotConfig || {}).sort(
     ([a], [b]) => a.localeCompare(b),
   );
 

@@ -76,7 +76,7 @@ WorkerType:
     - MANAGED
     - WEBHOOK
 
-WorkerSlotCapacity:
+WorkerSlotConfig:
   type: object
   description: Slot availability and limits for a slot type.
   properties:
@@ -149,11 +149,11 @@ Worker:
         - ACTIVE
         - INACTIVE
         - PAUSED
-    slotCapacities:
+    slotConfig:
       type: object
       description: Slot availability and limits for this worker (slot_type -> { available, limit }).
       additionalProperties:
-        $ref: "#/WorkerSlotCapacity"
+        $ref: "#/WorkerSlotConfig"
     dispatcherId:
       type: string
       description: "the id of the assigned dispatcher, in UUID format"

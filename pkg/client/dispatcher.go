@@ -47,7 +47,7 @@ type GetActionListenerRequest struct {
 	Actions        []string
 	Slots          *int
 	DurableSlots   *int
-	SlotCapacities map[string]int32
+	SlotConfig map[string]int32
 	Labels         map[string]interface{}
 	WebhookId      *string
 }
@@ -280,17 +280,17 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		registerReq.DurableSlots = &dr
 	}
 
-	if req.SlotCapacities != nil {
-		registerReq.SlotCapacities = req.SlotCapacities
+	if req.SlotConfig != nil {
+		registerReq.SlotConfig = req.SlotConfig
 	} else if req.Slots != nil || req.DurableSlots != nil {
-		slotCapacities := map[string]int32{}
+		slotConfig := map[string]int32{}
 		if req.Slots != nil {
-			slotCapacities["default"] = int32(*req.Slots) // nolint: gosec
+			slotConfig["default"] = int32(*req.Slots) // nolint: gosec
 		}
 		if req.DurableSlots != nil {
-			slotCapacities["durable"] = int32(*req.DurableSlots) // nolint: gosec
+			slotConfig["durable"] = int32(*req.DurableSlots) // nolint: gosec
 		}
-		registerReq.SlotCapacities = slotCapacities
+		registerReq.SlotConfig = slotConfig
 	}
 
 	// register the worker

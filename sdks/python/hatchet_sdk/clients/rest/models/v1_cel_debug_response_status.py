@@ -28,8 +28,8 @@ class V1CELDebugResponseStatus(str, Enum):
     """
     allowed enum values
     """
-    SUCCESS = "SUCCESS"
-    ERROR = "ERROR"
+    SUCCESS = 'SUCCESS'
+    ERROR = 'ERROR'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

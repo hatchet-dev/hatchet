@@ -10,19 +10,19 @@ SELECT
 FROM "WorkerLabel" wl
 WHERE wl."workerId" = ANY(@workerIds::uuid[]);
 
--- name: ListWorkerSlotCapacities :many
+-- name: ListWorkerSlotConfigs :many
 SELECT
     worker_id,
     slot_type,
     max_units
 FROM
-    v1_worker_slot_capacity
+    v1_worker_slot_config
 WHERE
     tenant_id = @tenantId::uuid
     AND worker_id = ANY(@workerIds::uuid[]);
 
--- name: UpsertWorkerSlotCapacities :exec
-INSERT INTO v1_worker_slot_capacity (
+-- name: UpsertWorkerSlotConfigs :exec
+INSERT INTO v1_worker_slot_config (
     tenant_id,
     worker_id,
     slot_type,
@@ -50,7 +50,7 @@ SELECT
     -- TODO do we still need this?
     COALESCE((
         SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_capacity cap
+        FROM v1_worker_slot_config cap
         WHERE
             cap.tenant_id = workers."tenantId"
             AND cap.worker_id = workers."id"
@@ -67,7 +67,7 @@ SELECT
     COALESCE((
         (
             SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_capacity cap
+            FROM v1_worker_slot_config cap
             WHERE
                 cap.tenant_id = workers."tenantId"
                 AND cap.worker_id = workers."id"
@@ -118,7 +118,7 @@ SELECT
     ww."url" AS "webhookUrl",
     COALESCE((
         SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_capacity cap
+        FROM v1_worker_slot_config cap
         WHERE
             cap.tenant_id = w."tenantId"
             AND cap.worker_id = w."id"
@@ -135,7 +135,7 @@ SELECT
     COALESCE((
         (
             SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_capacity cap
+            FROM v1_worker_slot_config cap
             WHERE
                 cap.tenant_id = w."tenantId"
                 AND cap.worker_id = w."id"
@@ -173,7 +173,7 @@ LIMIT
 SELECT
     wc.tenant_id AS "tenantId",
     SUM(wc.max_units) AS "totalActiveSlots"
-FROM v1_worker_slot_capacity wc
+FROM v1_worker_slot_config wc
 JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
 WHERE
     w."dispatcherId" IS NOT NULL

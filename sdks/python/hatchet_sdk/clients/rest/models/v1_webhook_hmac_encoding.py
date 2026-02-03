@@ -28,9 +28,9 @@ class V1WebhookHMACEncoding(str, Enum):
     """
     allowed enum values
     """
-    HEX = "HEX"
-    BASE64 = "BASE64"
-    BASE64URL = "BASE64URL"
+    HEX = 'HEX'
+    BASE64 = 'BASE64'
+    BASE64URL = 'BASE64URL'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

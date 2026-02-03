@@ -60,8 +60,8 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		opts.DurableMaxRuns = &dr
 	}
 
-	if len(request.SlotCapacities) > 0 {
-		opts.SlotCapacities = request.SlotCapacities
+	if len(request.SlotConfig) > 0 {
+		opts.SlotConfig = request.SlotConfig
 	}
 
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {

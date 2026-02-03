@@ -28,8 +28,8 @@ class ScheduledWorkflowsMethod(str, Enum):
     """
     allowed enum values
     """
-    DEFAULT = "DEFAULT"
-    API = "API"
+    DEFAULT = 'DEFAULT'
+    API = 'API'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

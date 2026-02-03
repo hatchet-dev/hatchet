@@ -39,7 +39,7 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
-import { SlotCapacities, SlotType } from '../../slot-types';
+import { SlotConfig, SlotType } from '../../slot-types';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -48,7 +48,7 @@ export interface WorkerOpts {
   handleKill?: boolean;
   slots?: number;
   durableSlots?: number;
-  slotCapacities?: SlotCapacities;
+  slotConfig?: SlotConfig;
   labels?: WorkerLabels;
   healthPort?: number;
   enableHealthServer?: boolean;
@@ -68,7 +68,7 @@ export class V1Worker {
   contexts: Record<Action['taskRunExternalId'], Context<any, any>> = {};
   slots?: number;
   durableSlots?: number;
-  slotCapacities: SlotCapacities;
+  slotConfig: SlotConfig;
 
   logger: Logger;
 
@@ -89,7 +89,7 @@ export class V1Worker {
       handleKill?: boolean;
       slots?: number;
       durableSlots?: number;
-      slotCapacities?: SlotCapacities;
+      slotConfig?: SlotConfig;
       labels?: WorkerLabels;
     }
   ) {
@@ -98,7 +98,7 @@ export class V1Worker {
     this.action_registry = {};
     this.slots = options.slots;
     this.durableSlots = options.durableSlots;
-    this.slotCapacities = options.slotCapacities || {};
+    this.slotConfig = options.slotConfig || {};
 
     this.labels = options.labels || {};
 
@@ -137,7 +137,7 @@ export class V1Worker {
 
   // TODO where is this used, this doesnt make much sense
   private getAvailableSlots(): number {
-    const baseSlots = this.slotCapacities[SlotType.Default] ?? this.slots ?? 0;
+    const baseSlots = this.slotConfig[SlotType.Default] ?? this.slots ?? 0;
     if (!baseSlots) {
       return 0;
     }
@@ -296,7 +296,7 @@ export class V1Worker {
           workerLabels: {},
           concurrency: [],
           isDurable: false,
-          slotRequirements: { default: 1 },
+          slotRequests: { default: 1 },
         };
       }
 
@@ -320,7 +320,7 @@ export class V1Worker {
           backoffMaxSeconds:
             onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           isDurable: false,
-          slotRequirements: { default: 1 },
+          slotRequests: { default: 1 },
         };
       }
 
@@ -430,8 +430,8 @@ export class V1Worker {
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           conditions: taskConditionsToPb(task),
           isDurable: durableTaskSet.has(task),
-          slotRequirements:
-            task.slotRequirements || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
+          slotRequests:
+            task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency
@@ -932,7 +932,7 @@ export class V1Worker {
         workerName: this.name,
         services: ['default'],
         actions: Object.keys(this.action_registry),
-        slotCapacities: this.slotCapacities,
+        slotConfig: this.slotConfig,
         labels: this.labels,
       });
 

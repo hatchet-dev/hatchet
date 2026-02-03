@@ -1,21 +1,16 @@
 # > Simple
-
-import time
-
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
 
-@hatchet.task(slot_requirements={"default": 40})
+@hatchet.task()
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    time.sleep(30)
     return {"result": "Hello, world!"}
 
 
 @hatchet.durable_task()
 def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    time.sleep(30)
     return {"result": "Hello, world!"}
 
 

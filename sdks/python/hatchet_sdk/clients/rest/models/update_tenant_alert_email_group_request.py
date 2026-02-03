@@ -26,8 +26,7 @@ from typing_extensions import Self
 class UpdateTenantAlertEmailGroupRequest(BaseModel):
     """
     UpdateTenantAlertEmailGroupRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     emails: List[StrictStr] = Field(description="A list of emails for users")
     __properties: ClassVar[List[str]] = ["emails"]
 
@@ -36,6 +35,7 @@ class UpdateTenantAlertEmailGroupRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,7 +61,8 @@ class UpdateTenantAlertEmailGroupRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,5 +80,7 @@ class UpdateTenantAlertEmailGroupRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"emails": obj.get("emails")})
+        _obj = cls.model_validate({
+            "emails": obj.get("emails")
+        })
         return _obj

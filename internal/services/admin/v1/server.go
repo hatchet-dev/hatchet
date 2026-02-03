@@ -864,11 +864,11 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
 			ScheduleTimeout:     stepCp.ScheduleTimeout,
 			IsDurable:           stepCp.IsDurable,
-			SlotRequirements:    nil,
+			SlotRequests:        nil,
 		}
 
-		if stepCp.SlotRequirements != nil {
-			steps[j].SlotRequirements = stepCp.SlotRequirements
+		if stepCp.SlotRequests != nil {
+			steps[j].SlotRequests = stepCp.SlotRequests
 		}
 
 		// Safely set Parents

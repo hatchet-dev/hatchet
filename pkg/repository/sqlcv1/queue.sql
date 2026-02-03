@@ -56,7 +56,7 @@ WITH worker_capacities AS (
         worker_id,
         max_units
     FROM
-        v1_worker_slot_capacity
+        v1_worker_slot_config
     WHERE
         tenant_id = @tenantId::uuid
         AND worker_id = ANY(@workerIds::uuid[])
@@ -261,7 +261,7 @@ WITH input AS (
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
     RETURNING task_id, worker_id
-), slot_requirements AS (
+), slot_requests AS (
     SELECT
         t.id,
         t.inserted_at,
@@ -273,7 +273,7 @@ WITH input AS (
     FROM
         updated_tasks t
     LEFT JOIN
-        v1_step_slot_requirement req
+        v1_step_slot_request req
         ON req.step_id = t.step_id AND req.tenant_id = t.tenant_id
 ), assigned_slots AS (
     INSERT INTO v1_task_runtime_slot (
@@ -294,7 +294,7 @@ WITH input AS (
         slot_type,
         units
     FROM
-        slot_requirements
+        slot_requests
     ON CONFLICT (task_id, task_inserted_at, retry_count, slot_type) DO NOTHING
     RETURNING task_id
 )
@@ -318,13 +318,13 @@ FROM
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
 
--- name: GetStepSlotRequirements :many
+-- name: GetStepSlotRequests :many
 SELECT
     step_id,
     slot_type,
     units
 FROM
-    v1_step_slot_requirement
+    v1_step_slot_request
 WHERE
     step_id = ANY(@stepIds::uuid[]);
 

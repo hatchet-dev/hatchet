@@ -1,10 +1,10 @@
+import { __testing } from '@hatchet/v1/client/worker/worker';
 import { WorkflowDeclaration } from '../../declaration';
 import { SlotType } from '../../slot-types';
-import { __testing } from '@hatchet/v1/client/worker/worker';
 
 const { resolveWorkerOptions } = __testing;
 
-describe('resolveWorkerOptions slot capacities', () => {
+describe('resolveWorkerOptions slot config', () => {
   it('sets default slots for non-durable tasks', () => {
     const workflow = new WorkflowDeclaration({ name: 'default-wf' });
     workflow.task({
@@ -14,8 +14,8 @@ describe('resolveWorkerOptions slot capacities', () => {
 
     const resolved = resolveWorkerOptions({ workflows: [workflow] });
 
-    expect(resolved.slotCapacities[SlotType.Default]).toBe(100);
-    expect(resolved.slotCapacities[SlotType.Durable]).toBeUndefined();
+    expect(resolved.slotConfig[SlotType.Default]).toBe(100);
+    expect(resolved.slotConfig[SlotType.Durable]).toBeUndefined();
   });
 
   it('sets durable slots for durable-only workflows without default slots', () => {
@@ -27,8 +27,8 @@ describe('resolveWorkerOptions slot capacities', () => {
 
     const resolved = resolveWorkerOptions({ workflows: [workflow] });
 
-    expect(resolved.slotCapacities[SlotType.Durable]).toBe(1000);
-    expect(resolved.slotCapacities[SlotType.Default]).toBeUndefined();
+    expect(resolved.slotConfig[SlotType.Durable]).toBe(1000);
+    expect(resolved.slotConfig[SlotType.Default]).toBeUndefined();
     expect(resolved.slots).toBeUndefined();
   });
 
@@ -45,7 +45,7 @@ describe('resolveWorkerOptions slot capacities', () => {
 
     const resolved = resolveWorkerOptions({ workflows: [workflow] });
 
-    expect(resolved.slotCapacities[SlotType.Default]).toBe(100);
-    expect(resolved.slotCapacities[SlotType.Durable]).toBe(1000);
+    expect(resolved.slotConfig[SlotType.Default]).toBe(100);
+    expect(resolved.slotConfig[SlotType.Durable]).toBe(1000);
   });
 });

@@ -65,7 +65,7 @@ class Worker:
         self,
         name: str,
         config: ClientConfig,
-        slot_capacities: dict[str, int],
+        slot_config: dict[str, int],
         labels: dict[str, str | int] | None = None,
         debug: bool = False,
         owned_loop: bool = True,
@@ -75,9 +75,9 @@ class Worker:
     ) -> None:
         self.config = config
         self.name = self.config.apply_namespace(name)
-        self.slot_capacities = slot_capacities
-        self._slots = slot_capacities.get("default", 0)
-        self._durable_slots = slot_capacities.get("durable", 0)
+        self.slot_config = slot_config
+        self._slots = slot_config.get("default", 0)
+        self._durable_slots = slot_config.get("durable", 0)
         self.debug = debug
         self.labels = labels or {}
         self.handle_kill = handle_kill
@@ -146,7 +146,7 @@ class Worker:
     @property
     def slots(self) -> int:
         warn(
-            "Worker.slots is deprecated; use slot_capacities['default'] instead.",
+            "Worker.slots is deprecated; use slot_config['default'] instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -155,7 +155,7 @@ class Worker:
     @property
     def durable_slots(self) -> int:
         warn(
-            "Worker.durable_slots is deprecated; use slot_capacities['durable'] instead.",
+            "Worker.durable_slots is deprecated; use slot_config['durable'] instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -259,7 +259,7 @@ class Worker:
             return WorkerActionRunLoopManager(
                 self.name,
                 self.action_registry,
-                sum(self.slot_capacities.values()),
+                sum(self.slot_config.values()),
                 self.config,
                 self.action_queue,
                 self.event_queue,
@@ -310,7 +310,7 @@ class Worker:
                 args=(
                     self.name,
                     list(self.action_registry.keys()),
-                    self.slot_capacities,
+                    self.slot_config,
                     self.config,
                     self.action_queue,
                     self.event_queue,

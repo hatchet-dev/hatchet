@@ -103,8 +103,8 @@ type CreateStepOpts struct {
 	// (optional) whether this step is durable
 	IsDurable bool
 
-	// (optional) slot requirements for this step (slot_type -> units)
-	SlotRequirements map[string]int32 `validate:"omitempty"`
+	// (optional) slot requests for this step (slot_type -> units)
+	SlotRequests map[string]int32 `validate:"omitempty"`
 
 	// (optional) a list of additional trigger conditions
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
@@ -767,18 +767,18 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			return nil, err
 		}
 
-		slotRequirements := stepOpts.SlotRequirements
-		if len(slotRequirements) == 0 {
+		slotRequests := stepOpts.SlotRequests
+		if len(slotRequests) == 0 {
 			if stepOpts.IsDurable {
-				slotRequirements = map[string]int32{"durable": 1}
+				slotRequests = map[string]int32{"durable": 1}
 			} else {
-				slotRequirements = map[string]int32{"default": 1}
+				slotRequests = map[string]int32{"default": 1}
 			}
 		}
 
-		slotTypes := make([]string, 0, len(slotRequirements))
-		units := make([]int32, 0, len(slotRequirements))
-		for slotType, unit := range slotRequirements {
+		slotTypes := make([]string, 0, len(slotRequests))
+		units := make([]int32, 0, len(slotRequests))
+		for slotType, unit := range slotRequests {
 			if unit <= 0 {
 				continue
 			}
@@ -791,10 +791,10 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			units = append(units, 1)
 		}
 
-		err = r.queries.CreateStepSlotRequirements(
+		err = r.queries.CreateStepSlotRequests(
 			ctx,
 			tx,
-			sqlcv1.CreateStepSlotRequirementsParams{
+			sqlcv1.CreateStepSlotRequestsParams{
 				Tenantid:  tenantId,
 				Stepid:    stepId,
 				Slottypes: slotTypes,

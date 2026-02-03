@@ -1073,21 +1073,21 @@ type CreateTaskOpts struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ReadableId        string                          `protobuf:"bytes,1,opt,name=readable_id,json=readableId,proto3" json:"readable_id,omitempty"`                                                                                                             // (required) the task name
-	Action            string                          `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`                                                                                                                                       // (required) the task action id
-	Timeout           string                          `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`                                                                                                                                     // (optional) the task timeout
-	Inputs            string                          `protobuf:"bytes,4,opt,name=inputs,proto3" json:"inputs,omitempty"`                                                                                                                                       // (optional) the task inputs, assuming string representation of JSON
-	Parents           []string                        `protobuf:"bytes,5,rep,name=parents,proto3" json:"parents,omitempty"`                                                                                                                                     // (optional) the task parents. if none are passed in, this is a root task
-	Retries           int32                           `protobuf:"varint,6,opt,name=retries,proto3" json:"retries,omitempty"`                                                                                                                                    // (optional) the number of retries for the task, default 0
-	RateLimits        []*CreateTaskRateLimit          `protobuf:"bytes,7,rep,name=rate_limits,json=rateLimits,proto3" json:"rate_limits,omitempty"`                                                                                                             // (optional) the rate limits for the task
-	WorkerLabels      map[string]*DesiredWorkerLabels `protobuf:"bytes,8,rep,name=worker_labels,json=workerLabels,proto3" json:"worker_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`               // (optional) the desired worker affinity state for the task
-	BackoffFactor     *float32                        `protobuf:"fixed32,9,opt,name=backoff_factor,json=backoffFactor,proto3,oneof" json:"backoff_factor,omitempty"`                                                                                            // (optional) the retry backoff factor for the task
-	BackoffMaxSeconds *int32                          `protobuf:"varint,10,opt,name=backoff_max_seconds,json=backoffMaxSeconds,proto3,oneof" json:"backoff_max_seconds,omitempty"`                                                                              // (optional) the maximum backoff time for the task
-	Concurrency       []*Concurrency                  `protobuf:"bytes,11,rep,name=concurrency,proto3" json:"concurrency,omitempty"`                                                                                                                            // (optional) the task concurrency options
-	Conditions        *TaskConditions                 `protobuf:"bytes,12,opt,name=conditions,proto3,oneof" json:"conditions,omitempty"`                                                                                                                        // (optional) the task conditions for creating the task
-	ScheduleTimeout   *string                         `protobuf:"bytes,13,opt,name=schedule_timeout,json=scheduleTimeout,proto3,oneof" json:"schedule_timeout,omitempty"`                                                                                       // (optional) the timeout for the schedule
-	IsDurable         bool                            `protobuf:"varint,14,opt,name=is_durable,json=isDurable,proto3" json:"is_durable,omitempty"`                                                                                                              // (optional) whether the task is durable
-	SlotRequirements  map[string]int32                `protobuf:"bytes,15,rep,name=slot_requirements,json=slotRequirements,proto3" json:"slot_requirements,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"` // (optional) slot requirements (slot_type -> units)
+	ReadableId        string                          `protobuf:"bytes,1,opt,name=readable_id,json=readableId,proto3" json:"readable_id,omitempty"`                                                                                                 // (required) the task name
+	Action            string                          `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`                                                                                                                           // (required) the task action id
+	Timeout           string                          `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`                                                                                                                         // (optional) the task timeout
+	Inputs            string                          `protobuf:"bytes,4,opt,name=inputs,proto3" json:"inputs,omitempty"`                                                                                                                           // (optional) the task inputs, assuming string representation of JSON
+	Parents           []string                        `protobuf:"bytes,5,rep,name=parents,proto3" json:"parents,omitempty"`                                                                                                                         // (optional) the task parents. if none are passed in, this is a root task
+	Retries           int32                           `protobuf:"varint,6,opt,name=retries,proto3" json:"retries,omitempty"`                                                                                                                        // (optional) the number of retries for the task, default 0
+	RateLimits        []*CreateTaskRateLimit          `protobuf:"bytes,7,rep,name=rate_limits,json=rateLimits,proto3" json:"rate_limits,omitempty"`                                                                                                 // (optional) the rate limits for the task
+	WorkerLabels      map[string]*DesiredWorkerLabels `protobuf:"bytes,8,rep,name=worker_labels,json=workerLabels,proto3" json:"worker_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`   // (optional) the desired worker affinity state for the task
+	BackoffFactor     *float32                        `protobuf:"fixed32,9,opt,name=backoff_factor,json=backoffFactor,proto3,oneof" json:"backoff_factor,omitempty"`                                                                                // (optional) the retry backoff factor for the task
+	BackoffMaxSeconds *int32                          `protobuf:"varint,10,opt,name=backoff_max_seconds,json=backoffMaxSeconds,proto3,oneof" json:"backoff_max_seconds,omitempty"`                                                                  // (optional) the maximum backoff time for the task
+	Concurrency       []*Concurrency                  `protobuf:"bytes,11,rep,name=concurrency,proto3" json:"concurrency,omitempty"`                                                                                                                // (optional) the task concurrency options
+	Conditions        *TaskConditions                 `protobuf:"bytes,12,opt,name=conditions,proto3,oneof" json:"conditions,omitempty"`                                                                                                            // (optional) the task conditions for creating the task
+	ScheduleTimeout   *string                         `protobuf:"bytes,13,opt,name=schedule_timeout,json=scheduleTimeout,proto3,oneof" json:"schedule_timeout,omitempty"`                                                                           // (optional) the timeout for the schedule
+	IsDurable         bool                            `protobuf:"varint,14,opt,name=is_durable,json=isDurable,proto3" json:"is_durable,omitempty"`                                                                                                  // (optional) whether the task is durable
+	SlotRequests      map[string]int32                `protobuf:"bytes,15,rep,name=slot_requests,json=slotRequests,proto3" json:"slot_requests,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"` // (optional) slot requests (slot_type -> units)
 }
 
 func (x *CreateTaskOpts) Reset() {
@@ -1220,9 +1220,9 @@ func (x *CreateTaskOpts) GetIsDurable() bool {
 	return false
 }
 
-func (x *CreateTaskOpts) GetSlotRequirements() map[string]int32 {
+func (x *CreateTaskOpts) GetSlotRequests() map[string]int32 {
 	if x != nil {
-		return x.SlotRequirements
+		return x.SlotRequests
 	}
 	return nil
 }
@@ -1718,7 +1718,7 @@ var file_v1_workflows_proto_rawDesc = []byte{
 	0x61, 0x6c, 0x75, 0x65, 0x42, 0x0c, 0x0a, 0x0a, 0x5f, 0x69, 0x6e, 0x74, 0x5f, 0x76, 0x61, 0x6c,
 	0x75, 0x65, 0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x42,
 	0x0d, 0x0a, 0x0b, 0x5f, 0x63, 0x6f, 0x6d, 0x70, 0x61, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x42, 0x09,
-	0x0a, 0x07, 0x5f, 0x77, 0x65, 0x69, 0x67, 0x68, 0x74, 0x22, 0x95, 0x07, 0x0a, 0x0e, 0x43, 0x72,
+	0x0a, 0x07, 0x5f, 0x77, 0x65, 0x69, 0x67, 0x68, 0x74, 0x22, 0x85, 0x07, 0x0a, 0x0e, 0x43, 0x72,
 	0x65, 0x61, 0x74, 0x65, 0x54, 0x61, 0x73, 0x6b, 0x4f, 0x70, 0x74, 0x73, 0x12, 0x1f, 0x0a, 0x0b,
 	0x72, 0x65, 0x61, 0x64, 0x61, 0x62, 0x6c, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x09, 0x52, 0x0a, 0x72, 0x65, 0x61, 0x64, 0x61, 0x62, 0x6c, 0x65, 0x49, 0x64, 0x12, 0x16, 0x0a,
@@ -1755,19 +1755,18 @@ var file_v1_workflows_proto_rawDesc = []byte{
 	0x74, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x09, 0x48, 0x03, 0x52, 0x0f, 0x73, 0x63, 0x68, 0x65, 0x64,
 	0x75, 0x6c, 0x65, 0x54, 0x69, 0x6d, 0x65, 0x6f, 0x75, 0x74, 0x88, 0x01, 0x01, 0x12, 0x1d, 0x0a,
 	0x0a, 0x69, 0x73, 0x5f, 0x64, 0x75, 0x72, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x0e, 0x20, 0x01, 0x28,
-	0x08, 0x52, 0x09, 0x69, 0x73, 0x44, 0x75, 0x72, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x55, 0x0a, 0x11,
-	0x73, 0x6c, 0x6f, 0x74, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74,
-	0x73, 0x18, 0x0f, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x28, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65,
-	0x61, 0x74, 0x65, 0x54, 0x61, 0x73, 0x6b, 0x4f, 0x70, 0x74, 0x73, 0x2e, 0x53, 0x6c, 0x6f, 0x74,
-	0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x45, 0x6e, 0x74, 0x72,
-	0x79, 0x52, 0x10, 0x73, 0x6c, 0x6f, 0x74, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x6d, 0x65,
-	0x6e, 0x74, 0x73, 0x1a, 0x58, 0x0a, 0x11, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x4c, 0x61, 0x62,
-	0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x2d, 0x0a, 0x05, 0x76, 0x61,
-	0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x76, 0x31, 0x2e, 0x44,
-	0x65, 0x73, 0x69, 0x72, 0x65, 0x64, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x4c, 0x61, 0x62, 0x65,
-	0x6c, 0x73, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x43, 0x0a,
-	0x15, 0x53, 0x6c, 0x6f, 0x74, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74,
+	0x08, 0x52, 0x09, 0x69, 0x73, 0x44, 0x75, 0x72, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x49, 0x0a, 0x0d,
+	0x73, 0x6c, 0x6f, 0x74, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x18, 0x0f, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x24, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54,
+	0x61, 0x73, 0x6b, 0x4f, 0x70, 0x74, 0x73, 0x2e, 0x53, 0x6c, 0x6f, 0x74, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x0c, 0x73, 0x6c, 0x6f, 0x74, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x73, 0x1a, 0x58, 0x0a, 0x11, 0x57, 0x6f, 0x72, 0x6b, 0x65,
+	0x72, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03,
+	0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x2d,
+	0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e,
+	0x76, 0x31, 0x2e, 0x44, 0x65, 0x73, 0x69, 0x72, 0x65, 0x64, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72,
+	0x4c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38,
+	0x01, 0x1a, 0x3f, 0x0a, 0x11, 0x53, 0x6c, 0x6f, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
 	0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75,
 	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02,
@@ -1935,7 +1934,7 @@ var file_v1_workflows_proto_goTypes = []interface{}{
 	(*TaskRunDetail)(nil),                 // 20: v1.TaskRunDetail
 	(*GetRunDetailsResponse)(nil),         // 21: v1.GetRunDetailsResponse
 	nil,                                   // 22: v1.CreateTaskOpts.WorkerLabelsEntry
-	nil,                                   // 23: v1.CreateTaskOpts.SlotRequirementsEntry
+	nil,                                   // 23: v1.CreateTaskOpts.SlotRequestsEntry
 	nil,                                   // 24: v1.GetRunDetailsResponse.TaskRunsEntry
 	(*timestamppb.Timestamp)(nil),         // 25: google.protobuf.Timestamp
 	(*TaskConditions)(nil),                // 26: v1.TaskConditions
@@ -1957,7 +1956,7 @@ var file_v1_workflows_proto_depIdxs = []int32{
 	22, // 13: v1.CreateTaskOpts.worker_labels:type_name -> v1.CreateTaskOpts.WorkerLabelsEntry
 	14, // 14: v1.CreateTaskOpts.concurrency:type_name -> v1.Concurrency
 	26, // 15: v1.CreateTaskOpts.conditions:type_name -> v1.TaskConditions
-	23, // 16: v1.CreateTaskOpts.slot_requirements:type_name -> v1.CreateTaskOpts.SlotRequirementsEntry
+	23, // 16: v1.CreateTaskOpts.slot_requests:type_name -> v1.CreateTaskOpts.SlotRequestsEntry
 	1,  // 17: v1.CreateTaskRateLimit.duration:type_name -> v1.RateLimitDuration
 	2,  // 18: v1.TaskRunDetail.status:type_name -> v1.RunStatus
 	2,  // 19: v1.GetRunDetailsResponse.status:type_name -> v1.RunStatus

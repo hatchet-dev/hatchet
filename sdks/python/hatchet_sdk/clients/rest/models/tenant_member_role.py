@@ -28,9 +28,9 @@ class TenantMemberRole(str, Enum):
     """
     allowed enum values
     """
-    OWNER = "OWNER"
-    ADMIN = "ADMIN"
-    MEMBER = "MEMBER"
+    OWNER = 'OWNER'
+    ADMIN = 'ADMIN'
+    MEMBER = 'MEMBER'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

@@ -237,8 +237,8 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
 	base.IsDurable = false
-	if base.SlotRequirements == nil {
-		base.SlotRequirements = map[string]int32{slotTypeDefault: 1}
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDefault: 1}
 	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
@@ -293,8 +293,8 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *crea
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
 	base.IsDurable = true
-	if base.SlotRequirements == nil {
-		base.SlotRequirements = map[string]int32{slotTypeDurable: 1}
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDurable: 1}
 	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
@@ -308,8 +308,8 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *cr
 	base.ReadableId = "on-failure"
 	base.Action = getActionID(workflowName, "on-failure")
 	base.IsDurable = false
-	if base.SlotRequirements == nil {
-		base.SlotRequirements = map[string]int32{slotTypeDefault: 1}
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDefault: 1}
 	}
 
 	return base

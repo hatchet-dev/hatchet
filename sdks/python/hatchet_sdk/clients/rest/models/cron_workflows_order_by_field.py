@@ -28,8 +28,8 @@ class CronWorkflowsOrderByField(str, Enum):
     """
     allowed enum values
     """
-    NAME = "name"
-    CREATEDAT = "createdAt"
+    NAME = 'name'
+    CREATEDAT = 'createdAt'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

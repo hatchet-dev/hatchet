@@ -26,30 +26,19 @@ from typing_extensions import Self
 class V1TriggerWorkflowRunRequest(BaseModel):
     """
     V1TriggerWorkflowRunRequest
-    """  # noqa: E501
-
-    workflow_name: StrictStr = Field(
-        description="The name of the workflow.", alias="workflowName"
-    )
+    """ # noqa: E501
+    workflow_name: StrictStr = Field(description="The name of the workflow.", alias="workflowName")
     input: Dict[str, Any]
-    additional_metadata: Optional[Dict[str, Any]] = Field(
-        default=None, alias="additionalMetadata"
-    )
-    priority: Optional[StrictInt] = Field(
-        default=None, description="The priority of the workflow run."
-    )
-    __properties: ClassVar[List[str]] = [
-        "workflowName",
-        "input",
-        "additionalMetadata",
-        "priority",
-    ]
+    additional_metadata: Optional[Dict[str, Any]] = Field(default=None, alias="additionalMetadata")
+    priority: Optional[StrictInt] = Field(default=None, description="The priority of the workflow run.")
+    __properties: ClassVar[List[str]] = ["workflowName", "input", "additionalMetadata", "priority"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -75,7 +64,8 @@ class V1TriggerWorkflowRunRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -93,12 +83,10 @@ class V1TriggerWorkflowRunRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "workflowName": obj.get("workflowName"),
-                "input": obj.get("input"),
-                "additionalMetadata": obj.get("additionalMetadata"),
-                "priority": obj.get("priority"),
-            }
-        )
+        _obj = cls.model_validate({
+            "workflowName": obj.get("workflowName"),
+            "input": obj.get("input"),
+            "additionalMetadata": obj.get("additionalMetadata"),
+            "priority": obj.get("priority")
+        })
         return _obj

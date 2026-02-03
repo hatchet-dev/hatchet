@@ -28,39 +28,18 @@ from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSour
 class V1CreateWebhookRequestBase(BaseModel):
     """
     V1CreateWebhookRequestBase
-    """  # noqa: E501
-
-    source_name: V1WebhookSourceName = Field(
-        description="The name of the source for this webhook", alias="sourceName"
-    )
+    """ # noqa: E501
+    source_name: V1WebhookSourceName = Field(description="The name of the source for this webhook", alias="sourceName")
     name: StrictStr = Field(description="The name of the webhook")
-    event_key_expression: StrictStr = Field(
-        description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
-        alias="eventKeyExpression",
-    )
-    scope_expression: Optional[StrictStr] = Field(
-        default=None,
-        description="The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.",
-        alias="scopeExpression",
-    )
-    static_payload: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="The static payload to use for the webhook. This is used to send a static payload with the webhook.",
-        alias="staticPayload",
-    )
-    __properties: ClassVar[List[str]] = [
-        "sourceName",
-        "name",
-        "eventKeyExpression",
-        "scopeExpression",
-        "staticPayload",
-    ]
+    event_key_expression: StrictStr = Field(description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.", alias="eventKeyExpression")
+    __properties: ClassVar[List[str]] = ["sourceName", "name", "eventKeyExpression"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -86,7 +65,8 @@ class V1CreateWebhookRequestBase(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -104,13 +84,9 @@ class V1CreateWebhookRequestBase(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "sourceName": obj.get("sourceName"),
-                "name": obj.get("name"),
-                "eventKeyExpression": obj.get("eventKeyExpression"),
-                "scopeExpression": obj.get("scopeExpression"),
-                "staticPayload": obj.get("staticPayload"),
-            }
-        )
+        _obj = cls.model_validate({
+            "sourceName": obj.get("sourceName"),
+            "name": obj.get("name"),
+            "eventKeyExpression": obj.get("eventKeyExpression")
+        })
         return _obj

@@ -29,45 +29,18 @@ from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSour
 class V1CreateWebhookRequestAPIKey(BaseModel):
     """
     V1CreateWebhookRequestAPIKey
-    """  # noqa: E501
-
-    source_name: V1WebhookSourceName = Field(
-        description="The name of the source for this webhook", alias="sourceName"
-    )
+    """ # noqa: E501
+    source_name: V1WebhookSourceName = Field(description="The name of the source for this webhook", alias="sourceName")
     name: StrictStr = Field(description="The name of the webhook")
-    event_key_expression: StrictStr = Field(
-        description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
-        alias="eventKeyExpression",
-    )
-    scope_expression: Optional[StrictStr] = Field(
-        default=None,
-        description="The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.",
-        alias="scopeExpression",
-    )
-    static_payload: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="The static payload to use for the webhook. This is used to send a static payload with the webhook.",
-        alias="staticPayload",
-    )
-    auth_type: StrictStr = Field(
-        description="The type of authentication to use for the webhook",
-        alias="authType",
-    )
+    event_key_expression: StrictStr = Field(description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.", alias="eventKeyExpression")
+    auth_type: StrictStr = Field(description="The type of authentication to use for the webhook", alias="authType")
     auth: V1WebhookAPIKeyAuth
-    __properties: ClassVar[List[str]] = [
-        "sourceName",
-        "name",
-        "eventKeyExpression",
-        "scopeExpression",
-        "staticPayload",
-        "authType",
-        "auth",
-    ]
+    __properties: ClassVar[List[str]] = ["sourceName", "name", "eventKeyExpression", "authType", "auth"]
 
-    @field_validator("auth_type")
+    @field_validator('auth_type')
     def auth_type_validate_enum(cls, value):
         """Validates the enum"""
-        if value not in set(["API_KEY"]):
+        if value not in set(['API_KEY']):
             raise ValueError("must be one of enum values ('API_KEY')")
         return value
 
@@ -76,6 +49,7 @@ class V1CreateWebhookRequestAPIKey(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -101,7 +75,8 @@ class V1CreateWebhookRequestAPIKey(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -110,7 +85,7 @@ class V1CreateWebhookRequestAPIKey(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of auth
         if self.auth:
-            _dict["auth"] = self.auth.to_dict()
+            _dict['auth'] = self.auth.to_dict()
         return _dict
 
     @classmethod
@@ -122,19 +97,11 @@ class V1CreateWebhookRequestAPIKey(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "sourceName": obj.get("sourceName"),
-                "name": obj.get("name"),
-                "eventKeyExpression": obj.get("eventKeyExpression"),
-                "scopeExpression": obj.get("scopeExpression"),
-                "staticPayload": obj.get("staticPayload"),
-                "authType": obj.get("authType"),
-                "auth": (
-                    V1WebhookAPIKeyAuth.from_dict(obj["auth"])
-                    if obj.get("auth") is not None
-                    else None
-                ),
-            }
-        )
+        _obj = cls.model_validate({
+            "sourceName": obj.get("sourceName"),
+            "name": obj.get("name"),
+            "eventKeyExpression": obj.get("eventKeyExpression"),
+            "authType": obj.get("authType"),
+            "auth": V1WebhookAPIKeyAuth.from_dict(obj["auth"]) if obj.get("auth") is not None else None
+        })
         return _obj

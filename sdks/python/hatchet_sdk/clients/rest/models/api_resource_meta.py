@@ -27,17 +27,10 @@ from typing_extensions import Annotated, Self
 class APIResourceMeta(BaseModel):
     """
     APIResourceMeta
-    """  # noqa: E501
-
-    id: Annotated[str, Field(min_length=0, strict=True, max_length=36)] = Field(
-        description="the id of this resource, in UUID format"
-    )
-    created_at: datetime = Field(
-        description="the time that this resource was created", alias="createdAt"
-    )
-    updated_at: datetime = Field(
-        description="the time that this resource was last updated", alias="updatedAt"
-    )
+    """ # noqa: E501
+    id: Annotated[str, Field(min_length=0, strict=True, max_length=36)] = Field(description="the id of this resource, in UUID format")
+    created_at: datetime = Field(description="the time that this resource was created", alias="createdAt")
+    updated_at: datetime = Field(description="the time that this resource was last updated", alias="updatedAt")
     __properties: ClassVar[List[str]] = ["id", "createdAt", "updatedAt"]
 
     model_config = ConfigDict(
@@ -45,6 +38,7 @@ class APIResourceMeta(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -70,7 +64,8 @@ class APIResourceMeta(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -88,11 +83,9 @@ class APIResourceMeta(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "id": obj.get("id"),
-                "createdAt": obj.get("createdAt"),
-                "updatedAt": obj.get("updatedAt"),
-            }
-        )
+        _obj = cls.model_validate({
+            "id": obj.get("id"),
+            "createdAt": obj.get("createdAt"),
+            "updatedAt": obj.get("updatedAt")
+        })
         return _obj

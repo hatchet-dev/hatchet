@@ -28,9 +28,9 @@ class TenantEnvironment(str, Enum):
     """
     allowed enum values
     """
-    LOCAL = "local"
-    DEVELOPMENT = "development"
-    PRODUCTION = "production"
+    LOCAL = 'local'
+    DEVELOPMENT = 'development'
+    PRODUCTION = 'production'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

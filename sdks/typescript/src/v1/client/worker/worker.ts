@@ -6,7 +6,7 @@ import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data
 import { BaseWorkflowDeclaration } from '../../declaration';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
-import { SlotCapacities, SlotType } from '../../slot-types';
+import { SlotConfig, SlotType } from '../../slot-types';
 
 const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
@@ -16,8 +16,8 @@ const DEFAULT_DURABLE_SLOTS = 1_000;
  * @interface CreateWorkerOpts
  */
 export interface CreateWorkerOpts {
-  /** (optional) Slot capacities for this worker (slot_type -> units). Defaults to { [SlotType.Default]: 100 }. */
-  slotCapacities?: SlotCapacities;
+  /** (optional) Slot config for this worker (slot_type -> units). Defaults to { [SlotType.Default]: 100 }. */
+  slotConfig?: SlotConfig;
   /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
   slots?: number;
   /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
@@ -74,15 +74,13 @@ export class Worker {
     name: string,
     options: CreateWorkerOpts
   ) {
-    const hasSlotCapacities = options.slotCapacities !== undefined;
+    const hasSlotConfig = options.slotConfig !== undefined;
     const hasLegacySlots =
       options.slots !== undefined ||
       options.durableSlots !== undefined ||
       options.maxRuns !== undefined;
-    if (hasSlotCapacities && hasLegacySlots) {
-      throw new Error(
-        'Cannot set both slotCapacities and slots/durableSlots. Use slotCapacities only.'
-      );
+    if (hasSlotConfig && hasLegacySlots) {
+      throw new Error('Cannot set both slotConfig and slots/durableSlots. Use slotConfig only.');
     }
 
     const resolvedOptions = resolveWorkerOptions(options);
@@ -197,13 +195,12 @@ export class Worker {
 }
 
 function resolveWorkerOptions(options: CreateWorkerOpts) {
-  const requiredSlotTypes =
-    options.workflows
-      ? getRequiredSlotTypes(options.workflows)
-      : new Set<SlotType>();
+  const requiredSlotTypes = options.workflows
+    ? getRequiredSlotTypes(options.workflows)
+    : new Set<SlotType>();
 
-  const slotCapacities: SlotCapacities =
-    options.slotCapacities ||
+  const slotConfig: SlotConfig =
+    options.slotConfig ||
     (options.slots || options.durableSlots || options.maxRuns
       ? {
           ...(options.slots || options.maxRuns
@@ -213,15 +210,15 @@ function resolveWorkerOptions(options: CreateWorkerOpts) {
         }
       : {});
 
-  if (requiredSlotTypes.has(SlotType.Default) && slotCapacities[SlotType.Default] == null) {
-    slotCapacities[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
+  if (requiredSlotTypes.has(SlotType.Default) && slotConfig[SlotType.Default] == null) {
+    slotConfig[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
   }
-  if (requiredSlotTypes.has(SlotType.Durable) && slotCapacities[SlotType.Durable] == null) {
-    slotCapacities[SlotType.Durable] = DEFAULT_DURABLE_SLOTS;
+  if (requiredSlotTypes.has(SlotType.Durable) && slotConfig[SlotType.Durable] == null) {
+    slotConfig[SlotType.Durable] = DEFAULT_DURABLE_SLOTS;
   }
 
-  if (Object.keys(slotCapacities).length === 0) {
-    slotCapacities[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
+  if (Object.keys(slotConfig).length === 0) {
+    slotConfig[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
   }
 
   return {
@@ -229,11 +226,11 @@ function resolveWorkerOptions(options: CreateWorkerOpts) {
     slots:
       options.slots ||
       options.maxRuns ||
-      (slotCapacities[SlotType.Default] != null ? slotCapacities[SlotType.Default] : undefined),
+      (slotConfig[SlotType.Default] != null ? slotConfig[SlotType.Default] : undefined),
     durableSlots:
       options.durableSlots ||
-      (slotCapacities[SlotType.Durable] != null ? slotCapacities[SlotType.Durable] : undefined),
-    slotCapacities,
+      (slotConfig[SlotType.Durable] != null ? slotConfig[SlotType.Durable] : undefined),
+    slotConfig,
   };
 }
 
@@ -245,15 +242,15 @@ function getRequiredSlotTypes(
   workflows: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>
 ): Set<SlotType> {
   const required = new Set<SlotType>();
-  const addFromRequirements = (
-    requirements: Record<string, number> | undefined,
+  const addFromRequests = (
+    requests: Record<string, number> | undefined,
     fallbackType: SlotType
   ) => {
-    if (requirements && Object.keys(requirements).length > 0) {
-      if (requirements[SlotType.Default] !== undefined) {
+    if (requests && Object.keys(requests).length > 0) {
+      if (requests[SlotType.Default] !== undefined) {
         required.add(SlotType.Default);
       }
-      if (requirements[SlotType.Durable] !== undefined) {
+      if (requests[SlotType.Durable] !== undefined) {
         required.add(SlotType.Durable);
       }
     } else {
@@ -264,20 +261,22 @@ function getRequiredSlotTypes(
   for (const wf of workflows) {
     if (wf instanceof BaseWorkflowDeclaration) {
       for (const task of wf.definition._tasks) {
-        addFromRequirements(task.slotRequirements, SlotType.Default);
+        addFromRequests(task.slotRequests, SlotType.Default);
       }
       for (const task of wf.definition._durableTasks) {
         required.add(SlotType.Durable);
       }
 
       if (wf.definition.onFailure) {
-        const opts = typeof wf.definition.onFailure === 'object' ? wf.definition.onFailure : undefined;
-        addFromRequirements(opts?.slotRequirements, SlotType.Default);
+        const opts =
+          typeof wf.definition.onFailure === 'object' ? wf.definition.onFailure : undefined;
+        addFromRequests(opts?.slotRequests, SlotType.Default);
       }
 
       if (wf.definition.onSuccess) {
-        const opts = typeof wf.definition.onSuccess === 'object' ? wf.definition.onSuccess : undefined;
-        addFromRequirements(opts?.slotRequirements, SlotType.Default);
+        const opts =
+          typeof wf.definition.onSuccess === 'object' ? wf.definition.onSuccess : undefined;
+        addFromRequests(opts?.slotRequests, SlotType.Default);
       }
     }
   }

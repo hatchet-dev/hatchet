@@ -639,27 +639,27 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	return stepIdToLabels, nil
 }
 
-func (d *queueRepository) GetStepSlotRequirements(ctx context.Context, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
-	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requirements")
+func (d *queueRepository) GetStepSlotRequests(ctx context.Context, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requests")
 	defer span.End()
 
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
-	rows, err := d.queries.GetStepSlotRequirements(ctx, d.pool, uniqueStepIds)
+	rows, err := d.queries.GetStepSlotRequests(ctx, d.pool, uniqueStepIds)
 	if err != nil {
 		return nil, err
 	}
 
-	stepIdToRequirements := make(map[uuid.UUID]map[string]int32, len(rows))
+	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(rows))
 	for _, row := range rows {
-		if _, ok := stepIdToRequirements[row.StepID]; !ok {
-			stepIdToRequirements[row.StepID] = make(map[string]int32)
+		if _, ok := stepIdToRequests[row.StepID]; !ok {
+			stepIdToRequests[row.StepID] = make(map[string]int32)
 		}
 
-		stepIdToRequirements[row.StepID][row.SlotType] = row.Units
+		stepIdToRequests[row.StepID][row.SlotType] = row.Units
 	}
 
-	return stepIdToRequirements, nil
+	return stepIdToRequests, nil
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {

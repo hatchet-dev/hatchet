@@ -182,8 +182,8 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.slots} />
     ),
     cell: ({ row }) => {
-      const slotCapacities = row.original.slotCapacities || {};
-      const entries = Object.entries(slotCapacities).sort(([a], [b]) =>
+      const slotConfig = row.original.slotConfig || {};
+      const entries = Object.entries(slotConfig).sort(([a], [b]) =>
         a.localeCompare(b),
       );
 

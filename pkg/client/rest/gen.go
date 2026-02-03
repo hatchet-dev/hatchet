@@ -1006,9 +1006,9 @@ type Step struct {
 	// ReadableId The readable id of the step.
 	ReadableId string `json:"readableId"`
 
-	// SlotRequirements Slot requirements for the step (slot_type -> units).
-	SlotRequirements *map[string]int `json:"slotRequirements,omitempty"`
-	TenantId         string          `json:"tenantId"`
+	// SlotRequests Slot requests for the step (slot_type -> units).
+	SlotRequests *map[string]int `json:"slotRequests,omitempty"`
+	TenantId     string          `json:"tenantId"`
 
 	// Timeout The timeout of the step.
 	Timeout *string `json:"timeout,omitempty"`
@@ -2138,8 +2138,8 @@ type Worker struct {
 	RegisteredWorkflows *[]RegisteredWorkflow `json:"registeredWorkflows,omitempty"`
 	RuntimeInfo         *WorkerRuntimeInfo    `json:"runtimeInfo,omitempty"`
 
-	// SlotCapacities Slot availability and limits for this worker (slot_type -> { available, limit }).
-	SlotCapacities *map[string]WorkerSlotCapacity `json:"slotCapacities,omitempty"`
+	// SlotConfig Slot availability and limits for this worker (slot_type -> { available, limit }).
+	SlotConfig *map[string]WorkerSlotConfig `json:"slotConfig,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
@@ -2186,8 +2186,8 @@ type WorkerRuntimeInfo struct {
 // WorkerRuntimeSDKs defines model for WorkerRuntimeSDKs.
 type WorkerRuntimeSDKs string
 
-// WorkerSlotCapacity Slot availability and limits for a slot type.
-type WorkerSlotCapacity struct {
+// WorkerSlotConfig Slot availability and limits for a slot type.
+type WorkerSlotConfig struct {
 	// Available The number of available units for this slot type.
 	Available *int `json:"available,omitempty"`
 

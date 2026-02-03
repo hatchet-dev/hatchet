@@ -28,8 +28,8 @@ class EventOrderByDirection(str, Enum):
     """
     allowed enum values
     """
-    ASC = "asc"
-    DESC = "desc"
+    ASC = 'asc'
+    DESC = 'desc'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

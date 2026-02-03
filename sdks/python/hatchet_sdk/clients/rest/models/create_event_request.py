@@ -26,34 +26,20 @@ from typing_extensions import Self
 class CreateEventRequest(BaseModel):
     """
     CreateEventRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     key: StrictStr = Field(description="The key for the event.")
     data: Dict[str, Any] = Field(description="The data for the event.")
-    additional_metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional metadata for the event.",
-        alias="additionalMetadata",
-    )
-    priority: Optional[StrictInt] = Field(
-        default=None, description="The priority of the event."
-    )
-    scope: Optional[StrictStr] = Field(
-        default=None, description="The scope for event filtering."
-    )
-    __properties: ClassVar[List[str]] = [
-        "key",
-        "data",
-        "additionalMetadata",
-        "priority",
-        "scope",
-    ]
+    additional_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata for the event.", alias="additionalMetadata")
+    priority: Optional[StrictInt] = Field(default=None, description="The priority of the event.")
+    scope: Optional[StrictStr] = Field(default=None, description="The scope for event filtering.")
+    __properties: ClassVar[List[str]] = ["key", "data", "additionalMetadata", "priority", "scope"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -79,7 +65,8 @@ class CreateEventRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -97,13 +84,11 @@ class CreateEventRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "key": obj.get("key"),
-                "data": obj.get("data"),
-                "additionalMetadata": obj.get("additionalMetadata"),
-                "priority": obj.get("priority"),
-                "scope": obj.get("scope"),
-            }
-        )
+        _obj = cls.model_validate({
+            "key": obj.get("key"),
+            "data": obj.get("data"),
+            "additionalMetadata": obj.get("additionalMetadata"),
+            "priority": obj.get("priority"),
+            "scope": obj.get("scope")
+        })
         return _obj

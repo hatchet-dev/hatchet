@@ -111,7 +111,7 @@ class RuntimeInfo(_message.Message):
     def __init__(self, sdk_version: _Optional[str] = ..., language: _Optional[_Union[SDKS, str]] = ..., language_version: _Optional[str] = ..., os: _Optional[str] = ..., extra: _Optional[str] = ...) -> None: ...
 
 class WorkerRegisterRequest(_message.Message):
-    __slots__ = ("worker_name", "actions", "services", "slots", "labels", "webhook_id", "runtime_info", "durable_slots", "slot_capacities")
+    __slots__ = ("worker_name", "actions", "services", "slots", "labels", "webhook_id", "runtime_info", "durable_slots", "slot_config")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -119,7 +119,7 @@ class WorkerRegisterRequest(_message.Message):
         key: str
         value: WorkerLabels
         def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[WorkerLabels, _Mapping]] = ...) -> None: ...
-    class SlotCapacitiesEntry(_message.Message):
+    class SlotConfigEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -134,7 +134,7 @@ class WorkerRegisterRequest(_message.Message):
     WEBHOOK_ID_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_INFO_FIELD_NUMBER: _ClassVar[int]
     DURABLE_SLOTS_FIELD_NUMBER: _ClassVar[int]
-    SLOT_CAPACITIES_FIELD_NUMBER: _ClassVar[int]
+    SLOT_CONFIG_FIELD_NUMBER: _ClassVar[int]
     worker_name: str
     actions: _containers.RepeatedScalarFieldContainer[str]
     services: _containers.RepeatedScalarFieldContainer[str]
@@ -143,8 +143,8 @@ class WorkerRegisterRequest(_message.Message):
     webhook_id: str
     runtime_info: RuntimeInfo
     durable_slots: int
-    slot_capacities: _containers.ScalarMap[str, int]
-    def __init__(self, worker_name: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ..., slots: _Optional[int] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ..., webhook_id: _Optional[str] = ..., runtime_info: _Optional[_Union[RuntimeInfo, _Mapping]] = ..., durable_slots: _Optional[int] = ..., slot_capacities: _Optional[_Mapping[str, int]] = ...) -> None: ...
+    slot_config: _containers.ScalarMap[str, int]
+    def __init__(self, worker_name: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ..., slots: _Optional[int] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ..., webhook_id: _Optional[str] = ..., runtime_info: _Optional[_Union[RuntimeInfo, _Mapping]] = ..., durable_slots: _Optional[int] = ..., slot_config: _Optional[_Mapping[str, int]] = ...) -> None: ...
 
 class WorkerRegisterResponse(_message.Message):
     __slots__ = ("tenant_id", "worker_id", "worker_name")

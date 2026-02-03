@@ -24,7 +24,7 @@ type workerConfig struct {
 	slotsSet        bool
 	durableSlots    int
 	durableSlotsSet bool
-	slotCapacities  map[SlotType]int
+	slotConfig      map[SlotType]int
 	labels          map[string]any
 	logger          *zerolog.Logger
 	panicHandler    func(ctx Context, recovered any)
@@ -76,10 +76,9 @@ func WithDurableSlots(durableSlots int) WorkerOption {
 	}
 }
 
-// WithSlotCapacities sets slot capacities for this worker (slot_type -> units).
-func WithSlotCapacities(slotCapacities map[SlotType]int) WorkerOption {
+func WithSlotConfig(slotConfig map[SlotType]int) WorkerOption {
 	return func(config *workerConfig) {
-		config.slotCapacities = slotCapacities
+		config.slotConfig = slotConfig
 	}
 }
 

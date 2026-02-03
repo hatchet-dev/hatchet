@@ -2,7 +2,7 @@ import os
 from unittest import mock
 
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.utils.slots import resolve_worker_slot_capacities
+from hatchet_sdk.utils.slots import resolve_worker_slot_config
 from hatchet_sdk.worker.slot_types import SlotType
 
 
@@ -37,9 +37,9 @@ def test_client_server_url_override_when_env_var() -> None:
     assert config.host_port == ClientConfig().host_port
 
 
-def test_resolve_slot_capacities_no_durable() -> None:
-    resolved = resolve_worker_slot_capacities(
-        slot_capacities=None,
+def test_resolve_slot_config_no_durable() -> None:
+    resolved = resolve_worker_slot_config(
+        slot_config=None,
         slots=None,
         durable_slots=None,
         workflows=None,
@@ -48,16 +48,16 @@ def test_resolve_slot_capacities_no_durable() -> None:
     assert resolved == {SlotType.DEFAULT: 100}
 
 
-def test_resolve_slot_capacities_only_durable() -> None:
+def test_resolve_slot_config_only_durable() -> None:
     class DummyTask:
         is_durable = True
-        slot_requirements: dict[str, int] = {"durable": 1}
+        slot_requests: dict[str, int] = {"durable": 1}
 
     class DummyWorkflow:
         tasks = [DummyTask()]
 
-    resolved = resolve_worker_slot_capacities(
-        slot_capacities=None,
+    resolved = resolve_worker_slot_config(
+        slot_config=None,
         slots=None,
         durable_slots=None,
         workflows=[DummyWorkflow()],
@@ -66,20 +66,20 @@ def test_resolve_slot_capacities_only_durable() -> None:
     assert resolved == {SlotType.DURABLE: 1000}
 
 
-def test_resolve_slot_capacities_mixed() -> None:
+def test_resolve_slot_config_mixed() -> None:
     class DefaultTask:
         is_durable = False
-        slot_requirements: dict[str, int] = {"default": 1}
+        slot_requests: dict[str, int] = {"default": 1}
 
     class DurableTask:
         is_durable = True
-        slot_requirements: dict[str, int] = {"durable": 1}
+        slot_requests: dict[str, int] = {"durable": 1}
 
     class DummyWorkflow:
         tasks = [DefaultTask(), DurableTask()]
 
-    resolved = resolve_worker_slot_capacities(
-        slot_capacities=None,
+    resolved = resolve_worker_slot_config(
+        slot_config=None,
         slots=None,
         durable_slots=None,
         workflows=[DummyWorkflow()],

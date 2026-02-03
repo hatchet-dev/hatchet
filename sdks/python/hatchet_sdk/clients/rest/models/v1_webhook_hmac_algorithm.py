@@ -28,10 +28,10 @@ class V1WebhookHMACAlgorithm(str, Enum):
     """
     allowed enum values
     """
-    SHA1 = "SHA1"
-    SHA256 = "SHA256"
-    SHA512 = "SHA512"
-    MD5 = "MD5"
+    SHA1 = 'SHA1'
+    SHA256 = 'SHA256'
+    SHA512 = 'SHA512'
+    MD5 = 'MD5'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

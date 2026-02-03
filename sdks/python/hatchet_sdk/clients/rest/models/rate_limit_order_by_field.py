@@ -28,9 +28,9 @@ class RateLimitOrderByField(str, Enum):
     """
     allowed enum values
     """
-    KEY = "key"
-    VALUE = "value"
-    LIMITVALUE = "limitValue"
+    KEY = 'key'
+    VALUE = 'value'
+    LIMITVALUE = 'limitValue'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

@@ -2,27 +2,27 @@ from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.worker.slot_types import SlotType
 
 
-def normalize_slot_capacities(
-    slot_capacities: dict[SlotType | str, int],
+def normalize_slot_config(
+    slot_config: dict[SlotType | str, int],
 ) -> dict[str, int]:
     normalized: dict[str, int] = {}
-    for key, value in slot_capacities.items():
+    for key, value in slot_config.items():
         normalized_key = key.value if isinstance(key, SlotType) else key
         normalized[normalized_key] = value
     return normalized
 
 
-def has_slot_capacity(
-    slot_capacities: dict[SlotType | str, int], slot_type: SlotType
+def has_slot_config(
+    slot_config: dict[SlotType | str, int], slot_type: SlotType
 ) -> bool:
-    return slot_type in slot_capacities or slot_type.value in slot_capacities
+    return slot_type in slot_config or slot_type.value in slot_config
 
 
-def ensure_slot_capacity(
-    slot_capacities: dict[SlotType | str, int], slot_type: SlotType, default_value: int
+def ensure_slot_config(
+    slot_config: dict[SlotType | str, int], slot_type: SlotType, default_value: int
 ) -> None:
-    if not has_slot_capacity(slot_capacities, slot_type):
-        slot_capacities[slot_type] = default_value
+    if not has_slot_config(slot_config, slot_type):
+        slot_config[slot_type] = default_value
 
 
 def required_slot_types_from_workflows(
@@ -36,7 +36,7 @@ def required_slot_types_from_workflows(
         for task in workflow.tasks:
             if task.is_durable:
                 required.add(SlotType.DURABLE)
-            for key in task.slot_requirements.keys():
+            for key in task.slot_requests.keys():
                 if key == SlotType.DEFAULT or key == SlotType.DEFAULT.value:
                     required.add(SlotType.DEFAULT)
                 if key == SlotType.DURABLE or key == SlotType.DURABLE.value:
@@ -45,16 +45,16 @@ def required_slot_types_from_workflows(
     return required
 
 
-def resolve_worker_slot_capacities(
-    slot_capacities: dict[SlotType | str, int] | None,
+def resolve_worker_slot_config(
+    slot_config: dict[SlotType | str, int] | None,
     slots: int | None,
     durable_slots: int | None,
     workflows: list[BaseWorkflow] | None,
 ) -> dict[SlotType | str, int]:
-    resolved_capacities = slot_capacities
+    resolved_config = slot_config
 
-    if resolved_capacities is None:
-        legacy_capacities = {
+    if resolved_config is None:
+        legacy_config = {
             key: value
             for key, value in (
                 (SlotType.DEFAULT, slots),
@@ -62,15 +62,15 @@ def resolve_worker_slot_capacities(
             )
             if value is not None
         }
-        resolved_capacities = legacy_capacities or {}
+        resolved_config = legacy_config or {}
 
     required_slot_types = required_slot_types_from_workflows(workflows)
     if SlotType.DEFAULT in required_slot_types:
-        ensure_slot_capacity(resolved_capacities, SlotType.DEFAULT, 100)
+        ensure_slot_config(resolved_config, SlotType.DEFAULT, 100)
     if SlotType.DURABLE in required_slot_types:
-        ensure_slot_capacity(resolved_capacities, SlotType.DURABLE, 1000)
+        ensure_slot_config(resolved_config, SlotType.DURABLE, 1000)
 
-    if not resolved_capacities:
-        resolved_capacities[SlotType.DEFAULT] = 100
+    if not resolved_config:
+        resolved_config[SlotType.DEFAULT] = 100
 
-    return resolved_capacities
+    return resolved_config

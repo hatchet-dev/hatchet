@@ -28,13 +28,13 @@ class ScheduledRunStatus(str, Enum):
     """
     allowed enum values
     """
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    SUCCEEDED = "SUCCEEDED"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
-    QUEUED = "QUEUED"
-    SCHEDULED = "SCHEDULED"
+    PENDING = 'PENDING'
+    RUNNING = 'RUNNING'
+    SUCCEEDED = 'SUCCEEDED'
+    FAILED = 'FAILED'
+    CANCELLED = 'CANCELLED'
+    QUEUED = 'QUEUED'
+    SCHEDULED = 'SCHEDULED'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

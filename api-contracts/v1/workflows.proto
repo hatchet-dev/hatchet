@@ -169,7 +169,7 @@ message CreateTaskOpts {
     optional TaskConditions conditions = 12; // (optional) the task conditions for creating the task
     optional string schedule_timeout = 13; // (optional) the timeout for the schedule
     bool is_durable = 14; // (optional) whether the task is durable
-    map<string, int32> slot_requirements = 15; // (optional) slot requirements (slot_type -> units)
+    map<string, int32> slot_requests = 15; // (optional) slot requests (slot_type -> units)
 }
 
 message CreateTaskRateLimit {

@@ -28,13 +28,13 @@ class WorkflowRunStatus(str, Enum):
     """
     allowed enum values
     """
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    SUCCEEDED = "SUCCEEDED"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
-    QUEUED = "QUEUED"
-    BACKOFF = "BACKOFF"
+    PENDING = 'PENDING'
+    RUNNING = 'RUNNING'
+    SUCCEEDED = 'SUCCEEDED'
+    FAILED = 'FAILED'
+    CANCELLED = 'CANCELLED'
+    QUEUED = 'QUEUED'
+    BACKOFF = 'BACKOFF'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

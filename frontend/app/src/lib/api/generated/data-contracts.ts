@@ -1570,8 +1570,8 @@ export interface Step {
   timeout?: string;
   /** Whether the step is durable. */
   isDurable?: boolean;
-  /** Slot requirements for the step (slot_type -> units). */
-  slotRequirements?: Record<string, number>;
+  /** Slot requests for the step (slot_type -> units). */
+  slotRequests?: Record<string, number>;
   children?: string[];
   parents?: string[];
 }
@@ -2151,7 +2151,7 @@ export interface RecentStepRuns {
 }
 
 /** Slot availability and limits for a slot type. */
-export interface WorkerSlotCapacity {
+export interface WorkerSlotConfig {
   /** The number of available units for this slot type. */
   available?: number;
   /** The maximum number of units for this slot type. */
@@ -2202,7 +2202,7 @@ export interface Worker {
   /** The status of the worker. */
   status?: "ACTIVE" | "INACTIVE" | "PAUSED";
   /** Slot availability and limits for this worker (slot_type -> { available, limit }). */
-  slotCapacities?: Record<string, WorkerSlotCapacity>;
+  slotConfig?: Record<string, WorkerSlotConfig>;
   /**
    * the id of the assigned dispatcher, in UUID format
    * @format uuid

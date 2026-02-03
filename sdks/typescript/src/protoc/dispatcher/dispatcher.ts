@@ -351,8 +351,8 @@ export interface WorkerRegisterRequest {
   runtimeInfo?: RuntimeInfo | undefined;
   /** (optional) the max number of durable slots this worker can handle */
   durableSlots?: number | undefined;
-  /** (optional) slot capacities for this worker (slot_type -> units) */
-  slotCapacities: { [key: string]: number };
+  /** (optional) slot config for this worker (slot_type -> units) */
+  slotConfig: { [key: string]: number };
 }
 
 export interface WorkerRegisterRequest_LabelsEntry {
@@ -360,7 +360,7 @@ export interface WorkerRegisterRequest_LabelsEntry {
   value: WorkerLabels | undefined;
 }
 
-export interface WorkerRegisterRequest_SlotCapacitiesEntry {
+export interface WorkerRegisterRequest_SlotConfigEntry {
   key: string;
   value: number;
 }
@@ -807,7 +807,7 @@ function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
     webhookId: undefined,
     runtimeInfo: undefined,
     durableSlots: undefined,
-    slotCapacities: {},
+    slotConfig: {},
   };
 }
 
@@ -840,8 +840,8 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.durableSlots !== undefined) {
       writer.uint32(64).int32(message.durableSlots);
     }
-    Object.entries(message.slotCapacities).forEach(([key, value]) => {
-      WorkerRegisterRequest_SlotCapacitiesEntry.encode(
+    Object.entries(message.slotConfig).forEach(([key, value]) => {
+      WorkerRegisterRequest_SlotConfigEntry.encode(
         { key: key as any, value },
         writer.uint32(74).fork()
       ).join();
@@ -928,9 +928,9 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
             break;
           }
 
-          const entry9 = WorkerRegisterRequest_SlotCapacitiesEntry.decode(reader, reader.uint32());
+          const entry9 = WorkerRegisterRequest_SlotConfigEntry.decode(reader, reader.uint32());
           if (entry9.value !== undefined) {
-            message.slotCapacities[entry9.key] = entry9.value;
+            message.slotConfig[entry9.key] = entry9.value;
           }
           continue;
         }
@@ -965,8 +965,8 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       webhookId: isSet(object.webhookId) ? globalThis.String(object.webhookId) : undefined,
       runtimeInfo: isSet(object.runtimeInfo) ? RuntimeInfo.fromJSON(object.runtimeInfo) : undefined,
       durableSlots: isSet(object.durableSlots) ? globalThis.Number(object.durableSlots) : undefined,
-      slotCapacities: isObject(object.slotCapacities)
-        ? Object.entries(object.slotCapacities).reduce<{ [key: string]: number }>(
+      slotConfig: isObject(object.slotConfig)
+        ? Object.entries(object.slotConfig).reduce<{ [key: string]: number }>(
             (acc, [key, value]) => {
               acc[key] = Number(value);
               return acc;
@@ -1009,12 +1009,12 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.durableSlots !== undefined) {
       obj.durableSlots = Math.round(message.durableSlots);
     }
-    if (message.slotCapacities) {
-      const entries = Object.entries(message.slotCapacities);
+    if (message.slotConfig) {
+      const entries = Object.entries(message.slotConfig);
       if (entries.length > 0) {
-        obj.slotCapacities = {};
+        obj.slotConfig = {};
         entries.forEach(([k, v]) => {
-          obj.slotCapacities[k] = Math.round(v);
+          obj.slotConfig[k] = Math.round(v);
         });
       }
     }
@@ -1045,14 +1045,15 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
         ? RuntimeInfo.fromPartial(object.runtimeInfo)
         : undefined;
     message.durableSlots = object.durableSlots ?? undefined;
-    message.slotCapacities = Object.entries(object.slotCapacities ?? {}).reduce<{
-      [key: string]: number;
-    }>((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = globalThis.Number(value);
-      }
-      return acc;
-    }, {});
+    message.slotConfig = Object.entries(object.slotConfig ?? {}).reduce<{ [key: string]: number }>(
+      (acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = globalThis.Number(value);
+        }
+        return acc;
+      },
+      {}
+    );
     return message;
   },
 };
@@ -1141,14 +1142,14 @@ export const WorkerRegisterRequest_LabelsEntry: MessageFns<WorkerRegisterRequest
   },
 };
 
-function createBaseWorkerRegisterRequest_SlotCapacitiesEntry(): WorkerRegisterRequest_SlotCapacitiesEntry {
+function createBaseWorkerRegisterRequest_SlotConfigEntry(): WorkerRegisterRequest_SlotConfigEntry {
   return { key: '', value: 0 };
 }
 
-export const WorkerRegisterRequest_SlotCapacitiesEntry: MessageFns<WorkerRegisterRequest_SlotCapacitiesEntry> =
+export const WorkerRegisterRequest_SlotConfigEntry: MessageFns<WorkerRegisterRequest_SlotConfigEntry> =
   {
     encode(
-      message: WorkerRegisterRequest_SlotCapacitiesEntry,
+      message: WorkerRegisterRequest_SlotConfigEntry,
       writer: BinaryWriter = new BinaryWriter()
     ): BinaryWriter {
       if (message.key !== '') {
@@ -1163,10 +1164,10 @@ export const WorkerRegisterRequest_SlotCapacitiesEntry: MessageFns<WorkerRegiste
     decode(
       input: BinaryReader | Uint8Array,
       length?: number
-    ): WorkerRegisterRequest_SlotCapacitiesEntry {
+    ): WorkerRegisterRequest_SlotConfigEntry {
       const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
       const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseWorkerRegisterRequest_SlotCapacitiesEntry();
+      const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
       while (reader.pos < end) {
         const tag = reader.uint32();
         switch (tag >>> 3) {
@@ -1195,14 +1196,14 @@ export const WorkerRegisterRequest_SlotCapacitiesEntry: MessageFns<WorkerRegiste
       return message;
     },
 
-    fromJSON(object: any): WorkerRegisterRequest_SlotCapacitiesEntry {
+    fromJSON(object: any): WorkerRegisterRequest_SlotConfigEntry {
       return {
         key: isSet(object.key) ? globalThis.String(object.key) : '',
         value: isSet(object.value) ? globalThis.Number(object.value) : 0,
       };
     },
 
-    toJSON(message: WorkerRegisterRequest_SlotCapacitiesEntry): unknown {
+    toJSON(message: WorkerRegisterRequest_SlotConfigEntry): unknown {
       const obj: any = {};
       if (message.key !== '') {
         obj.key = message.key;
@@ -1214,14 +1215,14 @@ export const WorkerRegisterRequest_SlotCapacitiesEntry: MessageFns<WorkerRegiste
     },
 
     create(
-      base?: DeepPartial<WorkerRegisterRequest_SlotCapacitiesEntry>
-    ): WorkerRegisterRequest_SlotCapacitiesEntry {
-      return WorkerRegisterRequest_SlotCapacitiesEntry.fromPartial(base ?? {});
+      base?: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>
+    ): WorkerRegisterRequest_SlotConfigEntry {
+      return WorkerRegisterRequest_SlotConfigEntry.fromPartial(base ?? {});
     },
     fromPartial(
-      object: DeepPartial<WorkerRegisterRequest_SlotCapacitiesEntry>
-    ): WorkerRegisterRequest_SlotCapacitiesEntry {
-      const message = createBaseWorkerRegisterRequest_SlotCapacitiesEntry();
+      object: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>
+    ): WorkerRegisterRequest_SlotConfigEntry {
+      const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
       message.key = object.key ?? '';
       message.value = object.value ?? 0;
       return message;

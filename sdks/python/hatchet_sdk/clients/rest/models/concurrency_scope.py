@@ -28,8 +28,8 @@ class ConcurrencyScope(str, Enum):
     """
     allowed enum values
     """
-    WORKFLOW = "WORKFLOW"
-    TASK = "TASK"
+    WORKFLOW = 'WORKFLOW'
+    TASK = 'TASK'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
