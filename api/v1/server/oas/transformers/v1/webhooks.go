@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -32,7 +33,9 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 
 	if len(webhook.StaticPayload) > 0 {
 		var staticPayload map[string]interface{}
-		json.Unmarshal(webhook.StaticPayload, &staticPayload)
+		if err := json.Unmarshal(webhook.StaticPayload, &staticPayload); err != nil {
+			log.Error().Err(err).Str("webhook", webhook.Name).Msg("failed to unmarshal static payload")
+		}
 		result.StaticPayload = &staticPayload
 	}
 
