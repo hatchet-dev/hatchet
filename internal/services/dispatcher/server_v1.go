@@ -554,16 +554,16 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
-	taskRunId, err := uuid.Parse(request.TaskRunId)
+	taskExternalId, err := uuid.Parse(request.TaskExternalId)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid task run id %s: %v", request.TaskRunId, err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskExternalId, err)
 	}
 
-	task, err := s.getSingleTask(ctx, tenant.ID, taskRunId, skipCache)
+	task, err := s.getSingleTask(ctx, tenant.ID, taskExternalId, skipCache)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid task run id %s: %v", request.TaskRunId, err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskExternalId, err)
 	}
 
 	retryCount := task.RetryCount
@@ -597,7 +597,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskFailed(ctx, task, retryCount, request)
 	}
 
-	return nil, status.Errorf(codes.InvalidArgument, "invalid task run id %s", request.TaskRunId)
+	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskExternalId)
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {

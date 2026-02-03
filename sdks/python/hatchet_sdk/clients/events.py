@@ -19,14 +19,14 @@ from hatchet_sdk.clients.v1.api_client import (
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.events_pb2 import BulkPushEventRequest
-from hatchet_sdk.contracts.events_pb2 import Event as EventProto
-from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2 import (
+    BulkPushEventRequest,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
 )
+from hatchet_sdk.contracts.events_pb2 import Event as EventProto
+from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
@@ -70,6 +70,14 @@ class Event(BaseModel):
     scope: str | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @property
+    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
+        return self.event_timestamp
+
+    @property
+    def additionalMetadata(self) -> str | None:  # noqa: N802
+        return self.additional_metadata
 
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
@@ -227,7 +235,7 @@ class EventClient(BaseRestClient):
             self.events_service_client.PutLog, self.client_config.tenacity
         )
         request = PutLogRequest(
-            task_run_id=step_run_id,
+            task_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
@@ -248,7 +256,7 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         request = PutStreamEventRequest(
-            task_run_id=step_run_id,
+            task_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=data_bytes,
             event_index=index,

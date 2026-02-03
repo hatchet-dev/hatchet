@@ -252,7 +252,7 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 		JobName:           task.StepReadableID,
 		JobRunId:          task.ExternalID.String(), // FIXME
 		TaskId:            task.StepID.String(),
-		TaskRunId:         task.ExternalID.String(),
+		TaskExternalId:    task.ExternalID.String(),
 		ActionId:          task.ActionID,
 		StepName:          task.StepReadableID,
 		WorkflowRunId:     task.WorkflowRunID.String(),

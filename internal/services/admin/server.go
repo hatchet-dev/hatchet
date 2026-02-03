@@ -100,7 +100,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	isParentTriggered := req.ParentId != nil
 
 	if isParentTriggered {
-		if req.ParentTaskRunId == nil {
+		if req.ParentTaskExternalId == nil {
 			return nil, status.Error(
 				codes.InvalidArgument,
 				"parent task run id is required when parent id is provided",
