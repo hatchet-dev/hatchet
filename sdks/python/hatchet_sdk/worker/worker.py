@@ -116,6 +116,7 @@ class Worker:
 
         self.lifespan = lifespan
         self.lifespan_stack: AsyncExitStack | None = None
+        self._lifespan_cleanup_complete: asyncio.Event | None = None
 
         self.register_workflows(workflows or [])
 
@@ -256,11 +257,19 @@ class Worker:
             )
 
         if self.loop:
+            self._lifespan_cleanup_complete = asyncio.Event()
             self.action_listener_health_check = self.loop.create_task(
                 self._check_listener_health()
             )
 
             await self.action_listener_health_check
+
+            try:
+                await self._cleanup_lifespan()
+            except LifespanSetupError:
+                logger.exception("lifespan cleanup failed")
+            finally:
+                self._lifespan_cleanup_complete.set()
 
     def _run_action_runner(
         self, is_durable: bool, lifespan_context: Any | None
@@ -406,6 +415,39 @@ class Worker:
         if self.loop:
             self.loop.create_task(self._exit_forcefully())
 
+    def _close_queues(self) -> None:
+        queues: list[Queue[Any]] = [
+            self.action_queue,
+            self.event_queue,
+            self.durable_action_queue,
+            self.durable_event_queue,
+        ]
+
+        for queue in queues:
+            try:
+                queue.cancel_join_thread()
+                queue.close()
+            except Exception:  # noqa: PERF203
+                continue
+
+    def _terminate_processes(self) -> None:
+        for process in [
+            self.action_listener_process,
+            self.durable_action_listener_process,
+        ]:
+            if process is not None and process.pid is not None:
+                try:
+                    if process.is_alive():
+                        os.kill(process.pid, signal.SIGQUIT)
+
+                    process.join(timeout=5)
+
+                    if process.is_alive():
+                        process.kill()
+                        process.join(timeout=1)
+                except Exception:
+                    pass
+
     async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
         self.killing = True
@@ -417,6 +459,8 @@ class Worker:
             self.durable_action_runner.cleanup()
 
         await self.action_listener_health_check
+
+        self._close_queues()
 
     async def exit_gracefully(self) -> None:
         logger.debug(f"gracefully stopping worker: {self.name}")
@@ -434,21 +478,12 @@ class Worker:
             await self.durable_action_runner.wait_for_tasks()
             await self.durable_action_runner.exit_gracefully()
 
-        if self.action_listener_process and self.action_listener_process.is_alive():
-            self.action_listener_process.kill()
-
-        if (
-            self.durable_action_listener_process
-            and self.durable_action_listener_process.is_alive()
-        ):
-            self.durable_action_listener_process.kill()
-
-        try:
-            await self._cleanup_lifespan()
-        except LifespanSetupError:
-            logger.exception("lifespan cleanup failed")
+        self._terminate_processes()
 
         await self._close()
+
+        if self._lifespan_cleanup_complete is not None:
+            await self._lifespan_cleanup_complete.wait()
         if self.loop and self.owned_loop:
             self.loop.stop()
 
@@ -459,13 +494,17 @@ class Worker:
 
         logger.debug(f"forcefully stopping worker: {self.name}")
 
+        self._terminate_processes()
+
         await self._close()
 
-        if self.action_listener_process:
-            self.action_listener_process.kill()
-
-        if self.durable_action_listener_process:
-            self.durable_action_listener_process.kill()
+        if self._lifespan_cleanup_complete is not None:
+            try:
+                await asyncio.wait_for(
+                    self._lifespan_cleanup_complete.wait(), timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("lifespan cleanup timed out during forceful shutdown")
 
         logger.info("👋")
         sys.exit(1)
