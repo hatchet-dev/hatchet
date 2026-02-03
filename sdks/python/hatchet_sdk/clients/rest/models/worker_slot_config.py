@@ -19,17 +19,17 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Annotated, Self
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from typing_extensions import Self
 
 
-class CreateAPITokenRequest(BaseModel):
+class WorkerSlotConfig(BaseModel):
     """
-    CreateAPITokenRequest
+    Slot availability and limits for a slot type.
     """ # noqa: E501
-    name: Annotated[str, Field(strict=True, max_length=255)] = Field(description="A name for the API token.")
-    expires_in: Optional[StrictStr] = Field(default=None, description="The duration for which the token is valid.", alias="expiresIn")
-    __properties: ClassVar[List[str]] = ["name", "expiresIn"]
+    available: Optional[StrictInt] = Field(default=None, description="The number of available units for this slot type.")
+    limit: StrictInt = Field(description="The maximum number of units for this slot type.")
+    __properties: ClassVar[List[str]] = ["available", "limit"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -49,7 +49,7 @@ class CreateAPITokenRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of CreateAPITokenRequest from a JSON string"""
+        """Create an instance of WorkerSlotConfig from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -74,7 +74,7 @@ class CreateAPITokenRequest(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of CreateAPITokenRequest from a dict"""
+        """Create an instance of WorkerSlotConfig from a dict"""
         if obj is None:
             return None
 
@@ -82,7 +82,7 @@ class CreateAPITokenRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "expiresIn": obj.get("expiresIn")
+            "available": obj.get("available"),
+            "limit": obj.get("limit")
         })
         return _obj

@@ -3385,7 +3385,7 @@ type V1StepMatchCondition struct {
 	ParentReadableID pgtype.Text              `json:"parent_readable_id"`
 }
 
-type V1StepSlotRequirement struct {
+type V1StepSlotRequest struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	StepID    uuid.UUID          `json:"step_id"`
 	SlotType  string             `json:"slot_type"`
@@ -3547,7 +3547,7 @@ type V1TasksOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 }
 
-type V1WorkerSlotCapacity struct {
+type V1WorkerSlotConfig struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	WorkerID  uuid.UUID          `json:"worker_id"`
 	SlotType  string             `json:"slot_type"`

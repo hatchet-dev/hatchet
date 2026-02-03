@@ -100,9 +100,9 @@ type Worker struct {
 
 	middlewares *middlewares
 
-	slots          *int
-	durableSlots   *int
-	slotCapacities map[string]int32
+	slots        *int
+	durableSlots *int
+	slotConfig   map[string]int32
 
 	initActionNames []string
 
@@ -122,9 +122,9 @@ type WorkerOpts struct {
 
 	integrations   []integrations.Integration
 	alerter        errors.Alerter
-	slots          *int
-	durableSlots   *int
-	slotCapacities map[string]int32
+	slots        *int
+	durableSlots *int
+	slotConfig   map[string]int32
 
 	actions []string
 
@@ -188,10 +188,9 @@ func WithDurableSlots(durableSlots int) WorkerOpt {
 	}
 }
 
-// WithSlotCapacities sets slot capacities for this worker (slot_type -> units).
-func WithSlotCapacities(slotCapacities map[string]int32) WorkerOpt {
+func WithSlotConfig(slotConfig map[string]int32) WorkerOpt {
 	return func(opts *WorkerOpts) {
-		opts.slotCapacities = slotCapacities
+		opts.slotConfig = slotConfig
 	}
 }
 
@@ -255,8 +254,8 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		opts.l = &l
 	}
 
-	if opts.slotCapacities != nil && (opts.slots != nil || opts.durableSlots != nil) {
-		return nil, fmt.Errorf("cannot set both slot capacities and slots/durable slots")
+	if opts.slotConfig != nil && (opts.slots != nil || opts.durableSlots != nil) {
+		return nil, fmt.Errorf("cannot set both slot config and slots/durable slots")
 	}
 
 	w := &Worker{
@@ -268,7 +267,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		middlewares:          mws,
 		slots:                opts.slots,
 		durableSlots:         opts.durableSlots,
-		slotCapacities:       opts.slotCapacities,
+		slotConfig:           opts.slotConfig,
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
@@ -488,7 +487,7 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 		Slots:          w.slots,
 		Labels:         w.labels,
 		DurableSlots:   w.durableSlots,
-		SlotCapacities: w.slotCapacities,
+		SlotConfig: w.slotConfig,
 	})
 
 	w.id = id

@@ -29,52 +29,22 @@ from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 class TenantAlertingSettings(BaseModel):
     """
     TenantAlertingSettings
-    """  # noqa: E501
-
+    """ # noqa: E501
     metadata: APIResourceMeta
-    alert_member_emails: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether to alert tenant members.",
-        alias="alertMemberEmails",
-    )
-    enable_workflow_run_failure_alerts: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether to send alerts when workflow runs fail.",
-        alias="enableWorkflowRunFailureAlerts",
-    )
-    enable_expiring_token_alerts: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether to enable alerts when tokens are approaching expiration.",
-        alias="enableExpiringTokenAlerts",
-    )
-    enable_tenant_resource_limit_alerts: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether to enable alerts when tenant resources are approaching limits.",
-        alias="enableTenantResourceLimitAlerts",
-    )
-    max_alerting_frequency: StrictStr = Field(
-        description="The max frequency at which to alert.", alias="maxAlertingFrequency"
-    )
-    last_alerted_at: Optional[datetime] = Field(
-        default=None,
-        description="The last time an alert was sent.",
-        alias="lastAlertedAt",
-    )
-    __properties: ClassVar[List[str]] = [
-        "metadata",
-        "alertMemberEmails",
-        "enableWorkflowRunFailureAlerts",
-        "enableExpiringTokenAlerts",
-        "enableTenantResourceLimitAlerts",
-        "maxAlertingFrequency",
-        "lastAlertedAt",
-    ]
+    alert_member_emails: Optional[StrictBool] = Field(default=None, description="Whether to alert tenant members.", alias="alertMemberEmails")
+    enable_workflow_run_failure_alerts: Optional[StrictBool] = Field(default=None, description="Whether to send alerts when workflow runs fail.", alias="enableWorkflowRunFailureAlerts")
+    enable_expiring_token_alerts: Optional[StrictBool] = Field(default=None, description="Whether to enable alerts when tokens are approaching expiration.", alias="enableExpiringTokenAlerts")
+    enable_tenant_resource_limit_alerts: Optional[StrictBool] = Field(default=None, description="Whether to enable alerts when tenant resources are approaching limits.", alias="enableTenantResourceLimitAlerts")
+    max_alerting_frequency: StrictStr = Field(description="The max frequency at which to alert.", alias="maxAlertingFrequency")
+    last_alerted_at: Optional[datetime] = Field(default=None, description="The last time an alert was sent.", alias="lastAlertedAt")
+    __properties: ClassVar[List[str]] = ["metadata", "alertMemberEmails", "enableWorkflowRunFailureAlerts", "enableExpiringTokenAlerts", "enableTenantResourceLimitAlerts", "maxAlertingFrequency", "lastAlertedAt"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -100,7 +70,8 @@ class TenantAlertingSettings(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -109,7 +80,7 @@ class TenantAlertingSettings(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict["metadata"] = self.metadata.to_dict()
+            _dict['metadata'] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -121,23 +92,13 @@ class TenantAlertingSettings(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "metadata": (
-                    APIResourceMeta.from_dict(obj["metadata"])
-                    if obj.get("metadata") is not None
-                    else None
-                ),
-                "alertMemberEmails": obj.get("alertMemberEmails"),
-                "enableWorkflowRunFailureAlerts": obj.get(
-                    "enableWorkflowRunFailureAlerts"
-                ),
-                "enableExpiringTokenAlerts": obj.get("enableExpiringTokenAlerts"),
-                "enableTenantResourceLimitAlerts": obj.get(
-                    "enableTenantResourceLimitAlerts"
-                ),
-                "maxAlertingFrequency": obj.get("maxAlertingFrequency"),
-                "lastAlertedAt": obj.get("lastAlertedAt"),
-            }
-        )
+        _obj = cls.model_validate({
+            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
+            "alertMemberEmails": obj.get("alertMemberEmails"),
+            "enableWorkflowRunFailureAlerts": obj.get("enableWorkflowRunFailureAlerts"),
+            "enableExpiringTokenAlerts": obj.get("enableExpiringTokenAlerts"),
+            "enableTenantResourceLimitAlerts": obj.get("enableTenantResourceLimitAlerts"),
+            "maxAlertingFrequency": obj.get("maxAlertingFrequency"),
+            "lastAlertedAt": obj.get("lastAlertedAt")
+        })
         return _obj

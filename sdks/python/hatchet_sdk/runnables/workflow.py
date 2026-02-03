@@ -843,7 +843,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
-        slot_requirements: dict[str, int] | None = None,
+        slot_requests: dict[str, int] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -877,7 +877,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
-        :param slot_requirements: Slot requirements for the task (slot_type -> units).
+        :param slot_requests: Slot requests for the task (slot_type -> units).
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -917,7 +917,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
-                slot_requirements=slot_requirements,
+                slot_requests=slot_requests,
             )
 
             self._default_tasks.append(task)
@@ -941,7 +941,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
-        slot_requirements: dict[str, int] | None = None,
+        slot_requests: dict[str, int] | None = None,
     ) -> Callable[
         [
             Callable[
@@ -983,7 +983,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
-        :param slot_requirements: Slot requirements for the task (slot_type -> units).
+        :param slot_requests: Slot requests for the task (slot_type -> units).
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -1023,7 +1023,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
-                slot_requirements=slot_requirements,
+                slot_requests=slot_requests,
             )
 
             self._durable_tasks.append(task)

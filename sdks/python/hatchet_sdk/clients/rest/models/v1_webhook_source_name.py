@@ -28,11 +28,11 @@ class V1WebhookSourceName(str, Enum):
     """
     allowed enum values
     """
-    GENERIC = "GENERIC"
-    GITHUB = "GITHUB"
-    STRIPE = "STRIPE"
-    SLACK = "SLACK"
-    LINEAR = "LINEAR"
+    GENERIC = 'GENERIC'
+    GITHUB = 'GITHUB'
+    STRIPE = 'STRIPE'
+    SLACK = 'SLACK'
+    LINEAR = 'LINEAR'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

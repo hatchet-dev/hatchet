@@ -377,6 +377,7 @@ from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
 from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
+from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
 from hatchet_sdk.clients.rest.models.worker_type import WorkerType
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency

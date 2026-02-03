@@ -81,8 +81,8 @@ message WorkerRegisterRequest {
     // (optional) the max number of durable slots this worker can handle
     optional int32 durable_slots = 8;
 
-    // (optional) slot capacities for this worker (slot_type -> units)
-    map<string, int32> slot_capacities = 9;
+    // (optional) slot config for this worker (slot_type -> units)
+    map<string, int32> slot_config = 9;
 
 }
 

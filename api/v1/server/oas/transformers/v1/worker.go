@@ -59,7 +59,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, slotCapacities map[string]gen.WorkerSlotCapacity, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotConfig, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
 
 	dispatcherId := worker.DispatcherId
 
@@ -73,13 +73,13 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotCapacities map[string]gen.WorkerSlo
 		status = gen.INACTIVE
 	}
 
-	var slotCapacitiesInt *map[string]gen.WorkerSlotCapacity
-	if len(slotCapacities) > 0 {
-		tmp := make(map[string]gen.WorkerSlotCapacity, len(slotCapacities))
-		for k, v := range slotCapacities {
+	var slotConfigInt *map[string]gen.WorkerSlotConfig
+	if len(slotConfig) > 0 {
+		tmp := make(map[string]gen.WorkerSlotConfig, len(slotConfig))
+		for k, v := range slotConfig {
 			tmp[k] = v
 		}
-		slotCapacitiesInt = &tmp
+		slotConfigInt = &tmp
 	}
 
 	res := &gen.Worker{
@@ -92,7 +92,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotCapacities map[string]gen.WorkerSlo
 		Type:           gen.WorkerType(worker.Type),
 		Status:         &status,
 		DispatcherId:   dispatcherId,
-		SlotCapacities: slotCapacitiesInt,
+		SlotConfig:     slotConfigInt,
 		WebhookUrl:     webhookUrl,
 		RuntimeInfo:    ToWorkerRuntimeInfo(worker),
 		WebhookId:      worker.WebhookId,

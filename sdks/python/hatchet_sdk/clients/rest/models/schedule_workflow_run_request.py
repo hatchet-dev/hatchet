@@ -27,24 +27,19 @@ from typing_extensions import Annotated, Self
 class ScheduleWorkflowRunRequest(BaseModel):
     """
     ScheduleWorkflowRunRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     input: Dict[str, Any]
     additional_metadata: Dict[str, Any] = Field(alias="additionalMetadata")
     trigger_at: datetime = Field(alias="triggerAt")
     priority: Optional[Annotated[int, Field(le=3, strict=True, ge=1)]] = None
-    __properties: ClassVar[List[str]] = [
-        "input",
-        "additionalMetadata",
-        "triggerAt",
-        "priority",
-    ]
+    __properties: ClassVar[List[str]] = ["input", "additionalMetadata", "triggerAt", "priority"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -70,7 +65,8 @@ class ScheduleWorkflowRunRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -88,12 +84,10 @@ class ScheduleWorkflowRunRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "input": obj.get("input"),
-                "additionalMetadata": obj.get("additionalMetadata"),
-                "triggerAt": obj.get("triggerAt"),
-                "priority": obj.get("priority"),
-            }
-        )
+        _obj = cls.model_validate({
+            "input": obj.get("input"),
+            "additionalMetadata": obj.get("additionalMetadata"),
+            "triggerAt": obj.get("triggerAt"),
+            "priority": obj.get("priority")
+        })
         return _obj

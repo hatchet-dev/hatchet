@@ -28,9 +28,9 @@ class WorkerType(str, Enum):
     """
     allowed enum values
     """
-    SELFHOSTED = "SELFHOSTED"
-    MANAGED = "MANAGED"
-    WEBHOOK = "WEBHOOK"
+    SELFHOSTED = 'SELFHOSTED'
+    MANAGED = 'MANAGED'
+    WEBHOOK = 'WEBHOOK'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

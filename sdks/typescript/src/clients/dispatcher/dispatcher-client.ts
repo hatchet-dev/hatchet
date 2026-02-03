@@ -16,8 +16,8 @@ import { Logger } from '@hatchet/util/logger';
 
 import { retrier } from '@hatchet/util/retrier';
 import { HATCHET_VERSION } from '@hatchet/version';
+import { SlotConfig, SlotType } from '@hatchet/v1/slot-types';
 import { ActionListener } from './action-listener';
-import { SlotCapacities, SlotType } from '@hatchet/v1/slot-types';
 
 export type WorkerLabels = Record<string, string | number | undefined>;
 
@@ -25,10 +25,10 @@ interface GetActionListenerOptions {
   workerName: string;
   services: string[];
   actions: string[];
-  slotCapacities?: SlotCapacities;
-  /** @deprecated use slotCapacities */
+  slotConfig?: SlotConfig;
+  /** @deprecated use slotConfig */
   slots?: number;
-  /** @deprecated use slotCapacities */
+  /** @deprecated use slotConfig */
   durableSlots?: number;
   /** @deprecated use slots */
   maxRuns?: number;
@@ -64,8 +64,8 @@ export class DispatcherClient {
 
   async getActionListener(options: GetActionListenerOptions) {
     // Register the worker
-    const slotCapacities =
-      options.slotCapacities ||
+    const slotConfig =
+      options.slotConfig ||
       (options.slots || options.durableSlots || options.maxRuns
         ? {
             ...(options.slots || options.maxRuns
@@ -79,7 +79,7 @@ export class DispatcherClient {
       workerName: options.workerName,
       services: options.services,
       actions: options.actions,
-      slotCapacities,
+      slotConfig,
       labels: options.labels ? mapLabels(options.labels) : undefined,
       runtimeInfo: this.getRuntimeInfo(),
     });

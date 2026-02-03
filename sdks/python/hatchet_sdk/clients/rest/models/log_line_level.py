@@ -28,10 +28,10 @@ class LogLineLevel(str, Enum):
     """
     allowed enum values
     """
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARN = "WARN"
-    ERROR = "ERROR"
+    DEBUG = 'DEBUG'
+    INFO = 'INFO'
+    WARN = 'WARN'
+    ERROR = 'ERROR'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

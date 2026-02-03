@@ -237,7 +237,7 @@ SELECT
     ww."url" AS "webhookUrl",
     COALESCE((
         SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_capacity cap
+        FROM v1_worker_slot_config cap
         WHERE
             cap.tenant_id = w."tenantId"
             AND cap.worker_id = w."id"
@@ -254,7 +254,7 @@ SELECT
     COALESCE((
         (
             SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_capacity cap
+            FROM v1_worker_slot_config cap
             WHERE
                 cap.tenant_id = w."tenantId"
                 AND cap.worker_id = w."id"
@@ -766,7 +766,7 @@ const listTotalActiveSlotsPerTenant = `-- name: ListTotalActiveSlotsPerTenant :m
 SELECT
     wc.tenant_id AS "tenantId",
     SUM(wc.max_units) AS "totalActiveSlots"
-FROM v1_worker_slot_capacity wc
+FROM v1_worker_slot_config wc
 JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
 WHERE
     w."dispatcherId" IS NOT NULL
@@ -849,38 +849,38 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.U
 	return items, nil
 }
 
-const listWorkerSlotCapacities = `-- name: ListWorkerSlotCapacities :many
+const listWorkerSlotConfigs = `-- name: ListWorkerSlotConfigs :many
 SELECT
     worker_id,
     slot_type,
     max_units
 FROM
-    v1_worker_slot_capacity
+    v1_worker_slot_config
 WHERE
     tenant_id = $1::uuid
     AND worker_id = ANY($2::uuid[])
 `
 
-type ListWorkerSlotCapacitiesParams struct {
+type ListWorkerSlotConfigsParams struct {
 	Tenantid  uuid.UUID   `json:"tenantid"`
 	Workerids []uuid.UUID `json:"workerids"`
 }
 
-type ListWorkerSlotCapacitiesRow struct {
+type ListWorkerSlotConfigsRow struct {
 	WorkerID uuid.UUID `json:"worker_id"`
 	SlotType string    `json:"slot_type"`
 	MaxUnits int32     `json:"max_units"`
 }
 
-func (q *Queries) ListWorkerSlotCapacities(ctx context.Context, db DBTX, arg ListWorkerSlotCapacitiesParams) ([]*ListWorkerSlotCapacitiesRow, error) {
-	rows, err := db.Query(ctx, listWorkerSlotCapacities, arg.Tenantid, arg.Workerids)
+func (q *Queries) ListWorkerSlotConfigs(ctx context.Context, db DBTX, arg ListWorkerSlotConfigsParams) ([]*ListWorkerSlotConfigsRow, error) {
+	rows, err := db.Query(ctx, listWorkerSlotConfigs, arg.Tenantid, arg.Workerids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListWorkerSlotCapacitiesRow
+	var items []*ListWorkerSlotConfigsRow
 	for rows.Next() {
-		var i ListWorkerSlotCapacitiesRow
+		var i ListWorkerSlotConfigsRow
 		if err := rows.Scan(&i.WorkerID, &i.SlotType, &i.MaxUnits); err != nil {
 			return nil, err
 		}
@@ -897,9 +897,10 @@ SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."durableMaxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion",
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
+    -- TODO do we still need this?
     COALESCE((
         SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_capacity cap
+        FROM v1_worker_slot_config cap
         WHERE
             cap.tenant_id = workers."tenantId"
             AND cap.worker_id = workers."id"
@@ -916,7 +917,7 @@ SELECT
     COALESCE((
         (
             SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_capacity cap
+            FROM v1_worker_slot_config cap
             WHERE
                 cap.tenant_id = workers."tenantId"
                 AND cap.worker_id = workers."id"
@@ -1274,8 +1275,8 @@ func (q *Queries) UpsertWorkerLabel(ctx context.Context, db DBTX, arg UpsertWork
 	return &i, err
 }
 
-const upsertWorkerSlotCapacities = `-- name: UpsertWorkerSlotCapacities :exec
-INSERT INTO v1_worker_slot_capacity (
+const upsertWorkerSlotConfigs = `-- name: UpsertWorkerSlotConfigs :exec
+INSERT INTO v1_worker_slot_config (
     tenant_id,
     worker_id,
     slot_type,
@@ -1296,15 +1297,15 @@ SET
     updated_at = CURRENT_TIMESTAMP
 `
 
-type UpsertWorkerSlotCapacitiesParams struct {
+type UpsertWorkerSlotConfigsParams struct {
 	Tenantid  uuid.UUID `json:"tenantid"`
 	Workerid  uuid.UUID `json:"workerid"`
 	Slottypes []string  `json:"slottypes"`
 	Maxunits  []int32   `json:"maxunits"`
 }
 
-func (q *Queries) UpsertWorkerSlotCapacities(ctx context.Context, db DBTX, arg UpsertWorkerSlotCapacitiesParams) error {
-	_, err := db.Exec(ctx, upsertWorkerSlotCapacities,
+func (q *Queries) UpsertWorkerSlotConfigs(ctx context.Context, db DBTX, arg UpsertWorkerSlotConfigsParams) error {
+	_, err := db.Exec(ctx, upsertWorkerSlotConfigs,
 		arg.Tenantid,
 		arg.Workerid,
 		arg.Slottypes,

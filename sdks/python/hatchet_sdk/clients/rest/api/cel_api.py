@@ -36,25 +36,19 @@ class CELApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
+
     @validate_call
     def v1_cel_debug(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        v1_cel_debug_request: Annotated[
-            V1CELDebugRequest,
-            Field(description="The inputs to test the CEL expression against"),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        v1_cel_debug_request: Annotated[V1CELDebugRequest, Field(description="The inputs to test the CEL expression against")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -89,7 +83,7 @@ class CELApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._v1_cel_debug_serialize(
             tenant=tenant,
@@ -97,16 +91,17 @@ class CELApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1CELDebugResponse",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "V1CELDebugResponse",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -114,25 +109,19 @@ class CELApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def v1_cel_debug_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        v1_cel_debug_request: Annotated[
-            V1CELDebugRequest,
-            Field(description="The inputs to test the CEL expression against"),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        v1_cel_debug_request: Annotated[V1CELDebugRequest, Field(description="The inputs to test the CEL expression against")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -167,7 +156,7 @@ class CELApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._v1_cel_debug_serialize(
             tenant=tenant,
@@ -175,16 +164,17 @@ class CELApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1CELDebugResponse",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "V1CELDebugResponse",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -192,25 +182,19 @@ class CELApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def v1_cel_debug_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        v1_cel_debug_request: Annotated[
-            V1CELDebugRequest,
-            Field(description="The inputs to test the CEL expression against"),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        v1_cel_debug_request: Annotated[V1CELDebugRequest, Field(description="The inputs to test the CEL expression against")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -245,7 +229,7 @@ class CELApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._v1_cel_debug_serialize(
             tenant=tenant,
@@ -253,18 +237,20 @@ class CELApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1CELDebugResponse",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "V1CELDebugResponse",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _v1_cel_debug_serialize(
         self,
@@ -278,7 +264,8 @@ class CELApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -291,7 +278,7 @@ class CELApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -299,28 +286,38 @@ class CELApi:
         if v1_cel_debug_request is not None:
             _body_params = v1_cel_debug_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/stable/tenants/{tenant}/cel/debug",
+            method='POST',
+            resource_path='/api/v1/stable/tenants/{tenant}/cel/debug',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -330,5 +327,5 @@ class CELApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )

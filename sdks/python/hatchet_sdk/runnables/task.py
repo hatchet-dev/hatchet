@@ -149,12 +149,12 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
-        slot_requirements: dict[str, int] | None = None,
+        slot_requests: dict[str, int] | None = None,
     ) -> None:
         self.is_durable = is_durable
-        if slot_requirements is None:
-            slot_requirements = {"durable": 1} if is_durable else {"default": 1}
-        self.slot_requirements = slot_requirements
+        if slot_requests is None:
+            slot_requests = {"durable": 1} if is_durable else {"default": 1}
+        self.slot_requests = slot_requests
 
         self.fn = _fn
         self.is_async_function = is_async_fn(self.fn)  # type: ignore
@@ -398,8 +398,8 @@ class Task(Generic[TWorkflowInput, R]):
         }
         if "is_durable" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
             opts["is_durable"] = self.is_durable
-        if "slot_requirements" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
-            opts["slot_requirements"] = self.slot_requirements
+        if "slot_requests" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
+            opts["slot_requests"] = self.slot_requests
 
         return CreateTaskOpts(**opts)
 

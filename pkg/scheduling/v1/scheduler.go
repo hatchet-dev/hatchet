@@ -275,26 +275,26 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	checkpoint = time.Now()
 
 	// FUNCTION 2: for each action which should be replenished, load the available slots
-	workerSlotCapacities, err := s.repo.ListWorkerSlotCapacities(ctx, s.tenantId, workerIds)
+	workerSlotConfigs, err := s.repo.ListWorkerSlotConfigs(ctx, s.tenantId, workerIds)
 	if err != nil {
 		return err
 	}
 
-	workerSlotTypes := make(map[uuid.UUID]map[string]bool, len(workerSlotCapacities))
+	workerSlotTypes := make(map[uuid.UUID]map[string]bool, len(workerSlotConfigs))
 	slotTypeToWorkerIds := make(map[string]map[uuid.UUID]bool)
 
-	for _, capacity := range workerSlotCapacities {
-		if _, ok := workerSlotTypes[capacity.WorkerID]; !ok {
-			workerSlotTypes[capacity.WorkerID] = make(map[string]bool)
+	for _, config := range workerSlotConfigs {
+		if _, ok := workerSlotTypes[config.WorkerID]; !ok {
+			workerSlotTypes[config.WorkerID] = make(map[string]bool)
 		}
 
-		workerSlotTypes[capacity.WorkerID][capacity.SlotType] = true
+		workerSlotTypes[config.WorkerID][config.SlotType] = true
 
-		if _, ok := slotTypeToWorkerIds[capacity.SlotType]; !ok {
-			slotTypeToWorkerIds[capacity.SlotType] = make(map[uuid.UUID]bool)
+		if _, ok := slotTypeToWorkerIds[config.SlotType]; !ok {
+			slotTypeToWorkerIds[config.SlotType] = make(map[uuid.UUID]bool)
 		}
 
-		slotTypeToWorkerIds[capacity.SlotType][capacity.WorkerID] = true
+		slotTypeToWorkerIds[config.SlotType][config.WorkerID] = true
 	}
 
 	orderedLock(actionsToReplenish)
@@ -563,7 +563,7 @@ func (s *Scheduler) tryAssignBatch(
 	// slots concurrently.
 	ringOffset int,
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
-	stepIdsToRequirements map[uuid.UUID]map[string]int32,
+	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
@@ -672,7 +672,7 @@ func (s *Scheduler) tryAssignBatch(
 
 		qi := qis[i]
 
-		requirements := normalizeSlotRequirements(stepIdsToRequirements[qi.StepID])
+		requests := normalizeSlotRequests(stepIdsToRequests[qi.StepID])
 
 		singleRes, err := s.tryAssignSingleton(
 			ctx,
@@ -681,7 +681,7 @@ func (s *Scheduler) tryAssignBatch(
 			candidateSlots,
 			childRingOffset,
 			stepIdsToLabels[qi.StepID],
-			requirements,
+			requests,
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -706,7 +706,7 @@ func (s *Scheduler) tryAssignBatch(
 func findAssignableSlots(
 	candidateSlots []*slot,
 	action *action,
-	requirements map[string]int32,
+	requests map[string]int32,
 	rateLimitAck func(),
 	rateLimitNack func(),
 ) *assignedSlots {
@@ -724,7 +724,7 @@ func findAssignableSlots(
 			continue
 		}
 
-		selected, ok := selectSlotsForWorker(workerSlots, requirements)
+		selected, ok := selectSlotsForWorker(workerSlots, requests)
 		if !ok {
 			continue
 		}
@@ -753,10 +753,10 @@ func findAssignableSlots(
 	return nil
 }
 
-func selectSlotsForWorker(workerSlots map[string][]*slot, requirements map[string]int32) ([]*slot, bool) {
+func selectSlotsForWorker(workerSlots map[string][]*slot, requests map[string]int32) ([]*slot, bool) {
 	selected := make([]*slot, 0)
 
-	for slotType, units := range requirements {
+	for slotType, units := range requests {
 		if units <= 0 {
 			continue
 		}
@@ -789,13 +789,13 @@ func selectSlotsForWorker(workerSlots map[string][]*slot, requirements map[strin
 	return selected, true
 }
 
-func normalizeSlotRequirements(requirements map[string]int32) map[string]int32 {
-	if len(requirements) == 0 {
+func normalizeSlotRequests(requests map[string]int32) map[string]int32 {
+	if len(requests) == 0 {
 		return map[string]int32{"default": 1}
 	}
 
-	normalized := make(map[string]int32, len(requirements))
-	for slotType, units := range requirements {
+	normalized := make(map[string]int32, len(requests))
+	for slotType, units := range requests {
 		if units <= 0 {
 			continue
 		}
@@ -832,7 +832,7 @@ func (s *Scheduler) tryAssignSingleton(
 	candidateSlots []*slot,
 	ringOffset int,
 	labels []*sqlcv1.GetDesiredLabelsRow,
-	requirements map[string]int32,
+	requests map[string]int32,
 	rateLimitAck func(),
 	rateLimitNack func(),
 ) (
@@ -850,10 +850,10 @@ func (s *Scheduler) tryAssignSingleton(
 		ringOffset = 0
 	}
 
-	assignedSlot := findAssignableSlots(candidateSlots[ringOffset:], action, requirements, rateLimitAck, rateLimitNack)
+	assignedSlot := findAssignableSlots(candidateSlots[ringOffset:], action, requests, rateLimitAck, rateLimitNack)
 
 	if assignedSlot == nil {
-		assignedSlot = findAssignableSlots(candidateSlots[:ringOffset], action, requirements, rateLimitAck, rateLimitNack)
+		assignedSlot = findAssignableSlots(candidateSlots[:ringOffset], action, requests, rateLimitAck, rateLimitNack)
 	}
 
 	if assignedSlot == nil {
@@ -895,7 +895,7 @@ func (s *Scheduler) tryAssign(
 	ctx context.Context,
 	qis []*sqlcv1.V1QueueItem,
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
-	stepIdsToRequirements map[uuid.UUID]map[string]int32,
+	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
@@ -965,7 +965,7 @@ func (s *Scheduler) tryAssign(
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequirements, taskIdsToRateLimits)
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits)
 
 					if err != nil {
 						return err

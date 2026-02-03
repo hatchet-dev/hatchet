@@ -10,23 +10,23 @@ import (
 )
 
 type slotAvailabilityRepository interface {
-	ListWorkerSlotCapacities(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
+	ListWorkerSlotConfigs(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error)
 }
 
-func buildWorkerSlotCapacities(ctx context.Context, repo slotAvailabilityRepository, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]gen.WorkerSlotCapacity, error) {
+func buildWorkerSlotConfig(ctx context.Context, repo slotAvailabilityRepository, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]gen.WorkerSlotConfig, error) {
 	if len(workerIds) == 0 {
-		return map[uuid.UUID]map[string]gen.WorkerSlotCapacity{}, nil
+		return map[uuid.UUID]map[string]gen.WorkerSlotConfig{}, nil
 	}
 
-	slotCapacitiesByWorker, err := repo.ListWorkerSlotCapacities(tenantId, workerIds)
+	slotConfigByWorker, err := repo.ListWorkerSlotConfigs(tenantId, workerIds)
 	if err != nil {
-		return nil, fmt.Errorf("could not list worker slot capacities: %w", err)
+		return nil, fmt.Errorf("could not list worker slot config: %w", err)
 	}
 
 	slotTypes := make(map[string]struct{})
-	for _, capacities := range slotCapacitiesByWorker {
-		for slotType := range capacities {
+	for _, config := range slotConfigByWorker {
+		for slotType := range config {
 			slotTypes[slotType] = struct{}{}
 		}
 	}
@@ -40,10 +40,10 @@ func buildWorkerSlotCapacities(ctx context.Context, repo slotAvailabilityReposit
 		availableBySlotType[slotType] = available
 	}
 
-	result := make(map[uuid.UUID]map[string]gen.WorkerSlotCapacity, len(slotCapacitiesByWorker))
-	for workerId, capacities := range slotCapacitiesByWorker {
-		workerSlots := make(map[string]gen.WorkerSlotCapacity, len(capacities))
-		for slotType, limit := range capacities {
+	result := make(map[uuid.UUID]map[string]gen.WorkerSlotConfig, len(slotConfigByWorker))
+	for workerId, config := range slotConfigByWorker {
+		workerSlots := make(map[string]gen.WorkerSlotConfig, len(config))
+		for slotType, limit := range config {
 			available := 0
 			if slotAvailability, ok := availableBySlotType[slotType]; ok {
 				if value, ok := slotAvailability[workerId]; ok {
@@ -51,7 +51,7 @@ func buildWorkerSlotCapacities(ctx context.Context, repo slotAvailabilityReposit
 				}
 			}
 
-			workerSlots[slotType] = gen.WorkerSlotCapacity{
+			workerSlots[slotType] = gen.WorkerSlotConfig{
 				Available: &available,
 				Limit:     int(limit),
 			}

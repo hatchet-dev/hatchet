@@ -30,42 +30,23 @@ from hatchet_sdk.clients.rest.models.workflow_tag import WorkflowTag
 class Workflow(BaseModel):
     """
     Workflow
-    """  # noqa: E501
-
+    """ # noqa: E501
     metadata: APIResourceMeta
     name: StrictStr = Field(description="The name of the workflow.")
-    description: Optional[StrictStr] = Field(
-        default=None, description="The description of the workflow."
-    )
-    is_paused: Optional[StrictBool] = Field(
-        default=None, description="Whether the workflow is paused.", alias="isPaused"
-    )
+    description: Optional[StrictStr] = Field(default=None, description="The description of the workflow.")
+    is_paused: Optional[StrictBool] = Field(default=None, description="Whether the workflow is paused.", alias="isPaused")
     versions: Optional[List[WorkflowVersionMeta]] = None
-    tags: Optional[List[WorkflowTag]] = Field(
-        default=None, description="The tags of the workflow."
-    )
-    jobs: Optional[List[Job]] = Field(
-        default=None, description="The jobs of the workflow."
-    )
-    tenant_id: StrictStr = Field(
-        description="The tenant id of the workflow.", alias="tenantId"
-    )
-    __properties: ClassVar[List[str]] = [
-        "metadata",
-        "name",
-        "description",
-        "isPaused",
-        "versions",
-        "tags",
-        "jobs",
-        "tenantId",
-    ]
+    tags: Optional[List[WorkflowTag]] = Field(default=None, description="The tags of the workflow.")
+    jobs: Optional[List[Job]] = Field(default=None, description="The jobs of the workflow.")
+    tenant_id: StrictStr = Field(description="The tenant id of the workflow.", alias="tenantId")
+    __properties: ClassVar[List[str]] = ["metadata", "name", "description", "isPaused", "versions", "tags", "jobs", "tenantId"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -91,7 +72,8 @@ class Workflow(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -100,28 +82,28 @@ class Workflow(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict["metadata"] = self.metadata.to_dict()
+            _dict['metadata'] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in versions (list)
         _items = []
         if self.versions:
             for _item_versions in self.versions:
                 if _item_versions:
                     _items.append(_item_versions.to_dict())
-            _dict["versions"] = _items
+            _dict['versions'] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in tags (list)
         _items = []
         if self.tags:
             for _item_tags in self.tags:
                 if _item_tags:
                     _items.append(_item_tags.to_dict())
-            _dict["tags"] = _items
+            _dict['tags'] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in jobs (list)
         _items = []
         if self.jobs:
             for _item_jobs in self.jobs:
                 if _item_jobs:
                     _items.append(_item_jobs.to_dict())
-            _dict["jobs"] = _items
+            _dict['jobs'] = _items
         return _dict
 
     @classmethod
@@ -133,36 +115,17 @@ class Workflow(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "metadata": (
-                    APIResourceMeta.from_dict(obj["metadata"])
-                    if obj.get("metadata") is not None
-                    else None
-                ),
-                "name": obj.get("name"),
-                "description": obj.get("description"),
-                "isPaused": obj.get("isPaused"),
-                "versions": (
-                    [WorkflowVersionMeta.from_dict(_item) for _item in obj["versions"]]
-                    if obj.get("versions") is not None
-                    else None
-                ),
-                "tags": (
-                    [WorkflowTag.from_dict(_item) for _item in obj["tags"]]
-                    if obj.get("tags") is not None
-                    else None
-                ),
-                "jobs": (
-                    [Job.from_dict(_item) for _item in obj["jobs"]]
-                    if obj.get("jobs") is not None
-                    else None
-                ),
-                "tenantId": obj.get("tenantId"),
-            }
-        )
+        _obj = cls.model_validate({
+            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
+            "name": obj.get("name"),
+            "description": obj.get("description"),
+            "isPaused": obj.get("isPaused"),
+            "versions": [WorkflowVersionMeta.from_dict(_item) for _item in obj["versions"]] if obj.get("versions") is not None else None,
+            "tags": [WorkflowTag.from_dict(_item) for _item in obj["tags"]] if obj.get("tags") is not None else None,
+            "jobs": [Job.from_dict(_item) for _item in obj["jobs"]] if obj.get("jobs") is not None else None,
+            "tenantId": obj.get("tenantId")
+        })
         return _obj
-
 
 from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
 

@@ -448,8 +448,8 @@ func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateSt
 	return &i, err
 }
 
-const createStepSlotRequirements = `-- name: CreateStepSlotRequirements :exec
-INSERT INTO v1_step_slot_requirement (
+const createStepSlotRequests = `-- name: CreateStepSlotRequests :exec
+INSERT INTO v1_step_slot_request (
     tenant_id,
     step_id,
     slot_type,
@@ -470,15 +470,15 @@ SET
     updated_at = CURRENT_TIMESTAMP
 `
 
-type CreateStepSlotRequirementsParams struct {
+type CreateStepSlotRequestsParams struct {
 	Tenantid  uuid.UUID `json:"tenantid"`
 	Stepid    uuid.UUID `json:"stepid"`
 	Slottypes []string  `json:"slottypes"`
 	Units     []int32   `json:"units"`
 }
 
-func (q *Queries) CreateStepSlotRequirements(ctx context.Context, db DBTX, arg CreateStepSlotRequirementsParams) error {
-	_, err := db.Exec(ctx, createStepSlotRequirements,
+func (q *Queries) CreateStepSlotRequests(ctx context.Context, db DBTX, arg CreateStepSlotRequestsParams) error {
+	_, err := db.Exec(ctx, createStepSlotRequests,
 		arg.Tenantid,
 		arg.Stepid,
 		arg.Slottypes,

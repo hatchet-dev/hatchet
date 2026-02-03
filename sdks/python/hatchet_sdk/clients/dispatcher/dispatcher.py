@@ -74,7 +74,7 @@ class DispatcherClient:
                     actions=req.actions,
                     services=req.services,
                     labels=req.labels,
-                    slot_capacities=req.slot_capacities,
+                    slot_config=req.slot_config,
                     runtime_info=RuntimeInfo(
                         sdk_version=version("hatchet_sdk"),
                         language=SDKS.PYTHON,

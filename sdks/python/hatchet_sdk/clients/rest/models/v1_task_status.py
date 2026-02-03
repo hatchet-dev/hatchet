@@ -28,11 +28,11 @@ class V1TaskStatus(str, Enum):
     """
     allowed enum values
     """
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
+    QUEUED = 'QUEUED'
+    RUNNING = 'RUNNING'
+    COMPLETED = 'COMPLETED'
+    CANCELLED = 'CANCELLED'
+    FAILED = 'FAILED'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

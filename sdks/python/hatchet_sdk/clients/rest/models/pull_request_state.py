@@ -28,8 +28,8 @@ class PullRequestState(str, Enum):
     """
     allowed enum values
     """
-    OPEN = "open"
-    CLOSED = "closed"
+    OPEN = 'open'
+    CLOSED = 'closed'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

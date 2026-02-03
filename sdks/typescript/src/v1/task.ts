@@ -139,9 +139,9 @@ export type CreateBaseTaskOpts<
   concurrency?: Concurrency | Concurrency[];
 
   /**
-   * (optional) slot requirements for the task (slot_type -> units)
+   * (optional) slot requests for the task (slot_type -> units)
    */
-  slotRequirements?: Record<string, number>;
+  slotRequests?: Record<string, number>;
 };
 
 export type CreateWorkflowTaskOpts<

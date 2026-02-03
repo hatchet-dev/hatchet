@@ -333,32 +333,32 @@ func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid uuid.UU
 	return items, nil
 }
 
-const getStepSlotRequirements = `-- name: GetStepSlotRequirements :many
+const getStepSlotRequests = `-- name: GetStepSlotRequests :many
 SELECT
     step_id,
     slot_type,
     units
 FROM
-    v1_step_slot_requirement
+    v1_step_slot_request
 WHERE
     step_id = ANY($1::uuid[])
 `
 
-type GetStepSlotRequirementsRow struct {
+type GetStepSlotRequestsRow struct {
 	StepID   uuid.UUID `json:"step_id"`
 	SlotType string    `json:"slot_type"`
 	Units    int32     `json:"units"`
 }
 
-func (q *Queries) GetStepSlotRequirements(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetStepSlotRequirementsRow, error) {
-	rows, err := db.Query(ctx, getStepSlotRequirements, stepids)
+func (q *Queries) GetStepSlotRequests(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetStepSlotRequestsRow, error) {
+	rows, err := db.Query(ctx, getStepSlotRequests, stepids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetStepSlotRequirementsRow
+	var items []*GetStepSlotRequestsRow
 	for rows.Next() {
-		var i GetStepSlotRequirementsRow
+		var i GetStepSlotRequestsRow
 		if err := rows.Scan(&i.StepID, &i.SlotType, &i.Units); err != nil {
 			return nil, err
 		}
@@ -425,7 +425,7 @@ WITH worker_capacities AS (
         worker_id,
         max_units
     FROM
-        v1_worker_slot_capacity
+        v1_worker_slot_config
     WHERE
         tenant_id = $1::uuid
         AND worker_id = ANY($2::uuid[])
@@ -955,7 +955,7 @@ WITH input AS (
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
     RETURNING task_id, worker_id
-), slot_requirements AS (
+), slot_requests AS (
     SELECT
         t.id,
         t.inserted_at,
@@ -967,7 +967,7 @@ WITH input AS (
     FROM
         updated_tasks t
     LEFT JOIN
-        v1_step_slot_requirement req
+        v1_step_slot_request req
         ON req.step_id = t.step_id AND req.tenant_id = t.tenant_id
 ), assigned_slots AS (
     INSERT INTO v1_task_runtime_slot (
@@ -988,7 +988,7 @@ WITH input AS (
         slot_type,
         units
     FROM
-        slot_requirements
+        slot_requests
     ON CONFLICT (task_id, task_inserted_at, retry_count, slot_type) DO NOTHING
     RETURNING task_id
 )

@@ -26,30 +26,19 @@ from typing_extensions import Annotated, Self
 class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
     """
     WorkflowRunShapeItemForWorkflowRunDetails
-    """  # noqa: E501
-
-    task_external_id: Annotated[
-        str, Field(min_length=36, strict=True, max_length=36)
-    ] = Field(alias="taskExternalId")
-    step_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(
-        alias="stepId"
-    )
-    children_step_ids: List[
-        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
-    ] = Field(alias="childrenStepIds")
+    """ # noqa: E501
+    task_external_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(alias="taskExternalId")
+    step_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(alias="stepId")
+    children_step_ids: List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(alias="childrenStepIds")
     task_name: StrictStr = Field(alias="taskName")
-    __properties: ClassVar[List[str]] = [
-        "taskExternalId",
-        "stepId",
-        "childrenStepIds",
-        "taskName",
-    ]
+    __properties: ClassVar[List[str]] = ["taskExternalId", "stepId", "childrenStepIds", "taskName"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -75,7 +64,8 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -93,12 +83,10 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "taskExternalId": obj.get("taskExternalId"),
-                "stepId": obj.get("stepId"),
-                "childrenStepIds": obj.get("childrenStepIds"),
-                "taskName": obj.get("taskName"),
-            }
-        )
+        _obj = cls.model_validate({
+            "taskExternalId": obj.get("taskExternalId"),
+            "stepId": obj.get("stepId"),
+            "childrenStepIds": obj.get("childrenStepIds"),
+            "taskName": obj.get("taskName")
+        })
         return _obj

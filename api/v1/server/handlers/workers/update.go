@@ -37,12 +37,12 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 		return nil, err
 	}
 
-	workerSlotCapacities, err := buildWorkerSlotCapacities(ctx.Request().Context(), t.config.V1.Workers(), worker.Worker.TenantId, []uuid.UUID{updatedWorker.ID})
+	workerSlotConfig, err := buildWorkerSlotConfig(ctx.Request().Context(), t.config.V1.Workers(), worker.Worker.TenantId, []uuid.UUID{updatedWorker.ID})
 	if err != nil {
 		return nil, err
 	}
 
-	slotCapacities := workerSlotCapacities[updatedWorker.ID]
+	slotConfig := workerSlotConfig[updatedWorker.ID]
 
-	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, slotCapacities, nil, nil)), nil
+	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, slotConfig, nil, nil)), nil
 }

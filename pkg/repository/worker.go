@@ -33,8 +33,8 @@ type CreateWorkerOpts struct {
 	// The maximum number of durable runs this worker can run at a time
 	DurableMaxRuns *int `validate:"omitempty,gte=0"`
 
-	// Slot capacities for this worker (slot_type -> max units)
-	SlotCapacities map[string]int32 `validate:"omitempty"`
+	// Slot config for this worker (slot_type -> max units)
+	SlotConfig map[string]int32 `validate:"omitempty"`
 
 	// The name of the worker
 	Name string `validate:"required,hatchetName"`
@@ -97,8 +97,8 @@ type WorkerRepository interface {
 	// ListWorkerLabels returns a list of labels config for a worker
 	ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error)
 
-	// ListWorkerSlotCapacities returns slot capacities for workers.
-	ListWorkerSlotCapacities(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
+	// ListWorkerSlotConfigs returns slot config for workers.
+	ListWorkerSlotConfigs(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
 
 	// ListAvailableSlotsForWorkers returns available slot units by worker for a slot type.
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error)
@@ -303,8 +303,8 @@ func (w *workerRepository) ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UU
 	return w.queries.ListWorkerLabels(context.Background(), w.pool, workerId)
 }
 
-func (w *workerRepository) ListWorkerSlotCapacities(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
-	rows, err := w.queries.ListWorkerSlotCapacities(context.Background(), w.pool, sqlcv1.ListWorkerSlotCapacitiesParams{
+func (w *workerRepository) ListWorkerSlotConfigs(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
+	rows, err := w.queries.ListWorkerSlotConfigs(context.Background(), w.pool, sqlcv1.ListWorkerSlotConfigsParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 	})
@@ -357,10 +357,10 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	slotCapacities := opts.SlotCapacities
+	slotConfig := opts.SlotConfig
 	maxRuns := int32(0)
 
-	if len(slotCapacities) == 0 {
+	if len(slotConfig) == 0 {
 		maxRuns = 100
 		if opts.MaxRuns != nil {
 			maxRuns = int32(*opts.MaxRuns) // nolint: gosec
@@ -370,7 +370,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 			maxRuns += int32(*opts.DurableMaxRuns) // nolint: gosec
 		}
 	} else {
-		for _, units := range slotCapacities {
+		for _, units := range slotConfig {
 			if units > 0 {
 				maxRuns += units
 			}
@@ -473,8 +473,8 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	slotTypes := make([]string, 0)
 	maxUnits := make([]int32, 0)
 
-	if len(slotCapacities) > 0 {
-		for slotType, units := range slotCapacities {
+	if len(slotConfig) > 0 {
+		for slotType, units := range slotConfig {
 			slotTypes = append(slotTypes, slotType)
 			maxUnits = append(maxUnits, units)
 		}
@@ -495,14 +495,14 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	}
 
 	if len(slotTypes) > 0 {
-		err = w.queries.UpsertWorkerSlotCapacities(ctx, tx, sqlcv1.UpsertWorkerSlotCapacitiesParams{
+		err = w.queries.UpsertWorkerSlotConfigs(ctx, tx, sqlcv1.UpsertWorkerSlotConfigsParams{
 			Tenantid:  tenantId,
 			Workerid:  worker.ID,
 			Slottypes: slotTypes,
 			Maxunits:  maxUnits,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("could not upsert worker slot capacities: %w", err)
+			return nil, fmt.Errorf("could not upsert worker slot config: %w", err)
 		}
 	}
 

@@ -28,9 +28,9 @@ class WorkflowKind(str, Enum):
     """
     allowed enum values
     """
-    FUNCTION = "FUNCTION"
-    DURABLE = "DURABLE"
-    DAG = "DAG"
+    FUNCTION = 'FUNCTION'
+    DURABLE = 'DURABLE'
+    DAG = 'DAG'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

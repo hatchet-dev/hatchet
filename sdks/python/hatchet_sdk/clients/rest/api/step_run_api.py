@@ -38,27 +38,19 @@ class StepRunApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
+
     @validate_call
     def step_run_get(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -93,7 +85,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_get_serialize(
             tenant=tenant,
@@ -101,17 +93,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -119,27 +112,19 @@ class StepRunApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def step_run_get_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -174,7 +159,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_get_serialize(
             tenant=tenant,
@@ -182,17 +167,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -200,27 +186,19 @@ class StepRunApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def step_run_get_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -255,7 +233,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_get_serialize(
             tenant=tenant,
@@ -263,19 +241,21 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _step_run_get_serialize(
         self,
@@ -289,7 +269,8 @@ class StepRunApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -302,26 +283,33 @@ class StepRunApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         if step_run is not None:
-            _path_params["step-run"] = step_run
+            _path_params['step-run'] = step_run
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/step-runs/{step-run}",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/step-runs/{step-run}',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -331,30 +319,24 @@ class StepRunApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     def step_run_get_schema(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -389,7 +371,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_get_schema_serialize(
             tenant=tenant,
@@ -397,17 +379,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "object",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "object",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -415,27 +398,19 @@ class StepRunApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def step_run_get_schema_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -470,7 +445,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_get_schema_serialize(
             tenant=tenant,
@@ -478,17 +453,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "object",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "object",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -496,27 +472,19 @@ class StepRunApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def step_run_get_schema_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -551,7 +519,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_get_schema_serialize(
             tenant=tenant,
@@ -559,19 +527,21 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "object",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "object",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _step_run_get_schema_serialize(
         self,
@@ -585,7 +555,8 @@ class StepRunApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -598,26 +569,33 @@ class StepRunApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         if step_run is not None:
-            _path_params["step-run"] = step_run
+            _path_params['step-run'] = step_run
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/step-runs/{step-run}/schema",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/step-runs/{step-run}/schema',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -627,30 +605,25 @@ class StepRunApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     def step_run_list_archives(
         self,
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
-        limit: Annotated[
-            Optional[StrictInt], Field(description="The number to limit by")
-        ] = None,
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
+        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -687,7 +660,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_list_archives_serialize(
             step_run=step_run,
@@ -696,17 +669,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunArchiveList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunArchiveList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -714,27 +688,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def step_run_list_archives_with_http_info(
         self,
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
-        limit: Annotated[
-            Optional[StrictInt], Field(description="The number to limit by")
-        ] = None,
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
+        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -771,7 +738,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_list_archives_serialize(
             step_run=step_run,
@@ -780,17 +747,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunArchiveList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunArchiveList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -798,27 +766,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def step_run_list_archives_without_preload_content(
         self,
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
-        limit: Annotated[
-            Optional[StrictInt], Field(description="The number to limit by")
-        ] = None,
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
+        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -855,7 +816,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_list_archives_serialize(
             step_run=step_run,
@@ -864,19 +825,21 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunArchiveList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunArchiveList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _step_run_list_archives_serialize(
         self,
@@ -891,7 +854,8 @@ class StepRunApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -904,32 +868,39 @@ class StepRunApi:
 
         # process the path parameters
         if step_run is not None:
-            _path_params["step-run"] = step_run
+            _path_params['step-run'] = step_run
         # process the query parameters
         if offset is not None:
 
-            _query_params.append(("offset", offset))
+            _query_params.append(('offset', offset))
 
         if limit is not None:
 
-            _query_params.append(("limit", limit))
+            _query_params.append(('limit', limit))
 
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/step-runs/{step-run}/archives",
+            method='GET',
+            resource_path='/api/v1/step-runs/{step-run}/archives',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -939,30 +910,25 @@ class StepRunApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     def step_run_list_events(
         self,
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
-        limit: Annotated[
-            Optional[StrictInt], Field(description="The number to limit by")
-        ] = None,
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
+        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -999,7 +965,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_list_events_serialize(
             step_run=step_run,
@@ -1008,17 +974,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunEventList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunEventList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1026,27 +993,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def step_run_list_events_with_http_info(
         self,
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
-        limit: Annotated[
-            Optional[StrictInt], Field(description="The number to limit by")
-        ] = None,
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
+        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1083,7 +1043,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_list_events_serialize(
             step_run=step_run,
@@ -1092,17 +1052,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunEventList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunEventList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1110,27 +1071,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def step_run_list_events_without_preload_content(
         self,
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
-        limit: Annotated[
-            Optional[StrictInt], Field(description="The number to limit by")
-        ] = None,
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
+        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1167,7 +1121,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_list_events_serialize(
             step_run=step_run,
@@ -1176,19 +1130,21 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunEventList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunEventList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _step_run_list_events_serialize(
         self,
@@ -1203,7 +1159,8 @@ class StepRunApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1216,32 +1173,39 @@ class StepRunApi:
 
         # process the path parameters
         if step_run is not None:
-            _path_params["step-run"] = step_run
+            _path_params['step-run'] = step_run
         # process the query parameters
         if offset is not None:
 
-            _query_params.append(("offset", offset))
+            _query_params.append(('offset', offset))
 
         if limit is not None:
 
-            _query_params.append(("limit", limit))
+            _query_params.append(('limit', limit))
 
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/step-runs/{step-run}/events",
+            method='GET',
+            resource_path='/api/v1/step-runs/{step-run}/events',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1251,30 +1215,24 @@ class StepRunApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     def step_run_update_cancel(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1309,7 +1267,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_update_cancel_serialize(
             tenant=tenant,
@@ -1317,16 +1275,17 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1334,27 +1293,19 @@ class StepRunApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def step_run_update_cancel_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1389,7 +1340,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_update_cancel_serialize(
             tenant=tenant,
@@ -1397,16 +1348,17 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1414,27 +1366,19 @@ class StepRunApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def step_run_update_cancel_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1469,7 +1413,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_update_cancel_serialize(
             tenant=tenant,
@@ -1477,18 +1421,20 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _step_run_update_cancel_serialize(
         self,
@@ -1502,7 +1448,8 @@ class StepRunApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1515,26 +1462,33 @@ class StepRunApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         if step_run is not None:
-            _path_params["step-run"] = step_run
+            _path_params['step-run'] = step_run
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/tenants/{tenant}/step-runs/{step-run}/cancel",
+            method='POST',
+            resource_path='/api/v1/tenants/{tenant}/step-runs/{step-run}/cancel',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1544,33 +1498,25 @@ class StepRunApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     def step_run_update_rerun(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        rerun_step_run_request: Annotated[
-            RerunStepRunRequest, Field(description="The input to the rerun")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        rerun_step_run_request: Annotated[RerunStepRunRequest, Field(description="The input to the rerun")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1607,7 +1553,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_update_rerun_serialize(
             tenant=tenant,
@@ -1616,16 +1562,17 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1633,30 +1580,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def step_run_update_rerun_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        rerun_step_run_request: Annotated[
-            RerunStepRunRequest, Field(description="The input to the rerun")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        rerun_step_run_request: Annotated[RerunStepRunRequest, Field(description="The input to the rerun")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1693,7 +1630,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_update_rerun_serialize(
             tenant=tenant,
@@ -1702,16 +1639,17 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1719,30 +1657,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def step_run_update_rerun_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        step_run: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The step run id"
-            ),
-        ],
-        rerun_step_run_request: Annotated[
-            RerunStepRunRequest, Field(description="The input to the rerun")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
+        rerun_step_run_request: Annotated[RerunStepRunRequest, Field(description="The input to the rerun")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1779,7 +1707,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._step_run_update_rerun_serialize(
             tenant=tenant,
@@ -1788,18 +1716,20 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRun",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "StepRun",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _step_run_update_rerun_serialize(
         self,
@@ -1814,7 +1744,8 @@ class StepRunApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1827,9 +1758,9 @@ class StepRunApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         if step_run is not None:
-            _path_params["step-run"] = step_run
+            _path_params['step-run'] = step_run
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -1837,28 +1768,38 @@ class StepRunApi:
         if rerun_step_run_request is not None:
             _body_params = rerun_step_run_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/tenants/{tenant}/step-runs/{step-run}/rerun",
+            method='POST',
+            resource_path='/api/v1/tenants/{tenant}/step-runs/{step-run}/rerun',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1868,36 +1809,25 @@ class StepRunApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     def workflow_run_list_step_run_events(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        workflow_run: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The workflow run id",
-            ),
-        ],
-        last_id: Annotated[
-            Optional[StrictInt], Field(description="Last ID of the last event")
-        ] = None,
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id")],
+        last_id: Annotated[Optional[StrictInt], Field(description="Last ID of the last event")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1934,7 +1864,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._workflow_run_list_step_run_events_serialize(
             tenant=tenant,
@@ -1943,17 +1873,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunEventList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunEventList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1961,33 +1892,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     def workflow_run_list_step_run_events_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        workflow_run: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The workflow run id",
-            ),
-        ],
-        last_id: Annotated[
-            Optional[StrictInt], Field(description="Last ID of the last event")
-        ] = None,
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id")],
+        last_id: Annotated[Optional[StrictInt], Field(description="Last ID of the last event")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2024,7 +1942,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._workflow_run_list_step_run_events_serialize(
             tenant=tenant,
@@ -2033,17 +1951,18 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunEventList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunEventList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -2051,33 +1970,20 @@ class StepRunApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     def workflow_run_list_step_run_events_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        workflow_run: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The workflow run id",
-            ),
-        ],
-        last_id: Annotated[
-            Optional[StrictInt], Field(description="Last ID of the last event")
-        ] = None,
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id")],
+        last_id: Annotated[Optional[StrictInt], Field(description="Last ID of the last event")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2114,7 +2020,7 @@ class StepRunApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._workflow_run_list_step_run_events_serialize(
             tenant=tenant,
@@ -2123,19 +2029,21 @@ class StepRunApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "StepRunEventList",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "StepRunEventList",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _workflow_run_list_step_run_events_serialize(
         self,
@@ -2150,7 +2058,8 @@ class StepRunApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2163,30 +2072,37 @@ class StepRunApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         if workflow_run is not None:
-            _path_params["workflow-run"] = workflow_run
+            _path_params['workflow-run'] = workflow_run
         # process the query parameters
         if last_id is not None:
 
-            _query_params.append(("lastId", last_id))
+            _query_params.append(('lastId', last_id))
 
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth',
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2196,5 +2112,5 @@ class StepRunApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )

@@ -28,9 +28,9 @@ class V1WebhookAuthType(str, Enum):
     """
     allowed enum values
     """
-    BASIC = "BASIC"
-    API_KEY = "API_KEY"
-    HMAC = "HMAC"
+    BASIC = 'BASIC'
+    API_KEY = 'API_KEY'
+    HMAC = 'HMAC'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

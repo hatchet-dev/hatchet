@@ -26,11 +26,8 @@ from typing_extensions import Annotated, Self
 class EventUpdateCancel200Response(BaseModel):
     """
     EventUpdateCancel200Response
-    """  # noqa: E501
-
-    workflow_run_ids: Optional[
-        List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
-    ] = Field(default=None, alias="workflowRunIds")
+    """ # noqa: E501
+    workflow_run_ids: Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]] = Field(default=None, alias="workflowRunIds")
     __properties: ClassVar[List[str]] = ["workflowRunIds"]
 
     model_config = ConfigDict(
@@ -38,6 +35,7 @@ class EventUpdateCancel200Response(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,7 +61,8 @@ class EventUpdateCancel200Response(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,5 +80,7 @@ class EventUpdateCancel200Response(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"workflowRunIds": obj.get("workflowRunIds")})
+        _obj = cls.model_validate({
+            "workflowRunIds": obj.get("workflowRunIds")
+        })
         return _obj

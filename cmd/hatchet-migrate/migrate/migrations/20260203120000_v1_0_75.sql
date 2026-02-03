@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE IF NOT EXISTS v1_worker_slot_capacity (
+CREATE TABLE IF NOT EXISTS v1_worker_slot_config (
     tenant_id UUID NOT NULL,
     worker_id UUID NOT NULL,
     slot_type TEXT NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS v1_worker_slot_capacity (
     PRIMARY KEY (tenant_id, worker_id, slot_type)
 );
 
-CREATE TABLE IF NOT EXISTS v1_step_slot_requirement (
+CREATE TABLE IF NOT EXISTS v1_step_slot_request (
     tenant_id UUID NOT NULL,
     step_id UUID NOT NULL,
     slot_type TEXT NOT NULL,
@@ -36,10 +36,10 @@ CREATE TABLE IF NOT EXISTS v1_task_runtime_slot (
 CREATE INDEX IF NOT EXISTS v1_task_runtime_slot_tenant_worker_type_idx
     ON v1_task_runtime_slot (tenant_id ASC, worker_id ASC, slot_type ASC);
 
-CREATE INDEX IF NOT EXISTS v1_step_slot_requirement_step_idx
-    ON v1_step_slot_requirement (step_id ASC);
+CREATE INDEX IF NOT EXISTS v1_step_slot_request_step_idx
+    ON v1_step_slot_request (step_id ASC);
 
-INSERT INTO v1_worker_slot_capacity (tenant_id, worker_id, slot_type, max_units)
+INSERT INTO v1_worker_slot_config (tenant_id, worker_id, slot_type, max_units)
 SELECT
     "tenantId",
     "id",
@@ -49,7 +49,7 @@ FROM "Worker"
 WHERE "maxRuns" IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO v1_worker_slot_capacity (tenant_id, worker_id, slot_type, max_units)
+INSERT INTO v1_worker_slot_config (tenant_id, worker_id, slot_type, max_units)
 SELECT
     "tenantId",
     "id",
@@ -59,7 +59,7 @@ FROM "Worker"
 WHERE "durableMaxRuns" IS NOT NULL AND "durableMaxRuns" > 0
 ON CONFLICT DO NOTHING;
 
-INSERT INTO v1_step_slot_requirement (tenant_id, step_id, slot_type, units)
+INSERT INTO v1_step_slot_request (tenant_id, step_id, slot_type, units)
 SELECT
     "tenantId",
     "id",
@@ -95,7 +95,7 @@ ON CONFLICT DO NOTHING;
 
 -- +goose Down
 DROP INDEX IF EXISTS v1_task_runtime_slot_tenant_worker_type_idx;
-DROP INDEX IF EXISTS v1_step_slot_requirement_step_idx;
+DROP INDEX IF EXISTS v1_step_slot_request_step_idx;
 DROP TABLE IF EXISTS v1_task_runtime_slot;
-DROP TABLE IF EXISTS v1_step_slot_requirement;
-DROP TABLE IF EXISTS v1_worker_slot_capacity;
+DROP TABLE IF EXISTS v1_step_slot_request;
+DROP TABLE IF EXISTS v1_worker_slot_config;

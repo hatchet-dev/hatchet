@@ -437,8 +437,8 @@ alter table v1_task_runtime set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
--- v1_worker_slot_capacity stores per-worker capacity for arbitrary slot types.
-CREATE TABLE v1_worker_slot_capacity (
+-- v1_worker_slot_config stores per-worker config for arbitrary slot types.
+CREATE TABLE v1_worker_slot_config (
     tenant_id UUID NOT NULL,
     worker_id UUID NOT NULL,
     slot_type TEXT NOT NULL,
@@ -448,8 +448,8 @@ CREATE TABLE v1_worker_slot_capacity (
     PRIMARY KEY (tenant_id, worker_id, slot_type)
 );
 
--- v1_step_slot_requirement stores per-step slot requirements.
-CREATE TABLE v1_step_slot_requirement (
+-- v1_step_slot_request stores per-step slot requests.
+CREATE TABLE v1_step_slot_request (
     tenant_id UUID NOT NULL,
     step_id UUID NOT NULL,
     slot_type TEXT NOT NULL,
@@ -476,8 +476,8 @@ CREATE TABLE v1_task_runtime_slot (
 CREATE INDEX v1_task_runtime_slot_tenant_worker_type_idx
     ON v1_task_runtime_slot (tenant_id ASC, worker_id ASC, slot_type ASC);
 
-CREATE INDEX v1_step_slot_requirement_step_idx
-    ON v1_step_slot_requirement (step_id ASC);
+CREATE INDEX v1_step_slot_request_step_idx
+    ON v1_step_slot_request (step_id ASC);
 
 -- v1_rate_limited_queue_items represents a queue item that has been rate limited and removed from the v1_queue_item table.
 CREATE TABLE v1_rate_limited_queue_items (

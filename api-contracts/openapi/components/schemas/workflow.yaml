@@ -284,9 +284,9 @@ Step:
     isDurable:
       type: boolean
       description: Whether the step is durable.
-    slotRequirements:
+    slotRequests:
       type: object
-      description: Slot requirements for the step (slot_type -> units).
+      description: Slot requests for the step (slot_type -> units).
       additionalProperties:
         type: integer
     children:

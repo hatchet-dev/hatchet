@@ -30,11 +30,8 @@ from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_error import (
 class ScheduledWorkflowsBulkUpdateResponse(BaseModel):
     """
     ScheduledWorkflowsBulkUpdateResponse
-    """  # noqa: E501
-
-    updated_ids: List[
-        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
-    ] = Field(alias="updatedIds")
+    """ # noqa: E501
+    updated_ids: List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(alias="updatedIds")
     errors: List[ScheduledWorkflowsBulkError]
     __properties: ClassVar[List[str]] = ["updatedIds", "errors"]
 
@@ -43,6 +40,7 @@ class ScheduledWorkflowsBulkUpdateResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -68,7 +66,8 @@ class ScheduledWorkflowsBulkUpdateResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,7 +80,7 @@ class ScheduledWorkflowsBulkUpdateResponse(BaseModel):
             for _item_errors in self.errors:
                 if _item_errors:
                     _items.append(_item_errors.to_dict())
-            _dict["errors"] = _items
+            _dict['errors'] = _items
         return _dict
 
     @classmethod
@@ -93,17 +92,8 @@ class ScheduledWorkflowsBulkUpdateResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "updatedIds": obj.get("updatedIds"),
-                "errors": (
-                    [
-                        ScheduledWorkflowsBulkError.from_dict(_item)
-                        for _item in obj["errors"]
-                    ]
-                    if obj.get("errors") is not None
-                    else None
-                ),
-            }
-        )
+        _obj = cls.model_validate({
+            "updatedIds": obj.get("updatedIds"),
+            "errors": [ScheduledWorkflowsBulkError.from_dict(_item) for _item in obj["errors"]] if obj.get("errors") is not None else None
+        })
         return _obj

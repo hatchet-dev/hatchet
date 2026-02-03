@@ -28,8 +28,8 @@ class ScheduledWorkflowsOrderByField(str, Enum):
     """
     allowed enum values
     """
-    TRIGGERAT = "triggerAt"
-    CREATEDAT = "createdAt"
+    TRIGGERAT = 'triggerAt'
+    CREATEDAT = 'createdAt'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

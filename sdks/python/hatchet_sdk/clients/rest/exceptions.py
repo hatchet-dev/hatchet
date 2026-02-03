@@ -21,10 +21,9 @@ class OpenApiException(Exception):
 
 
 class ApiTypeError(OpenApiException, TypeError):
-    def __init__(
-        self, msg, path_to_item=None, valid_classes=None, key_type=None
-    ) -> None:
-        """Raises an exception for TypeErrors
+    def __init__(self, msg, path_to_item=None, valid_classes=None,
+                 key_type=None) -> None:
+        """ Raises an exception for TypeErrors
 
         Args:
             msg (str): the exception message
@@ -128,7 +127,7 @@ class ApiException(OpenApiException):
                 self.reason = http_resp.reason
             if self.body is None:
                 try:
-                    self.body = http_resp.data.decode("utf-8")
+                    self.body = http_resp.data.decode('utf-8')
                 except Exception:
                     pass
             self.headers = http_resp.getheaders()
@@ -158,9 +157,7 @@ class ApiException(OpenApiException):
             raise ConflictException(http_resp=http_resp, body=body, data=data)
 
         if http_resp.status == 422:
-            raise UnprocessableEntityException(
-                http_resp=http_resp, body=body, data=data
-            )
+            raise UnprocessableEntityException(http_resp=http_resp, body=body, data=data)
 
         if 500 <= http_resp.status <= 599:
             raise ServiceException(http_resp=http_resp, body=body, data=data)
@@ -168,9 +165,11 @@ class ApiException(OpenApiException):
 
     def __str__(self):
         """Custom error messages for exception"""
-        error_message = "({0})\n" "Reason: {1}\n".format(self.status, self.reason)
+        error_message = "({0})\n"\
+                        "Reason: {1}\n".format(self.status, self.reason)
         if self.headers:
-            error_message += "HTTP response headers: {0}\n".format(self.headers)
+            error_message += "HTTP response headers: {0}\n".format(
+                self.headers)
 
         if self.data or self.body:
             error_message += "HTTP response body: {0}\n".format(self.data or self.body)
@@ -200,13 +199,11 @@ class ServiceException(ApiException):
 
 class ConflictException(ApiException):
     """Exception for HTTP 409 Conflict."""
-
     pass
 
 
 class UnprocessableEntityException(ApiException):
     """Exception for HTTP 422 Unprocessable Entity."""
-
     pass
 
 
