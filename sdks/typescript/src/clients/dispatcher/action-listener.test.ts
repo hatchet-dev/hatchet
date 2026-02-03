@@ -18,7 +18,7 @@ const mockAssignedActions: AssignActionMock[] = [
     jobName: 'Job One',
     jobRunId: 'run1',
     taskId: 'step1',
-    taskRunId: 'runStep1',
+    taskExternalId: 'runStep1',
     actionId: 'action1',
     actionType: ActionType.START_STEP_RUN,
     actionPayload: 'payload1',
