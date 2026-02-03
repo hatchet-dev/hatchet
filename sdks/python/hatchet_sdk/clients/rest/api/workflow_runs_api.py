@@ -12,25 +12,24 @@
 """  # noqa: E501
 
 import warnings
-from datetime import datetime
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictBool, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from datetime import datetime
+from pydantic import Field, StrictBool, StrictInt, StrictStr
+from typing import List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from hatchet_sdk.clients.rest.models.v1_task_timing_list import V1TaskTimingList
-from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
-    V1TriggerWorkflowRunRequest,
-)
+from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import V1TriggerWorkflowRunRequest
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
-from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import (
-    V1WorkflowRunDisplayNameList,
-)
+from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import V1WorkflowRunDisplayNameList
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -321,7 +320,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -591,9 +590,9 @@ class WorkflowRunsApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if external_ids is not None:
-
+            
             _query_params.append(('external_ids', external_ids))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -610,7 +609,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -934,9 +933,9 @@ class WorkflowRunsApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if statuses is not None:
-
+            
             _query_params.append(('statuses', statuses))
-
+            
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
@@ -949,7 +948,7 @@ class WorkflowRunsApi:
                 )
             else:
                 _query_params.append(('since', since))
-
+            
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
@@ -962,15 +961,15 @@ class WorkflowRunsApi:
                 )
             else:
                 _query_params.append(('until', until))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additional_metadata', additional_metadata))
-
+            
         if workflow_ids is not None:
-
+            
             _query_params.append(('workflow_ids', workflow_ids))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -987,7 +986,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1258,7 +1257,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1532,7 +1531,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1801,9 +1800,9 @@ class WorkflowRunsApi:
             _path_params['v1-workflow-run'] = v1_workflow_run
         # process the query parameters
         if depth is not None:
-
+            
             _query_params.append(('depth', depth))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1820,7 +1819,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2235,17 +2234,17 @@ class WorkflowRunsApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if statuses is not None:
-
+            
             _query_params.append(('statuses', statuses))
-
+            
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
@@ -2258,7 +2257,7 @@ class WorkflowRunsApi:
                 )
             else:
                 _query_params.append(('since', since))
-
+            
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
@@ -2271,35 +2270,35 @@ class WorkflowRunsApi:
                 )
             else:
                 _query_params.append(('until', until))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additional_metadata', additional_metadata))
-
+            
         if workflow_ids is not None:
-
+            
             _query_params.append(('workflow_ids', workflow_ids))
-
+            
         if worker_id is not None:
-
+            
             _query_params.append(('worker_id', worker_id))
-
+            
         if only_tasks is not None:
-
+            
             _query_params.append(('only_tasks', only_tasks))
-
+            
         if parent_task_external_id is not None:
-
+            
             _query_params.append(('parent_task_external_id', parent_task_external_id))
-
+            
         if triggering_event_external_id is not None:
-
+            
             _query_params.append(('triggering_event_external_id', triggering_event_external_id))
-
+            
         if include_payloads is not None:
-
+            
             _query_params.append(('include_payloads', include_payloads))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -2316,7 +2315,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2598,13 +2597,13 @@ class WorkflowRunsApi:
             _path_params['v1-workflow-run'] = v1_workflow_run
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -2621,7 +2620,7 @@ class WorkflowRunsApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2639,3 +2638,5 @@ class WorkflowRunsApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

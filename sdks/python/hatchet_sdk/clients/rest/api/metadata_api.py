@@ -12,16 +12,17 @@
 """  # noqa: E501
 
 import warnings
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from typing import List
 from hatchet_sdk.clients.rest.models.api_errors import APIErrors
 from hatchet_sdk.clients.rest.models.api_meta import APIMeta
 from hatchet_sdk.clients.rest.models.api_meta_integration import APIMetaIntegration
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -762,7 +763,7 @@ class MetadataApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -780,3 +781,5 @@ class MetadataApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

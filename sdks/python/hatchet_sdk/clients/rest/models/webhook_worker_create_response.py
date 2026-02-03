@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.webhook_worker_created import WebhookWorkerCreated
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WebhookWorkerCreateResponse(BaseModel):
     """
@@ -89,3 +87,5 @@ class WebhookWorkerCreateResponse(BaseModel):
             "worker": WebhookWorkerCreated.from_dict(obj["worker"]) if obj.get("worker") is not None else None
         })
         return _obj
+
+

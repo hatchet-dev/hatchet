@@ -12,35 +12,34 @@
 """  # noqa: E501
 
 
+from hatchet_sdk.logger import logger
 import datetime
+from dateutil.parser import parse
+from enum import Enum
 import decimal
 import json
 import mimetypes
 import os
 import re
 import tempfile
-from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
-from urllib.parse import quote
 
-from dateutil.parser import parse
+from urllib.parse import quote
+from typing import Tuple, Optional, List, Dict, Union
 from pydantic import SecretStr
 
+from hatchet_sdk.clients.rest.configuration import Configuration
+from hatchet_sdk.clients.rest.api_response import ApiResponse, T as ApiResponseT
 import hatchet_sdk.clients.rest.models
 from hatchet_sdk.clients.rest import rest
-from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.api_response import T as ApiResponseT
-from hatchet_sdk.clients.rest.configuration import Configuration
 from hatchet_sdk.clients.rest.exceptions import (
-    ApiException,
     ApiValueError,
+    ApiException,
     BadRequestException,
+    UnauthorizedException,
     ForbiddenException,
     NotFoundException,
-    ServiceException,
-    UnauthorizedException,
+    ServiceException
 )
-from hatchet_sdk.logger import logger
 
 RequestSerialized = Tuple[str, str, Dict[str, str], Optional[str], List[str]]
 

@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WorkflowVersionMeta(BaseModel):
     """
@@ -102,6 +100,6 @@ class WorkflowVersionMeta(BaseModel):
         return _obj
 
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-
 # TODO: Rewrite to not use raise_errors
 WorkflowVersionMeta.model_rebuild(raise_errors=False)
+

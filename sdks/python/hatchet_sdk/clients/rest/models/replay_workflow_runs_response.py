@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class ReplayWorkflowRunsResponse(BaseModel):
     """
@@ -93,3 +91,5 @@ class ReplayWorkflowRunsResponse(BaseModel):
             "workflowRuns": [WorkflowRun.from_dict(_item) for _item in obj["workflowRuns"]] if obj.get("workflowRuns") is not None else None
         })
         return _obj
+
+

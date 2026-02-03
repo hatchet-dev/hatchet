@@ -12,15 +12,17 @@
 """  # noqa: E501
 
 import warnings
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
+
+from pydantic import Field
+from typing_extensions import Annotated
+from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response import V1CELDebugResponse
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
-from hatchet_sdk.clients.rest.models.v1_cel_debug_response import V1CELDebugResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -311,7 +313,7 @@ class CELApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -329,3 +331,5 @@ class CELApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

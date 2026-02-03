@@ -13,19 +13,17 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant_resource import TenantResource
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class TenantResourceLimit(BaseModel):
     """
@@ -103,3 +101,5 @@ class TenantResourceLimit(BaseModel):
             "lastRefill": obj.get("lastRefill")
         })
         return _obj
+
+

@@ -12,22 +12,21 @@
 """  # noqa: E501
 
 import warnings
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
-    V1CreateWebhookRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
-    V1UpdateWebhookRequest,
-)
+from pydantic import Field, StrictInt, StrictStr
+from typing import Any, Dict, List, Optional
+from typing_extensions import Annotated
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request import V1CreateWebhookRequest
+from hatchet_sdk.clients.rest.models.v1_update_webhook_request import V1UpdateWebhookRequest
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -321,7 +320,7 @@ class WebhookApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -607,7 +606,7 @@ class WebhookApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -890,7 +889,7 @@ class WebhookApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1197,21 +1196,21 @@ class WebhookApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if source_names is not None:
-
+            
             _query_params.append(('sourceNames', source_names))
-
+            
         if webhook_names is not None:
-
+            
             _query_params.append(('webhookNames', webhook_names))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1228,7 +1227,7 @@ class WebhookApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1823,7 +1822,7 @@ class WebhookApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1841,3 +1840,5 @@ class WebhookApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

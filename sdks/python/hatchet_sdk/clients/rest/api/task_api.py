@@ -12,14 +12,14 @@
 """  # noqa: E501
 
 import warnings
-from datetime import datetime
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from datetime import datetime
+from pydantic import Field, StrictInt, StrictStr
+from typing import List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
 from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
@@ -29,6 +29,9 @@ from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
 from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -291,13 +294,13 @@ class TaskApi:
         # process the path parameters
         # process the query parameters
         if dag_ids is not None:
-
+            
             _query_params.append(('dag_ids', dag_ids))
-
+            
         if tenant is not None:
-
+            
             _query_params.append(('tenant', tenant))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -314,7 +317,7 @@ class TaskApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -616,7 +619,7 @@ class TaskApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -901,13 +904,13 @@ class TaskApi:
             _path_params['task'] = task
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -924,7 +927,7 @@ class TaskApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1196,9 +1199,9 @@ class TaskApi:
             _path_params['task'] = task
         # process the query parameters
         if attempt is not None:
-
+            
             _query_params.append(('attempt', attempt))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1215,7 +1218,7 @@ class TaskApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1508,7 +1511,7 @@ class TaskApi:
                 )
             else:
                 _query_params.append(('createdAfter', created_after))
-
+            
         if finished_before is not None:
             if isinstance(finished_before, datetime):
                 _query_params.append(
@@ -1521,7 +1524,7 @@ class TaskApi:
                 )
             else:
                 _query_params.append(('finishedBefore', finished_before))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1538,7 +1541,7 @@ class TaskApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1885,7 +1888,7 @@ class TaskApi:
                 )
             else:
                 _query_params.append(('since', since))
-
+            
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
@@ -1898,23 +1901,23 @@ class TaskApi:
                 )
             else:
                 _query_params.append(('until', until))
-
+            
         if workflow_ids is not None:
-
+            
             _query_params.append(('workflow_ids', workflow_ids))
-
+            
         if parent_task_external_id is not None:
-
+            
             _query_params.append(('parent_task_external_id', parent_task_external_id))
-
+            
         if triggering_event_external_id is not None:
-
+            
             _query_params.append(('triggering_event_external_id', triggering_event_external_id))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additional_metadata', additional_metadata))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1931,7 +1934,7 @@ class TaskApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2233,7 +2236,7 @@ class TaskApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2251,3 +2254,5 @@ class TaskApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

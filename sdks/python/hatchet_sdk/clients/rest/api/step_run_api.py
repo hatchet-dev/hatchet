@@ -12,17 +12,20 @@
 """  # noqa: E501
 
 import warnings
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from pydantic import Field, StrictInt
+from typing import Any, Dict, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.rerun_step_run_request import RerunStepRunRequest
 from hatchet_sdk.clients.rest.models.step_run import StepRun
 from hatchet_sdk.clients.rest.models.step_run_archive_list import StepRunArchiveList
 from hatchet_sdk.clients.rest.models.step_run_event_list import StepRunEventList
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -303,7 +306,7 @@ class StepRunApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -589,7 +592,7 @@ class StepRunApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -871,13 +874,13 @@ class StepRunApi:
             _path_params['step-run'] = step_run
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -894,7 +897,7 @@ class StepRunApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1176,13 +1179,13 @@ class StepRunApi:
             _path_params['step-run'] = step_run
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1199,7 +1202,7 @@ class StepRunApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1482,7 +1485,7 @@ class StepRunApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1793,7 +1796,7 @@ class StepRunApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2077,9 +2080,9 @@ class StepRunApi:
             _path_params['workflow-run'] = workflow_run
         # process the query parameters
         if last_id is not None:
-
+            
             _query_params.append(('lastId', last_id))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -2096,7 +2099,7 @@ class StepRunApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2114,3 +2117,5 @@ class StepRunApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

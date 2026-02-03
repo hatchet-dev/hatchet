@@ -13,20 +13,18 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class JobRun(BaseModel):
     """
@@ -138,6 +136,6 @@ class JobRun(BaseModel):
 
 from hatchet_sdk.clients.rest.models.step_run import StepRun
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
-
 # TODO: Rewrite to not use raise_errors
 JobRun.model_rebuild(raise_errors=False)
+

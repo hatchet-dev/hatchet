@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.task_status_stat import TaskStatusStat
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class TaskStat(BaseModel):
     """
@@ -94,3 +92,5 @@ class TaskStat(BaseModel):
             "running": TaskStatusStat.from_dict(obj["running"]) if obj.get("running") is not None else None
         })
         return _obj
+
+
