@@ -86,7 +86,9 @@ const optionalJsonString = z
   .optional()
   .refine(
     (val) => {
-      if (!val || val.trim() === '') return true;
+      if (!val || val.trim() === '') {
+        return true;
+      }
       try {
         JSON.parse(val);
         return true;
