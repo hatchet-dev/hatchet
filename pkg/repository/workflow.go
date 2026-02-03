@@ -100,6 +100,9 @@ type CreateStepOpts struct {
 	// (optional) the step retry backoff max seconds (can't be greater than 86400)
 	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 
+	// (optional) whether this step is durable
+	IsDurable bool
+
 	// (optional) a list of additional trigger conditions
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
 
@@ -727,6 +730,10 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Readableid:     stepOpts.ReadableId,
 			CustomUserData: customUserData,
 			Retries:        retries,
+			IsDurable: pgtype.Bool{
+				Bool:  stepOpts.IsDurable,
+				Valid: true,
+			},
 		}
 
 		if stepOpts.ScheduleTimeout != nil {

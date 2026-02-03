@@ -181,11 +181,23 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={WorkerColumn.slots} />
     ),
-    cell: ({ row }) => (
-      <div>
-        {row.original.availableRuns} / {row.original.maxRuns}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const durableAvailable = row.original.durableAvailableRuns ?? 0;
+      const durableMax = row.original.durableMaxRuns ?? 0;
+
+      return (
+        <div>
+          <div>
+            {row.original.availableRuns} / {row.original.maxRuns}
+          </div>
+          {durableMax > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Durable: {durableAvailable} / {durableMax}
+            </div>
+          )}
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: true,
   },

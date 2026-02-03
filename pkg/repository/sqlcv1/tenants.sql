@@ -653,7 +653,8 @@ WHERE "id" = @id::uuid;
 WITH active_workers AS (
     SELECT
         workers."id",
-        workers."maxRuns"
+        workers."maxRuns",
+        workers."durableMaxRuns"
     FROM
         "Worker" workers
     WHERE
@@ -665,7 +666,7 @@ WITH active_workers AS (
 ), worker_slots AS (
     SELECT
         aw."id" AS worker_id,
-        aw."maxRuns" - (
+        (aw."maxRuns" + aw."durableMaxRuns") - (
             SELECT COUNT(*)
             FROM v1_task_runtime runtime
             WHERE

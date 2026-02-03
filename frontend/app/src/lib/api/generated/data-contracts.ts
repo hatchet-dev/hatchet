@@ -1556,6 +1556,8 @@ export interface Step {
   action: string;
   /** The timeout of the step. */
   timeout?: string;
+  /** Whether the step is durable. */
+  isDurable?: boolean;
   children?: string[];
   parents?: string[];
 }
@@ -2181,6 +2183,10 @@ export interface Worker {
   maxRuns?: number;
   /** The number of runs this worker can execute concurrently. */
   availableRuns?: number;
+  /** The maximum number of durable runs this worker can execute concurrently. */
+  durableMaxRuns?: number;
+  /** The number of durable runs this worker can execute concurrently. */
+  durableAvailableRuns?: number;
   /**
    * the id of the assigned dispatcher, in UUID format
    * @format uuid

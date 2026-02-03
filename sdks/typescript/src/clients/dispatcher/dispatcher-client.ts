@@ -24,7 +24,8 @@ interface GetActionListenerOptions {
   workerName: string;
   services: string[];
   actions: string[];
-  maxRuns?: number;
+  slots?: number;
+  durableSlots?: number;
   labels: Record<string, string | number | undefined>;
 }
 
@@ -57,10 +58,10 @@ export class DispatcherClient {
 
   async getActionListener(options: GetActionListenerOptions) {
     // Register the worker
-    const { maxRuns, ...rest } = options;
+    const { slots, ...rest } = options;
     const registration = await this.client.register({
       ...rest,
-      slots: maxRuns,
+      slots,
       labels: options.labels ? mapLabels(options.labels) : undefined,
       runtimeInfo: this.getRuntimeInfo(),
     });

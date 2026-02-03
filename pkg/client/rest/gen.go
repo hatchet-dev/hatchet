@@ -994,11 +994,14 @@ type SlackWebhook struct {
 
 // Step defines model for Step.
 type Step struct {
-	Action   string          `json:"action"`
-	Children *[]string       `json:"children,omitempty"`
-	JobId    string          `json:"jobId"`
-	Metadata APIResourceMeta `json:"metadata"`
-	Parents  *[]string       `json:"parents,omitempty"`
+	Action   string    `json:"action"`
+	Children *[]string `json:"children,omitempty"`
+
+	// IsDurable Whether the step is durable.
+	IsDurable *bool           `json:"isDurable,omitempty"`
+	JobId     string          `json:"jobId"`
+	Metadata  APIResourceMeta `json:"metadata"`
+	Parents   *[]string       `json:"parents,omitempty"`
 
 	// ReadableId The readable id of the step.
 	ReadableId string `json:"readableId"`
@@ -2078,6 +2081,12 @@ type Worker struct {
 
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
+
+	// DurableAvailableRuns The number of durable runs this worker can execute concurrently.
+	DurableAvailableRuns *int `json:"durableAvailableRuns,omitempty"`
+
+	// DurableMaxRuns The maximum number of durable runs this worker can execute concurrently.
+	DurableMaxRuns *int `json:"durableMaxRuns,omitempty"`
 
 	// Labels The current label state of the worker.
 	Labels *[]WorkerLabel `json:"labels,omitempty"`

@@ -62,8 +62,9 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	for i, worker := range workers {
 		workerCp := worker
 		slots := int(worker.RemainingSlots)
+		durableSlots := int(worker.RemainingDurableSlots)
 
-		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker, &slots, &workerCp.WebhookUrl.String, nil)
+		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker, &slots, &durableSlots, &workerCp.WebhookUrl.String, nil)
 	}
 
 	return gen.WorkerList200JSONResponse(
@@ -138,9 +139,10 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	for i, worker := range workers {
 		workerCp := worker
 		slots := int(worker.RemainingSlots)
+		durableSlots := int(worker.RemainingDurableSlots)
 		actions := workerIdToActionIds[workerCp.Worker.ID.String()]
 
-		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &workerCp.WebhookUrl.String, actions, nil)
+		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &durableSlots, &workerCp.WebhookUrl.String, actions, nil)
 	}
 
 	return gen.WorkerList200JSONResponse(

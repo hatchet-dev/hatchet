@@ -84,35 +84,26 @@ class Worker:
         self.owned_loop = owned_loop
 
         self.action_registry: dict[str, Task[Any, Any]] = {}
-        self.durable_action_registry: dict[str, Task[Any, Any]] = {}
 
         self.killing: bool = False
         self._status: WorkerStatus = WorkerStatus.INITIALIZED
 
         self.action_listener_process: BaseProcess | None = None
-        self.durable_action_listener_process: BaseProcess | None = None
 
         self.action_listener_health_check: asyncio.Task[None]
 
         self.action_runner: WorkerActionRunLoopManager | None = None
-        self.durable_action_runner: WorkerActionRunLoopManager | None = None
 
         self.ctx = multiprocessing.get_context("spawn")
 
         self.action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
         self.event_queue: Queue[ActionEvent] = self.ctx.Queue()
 
-        self.durable_action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
-        self.durable_event_queue: Queue[ActionEvent] = self.ctx.Queue()
-
         self.loop: asyncio.AbstractEventLoop | None = None
 
         self.client = Client(config=self.config, debug=self.debug)
 
         self._setup_signal_handlers()
-
-        self.has_any_durable = False
-        self.has_any_non_durable = False
 
         self.lifespan = lifespan
         self.lifespan_stack: AsyncExitStack | None = None
@@ -141,12 +132,7 @@ class Worker:
         for step in workflow.tasks:
             action_name = workflow._create_action_name(step)
 
-            if step.is_durable:
-                self.has_any_durable = True
-                self.durable_action_registry[action_name] = step
-            else:
-                self.has_any_non_durable = True
-                self.action_registry[action_name] = step
+            self.action_registry[action_name] = step
 
     def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
         for workflow in workflows:
@@ -171,7 +157,7 @@ class Worker:
         asyncio.set_event_loop(self.loop)
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
-        if not (self.action_registry or self.durable_action_registry):
+        if not self.action_registry:
             raise ValueError(
                 "no actions registered, register workflows before starting worker"
             )
@@ -205,10 +191,7 @@ class Worker:
 
         self._status = WorkerStatus.STARTING
 
-        if (
-            len(self.action_registry.keys()) == 0
-            and len(self.durable_action_registry.keys()) == 0
-        ):
+        if len(self.action_registry.keys()) == 0:
             raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
@@ -226,34 +209,13 @@ class Worker:
         # Healthcheck server is started inside the spawned action-listener process
         # (non-durable preferred) to avoid being affected by the main worker loop.
         healthcheck_port = self.config.healthcheck.port
-        enable_health_server_non_durable = (
-            self.config.healthcheck.enabled and self.has_any_non_durable
-        )
-        enable_health_server_durable = (
-            self.config.healthcheck.enabled
-            and (not self.has_any_non_durable)
-            and self.has_any_durable
-        )
+        enable_health_server = self.config.healthcheck.enabled
 
-        if self.has_any_non_durable:
-            self.action_listener_process = self._start_action_listener(
-                is_durable=False,
-                enable_health_server=enable_health_server_non_durable,
-                healthcheck_port=healthcheck_port,
-            )
-            self.action_runner = self._run_action_runner(
-                is_durable=False, lifespan_context=lifespan_context
-            )
-
-        if self.has_any_durable:
-            self.durable_action_listener_process = self._start_action_listener(
-                is_durable=True,
-                enable_health_server=enable_health_server_durable,
-                healthcheck_port=healthcheck_port,
-            )
-            self.durable_action_runner = self._run_action_runner(
-                is_durable=True, lifespan_context=lifespan_context
-            )
+        self.action_listener_process = self._start_action_listener(
+            enable_health_server=enable_health_server,
+            healthcheck_port=healthcheck_port,
+        )
+        self.action_runner = self._run_action_runner(lifespan_context=lifespan_context)
 
         if self.loop:
             self.action_listener_health_check = self.loop.create_task(
@@ -263,17 +225,17 @@ class Worker:
             await self.action_listener_health_check
 
     def _run_action_runner(
-        self, is_durable: bool, lifespan_context: Any | None
+        self, lifespan_context: Any | None
     ) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         if self.loop:
             return WorkerActionRunLoopManager(
-                self.name + ("_durable" if is_durable else ""),
-                self.durable_action_registry if is_durable else self.action_registry,
-                self.durable_slots if is_durable else self.slots,
+                self.name,
+                self.action_registry,
+                self.slots + self.durable_slots,
                 self.config,
-                self.durable_action_queue if is_durable else self.action_queue,
-                self.durable_event_queue if is_durable else self.event_queue,
+                self.action_queue,
+                self.event_queue,
                 self.loop,
                 self.handle_kill,
                 self.client.debug,
@@ -311,7 +273,6 @@ class Worker:
 
     def _start_action_listener(
         self,
-        is_durable: bool,
         *,
         enable_health_server: bool = False,
         healthcheck_port: int = 8001,
@@ -320,16 +281,13 @@ class Worker:
             process = self.ctx.Process(
                 target=worker_action_listener_process,
                 args=(
-                    self.name + ("_durable" if is_durable else ""),
-                    (
-                        list(self.durable_action_registry.keys())
-                        if is_durable
-                        else list(self.action_registry.keys())
-                    ),
-                    self.durable_slots if is_durable else self.slots,
+                    self.name,
+                    list(self.action_registry.keys()),
+                    self.slots,
+                    self.durable_slots,
                     self.config,
-                    self.durable_action_queue if is_durable else self.action_queue,
-                    self.durable_event_queue if is_durable else self.event_queue,
+                    self.action_queue,
+                    self.event_queue,
                     self.handle_kill,
                     self.client.debug,
                     self.labels,
@@ -349,12 +307,7 @@ class Worker:
             while not self.killing:
                 if (
                     not self.action_listener_process
-                    and not self.durable_action_listener_process
-                ) or (
-                    self.action_listener_process
-                    and self.durable_action_listener_process
-                    and not self.action_listener_process.is_alive()
-                    and not self.durable_action_listener_process.is_alive()
+                    or not self.action_listener_process.is_alive()
                 ):
                     logger.debug("child action listener process killed...")
                     self._status = WorkerStatus.UNHEALTHY
@@ -413,9 +366,6 @@ class Worker:
         if self.action_runner is not None:
             self.action_runner.cleanup()
 
-        if self.durable_action_runner is not None:
-            self.durable_action_runner.cleanup()
-
         await self.action_listener_health_check
 
     async def exit_gracefully(self) -> None:
@@ -430,18 +380,8 @@ class Worker:
             await self.action_runner.wait_for_tasks()
             await self.action_runner.exit_gracefully()
 
-        if self.durable_action_runner:
-            await self.durable_action_runner.wait_for_tasks()
-            await self.durable_action_runner.exit_gracefully()
-
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
-
-        if (
-            self.durable_action_listener_process
-            and self.durable_action_listener_process.is_alive()
-        ):
-            self.durable_action_listener_process.kill()
 
         try:
             await self._cleanup_lifespan()
@@ -463,9 +403,6 @@ class Worker:
 
         if self.action_listener_process:
             self.action_listener_process.kill()
-
-        if self.durable_action_listener_process:
-            self.durable_action_listener_process.kill()
 
         logger.info("👋")
         sys.exit(1)

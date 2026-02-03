@@ -60,8 +60,9 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 	respStepRuns := make([]gen.RecentStepRuns, 0)
 
 	slots := int(worker.RemainingSlots)
+	durableSlots := int(worker.RemainingDurableSlots)
 
-	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions, &workerWorkflows)
+	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, &slots, &durableSlots, &worker.WebhookUrl.String, actions, &workerWorkflows)
 
 	workerResp.RecentStepRuns = &respStepRuns
 	workerResp.Slots = transformersv1.ToSlotState(slotState, slots)

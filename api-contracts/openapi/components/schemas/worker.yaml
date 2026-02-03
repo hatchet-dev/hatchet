@@ -142,6 +142,12 @@ Worker:
     availableRuns:
       type: integer
       description: The number of runs this worker can execute concurrently.
+    durableMaxRuns:
+      type: integer
+      description: The maximum number of durable runs this worker can execute concurrently.
+    durableAvailableRuns:
+      type: integer
+      description: The number of durable runs this worker can execute concurrently.
     dispatcherId:
       type: string
       description: "the id of the assigned dispatcher, in UUID format"

@@ -49,9 +49,8 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 
 // Worker represents a worker that can execute workflows.
 type Worker struct {
-	nonDurable *worker.Worker
-	durable    *worker.Worker
-	name       string
+	worker *worker.Worker
+	name   string
 }
 
 // NewWorker creates a worker that can execute workflows.
@@ -68,7 +67,8 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 	workerOpts := []worker.WorkerOpt{
 		worker.WithClient(c.legacyClient),
 		worker.WithName(name),
-		worker.WithMaxRuns(config.slots),
+		worker.WithSlots(config.slots),
+		worker.WithDurableSlots(config.durableSlots),
 	}
 
 	if config.logger != nil {
@@ -79,57 +79,31 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		workerOpts = append(workerOpts, worker.WithLabels(config.labels))
 	}
 
-	nonDurableWorker, err := worker.NewWorker(workerOpts...)
+	mainWorker, err := worker.NewWorker(workerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	if config.panicHandler != nil {
-		nonDurableWorker.SetPanicHandler(config.panicHandler)
+		mainWorker.SetPanicHandler(config.panicHandler)
 	}
-
-	var durableWorker *worker.Worker
 
 	for _, workflow := range config.workflows {
 		req, regularActions, durableActions, onFailureFn := workflow.Dump()
-		hasDurableTasks := len(durableActions) > 0
-
-		if hasDurableTasks {
-			if durableWorker == nil {
-				durableWorkerOpts := workerOpts
-				durableWorkerOpts = append(durableWorkerOpts, worker.WithName(name+"-durable"))
-				durableWorkerOpts = append(durableWorkerOpts, worker.WithMaxRuns(config.durableSlots))
-
-				durableWorker, err = worker.NewWorker(durableWorkerOpts...)
-				if err != nil {
-					return nil, err
-				}
-
-				if config.panicHandler != nil {
-					durableWorker.SetPanicHandler(config.panicHandler)
-				}
-			}
-
-			err := durableWorker.RegisterWorkflowV1(req)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			err := nonDurableWorker.RegisterWorkflowV1(req)
-			if err != nil {
-				return nil, err
-			}
+		err := mainWorker.RegisterWorkflowV1(req)
+		if err != nil {
+			return nil, err
 		}
 
 		for _, namedFn := range durableActions {
-			err = durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		for _, namedFn := range regularActions {
-			err = nonDurableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
 			}
@@ -138,7 +112,7 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		// Register on failure function if exists
 		if req.OnFailureTask != nil && onFailureFn != nil {
 			actionId := req.OnFailureTask.Action
-			err = nonDurableWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
+			err = mainWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
 				return onFailureFn(ctx)
 			})
 			if err != nil {
@@ -148,9 +122,8 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 	}
 
 	return &Worker{
-		nonDurable: nonDurableWorker,
-		durable:    durableWorker,
-		name:       name,
+		worker: mainWorker,
+		name:   name,
 	}, nil
 }
 
@@ -158,12 +131,8 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 func (w *Worker) Start() (func() error, error) {
 	var workers []*worker.Worker
 
-	if w.nonDurable != nil {
-		workers = append(workers, w.nonDurable)
-	}
-
-	if w.durable != nil {
-		workers = append(workers, w.durable)
+	if w.worker != nil {
+		workers = append(workers, w.worker)
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines

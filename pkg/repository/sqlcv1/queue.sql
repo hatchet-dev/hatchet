@@ -54,12 +54,19 @@ WHERE
 WITH worker_max_runs AS (
     SELECT
         "id",
-        "maxRuns"
+        CASE
+            WHEN @slotGroup::v1_worker_slot_group = 'DURABLE_SLOTS' THEN "durableMaxRuns"
+            ELSE "maxRuns"
+        END AS "maxRuns"
     FROM
         "Worker"
     WHERE
         "tenantId" = @tenantId::uuid
         AND "id" = ANY(@workerIds::uuid[])
+        AND (
+            (@slotGroup::v1_worker_slot_group = 'DURABLE_SLOTS' AND "durableMaxRuns" > 0)
+            OR (@slotGroup::v1_worker_slot_group = 'SLOTS')
+        )
 ), worker_filled_slots AS (
     SELECT
         worker_id,
@@ -69,6 +76,7 @@ WITH worker_max_runs AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND worker_id = ANY(@workerIds::uuid[])
+        AND slot_group = @slotGroup::v1_worker_slot_group
     GROUP BY
         worker_id
 )
@@ -245,7 +253,8 @@ WITH input AS (
         retry_count,
         worker_id,
         tenant_id,
-        timeout_at
+        timeout_at,
+        slot_group
     )
     SELECT
         t.id,
@@ -253,7 +262,8 @@ WITH input AS (
         t.retry_count,
         t.worker_id,
         @tenantId::uuid,
-        t.timeout_at
+        t.timeout_at,
+        @slotGroup::v1_worker_slot_group
     FROM
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -279,6 +289,15 @@ FROM
     "StepDesiredWorkerLabel"
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
+
+-- name: GetStepsDurability :many
+SELECT
+    "id",
+    "isDurable"
+FROM
+    "Step"
+WHERE
+    "id" = ANY(@stepIds::uuid[]);
 
 -- name: GetQueuedCounts :many
 SELECT

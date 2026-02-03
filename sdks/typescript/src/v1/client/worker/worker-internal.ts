@@ -45,7 +45,8 @@ export type ActionRegistry = Record<Action['actionId'], Function>;
 export interface WorkerOpts {
   name: string;
   handleKill?: boolean;
-  maxRuns?: number;
+  slots?: number;
+  durableSlots?: number;
   labels?: WorkerLabels;
   healthPort?: number;
   enableHealthServer?: boolean;
@@ -63,7 +64,8 @@ export class V1Worker {
   listener: ActionListener | undefined;
   futures: Record<Action['taskRunId'], HatchetPromise<any>> = {};
   contexts: Record<Action['taskRunId'], Context<any, any>> = {};
-  maxRuns?: number;
+  slots?: number;
+  durableSlots?: number;
 
   logger: Logger;
 
@@ -82,14 +84,16 @@ export class V1Worker {
     options: {
       name: string;
       handleKill?: boolean;
-      maxRuns?: number;
+      slots?: number;
+      durableSlots?: number;
       labels?: WorkerLabels;
     }
   ) {
     this.client = client;
     this.name = applyNamespace(options.name, this.client.config.namespace);
     this.action_registry = {};
-    this.maxRuns = options.maxRuns;
+    this.slots = options.slots;
+    this.durableSlots = options.durableSlots;
 
     this.labels = options.labels || {};
 
@@ -127,11 +131,11 @@ export class V1Worker {
   }
 
   private getAvailableSlots(): number {
-    if (!this.maxRuns) {
+    if (!this.slots) {
       return 0;
     }
     const currentRuns = Object.keys(this.futures).length;
-    return Math.max(0, this.maxRuns - currentRuns);
+    return Math.max(0, this.slots - currentRuns);
   }
 
   private getRegisteredActions(): string[] {
@@ -381,6 +385,8 @@ export class V1Worker {
         inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
       }
 
+      const durableTaskSet = new Set(workflow._durableTasks);
+
       const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
@@ -412,6 +418,7 @@ export class V1Worker {
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           conditions: taskConditionsToPb(task),
+          isDurable: durableTaskSet.has(task),
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency
@@ -912,7 +919,8 @@ export class V1Worker {
         workerName: this.name,
         services: ['default'],
         actions: Object.keys(this.action_registry),
-        maxRuns: this.maxRuns,
+        slots: this.slots,
+        durableSlots: this.durableSlots,
         labels: this.labels,
       });
 

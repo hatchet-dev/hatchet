@@ -100,7 +100,8 @@ type Worker struct {
 
 	middlewares *middlewares
 
-	slots *int
+	slots        *int
+	durableSlots *int
 
 	initActionNames []string
 
@@ -121,6 +122,7 @@ type WorkerOpts struct {
 	integrations []integrations.Integration
 	alerter      errors.Alerter
 	slots        *int
+	durableSlots *int
 
 	actions []string
 
@@ -175,6 +177,12 @@ func WithMaxRuns(maxRuns int) WorkerOpt {
 func WithSlots(slots int) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.slots = &slots
+	}
+}
+
+func WithDurableSlots(durableSlots int) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.durableSlots = &durableSlots
 	}
 }
 
@@ -246,6 +254,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		alerter:              opts.alerter,
 		middlewares:          mws,
 		slots:                opts.slots,
+		durableSlots:         opts.durableSlots,
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
@@ -460,10 +469,11 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	_ = NewManagedCompute(&w.actions, w.client, 1)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
-		WorkerName: w.name,
-		Actions:    actionNames,
-		Slots:      w.slots,
-		Labels:     w.labels,
+		WorkerName:   w.name,
+		Actions:      actionNames,
+		Slots:        w.slots,
+		Labels:       w.labels,
+		DurableSlots: w.durableSlots,
 	})
 
 	w.id = id

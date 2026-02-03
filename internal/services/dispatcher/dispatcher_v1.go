@@ -89,15 +89,16 @@ func (d *DispatcherImpl) GetLocalWorkerIds() map[uuid.UUID]struct{} {
 	workerIds := make(map[uuid.UUID]struct{})
 
 	d.workers.Range(func(key, value interface{}) bool {
-		workerId := key.(string)
-
-		workerIdUuid, err := uuid.Parse(workerId)
-
-		if err != nil {
-			return true
+		switch workerId := key.(type) {
+		case uuid.UUID:
+			workerIds[workerId] = struct{}{}
+		case string:
+			workerIdUuid, err := uuid.Parse(workerId)
+			if err != nil {
+				return true
+			}
+			workerIds[workerIdUuid] = struct{}{}
 		}
-
-		workerIds[workerIdUuid] = struct{}{}
 
 		return true
 	})

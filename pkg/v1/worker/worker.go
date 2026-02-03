@@ -73,11 +73,8 @@ type WorkerImpl struct {
 	// v1 workers client
 	workers features.WorkersClient
 
-	// nonDurableWorker is the underlying non-durable worker implementation. (default)
+	// nonDurableWorker is the underlying main worker implementation.
 	nonDurableWorker *worker.Worker
-
-	// durableWorker is the underlying worker implementation for durable tasks.
-	durableWorker *worker.Worker
 
 	// name is the friendly name of the worker.
 	name string
@@ -154,16 +151,16 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 	for _, workflow := range workflows {
 		dump, fns, durableFns, onFailureFn := workflow.Dump()
 
-		// Check if there are non-durable tasks in this workflow
-		hasNonDurableTasks := len(fns) > 0 || (dump.OnFailureTask != nil && onFailureFn != nil)
-		hasDurableTasks := len(durableFns) > 0
+		hasAnyTasks := len(fns) > 0 || len(durableFns) > 0 || (dump.OnFailureTask != nil && onFailureFn != nil)
 
-		// Create non-durable worker on demand if needed and not already created
-		if hasNonDurableTasks && w.nonDurableWorker == nil {
+		// Create worker on demand if needed and not already created
+		if hasAnyTasks && w.nonDurableWorker == nil {
+			totalRuns := w.slots + w.durableSlots
 			opts := []worker.WorkerOpt{
 				worker.WithClient(w.v0),
 				worker.WithName(w.name),
-				worker.WithMaxRuns(w.slots),
+				worker.WithSlots(totalRuns),
+				worker.WithDurableSlots(w.durableSlots),
 				worker.WithLogger(w.logger),
 				worker.WithLogLevel(w.logLevel),
 				worker.WithLabels(w.labels),
@@ -182,38 +179,7 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 			w.nonDurableWorker = nonDurableWorker
 		}
 
-		// Create durable worker on demand if needed and not already created
-		if hasDurableTasks && w.durableWorker == nil {
-			// Reuse logger from main worker if exists
-			var logger *zerolog.Logger
-			if w.nonDurableWorker != nil {
-				logger = w.nonDurableWorker.Logger()
-			}
-
-			labels := make(map[string]interface{})
-			for k, v := range w.labels {
-				labels[k] = fmt.Sprintf("%v-durable", v)
-			}
-
-			opts := []worker.WorkerOpt{
-				worker.WithClient(w.v0),
-				worker.WithName(w.name + "-durable"),
-				worker.WithMaxRuns(w.durableSlots),
-				worker.WithLogger(logger),
-				worker.WithLogLevel(w.logLevel),
-				worker.WithLabels(labels),
-			}
-
-			durableWorker, err := worker.NewWorker(
-				opts...,
-			)
-			if err != nil {
-				return err
-			}
-			w.durableWorker = durableWorker
-		}
-
-		// Register workflow with non-durable worker if it exists
+		// Register workflow with worker if it exists
 		if w.nonDurableWorker != nil {
 			err := w.nonDurableWorker.RegisterWorkflowV1(dump)
 			if err != nil {
@@ -228,24 +194,17 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 				}
 			}
 
-			if dump.OnFailureTask != nil && onFailureFn != nil {
-				actionId := dump.OnFailureTask.Action
-				err := w.nonDurableWorker.RegisterAction(actionId, onFailureFn)
+			// Register durable actions on the same worker
+			for _, namedFn := range durableFns {
+				err := w.nonDurableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 				if err != nil {
 					return err
 				}
 			}
-		}
 
-		// Register durable actions with durable worker
-		if w.durableWorker != nil {
-			err := w.durableWorker.RegisterWorkflowV1(dump)
-			if err != nil {
-				return err
-			}
-
-			for _, namedFn := range durableFns {
-				err := w.durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+			if dump.OnFailureTask != nil && onFailureFn != nil {
+				actionId := dump.OnFailureTask.Action
+				err := w.nonDurableWorker.RegisterAction(actionId, onFailureFn)
 				if err != nil {
 					return err
 				}
@@ -264,9 +223,6 @@ func (w *WorkerImpl) Start() (func() error, error) {
 	var workers []*worker.Worker
 	if w.nonDurableWorker != nil {
 		workers = append(workers, w.nonDurableWorker)
-	}
-	if w.durableWorker != nil {
-		workers = append(workers, w.durableWorker)
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines
@@ -349,11 +305,6 @@ func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
 		workerIDs = append(workerIDs, *mainID)
 	}
 
-	if w.durableWorker != nil {
-		durableID := w.durableWorker.ID()
-		workerIDs = append(workerIDs, *durableID)
-	}
-
 	// If no workers exist, consider it not paused
 	if len(workerIDs) == 0 {
 		return false, nil
@@ -386,14 +337,6 @@ func (w *WorkerImpl) Pause(ctx context.Context) error {
 		}
 	}
 
-	// Pause durable worker if it exists
-	if w.durableWorker != nil {
-		_, err := w.workers.Pause(ctx, *w.durableWorker.ID())
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -402,14 +345,6 @@ func (w *WorkerImpl) Unpause(ctx context.Context) error {
 	// Unpause main worker if it exists
 	if w.nonDurableWorker != nil {
 		_, err := w.workers.Unpause(ctx, *w.nonDurableWorker.ID())
-		if err != nil {
-			return err
-		}
-	}
-
-	// Unpause durable worker if it exists
-	if w.durableWorker != nil {
-		_, err := w.workers.Unpause(ctx, *w.durableWorker.ID())
 		if err != nil {
 			return err
 		}

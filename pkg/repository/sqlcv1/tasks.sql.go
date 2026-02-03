@@ -551,7 +551,14 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 }
 
 const findOldestRunningTask = `-- name: FindOldestRunningTask :one
-SELECT task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at
+SELECT
+    task_id,
+    task_inserted_at,
+    retry_count,
+    worker_id,
+    tenant_id,
+    timeout_at,
+    slot_group
 FROM v1_task_runtime
 ORDER BY task_id, task_inserted_at
 LIMIT 1
@@ -567,6 +574,7 @@ func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*V1TaskRu
 		&i.WorkerID,
 		&i.TenantID,
 		&i.TimeoutAt,
+		&i.SlotGroup,
 	)
 	return &i, err
 }
@@ -2149,7 +2157,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.slot_group
 `
 
 type ManualSlotReleaseParams struct {
@@ -2167,6 +2175,7 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 		&i.WorkerID,
 		&i.TenantID,
 		&i.TimeoutAt,
+		&i.SlotGroup,
 	)
 	return &i, err
 }
@@ -2416,7 +2425,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.slot_group
 `
 
 type RefreshTimeoutByParams struct {
@@ -2435,6 +2444,7 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.WorkerID,
 		&i.TenantID,
 		&i.TimeoutAt,
+		&i.SlotGroup,
 	)
 	return &i, err
 }

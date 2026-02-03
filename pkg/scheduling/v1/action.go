@@ -3,11 +3,14 @@ package v1
 import (
 	"slices"
 	"sync"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type action struct {
-	mu       sync.RWMutex
-	actionId string
+	mu        sync.RWMutex
+	actionId  string
+	slotGroup sqlcv1.V1WorkerSlotGroup
 
 	lastReplenishedSlotCount   int
 	lastReplenishedWorkerCount int
