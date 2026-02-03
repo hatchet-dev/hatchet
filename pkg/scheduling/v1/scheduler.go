@@ -1072,7 +1072,6 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 	for workerId, worker := range workers {
 		res.Workers[workerId] = &WorkerCp{
 			WorkerId: workerId,
-			MaxRuns:  worker.MaxRuns,
 			Labels:   worker.Labels,
 			Name:     worker.Name,
 		}

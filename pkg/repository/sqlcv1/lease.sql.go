@@ -107,7 +107,6 @@ func (q *Queries) GetLeasesToAcquire(ctx context.Context, db DBTX, arg GetLeases
 const listActiveWorkers = `-- name: ListActiveWorkers :many
 SELECT
     w."id",
-    w."maxRuns",
     w."name"
 FROM
     "Worker" w
@@ -120,9 +119,8 @@ WHERE
 `
 
 type ListActiveWorkersRow struct {
-	ID      uuid.UUID `json:"id"`
-	MaxRuns int32     `json:"maxRuns"`
-	Name    string    `json:"name"`
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListActiveWorkersRow, error) {
@@ -134,7 +132,7 @@ func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.
 	var items []*ListActiveWorkersRow
 	for rows.Next() {
 		var i ListActiveWorkersRow
-		if err := rows.Scan(&i.ID, &i.MaxRuns, &i.Name); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

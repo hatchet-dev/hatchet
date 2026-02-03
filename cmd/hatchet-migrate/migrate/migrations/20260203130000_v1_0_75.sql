@@ -1,5 +1,26 @@
 -- +goose Up
 -- +goose StatementBegin
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type
+        WHERE typname = 'v1_worker_slot_group'
+    ) THEN
+        CREATE TYPE v1_worker_slot_group AS ENUM ('SLOTS', 'DURABLE_SLOTS');
+    END IF;
+END
+$$;
+
+ALTER TABLE "Worker"
+    ADD COLUMN IF NOT EXISTS "durableMaxRuns" INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE "Step"
+    ADD COLUMN IF NOT EXISTS "isDurable" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE v1_task_runtime
+    ADD COLUMN IF NOT EXISTS slot_group v1_worker_slot_group NOT NULL DEFAULT 'SLOTS';
+
 CREATE TABLE IF NOT EXISTS v1_worker_slot_config (
     tenant_id UUID NOT NULL,
     worker_id UUID NOT NULL,
@@ -32,6 +53,13 @@ CREATE TABLE IF NOT EXISTS v1_task_runtime_slot (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (task_id, task_inserted_at, retry_count, slot_type)
 );
+-- +goose StatementEnd
+
+-- TODO: concurrently create the index
+-- -- +goose NO TRANSACTION
+CREATE INDEX IF NOT EXISTS v1_task_runtime_tenantId_workerId_slotGroup_idx
+    ON v1_task_runtime (tenant_id ASC, worker_id ASC, slot_group ASC)
+    WHERE worker_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS v1_task_runtime_slot_tenant_worker_type_idx
     ON v1_task_runtime_slot (tenant_id ASC, worker_id ASC, slot_type ASC);
@@ -39,6 +67,7 @@ CREATE INDEX IF NOT EXISTS v1_task_runtime_slot_tenant_worker_type_idx
 CREATE INDEX IF NOT EXISTS v1_step_slot_request_step_idx
     ON v1_step_slot_request (step_id ASC);
 
+-- +goose StatementBegin
 INSERT INTO v1_worker_slot_config (tenant_id, worker_id, slot_type, max_units)
 SELECT
     "tenantId",
@@ -91,11 +120,32 @@ SELECT
 FROM v1_task_runtime
 WHERE worker_id IS NOT NULL
 ON CONFLICT DO NOTHING;
+
+ALTER TABLE "Worker"
+    DROP COLUMN IF EXISTS "maxRuns",
+    DROP COLUMN IF EXISTS "durableMaxRuns";
+
 -- +goose StatementEnd
 
 -- +goose Down
+-- +goose StatementBegin
 DROP INDEX IF EXISTS v1_task_runtime_slot_tenant_worker_type_idx;
 DROP INDEX IF EXISTS v1_step_slot_request_step_idx;
 DROP TABLE IF EXISTS v1_task_runtime_slot;
 DROP TABLE IF EXISTS v1_step_slot_request;
 DROP TABLE IF EXISTS v1_worker_slot_config;
+
+DROP INDEX IF EXISTS v1_task_runtime_tenantId_workerId_slotGroup_idx;
+
+ALTER TABLE v1_task_runtime
+    DROP COLUMN IF EXISTS slot_group;
+
+ALTER TABLE "Step"
+    DROP COLUMN IF EXISTS "isDurable";
+
+ALTER TABLE "Worker"
+    ADD COLUMN IF NOT EXISTS "maxRuns" INTEGER NOT NULL DEFAULT 100,
+    ADD COLUMN IF NOT EXISTS "durableMaxRuns" INTEGER NOT NULL DEFAULT 0;
+
+DROP TYPE IF EXISTS v1_worker_slot_group;
+-- +goose StatementEnd

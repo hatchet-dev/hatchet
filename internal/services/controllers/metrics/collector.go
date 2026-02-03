@@ -457,18 +457,37 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 
 		mc.l.Debug().Msg("collecting worker metrics")
 
-		// Count active slots per tenant
-		activeSlots, err := mc.repo.Workers().CountActiveSlotsPerTenant()
+		// Count active slots per tenant (total)
+		activeSlotsTotal, err := mc.repo.Workers().ListTotalActiveSlotsPerTenant()
 		switch {
 		case err != nil:
-			mc.l.Error().Err(err).Msg("failed to count active slots per tenant")
-		case len(activeSlots) == 0:
+			mc.l.Error().Err(err).Msg("failed to list total active slots per tenant")
+		case len(activeSlotsTotal) == 0:
 			mc.l.Debug().Msg("no active worker slots found")
 		default:
-			mc.l.Info().Int("tenant_count", len(activeSlots)).Msg("recording active slots metrics")
-			for tenantId, count := range activeSlots {
+			mc.l.Info().Int("tenant_count", len(activeSlotsTotal)).Msg("recording active slots metrics")
+			for tenantId, count := range activeSlotsTotal {
 				mc.recorder.RecordActiveSlots(ctx, tenantId, count)
 				mc.l.Debug().Str("tenant_id", tenantId.String()).Int64("count", count).Msg("recorded active slots metric")
+			}
+		}
+
+		// Count active slots per tenant and slot key
+		activeSlotsByKey, err := mc.repo.Workers().ListActiveSlotsPerTenantAndSlotType()
+		switch {
+		case err != nil:
+			mc.l.Error().Err(err).Msg("failed to list active slots per tenant and slot key")
+		case len(activeSlotsByKey) == 0:
+			mc.l.Debug().Msg("no active worker slots by key found")
+		default:
+			mc.l.Info().Int("slot_count", len(activeSlotsByKey)).Msg("recording active slots by key metrics")
+			for tuple, count := range activeSlotsByKey {
+				mc.recorder.RecordActiveSlotsByKey(ctx, tuple.TenantId, tuple.SlotType, count)
+				mc.l.Debug().
+					Str("tenant_id", tuple.TenantId.String()).
+					Str("slot_key", tuple.SlotType).
+					Int64("count", count).
+					Msg("recorded active slots by key metric")
 			}
 		}
 

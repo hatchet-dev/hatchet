@@ -51,10 +51,11 @@ RETURNING l.*;
 -- name: ListActiveWorkers :many
 SELECT
     w."id",
-    w."maxRuns",
     w."name"
 FROM
     "Worker" w
+JOIN 
+    v1_worker_slot_config wsc ON w."id" = wsc."worker_id"
 WHERE
     w."tenantId" = @tenantId::uuid
     AND w."dispatcherId" IS NOT NULL

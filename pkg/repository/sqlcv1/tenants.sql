@@ -648,35 +648,3 @@ UPDATE "Tenant"
 SET "deletedAt" = NOW(),
     slug = slug || '_deleted_' || gen_random_uuid()
 WHERE "id" = @id::uuid;
-
--- name: GetTenantUsageData :one
-WITH active_workers AS (
-    SELECT
-        workers."id",
-        workers."maxRuns",
-        workers."durableMaxRuns"
-    FROM
-        "Worker" workers
-    WHERE
-        workers."tenantId" = @tenantId::uuid
-        AND workers."dispatcherId" IS NOT NULL
-        AND workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        AND workers."isActive" = true
-        AND workers."isPaused" = false
-), worker_slots AS (
-    SELECT
-        aw."id" AS worker_id,
-        (aw."maxRuns" + aw."durableMaxRuns") - (
-            SELECT COUNT(*)
-            FROM v1_task_runtime runtime
-            WHERE
-                runtime.tenant_id = @tenantId::uuid AND
-                runtime.worker_id = aw."id"
-        ) AS "remainingSlots"
-    FROM
-        active_workers aw
-)
-SELECT
-    (SELECT COUNT(*) FROM active_workers) AS "workerCount",
-    COALESCE((SELECT SUM("maxRuns") - SUM("remainingSlots") FROM active_workers aw JOIN worker_slots ws ON aw."id" = ws.worker_id), 0)::bigint AS "usedWorkerSlotsCount",
-    (SELECT COUNT(*) FROM "TenantMember" WHERE "tenantId" = @tenantId::uuid) AS "tenantMembersCount";
