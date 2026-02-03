@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -26,7 +25,7 @@ func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *sqlcv1.Tenant, em
 		subject = fmt.Sprintf("%d Hatchet workflow failed", numFailed)
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	return t.email.SendWorkflowRunFailedAlerts(
 		ctx,
@@ -47,7 +46,7 @@ func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *sqlcv1.Tenant, 
 
 	subject := fmt.Sprintf("Hatchet token expiring %s", payload.ExpiresAtRelativeDate)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	return t.email.SendExpiringTokenEmail(
 		ctx,
@@ -101,7 +100,7 @@ func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *sqlcv1.Te
 			LimitValue:   payload.LimitValue,
 			Percentage:   payload.Percentage,
 			Link:         payload.Link,
-			SettingsLink: fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, sqlchelpers.UUIDToStr(tenant.ID)),
+			SettingsLink: fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, tenant.ID.String()),
 		},
 	)
 }

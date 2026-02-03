@@ -3,12 +3,12 @@ package repository
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 type SpanData struct {
-	WorkflowRunID        *pgtype.UUID
-	TaskRunExternalID    *pgtype.UUID
+	WorkflowRunID        *uuid.UUID
+	TaskRunExternalID    *uuid.UUID
 	StatusMessage        string
 	InstrumentationScope string
 	Name                 string
@@ -23,16 +23,16 @@ type SpanData struct {
 	StartTimeUnixNano    uint64
 	StatusCode           int32
 	Kind                 int32
-	TenantID             pgtype.UUID
+	TenantID             uuid.UUID
 }
 
 type CreateSpansOpts struct {
-	TenantID string `validate:"required,uuid"`
+	TenantID uuid.UUID `validate:"required"`
 	Spans    []*SpanData
 }
 
 type OTelCollectorRepository interface {
-	CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error
+	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -45,7 +45,7 @@ func newOTelCollectorRepository(s *sharedRepository) OTelCollectorRepository {
 	}
 }
 
-func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error {
+func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
 	// intentional no-op, intended to be overridden
 	return nil
 }

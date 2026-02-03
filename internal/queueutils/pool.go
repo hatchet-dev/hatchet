@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/rs/zerolog"
@@ -38,7 +37,7 @@ func (p *OperationPool[T]) SetTenants(tenants []*sqlcv1.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
-		tenantMap[sqlchelpers.UUIDToStr(t.ID)] = true
+		tenantMap[t.ID.String()] = true
 	}
 
 	// delete tenants that are not in the list

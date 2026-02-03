@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -22,7 +23,7 @@ WHERE
     AND "expires" > now()
 `
 
-func (q *Queries) CountActiveInvites(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
+func (q *Queries) CountActiveInvites(ctx context.Context, db DBTX, tenantid uuid.UUID) (int64, error) {
 	row := db.QueryRow(ctx, countActiveInvites, tenantid)
 	var count int64
 	err := row.Scan(&count)
@@ -48,7 +49,7 @@ INSERT INTO "TenantInviteLink" (
 `
 
 type CreateTenantInviteParams struct {
-	Tenantid     pgtype.UUID      `json:"tenantid"`
+	Tenantid     uuid.UUID        `json:"tenantid"`
 	Inviteremail string           `json:"inviteremail"`
 	Inviteeemail string           `json:"inviteeemail"`
 	Expires      pgtype.Timestamp `json:"expires"`
@@ -85,7 +86,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) DeleteTenantInvite(ctx context.Context, db DBTX, id pgtype.UUID) error {
+func (q *Queries) DeleteTenantInvite(ctx context.Context, db DBTX, id uuid.UUID) error {
 	_, err := db.Exec(ctx, deleteTenantInvite, id)
 	return err
 }
@@ -103,8 +104,8 @@ WHERE
 `
 
 type GetExistingInviteParams struct {
-	Inviteeemail string      `json:"inviteeemail"`
-	Tenantid     pgtype.UUID `json:"tenantid"`
+	Inviteeemail string    `json:"inviteeemail"`
+	Tenantid     uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) GetExistingInvite(ctx context.Context, db DBTX, arg GetExistingInviteParams) (*TenantInviteLink, error) {
@@ -133,7 +134,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) GetInviteById(ctx context.Context, db DBTX, id pgtype.UUID) (*TenantInviteLink, error) {
+func (q *Queries) GetInviteById(ctx context.Context, db DBTX, id uuid.UUID) (*TenantInviteLink, error) {
 	row := db.QueryRow(ctx, getInviteById, id)
 	var i TenantInviteLink
 	err := row.Scan(
@@ -170,7 +171,7 @@ WHERE
 `
 
 type ListInvitesByTenantIdParams struct {
-	Tenantid pgtype.UUID          `json:"tenantid"`
+	Tenantid uuid.UUID            `json:"tenantid"`
 	Status   NullInviteLinkStatus `json:"status"`
 	Expired  pgtype.Bool          `json:"expired"`
 }
@@ -220,10 +221,10 @@ WHERE
 `
 
 type ListTenantInvitesByEmailRow struct {
-	ID           pgtype.UUID      `json:"id"`
+	ID           uuid.UUID        `json:"id"`
 	CreatedAt    pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
-	TenantId     pgtype.UUID      `json:"tenantId"`
+	TenantId     uuid.UUID        `json:"tenantId"`
 	InviterEmail string           `json:"inviterEmail"`
 	InviteeEmail string           `json:"inviteeEmail"`
 	Expires      pgtype.Timestamp `json:"expires"`
@@ -277,7 +278,7 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmai
 type UpdateTenantInviteParams struct {
 	Status NullInviteLinkStatus `json:"status"`
 	Role   NullTenantMemberRole `json:"role"`
-	ID     pgtype.UUID          `json:"id"`
+	ID     uuid.UUID            `json:"id"`
 }
 
 func (q *Queries) UpdateTenantInvite(ctx context.Context, db DBTX, arg UpdateTenantInviteParams) (*TenantInviteLink, error) {

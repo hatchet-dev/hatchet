@@ -31,7 +31,7 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 		return nil, err
 	}
 
-	tenantId := req.Tenant.String()
+	tenantId := req.Tenant
 
 	// verify that the tenant and the topic ARN are set in the database
 	snsInt, err := i.config.V1.SNS().GetSNSIntegration(ctx.Request().Context(), tenantId, payload.TopicArn)

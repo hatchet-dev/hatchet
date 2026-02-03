@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -114,10 +114,10 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 
 	defer p.setMu.Unlock()
 
-	tenantMap := make(map[string]bool)
+	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
-		tenantId := sqlchelpers.UUIDToStr(t.ID)
+		tenantId := t.ID
 		tenantMap[tenantId] = true
 		p.getTenantManager(tenantId, true) // nolint: ineffassign
 	}
@@ -126,7 +126,7 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 
 	// delete tenants that are not in the list
 	p.tenants.Range(func(key, value interface{}) bool {
-		tenantId := key.(string)
+		tenantId := key.(uuid.UUID)
 
 		if _, ok := tenantMap[tenantId]; !ok {
 			toCleanup = append(toCleanup, value.(*tenantManager))
@@ -137,7 +137,7 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 
 	// delete each tenant from the map
 	for _, tm := range toCleanup {
-		tenantId := sqlchelpers.UUIDToStr(tm.tenantId)
+		tenantId := tm.tenantId.String()
 		p.tenants.Delete(tenantId)
 	}
 
@@ -162,7 +162,7 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 			err := tm.Cleanup()
 
 			if err != nil {
-				p.cf.l.Error().Err(err).Msgf("failed to cleanup tenant manager for tenant %s", sqlchelpers.UUIDToStr(tm.tenantId))
+				p.cf.l.Error().Err(err).Msgf("failed to cleanup tenant manager for tenant %s", tm.tenantId.String())
 			}
 		}(tm)
 	}
@@ -170,25 +170,25 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 	wg.Wait()
 }
 
-func (p *SchedulingPool) Replenish(ctx context.Context, tenantId string) {
+func (p *SchedulingPool) Replenish(ctx context.Context, tenantId uuid.UUID) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.replenish(ctx)
 	}
 }
 
-func (p *SchedulingPool) NotifyQueues(ctx context.Context, tenantId string, queueNames []string) {
+func (p *SchedulingPool) NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.queue(ctx, queueNames)
 	}
 }
 
-func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId string, strategyIds []int64) {
+func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyConcurrency(ctx, strategyIds)
 	}
 }
 
-func (p *SchedulingPool) getTenantManager(tenantId string, storeIfNotFound bool) *tenantManager {
+func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bool) *tenantManager {
 	tm, ok := p.tenants.Load(tenantId)
 
 	if !ok {
@@ -206,7 +206,7 @@ func (p *SchedulingPool) getTenantManager(tenantId string, storeIfNotFound bool)
 var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
 var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 
-func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
 	if !p.optimisticSchedulingEnabled {
 		return nil, nil, nil, ErrNoOptimisticSlots
 	}
@@ -232,7 +232,7 @@ func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId s
 	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)
 }
 
-func (p *SchedulingPool) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId string, opts []v1.EventTriggerOpts, localWorkerIds map[string]struct{}) (map[string][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
+func (p *SchedulingPool) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId uuid.UUID, opts []v1.EventTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
 	if !p.optimisticSchedulingEnabled {
 		return nil, nil, ErrNoOptimisticSlots
 	}

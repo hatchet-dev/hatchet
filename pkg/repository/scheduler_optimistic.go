@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -26,7 +26,7 @@ func (r *optimisticSchedulingRepositoryImpl) StartTx(ctx context.Context) (*Opti
 	return r.PrepareOptimisticTx(ctx)
 }
 
-func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error) {
+func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
@@ -53,7 +53,7 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 	}
 
 	qis, err := r.queries.ListQueueItemsForTasks(ctx, tx.tx, sqlcv1.ListQueueItemsForTasksParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:        tenantId,
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Retrycounts:     retryCounts,
@@ -72,7 +72,7 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 	return qis, result, nil
 }
 
-func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error) {
+func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error) {
 	triggerOpts, err := r.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
@@ -97,7 +97,7 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 	}
 
 	qis, err := r.queries.ListQueueItemsForTasks(ctx, tx.tx, sqlcv1.ListQueueItemsForTasksParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:        tenantId,
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Retrycounts:     retryCounts,
@@ -114,6 +114,6 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 	return qis, tasks, dags, nil
 }
 
-func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId pgtype.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
 	return r.markQueueItemsProcessed(ctx, tenantId, r2, tx.tx, true)
 }

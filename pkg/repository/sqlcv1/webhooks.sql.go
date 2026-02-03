@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,8 +20,8 @@ WHERE
 `
 
 type CanCreateWebhookParams struct {
-	Webhooklimit int32       `json:"webhooklimit"`
-	Tenantid     pgtype.UUID `json:"tenantid"`
+	Webhooklimit int32     `json:"webhooklimit"`
+	Tenantid     uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) CanCreateWebhook(ctx context.Context, db DBTX, arg CanCreateWebhookParams) (bool, error) {
@@ -65,7 +66,7 @@ RETURNING tenant_id, name, source_name, event_key_expression, auth_method, auth_
 `
 
 type CreateWebhookParams struct {
-	Tenantid                     pgtype.UUID                        `json:"tenantid"`
+	Tenantid                     uuid.UUID                          `json:"tenantid"`
 	Name                         string                             `json:"name"`
 	Sourcename                   V1IncomingWebhookSourceName        `json:"sourcename"`
 	Eventkeyexpression           string                             `json:"eventkeyexpression"`
@@ -126,8 +127,8 @@ RETURNING tenant_id, name, source_name, event_key_expression, auth_method, auth_
 `
 
 type DeleteWebhookParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Name     string      `json:"name"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Name     string    `json:"name"`
 }
 
 func (q *Queries) DeleteWebhook(ctx context.Context, db DBTX, arg DeleteWebhookParams) (*V1IncomingWebhook, error) {
@@ -162,8 +163,8 @@ WHERE
 `
 
 type GetWebhookParams struct {
-	Name     string      `json:"name"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Name     string    `json:"name"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) GetWebhook(ctx context.Context, db DBTX, arg GetWebhookParams) (*V1IncomingWebhook, error) {
@@ -208,7 +209,7 @@ OFFSET COALESCE($4::BIGINT, 0)
 `
 
 type ListWebhooksParams struct {
-	Tenantid      pgtype.UUID                   `json:"tenantid"`
+	Tenantid      uuid.UUID                     `json:"tenantid"`
 	Sourcenames   []V1IncomingWebhookSourceName `json:"sourcenames"`
 	Webhooknames  []string                      `json:"webhooknames"`
 	WebhookOffset pgtype.Int8                   `json:"webhookOffset"`
@@ -268,9 +269,9 @@ RETURNING tenant_id, name, source_name, event_key_expression, auth_method, auth_
 `
 
 type UpdateWebhookExpressionParams struct {
-	Eventkeyexpression string      `json:"eventkeyexpression"`
-	Tenantid           pgtype.UUID `json:"tenantid"`
-	Webhookname        string      `json:"webhookname"`
+	Eventkeyexpression string    `json:"eventkeyexpression"`
+	Tenantid           uuid.UUID `json:"tenantid"`
+	Webhookname        string    `json:"webhookname"`
 }
 
 func (q *Queries) UpdateWebhookExpression(ctx context.Context, db DBTX, arg UpdateWebhookExpressionParams) (*V1IncomingWebhook, error) {

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -30,7 +31,7 @@ type RateLimitResult struct {
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
-	WorkerId pgtype.UUID
+	WorkerId uuid.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
 
@@ -57,14 +58,14 @@ func newQueueFactoryRepository(shared *sharedRepository) *queueFactoryRepository
 	}
 }
 
-func (q *queueFactoryRepository) NewQueue(tenantId pgtype.UUID, queueName string) QueueRepository {
+func (q *queueFactoryRepository) NewQueue(tenantId uuid.UUID, queueName string) QueueRepository {
 	return newQueueRepository(q.sharedRepository, tenantId, queueName)
 }
 
 type queueRepository struct {
 	*sharedRepository
 
-	tenantId  pgtype.UUID
+	tenantId  uuid.UUID
 	queueName string
 
 	gtId   pgtype.Int8
@@ -75,7 +76,7 @@ type queueRepository struct {
 	cachedStepIdHasRateLimit *cache.Cache
 }
 
-func newQueueRepository(shared *sharedRepository, tenantId pgtype.UUID, queueName string) *queueRepository {
+func newQueueRepository(shared *sharedRepository, tenantId uuid.UUID, queueName string) *queueRepository {
 	c := cache.New(5 * time.Minute)
 
 	return &queueRepository{
@@ -206,7 +207,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	return succeeded, failed, nil
 }
 
-func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId pgtype.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId uuid.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
 	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
 	defer span.End()
 
@@ -263,7 +264,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	if !isOptimistic {
 		// we don't want to waste a query if we're scheduling optimistically; this only happens on insert so there's
 		// nothing to release
-		_, err = d.releaseTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), tasksToRelease)
+		_, err = d.releaseTasks(ctx, tx, tenantId, tasksToRelease)
 
 		if err != nil {
 			return nil, nil, err
@@ -278,7 +279,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
-	workerIds := make([]pgtype.UUID, 0, len(r.Assigned))
+	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
 
 	var minTaskInsertedAt pgtype.Timestamptz
 
@@ -360,15 +361,15 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 	taskIds := make([]int64, 0, len(queueItems))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(queueItems))
-	stepsWithRateLimits := make(map[string]bool)
-	stepIdToTasks := make(map[string][]int64)
-	taskIdToStepId := make(map[int64]string)
+	stepsWithRateLimits := make(map[uuid.UUID]bool)
+	stepIdToTasks := make(map[uuid.UUID][]int64)
+	taskIdToStepId := make(map[int64]uuid.UUID)
 
 	for _, item := range queueItems {
 		taskIds = append(taskIds, item.TaskID)
 		taskInsertedAts = append(taskInsertedAts, item.TaskInsertedAt)
 
-		stepId := sqlchelpers.UUIDToStr(item.StepID)
+		stepId := item.StepID
 
 		stepIdToTasks[stepId] = append(stepIdToTasks[stepId], item.TaskID)
 		taskIdToStepId[item.TaskID] = stepId
@@ -377,8 +378,8 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	// check if we have any rate limits for these step ids
 	skipRateLimiting := true
 
-	for stepIdStr := range stepIdToTasks {
-		if hasRateLimit, ok := d.cachedStepIdHasRateLimit.Get(stepIdStr); !ok || hasRateLimit.(bool) {
+	for stepId := range stepIdToTasks {
+		if hasRateLimit, ok := d.cachedStepIdHasRateLimit.Get(stepId.String()); !ok || hasRateLimit.(bool) {
 			skipRateLimiting = false
 			break
 		}
@@ -470,8 +471,8 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 					// severity := sqlcv1.StepRunEventSeverityWARNING
 					// data := map[string]interface{}{}
 
-					// buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
-					// 	StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+					// buffErr := d.bulkEventBuffer.FireForget(d.tenantId.String(), &repository.CreateStepRunEventOpts{
+					// 	StepRunId:     eval.StepRunId.String(),
 					// 	EventMessage:  &message,
 					// 	EventReason:   &reason,
 					// 	EventSeverity: &severity,
@@ -498,8 +499,8 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 					// severity := sqlcv1.StepRunEventSeverityWARNING
 					// data := map[string]interface{}{}
 
-					// buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
-					// 	StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+					// buffErr := d.bulkEventBuffer.FireForget(d.tenantId.String(), &repository.CreateStepRunEventOpts{
+					// 	StepRunId:     eval.StepRunId.String(),
 					// 	EventMessage:  &message,
 					// 	EventReason:   &reason,
 					// 	EventSeverity: &severity,
@@ -548,10 +549,10 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	}
 
 	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
-	uniqueStepIds := make([]pgtype.UUID, 0, len(stepIdToTasks))
+	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToTasks))
 
 	for stepId := range stepIdToTasks {
-		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
+		uniqueStepIds = append(uniqueStepIds, stepId)
 	}
 
 	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, queryTx, sqlcv1.ListRateLimitsForStepsParams{
@@ -564,8 +565,8 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	}
 
 	for _, row := range stepRateLimits {
-		stepsWithRateLimits[sqlchelpers.UUIDToStr(row.StepId)] = true
-		stepId := sqlchelpers.UUIDToStr(row.StepId)
+		stepsWithRateLimits[row.StepId] = true
+		stepId := row.StepId
 		tasks := stepIdToTasks[stepId]
 
 		for _, taskId := range tasks {
@@ -580,24 +581,24 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
 	for stepId := range stepIdToTasks {
 		hasRateLimit := stepsWithRateLimits[stepId]
-		d.cachedStepIdHasRateLimit.Set(stepId, hasRateLimit)
+		d.cachedStepIdHasRateLimit.Set(stepId.String(), hasRateLimit)
 	}
 
 	return taskIdToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
-	stepIdsToLookup := make([]pgtype.UUID, 0, len(stepIds))
-	stepIdToLabels := make(map[string][]*sqlcv1.GetDesiredLabelsRow)
+	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
+	stepIdToLabels := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
 	for _, stepId := range uniqueStepIds {
-		if value, found := d.stepIdLabelsCache.Get(sqlchelpers.UUIDToStr(stepId)); found {
-			stepIdToLabels[sqlchelpers.UUIDToStr(stepId)] = value
+		if value, found := d.stepIdLabelsCache.Get(stepId); found {
+			stepIdToLabels[stepId] = value
 		} else {
 			stepIdsToLookup = append(stepIdsToLookup, stepId)
 		}
@@ -622,7 +623,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	}
 
 	for _, label := range labels {
-		stepId := sqlchelpers.UUIDToStr(label.StepId)
+		stepId := label.StepId
 
 		if _, ok := stepIdToLabels[stepId]; !ok {
 			stepIdToLabels[stepId] = make([]*sqlcv1.GetDesiredLabelsRow, 0)
@@ -638,7 +639,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	return stepIdToLabels, nil
 }
 
-func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {
@@ -658,7 +659,7 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 
 	// if we moved items in v1_queue_item, we need to update the active status of the queue, in case we've
 	// been rate limited for longer than a day and the queue has gone inactive
-	saveQueues, err := d.upsertQueues(ctx, tx, sqlchelpers.UUIDToStr(tenantId), []string{queueName})
+	saveQueues, err := d.upsertQueues(ctx, tx, tenantId, []string{queueName})
 
 	if err != nil {
 		return nil, err

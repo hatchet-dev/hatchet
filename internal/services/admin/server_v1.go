@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -16,7 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
@@ -28,7 +28,7 @@ import (
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	canCreateTR, trLimit, err := a.repov1.TenantLimit().CanCreate(
 		ctx,
@@ -97,13 +97,13 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	grpcmiddleware.TriggerCallback(ctx)
 
 	return &contracts.TriggerWorkflowResponse{
-		WorkflowRunId: opt.ExternalId,
+		WorkflowRunId: opt.ExternalId.String(),
 	}, nil
 }
 
 func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	opts := make([]*v1.WorkflowNameTriggerOpts, len(req.Workflows))
 
@@ -144,7 +144,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	runIds := make([]string, len(req.Workflows))
 
 	for i, opt := range opts {
-		runIds[i] = opt.ExternalId
+		runIds[i] = opt.ExternalId.String()
 	}
 
 	for i, runId := range runIds {
@@ -168,7 +168,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 
 func (i *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	req *contracts.TriggerWorkflowRequest,
 ) (*v1.WorkflowNameTriggerOpts, error) {
 	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
@@ -186,11 +186,20 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		additionalMeta = *req.AdditionalMetadata
 	}
 
+	var desiredWorkerId *uuid.UUID
+	if req.DesiredWorkerId != nil {
+		workerId, err := uuid.Parse(*req.DesiredWorkerId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
+		}
+		desiredWorkerId = &workerId
+	}
+
 	t := &v1.TriggerTaskData{
 		WorkflowName:       req.Name,
 		Data:               []byte(req.Input),
 		AdditionalMetadata: []byte(additionalMeta),
-		DesiredWorkerId:    req.DesiredWorkerId,
+		DesiredWorkerId:    desiredWorkerId,
 		Priority:           req.Priority,
 	}
 
@@ -202,11 +211,17 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}
 
 	if req.ParentStepRunId != nil {
+		parentStepRunId, err := uuid.Parse(*req.ParentStepRunId)
+
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "parentStepRunId must be a valid UUID: %s", err)
+		}
+
 		// lookup the parent external id
 		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
-			*req.ParentStepRunId,
+			parentStepRunId,
 			false,
 		)
 
@@ -214,7 +229,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
 
-		parentExternalId := sqlchelpers.UUIDToStr(parentTask.ExternalID)
+		parentExternalId := parentTask.ExternalID
 		childIndex := int64(*req.ChildIndex)
 
 		t.ParentExternalId = &parentExternalId
@@ -229,11 +244,11 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}, nil
 }
 
-func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts) error {
+func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
 	return i.repov1.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 }
 
-func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) error {
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {
@@ -249,7 +264,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 	}
 
 	if i.localScheduler != nil {
-		localWorkerIds := map[string]struct{}{}
+		localWorkerIds := map[uuid.UUID]struct{}{}
 
 		if i.localDispatcher != nil {
 			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()

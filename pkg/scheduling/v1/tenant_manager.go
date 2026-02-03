@@ -5,11 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -17,7 +16,7 @@ import (
 // messages to the relevant queuer.
 type tenantManager struct {
 	cf       *sharedConfig
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	scheduler *Scheduler
 	rl        *rateLimiter
@@ -47,8 +46,8 @@ type tenantManager struct {
 	cleanup func()
 }
 
-func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, exts *Extensions) *tenantManager {
-	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
+func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, exts *Extensions) *tenantManager {
+	tenantIdUUID := tenantId
 
 	rl := newRateLimiter(cf, tenantIdUUID)
 	s := newScheduler(cf, tenantIdUUID, rl, exts)
@@ -301,8 +300,8 @@ type AssignedItemWithTask struct {
 func (t *tenantManager) runOptimisticScheduling(
 	ctx context.Context,
 	opts []*v1.WorkflowNameTriggerOpts,
-	localWorkerIds map[string]struct{},
-) (map[string][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+	localWorkerIds map[uuid.UUID]struct{},
+) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
 	// create a transaction
 	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
 
@@ -313,7 +312,7 @@ func (t *tenantManager) runOptimisticScheduling(
 	defer tx.Rollback()
 
 	// hook into the trigger transaction
-	qis, tasks, dags, err := t.cf.repo.Optimistic().TriggerFromNames(ctx, tx, sqlchelpers.UUIDToStr(t.tenantId), opts)
+	qis, tasks, dags, err := t.cf.repo.Optimistic().TriggerFromNames(ctx, tx, t.tenantId, opts)
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -361,8 +360,8 @@ func (t *tenantManager) runOptimisticScheduling(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := make(map[pgtype.UUID]*v1.AssignedItem, len(allLocalAssigned))
-	taskUUIDToTask := make(map[pgtype.UUID]*v1.V1TaskWithPayload, len(qis))
+	taskUUIDToAssigned := make(map[uuid.UUID]*v1.AssignedItem, len(allLocalAssigned))
+	taskUUIDToTask := make(map[uuid.UUID]*v1.V1TaskWithPayload, len(qis))
 
 	for _, ai := range allLocalAssigned {
 		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai
@@ -373,7 +372,7 @@ func (t *tenantManager) runOptimisticScheduling(
 	}
 
 	// return the assigned items with their tasks
-	res := make(map[string][]*AssignedItemWithTask)
+	res := make(map[uuid.UUID][]*AssignedItemWithTask)
 
 	for taskUUID, ai := range taskUUIDToAssigned {
 		task, ok := taskUUIDToTask[taskUUID]
@@ -382,7 +381,7 @@ func (t *tenantManager) runOptimisticScheduling(
 			continue
 		}
 
-		workerId := sqlchelpers.UUIDToStr(ai.WorkerId)
+		workerId := ai.WorkerId
 
 		res[workerId] = append(res[workerId], &AssignedItemWithTask{
 			AssignedItem: ai,
@@ -396,8 +395,8 @@ func (t *tenantManager) runOptimisticScheduling(
 func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	ctx context.Context,
 	opts []v1.EventTriggerOpts,
-	localWorkerIds map[string]struct{},
-) (map[string][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
+	localWorkerIds map[uuid.UUID]struct{},
+) (map[uuid.UUID][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
 	// create a transaction
 	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
 
@@ -408,7 +407,7 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	defer tx.Rollback()
 
 	// hook into the trigger transaction
-	qis, eventsRes, err := t.cf.repo.Optimistic().TriggerFromEvents(ctx, tx, sqlchelpers.UUIDToStr(t.tenantId), opts)
+	qis, eventsRes, err := t.cf.repo.Optimistic().TriggerFromEvents(ctx, tx, t.tenantId, opts)
 
 	if err != nil {
 		return nil, nil, err
@@ -456,8 +455,8 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := make(map[pgtype.UUID]*v1.AssignedItem, len(allLocalAssigned))
-	taskUUIDToTask := make(map[pgtype.UUID]*v1.V1TaskWithPayload, len(qis))
+	taskUUIDToAssigned := make(map[uuid.UUID]*v1.AssignedItem, len(allLocalAssigned))
+	taskUUIDToTask := make(map[uuid.UUID]*v1.V1TaskWithPayload, len(qis))
 
 	for _, ai := range allLocalAssigned {
 		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai
@@ -468,7 +467,7 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	}
 
 	// return the assigned items with their tasks
-	res := make(map[string][]*AssignedItemWithTask)
+	res := make(map[uuid.UUID][]*AssignedItemWithTask)
 
 	for taskUUID, ai := range taskUUIDToAssigned {
 		task, ok := taskUUIDToTask[taskUUID]
@@ -477,7 +476,7 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 			continue
 		}
 
-		workerId := sqlchelpers.UUIDToStr(ai.WorkerId)
+		workerId := ai.WorkerId
 
 		res[workerId] = append(res[workerId], &AssignedItemWithTask{
 			AssignedItem: ai,

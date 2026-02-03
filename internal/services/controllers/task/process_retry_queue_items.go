@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -18,8 +19,9 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 	defer span.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+	tenantIdUUID := uuid.MustParse(tenantId)
 
-	retryQueueItems, shouldContinue, err := tc.repov1.Tasks().ProcessTaskRetryQueueItems(ctx, tenantId)
+	retryQueueItems, shouldContinue, err := tc.repov1.Tasks().ProcessTaskRetryQueueItems(ctx, tenantIdUUID)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
@@ -40,7 +42,7 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 		}
 
 		olapMsg, innerErr := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
+			tenantIdUUID,
 			monitoringEvent,
 		)
 
