@@ -106,10 +106,12 @@ func (q *Queries) GetLeasesToAcquire(ctx context.Context, db DBTX, arg GetLeases
 
 const listActiveWorkers = `-- name: ListActiveWorkers :many
 SELECT
-    w."id",
+    DISTINCT w."id",
     w."name"
 FROM
     "Worker" w
+JOIN 
+    v1_worker_slot_config wsc ON w."id" = wsc."worker_id"
 WHERE
     w."tenantId" = $1::uuid
     AND w."dispatcherId" IS NOT NULL
