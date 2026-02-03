@@ -1,3 +1,5 @@
+from typing import Any
+
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.worker.slot_types import SlotType
 
@@ -26,7 +28,7 @@ def ensure_slot_config(
 
 
 def required_slot_types_from_workflows(
-    workflows: list[BaseWorkflow] | None,
+    workflows: list[BaseWorkflow[Any]] | None,
 ) -> set[SlotType]:
     required: set[SlotType] = set()
     if not workflows:
@@ -49,12 +51,14 @@ def resolve_worker_slot_config(
     slot_config: dict[SlotType | str, int] | None,
     slots: int | None,
     durable_slots: int | None,
-    workflows: list[BaseWorkflow] | None,
+    workflows: list[BaseWorkflow[Any]] | None,
 ) -> dict[SlotType | str, int]:
-    resolved_config = slot_config
+    resolved_config: dict[SlotType | str, int]
 
-    if resolved_config is None:
-        legacy_config = {
+    if slot_config is not None:
+        resolved_config = slot_config
+    else:
+        legacy_config: dict[SlotType | str, int] = {
             key: value
             for key, value in (
                 (SlotType.DEFAULT, slots),
@@ -62,7 +66,7 @@ def resolve_worker_slot_config(
             )
             if value is not None
         }
-        resolved_config = legacy_config or {}
+        resolved_config = legacy_config if legacy_config else {}
 
     required_slot_types = required_slot_types_from_workflows(workflows)
     if SlotType.DEFAULT in required_slot_types:

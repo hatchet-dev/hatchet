@@ -1,7 +1,9 @@
 import os
+from typing import Any, cast
 from unittest import mock
 
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.utils.slots import resolve_worker_slot_config
 from hatchet_sdk.worker.slot_types import SlotType
 
@@ -60,7 +62,7 @@ def test_resolve_slot_config_only_durable() -> None:
         slot_config=None,
         slots=None,
         durable_slots=None,
-        workflows=[DummyWorkflow()],
+        workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
     )
 
     assert resolved == {SlotType.DURABLE: 1000}
@@ -82,7 +84,7 @@ def test_resolve_slot_config_mixed() -> None:
         slot_config=None,
         slots=None,
         durable_slots=None,
-        workflows=[DummyWorkflow()],
+        workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
     )
 
     assert resolved == {SlotType.DEFAULT: 100, SlotType.DURABLE: 1000}
