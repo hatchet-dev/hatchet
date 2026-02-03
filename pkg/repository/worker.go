@@ -83,8 +83,8 @@ type UpsertWorkerLabelOpts struct {
 type WorkerRepository interface {
 	ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
 	GetWorkerById(workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
-	ListWorkerState(tenantId uuid.UUID, workerId uuid.UUID, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error)
-	CountActiveSlotsPerTenant() (map[uuid.UUID]int64, error)
+	ListTotalActiveSlotsPerTenant() (map[uuid.UUID]int64, error)
+	ListActiveSlotsPerTenantAndSlotType() (map[TenantIdSlotTypeTuple]int64, error)
 	CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error)
 	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
 
@@ -178,39 +178,6 @@ func (w *workerRepository) GetWorkerById(workerId uuid.UUID) (*sqlcv1.GetWorkerB
 	return w.queries.GetWorkerById(context.Background(), w.pool, workerId)
 }
 
-func (w *workerRepository) ListWorkerState(tenantId uuid.UUID, workerId uuid.UUID, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error) {
-	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, sqlcv1.ListSemaphoreSlotsWithStateForWorkerParams{
-		Workerid: workerId,
-		Tenantid: tenantId,
-		Limit: pgtype.Int4{
-			Int32: int32(maxRuns), // nolint: gosec
-			Valid: true,
-		},
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("could not list worker slot state: %w", err)
-	}
-
-	return slots, nil
-}
-
-func (w *workerRepository) CountActiveSlotsPerTenant() (map[uuid.UUID]int64, error) {
-	slots, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not list active slots per tenant: %w", err)
-	}
-
-	tenantToSlots := make(map[uuid.UUID]int64)
-
-	for _, slot := range slots {
-		tenantToSlots[slot.TenantId] = slot.TotalActiveSlots
-	}
-
-	return tenantToSlots, nil
-}
-
 type SDK struct {
 	OperatingSystem string
 	Language        string
@@ -221,6 +188,11 @@ type SDK struct {
 type TenantIdSDKTuple struct {
 	TenantId uuid.UUID
 	SDK      SDK
+}
+
+type TenantIdSlotTypeTuple struct {
+	TenantId uuid.UUID
+	SlotType string
 }
 
 func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error) {
@@ -248,6 +220,37 @@ func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64
 	}
 
 	return tenantIdSDKTupleToCount, nil
+}
+
+func (w *workerRepository) ListTotalActiveSlotsPerTenant() (map[uuid.UUID]int64, error) {
+	rows, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
+	if err != nil {
+		return nil, fmt.Errorf("could not list total active slots per tenant: %w", err)
+	}
+
+	tenantToSlots := make(map[uuid.UUID]int64, len(rows))
+	for _, row := range rows {
+		tenantToSlots[row.TenantId] = row.TotalActiveSlots
+	}
+
+	return tenantToSlots, nil
+}
+
+func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType() (map[TenantIdSlotTypeTuple]int64, error) {
+	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(context.Background(), w.pool)
+	if err != nil {
+		return nil, fmt.Errorf("could not list active slots per tenant and slot type: %w", err)
+	}
+
+	res := make(map[TenantIdSlotTypeTuple]int64, len(rows))
+	for _, row := range rows {
+		res[TenantIdSlotTypeTuple{
+			TenantId: row.TenantId,
+			SlotType: row.SlotType,
+		}] = row.ActiveSlots
+	}
+
+	return res, nil
 }
 
 func (w *workerRepository) CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error) {

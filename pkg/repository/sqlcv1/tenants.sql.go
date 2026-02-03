@@ -758,52 +758,6 @@ func (q *Queries) GetTenantTotalQueueMetrics(ctx context.Context, db DBTX, arg G
 	return &i, err
 }
 
-const getTenantUsageData = `-- name: GetTenantUsageData :one
-WITH active_workers AS (
-    SELECT
-        workers."id",
-        workers."maxRuns",
-        workers."durableMaxRuns"
-    FROM
-        "Worker" workers
-    WHERE
-        workers."tenantId" = $1::uuid
-        AND workers."dispatcherId" IS NOT NULL
-        AND workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        AND workers."isActive" = true
-        AND workers."isPaused" = false
-), worker_slots AS (
-    SELECT
-        aw."id" AS worker_id,
-        (aw."maxRuns" + aw."durableMaxRuns") - (
-            SELECT COUNT(*)
-            FROM v1_task_runtime runtime
-            WHERE
-                runtime.tenant_id = $1::uuid AND
-                runtime.worker_id = aw."id"
-        ) AS "remainingSlots"
-    FROM
-        active_workers aw
-)
-SELECT
-    (SELECT COUNT(*) FROM active_workers) AS "workerCount",
-    COALESCE((SELECT SUM("maxRuns") - SUM("remainingSlots") FROM active_workers aw JOIN worker_slots ws ON aw."id" = ws.worker_id), 0)::bigint AS "usedWorkerSlotsCount",
-    (SELECT COUNT(*) FROM "TenantMember" WHERE "tenantId" = $1::uuid) AS "tenantMembersCount"
-`
-
-type GetTenantUsageDataRow struct {
-	WorkerCount          int64 `json:"workerCount"`
-	UsedWorkerSlotsCount int64 `json:"usedWorkerSlotsCount"`
-	TenantMembersCount   int64 `json:"tenantMembersCount"`
-}
-
-func (q *Queries) GetTenantUsageData(ctx context.Context, db DBTX, tenantid uuid.UUID) (*GetTenantUsageDataRow, error) {
-	row := db.QueryRow(ctx, getTenantUsageData, tenantid)
-	var i GetTenantUsageDataRow
-	err := row.Scan(&i.WorkerCount, &i.UsedWorkerSlotsCount, &i.TenantMembersCount)
-	return &i, err
-}
-
 const getTenantWorkflowQueueMetrics = `-- name: GetTenantWorkflowQueueMetrics :many
 WITH valid_workflow_runs AS (
     SELECT
