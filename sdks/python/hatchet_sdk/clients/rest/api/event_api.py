@@ -12,36 +12,33 @@
 """  # noqa: E501
 
 import warnings
-from datetime import datetime
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.bulk_create_event_request import (
-    BulkCreateEventRequest,
-)
+from datetime import datetime
+from pydantic import Field, StrictInt, StrictStr
+from typing import List, Optional
+from typing_extensions import Annotated
+from hatchet_sdk.clients.rest.models.bulk_create_event_request import BulkCreateEventRequest
 from hatchet_sdk.clients.rest.models.cancel_event_request import CancelEventRequest
 from hatchet_sdk.clients.rest.models.create_event_request import CreateEventRequest
 from hatchet_sdk.clients.rest.models.event import Event
 from hatchet_sdk.clients.rest.models.event_data import EventData
 from hatchet_sdk.clients.rest.models.event_key_list import EventKeyList
 from hatchet_sdk.clients.rest.models.event_list import EventList
-from hatchet_sdk.clients.rest.models.event_order_by_direction import (
-    EventOrderByDirection,
-)
+from hatchet_sdk.clients.rest.models.event_order_by_direction import EventOrderByDirection
 from hatchet_sdk.clients.rest.models.event_order_by_field import EventOrderByField
-from hatchet_sdk.clients.rest.models.event_update_cancel200_response import (
-    EventUpdateCancel200Response,
-)
+from hatchet_sdk.clients.rest.models.event_update_cancel200_response import EventUpdateCancel200Response
 from hatchet_sdk.clients.rest.models.events import Events
 from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -335,7 +332,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -634,7 +631,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -902,7 +899,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1185,7 +1182,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1453,7 +1450,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1721,7 +1718,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2109,45 +2106,45 @@ class EventApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if keys is not None:
-
+            
             _query_params.append(('keys', keys))
-
+            
         if workflows is not None:
-
+            
             _query_params.append(('workflows', workflows))
-
+            
         if statuses is not None:
-
+            
             _query_params.append(('statuses', statuses))
-
+            
         if search is not None:
-
+            
             _query_params.append(('search', search))
-
+            
         if order_by_field is not None:
-
+            
             _query_params.append(('orderByField', order_by_field.value))
-
+            
         if order_by_direction is not None:
-
+            
             _query_params.append(('orderByDirection', order_by_direction.value))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additionalMetadata', additional_metadata))
-
+            
         if event_ids is not None:
-
+            
             _query_params.append(('eventIds', event_ids))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -2164,7 +2161,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2463,7 +2460,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2762,7 +2759,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -3045,7 +3042,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -3313,7 +3310,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -3702,17 +3699,17 @@ class EventApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if keys is not None:
-
+            
             _query_params.append(('keys', keys))
-
+            
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
@@ -3725,7 +3722,7 @@ class EventApi:
                 )
             else:
                 _query_params.append(('since', since))
-
+            
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
@@ -3738,27 +3735,27 @@ class EventApi:
                 )
             else:
                 _query_params.append(('until', until))
-
+            
         if workflow_ids is not None:
-
+            
             _query_params.append(('workflowIds', workflow_ids))
-
+            
         if workflow_run_statuses is not None:
-
+            
             _query_params.append(('workflowRunStatuses', workflow_run_statuses))
-
+            
         if event_ids is not None:
-
+            
             _query_params.append(('eventIds', event_ids))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additionalMetadata', additional_metadata))
-
+            
         if scopes is not None:
-
+            
             _query_params.append(('scopes', scopes))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -3775,7 +3772,7 @@ class EventApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -3793,3 +3790,5 @@ class EventApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

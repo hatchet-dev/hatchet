@@ -13,18 +13,16 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class V1CreateWebhookRequestBasicAuth(BaseModel):
     """
@@ -105,3 +103,5 @@ class V1CreateWebhookRequestBasicAuth(BaseModel):
             "auth": V1WebhookBasicAuth.from_dict(obj["auth"]) if obj.get("auth") is not None else None
         })
         return _obj
+
+

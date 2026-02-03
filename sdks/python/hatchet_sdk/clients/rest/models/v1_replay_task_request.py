@@ -13,17 +13,16 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Annotated, Self
-
+from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class V1ReplayTaskRequest(BaseModel):
     """
@@ -91,3 +90,5 @@ class V1ReplayTaskRequest(BaseModel):
             "filter": V1TaskFilter.from_dict(obj["filter"]) if obj.get("filter") is not None else None
         })
         return _obj
+
+

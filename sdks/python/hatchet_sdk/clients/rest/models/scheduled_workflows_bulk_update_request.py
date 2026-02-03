@@ -13,19 +13,16 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Annotated, Self
-
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import (
-    ScheduledWorkflowsBulkUpdateItem,
-)
-
+from typing import Any, ClassVar, Dict, List
+from typing_extensions import Annotated
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import ScheduledWorkflowsBulkUpdateItem
+from typing import Optional, Set
+from typing_extensions import Self
 
 class ScheduledWorkflowsBulkUpdateRequest(BaseModel):
     """
@@ -95,3 +92,5 @@ class ScheduledWorkflowsBulkUpdateRequest(BaseModel):
             "updates": [ScheduledWorkflowsBulkUpdateItem.from_dict(_item) for _item in obj["updates"]] if obj.get("updates") is not None else None
         })
         return _obj
+
+

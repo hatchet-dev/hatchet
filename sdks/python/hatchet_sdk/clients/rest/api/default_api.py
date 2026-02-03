@@ -12,30 +12,23 @@
 """  # noqa: E501
 
 import warnings
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
+
+from pydantic import Field
+from typing import Optional
+from typing_extensions import Annotated
+from hatchet_sdk.clients.rest.models.info_get_version200_response import InfoGetVersion200Response
+from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
+from hatchet_sdk.clients.rest.models.update_tenant_invite_request import UpdateTenantInviteRequest
+from hatchet_sdk.clients.rest.models.webhook_worker_create_request import WebhookWorkerCreateRequest
+from hatchet_sdk.clients.rest.models.webhook_worker_created import WebhookWorkerCreated
+from hatchet_sdk.clients.rest.models.webhook_worker_list_response import WebhookWorkerListResponse
+from hatchet_sdk.clients.rest.models.webhook_worker_request_list_response import WebhookWorkerRequestListResponse
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.info_get_version200_response import (
-    InfoGetVersion200Response,
-)
-from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
-from hatchet_sdk.clients.rest.models.update_tenant_invite_request import (
-    UpdateTenantInviteRequest,
-)
-from hatchet_sdk.clients.rest.models.webhook_worker_create_request import (
-    WebhookWorkerCreateRequest,
-)
-from hatchet_sdk.clients.rest.models.webhook_worker_created import WebhookWorkerCreated
-from hatchet_sdk.clients.rest.models.webhook_worker_list_response import (
-    WebhookWorkerListResponse,
-)
-from hatchet_sdk.clients.rest.models.webhook_worker_request_list_response import (
-    WebhookWorkerRequestListResponse,
-)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -540,7 +533,7 @@ class DefaultApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -820,7 +813,7 @@ class DefaultApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1128,7 +1121,7 @@ class DefaultApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1427,7 +1420,7 @@ class DefaultApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1698,7 +1691,7 @@ class DefaultApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1969,7 +1962,7 @@ class DefaultApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2240,7 +2233,7 @@ class DefaultApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2258,3 +2251,5 @@ class DefaultApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

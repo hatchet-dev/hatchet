@@ -12,25 +12,24 @@
 """  # noqa: E501
 
 import warnings
-from datetime import datetime
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from datetime import datetime
+from pydantic import Field, StrictInt, StrictStr
+from typing import List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
 from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
-from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
-    LogLineOrderByDirection,
-)
+from hatchet_sdk.clients.rest.models.log_line_order_by_direction import LogLineOrderByDirection
 from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
-from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
-    V1LogLineOrderByDirection,
-)
+from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import V1LogLineOrderByDirection
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -357,29 +356,29 @@ class LogApi:
             _path_params['step-run'] = step_run
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if levels is not None:
-
+            
             _query_params.append(('levels', levels))
-
+            
         if search is not None:
-
+            
             _query_params.append(('search', search))
-
+            
         if order_by_field is not None:
-
+            
             _query_params.append(('orderByField', order_by_field.value))
-
+            
         if order_by_direction is not None:
-
+            
             _query_params.append(('orderByDirection', order_by_direction.value))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -396,7 +395,7 @@ class LogApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -741,9 +740,9 @@ class LogApi:
             _path_params['task'] = task
         # process the query parameters
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
@@ -756,7 +755,7 @@ class LogApi:
                 )
             else:
                 _query_params.append(('since', since))
-
+            
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
@@ -769,23 +768,23 @@ class LogApi:
                 )
             else:
                 _query_params.append(('until', until))
-
+            
         if search is not None:
-
+            
             _query_params.append(('search', search))
-
+            
         if levels is not None:
-
+            
             _query_params.append(('levels', levels))
-
+            
         if order_by_direction is not None:
-
+            
             _query_params.append(('order_by_direction', order_by_direction.value))
-
+            
         if attempt is not None:
-
+            
             _query_params.append(('attempt', attempt))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -802,7 +801,7 @@ class LogApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -820,3 +819,5 @@ class LogApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

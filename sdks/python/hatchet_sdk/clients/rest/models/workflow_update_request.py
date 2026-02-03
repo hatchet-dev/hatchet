@@ -13,15 +13,14 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from typing import Any, ClassVar, Dict, List, Optional
+from typing import Optional, Set
 from typing_extensions import Self
-
 
 class WorkflowUpdateRequest(BaseModel):
     """
@@ -84,3 +83,5 @@ class WorkflowUpdateRequest(BaseModel):
             "isPaused": obj.get("isPaused")
         })
         return _obj
+
+

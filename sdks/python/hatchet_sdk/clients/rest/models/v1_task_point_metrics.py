@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.v1_task_point_metric import V1TaskPointMetric
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class V1TaskPointMetrics(BaseModel):
     """
@@ -93,3 +91,5 @@ class V1TaskPointMetrics(BaseModel):
             "results": [V1TaskPointMetric.from_dict(_item) for _item in obj["results"]] if obj.get("results") is not None else None
         })
         return _obj
+
+

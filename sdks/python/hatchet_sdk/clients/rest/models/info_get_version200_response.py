@@ -13,15 +13,14 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, StrictStr
+from typing import Any, ClassVar, Dict, List
+from typing import Optional, Set
 from typing_extensions import Self
-
 
 class InfoGetVersion200Response(BaseModel):
     """
@@ -84,3 +83,5 @@ class InfoGetVersion200Response(BaseModel):
             "version": obj.get("version")
         })
         return _obj
+
+

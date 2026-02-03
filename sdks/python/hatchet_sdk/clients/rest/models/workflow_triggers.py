@@ -13,23 +13,17 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import (
-    WorkflowTriggerCronRef,
-)
-from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
-    WorkflowTriggerEventRef,
-)
-
+from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import WorkflowTriggerCronRef
+from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import WorkflowTriggerEventRef
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WorkflowTriggers(BaseModel):
     """
@@ -117,3 +111,5 @@ class WorkflowTriggers(BaseModel):
             "crons": [WorkflowTriggerCronRef.from_dict(_item) for _item in obj["crons"]] if obj.get("crons") is not None else None
         })
         return _obj
+
+

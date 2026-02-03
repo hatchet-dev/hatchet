@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WorkerRuntimeInfo(BaseModel):
     """
@@ -94,3 +92,5 @@ class WorkerRuntimeInfo(BaseModel):
             "runtimeExtra": obj.get("runtimeExtra")
         })
         return _obj
+
+

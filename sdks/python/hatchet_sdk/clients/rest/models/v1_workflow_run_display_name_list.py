@@ -13,20 +13,16 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
-from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
-    V1WorkflowRunDisplayName,
-)
-
+from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import V1WorkflowRunDisplayName
+from typing import Optional, Set
+from typing_extensions import Self
 
 class V1WorkflowRunDisplayNameList(BaseModel):
     """
@@ -101,3 +97,5 @@ class V1WorkflowRunDisplayNameList(BaseModel):
             "rows": [V1WorkflowRunDisplayName.from_dict(_item) for _item in obj["rows"]] if obj.get("rows") is not None else None
         })
         return _obj
+
+

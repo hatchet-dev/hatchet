@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.create_event_request import CreateEventRequest
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class BulkCreateEventRequest(BaseModel):
     """
@@ -93,3 +91,5 @@ class BulkCreateEventRequest(BaseModel):
             "events": [CreateEventRequest.from_dict(_item) for _item in obj["events"]] if obj.get("events") is not None else None
         })
         return _obj
+
+

@@ -12,66 +12,45 @@
 """  # noqa: E501
 
 import warnings
-from datetime import datetime
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from datetime import datetime
+from pydantic import Field, StrictInt, StrictStr
+from typing import List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.cron_workflows_list import CronWorkflowsList
-from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
-    CronWorkflowsOrderByField,
-)
+from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import CronWorkflowsOrderByField
 from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
 from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request import (
-    ScheduledWorkflowsBulkDeleteRequest,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import (
-    ScheduledWorkflowsBulkDeleteResponse,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request import (
-    ScheduledWorkflowsBulkUpdateRequest,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import (
-    ScheduledWorkflowsBulkUpdateResponse,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
-    ScheduledWorkflowsList,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
-    ScheduledWorkflowsOrderByField,
-)
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request import ScheduledWorkflowsBulkDeleteRequest
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import ScheduledWorkflowsBulkDeleteResponse
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request import ScheduledWorkflowsBulkUpdateRequest
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import ScheduledWorkflowsBulkUpdateResponse
+from hatchet_sdk.clients.rest.models.scheduled_workflows_list import ScheduledWorkflowsList
+from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import ScheduledWorkflowsOrderByField
 from hatchet_sdk.clients.rest.models.tenant_queue_metrics import TenantQueueMetrics
-from hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request import (
-    UpdateCronWorkflowTriggerRequest,
-)
-from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request import (
-    UpdateScheduledWorkflowRunRequest,
-)
+from hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request import UpdateCronWorkflowTriggerRequest
+from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request import UpdateScheduledWorkflowRunRequest
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_kind import WorkflowKind
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_metrics import WorkflowMetrics
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
-    WorkflowRunOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import (
-    WorkflowRunOrderByField,
-)
+from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import WorkflowRunOrderByDirection
+from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import WorkflowRunOrderByField
 from hatchet_sdk.clients.rest.models.workflow_run_shape import WorkflowRunShape
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.workflow_runs_metrics import WorkflowRunsMetrics
-from hatchet_sdk.clients.rest.models.workflow_update_request import (
-    WorkflowUpdateRequest,
-)
+from hatchet_sdk.clients.rest.models.workflow_update_request import WorkflowUpdateRequest
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.rest.models.workflow_workers_count import WorkflowWorkersCount
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -424,37 +403,37 @@ class WorkflowApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if workflow_id is not None:
-
+            
             _query_params.append(('workflowId', workflow_id))
-
+            
         if workflow_name is not None:
-
+            
             _query_params.append(('workflowName', workflow_name))
-
+            
         if cron_name is not None:
-
+            
             _query_params.append(('cronName', cron_name))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additionalMetadata', additional_metadata))
-
+            
         if order_by_field is not None:
-
+            
             _query_params.append(('orderByField', order_by_field.value))
-
+            
         if order_by_direction is not None:
-
+            
             _query_params.append(('orderByDirection', order_by_direction.value))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -471,7 +450,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -755,13 +734,13 @@ class WorkflowApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if workflows is not None:
-
+            
             _query_params.append(('workflows', workflows))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additionalMetadata', additional_metadata))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -778,7 +757,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1061,7 +1040,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1347,7 +1326,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1658,7 +1637,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -1929,7 +1908,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2200,7 +2179,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2482,13 +2461,13 @@ class WorkflowApi:
             _path_params['workflow'] = workflow
         # process the query parameters
         if status is not None:
-
+            
             _query_params.append(('status', status.value))
-
+            
         if group_key is not None:
-
+            
             _query_params.append(('groupKey', group_key))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -2505,7 +2484,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -2788,7 +2767,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -3080,17 +3059,17 @@ class WorkflowApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if name is not None:
-
+            
             _query_params.append(('name', name))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -3107,7 +3086,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -3390,7 +3369,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -3735,25 +3714,25 @@ class WorkflowApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if event_id is not None:
-
+            
             _query_params.append(('eventId', event_id))
-
+            
         if workflow_id is not None:
-
+            
             _query_params.append(('workflowId', workflow_id))
-
+            
         if parent_workflow_run_id is not None:
-
+            
             _query_params.append(('parentWorkflowRunId', parent_workflow_run_id))
-
+            
         if parent_step_run_id is not None:
-
+            
             _query_params.append(('parentStepRunId', parent_step_run_id))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additionalMetadata', additional_metadata))
-
+            
         if created_after is not None:
             if isinstance(created_after, datetime):
                 _query_params.append(
@@ -3766,7 +3745,7 @@ class WorkflowApi:
                 )
             else:
                 _query_params.append(('createdAfter', created_after))
-
+            
         if created_before is not None:
             if isinstance(created_before, datetime):
                 _query_params.append(
@@ -3779,7 +3758,7 @@ class WorkflowApi:
                 )
             else:
                 _query_params.append(('createdBefore', created_before))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -3796,7 +3775,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -4079,7 +4058,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -4530,41 +4509,41 @@ class WorkflowApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if event_id is not None:
-
+            
             _query_params.append(('eventId', event_id))
-
+            
         if workflow_id is not None:
-
+            
             _query_params.append(('workflowId', workflow_id))
-
+            
         if parent_workflow_run_id is not None:
-
+            
             _query_params.append(('parentWorkflowRunId', parent_workflow_run_id))
-
+            
         if parent_step_run_id is not None:
-
+            
             _query_params.append(('parentStepRunId', parent_step_run_id))
-
+            
         if statuses is not None:
-
+            
             _query_params.append(('statuses', statuses))
-
+            
         if kinds is not None:
-
+            
             _query_params.append(('kinds', kinds))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additionalMetadata', additional_metadata))
-
+            
         if created_after is not None:
             if isinstance(created_after, datetime):
                 _query_params.append(
@@ -4577,7 +4556,7 @@ class WorkflowApi:
                 )
             else:
                 _query_params.append(('createdAfter', created_after))
-
+            
         if created_before is not None:
             if isinstance(created_before, datetime):
                 _query_params.append(
@@ -4590,7 +4569,7 @@ class WorkflowApi:
                 )
             else:
                 _query_params.append(('createdBefore', created_before))
-
+            
         if finished_after is not None:
             if isinstance(finished_after, datetime):
                 _query_params.append(
@@ -4603,7 +4582,7 @@ class WorkflowApi:
                 )
             else:
                 _query_params.append(('finishedAfter', finished_after))
-
+            
         if finished_before is not None:
             if isinstance(finished_before, datetime):
                 _query_params.append(
@@ -4616,15 +4595,15 @@ class WorkflowApi:
                 )
             else:
                 _query_params.append(('finishedBefore', finished_before))
-
+            
         if order_by_field is not None:
-
+            
             _query_params.append(('orderByField', order_by_field.value))
-
+            
         if order_by_direction is not None:
-
+            
             _query_params.append(('orderByDirection', order_by_direction.value))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -4641,7 +4620,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -4937,7 +4916,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -5233,7 +5212,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -5516,7 +5495,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -5802,7 +5781,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -6174,41 +6153,41 @@ class WorkflowApi:
             _path_params['tenant'] = tenant
         # process the query parameters
         if offset is not None:
-
+            
             _query_params.append(('offset', offset))
-
+            
         if limit is not None:
-
+            
             _query_params.append(('limit', limit))
-
+            
         if order_by_field is not None:
-
+            
             _query_params.append(('orderByField', order_by_field.value))
-
+            
         if order_by_direction is not None:
-
+            
             _query_params.append(('orderByDirection', order_by_direction.value))
-
+            
         if workflow_id is not None:
-
+            
             _query_params.append(('workflowId', workflow_id))
-
+            
         if parent_workflow_run_id is not None:
-
+            
             _query_params.append(('parentWorkflowRunId', parent_workflow_run_id))
-
+            
         if parent_step_run_id is not None:
-
+            
             _query_params.append(('parentStepRunId', parent_step_run_id))
-
+            
         if additional_metadata is not None:
-
+            
             _query_params.append(('additionalMetadata', additional_metadata))
-
+            
         if statuses is not None:
-
+            
             _query_params.append(('statuses', statuses))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -6225,7 +6204,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -6539,7 +6518,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -6835,7 +6814,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -7104,9 +7083,9 @@ class WorkflowApi:
             _path_params['workflow'] = workflow
         # process the query parameters
         if version is not None:
-
+            
             _query_params.append(('version', version))
-
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -7123,7 +7102,7 @@ class WorkflowApi:
 
         # authentication setting
         _auth_settings: List[str] = [
-            'cookieAuth',
+            'cookieAuth', 
             'bearerAuth'
         ]
 
@@ -7141,3 +7120,5 @@ class WorkflowApi:
             _host=_host,
             _request_auth=_request_auth
         )
+
+

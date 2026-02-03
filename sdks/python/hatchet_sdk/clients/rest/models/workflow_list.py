@@ -13,19 +13,17 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WorkflowList(BaseModel):
     """
@@ -105,3 +103,5 @@ class WorkflowList(BaseModel):
             "pagination": PaginationResponse.from_dict(obj["pagination"]) if obj.get("pagination") is not None else None
         })
         return _obj
+
+

@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.tenant_resource_limit import TenantResourceLimit
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class TenantResourcePolicy(BaseModel):
     """
@@ -93,3 +91,5 @@ class TenantResourcePolicy(BaseModel):
             "limits": [TenantResourceLimit.from_dict(_item) for _item in obj["limits"]] if obj.get("limits") is not None else None
         })
         return _obj
+
+

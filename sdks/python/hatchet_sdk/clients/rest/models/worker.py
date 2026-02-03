@@ -13,16 +13,14 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
-from typing_extensions import Annotated, Self
-
+from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.recent_step_runs import RecentStepRuns
 from hatchet_sdk.clients.rest.models.registered_workflow import RegisteredWorkflow
@@ -31,7 +29,8 @@ from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
 from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
 from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
 from hatchet_sdk.clients.rest.models.worker_type import WorkerType
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class Worker(BaseModel):
     """
@@ -180,3 +179,5 @@ class Worker(BaseModel):
             "runtimeInfo": WorkerRuntimeInfo.from_dict(obj["runtimeInfo"]) if obj.get("runtimeInfo") is not None else None
         })
         return _obj
+
+

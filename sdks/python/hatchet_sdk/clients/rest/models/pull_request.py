@@ -13,17 +13,15 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class PullRequest(BaseModel):
     """
@@ -100,3 +98,5 @@ class PullRequest(BaseModel):
             "pullRequestState": obj.get("pullRequestState")
         })
         return _obj
+
+
