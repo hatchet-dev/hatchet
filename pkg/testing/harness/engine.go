@@ -29,7 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
-func getEnvConfig() (string, bool, string) {
+func getEnvConfig() (string, bool, string, bool) {
 	// Get migration strategy: penultimate or latest
 	migrateStrategy := os.Getenv("TESTING_MATRIX_MIGRATE")
 	if migrateStrategy == "" {
@@ -45,7 +45,10 @@ func getEnvConfig() (string, bool, string) {
 		pgVersion = "16-alpine" // Default value
 	}
 
-	return migrateStrategy, rabbitmqEnabled, pgVersion
+	// Get whether optimistic scheduling is enabled
+	isOptimistic := strings.ToLower(os.Getenv("TESTING_MATRIX_OPTIMISTIC_SCHEDULING")) == "true"
+
+	return migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic
 }
 
 func RunTestWithEngine(m *testing.M) {
@@ -76,6 +79,8 @@ func RunTestWithEngine(m *testing.M) {
 			goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*Connection).heartbeater"),
 			goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*consumers).buffer"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*http2Server).keepalive"),
+			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
+			goleak.IgnoreAnyFunction("github.com/hashicorp/golang-lru/v2/expirable.(*LRU[...]).deleteExpired"),
 		); err != nil {
 			fmt.Fprintf(os.Stderr, "goleak: Errors on successful test run: %v\n", err)
 			exitCode = 1
@@ -91,7 +96,7 @@ func startEngine() func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Get configuration values from environment
-	migrateStrategy, rabbitmqEnabled, pgVersion := getEnvConfig()
+	migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic := getEnvConfig()
 
 	log.Printf("Starting engine with migration strategy: %s, RabbitMQ enabled: %t, PostgreSQL version: %s", migrateStrategy, rabbitmqEnabled, pgVersion)
 
@@ -119,6 +124,7 @@ func startEngine() func() {
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT", "console")
 	os.Setenv("SERVER_DEFAULT_ENGINE_VERSION", "V1")
+	os.Setenv("SERVER_ENABLE_DURABLE_USER_EVENT_LOG", "true")
 
 	var cleanupRabbitMQ func() error
 	if rabbitmqEnabled {
@@ -129,6 +135,12 @@ func startEngine() func() {
 	} else {
 		os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
 		cleanupRabbitMQ = func() error { return nil }
+	}
+
+	if isOptimistic {
+		os.Setenv("SERVER_OPTIMISTIC_SCHEDULING_ENABLED", "true")
+	} else {
+		os.Setenv("SERVER_OPTIMISTIC_SCHEDULING_ENABLED", "false")
 	}
 
 	// Run migrations

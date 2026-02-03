@@ -840,3 +840,77 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 
 	return items, nil
 }
+
+const bulkCreateEvents = `-- name: BulkCreateEvents :many
+WITH to_insert AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS external_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
+        UNNEST($4::TEXT[]) AS key,
+        UNNEST($5::JSONB[]) AS additional_metadata,
+        -- Scopes are nullable
+        UNNEST($6::TEXT[]) AS scope,
+        -- Webhook names are nullable
+        UNNEST($7::TEXT[]) AS triggering_webhook_name
+)
+INSERT INTO v1_event (
+    tenant_id,
+    external_id,
+    seen_at,
+    key,
+    additional_metadata,
+    scope,
+	triggering_webhook_name
+)
+SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+FROM to_insert
+RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+`
+
+type BulkCreateEventsParams struct {
+	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Externalids            []uuid.UUID          `json:"externalids"`
+	Seenats                []pgtype.Timestamptz `json:"seenats"`
+	Keys                   []string             `json:"keys"`
+	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
+	Scopes                 []pgtype.Text        `json:"scopes"`
+	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
+}
+
+func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1Event, error) {
+	rows, err := db.Query(ctx, bulkCreateEvents,
+		arg.Tenantids,
+		arg.Externalids,
+		arg.Seenats,
+		arg.Keys,
+		arg.Additionalmetadatas,
+		arg.Scopes,
+		arg.TriggeringWebhookNames,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Event
+	for rows.Next() {
+		var i V1Event
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.ExternalID,
+			&i.SeenAt,
+			&i.Key,
+			&i.AdditionalMetadata,
+			&i.Scope,
+			&i.TriggeringWebhookName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

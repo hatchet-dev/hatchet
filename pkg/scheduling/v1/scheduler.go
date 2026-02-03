@@ -462,7 +462,7 @@ func (s *Scheduler) tryAssignBatch(
 	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
 	// slots concurrently.
 	ringOffset int,
-	stepIdsToLabels map[string][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
@@ -581,7 +581,7 @@ func (s *Scheduler) tryAssignBatch(
 			qi,
 			candidateSlots,
 			childRingOffset,
-			stepIdsToLabels[qi.StepID.String()],
+			stepIdsToLabels[qi.StepID],
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -694,7 +694,7 @@ type assignResults struct {
 func (s *Scheduler) tryAssign(
 	ctx context.Context,
 	qis []*sqlcv1.V1QueueItem,
-	stepIdsToLabels map[string][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")

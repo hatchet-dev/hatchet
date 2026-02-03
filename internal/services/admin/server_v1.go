@@ -6,12 +6,14 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
@@ -21,6 +23,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
@@ -256,36 +260,95 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		optsToSend = append(optsToSend, opt)
 	}
 
-	if len(optsToSend) > 0 {
-		verifyErr := i.repov1.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+	if len(optsToSend) == 0 {
+		return nil
+	}
 
-		if verifyErr != nil {
-			namesNotFound := &v1.ErrNamesNotFound{}
+	if i.localScheduler != nil {
+		localWorkerIds := map[uuid.UUID]struct{}{}
 
-			if errors.As(verifyErr, &namesNotFound) {
-				return status.Error(
-					codes.InvalidArgument,
-					verifyErr.Error(),
-				)
+		if i.localDispatcher != nil {
+			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()
+		}
+
+		localAssigned, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+
+		// if we have a scheduling error, we'll fall back to normal ingestion
+		if schedulingErr != nil {
+			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
+				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+			}
+		}
+
+		if i.localDispatcher != nil && len(localAssigned) > 0 {
+			eg := errgroup.Group{}
+
+			for workerId, assignedItems := range localAssigned {
+				eg.Go(func() error {
+					err := i.localDispatcher.HandleLocalAssignments(ctx, tenantId, workerId, assignedItems)
+
+					if err != nil {
+						return fmt.Errorf("could not dispatch assigned items: %w", err)
+					}
+
+					return nil
+				})
 			}
 
-			return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+			dispatcherErr := eg.Wait()
+
+			if dispatcherErr != nil {
+				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+			}
+
+			// we return nil because the failed assignments would have been requeued by the local dispatcher,
+			// and we have already written the tasks to the database
+			return nil
 		}
 
-		msg, err := tasktypes.TriggerTaskMessage(
-			tenantId,
-			optsToSend...,
-		)
+		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
+		if schedulingErr == nil {
+			return nil
+		}
+	} else if i.tw != nil {
+		triggerErr := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
 
-		if err != nil {
-			return fmt.Errorf("could not create event task: %w", err)
+		// if we fail to trigger via gRPC, we fall back to normal ingestion
+		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
+			i.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+		} else if triggerErr == nil {
+			return nil
+		}
+	}
+
+	verifyErr := i.repov1.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+
+	if verifyErr != nil {
+		namesNotFound := &v1.ErrNamesNotFound{}
+
+		if errors.As(verifyErr, &namesNotFound) {
+			return status.Error(
+				codes.InvalidArgument,
+				verifyErr.Error(),
+			)
 		}
 
-		err = i.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+		return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+	}
 
-		if err != nil {
-			return fmt.Errorf("could not add event to task queue: %w", err)
-		}
+	msg, err := tasktypes.TriggerTaskMessage(
+		tenantId,
+		optsToSend...,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create event task: %w", err)
+	}
+
+	err = i.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+	if err != nil {
+		return fmt.Errorf("could not add event to task queue: %w", err)
 	}
 
 	return nil
