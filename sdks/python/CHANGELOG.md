@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.22.15] - 2026-02-02
 
+### Added
+
+- Adds `task_name` and `workflow_name` properties to the `Context` and `DurableContext` classes to allow tasks and lifespans to access their own names.
+
 ### Changed
 
 - Fixes a bug to allow `ContextVars` to be used in lifespans
