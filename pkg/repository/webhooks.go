@@ -231,7 +231,7 @@ type UpdateWebhookOpts struct {
 
 func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookName string, opts UpdateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
 	params := sqlcv1.UpdateWebhookExpressionParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    tenantId,
 		Webhookname: webhookName,
 	}
 

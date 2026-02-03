@@ -200,7 +200,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	if len(webhook.StaticPayload) > 0 {
 		var staticPayloadMap map[string]interface{}
 		if unmarshalErr := json.Unmarshal(webhook.StaticPayload, &staticPayloadMap); unmarshalErr != nil {
-			w.config.Logger.Warn().Err(unmarshalErr).Str("webhook", webhookName).Str("tenant", tenantId).Msg("Failed to unmarshal static payload")
+			w.config.Logger.Warn().Err(unmarshalErr).Str("webhook", webhookName).Str("tenant", tenantId.String()).Msg("Failed to unmarshal static payload")
 		} else {
 			// static payload takes precedence over payload map when there is a collision
 			for key, value := range staticPayloadMap {
@@ -263,11 +263,11 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		))
 
 		if scopeErr != nil {
-			w.config.Logger.Warn().Err(scopeErr).Str("webhook", webhookName).Str("tenant", tenantId).Str("scope_expression", webhook.ScopeExpression.String).Msg("Failed to evaluate scope expression")
+			w.config.Logger.Warn().Err(scopeErr).Str("webhook", webhookName).Str("tenant", tenantId.String()).Str("scope_expression", webhook.ScopeExpression.String).Msg("Failed to evaluate scope expression")
 
 			ingestionErr := w.config.Ingestor.IngestCELEvaluationFailure(
 				ctx.Request().Context(),
-				tenant.ID.String(),
+				tenant.ID,
 				scopeErr.Error(),
 				sqlcv1.V1CelEvaluationFailureSourceWEBHOOK,
 			)
