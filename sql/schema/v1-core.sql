@@ -2260,7 +2260,7 @@ CREATE TABLE v1_durable_event_log_entry (
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, entry_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
-CREATE TYPE v1_durable_event_log_entry_kind AS ENUM (
+CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
     'RUN_COMPLETED',
     -- WAIT_FOR_COMPLETED can represent a durable sleep, an event, or some boolean combination of
     -- these.
@@ -2283,7 +2283,7 @@ CREATE TABLE v1_durable_event_log_callback (
     -- The inserted_at time of this callback from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
     inserted_at TIMESTAMPTZ NOT NULL,
-    kind v1_durable_event_log_entry_kind,
+    kind v1_durable_event_log_callback_kind,
     -- A unique, generated key for this callback. This key will change dependent on the callback kind.
     key TEXT NOT NULL,
     log_entry_id BIGINT NOT NULL,

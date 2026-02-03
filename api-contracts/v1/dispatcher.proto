@@ -7,13 +7,48 @@ package v1;
 import "v1/shared/condition.proto";
 
 service V1Dispatcher {
-    rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
+    rpc DurableEventStream(stream DurableEventRequest) returns (stream DurableEventCallbackOrAck) {}
 
+    // NOTE: deprecated after DurableEventLog is implemented
+    rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
+}
+
+enum DurableEventRequestKind {
+    RUN_TRIGGERED = 0;
+    WAIT_FOR_STARTED = 1;
+}
+
+message DurableEventRequest {
+    string durable_task_external_id = 1; // external uuid for the task run
+    DurableEventRequestKind kind = 2;
+    optional bytes payload = 3;
+    optional DurableEventListenerConditions wait_for_conditions = 4;
+}
+
+enum DurableEventCallbackKind {
+    RUN_COMPLETED = 0;
+    WAIT_FOR_COMPLETED = 1;
+}
+
+message DurableEventCallback {
 
 }
 
+message DurableEventAck {
 
+}
+
+/*
+To discuss: should callbacks be implicit or explicit? Currently treated as implicit, we always send the callback over the stream,
+even when the worker may not be expecting it. We can also consider having the worker request a callback explicitly.
+*/
+message DurableEventCallbackOrAck {
+    oneof message {
+        DurableEventCallback callback = 1;
+        DurableEventAck ack = 2;
+    }
+}
 
 message RegisterDurableEventRequest {
     string task_id = 1; // external uuid for the task run
