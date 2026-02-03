@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -88,9 +89,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 func (d *DispatcherImpl) GetLocalWorkerIds() map[uuid.UUID]struct{} {
 	workerIds := make(map[uuid.UUID]struct{})
 
-	d.workers.Range(func(key, value interface{}) bool {
-		workerId := key.(uuid.UUID)
-
+	d.workers.Range(func(workerId uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
 		workerIds[workerId] = struct{}{}
 
 		return true

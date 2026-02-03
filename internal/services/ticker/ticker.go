@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -29,7 +30,7 @@ type TickerImpl struct {
 	s      gocron.Scheduler
 	ta     *alerting.TenantAlertManager
 
-	scheduledWorkflows sync.Map
+	scheduledWorkflows syncx.Map[string, context.CancelFunc]
 
 	dv datautils.DataDecoderValidator
 

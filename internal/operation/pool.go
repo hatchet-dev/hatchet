@@ -2,10 +2,12 @@ package operation
 
 import (
 	"context"
-	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -13,7 +15,7 @@ import (
 )
 
 type OperationPool struct {
-	ops         sync.Map
+	ops         syncx.Map[uuid.UUID, *SerialOperation]
 	timeout     time.Duration
 	description string
 	method      OpMethod
@@ -100,8 +102,8 @@ func (p *OperationPool) Cleanup() {
 	p.cancel()
 
 	// stop all operations
-	p.ops.Range(func(key, value any) bool {
-		if op, ok := value.(*SerialOperation); ok {
+	p.ops.Range(func(key uuid.UUID, op *SerialOperation) bool {
+		if op != nil {
 			op.Stop()
 		}
 		p.ops.Delete(key)
@@ -110,10 +112,10 @@ func (p *OperationPool) Cleanup() {
 }
 
 func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
-	tenantMap := make(map[string]bool)
+	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
-		tenantMap[t.ID.String()] = true
+		tenantMap[t.ID] = true
 	}
 
 	// init ops for new tenants
@@ -122,9 +124,9 @@ func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	}
 
 	// delete tenants that are not in the list
-	p.ops.Range(func(key, value any) bool {
-		if _, ok := tenantMap[key.(string)]; !ok {
-			if op, ok := value.(*SerialOperation); ok {
+	p.ops.Range(func(key uuid.UUID, op *SerialOperation) bool {
+		if _, ok := tenantMap[key]; !ok {
+			if op != nil {
 				op.Stop()
 			}
 			p.ops.Delete(key)
@@ -134,11 +136,11 @@ func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	})
 }
 
-func (p *OperationPool) RunOrContinue(id string) {
+func (p *OperationPool) RunOrContinue(id uuid.UUID) {
 	p.getOperation(id).RunOrContinue(p.ql)
 }
 
-func (p *OperationPool) getOperation(id string) *SerialOperation {
+func (p *OperationPool) getOperation(id uuid.UUID) *SerialOperation {
 	op, ok := p.ops.Load(id)
 
 	if !ok {
@@ -161,7 +163,7 @@ func (p *OperationPool) getOperation(id string) *SerialOperation {
 
 		op = NewSerialOperation(
 			p.ql,
-			id,
+			id.String(),
 			p.operationId,
 			p.method,
 			fs...,
@@ -170,5 +172,5 @@ func (p *OperationPool) getOperation(id string) *SerialOperation {
 		p.ops.Store(id, op)
 	}
 
-	return op.(*SerialOperation)
+	return op
 }
