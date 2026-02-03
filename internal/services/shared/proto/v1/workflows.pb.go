@@ -709,7 +709,7 @@ type CreateWorkflowVersionRequest struct {
 	EventTriggers []string          `protobuf:"bytes,4,rep,name=event_triggers,json=eventTriggers,proto3" json:"event_triggers,omitempty"` // (optional) event triggers for the workflow
 	CronTriggers  []string          `protobuf:"bytes,5,rep,name=cron_triggers,json=cronTriggers,proto3" json:"cron_triggers,omitempty"`    // (optional) cron triggers for the workflow
 	Tasks         []*CreateTaskOpts `protobuf:"bytes,6,rep,name=tasks,proto3" json:"tasks,omitempty"`                                      // (required) the workflow jobs
-	// Deprecated: use concurrencyArr instead
+	// Deprecated: use concurrency_arr instead
 	Concurrency     *Concurrency     `protobuf:"bytes,7,opt,name=concurrency,proto3" json:"concurrency,omitempty"`                                         // (optional) the workflow concurrency options
 	CronInput       *string          `protobuf:"bytes,8,opt,name=cron_input,json=cronInput,proto3,oneof" json:"cron_input,omitempty"`                      // (optional) the input for the cron trigger
 	OnFailureTask   *CreateTaskOpts  `protobuf:"bytes,9,opt,name=on_failure_task,json=onFailureTask,proto3,oneof" json:"on_failure_task,omitempty"`        // (optional) the job to run on failure
