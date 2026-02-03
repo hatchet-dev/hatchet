@@ -793,7 +793,7 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.sort_id ASC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.sort_id ASC
         LIMIT $3::int
     ) cs ON true
 ), schedule_timeout_slots AS (
@@ -965,7 +965,7 @@ WITH locked_workflow_concurrency_slots AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.sort_id DESC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.sort_id DESC
         LIMIT $3::int
     ) wsc ON true
 ), slots_to_run AS (
@@ -1050,7 +1050,7 @@ WITH locked_workflow_concurrency_slots AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.sort_id ASC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.sort_id ASC
         LIMIT $3::int
     ) wsc ON true
 ), slots_to_run AS (
@@ -1122,7 +1122,7 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.priority DESC, wcs_all.sort_id ASC
         LIMIT $3::int
     ) wsc ON true
 ), eligible_slots AS (
