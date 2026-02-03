@@ -589,7 +589,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 		workflowRunId = taskRun.ExternalID
 	}
 
-	payloads, err := r.ReadPayloads(ctx, tenantId, workflowRunId, taskRun.OutputEventExternalID)
+	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, workflowRunId, taskRun.OutputEventExternalID)
 
 	if err != nil {
 		return nil, emptyUUID, err
@@ -760,7 +760,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 			externalIds = append(externalIds, task.OutputEventExternalID)
 		}
 
-		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds...)
+		payloads, err = r.readPayloads(ctx, tx, tenantId, externalIds...)
 
 		if err != nil {
 			return nil, 0, err
@@ -848,7 +848,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 			externalIds = append(externalIds, task.OutputEventExternalID)
 		}
 
-		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds...)
+		payloads, err = r.readPayloads(ctx, tx, tenantId, externalIds...)
 
 		if err != nil {
 			return nil, taskIdToDagExternalId, err
@@ -921,7 +921,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 			externalIds = append(externalIds, task.OutputEventExternalID)
 		}
 
-		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds...)
+		payloads, err = r.readPayloads(ctx, tx, tenantId, externalIds...)
 
 		if err != nil {
 			return nil, err
@@ -1120,7 +1120,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	externalIdToPayload := make(map[uuid.UUID][]byte)
 
 	if opts.IncludePayloads {
-		externalIdToPayload, err = r.ReadPayloads(ctx, tenantId, externalIdsForPayloads...)
+		externalIdToPayload, err = r.readPayloads(ctx, r.readPool, tenantId, externalIdsForPayloads...)
 
 		if err != nil {
 			return nil, 0, err
@@ -1348,7 +1348,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 		externalIds[i] = eventExternalId
 	}
 
-	payloads, err := r.ReadPayloads(ctx, tenantId, externalIds...)
+	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, externalIds...)
 
 	if err != nil {
 		return nil, err
@@ -2286,7 +2286,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, fmt.Errorf("error populating event data: %v", err)
 	}
 
-	externalIdToPayload, err := r.ReadPayloads(ctx, opts.Tenantid, eventExternalIds...)
+	externalIdToPayload, err := r.readPayloads(ctx, r.readPool, opts.Tenantid, eventExternalIds...)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading event payloads: %v", err)
@@ -2554,7 +2554,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) ([]byte, error) {
-	payloads, err := r.ReadPayloads(ctx, tenantId, externalId)
+	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, externalId)
 
 	if err != nil {
 		return nil, err
@@ -2570,7 +2570,11 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID
 }
 
 func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId uuid.UUID, externalIds ...uuid.UUID) (map[uuid.UUID][]byte, error) {
-	payloads, err := r.queries.ReadPayloadsOLAP(ctx, r.readPool, sqlcv1.ReadPayloadsOLAPParams{
+	return r.readPayloads(ctx, r.readPool, tenantId, externalIds...)
+}
+
+func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, externalIds ...uuid.UUID) (map[uuid.UUID][]byte, error) {
+	payloads, err := r.queries.ReadPayloadsOLAP(ctx, tx, sqlcv1.ReadPayloadsOLAPParams{
 		Tenantid:    tenantId,
 		Externalids: externalIds,
 	})
