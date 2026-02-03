@@ -24,24 +24,38 @@ from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from typing import Optional, Set
 from typing_extensions import Self
 
+
 class V1LogLine(BaseModel):
     """
     V1LogLine
-    """ # noqa: E501
-    created_at: datetime = Field(description="The creation date of the log line.", alias="createdAt")
+    """  # noqa: E501
+
+    created_at: datetime = Field(
+        description="The creation date of the log line.", alias="createdAt"
+    )
     message: StrictStr = Field(description="The log message.")
     metadata: Dict[str, Any] = Field(description="The log metadata.")
-    retry_count: Optional[StrictInt] = Field(default=None, description="The retry count of the log line.", alias="retryCount")
-    attempt: Optional[StrictInt] = Field(default=None, description="The attempt number of the log line.")
+    retry_count: Optional[StrictInt] = Field(
+        default=None, description="The retry count of the log line.", alias="retryCount"
+    )
+    attempt: Optional[StrictInt] = Field(
+        default=None, description="The attempt number of the log line."
+    )
     level: Optional[V1LogLineLevel] = Field(default=None, description="The log level.")
-    __properties: ClassVar[List[str]] = ["createdAt", "message", "metadata", "retryCount", "attempt", "level"]
+    __properties: ClassVar[List[str]] = [
+        "createdAt",
+        "message",
+        "metadata",
+        "retryCount",
+        "attempt",
+        "level",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -67,8 +81,7 @@ class V1LogLine(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -86,14 +99,14 @@ class V1LogLine(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "createdAt": obj.get("createdAt"),
-            "message": obj.get("message"),
-            "metadata": obj.get("metadata"),
-            "retryCount": obj.get("retryCount"),
-            "attempt": obj.get("attempt"),
-            "level": obj.get("level")
-        })
+        _obj = cls.model_validate(
+            {
+                "createdAt": obj.get("createdAt"),
+                "message": obj.get("message"),
+                "metadata": obj.get("metadata"),
+                "retryCount": obj.get("retryCount"),
+                "attempt": obj.get("attempt"),
+                "level": obj.get("level"),
+            }
+        )
         return _obj
-
-

@@ -20,15 +20,24 @@ import json
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter import ScheduledWorkflowsBulkDeleteFilter
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter import (
+    ScheduledWorkflowsBulkDeleteFilter,
+)
 from typing import Optional, Set
 from typing_extensions import Self
+
 
 class ScheduledWorkflowsBulkDeleteRequest(BaseModel):
     """
     ScheduledWorkflowsBulkDeleteRequest
-    """ # noqa: E501
-    scheduled_workflow_run_ids: Optional[Annotated[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(min_length=1, max_length=500)]] = Field(default=None, alias="scheduledWorkflowRunIds")
+    """  # noqa: E501
+
+    scheduled_workflow_run_ids: Optional[
+        Annotated[
+            List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(min_length=1, max_length=500),
+        ]
+    ] = Field(default=None, alias="scheduledWorkflowRunIds")
     filter: Optional[ScheduledWorkflowsBulkDeleteFilter] = None
     __properties: ClassVar[List[str]] = ["scheduledWorkflowRunIds", "filter"]
 
@@ -37,7 +46,6 @@ class ScheduledWorkflowsBulkDeleteRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +71,7 @@ class ScheduledWorkflowsBulkDeleteRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -73,7 +80,7 @@ class ScheduledWorkflowsBulkDeleteRequest(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of filter
         if self.filter:
-            _dict['filter'] = self.filter.to_dict()
+            _dict["filter"] = self.filter.to_dict()
         return _dict
 
     @classmethod
@@ -85,10 +92,14 @@ class ScheduledWorkflowsBulkDeleteRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "scheduledWorkflowRunIds": obj.get("scheduledWorkflowRunIds"),
-            "filter": ScheduledWorkflowsBulkDeleteFilter.from_dict(obj["filter"]) if obj.get("filter") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "scheduledWorkflowRunIds": obj.get("scheduledWorkflowRunIds"),
+                "filter": (
+                    ScheduledWorkflowsBulkDeleteFilter.from_dict(obj["filter"])
+                    if obj.get("filter") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

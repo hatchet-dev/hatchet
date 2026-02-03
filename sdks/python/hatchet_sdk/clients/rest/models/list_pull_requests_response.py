@@ -23,10 +23,12 @@ from hatchet_sdk.clients.rest.models.pull_request import PullRequest
 from typing import Optional, Set
 from typing_extensions import Self
 
+
 class ListPullRequestsResponse(BaseModel):
     """
     ListPullRequestsResponse
-    """ # noqa: E501
+    """  # noqa: E501
+
     pull_requests: List[PullRequest] = Field(alias="pullRequests")
     __properties: ClassVar[List[str]] = ["pullRequests"]
 
@@ -35,7 +37,6 @@ class ListPullRequestsResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +62,7 @@ class ListPullRequestsResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -75,7 +75,7 @@ class ListPullRequestsResponse(BaseModel):
             for _item_pull_requests in self.pull_requests:
                 if _item_pull_requests:
                     _items.append(_item_pull_requests.to_dict())
-            _dict['pullRequests'] = _items
+            _dict["pullRequests"] = _items
         return _dict
 
     @classmethod
@@ -87,9 +87,13 @@ class ListPullRequestsResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "pullRequests": [PullRequest.from_dict(_item) for _item in obj["pullRequests"]] if obj.get("pullRequests") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "pullRequests": (
+                    [PullRequest.from_dict(_item) for _item in obj["pullRequests"]]
+                    if obj.get("pullRequests") is not None
+                    else None
+                )
+            }
+        )
         return _obj
-
-

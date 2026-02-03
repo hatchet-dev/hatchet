@@ -26,11 +26,9 @@ class EventOrderByField(str, Enum):
     """
     allowed enum values
     """
-    CREATEDAT = 'createdAt'
+    CREATEDAT = "createdAt"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of EventOrderByField from a JSON string"""
         return cls(json.loads(json_str))
-
-

@@ -47,19 +47,25 @@ class TaskApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
-
     @validate_call
     def v1_dag_list_tasks(
         self,
-        dag_ids: Annotated[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external id of the DAG")],
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        dag_ids: Annotated[
+            List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The external id of the DAG"),
+        ],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -94,7 +100,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_dag_list_tasks_serialize(
             dag_ids=dag_ids,
@@ -102,18 +108,17 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[V1DagChildren]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[V1DagChildren]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -121,19 +126,25 @@ class TaskApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_dag_list_tasks_with_http_info(
         self,
-        dag_ids: Annotated[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external id of the DAG")],
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        dag_ids: Annotated[
+            List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The external id of the DAG"),
+        ],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -168,7 +179,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_dag_list_tasks_serialize(
             dag_ids=dag_ids,
@@ -176,18 +187,17 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[V1DagChildren]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[V1DagChildren]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -195,19 +205,25 @@ class TaskApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_dag_list_tasks_without_preload_content(
         self,
-        dag_ids: Annotated[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external id of the DAG")],
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        dag_ids: Annotated[
+            List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The external id of the DAG"),
+        ],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -242,7 +258,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_dag_list_tasks_serialize(
             dag_ids=dag_ids,
@@ -250,21 +266,19 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[V1DagChildren]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[V1DagChildren]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_dag_list_tasks_serialize(
         self,
@@ -279,7 +293,7 @@ class TaskApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'dag_ids': 'multi',
+            "dag_ids": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -294,36 +308,29 @@ class TaskApi:
         # process the path parameters
         # process the query parameters
         if dag_ids is not None:
-            
-            _query_params.append(('dag_ids', dag_ids))
-            
+
+            _query_params.append(("dag_ids", dag_ids))
+
         if tenant is not None:
-            
-            _query_params.append(('tenant', tenant))
-            
+
+            _query_params.append(("tenant", tenant))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/dags/tasks',
+            method="GET",
+            resource_path="/api/v1/stable/dags/tasks",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -333,24 +340,27 @@ class TaskApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_task_cancel(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_cancel_task_request: Annotated[V1CancelTaskRequest, Field(description="The tasks to cancel")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_cancel_task_request: Annotated[
+            V1CancelTaskRequest, Field(description="The tasks to cancel")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -385,7 +395,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_cancel_serialize(
             tenant=tenant,
@@ -393,19 +403,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1CancelledTasks",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1CancelledTasks",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -413,19 +422,24 @@ class TaskApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_task_cancel_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_cancel_task_request: Annotated[V1CancelTaskRequest, Field(description="The tasks to cancel")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_cancel_task_request: Annotated[
+            V1CancelTaskRequest, Field(description="The tasks to cancel")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -460,7 +474,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_cancel_serialize(
             tenant=tenant,
@@ -468,19 +482,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1CancelledTasks",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1CancelledTasks",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -488,19 +501,24 @@ class TaskApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_task_cancel_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_cancel_task_request: Annotated[V1CancelTaskRequest, Field(description="The tasks to cancel")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_cancel_task_request: Annotated[
+            V1CancelTaskRequest, Field(description="The tasks to cancel")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -535,7 +553,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_cancel_serialize(
             tenant=tenant,
@@ -543,22 +561,20 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1CancelledTasks",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1CancelledTasks",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_task_cancel_serialize(
         self,
@@ -572,8 +588,7 @@ class TaskApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -586,7 +601,7 @@ class TaskApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -594,38 +609,28 @@ class TaskApi:
         if v1_cancel_task_request is not None:
             _body_params = v1_cancel_task_request
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params['Content-Type'] = _content_type
+            _header_params["Content-Type"] = _content_type
         else:
-            _default_content_type = (
-                self.api_client.select_header_content_type(
-                    [
-                        'application/json'
-                    ]
-                )
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params['Content-Type'] = _default_content_type
+                _header_params["Content-Type"] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/stable/tenants/{tenant}/tasks/cancel',
+            method="POST",
+            resource_path="/api/v1/stable/tenants/{tenant}/tasks/cancel",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -635,25 +640,28 @@ class TaskApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_task_event_list(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -690,7 +698,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_event_list_serialize(
             task=task,
@@ -699,19 +707,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskEventList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskEventList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -719,20 +726,25 @@ class TaskApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_task_event_list_with_http_info(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -769,7 +781,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_event_list_serialize(
             task=task,
@@ -778,19 +790,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskEventList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskEventList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -798,20 +809,25 @@ class TaskApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_task_event_list_without_preload_content(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -848,7 +864,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_event_list_serialize(
             task=task,
@@ -857,22 +873,20 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskEventList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskEventList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_task_event_list_serialize(
         self,
@@ -887,8 +901,7 @@ class TaskApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -901,39 +914,32 @@ class TaskApi:
 
         # process the path parameters
         if task is not None:
-            _path_params['task'] = task
+            _path_params["task"] = task
         # process the query parameters
         if offset is not None:
-            
-            _query_params.append(('offset', offset))
-            
+
+            _query_params.append(("offset", offset))
+
         if limit is not None:
-            
-            _query_params.append(('limit', limit))
-            
+
+            _query_params.append(("limit", limit))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tasks/{task}/task-events',
+            method="GET",
+            resource_path="/api/v1/stable/tasks/{task}/task-events",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -943,24 +949,25 @@ class TaskApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_task_get(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        attempt: Annotated[Optional[StrictInt], Field(description="The attempt number")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -995,7 +1002,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_get_serialize(
             task=task,
@@ -1003,19 +1010,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskSummary",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskSummary",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1023,19 +1029,22 @@ class TaskApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_task_get_with_http_info(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        attempt: Annotated[Optional[StrictInt], Field(description="The attempt number")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1070,7 +1079,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_get_serialize(
             task=task,
@@ -1078,19 +1087,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskSummary",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskSummary",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1098,19 +1106,22 @@ class TaskApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_task_get_without_preload_content(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        attempt: Annotated[Optional[StrictInt], Field(description="The attempt number")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1145,7 +1156,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_get_serialize(
             task=task,
@@ -1153,22 +1164,20 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskSummary",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskSummary",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_task_get_serialize(
         self,
@@ -1182,8 +1191,7 @@ class TaskApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1196,35 +1204,28 @@ class TaskApi:
 
         # process the path parameters
         if task is not None:
-            _path_params['task'] = task
+            _path_params["task"] = task
         # process the query parameters
         if attempt is not None:
-            
-            _query_params.append(('attempt', attempt))
-            
+
+            _query_params.append(("attempt", attempt))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tasks/{task}',
+            method="GET",
+            resource_path="/api/v1/stable/tasks/{task}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1234,25 +1235,31 @@ class TaskApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_task_get_point_metrics(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        created_after: Annotated[Optional[datetime], Field(description="The time after the task was created")] = None,
-        finished_before: Annotated[Optional[datetime], Field(description="The time before the task was completed")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        created_after: Annotated[
+            Optional[datetime], Field(description="The time after the task was created")
+        ] = None,
+        finished_before: Annotated[
+            Optional[datetime],
+            Field(description="The time before the task was completed"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1289,7 +1296,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_get_point_metrics_serialize(
             tenant=tenant,
@@ -1298,18 +1305,17 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskPointMetrics",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskPointMetrics",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1317,20 +1323,28 @@ class TaskApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_task_get_point_metrics_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        created_after: Annotated[Optional[datetime], Field(description="The time after the task was created")] = None,
-        finished_before: Annotated[Optional[datetime], Field(description="The time before the task was completed")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        created_after: Annotated[
+            Optional[datetime], Field(description="The time after the task was created")
+        ] = None,
+        finished_before: Annotated[
+            Optional[datetime],
+            Field(description="The time before the task was completed"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1367,7 +1381,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_get_point_metrics_serialize(
             tenant=tenant,
@@ -1376,18 +1390,17 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskPointMetrics",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskPointMetrics",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1395,20 +1408,28 @@ class TaskApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_task_get_point_metrics_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        created_after: Annotated[Optional[datetime], Field(description="The time after the task was created")] = None,
-        finished_before: Annotated[Optional[datetime], Field(description="The time before the task was completed")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        created_after: Annotated[
+            Optional[datetime], Field(description="The time after the task was created")
+        ] = None,
+        finished_before: Annotated[
+            Optional[datetime],
+            Field(description="The time before the task was completed"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1445,7 +1466,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_get_point_metrics_serialize(
             tenant=tenant,
@@ -1454,21 +1475,19 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskPointMetrics",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskPointMetrics",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_task_get_point_metrics_serialize(
         self,
@@ -1483,8 +1502,7 @@ class TaskApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1497,57 +1515,50 @@ class TaskApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         if created_after is not None:
             if isinstance(created_after, datetime):
                 _query_params.append(
                     (
-                        'createdAfter',
+                        "createdAfter",
                         created_after.strftime(
                             self.api_client.configuration.datetime_format
-                        )
+                        ),
                     )
                 )
             else:
-                _query_params.append(('createdAfter', created_after))
-            
+                _query_params.append(("createdAfter", created_after))
+
         if finished_before is not None:
             if isinstance(finished_before, datetime):
                 _query_params.append(
                     (
-                        'finishedBefore',
+                        "finishedBefore",
                         finished_before.strftime(
                             self.api_client.configuration.datetime_format
-                        )
+                        ),
                     )
                 )
             else:
-                _query_params.append(('finishedBefore', finished_before))
-            
+                _query_params.append(("finishedBefore", finished_before))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tenants/{tenant}/task-point-metrics',
+            method="GET",
+            resource_path="/api/v1/stable/tenants/{tenant}/task-point-metrics",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1557,29 +1568,48 @@ class TaskApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_task_list_status_metrics(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        since: Annotated[datetime, Field(description="The start time to get metrics for")],
-        until: Annotated[Optional[datetime], Field(description="The end time to get metrics for")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow id to find runs for")] = None,
-        parent_task_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent task's external id")] = None,
-        triggering_event_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The id of the event that triggered the task")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        since: Annotated[
+            datetime, Field(description="The start time to get metrics for")
+        ],
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get metrics for")
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id to find runs for"),
+        ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task's external id"),
+        ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1624,7 +1654,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_list_status_metrics_serialize(
             tenant=tenant,
@@ -1637,18 +1667,17 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[V1TaskRunMetric]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[V1TaskRunMetric]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1656,24 +1685,45 @@ class TaskApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_task_list_status_metrics_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        since: Annotated[datetime, Field(description="The start time to get metrics for")],
-        until: Annotated[Optional[datetime], Field(description="The end time to get metrics for")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow id to find runs for")] = None,
-        parent_task_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent task's external id")] = None,
-        triggering_event_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The id of the event that triggered the task")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        since: Annotated[
+            datetime, Field(description="The start time to get metrics for")
+        ],
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get metrics for")
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id to find runs for"),
+        ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task's external id"),
+        ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1718,7 +1768,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_list_status_metrics_serialize(
             tenant=tenant,
@@ -1731,18 +1781,17 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[V1TaskRunMetric]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[V1TaskRunMetric]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1750,24 +1799,45 @@ class TaskApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_task_list_status_metrics_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        since: Annotated[datetime, Field(description="The start time to get metrics for")],
-        until: Annotated[Optional[datetime], Field(description="The end time to get metrics for")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow id to find runs for")] = None,
-        parent_task_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent task's external id")] = None,
-        triggering_event_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The id of the event that triggered the task")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        since: Annotated[
+            datetime, Field(description="The start time to get metrics for")
+        ],
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get metrics for")
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id to find runs for"),
+        ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task's external id"),
+        ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1812,7 +1882,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_list_status_metrics_serialize(
             tenant=tenant,
@@ -1825,21 +1895,19 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[V1TaskRunMetric]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[V1TaskRunMetric]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_task_list_status_metrics_serialize(
         self,
@@ -1859,8 +1927,8 @@ class TaskApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'workflow_ids': 'multi',
-            'additional_metadata': 'multi',
+            "workflow_ids": "multi",
+            "additional_metadata": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -1874,73 +1942,64 @@ class TaskApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
                     (
-                        'since',
-                        since.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "since",
+                        since.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('since', since))
-            
+                _query_params.append(("since", since))
+
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
                     (
-                        'until',
-                        until.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "until",
+                        until.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('until', until))
-            
+                _query_params.append(("until", until))
+
         if workflow_ids is not None:
-            
-            _query_params.append(('workflow_ids', workflow_ids))
-            
+
+            _query_params.append(("workflow_ids", workflow_ids))
+
         if parent_task_external_id is not None:
-            
-            _query_params.append(('parent_task_external_id', parent_task_external_id))
-            
+
+            _query_params.append(("parent_task_external_id", parent_task_external_id))
+
         if triggering_event_external_id is not None:
-            
-            _query_params.append(('triggering_event_external_id', triggering_event_external_id))
-            
+
+            _query_params.append(
+                ("triggering_event_external_id", triggering_event_external_id)
+            )
+
         if additional_metadata is not None:
-            
-            _query_params.append(('additional_metadata', additional_metadata))
-            
+
+            _query_params.append(("additional_metadata", additional_metadata))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tenants/{tenant}/task-metrics',
+            method="GET",
+            resource_path="/api/v1/stable/tenants/{tenant}/task-metrics",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1950,24 +2009,27 @@ class TaskApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_task_replay(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_replay_task_request: Annotated[V1ReplayTaskRequest, Field(description="The tasks to replay")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_replay_task_request: Annotated[
+            V1ReplayTaskRequest, Field(description="The tasks to replay")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2002,7 +2064,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_replay_serialize(
             tenant=tenant,
@@ -2010,19 +2072,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1ReplayedTasks",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1ReplayedTasks",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -2030,19 +2091,24 @@ class TaskApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_task_replay_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_replay_task_request: Annotated[V1ReplayTaskRequest, Field(description="The tasks to replay")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_replay_task_request: Annotated[
+            V1ReplayTaskRequest, Field(description="The tasks to replay")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2077,7 +2143,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_replay_serialize(
             tenant=tenant,
@@ -2085,19 +2151,18 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1ReplayedTasks",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1ReplayedTasks",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -2105,19 +2170,24 @@ class TaskApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_task_replay_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_replay_task_request: Annotated[V1ReplayTaskRequest, Field(description="The tasks to replay")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_replay_task_request: Annotated[
+            V1ReplayTaskRequest, Field(description="The tasks to replay")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2152,7 +2222,7 @@ class TaskApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_task_replay_serialize(
             tenant=tenant,
@@ -2160,22 +2230,20 @@ class TaskApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1ReplayedTasks",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1ReplayedTasks",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_task_replay_serialize(
         self,
@@ -2189,8 +2257,7 @@ class TaskApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2203,7 +2270,7 @@ class TaskApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -2211,38 +2278,28 @@ class TaskApi:
         if v1_replay_task_request is not None:
             _body_params = v1_replay_task_request
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params['Content-Type'] = _content_type
+            _header_params["Content-Type"] = _content_type
         else:
-            _default_content_type = (
-                self.api_client.select_header_content_type(
-                    [
-                        'application/json'
-                    ]
-                )
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params['Content-Type'] = _default_content_type
+                _header_params["Content-Type"] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/stable/tenants/{tenant}/tasks/replay',
+            method="POST",
+            resource_path="/api/v1/stable/tenants/{tenant}/tasks/replay",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2252,7 +2309,5 @@ class TaskApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-

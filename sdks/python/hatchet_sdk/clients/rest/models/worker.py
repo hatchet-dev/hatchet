@@ -32,36 +32,95 @@ from hatchet_sdk.clients.rest.models.worker_type import WorkerType
 from typing import Optional, Set
 from typing_extensions import Self
 
+
 class Worker(BaseModel):
     """
     Worker
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     name: StrictStr = Field(description="The name of the worker.")
     type: WorkerType
-    last_heartbeat_at: Optional[datetime] = Field(default=None, description="The time this worker last sent a heartbeat.", alias="lastHeartbeatAt")
-    last_listener_established: Optional[datetime] = Field(default=None, description="The time this worker last sent a heartbeat.", alias="lastListenerEstablished")
-    actions: Optional[List[StrictStr]] = Field(default=None, description="The actions this worker can perform.")
-    registered_workflows: Optional[List[RegisteredWorkflow]] = Field(default=None, description="The workflow ids registered on this worker.", alias="registeredWorkflows")
-    slots: Optional[List[SemaphoreSlots]] = Field(default=None, description="The semaphore slot state for the worker.")
-    recent_step_runs: Optional[List[RecentStepRuns]] = Field(default=None, description="The recent step runs for the worker.", alias="recentStepRuns")
-    status: Optional[StrictStr] = Field(default=None, description="The status of the worker.")
-    slot_config: Optional[Dict[str, WorkerSlotConfig]] = Field(default=None, description="Slot availability and limits for this worker (slot_type -> { available, limit }).", alias="slotConfig")
-    dispatcher_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, description="the id of the assigned dispatcher, in UUID format", alias="dispatcherId")
-    labels: Optional[List[WorkerLabel]] = Field(default=None, description="The current label state of the worker.")
-    webhook_url: Optional[StrictStr] = Field(default=None, description="The webhook URL for the worker.", alias="webhookUrl")
-    webhook_id: Optional[StrictStr] = Field(default=None, description="The webhook ID for the worker.", alias="webhookId")
+    last_heartbeat_at: Optional[datetime] = Field(
+        default=None,
+        description="The time this worker last sent a heartbeat.",
+        alias="lastHeartbeatAt",
+    )
+    last_listener_established: Optional[datetime] = Field(
+        default=None,
+        description="The time this worker last sent a heartbeat.",
+        alias="lastListenerEstablished",
+    )
+    actions: Optional[List[StrictStr]] = Field(
+        default=None, description="The actions this worker can perform."
+    )
+    registered_workflows: Optional[List[RegisteredWorkflow]] = Field(
+        default=None,
+        description="The workflow ids registered on this worker.",
+        alias="registeredWorkflows",
+    )
+    slots: Optional[List[SemaphoreSlots]] = Field(
+        default=None, description="The semaphore slot state for the worker."
+    )
+    recent_step_runs: Optional[List[RecentStepRuns]] = Field(
+        default=None,
+        description="The recent step runs for the worker.",
+        alias="recentStepRuns",
+    )
+    status: Optional[StrictStr] = Field(
+        default=None, description="The status of the worker."
+    )
+    slot_config: Optional[Dict[str, WorkerSlotConfig]] = Field(
+        default=None,
+        description="Slot availability and limits for this worker (slot_type -> { available, limit }).",
+        alias="slotConfig",
+    )
+    dispatcher_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(
+        default=None,
+        description="the id of the assigned dispatcher, in UUID format",
+        alias="dispatcherId",
+    )
+    labels: Optional[List[WorkerLabel]] = Field(
+        default=None, description="The current label state of the worker."
+    )
+    webhook_url: Optional[StrictStr] = Field(
+        default=None, description="The webhook URL for the worker.", alias="webhookUrl"
+    )
+    webhook_id: Optional[StrictStr] = Field(
+        default=None, description="The webhook ID for the worker.", alias="webhookId"
+    )
     runtime_info: Optional[WorkerRuntimeInfo] = Field(default=None, alias="runtimeInfo")
-    __properties: ClassVar[List[str]] = ["metadata", "name", "type", "lastHeartbeatAt", "lastListenerEstablished", "actions", "registeredWorkflows", "slots", "recentStepRuns", "status", "slotConfig", "dispatcherId", "labels", "webhookUrl", "webhookId", "runtimeInfo"]
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "name",
+        "type",
+        "lastHeartbeatAt",
+        "lastListenerEstablished",
+        "actions",
+        "registeredWorkflows",
+        "slots",
+        "recentStepRuns",
+        "status",
+        "slotConfig",
+        "dispatcherId",
+        "labels",
+        "webhookUrl",
+        "webhookId",
+        "runtimeInfo",
+    ]
 
-    @field_validator('status')
+    @field_validator("status")
     def status_validate_enum(cls, value):
         """Validates the enum"""
         if value is None:
             return value
 
-        if value not in set(['ACTIVE', 'INACTIVE', 'PAUSED']):
-            raise ValueError("must be one of enum values ('ACTIVE', 'INACTIVE', 'PAUSED')")
+        if value not in set(["ACTIVE", "INACTIVE", "PAUSED"]):
+            raise ValueError(
+                "must be one of enum values ('ACTIVE', 'INACTIVE', 'PAUSED')"
+            )
         return value
 
     model_config = ConfigDict(
@@ -69,7 +128,6 @@ class Worker(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -95,8 +153,7 @@ class Worker(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -105,45 +162,47 @@ class Worker(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in registered_workflows (list)
         _items = []
         if self.registered_workflows:
             for _item_registered_workflows in self.registered_workflows:
                 if _item_registered_workflows:
                     _items.append(_item_registered_workflows.to_dict())
-            _dict['registeredWorkflows'] = _items
+            _dict["registeredWorkflows"] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in slots (list)
         _items = []
         if self.slots:
             for _item_slots in self.slots:
                 if _item_slots:
                     _items.append(_item_slots.to_dict())
-            _dict['slots'] = _items
+            _dict["slots"] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in recent_step_runs (list)
         _items = []
         if self.recent_step_runs:
             for _item_recent_step_runs in self.recent_step_runs:
                 if _item_recent_step_runs:
                     _items.append(_item_recent_step_runs.to_dict())
-            _dict['recentStepRuns'] = _items
+            _dict["recentStepRuns"] = _items
         # override the default output from pydantic by calling `to_dict()` of each value in slot_config (dict)
         _field_dict = {}
         if self.slot_config:
             for _key_slot_config in self.slot_config:
                 if self.slot_config[_key_slot_config]:
-                    _field_dict[_key_slot_config] = self.slot_config[_key_slot_config].to_dict()
-            _dict['slotConfig'] = _field_dict
+                    _field_dict[_key_slot_config] = self.slot_config[
+                        _key_slot_config
+                    ].to_dict()
+            _dict["slotConfig"] = _field_dict
         # override the default output from pydantic by calling `to_dict()` of each item in labels (list)
         _items = []
         if self.labels:
             for _item_labels in self.labels:
                 if _item_labels:
                     _items.append(_item_labels.to_dict())
-            _dict['labels'] = _items
+            _dict["labels"] = _items
         # override the default output from pydantic by calling `to_dict()` of runtime_info
         if self.runtime_info:
-            _dict['runtimeInfo'] = self.runtime_info.to_dict()
+            _dict["runtimeInfo"] = self.runtime_info.to_dict()
         return _dict
 
     @classmethod
@@ -155,29 +214,58 @@ class Worker(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "name": obj.get("name"),
-            "type": obj.get("type"),
-            "lastHeartbeatAt": obj.get("lastHeartbeatAt"),
-            "lastListenerEstablished": obj.get("lastListenerEstablished"),
-            "actions": obj.get("actions"),
-            "registeredWorkflows": [RegisteredWorkflow.from_dict(_item) for _item in obj["registeredWorkflows"]] if obj.get("registeredWorkflows") is not None else None,
-            "slots": [SemaphoreSlots.from_dict(_item) for _item in obj["slots"]] if obj.get("slots") is not None else None,
-            "recentStepRuns": [RecentStepRuns.from_dict(_item) for _item in obj["recentStepRuns"]] if obj.get("recentStepRuns") is not None else None,
-            "status": obj.get("status"),
-            "slotConfig": dict(
-                (_k, WorkerSlotConfig.from_dict(_v))
-                for _k, _v in obj["slotConfig"].items()
-            )
-            if obj.get("slotConfig") is not None
-            else None,
-            "dispatcherId": obj.get("dispatcherId"),
-            "labels": [WorkerLabel.from_dict(_item) for _item in obj["labels"]] if obj.get("labels") is not None else None,
-            "webhookUrl": obj.get("webhookUrl"),
-            "webhookId": obj.get("webhookId"),
-            "runtimeInfo": WorkerRuntimeInfo.from_dict(obj["runtimeInfo"]) if obj.get("runtimeInfo") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "name": obj.get("name"),
+                "type": obj.get("type"),
+                "lastHeartbeatAt": obj.get("lastHeartbeatAt"),
+                "lastListenerEstablished": obj.get("lastListenerEstablished"),
+                "actions": obj.get("actions"),
+                "registeredWorkflows": (
+                    [
+                        RegisteredWorkflow.from_dict(_item)
+                        for _item in obj["registeredWorkflows"]
+                    ]
+                    if obj.get("registeredWorkflows") is not None
+                    else None
+                ),
+                "slots": (
+                    [SemaphoreSlots.from_dict(_item) for _item in obj["slots"]]
+                    if obj.get("slots") is not None
+                    else None
+                ),
+                "recentStepRuns": (
+                    [RecentStepRuns.from_dict(_item) for _item in obj["recentStepRuns"]]
+                    if obj.get("recentStepRuns") is not None
+                    else None
+                ),
+                "status": obj.get("status"),
+                "slotConfig": (
+                    dict(
+                        (_k, WorkerSlotConfig.from_dict(_v))
+                        for _k, _v in obj["slotConfig"].items()
+                    )
+                    if obj.get("slotConfig") is not None
+                    else None
+                ),
+                "dispatcherId": obj.get("dispatcherId"),
+                "labels": (
+                    [WorkerLabel.from_dict(_item) for _item in obj["labels"]]
+                    if obj.get("labels") is not None
+                    else None
+                ),
+                "webhookUrl": obj.get("webhookUrl"),
+                "webhookId": obj.get("webhookId"),
+                "runtimeInfo": (
+                    WorkerRuntimeInfo.from_dict(obj["runtimeInfo"])
+                    if obj.get("runtimeInfo") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

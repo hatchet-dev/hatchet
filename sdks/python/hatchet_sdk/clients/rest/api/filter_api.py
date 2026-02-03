@@ -19,10 +19,14 @@ from typing_extensions import Annotated
 from pydantic import Field, StrictInt, StrictStr
 from typing import List, Optional
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.v1_create_filter_request import V1CreateFilterRequest
+from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
+    V1CreateFilterRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
-from hatchet_sdk.clients.rest.models.v1_update_filter_request import V1UpdateFilterRequest
+from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
+    V1UpdateFilterRequest,
+)
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
@@ -41,19 +45,24 @@ class FilterApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
-
     @validate_call
     def v1_filter_create(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_create_filter_request: Annotated[V1CreateFilterRequest, Field(description="The input to the filter creation")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_create_filter_request: Annotated[
+            V1CreateFilterRequest, Field(description="The input to the filter creation")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -88,7 +97,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_create_serialize(
             tenant=tenant,
@@ -96,18 +105,17 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -115,19 +123,24 @@ class FilterApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_filter_create_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_create_filter_request: Annotated[V1CreateFilterRequest, Field(description="The input to the filter creation")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_create_filter_request: Annotated[
+            V1CreateFilterRequest, Field(description="The input to the filter creation")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -162,7 +175,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_create_serialize(
             tenant=tenant,
@@ -170,18 +183,17 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -189,19 +201,24 @@ class FilterApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_filter_create_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_create_filter_request: Annotated[V1CreateFilterRequest, Field(description="The input to the filter creation")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_create_filter_request: Annotated[
+            V1CreateFilterRequest, Field(description="The input to the filter creation")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -236,7 +253,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_create_serialize(
             tenant=tenant,
@@ -244,21 +261,19 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_filter_create_serialize(
         self,
@@ -272,8 +287,7 @@ class FilterApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -286,7 +300,7 @@ class FilterApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -294,38 +308,28 @@ class FilterApi:
         if v1_create_filter_request is not None:
             _body_params = v1_create_filter_request
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params['Content-Type'] = _content_type
+            _header_params["Content-Type"] = _content_type
         else:
-            _default_content_type = (
-                self.api_client.select_header_content_type(
-                    [
-                        'application/json'
-                    ]
-                )
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params['Content-Type'] = _default_content_type
+                _header_params["Content-Type"] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/stable/tenants/{tenant}/filters',
+            method="POST",
+            resource_path="/api/v1/stable/tenants/{tenant}/filters",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -335,24 +339,33 @@ class FilterApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_filter_delete(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id to delete")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The filter id to delete",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -387,7 +400,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_delete_serialize(
             tenant=tenant,
@@ -395,18 +408,17 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -414,19 +426,30 @@ class FilterApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_filter_delete_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id to delete")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The filter id to delete",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -461,7 +484,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_delete_serialize(
             tenant=tenant,
@@ -469,18 +492,17 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -488,19 +510,30 @@ class FilterApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_filter_delete_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id to delete")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The filter id to delete",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -535,7 +568,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_delete_serialize(
             tenant=tenant,
@@ -543,21 +576,19 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_filter_delete_serialize(
         self,
@@ -571,8 +602,7 @@ class FilterApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -585,33 +615,26 @@ class FilterApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         if v1_filter is not None:
-            _path_params['v1-filter'] = v1_filter
+            _path_params["v1-filter"] = v1_filter
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='DELETE',
-            resource_path='/api/v1/stable/tenants/{tenant}/filters/{v1-filter}',
+            method="DELETE",
+            resource_path="/api/v1/stable/tenants/{tenant}/filters/{v1-filter}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -621,24 +644,30 @@ class FilterApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_filter_get(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The filter id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -673,7 +702,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_get_serialize(
             tenant=tenant,
@@ -681,17 +710,16 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -699,19 +727,27 @@ class FilterApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_filter_get_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The filter id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -746,7 +782,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_get_serialize(
             tenant=tenant,
@@ -754,17 +790,16 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -772,19 +807,27 @@ class FilterApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_filter_get_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The filter id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -819,7 +862,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_get_serialize(
             tenant=tenant,
@@ -827,20 +870,18 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_filter_get_serialize(
         self,
@@ -854,8 +895,7 @@ class FilterApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -868,33 +908,26 @@ class FilterApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         if v1_filter is not None:
-            _path_params['v1-filter'] = v1_filter
+            _path_params["v1-filter"] = v1_filter
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tenants/{tenant}/filters/{v1-filter}',
+            method="GET",
+            resource_path="/api/v1/stable/tenants/{tenant}/filters/{v1-filter}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -904,27 +937,40 @@ class FilterApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_filter_list(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to filter by")] = None,
-        scopes: Annotated[Optional[List[StrictStr]], Field(description="The scopes to subset candidate filters by")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to filter by"),
+        ] = None,
+        scopes: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The scopes to subset candidate filters by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -965,7 +1011,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_list_serialize(
             tenant=tenant,
@@ -976,17 +1022,16 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1FilterList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1FilterList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -994,22 +1039,37 @@ class FilterApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_filter_list_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to filter by")] = None,
-        scopes: Annotated[Optional[List[StrictStr]], Field(description="The scopes to subset candidate filters by")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to filter by"),
+        ] = None,
+        scopes: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The scopes to subset candidate filters by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1050,7 +1110,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_list_serialize(
             tenant=tenant,
@@ -1061,17 +1121,16 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1FilterList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1FilterList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1079,22 +1138,37 @@ class FilterApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_filter_list_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to filter by")] = None,
-        scopes: Annotated[Optional[List[StrictStr]], Field(description="The scopes to subset candidate filters by")] = None,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to filter by"),
+        ] = None,
+        scopes: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The scopes to subset candidate filters by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1135,7 +1209,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_list_serialize(
             tenant=tenant,
@@ -1146,20 +1220,18 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1FilterList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1FilterList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_filter_list_serialize(
         self,
@@ -1177,8 +1249,8 @@ class FilterApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'workflowIds': 'multi',
-            'scopes': 'multi',
+            "workflowIds": "multi",
+            "scopes": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -1192,47 +1264,40 @@ class FilterApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         if offset is not None:
-            
-            _query_params.append(('offset', offset))
-            
+
+            _query_params.append(("offset", offset))
+
         if limit is not None:
-            
-            _query_params.append(('limit', limit))
-            
+
+            _query_params.append(("limit", limit))
+
         if workflow_ids is not None:
-            
-            _query_params.append(('workflowIds', workflow_ids))
-            
+
+            _query_params.append(("workflowIds", workflow_ids))
+
         if scopes is not None:
-            
-            _query_params.append(('scopes', scopes))
-            
+
+            _query_params.append(("scopes", scopes))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tenants/{tenant}/filters',
+            method="GET",
+            resource_path="/api/v1/stable/tenants/{tenant}/filters",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1242,25 +1307,36 @@ class FilterApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_filter_update(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id to update")],
-        v1_update_filter_request: Annotated[V1UpdateFilterRequest, Field(description="The input to the filter update")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The filter id to update",
+            ),
+        ],
+        v1_update_filter_request: Annotated[
+            V1UpdateFilterRequest, Field(description="The input to the filter update")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1297,7 +1373,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_update_serialize(
             tenant=tenant,
@@ -1306,18 +1382,17 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1325,20 +1400,33 @@ class FilterApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_filter_update_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id to update")],
-        v1_update_filter_request: Annotated[V1UpdateFilterRequest, Field(description="The input to the filter update")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The filter id to update",
+            ),
+        ],
+        v1_update_filter_request: Annotated[
+            V1UpdateFilterRequest, Field(description="The input to the filter update")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1375,7 +1463,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_update_serialize(
             tenant=tenant,
@@ -1384,18 +1472,17 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1403,20 +1490,33 @@ class FilterApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_filter_update_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_filter: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The filter id to update")],
-        v1_update_filter_request: Annotated[V1UpdateFilterRequest, Field(description="The input to the filter update")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_filter: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The filter id to update",
+            ),
+        ],
+        v1_update_filter_request: Annotated[
+            V1UpdateFilterRequest, Field(description="The input to the filter update")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1453,7 +1553,7 @@ class FilterApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_filter_update_serialize(
             tenant=tenant,
@@ -1462,21 +1562,19 @@ class FilterApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1Filter",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
+            "200": "V1Filter",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_filter_update_serialize(
         self,
@@ -1491,8 +1589,7 @@ class FilterApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1505,9 +1602,9 @@ class FilterApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         if v1_filter is not None:
-            _path_params['v1-filter'] = v1_filter
+            _path_params["v1-filter"] = v1_filter
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -1515,38 +1612,28 @@ class FilterApi:
         if v1_update_filter_request is not None:
             _body_params = v1_update_filter_request
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params['Content-Type'] = _content_type
+            _header_params["Content-Type"] = _content_type
         else:
-            _default_content_type = (
-                self.api_client.select_header_content_type(
-                    [
-                        'application/json'
-                    ]
-                )
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params['Content-Type'] = _default_content_type
+                _header_params["Content-Type"] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='PATCH',
-            resource_path='/api/v1/stable/tenants/{tenant}/filters/{v1-filter}',
+            method="PATCH",
+            resource_path="/api/v1/stable/tenants/{tenant}/filters/{v1-filter}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1556,7 +1643,5 @@ class FilterApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-

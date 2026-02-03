@@ -26,14 +26,12 @@ class WorkflowRunOrderByField(str, Enum):
     """
     allowed enum values
     """
-    CREATEDAT = 'createdAt'
-    STARTEDAT = 'startedAt'
-    FINISHEDAT = 'finishedAt'
-    DURATION = 'duration'
+    CREATEDAT = "createdAt"
+    STARTEDAT = "startedAt"
+    FINISHEDAT = "finishedAt"
+    DURATION = "duration"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of WorkflowRunOrderByField from a JSON string"""
         return cls(json.loads(json_str))
-
-

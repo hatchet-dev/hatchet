@@ -23,28 +23,50 @@ from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from typing import Optional, Set
 from typing_extensions import Self
 
+
 class Step(BaseModel):
     """
     Step
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
-    readable_id: StrictStr = Field(description="The readable id of the step.", alias="readableId")
+    readable_id: StrictStr = Field(
+        description="The readable id of the step.", alias="readableId"
+    )
     tenant_id: StrictStr = Field(alias="tenantId")
     job_id: StrictStr = Field(alias="jobId")
     action: StrictStr
-    timeout: Optional[StrictStr] = Field(default=None, description="The timeout of the step.")
-    is_durable: Optional[StrictBool] = Field(default=None, description="Whether the step is durable.", alias="isDurable")
-    slot_requests: Optional[Dict[str, StrictInt]] = Field(default=None, description="Slot requests for the step (slot_type -> units).", alias="slotRequests")
+    timeout: Optional[StrictStr] = Field(
+        default=None, description="The timeout of the step."
+    )
+    is_durable: Optional[StrictBool] = Field(
+        default=None, description="Whether the step is durable.", alias="isDurable"
+    )
+    slot_requests: Optional[Dict[str, StrictInt]] = Field(
+        default=None,
+        description="Slot requests for the step (slot_type -> units).",
+        alias="slotRequests",
+    )
     children: Optional[List[StrictStr]] = None
     parents: Optional[List[StrictStr]] = None
-    __properties: ClassVar[List[str]] = ["metadata", "readableId", "tenantId", "jobId", "action", "timeout", "isDurable", "slotRequests", "children", "parents"]
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "readableId",
+        "tenantId",
+        "jobId",
+        "action",
+        "timeout",
+        "isDurable",
+        "slotRequests",
+        "children",
+        "parents",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -70,8 +92,7 @@ class Step(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,7 +101,7 @@ class Step(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -92,18 +113,22 @@ class Step(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "readableId": obj.get("readableId"),
-            "tenantId": obj.get("tenantId"),
-            "jobId": obj.get("jobId"),
-            "action": obj.get("action"),
-            "timeout": obj.get("timeout"),
-            "isDurable": obj.get("isDurable"),
-            "slotRequests": obj.get("slotRequests"),
-            "children": obj.get("children"),
-            "parents": obj.get("parents")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "readableId": obj.get("readableId"),
+                "tenantId": obj.get("tenantId"),
+                "jobId": obj.get("jobId"),
+                "action": obj.get("action"),
+                "timeout": obj.get("timeout"),
+                "isDurable": obj.get("isDurable"),
+                "slotRequests": obj.get("slotRequests"),
+                "children": obj.get("children"),
+                "parents": obj.get("parents"),
+            }
+        )
         return _obj
-
-
