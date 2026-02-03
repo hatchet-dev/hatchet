@@ -38,6 +38,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
+from hatchet_sdk.utils.slots import normalize_slot_capacities, resolve_worker_slot_capacities
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
@@ -215,19 +216,16 @@ class Hatchet:
                 "Cannot set both slot_capacities and slots/durable_slots. Use slot_capacities only."
             )
 
-        resolved_capacities = slot_capacities
-
-        if resolved_capacities is None:
-            legacy_capacities = {
-                key: value
-                for key, value in (("default", slots), ("durable", durable_slots))
-                if value is not None
-            }
-            resolved_capacities = legacy_capacities or {"default": 100}
+        resolved_capacities = resolve_worker_slot_capacities(
+            slot_capacities,
+            slots,
+            durable_slots,
+            workflows,
+        )
 
         return Worker(
             name=name,
-            slot_capacities=resolved_capacities,
+            slot_capacities=normalize_slot_capacities(resolved_capacities),
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,

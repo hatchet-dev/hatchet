@@ -22,10 +22,6 @@ def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
 def main() -> None:
     worker = hatchet.worker(
         "test-worker",
-        slot_capacities={"default": 100, "durable": 2},
-        # TODO: default slot configs
-        # slots=3,
-        # durable_slots=55,
         workflows=[simple, simple_durable],
     )
     worker.start()
