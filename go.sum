@@ -481,8 +481,8 @@ go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.64.0 h1:9PCiXc7BmfD7+BI8POoc3bQSoRSEo01eNqPVu1/+pDY=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.64.0/go.mod h1:NGBbj2Bgb5Oe/35f9WaU3qRnOey+7X+bxnnSS5zzvLA=
-go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.64.0 h1:RN3ifU8y4prNWeEnQp2kRRHz8UwonAEYZl8tUzHEXAk=
-go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.64.0/go.mod h1:habDz3tEWiFANTo6oUE99EmaFUrCNYAAg3wiVmusm70=
+go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.65.0 h1:XmiuHzgJt067+a6kwyAzkhXooYVv3/TOw9cM2VfJgUM=
+go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.65.0/go.mod h1:KDgtbWKTQs4bM+VPUr6WlL9m/WXcmkCcBlIzqxPGzmI=
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0 h1:Hf9xI/XLML9ElpiHVDNwvqI0hIFlzV8dgIr35kV1kRU=
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0/go.mod h1:NfchwuyNoMcZ5MLHwPrODwUF1HWCXWrL31s8gSAdIKY=
 go.opentelemetry.io/contrib/propagators/b3 v1.39.0 h1:PI7pt9pkSnimWcp5sQhUA9OzLbc3Ba4sL+VEUTNsxrk=
