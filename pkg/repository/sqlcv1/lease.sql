@@ -50,7 +50,7 @@ RETURNING l.*;
 
 -- name: ListActiveWorkers :many
 SELECT
-    w."id",
+    DISTINCT w."id",
     w."name"
 FROM
     "Worker" w

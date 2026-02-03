@@ -496,6 +496,47 @@ func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*List
 	return items, nil
 }
 
+const listActiveSlotsPerTenantAndSlotType = `-- name: ListActiveSlotsPerTenantAndSlotType :many
+SELECT
+    wc.tenant_id AS "tenantId",
+    wc.slot_type AS "slotType",
+    SUM(wc.max_units) AS "activeSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+GROUP BY wc.tenant_id, wc.slot_type
+`
+
+type ListActiveSlotsPerTenantAndSlotTypeRow struct {
+	TenantId    uuid.UUID `json:"tenantId"`
+	SlotType    string    `json:"slotType"`
+	ActiveSlots int64     `json:"activeSlots"`
+}
+
+func (q *Queries) ListActiveSlotsPerTenantAndSlotType(ctx context.Context, db DBTX) ([]*ListActiveSlotsPerTenantAndSlotTypeRow, error) {
+	rows, err := db.Query(ctx, listActiveSlotsPerTenantAndSlotType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveSlotsPerTenantAndSlotTypeRow
+	for rows.Next() {
+		var i ListActiveSlotsPerTenantAndSlotTypeRow
+		if err := rows.Scan(&i.TenantId, &i.SlotType, &i.ActiveSlots); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActiveWorkersPerTenant = `-- name: ListActiveWorkersPerTenant :many
 SELECT "tenantId", COUNT(*)
 FROM "Worker"
@@ -785,47 +826,6 @@ func (q *Queries) ListTotalActiveSlotsPerTenant(ctx context.Context, db DBTX) ([
 	for rows.Next() {
 		var i ListTotalActiveSlotsPerTenantRow
 		if err := rows.Scan(&i.TenantId, &i.TotalActiveSlots); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listActiveSlotsPerTenantAndSlotType = `-- name: ListActiveSlotsPerTenantAndSlotType :many
-SELECT
-    wc.tenant_id AS "tenantId",
-    wc.slot_type AS "slotType",
-    SUM(wc.max_units) AS "activeSlots"
-FROM v1_worker_slot_config wc
-JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
-WHERE
-    w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-    AND w."isActive" = true
-    AND w."isPaused" = false
-GROUP BY wc.tenant_id, wc.slot_type
-`
-
-type ListActiveSlotsPerTenantAndSlotTypeRow struct {
-	TenantId    uuid.UUID `json:"tenantId"`
-	SlotType    string    `json:"slotType"`
-	ActiveSlots int64     `json:"activeSlots"`
-}
-
-func (q *Queries) ListActiveSlotsPerTenantAndSlotType(ctx context.Context, db DBTX) ([]*ListActiveSlotsPerTenantAndSlotTypeRow, error) {
-	rows, err := db.Query(ctx, listActiveSlotsPerTenantAndSlotType)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListActiveSlotsPerTenantAndSlotTypeRow
-	for rows.Next() {
-		var i ListActiveSlotsPerTenantAndSlotTypeRow
-		if err := rows.Scan(&i.TenantId, &i.SlotType, &i.ActiveSlots); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -6,30 +6,17 @@ import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data
 import { BaseWorkflowDeclaration } from '../../declaration';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
-import { SlotConfig, SlotType } from '../../slot-types';
-
-const DEFAULT_DEFAULT_SLOTS = 100;
-const DEFAULT_DURABLE_SLOTS = 1_000;
+import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
 
 /**
  * Options for creating a new hatchet worker
  * @interface CreateWorkerOpts
  */
-export interface CreateWorkerOpts {
-  /** (optional) Slot config for this worker (slot_type -> units). Defaults to { [SlotType.Default]: 100 }. */
-  slotConfig?: SlotConfig;
-  /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
-  slots?: number;
-  /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
-  durableSlots?: number;
-  /** (optional) Array of workflows to register */
-  workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
+export interface CreateWorkerOpts extends WorkerSlotOptions {
   /** (optional) Worker labels for affinity-based assignment */
   labels?: WorkerLabels;
   /** (optional) Whether to handle kill signals */
   handleKill?: boolean;
-  /** @deprecated Use slots instead */
-  maxRuns?: number;
 }
 
 /**
@@ -42,7 +29,7 @@ export class Worker {
   _v0: LegacyHatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
-  nonDurable: V1Worker;
+  _internal: V1Worker;
 
   /**
    * Creates a new HatchetWorker instance
@@ -57,7 +44,7 @@ export class Worker {
   ) {
     this._v1 = v1;
     this._v0 = v0;
-    this.nonDurable = nonDurable;
+    this._internal = nonDurable;
     this.config = config;
     this.name = name;
   }
@@ -104,14 +91,14 @@ export class Worker {
     for (const wf of workflows || []) {
       if (wf instanceof BaseWorkflowDeclaration) {
         // TODO check if tenant is V1
-        await this.nonDurable.registerWorkflowV1(wf);
+        await this._internal.registerWorkflowV1(wf);
 
         if (wf.definition._durableTasks.length > 0) {
-          this.nonDurable.registerDurableActionsV1(wf.definition);
+          this._internal.registerDurableActionsV1(wf.definition);
         }
       } else {
         // fallback to v0 client for backwards compatibility
-        await this.nonDurable.registerWorkflow(wf);
+        await this._internal.registerWorkflow(wf);
       }
     }
   }
@@ -131,7 +118,7 @@ export class Worker {
    * @returns Promise that resolves when the worker is stopped or killed
    */
   start() {
-    return this.nonDurable.start();
+    return this._internal.start();
   }
 
   /**
@@ -139,7 +126,7 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
-    return this.nonDurable.stop();
+    return this._internal.stop();
   }
 
   /**
@@ -148,7 +135,7 @@ export class Worker {
    * @returns Promise that resolves when labels are updated
    */
   upsertLabels(labels: WorkerLabels) {
-    return this.nonDurable.upsertLabels(labels);
+    return this._internal.upsertLabels(labels);
   }
 
   /**
@@ -156,7 +143,7 @@ export class Worker {
    * @returns The labels for the worker
    */
   getLabels() {
-    return this.nonDurable.labels;
+    return this._internal.labels;
   }
 
   /**
@@ -165,121 +152,33 @@ export class Worker {
    * @returns A promise that resolves when the webhook is registered
    */
   registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this.nonDurable.registerWebhook(webhook);
+    return this._internal.registerWebhook(webhook);
   }
 
   async isPaused() {
-    if (!this.nonDurable?.workerId) {
+    if (!this._internal?.workerId) {
       return false;
     }
 
-    return this._v1.workers.isPaused(this.nonDurable.workerId);
+    return this._v1.workers.isPaused(this._internal.workerId);
   }
 
   // TODO docstrings
   pause() {
-    if (!this.nonDurable?.workerId) {
+    if (!this._internal?.workerId) {
       return Promise.resolve();
     }
 
-    return this._v1.workers.pause(this.nonDurable.workerId);
+    return this._v1.workers.pause(this._internal.workerId);
   }
 
   unpause() {
-    if (!this.nonDurable?.workerId) {
+    if (!this._internal?.workerId) {
       return Promise.resolve();
     }
 
-    return this._v1.workers.unpause(this.nonDurable.workerId);
+    return this._v1.workers.unpause(this._internal.workerId);
   }
 }
 
-function resolveWorkerOptions(options: CreateWorkerOpts) {
-  const requiredSlotTypes = options.workflows
-    ? getRequiredSlotTypes(options.workflows)
-    : new Set<SlotType>();
-
-  const slotConfig: SlotConfig =
-    options.slotConfig ||
-    (options.slots || options.durableSlots || options.maxRuns
-      ? {
-          ...(options.slots || options.maxRuns
-            ? { [SlotType.Default]: options.slots || options.maxRuns || 0 }
-            : {}),
-          ...(options.durableSlots ? { [SlotType.Durable]: options.durableSlots } : {}),
-        }
-      : {});
-
-  if (requiredSlotTypes.has(SlotType.Default) && slotConfig[SlotType.Default] == null) {
-    slotConfig[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
-  }
-  if (requiredSlotTypes.has(SlotType.Durable) && slotConfig[SlotType.Durable] == null) {
-    slotConfig[SlotType.Durable] = DEFAULT_DURABLE_SLOTS;
-  }
-
-  if (Object.keys(slotConfig).length === 0) {
-    slotConfig[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;
-  }
-
-  return {
-    ...options,
-    slots:
-      options.slots ||
-      options.maxRuns ||
-      (slotConfig[SlotType.Default] != null ? slotConfig[SlotType.Default] : undefined),
-    durableSlots:
-      options.durableSlots ||
-      (slotConfig[SlotType.Durable] != null ? slotConfig[SlotType.Durable] : undefined),
-    slotConfig,
-  };
-}
-
-export const __testing = {
-  resolveWorkerOptions,
-};
-
-function getRequiredSlotTypes(
-  workflows: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>
-): Set<SlotType> {
-  const required = new Set<SlotType>();
-  const addFromRequests = (
-    requests: Record<string, number> | undefined,
-    fallbackType: SlotType
-  ) => {
-    if (requests && Object.keys(requests).length > 0) {
-      if (requests[SlotType.Default] !== undefined) {
-        required.add(SlotType.Default);
-      }
-      if (requests[SlotType.Durable] !== undefined) {
-        required.add(SlotType.Durable);
-      }
-    } else {
-      required.add(fallbackType);
-    }
-  };
-
-  for (const wf of workflows) {
-    if (wf instanceof BaseWorkflowDeclaration) {
-      for (const task of wf.definition._tasks) {
-        addFromRequests(task.slotRequests, SlotType.Default);
-      }
-      for (const task of wf.definition._durableTasks) {
-        required.add(SlotType.Durable);
-      }
-
-      if (wf.definition.onFailure) {
-        const opts =
-          typeof wf.definition.onFailure === 'object' ? wf.definition.onFailure : undefined;
-        addFromRequests(opts?.slotRequests, SlotType.Default);
-      }
-
-      if (wf.definition.onSuccess) {
-        const opts =
-          typeof wf.definition.onSuccess === 'object' ? wf.definition.onSuccess : undefined;
-        addFromRequests(opts?.slotRequests, SlotType.Default);
-      }
-    }
-  }
-
-  return required;
-}
+export { __testing } from './slot-utils';

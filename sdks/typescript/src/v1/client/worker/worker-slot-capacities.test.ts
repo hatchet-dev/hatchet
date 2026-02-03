@@ -1,4 +1,4 @@
-import { __testing } from '@hatchet/v1/client/worker/worker';
+import { __testing } from '@hatchet/v1/client/worker/slot-utils';
 import { WorkflowDeclaration } from '../../declaration';
 import { SlotType } from '../../slot-types';
 
