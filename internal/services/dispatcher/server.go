@@ -52,12 +52,12 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	if request.Slots != nil {
 		mr := int(*request.Slots)
-		opts.MaxRuns = &mr
+		opts.Slots = &mr
 	}
 
 	if request.DurableSlots != nil {
 		dr := int(*request.DurableSlots)
-		opts.DurableMaxRuns = &dr
+		opts.DurableSlots = &dr
 	}
 
 	if len(request.SlotConfig) > 0 {
