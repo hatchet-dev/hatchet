@@ -14,12 +14,12 @@ The Hatchet worker can be configured via environment variables and programmatic 
 
 ## Worker Runtime Configuration
 
-| Variable                 | Description                                                                      | Default Value |
-| ------------------------ | -------------------------------------------------------------------------------- | ------------- |
-| `name`                   | Friendly name of the worker                                                      |               |
-| `slots`                  | Maximum number of concurrent runs (mapped to `slot_capacities.default`)          | `100`         |
-| `durable_slots`          | Maximum number of concurrent durable tasks (mapped to `slot_capacities.durable`) | `1000`        |
-| `slot_capacities`        | Slot capacities for the worker (slot_type -> units)                              |               |
+| Variable          | Description                                                                      | Default Value |
+| ----------------- | -------------------------------------------------------------------------------- | ------------- |
+| `name`            | Friendly name of the worker                                                      |               |
+| `slots`           | Maximum number of concurrent runs (mapped to `slot_capacities.default`)          | `100`         |
+| `durable_slots`   | Maximum number of concurrent durable tasks (mapped to `slot_capacities.durable`) | `1000`        |
+| `slot_capacities` | Slot capacities for the worker (slot_type -> units)                              |               |
 
 ## Worker healthcheck server (Python SDK)
 
