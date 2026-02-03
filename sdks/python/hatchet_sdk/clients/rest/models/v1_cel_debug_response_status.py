@@ -26,12 +26,10 @@ class V1CELDebugResponseStatus(str, Enum):
     """
     allowed enum values
     """
-    SUCCESS = 'SUCCESS'
-    ERROR = 'ERROR'
+    SUCCESS = "SUCCESS"
+    ERROR = "ERROR"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of V1CELDebugResponseStatus from a JSON string"""
         return cls(json.loads(json_str))
-
-

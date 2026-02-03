@@ -22,11 +22,15 @@ from typing import List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
 from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
-from hatchet_sdk.clients.rest.models.log_line_order_by_direction import LogLineOrderByDirection
+from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
+    LogLineOrderByDirection,
+)
 from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
-from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import V1LogLineOrderByDirection
+from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
+    V1LogLineOrderByDirection,
+)
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
@@ -45,24 +49,40 @@ class LogApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
-
     @validate_call
     def log_line_list(
         self,
-        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        levels: Annotated[Optional[List[LogLineLevel]], Field(description="A list of levels to filter by")] = None,
-        search: Annotated[Optional[StrictStr], Field(description="The search query to filter for")] = None,
-        order_by_field: Annotated[Optional[LogLineOrderByField], Field(description="What to order by")] = None,
-        order_by_direction: Annotated[Optional[LogLineOrderByDirection], Field(description="The order direction")] = None,
+        step_run: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The step run id"
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        levels: Annotated[
+            Optional[List[LogLineLevel]],
+            Field(description="A list of levels to filter by"),
+        ] = None,
+        search: Annotated[
+            Optional[StrictStr], Field(description="The search query to filter for")
+        ] = None,
+        order_by_field: Annotated[
+            Optional[LogLineOrderByField], Field(description="What to order by")
+        ] = None,
+        order_by_direction: Annotated[
+            Optional[LogLineOrderByDirection], Field(description="The order direction")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -107,7 +127,7 @@ class LogApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._log_line_list_serialize(
             step_run=step_run,
@@ -120,17 +140,16 @@ class LogApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "LogLineList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "LogLineList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -138,24 +157,40 @@ class LogApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def log_line_list_with_http_info(
         self,
-        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        levels: Annotated[Optional[List[LogLineLevel]], Field(description="A list of levels to filter by")] = None,
-        search: Annotated[Optional[StrictStr], Field(description="The search query to filter for")] = None,
-        order_by_field: Annotated[Optional[LogLineOrderByField], Field(description="What to order by")] = None,
-        order_by_direction: Annotated[Optional[LogLineOrderByDirection], Field(description="The order direction")] = None,
+        step_run: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The step run id"
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        levels: Annotated[
+            Optional[List[LogLineLevel]],
+            Field(description="A list of levels to filter by"),
+        ] = None,
+        search: Annotated[
+            Optional[StrictStr], Field(description="The search query to filter for")
+        ] = None,
+        order_by_field: Annotated[
+            Optional[LogLineOrderByField], Field(description="What to order by")
+        ] = None,
+        order_by_direction: Annotated[
+            Optional[LogLineOrderByDirection], Field(description="The order direction")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -200,7 +235,7 @@ class LogApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._log_line_list_serialize(
             step_run=step_run,
@@ -213,17 +248,16 @@ class LogApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "LogLineList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "LogLineList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -231,24 +265,40 @@ class LogApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def log_line_list_without_preload_content(
         self,
-        step_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The step run id")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        levels: Annotated[Optional[List[LogLineLevel]], Field(description="A list of levels to filter by")] = None,
-        search: Annotated[Optional[StrictStr], Field(description="The search query to filter for")] = None,
-        order_by_field: Annotated[Optional[LogLineOrderByField], Field(description="What to order by")] = None,
-        order_by_direction: Annotated[Optional[LogLineOrderByDirection], Field(description="The order direction")] = None,
+        step_run: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The step run id"
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        levels: Annotated[
+            Optional[List[LogLineLevel]],
+            Field(description="A list of levels to filter by"),
+        ] = None,
+        search: Annotated[
+            Optional[StrictStr], Field(description="The search query to filter for")
+        ] = None,
+        order_by_field: Annotated[
+            Optional[LogLineOrderByField], Field(description="What to order by")
+        ] = None,
+        order_by_direction: Annotated[
+            Optional[LogLineOrderByDirection], Field(description="The order direction")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -293,7 +343,7 @@ class LogApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._log_line_list_serialize(
             step_run=step_run,
@@ -306,20 +356,18 @@ class LogApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "LogLineList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "LogLineList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _log_line_list_serialize(
         self,
@@ -339,7 +387,7 @@ class LogApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'levels': 'multi',
+            "levels": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -353,55 +401,48 @@ class LogApi:
 
         # process the path parameters
         if step_run is not None:
-            _path_params['step-run'] = step_run
+            _path_params["step-run"] = step_run
         # process the query parameters
         if offset is not None:
-            
-            _query_params.append(('offset', offset))
-            
+
+            _query_params.append(("offset", offset))
+
         if limit is not None:
-            
-            _query_params.append(('limit', limit))
-            
+
+            _query_params.append(("limit", limit))
+
         if levels is not None:
-            
-            _query_params.append(('levels', levels))
-            
+
+            _query_params.append(("levels", levels))
+
         if search is not None:
-            
-            _query_params.append(('search', search))
-            
+
+            _query_params.append(("search", search))
+
         if order_by_field is not None:
-            
-            _query_params.append(('orderByField', order_by_field.value))
-            
+
+            _query_params.append(("orderByField", order_by_field.value))
+
         if order_by_direction is not None:
-            
-            _query_params.append(('orderByDirection', order_by_direction.value))
-            
+
+            _query_params.append(("orderByDirection", order_by_direction.value))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/step-runs/{step-run}/logs',
+            method="GET",
+            resource_path="/api/v1/step-runs/{step-run}/logs",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -411,30 +452,46 @@ class LogApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_log_line_list(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        since: Annotated[Optional[datetime], Field(description="The start time to get logs for")] = None,
-        until: Annotated[Optional[datetime], Field(description="The end time to get logs for")] = None,
-        search: Annotated[Optional[StrictStr], Field(description="A full-text search query to filter for")] = None,
-        levels: Annotated[Optional[List[V1LogLineLevel]], Field(description="The log level(s) to include")] = None,
-        order_by_direction: Annotated[Optional[V1LogLineOrderByDirection], Field(description="The direction to order by")] = None,
-        attempt: Annotated[Optional[StrictInt], Field(description="The attempt number to filter for")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        since: Annotated[
+            Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get logs for")
+        ] = None,
+        search: Annotated[
+            Optional[StrictStr],
+            Field(description="A full-text search query to filter for"),
+        ] = None,
+        levels: Annotated[
+            Optional[List[V1LogLineLevel]],
+            Field(description="The log level(s) to include"),
+        ] = None,
+        order_by_direction: Annotated[
+            Optional[V1LogLineOrderByDirection],
+            Field(description="The direction to order by"),
+        ] = None,
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number to filter for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -481,7 +538,7 @@ class LogApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_log_line_list_serialize(
             task=task,
@@ -495,17 +552,16 @@ class LogApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1LogLineList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1LogLineList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -513,25 +569,43 @@ class LogApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_log_line_list_with_http_info(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        since: Annotated[Optional[datetime], Field(description="The start time to get logs for")] = None,
-        until: Annotated[Optional[datetime], Field(description="The end time to get logs for")] = None,
-        search: Annotated[Optional[StrictStr], Field(description="A full-text search query to filter for")] = None,
-        levels: Annotated[Optional[List[V1LogLineLevel]], Field(description="The log level(s) to include")] = None,
-        order_by_direction: Annotated[Optional[V1LogLineOrderByDirection], Field(description="The direction to order by")] = None,
-        attempt: Annotated[Optional[StrictInt], Field(description="The attempt number to filter for")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        since: Annotated[
+            Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get logs for")
+        ] = None,
+        search: Annotated[
+            Optional[StrictStr],
+            Field(description="A full-text search query to filter for"),
+        ] = None,
+        levels: Annotated[
+            Optional[List[V1LogLineLevel]],
+            Field(description="The log level(s) to include"),
+        ] = None,
+        order_by_direction: Annotated[
+            Optional[V1LogLineOrderByDirection],
+            Field(description="The direction to order by"),
+        ] = None,
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number to filter for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -578,7 +652,7 @@ class LogApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_log_line_list_serialize(
             task=task,
@@ -592,17 +666,16 @@ class LogApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1LogLineList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1LogLineList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -610,25 +683,43 @@ class LogApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_log_line_list_without_preload_content(
         self,
-        task: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The task id")],
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        since: Annotated[Optional[datetime], Field(description="The start time to get logs for")] = None,
-        until: Annotated[Optional[datetime], Field(description="The end time to get logs for")] = None,
-        search: Annotated[Optional[StrictStr], Field(description="A full-text search query to filter for")] = None,
-        levels: Annotated[Optional[List[V1LogLineLevel]], Field(description="The log level(s) to include")] = None,
-        order_by_direction: Annotated[Optional[V1LogLineOrderByDirection], Field(description="The direction to order by")] = None,
-        attempt: Annotated[Optional[StrictInt], Field(description="The attempt number to filter for")] = None,
+        task: Annotated[
+            str,
+            Field(min_length=36, strict=True, max_length=36, description="The task id"),
+        ],
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        since: Annotated[
+            Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get logs for")
+        ] = None,
+        search: Annotated[
+            Optional[StrictStr],
+            Field(description="A full-text search query to filter for"),
+        ] = None,
+        levels: Annotated[
+            Optional[List[V1LogLineLevel]],
+            Field(description="The log level(s) to include"),
+        ] = None,
+        order_by_direction: Annotated[
+            Optional[V1LogLineOrderByDirection],
+            Field(description="The direction to order by"),
+        ] = None,
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number to filter for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -675,7 +766,7 @@ class LogApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_log_line_list_serialize(
             task=task,
@@ -689,20 +780,18 @@ class LogApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1LogLineList",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1LogLineList",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_log_line_list_serialize(
         self,
@@ -723,7 +812,7 @@ class LogApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'levels': 'multi',
+            "levels": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -737,77 +826,66 @@ class LogApi:
 
         # process the path parameters
         if task is not None:
-            _path_params['task'] = task
+            _path_params["task"] = task
         # process the query parameters
         if limit is not None:
-            
-            _query_params.append(('limit', limit))
-            
+
+            _query_params.append(("limit", limit))
+
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
                     (
-                        'since',
-                        since.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "since",
+                        since.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('since', since))
-            
+                _query_params.append(("since", since))
+
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
                     (
-                        'until',
-                        until.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "until",
+                        until.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('until', until))
-            
+                _query_params.append(("until", until))
+
         if search is not None:
-            
-            _query_params.append(('search', search))
-            
+
+            _query_params.append(("search", search))
+
         if levels is not None:
-            
-            _query_params.append(('levels', levels))
-            
+
+            _query_params.append(("levels", levels))
+
         if order_by_direction is not None:
-            
-            _query_params.append(('order_by_direction', order_by_direction.value))
-            
+
+            _query_params.append(("order_by_direction", order_by_direction.value))
+
         if attempt is not None:
-            
-            _query_params.append(('attempt', attempt))
-            
+
+            _query_params.append(("attempt", attempt))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tasks/{task}/logs',
+            method="GET",
+            resource_path="/api/v1/stable/tasks/{task}/logs",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -817,7 +895,5 @@ class LogApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-

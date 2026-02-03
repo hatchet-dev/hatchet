@@ -22,12 +22,18 @@ from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
+
 class WorkerSlotConfig(BaseModel):
     """
     Slot availability and limits for a slot type.
-    """ # noqa: E501
-    available: Optional[StrictInt] = Field(default=None, description="The number of available units for this slot type.")
-    limit: StrictInt = Field(description="The maximum number of units for this slot type.")
+    """  # noqa: E501
+
+    available: Optional[StrictInt] = Field(
+        default=None, description="The number of available units for this slot type."
+    )
+    limit: StrictInt = Field(
+        description="The maximum number of units for this slot type."
+    )
     __properties: ClassVar[List[str]] = ["available", "limit"]
 
     model_config = ConfigDict(
@@ -35,7 +41,6 @@ class WorkerSlotConfig(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +66,7 @@ class WorkerSlotConfig(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,10 +84,7 @@ class WorkerSlotConfig(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "available": obj.get("available"),
-            "limit": obj.get("limit")
-        })
+        _obj = cls.model_validate(
+            {"available": obj.get("available"), "limit": obj.get("limit")}
+        )
         return _obj
-
-

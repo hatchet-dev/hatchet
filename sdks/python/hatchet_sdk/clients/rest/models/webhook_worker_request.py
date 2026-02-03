@@ -20,17 +20,27 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from typing import Any, ClassVar, Dict, List
-from hatchet_sdk.clients.rest.models.webhook_worker_request_method import WebhookWorkerRequestMethod
+from hatchet_sdk.clients.rest.models.webhook_worker_request_method import (
+    WebhookWorkerRequestMethod,
+)
 from typing import Optional, Set
 from typing_extensions import Self
+
 
 class WebhookWorkerRequest(BaseModel):
     """
     WebhookWorkerRequest
-    """ # noqa: E501
-    created_at: datetime = Field(description="The date and time the request was created.")
-    method: WebhookWorkerRequestMethod = Field(description="The HTTP method used for the request.")
-    status_code: StrictInt = Field(description="The HTTP status code of the response.", alias="statusCode")
+    """  # noqa: E501
+
+    created_at: datetime = Field(
+        description="The date and time the request was created."
+    )
+    method: WebhookWorkerRequestMethod = Field(
+        description="The HTTP method used for the request."
+    )
+    status_code: StrictInt = Field(
+        description="The HTTP status code of the response.", alias="statusCode"
+    )
     __properties: ClassVar[List[str]] = ["created_at", "method", "statusCode"]
 
     model_config = ConfigDict(
@@ -38,7 +48,6 @@ class WebhookWorkerRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,8 +73,7 @@ class WebhookWorkerRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -83,11 +91,11 @@ class WebhookWorkerRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "created_at": obj.get("created_at"),
-            "method": obj.get("method"),
-            "statusCode": obj.get("statusCode")
-        })
+        _obj = cls.model_validate(
+            {
+                "created_at": obj.get("created_at"),
+                "method": obj.get("method"),
+                "statusCode": obj.get("statusCode"),
+            }
+        )
         return _obj
-
-

@@ -19,27 +19,47 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import V1WebhookHMACAlgorithm
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import V1WebhookHMACEncoding
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+    V1WebhookHMACAlgorithm,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+    V1WebhookHMACEncoding,
+)
 from typing import Optional, Set
 from typing_extensions import Self
+
 
 class V1WebhookHMACAuth(BaseModel):
     """
     V1WebhookHMACAuth
-    """ # noqa: E501
-    algorithm: V1WebhookHMACAlgorithm = Field(description="The HMAC algorithm to use for the webhook")
-    encoding: V1WebhookHMACEncoding = Field(description="The encoding to use for the HMAC signature")
-    signature_header_name: StrictStr = Field(description="The name of the header to use for the HMAC signature", alias="signatureHeaderName")
-    signing_secret: StrictStr = Field(description="The secret key used to sign the HMAC signature", alias="signingSecret")
-    __properties: ClassVar[List[str]] = ["algorithm", "encoding", "signatureHeaderName", "signingSecret"]
+    """  # noqa: E501
+
+    algorithm: V1WebhookHMACAlgorithm = Field(
+        description="The HMAC algorithm to use for the webhook"
+    )
+    encoding: V1WebhookHMACEncoding = Field(
+        description="The encoding to use for the HMAC signature"
+    )
+    signature_header_name: StrictStr = Field(
+        description="The name of the header to use for the HMAC signature",
+        alias="signatureHeaderName",
+    )
+    signing_secret: StrictStr = Field(
+        description="The secret key used to sign the HMAC signature",
+        alias="signingSecret",
+    )
+    __properties: ClassVar[List[str]] = [
+        "algorithm",
+        "encoding",
+        "signatureHeaderName",
+        "signingSecret",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -65,8 +85,7 @@ class V1WebhookHMACAuth(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -84,12 +103,12 @@ class V1WebhookHMACAuth(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "algorithm": obj.get("algorithm"),
-            "encoding": obj.get("encoding"),
-            "signatureHeaderName": obj.get("signatureHeaderName"),
-            "signingSecret": obj.get("signingSecret")
-        })
+        _obj = cls.model_validate(
+            {
+                "algorithm": obj.get("algorithm"),
+                "encoding": obj.get("encoding"),
+                "signatureHeaderName": obj.get("signatureHeaderName"),
+                "signingSecret": obj.get("signingSecret"),
+            }
+        )
         return _obj
-
-

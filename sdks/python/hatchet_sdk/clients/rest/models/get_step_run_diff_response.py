@@ -23,10 +23,12 @@ from hatchet_sdk.clients.rest.models.step_run_diff import StepRunDiff
 from typing import Optional, Set
 from typing_extensions import Self
 
+
 class GetStepRunDiffResponse(BaseModel):
     """
     GetStepRunDiffResponse
-    """ # noqa: E501
+    """  # noqa: E501
+
     diffs: List[StepRunDiff]
     __properties: ClassVar[List[str]] = ["diffs"]
 
@@ -35,7 +37,6 @@ class GetStepRunDiffResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +62,7 @@ class GetStepRunDiffResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -75,7 +75,7 @@ class GetStepRunDiffResponse(BaseModel):
             for _item_diffs in self.diffs:
                 if _item_diffs:
                     _items.append(_item_diffs.to_dict())
-            _dict['diffs'] = _items
+            _dict["diffs"] = _items
         return _dict
 
     @classmethod
@@ -87,9 +87,13 @@ class GetStepRunDiffResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "diffs": [StepRunDiff.from_dict(_item) for _item in obj["diffs"]] if obj.get("diffs") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "diffs": (
+                    [StepRunDiff.from_dict(_item) for _item in obj["diffs"]]
+                    if obj.get("diffs") is not None
+                    else None
+                )
+            }
+        )
         return _obj
-
-

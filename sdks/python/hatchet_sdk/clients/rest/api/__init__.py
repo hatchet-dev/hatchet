@@ -22,4 +22,3 @@ from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api.default_api import DefaultApi
-

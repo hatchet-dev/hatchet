@@ -20,15 +20,21 @@ import json
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_error import ScheduledWorkflowsBulkError
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_error import (
+    ScheduledWorkflowsBulkError,
+)
 from typing import Optional, Set
 from typing_extensions import Self
+
 
 class ScheduledWorkflowsBulkDeleteResponse(BaseModel):
     """
     ScheduledWorkflowsBulkDeleteResponse
-    """ # noqa: E501
-    deleted_ids: List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(alias="deletedIds")
+    """  # noqa: E501
+
+    deleted_ids: List[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(alias="deletedIds")
     errors: List[ScheduledWorkflowsBulkError]
     __properties: ClassVar[List[str]] = ["deletedIds", "errors"]
 
@@ -37,7 +43,6 @@ class ScheduledWorkflowsBulkDeleteResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +68,7 @@ class ScheduledWorkflowsBulkDeleteResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -77,7 +81,7 @@ class ScheduledWorkflowsBulkDeleteResponse(BaseModel):
             for _item_errors in self.errors:
                 if _item_errors:
                     _items.append(_item_errors.to_dict())
-            _dict['errors'] = _items
+            _dict["errors"] = _items
         return _dict
 
     @classmethod
@@ -89,10 +93,17 @@ class ScheduledWorkflowsBulkDeleteResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "deletedIds": obj.get("deletedIds"),
-            "errors": [ScheduledWorkflowsBulkError.from_dict(_item) for _item in obj["errors"]] if obj.get("errors") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "deletedIds": obj.get("deletedIds"),
+                "errors": (
+                    [
+                        ScheduledWorkflowsBulkError.from_dict(_item)
+                        for _item in obj["errors"]
+                    ]
+                    if obj.get("errors") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-
