@@ -15,9 +15,9 @@ import (
 const defaultSlotExpiry = 1500 * time.Millisecond
 
 type slot struct {
-	worker    *worker
-	actions   []string
-	slotType  string
+	worker   *worker
+	actions  []string
+	slotType string
 
 	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
 	expiresAt *time.Time
@@ -29,6 +29,46 @@ type slot struct {
 	additionalNacks []func()
 
 	mu sync.RWMutex
+}
+
+type assignedSlots struct {
+	slots         []*slot
+	rateLimitAck  func()
+	rateLimitNack func()
+}
+
+// testHookBeforeUsingSelectedSlots exists to make certain concurrent/rollback
+// branches deterministic in unit tests. It is nil in production.
+var testHookBeforeUsingSelectedSlots func(selected []*slot)
+
+// testHookBeforeReplenishUnackedLock exists to make lock-order assertions
+// deterministic in unit tests. It is nil in production.
+var testHookBeforeReplenishUnackedLock func()
+
+func (a *assignedSlots) workerId() uuid.UUID {
+	if len(a.slots) == 0 {
+		return uuid.Nil
+	}
+
+	return a.slots[0].getWorkerId()
+}
+
+func (a *assignedSlots) ack() {
+	for _, slot := range a.slots {
+		slot.ack()
+	}
+	if a.rateLimitAck != nil {
+		a.rateLimitAck()
+	}
+}
+
+func (a *assignedSlots) nack() {
+	for _, slot := range a.slots {
+		slot.nack()
+	}
+	if a.rateLimitNack != nil {
+		a.rateLimitNack()
+	}
 }
 
 func newSlot(worker *worker, actions []string, slotType string) *slot {

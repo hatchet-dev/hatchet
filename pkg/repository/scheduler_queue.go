@@ -639,24 +639,55 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	return stepIdToLabels, nil
 }
 
-func (d *queueRepository) GetStepSlotRequests(ctx context.Context, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
+func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requests")
 	defer span.End()
 
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
-	rows, err := d.queries.GetStepSlotRequests(ctx, d.pool, uniqueStepIds)
+	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
+	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(uniqueStepIds))
+
+	for _, stepId := range uniqueStepIds {
+		if value, found := d.stepIdSlotRequestsCache.Get(stepId); found {
+			stepIdToRequests[stepId] = value
+		} else {
+			stepIdsToLookup = append(stepIdsToLookup, stepId)
+		}
+	}
+
+	if len(stepIdsToLookup) == 0 {
+		return stepIdToRequests, nil
+	}
+
+	var queryTx sqlcv1.DBTX
+
+	if tx != nil {
+		queryTx = tx.tx
+	} else {
+		queryTx = d.pool
+	}
+
+	rows, err := d.queries.GetStepSlotRequests(ctx, queryTx, stepIdsToLookup)
 	if err != nil {
 		return nil, err
 	}
 
-	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(rows))
 	for _, row := range rows {
 		if _, ok := stepIdToRequests[row.StepID]; !ok {
 			stepIdToRequests[row.StepID] = make(map[string]int32)
 		}
 
 		stepIdToRequests[row.StepID][row.SlotType] = row.Units
+	}
+
+	// cache empty results so we skip DB lookups for steps without explicit slot requests
+	for _, stepId := range stepIdsToLookup {
+		if _, ok := stepIdToRequests[stepId]; !ok {
+			stepIdToRequests[stepId] = map[string]int32{}
+		}
+
+		d.stepIdSlotRequestsCache.Add(stepId, stepIdToRequests[stepId])
 	}
 
 	return stepIdToRequests, nil
