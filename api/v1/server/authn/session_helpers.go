@@ -30,7 +30,7 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 	}
 
 	session.Values["authenticated"] = true
-	session.Values["user_id"] = user.ID.String()
+	session.Values["user_id"] = user.ID
 
 	return session.Save(c.Request(), c.Response())
 }

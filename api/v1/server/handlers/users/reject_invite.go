@@ -15,7 +15,7 @@ import (
 
 func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInviteRejectRequestObject) (gen.TenantInviteRejectResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
-	userId := user.ID.String()
+	userId := user.ID
 
 	// validate the request
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -72,11 +72,11 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 
 	u.config.Analytics.Enqueue(
 		"user-invite:reject",
-		userId,
+		userId.String(),
 		&invite.TenantId,
 		nil,
 		map[string]interface{}{
-			"user_id":   userId,
+			"user_id":   userId.String(),
 			"invite_id": inviteId.String(),
 			"role":      invite.Role,
 		},
