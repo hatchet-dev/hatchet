@@ -38,6 +38,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
+from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
@@ -178,8 +179,8 @@ class Hatchet:
     def worker(
         self,
         name: str,
-        slots: int = 100,
-        durable_slots: int = 1_000,
+        slots: int | None = None,
+        durable_slots: int | None = None,
         labels: dict[str, str | int] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
@@ -189,9 +190,9 @@ class Hatchet:
 
         :param name: The name of the worker.
 
-        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time
+        :param slots: slot count for standard tasks.
 
-        :param durable_slots: The number of durable workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time that are durable.
+        :param durable_slots: slot count for durable tasks.
 
         :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
 
@@ -207,10 +208,16 @@ class Hatchet:
         except RuntimeError:
             loop = None
 
+        resolved_config = resolve_worker_slot_config(
+            None,
+            slots,
+            durable_slots,
+            workflows,
+        )
+
         return Worker(
             name=name,
-            slots=slots,
-            durable_slots=durable_slots,
+            slot_config=normalize_slot_config(resolved_config),
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,

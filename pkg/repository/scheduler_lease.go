@@ -13,10 +13,9 @@ import (
 )
 
 type ListActiveWorkersResult struct {
-	ID      uuid.UUID
-	MaxRuns int
-	Name    string
-	Labels  []*sqlcv1.ListManyWorkerLabelsRow
+	ID     uuid.UUID
+	Name   string
+	Labels []*sqlcv1.ListManyWorkerLabelsRow
 }
 
 type leaseRepository struct {
@@ -152,10 +151,9 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 	for _, worker := range activeWorkers {
 		wId := worker.ID.String()
 		res = append(res, &ListActiveWorkersResult{
-			ID:      worker.ID,
-			MaxRuns: int(worker.MaxRuns),
-			Labels:  workerIdsToLabels[wId],
-			Name:    worker.Name,
+			ID:     worker.ID,
+			Labels: workerIdsToLabels[wId],
+			Name:   worker.Name,
 		})
 	}
 

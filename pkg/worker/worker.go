@@ -100,7 +100,9 @@ type Worker struct {
 
 	middlewares *middlewares
 
-	maxRuns *int
+	slots        *int
+	durableSlots *int
+	slotConfig   map[string]int32
 
 	initActionNames []string
 
@@ -118,9 +120,11 @@ type WorkerOpts struct {
 	name   string
 	l      *zerolog.Logger
 
-	integrations []integrations.Integration
-	alerter      errors.Alerter
-	maxRuns      *int
+	integrations   []integrations.Integration
+	alerter        errors.Alerter
+	slots        *int
+	durableSlots *int
+	slotConfig   map[string]int32
 
 	actions []string
 
@@ -166,9 +170,27 @@ func WithErrorAlerter(alerter errors.Alerter) WorkerOpt {
 	}
 }
 
+// Deprecated: use WithSlots instead.
 func WithMaxRuns(maxRuns int) WorkerOpt {
+	return WithSlots(maxRuns)
+}
+
+// WithSlots sets the number of concurrent slots this worker can handle.
+func WithSlots(slots int) WorkerOpt {
 	return func(opts *WorkerOpts) {
-		opts.maxRuns = &maxRuns
+		opts.slots = &slots
+	}
+}
+
+func WithDurableSlots(durableSlots int) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.durableSlots = &durableSlots
+	}
+}
+
+func WithSlotConfig(slotConfig map[string]int32) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.slotConfig = slotConfig
 	}
 }
 
@@ -232,6 +254,10 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		opts.l = &l
 	}
 
+	if opts.slotConfig != nil && (opts.slots != nil || opts.durableSlots != nil) {
+		return nil, fmt.Errorf("cannot set both slot config and slots/durable slots")
+	}
+
 	w := &Worker{
 		client:               opts.client,
 		name:                 opts.name,
@@ -239,7 +265,9 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		actions:              ActionRegistry{},
 		alerter:              opts.alerter,
 		middlewares:          mws,
-		maxRuns:              opts.maxRuns,
+		slots:                opts.slots,
+		durableSlots:         opts.durableSlots,
+		slotConfig:           opts.slotConfig,
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
@@ -454,10 +482,12 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	_ = NewManagedCompute(&w.actions, w.client, 1)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
-		WorkerName: w.name,
-		Actions:    actionNames,
-		MaxRuns:    w.maxRuns,
-		Labels:     w.labels,
+		WorkerName:     w.name,
+		Actions:        actionNames,
+		Slots:          w.slots,
+		Labels:         w.labels,
+		DurableSlots:   w.durableSlots,
+		SlotConfig: w.slotConfig,
 	})
 
 	w.id = id

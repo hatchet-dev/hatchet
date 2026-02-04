@@ -100,6 +100,12 @@ type CreateStepOpts struct {
 	// (optional) the step retry backoff max seconds (can't be greater than 86400)
 	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 
+	// (optional) whether this step is durable
+	IsDurable bool
+
+	// (optional) slot requests for this step (slot_type -> units)
+	SlotRequests map[string]int32 `validate:"omitempty"`
+
 	// (optional) a list of additional trigger conditions
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
 
@@ -727,6 +733,10 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Readableid:     stepOpts.ReadableId,
 			CustomUserData: customUserData,
 			Retries:        retries,
+			IsDurable: pgtype.Bool{
+				Bool:  stepOpts.IsDurable,
+				Valid: true,
+			},
 		}
 
 		if stepOpts.ScheduleTimeout != nil {
@@ -751,6 +761,45 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			ctx,
 			tx,
 			createStepParams,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		slotRequests := stepOpts.SlotRequests
+		if len(slotRequests) == 0 {
+			if stepOpts.IsDurable {
+				slotRequests = map[string]int32{SlotTypeDurable: 1}
+			} else {
+				slotRequests = map[string]int32{SlotTypeDefault: 1}
+			}
+		}
+
+		slotTypes := make([]string, 0, len(slotRequests))
+		units := make([]int32, 0, len(slotRequests))
+		for slotType, unit := range slotRequests {
+			if unit <= 0 {
+				continue
+			}
+			slotTypes = append(slotTypes, slotType)
+			units = append(units, unit)
+		}
+
+		if len(slotTypes) == 0 {
+			slotTypes = append(slotTypes, SlotTypeDefault)
+			units = append(units, 1)
+		}
+
+		err = r.queries.CreateStepSlotRequests(
+			ctx,
+			tx,
+			sqlcv1.CreateStepSlotRequestsParams{
+				Tenantid:  tenantId,
+				Stepid:    stepId,
+				Slottypes: slotTypes,
+				Units:     units,
+			},
 		)
 
 		if err != nil {

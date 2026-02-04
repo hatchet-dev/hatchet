@@ -31,7 +31,7 @@ type RateLimitResult struct {
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
-	WorkerId uuid.UUID
+	WorkerId  uuid.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
 
@@ -637,6 +637,29 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	}
 
 	return stepIdToLabels, nil
+}
+
+func (d *queueRepository) GetStepSlotRequests(ctx context.Context, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requests")
+	defer span.End()
+
+	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+
+	rows, err := d.queries.GetStepSlotRequests(ctx, d.pool, uniqueStepIds)
+	if err != nil {
+		return nil, err
+	}
+
+	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(rows))
+	for _, row := range rows {
+		if _, ok := stepIdToRequests[row.StepID]; !ok {
+			stepIdToRequests[row.StepID] = make(map[string]int32)
+		}
+
+		stepIdToRequests[row.StepID][row.SlotType] = row.Units
+	}
+
+	return stepIdToRequests, nil
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {

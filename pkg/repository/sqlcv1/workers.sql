@@ -10,18 +10,77 @@ SELECT
 FROM "WorkerLabel" wl
 WHERE wl."workerId" = ANY(@workerIds::uuid[]);
 
+-- name: ListWorkerSlotConfigs :many
+SELECT
+    worker_id,
+    slot_type,
+    max_units
+FROM
+    v1_worker_slot_config
+WHERE
+    tenant_id = @tenantId::uuid
+    AND worker_id = ANY(@workerIds::uuid[]);
+
+-- name: UpsertWorkerSlotConfigs :exec
+INSERT INTO v1_worker_slot_config (
+    tenant_id,
+    worker_id,
+    slot_type,
+    max_units,
+    created_at,
+    updated_at
+)
+SELECT
+    @tenantId::uuid,
+    @workerId::uuid,
+    unnest(@slotTypes::text[]),
+    unnest(@maxUnits::integer[]),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+ON CONFLICT (tenant_id, worker_id, slot_type) DO UPDATE
+SET
+    max_units = EXCLUDED.max_units,
+    updated_at = CURRENT_TIMESTAMP;
+
 -- name: ListWorkersWithSlotCount :many
 SELECT
     sqlc.embed(workers),
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    workers."maxRuns" - (
-        SELECT COUNT(*)
-        FROM v1_task_runtime runtime
+    -- TODO do we still need this?
+    COALESCE((
+        SELECT COALESCE(cap.max_units, 0)
+        FROM v1_worker_slot_config cap
+        WHERE
+            cap.tenant_id = workers."tenantId"
+            AND cap.worker_id = workers."id"
+            AND cap.slot_type = 'default'::text
+    ) - (
+        SELECT COALESCE(SUM(runtime.units), 0)
+        FROM v1_task_runtime_slot runtime
         WHERE
             runtime.tenant_id = workers."tenantId" AND
-            runtime.worker_id = workers."id"
-    ) AS "remainingSlots"
+            runtime.worker_id = workers."id" AND
+            runtime.slot_type = 'default'::text
+    ), 0)::int AS "remainingSlots"
+    ,
+    COALESCE((
+        (
+            SELECT COALESCE(cap.max_units, 0)
+            FROM v1_worker_slot_config cap
+            WHERE
+                cap.tenant_id = workers."tenantId"
+                AND cap.worker_id = workers."id"
+                AND cap.slot_type = 'durable'::text
+        ) - (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE
+                runtime.tenant_id = workers."tenantId" AND
+                runtime.worker_id = workers."id" AND
+                runtime.slot_type = 'durable'::text
+        )
+    ), 0)::int AS "remainingDurableSlots"
 FROM
     "Worker" workers
 LEFT JOIN
@@ -43,11 +102,14 @@ WHERE
     )
     AND (
         sqlc.narg('assignable')::boolean IS NULL OR
-        workers."maxRuns" IS NULL OR
-        (sqlc.narg('assignable')::boolean AND workers."maxRuns" > (
-            SELECT COUNT(*)
-            FROM "StepRun" srs
-            WHERE srs."workerId" = workers."id" AND srs."status" = 'RUNNING'
+        (sqlc.narg('assignable')::boolean AND (
+            SELECT COALESCE(SUM(cap.max_units), 0)
+            FROM v1_worker_slot_config cap
+            WHERE cap.tenant_id = workers."tenantId" AND cap.worker_id = workers."id"
+        ) > (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
 GROUP BY
@@ -57,13 +119,39 @@ GROUP BY
 SELECT
     sqlc.embed(w),
     ww."url" AS "webhookUrl",
-    w."maxRuns" - (
-        SELECT COUNT(*)
-        FROM v1_task_runtime runtime
+    COALESCE((
+        SELECT COALESCE(cap.max_units, 0)
+        FROM v1_worker_slot_config cap
+        WHERE
+            cap.tenant_id = w."tenantId"
+            AND cap.worker_id = w."id"
+            AND cap.slot_type = 'default'::text
+    ) - (
+        SELECT COALESCE(SUM(runtime.units), 0)
+        FROM v1_task_runtime_slot runtime
         WHERE
             runtime.tenant_id = w."tenantId" AND
-            runtime.worker_id = w."id"
-    ) AS "remainingSlots"
+            runtime.worker_id = w."id" AND
+            runtime.slot_type = 'default'::text
+    ), 0)::int AS "remainingSlots"
+    ,
+    COALESCE((
+        (
+            SELECT COALESCE(cap.max_units, 0)
+            FROM v1_worker_slot_config cap
+            WHERE
+                cap.tenant_id = w."tenantId"
+                AND cap.worker_id = w."id"
+                AND cap.slot_type = 'durable'::text
+        ) - (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE
+                runtime.tenant_id = w."tenantId" AND
+                runtime.worker_id = w."id" AND
+                runtime.slot_type = 'durable'::text
+        )
+    ), 0)::int AS "remainingDurableSlots"
 FROM
     "Worker" w
 LEFT JOIN
@@ -85,14 +173,32 @@ LIMIT
     COALESCE(sqlc.narg('limit')::int, 100);
 
 -- name: ListTotalActiveSlotsPerTenant :many
-SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
-FROM "Worker"
+SELECT
+    wc.tenant_id AS "tenantId",
+    SUM(wc.max_units) AS "totalActiveSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
 WHERE
-    "dispatcherId" IS NOT NULL
-    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-    AND "isActive" = true
-    AND "isPaused" = false
-GROUP BY "tenantId"
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+GROUP BY wc.tenant_id
+;
+
+-- name: ListActiveSlotsPerTenantAndSlotType :many
+SELECT
+    wc.tenant_id AS "tenantId",
+    wc.slot_type AS "slotType",
+    SUM(wc.max_units) AS "activeSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+GROUP BY wc.tenant_id, wc.slot_type
 ;
 
 -- name: ListActiveSDKsPerTenant :many
@@ -186,7 +292,6 @@ UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
-    "maxRuns" = coalesce(sqlc.narg('maxRuns')::int, "maxRuns"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
     "isActive" = coalesce(sqlc.narg('isActive')::boolean, "isActive"),
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
@@ -326,7 +431,6 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns",
     "webhookId",
     "type",
     "sdkVersion",
@@ -341,7 +445,6 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('maxRuns')::int,
     sqlc.narg('webhookId')::uuid,
     sqlc.narg('type')::"WorkerType",
     sqlc.narg('sdkVersion')::text,

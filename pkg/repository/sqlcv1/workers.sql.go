@@ -20,7 +20,6 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns",
     "webhookId",
     "type",
     "sdkVersion",
@@ -35,22 +34,20 @@ INSERT INTO "Worker" (
     $1::uuid,
     $2::text,
     $3::uuid,
-    $4::int,
-    $5::uuid,
-    $6::"WorkerType",
-    $7::text,
-    $8::"WorkerSDKS",
+    $4::uuid,
+    $5::"WorkerType",
+    $6::text,
+    $7::"WorkerSDKS",
+    $8::text,
     $9::text,
-    $10::text,
-    $11::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
+    $10::text
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type CreateWorkerParams struct {
 	Tenantid        uuid.UUID      `json:"tenantid"`
 	Name            string         `json:"name"`
 	Dispatcherid    uuid.UUID      `json:"dispatcherid"`
-	MaxRuns         pgtype.Int4    `json:"maxRuns"`
 	WebhookId       *uuid.UUID     `json:"webhookId"`
 	Type            NullWorkerType `json:"type"`
 	SdkVersion      pgtype.Text    `json:"sdkVersion"`
@@ -65,7 +62,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Tenantid,
 		arg.Name,
 		arg.Dispatcherid,
-		arg.MaxRuns,
 		arg.WebhookId,
 		arg.Type,
 		arg.SdkVersion,
@@ -84,7 +80,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		&i.LastHeartbeatAt,
 		&i.Name,
 		&i.DispatcherId,
-		&i.MaxRuns,
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
@@ -149,7 +144,7 @@ DELETE FROM
   "Worker"
 WHERE
   "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Worker, error) {
@@ -164,7 +159,6 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Wor
 		&i.LastHeartbeatAt,
 		&i.Name,
 		&i.DispatcherId,
-		&i.MaxRuns,
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
@@ -227,15 +221,41 @@ func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg G
 
 const getWorkerById = `-- name: GetWorkerById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
     ww."url" AS "webhookUrl",
-    w."maxRuns" - (
-        SELECT COUNT(*)
-        FROM v1_task_runtime runtime
+    COALESCE((
+        SELECT COALESCE(cap.max_units, 0)
+        FROM v1_worker_slot_config cap
+        WHERE
+            cap.tenant_id = w."tenantId"
+            AND cap.worker_id = w."id"
+            AND cap.slot_type = 'default'::text
+    ) - (
+        SELECT COALESCE(SUM(runtime.units), 0)
+        FROM v1_task_runtime_slot runtime
         WHERE
             runtime.tenant_id = w."tenantId" AND
-            runtime.worker_id = w."id"
-    ) AS "remainingSlots"
+            runtime.worker_id = w."id" AND
+            runtime.slot_type = 'default'::text
+    ), 0)::int AS "remainingSlots"
+    ,
+    COALESCE((
+        (
+            SELECT COALESCE(cap.max_units, 0)
+            FROM v1_worker_slot_config cap
+            WHERE
+                cap.tenant_id = w."tenantId"
+                AND cap.worker_id = w."id"
+                AND cap.slot_type = 'durable'::text
+        ) - (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE
+                runtime.tenant_id = w."tenantId" AND
+                runtime.worker_id = w."id" AND
+                runtime.slot_type = 'durable'::text
+        )
+    ), 0)::int AS "remainingDurableSlots"
 FROM
     "Worker" w
 LEFT JOIN
@@ -245,9 +265,10 @@ WHERE
 `
 
 type GetWorkerByIdRow struct {
-	Worker         Worker      `json:"worker"`
-	WebhookUrl     pgtype.Text `json:"webhookUrl"`
-	RemainingSlots int32       `json:"remainingSlots"`
+	Worker                Worker      `json:"worker"`
+	WebhookUrl            pgtype.Text `json:"webhookUrl"`
+	RemainingSlots        int32       `json:"remainingSlots"`
+	RemainingDurableSlots int32       `json:"remainingDurableSlots"`
 }
 
 func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkerByIdRow, error) {
@@ -262,7 +283,6 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*Ge
 		&i.Worker.LastHeartbeatAt,
 		&i.Worker.Name,
 		&i.Worker.DispatcherId,
-		&i.Worker.MaxRuns,
 		&i.Worker.IsActive,
 		&i.Worker.LastListenerEstablished,
 		&i.Worker.IsPaused,
@@ -275,6 +295,7 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*Ge
 		&i.Worker.SdkVersion,
 		&i.WebhookUrl,
 		&i.RemainingSlots,
+		&i.RemainingDurableSlots,
 	)
 	return &i, err
 }
@@ -467,6 +488,47 @@ func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*List
 	return items, nil
 }
 
+const listActiveSlotsPerTenantAndSlotType = `-- name: ListActiveSlotsPerTenantAndSlotType :many
+SELECT
+    wc.tenant_id AS "tenantId",
+    wc.slot_type AS "slotType",
+    SUM(wc.max_units) AS "activeSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+GROUP BY wc.tenant_id, wc.slot_type
+`
+
+type ListActiveSlotsPerTenantAndSlotTypeRow struct {
+	TenantId    uuid.UUID `json:"tenantId"`
+	SlotType    string    `json:"slotType"`
+	ActiveSlots int64     `json:"activeSlots"`
+}
+
+func (q *Queries) ListActiveSlotsPerTenantAndSlotType(ctx context.Context, db DBTX) ([]*ListActiveSlotsPerTenantAndSlotTypeRow, error) {
+	rows, err := db.Query(ctx, listActiveSlotsPerTenantAndSlotType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveSlotsPerTenantAndSlotTypeRow
+	for rows.Next() {
+		var i ListActiveSlotsPerTenantAndSlotTypeRow
+		if err := rows.Scan(&i.TenantId, &i.SlotType, &i.ActiveSlots); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActiveWorkersPerTenant = `-- name: ListActiveWorkersPerTenant :many
 SELECT "tenantId", COUNT(*)
 FROM "Worker"
@@ -597,7 +659,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, slot_group, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task_runtime runtime
 JOIN
@@ -622,6 +684,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	WorkerID                     *uuid.UUID         `json:"worker_id"`
 	TenantID                     uuid.UUID          `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
+	SlotGroup                    V1WorkerSlotGroup  `json:"slot_group"`
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
 	TenantID_2                   uuid.UUID          `json:"tenant_id_2"`
@@ -677,6 +740,7 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.WorkerID,
 			&i.TenantID,
 			&i.TimeoutAt,
+			&i.SlotGroup,
 			&i.ID,
 			&i.InsertedAt,
 			&i.TenantID_2,
@@ -726,14 +790,17 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 }
 
 const listTotalActiveSlotsPerTenant = `-- name: ListTotalActiveSlotsPerTenant :many
-SELECT "tenantId", SUM("maxRuns") AS "totalActiveSlots"
-FROM "Worker"
+SELECT
+    wc.tenant_id AS "tenantId",
+    SUM(wc.max_units) AS "totalActiveSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
 WHERE
-    "dispatcherId" IS NOT NULL
-    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-    AND "isActive" = true
-    AND "isPaused" = false
-GROUP BY "tenantId"
+    w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+GROUP BY wc.tenant_id
 `
 
 type ListTotalActiveSlotsPerTenantRow struct {
@@ -809,18 +876,88 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.U
 	return items, nil
 }
 
+const listWorkerSlotConfigs = `-- name: ListWorkerSlotConfigs :many
+SELECT
+    worker_id,
+    slot_type,
+    max_units
+FROM
+    v1_worker_slot_config
+WHERE
+    tenant_id = $1::uuid
+    AND worker_id = ANY($2::uuid[])
+`
+
+type ListWorkerSlotConfigsParams struct {
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
+}
+
+type ListWorkerSlotConfigsRow struct {
+	WorkerID uuid.UUID `json:"worker_id"`
+	SlotType string    `json:"slot_type"`
+	MaxUnits int32     `json:"max_units"`
+}
+
+func (q *Queries) ListWorkerSlotConfigs(ctx context.Context, db DBTX, arg ListWorkerSlotConfigsParams) ([]*ListWorkerSlotConfigsRow, error) {
+	rows, err := db.Query(ctx, listWorkerSlotConfigs, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkerSlotConfigsRow
+	for rows.Next() {
+		var i ListWorkerSlotConfigsRow
+		if err := rows.Scan(&i.WorkerID, &i.SlotType, &i.MaxUnits); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkersWithSlotCount = `-- name: ListWorkersWithSlotCount :many
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion",
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion",
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    workers."maxRuns" - (
-        SELECT COUNT(*)
-        FROM v1_task_runtime runtime
+    -- TODO do we still need this?
+    COALESCE((
+        SELECT COALESCE(cap.max_units, 0)
+        FROM v1_worker_slot_config cap
+        WHERE
+            cap.tenant_id = workers."tenantId"
+            AND cap.worker_id = workers."id"
+            AND cap.slot_type = 'default'::text
+    ) - (
+        SELECT COALESCE(SUM(runtime.units), 0)
+        FROM v1_task_runtime_slot runtime
         WHERE
             runtime.tenant_id = workers."tenantId" AND
-            runtime.worker_id = workers."id"
-    ) AS "remainingSlots"
+            runtime.worker_id = workers."id" AND
+            runtime.slot_type = 'default'::text
+    ), 0)::int AS "remainingSlots"
+    ,
+    COALESCE((
+        (
+            SELECT COALESCE(cap.max_units, 0)
+            FROM v1_worker_slot_config cap
+            WHERE
+                cap.tenant_id = workers."tenantId"
+                AND cap.worker_id = workers."id"
+                AND cap.slot_type = 'durable'::text
+        ) - (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE
+                runtime.tenant_id = workers."tenantId" AND
+                runtime.worker_id = workers."id" AND
+                runtime.slot_type = 'durable'::text
+        )
+    ), 0)::int AS "remainingDurableSlots"
 FROM
     "Worker" workers
 LEFT JOIN
@@ -842,11 +979,14 @@ WHERE
     )
     AND (
         $4::boolean IS NULL OR
-        workers."maxRuns" IS NULL OR
-        ($4::boolean AND workers."maxRuns" > (
-            SELECT COUNT(*)
-            FROM "StepRun" srs
-            WHERE srs."workerId" = workers."id" AND srs."status" = 'RUNNING'
+        ($4::boolean AND (
+            SELECT COALESCE(SUM(cap.max_units), 0)
+            FROM v1_worker_slot_config cap
+            WHERE cap.tenant_id = workers."tenantId" AND cap.worker_id = workers."id"
+        ) > (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
 GROUP BY
@@ -861,10 +1001,11 @@ type ListWorkersWithSlotCountParams struct {
 }
 
 type ListWorkersWithSlotCountRow struct {
-	Worker         Worker      `json:"worker"`
-	WebhookUrl     pgtype.Text `json:"webhookUrl"`
-	WebhookId      *uuid.UUID  `json:"webhookId"`
-	RemainingSlots int32       `json:"remainingSlots"`
+	Worker                Worker      `json:"worker"`
+	WebhookUrl            pgtype.Text `json:"webhookUrl"`
+	WebhookId             *uuid.UUID  `json:"webhookId"`
+	RemainingSlots        int32       `json:"remainingSlots"`
+	RemainingDurableSlots int32       `json:"remainingDurableSlots"`
 }
 
 func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg ListWorkersWithSlotCountParams) ([]*ListWorkersWithSlotCountRow, error) {
@@ -890,7 +1031,6 @@ func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.LastHeartbeatAt,
 			&i.Worker.Name,
 			&i.Worker.DispatcherId,
-			&i.Worker.MaxRuns,
 			&i.Worker.IsActive,
 			&i.Worker.LastListenerEstablished,
 			&i.Worker.IsPaused,
@@ -904,6 +1044,7 @@ func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg Lis
 			&i.WebhookUrl,
 			&i.WebhookId,
 			&i.RemainingSlots,
+			&i.RemainingDurableSlots,
 		); err != nil {
 			return nil, err
 		}
@@ -921,18 +1062,16 @@ UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce($1::uuid, "dispatcherId"),
-    "maxRuns" = coalesce($2::int, "maxRuns"),
-    "lastHeartbeatAt" = coalesce($3::timestamp, "lastHeartbeatAt"),
-    "isActive" = coalesce($4::boolean, "isActive"),
-    "isPaused" = coalesce($5::boolean, "isPaused")
+    "lastHeartbeatAt" = coalesce($2::timestamp, "lastHeartbeatAt"),
+    "isActive" = coalesce($3::boolean, "isActive"),
+    "isPaused" = coalesce($4::boolean, "isPaused")
 WHERE
-    "id" = $6::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
+    "id" = $5::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkerParams struct {
 	DispatcherId    *uuid.UUID       `json:"dispatcherId"`
-	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	IsActive        pgtype.Bool      `json:"isActive"`
 	IsPaused        pgtype.Bool      `json:"isPaused"`
@@ -942,7 +1081,6 @@ type UpdateWorkerParams struct {
 func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerParams) (*Worker, error) {
 	row := db.QueryRow(ctx, updateWorker,
 		arg.DispatcherId,
-		arg.MaxRuns,
 		arg.LastHeartbeatAt,
 		arg.IsActive,
 		arg.IsPaused,
@@ -958,7 +1096,6 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 		&i.LastHeartbeatAt,
 		&i.Name,
 		&i.DispatcherId,
-		&i.MaxRuns,
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
@@ -984,7 +1121,7 @@ WHERE
         "lastListenerEstablished" IS NULL
         OR "lastListenerEstablished" <= $2::timestamp
         )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkerActiveStatusParams struct {
@@ -1005,7 +1142,6 @@ func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg Upd
 		&i.LastHeartbeatAt,
 		&i.Name,
 		&i.DispatcherId,
-		&i.MaxRuns,
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
@@ -1028,7 +1164,7 @@ SET
     "lastHeartbeatAt" = $1::timestamp
 WHERE
     "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkerHeartbeatParams struct {
@@ -1048,7 +1184,6 @@ func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg Update
 		&i.LastHeartbeatAt,
 		&i.Name,
 		&i.DispatcherId,
-		&i.MaxRuns,
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
@@ -1154,4 +1289,43 @@ func (q *Queries) UpsertWorkerLabel(ctx context.Context, db DBTX, arg UpsertWork
 		&i.IntValue,
 	)
 	return &i, err
+}
+
+const upsertWorkerSlotConfigs = `-- name: UpsertWorkerSlotConfigs :exec
+INSERT INTO v1_worker_slot_config (
+    tenant_id,
+    worker_id,
+    slot_type,
+    max_units,
+    created_at,
+    updated_at
+)
+SELECT
+    $1::uuid,
+    $2::uuid,
+    unnest($3::text[]),
+    unnest($4::integer[]),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+ON CONFLICT (tenant_id, worker_id, slot_type) DO UPDATE
+SET
+    max_units = EXCLUDED.max_units,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertWorkerSlotConfigsParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Workerid  uuid.UUID `json:"workerid"`
+	Slottypes []string  `json:"slottypes"`
+	Maxunits  []int32   `json:"maxunits"`
+}
+
+func (q *Queries) UpsertWorkerSlotConfigs(ctx context.Context, db DBTX, arg UpsertWorkerSlotConfigsParams) error {
+	_, err := db.Exec(ctx, upsertWorkerSlotConfigs,
+		arg.Tenantid,
+		arg.Workerid,
+		arg.Slottypes,
+		arg.Maxunits,
+	)
+	return err
 }

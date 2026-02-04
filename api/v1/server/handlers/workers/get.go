@@ -27,21 +27,16 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 		return nil, err
 	}
 
-	slotState, err := t.config.V1.Workers().ListWorkerState(
+	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
 		worker.Worker.TenantId,
-		worker.Worker.ID,
-		int(worker.Worker.MaxRuns),
+		[]uuid.UUID{worker.Worker.ID},
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
-		worker.Worker.TenantId,
-		[]uuid.UUID{worker.Worker.ID},
-	)
-
+	workerSlotConfig, err := buildWorkerSlotConfig(ctx.Request().Context(), t.config.V1.Workers(), worker.Worker.TenantId, []uuid.UUID{worker.Worker.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +54,11 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 
 	respStepRuns := make([]gen.RecentStepRuns, 0)
 
-	slots := int(worker.RemainingSlots)
+	slotConfig := workerSlotConfig[worker.Worker.ID]
 
-	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions, &workerWorkflows)
+	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, slotConfig, &worker.WebhookUrl.String, actions, &workerWorkflows)
 
 	workerResp.RecentStepRuns = &respStepRuns
-	workerResp.Slots = transformersv1.ToSlotState(slotState, slots)
 
 	affinity, err := t.config.V1.Workers().ListWorkerLabels(
 		worker.Worker.TenantId,

@@ -213,6 +213,7 @@ func ToJob(job *sqlcv1.Job, steps []*sqlcv1.GetStepsForJobsRow) *gen.Job {
 }
 
 func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
+	isDurable := step.IsDurable
 	res := &gen.Step{
 		Metadata: *toAPIMetadata(
 			step.ID,
@@ -224,6 +225,7 @@ func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 		TenantId:   step.TenantId.String(),
 		ReadableId: step.ReadableId.String,
 		Timeout:    &step.Timeout.String,
+		IsDurable:  &isDurable,
 	}
 
 	parentStr := make([]string, 0)

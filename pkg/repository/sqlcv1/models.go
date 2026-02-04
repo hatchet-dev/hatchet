@@ -1872,6 +1872,48 @@ func (ns NullV1TaskInitialState) Value() (driver.Value, error) {
 	return string(ns.V1TaskInitialState), nil
 }
 
+type V1WorkerSlotGroup string
+
+const (
+	V1WorkerSlotGroupSLOTS        V1WorkerSlotGroup = "SLOTS"
+	V1WorkerSlotGroupDURABLESLOTS V1WorkerSlotGroup = "DURABLE_SLOTS"
+)
+
+func (e *V1WorkerSlotGroup) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1WorkerSlotGroup(s)
+	case string:
+		*e = V1WorkerSlotGroup(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1WorkerSlotGroup: %T", src)
+	}
+	return nil
+}
+
+type NullV1WorkerSlotGroup struct {
+	V1WorkerSlotGroup V1WorkerSlotGroup `json:"v1_worker_slot_group"`
+	Valid             bool              `json:"valid"` // Valid is true if V1WorkerSlotGroup is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1WorkerSlotGroup) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1WorkerSlotGroup, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1WorkerSlotGroup.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1WorkerSlotGroup) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1WorkerSlotGroup), nil
+}
+
 type VcsProvider string
 
 const (
@@ -2639,6 +2681,7 @@ type Step struct {
 	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
+	IsDurable          bool             `json:"isDurable"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -3342,6 +3385,15 @@ type V1StepMatchCondition struct {
 	ParentReadableID pgtype.Text              `json:"parent_readable_id"`
 }
 
+type V1StepSlotRequest struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	StepID    uuid.UUID          `json:"step_id"`
+	SlotType  string             `json:"slot_type"`
+	Units     int32              `json:"units"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1Task struct {
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
@@ -3444,6 +3496,19 @@ type V1TaskRuntime struct {
 	WorkerID       *uuid.UUID         `json:"worker_id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
+	SlotGroup      V1WorkerSlotGroup  `json:"slot_group"`
+}
+
+type V1TaskRuntimeSlot struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	WorkerID       uuid.UUID          `json:"worker_id"`
+	SlotType       string             `json:"slot_type"`
+	Units          int32              `json:"units"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1TaskStatusUpdatesTmp struct {
@@ -3480,6 +3545,15 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+}
+
+type V1WorkerSlotConfig struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	WorkerID  uuid.UUID          `json:"worker_id"`
+	SlotType  string             `json:"slot_type"`
+	MaxUnits  int32              `json:"max_units"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1WorkflowConcurrency struct {
@@ -3544,7 +3618,6 @@ type Worker struct {
 	LastHeartbeatAt         pgtype.Timestamp `json:"lastHeartbeatAt"`
 	Name                    string           `json:"name"`
 	DispatcherId            *uuid.UUID       `json:"dispatcherId"`
-	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	IsPaused                bool             `json:"isPaused"`

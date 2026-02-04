@@ -50,9 +50,18 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	if request.MaxRuns != nil {
-		mr := int(*request.MaxRuns)
-		opts.MaxRuns = &mr
+	if request.Slots != nil {
+		mr := int(*request.Slots)
+		opts.Slots = &mr
+	}
+
+	if request.DurableSlots != nil {
+		dr := int(*request.DurableSlots)
+		opts.DurableSlots = &dr
+	}
+
+	if len(request.SlotConfig) > 0 {
+		opts.SlotConfig = request.SlotConfig
 	}
 
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {

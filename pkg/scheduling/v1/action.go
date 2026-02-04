@@ -3,17 +3,20 @@ package v1
 import (
 	"slices"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type action struct {
-	mu       sync.RWMutex
-	actionId string
+	mu        sync.RWMutex
+	actionId  string
 
 	lastReplenishedSlotCount   int
 	lastReplenishedWorkerCount int
 
 	// note that slots can be used across multiple actions, hence the pointer
-	slots []*slot
+	slots         []*slot
+	slotsByWorker map[uuid.UUID]map[string][]*slot
 }
 
 func (a *action) activeCount() int {

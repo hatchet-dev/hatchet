@@ -20,7 +20,7 @@ import re  # noqa: F401
 from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing_extensions import Annotated, Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -29,6 +29,7 @@ from hatchet_sdk.clients.rest.models.registered_workflow import RegisteredWorkfl
 from hatchet_sdk.clients.rest.models.semaphore_slots import SemaphoreSlots
 from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
 from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
+from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
 from hatchet_sdk.clients.rest.models.worker_type import WorkerType
 
 
@@ -69,15 +70,10 @@ class Worker(BaseModel):
     status: Optional[StrictStr] = Field(
         default=None, description="The status of the worker."
     )
-    max_runs: Optional[StrictInt] = Field(
+    slot_config: Optional[Dict[str, WorkerSlotConfig]] = Field(
         default=None,
-        description="The maximum number of runs this worker can execute concurrently.",
-        alias="maxRuns",
-    )
-    available_runs: Optional[StrictInt] = Field(
-        default=None,
-        description="The number of runs this worker can execute concurrently.",
-        alias="availableRuns",
+        description="Slot availability and limits for this worker (slot_type -> { available, limit }).",
+        alias="slotConfig",
     )
     dispatcher_id: Optional[
         Annotated[str, Field(min_length=36, strict=True, max_length=36)]
@@ -107,8 +103,7 @@ class Worker(BaseModel):
         "slots",
         "recentStepRuns",
         "status",
-        "maxRuns",
-        "availableRuns",
+        "slotConfig",
         "dispatcherId",
         "labels",
         "webhookUrl",
@@ -189,6 +184,15 @@ class Worker(BaseModel):
                 if _item_recent_step_runs:
                     _items.append(_item_recent_step_runs.to_dict())
             _dict["recentStepRuns"] = _items
+        # override the default output from pydantic by calling `to_dict()` of each value in slot_config (dict)
+        _field_dict = {}
+        if self.slot_config:
+            for _key_slot_config in self.slot_config:
+                if self.slot_config[_key_slot_config]:
+                    _field_dict[_key_slot_config] = self.slot_config[
+                        _key_slot_config
+                    ].to_dict()
+            _dict["slotConfig"] = _field_dict
         # override the default output from pydantic by calling `to_dict()` of each item in labels (list)
         _items = []
         if self.labels:
@@ -241,8 +245,14 @@ class Worker(BaseModel):
                     else None
                 ),
                 "status": obj.get("status"),
-                "maxRuns": obj.get("maxRuns"),
-                "availableRuns": obj.get("availableRuns"),
+                "slotConfig": (
+                    dict(
+                        (_k, WorkerSlotConfig.from_dict(_v))
+                        for _k, _v in obj["slotConfig"].items()
+                    )
+                    if obj.get("slotConfig") is not None
+                    else None
+                ),
                 "dispatcherId": obj.get("dispatcherId"),
                 "labels": (
                     [WorkerLabel.from_dict(_item) for _item in obj["labels"]]

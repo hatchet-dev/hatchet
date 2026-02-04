@@ -994,15 +994,21 @@ type SlackWebhook struct {
 
 // Step defines model for Step.
 type Step struct {
-	Action   string          `json:"action"`
-	Children *[]string       `json:"children,omitempty"`
-	JobId    string          `json:"jobId"`
-	Metadata APIResourceMeta `json:"metadata"`
-	Parents  *[]string       `json:"parents,omitempty"`
+	Action   string    `json:"action"`
+	Children *[]string `json:"children,omitempty"`
+
+	// IsDurable Whether the step is durable.
+	IsDurable *bool           `json:"isDurable,omitempty"`
+	JobId     string          `json:"jobId"`
+	Metadata  APIResourceMeta `json:"metadata"`
+	Parents   *[]string       `json:"parents,omitempty"`
 
 	// ReadableId The readable id of the step.
 	ReadableId string `json:"readableId"`
-	TenantId   string `json:"tenantId"`
+
+	// SlotRequests Slot requests for the step (slot_type -> units).
+	SlotRequests *map[string]int `json:"slotRequests,omitempty"`
+	TenantId     string          `json:"tenantId"`
 
 	// Timeout The timeout of the step.
 	Timeout *string `json:"timeout,omitempty"`
@@ -2073,9 +2079,6 @@ type Worker struct {
 	// Actions The actions this worker can perform.
 	Actions *[]string `json:"actions,omitempty"`
 
-	// AvailableRuns The number of runs this worker can execute concurrently.
-	AvailableRuns *int `json:"availableRuns,omitempty"`
-
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
 
@@ -2086,11 +2089,8 @@ type Worker struct {
 	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
 
 	// LastListenerEstablished The time this worker last sent a heartbeat.
-	LastListenerEstablished *time.Time `json:"lastListenerEstablished,omitempty"`
-
-	// MaxRuns The maximum number of runs this worker can execute concurrently.
-	MaxRuns  *int            `json:"maxRuns,omitempty"`
-	Metadata APIResourceMeta `json:"metadata"`
+	LastListenerEstablished *time.Time      `json:"lastListenerEstablished,omitempty"`
+	Metadata                APIResourceMeta `json:"metadata"`
 
 	// Name The name of the worker.
 	Name string `json:"name"`
@@ -2101,6 +2101,9 @@ type Worker struct {
 	// RegisteredWorkflows The workflow ids registered on this worker.
 	RegisteredWorkflows *[]RegisteredWorkflow `json:"registeredWorkflows,omitempty"`
 	RuntimeInfo         *WorkerRuntimeInfo    `json:"runtimeInfo,omitempty"`
+
+	// SlotConfig Slot availability and limits for this worker (slot_type -> { available, limit }).
+	SlotConfig *map[string]WorkerSlotConfig `json:"slotConfig,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
@@ -2146,6 +2149,15 @@ type WorkerRuntimeInfo struct {
 
 // WorkerRuntimeSDKs defines model for WorkerRuntimeSDKs.
 type WorkerRuntimeSDKs string
+
+// WorkerSlotConfig Slot availability and limits for a slot type.
+type WorkerSlotConfig struct {
+	// Available The number of available units for this slot type.
+	Available *int `json:"available,omitempty"`
+
+	// Limit The maximum number of units for this slot type.
+	Limit int `json:"limit"`
+}
 
 // WorkerType defines model for WorkerType.
 type WorkerType string

@@ -6,27 +6,17 @@ import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data
 import { BaseWorkflowDeclaration } from '../../declaration';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
-
-const DEFAULT_DURABLE_SLOTS = 1_000;
+import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
 
 /**
  * Options for creating a new hatchet worker
  * @interface CreateWorkerOpts
  */
-export interface CreateWorkerOpts {
-  /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
-  slots?: number;
-  /** (optional) Array of workflows to register */
-  workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
+export interface CreateWorkerOpts extends WorkerSlotOptions {
   /** (optional) Worker labels for affinity-based assignment */
   labels?: WorkerLabels;
   /** (optional) Whether to handle kill signals */
   handleKill?: boolean;
-  /** @deprecated Use slots instead */
-  maxRuns?: number;
-
-  /** (optional) Maximum number of concurrent runs on the durable worker, defaults to 1,000 */
-  durableSlots?: number;
 }
 
 /**
@@ -39,8 +29,7 @@ export class Worker {
   _v0: LegacyHatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
-  nonDurable: V1Worker;
-  durable?: V1Worker;
+  _internal: V1Worker;
 
   /**
    * Creates a new HatchetWorker instance
@@ -55,7 +44,7 @@ export class Worker {
   ) {
     this._v1 = v1;
     this._v0 = v0;
-    this.nonDurable = nonDurable;
+    this._internal = nonDurable;
     this.config = config;
     this.name = name;
   }
@@ -72,10 +61,10 @@ export class Worker {
     name: string,
     options: CreateWorkerOpts
   ) {
+    const resolvedOptions = resolveWorkerOptions(options);
     const opts = {
       name,
-      ...options,
-      maxRuns: options.slots || options.maxRuns,
+      ...resolvedOptions,
     };
 
     const internalWorker = new V1Worker(v1, opts);
@@ -93,24 +82,14 @@ export class Worker {
     for (const wf of workflows || []) {
       if (wf instanceof BaseWorkflowDeclaration) {
         // TODO check if tenant is V1
-        await this.nonDurable.registerWorkflowV1(wf);
+        await this._internal.registerWorkflowV1(wf);
 
         if (wf.definition._durableTasks.length > 0) {
-          if (!this.durable) {
-            const opts = {
-              name: `${this.name}-durable`,
-              ...this.config,
-              maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
-            };
-
-            this.durable = new V1Worker(this._v1, opts);
-            await this.durable.registerWorkflowV1(wf, true);
-          }
-          this.durable.registerDurableActionsV1(wf.definition);
+          this._internal.registerDurableActionsV1(wf.definition);
         }
       } else {
         // fallback to v0 client for backwards compatibility
-        await this.nonDurable.registerWorkflow(wf);
+        await this._internal.registerWorkflow(wf);
       }
     }
   }
@@ -130,13 +109,7 @@ export class Worker {
    * @returns Promise that resolves when the worker is stopped or killed
    */
   start() {
-    const workers = [this.nonDurable];
-
-    if (this.durable) {
-      workers.push(this.durable);
-    }
-
-    return Promise.all(workers.map((w) => w.start()));
+    return this._internal.start();
   }
 
   /**
@@ -144,13 +117,7 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
-    const workers = [this.nonDurable];
-
-    if (this.durable) {
-      workers.push(this.durable);
-    }
-
-    return Promise.all(workers.map((w) => w.stop()));
+    return this._internal.stop();
   }
 
   /**
@@ -159,7 +126,7 @@ export class Worker {
    * @returns Promise that resolves when labels are updated
    */
   upsertLabels(labels: WorkerLabels) {
-    return this.nonDurable.upsertLabels(labels);
+    return this._internal.upsertLabels(labels);
   }
 
   /**
@@ -167,7 +134,7 @@ export class Worker {
    * @returns The labels for the worker
    */
   getLabels() {
-    return this.nonDurable.labels;
+    return this._internal.labels;
   }
 
   /**
@@ -176,43 +143,33 @@ export class Worker {
    * @returns A promise that resolves when the webhook is registered
    */
   registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this.nonDurable.registerWebhook(webhook);
+    return this._internal.registerWebhook(webhook);
   }
 
   async isPaused() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.isPaused(this.nonDurable.workerId));
-    }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.isPaused(this.durable.workerId));
+    if (!this._internal?.workerId) {
+      return false;
     }
 
-    const res = await Promise.all(promises);
-
-    return !res.includes(false);
+    return this._v1.workers.isPaused(this._internal.workerId);
   }
 
   // TODO docstrings
   pause() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.pause(this.nonDurable.workerId));
+    if (!this._internal?.workerId) {
+      return Promise.resolve();
     }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.pause(this.durable.workerId));
-    }
-    return Promise.all(promises);
+
+    return this._v1.workers.pause(this._internal.workerId);
   }
 
   unpause() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.unpause(this.nonDurable.workerId));
+    if (!this._internal?.workerId) {
+      return Promise.resolve();
     }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.unpause(this.durable.workerId));
-    }
-    return Promise.all(promises);
+
+    return this._v1.workers.unpause(this._internal.workerId);
   }
 }
+
+export { testingExports as __testing } from './slot-utils';

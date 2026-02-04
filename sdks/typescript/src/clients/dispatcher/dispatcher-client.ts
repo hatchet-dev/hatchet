@@ -16,6 +16,7 @@ import { Logger } from '@hatchet/util/logger';
 
 import { retrier } from '@hatchet/util/retrier';
 import { HATCHET_VERSION } from '@hatchet/version';
+import { SlotConfig, SlotType } from '@hatchet/v1/slot-types';
 import { ActionListener } from './action-listener';
 
 export type WorkerLabels = Record<string, string | number | undefined>;
@@ -24,9 +25,22 @@ interface GetActionListenerOptions {
   workerName: string;
   services: string[];
   actions: string[];
+  slotConfig?: SlotConfig;
+  /** @deprecated use slotConfig */
+  slots?: number;
+  /** @deprecated use slotConfig */
+  durableSlots?: number;
+  /** @deprecated use slots */
   maxRuns?: number;
   labels: Record<string, string | number | undefined>;
 }
+
+type StepActionEventInput = StepActionEvent & {
+  /** @deprecated use taskId */
+  stepId?: string;
+  /** @deprecated use taskRunId */
+  stepRunId?: string;
+};
 
 export class DispatcherClient {
   config: ClientConfig;
@@ -50,8 +64,22 @@ export class DispatcherClient {
 
   async getActionListener(options: GetActionListenerOptions) {
     // Register the worker
+    const slotConfig =
+      options.slotConfig ||
+      (options.slots || options.durableSlots || options.maxRuns
+        ? {
+            ...(options.slots || options.maxRuns
+              ? { [SlotType.Default]: options.slots || options.maxRuns || 0 }
+              : {}),
+            ...(options.durableSlots ? { [SlotType.Durable]: options.durableSlots } : {}),
+          }
+        : undefined);
+
     const registration = await this.client.register({
-      ...options,
+      workerName: options.workerName,
+      services: options.services,
+      actions: options.actions,
+      slotConfig,
       labels: options.labels ? mapLabels(options.labels) : undefined,
       runtimeInfo: this.getRuntimeInfo(),
     });
@@ -59,9 +87,16 @@ export class DispatcherClient {
     return new ActionListener(this, registration.workerId);
   }
 
-  async sendStepActionEvent(in_: StepActionEvent) {
+  async sendStepActionEvent(in_: StepActionEventInput) {
+    const { taskId, taskExternalId, ...rest } = in_;
+    const event: StepActionEvent = {
+      ...rest,
+      taskId: taskId ?? '',
+      taskExternalId: taskExternalId ?? '',
+    };
+
     try {
-      return await retrier(async () => this.client.sendStepActionEvent(in_), this.logger);
+      return await retrier(async () => this.client.sendStepActionEvent(event), this.logger);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }

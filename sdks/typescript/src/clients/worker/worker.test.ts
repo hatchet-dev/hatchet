@@ -1,6 +1,6 @@
 import { LegacyHatchetClient } from '@clients/hatchet-client';
 import { StepActionEventType, ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
-import { ActionListener } from '@clients/dispatcher/action-listener';
+import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import { never } from 'zod';
 import sleep from '@util/sleep';
 import { ChannelCredentials } from 'nice-grpc';
@@ -8,13 +8,13 @@ import { V0Worker } from './worker';
 
 type AssignActionMock = AssignedAction | Error;
 
-const mockStart: AssignActionMock = {
+const mockStart: Action = {
   tenantId: 'TENANT_ID',
   jobId: 'job1',
   jobName: 'Job One',
   jobRunId: 'run1',
-  stepId: 'step1',
-  stepRunId: 'runStep1',
+  taskId: 'step1',
+  taskExternalId: 'runStep1',
   actionId: 'action1',
   actionType: ActionType.START_STEP_RUN,
   actionPayload: JSON.stringify('{"input": {"data": 1}}'),
@@ -25,7 +25,7 @@ const mockStart: AssignActionMock = {
   priority: 1,
 };
 
-const mockCancel: AssignActionMock = {
+const mockCancel: Action = {
   ...mockStart,
   actionType: ActionType.CANCEL_STEP_RUN,
 };
@@ -124,7 +124,7 @@ describe('Worker', () => {
         { data: 4 },
         0
       );
-      expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
+      expect(worker.futures[mockStart.taskExternalId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
 
@@ -158,7 +158,7 @@ describe('Worker', () => {
         expect.anything(),
         0
       );
-      expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
+      expect(worker.futures[mockStart.taskExternalId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
   });

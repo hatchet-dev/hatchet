@@ -42,12 +42,14 @@ const (
 )
 
 type GetActionListenerRequest struct {
-	WorkerName string
-	Services   []string
-	Actions    []string
-	MaxRuns    *int
-	Labels     map[string]interface{}
-	WebhookId  *string
+	WorkerName     string
+	Services       []string
+	Actions        []string
+	Slots          *int
+	DurableSlots   *int
+	SlotConfig map[string]int32
+	Labels         map[string]interface{}
+	WebhookId      *string
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -268,9 +270,27 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.MaxRuns != nil {
-		mr := int32(*req.MaxRuns) // nolint: gosec
-		registerReq.MaxRuns = &mr
+	if req.Slots != nil {
+		mr := int32(*req.Slots) // nolint: gosec
+		registerReq.Slots = &mr
+	}
+
+	if req.DurableSlots != nil {
+		dr := int32(*req.DurableSlots) // nolint: gosec
+		registerReq.DurableSlots = &dr
+	}
+
+	if req.SlotConfig != nil {
+		registerReq.SlotConfig = req.SlotConfig
+	} else if req.Slots != nil || req.DurableSlots != nil {
+		slotConfig := map[string]int32{}
+		if req.Slots != nil {
+			slotConfig["default"] = int32(*req.Slots) // nolint: gosec
+		}
+		if req.DurableSlots != nil {
+			slotConfig["durable"] = int32(*req.DurableSlots) // nolint: gosec
+		}
+		registerReq.SlotConfig = slotConfig
 	}
 
 	// register the worker
@@ -436,9 +456,9 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				JobId:               assignedAction.JobId,
 				JobName:             assignedAction.JobName,
 				JobRunId:            assignedAction.JobRunId,
-				StepId:              assignedAction.StepId,
+				StepId:              assignedAction.TaskId,
 				StepName:            assignedAction.StepName,
-				StepRunId:           assignedAction.StepRunId,
+				StepRunId:           assignedAction.TaskExternalId,
 				ActionId:            assignedAction.ActionId,
 				ActionType:          actionType,
 				ActionPayload:       []byte(unquoted),
@@ -549,8 +569,8 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		WorkerId:       in.WorkerId,
 		JobId:          in.JobId,
 		JobRunId:       in.JobRunId,
-		StepId:         in.StepId,
-		StepRunId:      in.StepRunId,
+		TaskId:         in.StepId,
+		TaskExternalId: in.StepRunId,
 		ActionId:       in.ActionId,
 		EventTimestamp: timestamppb.New(*in.EventTimestamp),
 		EventType:      actionEventType,

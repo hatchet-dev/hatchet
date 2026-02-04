@@ -454,6 +454,7 @@ CREATE TABLE "Step" (
     -- the maximum amount of time in seconds to wait between retries
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "isDurable" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -850,7 +851,6 @@ CREATE TABLE "Worker" (
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
     "dispatcherId" UUID,
-    "maxRuns" INTEGER NOT NULL DEFAULT 100,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
     "isPaused" BOOLEAN NOT NULL DEFAULT false,

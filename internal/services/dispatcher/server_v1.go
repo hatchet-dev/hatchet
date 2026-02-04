@@ -554,16 +554,16 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
-	stepRunId, err := uuid.Parse(request.StepRunId)
+	taskExternalId, err := uuid.Parse(request.TaskExternalId)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid step run id %s: %v", request.StepRunId, err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskExternalId, err)
 	}
 
-	task, err := s.getSingleTask(ctx, tenant.ID, stepRunId, skipCache)
+	task, err := s.getSingleTask(ctx, tenant.ID, taskExternalId, skipCache)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get task %s: %w", request.StepRunId, err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskExternalId, err)
 	}
 
 	retryCount := task.RetryCount
@@ -597,7 +597,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskFailed(ctx, task, retryCount, request)
 	}
 
-	return nil, status.Errorf(codes.InvalidArgument, "invalid step run id %s", request.StepRunId)
+	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskExternalId)
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
@@ -1278,7 +1278,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.StepRunId.String(),
+				ResourceId:     payload.TaskRunId.String(),
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
 				EventTimestamp: timestamppb.New(payload.CreatedAt),
 				EventPayload:   string(payload.Payload),
