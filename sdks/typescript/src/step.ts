@@ -298,8 +298,6 @@ export class V0Context<T, K = {}> {
     return this.action.workflowRunId;
   }
 
-
-  
   /**
    * Gets the ID of the current task run.
    * @returns The task run ID.
