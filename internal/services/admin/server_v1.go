@@ -141,10 +141,12 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		return nil, err
 	}
 
-	runIds := make([]string, len(req.Workflows))
+	runIds := make([]uuid.UUID, len(req.Workflows))
+	runIdStrs := make([]string, len(req.Workflows))
 
 	for i, opt := range opts {
-		runIds[i] = opt.ExternalId.String()
+		runIds[i] = opt.ExternalId
+		runIdStrs[i] = opt.ExternalId.String()
 	}
 
 	for i, runId := range runIds {
@@ -162,7 +164,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{
-		WorkflowRunIds: runIds,
+		WorkflowRunIds: runIdStrs,
 	}, nil
 }
 

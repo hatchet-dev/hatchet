@@ -145,7 +145,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		}
 	}
 
-	ctx.Set(constants.ResourceIdKey.String(), rawWorkflowRun.WorkflowRun.ExternalID.String())
+	ctx.Set(constants.ResourceIdKey.String(), rawWorkflowRun.WorkflowRun.ExternalID)
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeWorkflowRun.String())
 
 	// Search for api errors to see how we handle errors in other cases
