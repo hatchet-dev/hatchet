@@ -189,6 +189,9 @@ class CancellationReason(Enum):
     WORKFLOW_CANCELLED = "workflow_cancelled"
     """The workflow run was cancelled."""
 
+    TOKEN_CANCELLED = "token_cancelled"
+    """The cancellation token was cancelled."""
+
     UNKNOWN = "unknown"
     """Unknown or unspecified cancellation reason."""
 

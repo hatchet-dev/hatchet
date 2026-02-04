@@ -628,15 +628,20 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     and can be arranged into complex dependency patterns.
     """
 
-    def _resolve_cancellation_token(
+    def _resolve_check_cancellation_token(
         self,
         cancellation_token: CancellationToken | None,
     ) -> CancellationToken | None:
         # Prefer explicit token, otherwise fall back to context.
-        if cancellation_token is not None:
-            return cancellation_token
+        cancellation_token = cancellation_token or ctx_cancellation_token.get()
 
-        return ctx_cancellation_token.get()
+        if cancellation_token and cancellation_token.is_cancelled:
+            raise CancelledError(
+                "Operation cancelled by cancellation token",
+                reason=CancellationReason.TOKEN_CANCELLED,
+            )
+
+        return cancellation_token
 
     def _register_child_with_token(
         self,
@@ -686,7 +691,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.run_no_wait: triggering {self.config.name}, "
@@ -725,7 +730,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary.
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.run: triggering {self.config.name}, "
@@ -767,7 +772,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.aio_run_no_wait: triggering {self.config.name}, "
@@ -806,7 +811,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary.
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.aio_run: triggering {self.config.name}, "
@@ -881,7 +886,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :raises CancelledError: If the cancellation token is triggered (and return_exceptions is False).
         :raises Exception: If a workflow run fails (and return_exceptions is False).
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.run_many: triggering {len(workflows)} workflows, "
@@ -959,7 +964,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param cancellation_token: Optional cancellation token. If not provided, uses token from context.
         :returns: A list of results for each workflow run.
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.aio_run_many: triggering {len(workflows)} workflows, "
@@ -1000,7 +1005,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param cancellation_token: Optional cancellation token. If not provided, uses token from context.
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.run_many_no_wait: triggering {len(workflows)} workflows, "
@@ -1037,7 +1042,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
         """
-        cancellation_token = self._resolve_cancellation_token(cancellation_token)
+        cancellation_token = self._resolve_check_cancellation_token(cancellation_token)
 
         logger.debug(
             f"Workflow.aio_run_many_no_wait: triggering {len(workflows)} workflows, "
