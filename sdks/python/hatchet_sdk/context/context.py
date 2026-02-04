@@ -544,7 +544,7 @@ class DurableContext(Context):
         )
 
         if resp.found:
-            return json.loads(resp.data)  # type: ignore[no-any-return]
+            return cast(TMemo, json.loads(resp.data))
 
         result = fn()
 
@@ -573,11 +573,11 @@ class DurableContext(Context):
         )
 
         if resp.found:
-            return await asyncio.to_thread(json.loads, resp.data)  # type: ignore[no-any-return]
+            return await asyncio.to_thread(json.loads, resp.data)
 
         result = await fn()
 
-        data = json.dumps(result).encode()
+        data = (await asyncio.to_thread(json.dumps, result)).encode()
 
         await asyncio.to_thread(
             self.durable_event_listener.create_durable_event_log,

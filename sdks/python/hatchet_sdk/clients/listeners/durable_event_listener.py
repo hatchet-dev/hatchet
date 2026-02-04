@@ -134,7 +134,7 @@ class DurableEventListener(
             client.GetDurableEventLog, self.config.tenacity
         )
 
-        return get_durable_event_log(
+        resp: GetDurableEventLogResponse = get_durable_event_log(
             GetDurableEventLogRequest(
                 external_id=external_id,
                 key=key,
@@ -142,6 +142,8 @@ class DurableEventListener(
             timeout=5,
             metadata=get_metadata(self.token),
         )
+
+        return resp
 
     def create_durable_event_log(self, external_id: str, key: str, data: bytes) -> None:
         conn = new_conn(self.config, True)

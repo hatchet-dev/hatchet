@@ -210,8 +210,7 @@ tasks:
     cmds:
       - cd frontend/app/ && pnpm run lint:fix && pnpm run prettier:check
       - cd frontend/docs/ && pnpm run lint:fix && pnpm run prettier:check
-      - cd sdks/python/ && poetry install --all-extras
-      - cd sdks/python/ && bash ./lint.sh
+      - cd sdks/python/ && bash ./generate.sh
       - pre-commit run --all-files || pre-commit run --all-files
   docs:
     cmds:
