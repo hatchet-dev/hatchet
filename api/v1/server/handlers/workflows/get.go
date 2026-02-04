@@ -1,7 +1,6 @@
 package workflows
 
 import (
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -14,7 +13,7 @@ func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetR
 	tenantId := tenant.ID
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
-	if workflow == nil || workflow.WorkflowVersionId == nil || *workflow.WorkflowVersionId == uuid.Nil {
+	if workflow == nil || workflow.WorkflowVersionId == nil {
 		return gen.WorkflowGet404JSONResponse(gen.APIErrors{}), nil
 	}
 

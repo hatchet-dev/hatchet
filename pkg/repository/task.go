@@ -3139,8 +3139,12 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				childKey = &task.ChildKey.String
 			}
 
-			parentExternalId := task.ParentTaskExternalID
-			k := getChildSignalEventKey(*parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
+			var parentExternalId uuid.UUID
+
+			if task.ParentTaskExternalID == nil {
+				parentExternalId = *task.ParentTaskExternalID
+			}
+			k := getChildSignalEventKey(parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
 
 			signalEventKeys = append(signalEventKeys, k)
 			parentTaskIds = append(parentTaskIds, task.ParentTaskID.Int64)
@@ -3149,7 +3153,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			eventMatches = append(eventMatches, CreateMatchOpts{
 				Kind:                 sqlcv1.V1MatchKindSIGNAL,
 				Conditions:           getChildWorkflowGroupMatches(task.ExternalID, task.StepReadableID),
-				SignalExternalId:     parentExternalId,
+				SignalExternalId:     task.ParentTaskExternalID,
 				SignalTaskId:         &task.ParentTaskID.Int64,
 				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
 				SignalKey:            &k,
