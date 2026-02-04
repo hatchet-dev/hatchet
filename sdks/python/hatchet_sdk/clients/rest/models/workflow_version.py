@@ -58,6 +58,11 @@ class WorkflowVersion(BaseModel):
     v1_concurrency: Optional[List[ConcurrencySetting]] = Field(
         default=None, alias="v1Concurrency"
     )
+    input_json_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="The JSON schema for the workflow input.",
+        alias="inputJsonSchema",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "version",
@@ -72,6 +77,7 @@ class WorkflowVersion(BaseModel):
         "jobs",
         "workflowConfig",
         "v1Concurrency",
+        "inputJsonSchema",
     ]
 
     model_config = ConfigDict(
@@ -190,6 +196,7 @@ class WorkflowVersion(BaseModel):
                     if obj.get("v1Concurrency") is not None
                     else None
                 ),
+                "inputJsonSchema": obj.get("inputJsonSchema"),
             }
         )
         return _obj

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,7 +12,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
@@ -24,6 +27,7 @@ type mockSubscribeClient struct {
 	recvChan    chan *dispatchercontracts.WorkflowRunEvent
 	closeSendFn func() error
 	sendFn      func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error
+	recvFn      func() (*dispatchercontracts.WorkflowRunEvent, error)
 }
 
 func (m *mockSubscribeClient) Send(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
@@ -35,12 +39,15 @@ func (m *mockSubscribeClient) Send(req *dispatchercontracts.SubscribeToWorkflowR
 }
 
 func (m *mockSubscribeClient) Recv() (*dispatchercontracts.WorkflowRunEvent, error) {
+	if m.recvFn != nil {
+		return m.recvFn()
+	}
 	if m.recvErr != nil {
 		return nil, m.recvErr
 	}
 	event, ok := <-m.recvChan
 	if !ok {
-		return nil, fmt.Errorf("channel closed")
+		return nil, io.EOF
 	}
 	return event, nil
 }
@@ -242,4 +249,279 @@ func TestRetrySend_ConcurrentSafety(t *testing.T) {
 
 	// All sends should have completed
 	assert.Equal(t, int32(numGoroutines), workingClient.sendCount.Load(), "all concurrent sends should complete")
+}
+
+func TestListen_DispatchesEventsToHandlers(t *testing.T) {
+	// Verifies that Listen receives events and dispatches them to registered handlers.
+
+	logger := zerolog.Nop()
+	recvChan := make(chan *dispatchercontracts.WorkflowRunEvent, 1)
+
+	client := &mockSubscribeClient{
+		recvChan: recvChan,
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	var receivedEvent atomic.Value
+	listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		receivedEvent.Store(event)
+		return nil
+	})
+
+	// Start Listen in a goroutine
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	// Send an event
+	recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	// Close the channel to trigger EOF and cleanly end Listen
+	close(recvChan)
+
+	err := <-listenErr
+	assert.NoError(t, err, "Listen should exit cleanly on EOF")
+
+	// Verify handler was called
+	ev := receivedEvent.Load()
+	require.NotNil(t, ev, "handler should have been called")
+	assert.Equal(t, "run-1", ev.(WorkflowRunEvent).WorkflowRunId)
+}
+
+func TestListen_ExitsOnEOF(t *testing.T) {
+	// Verifies that Listen returns nil (clean exit) on io.EOF.
+
+	logger := zerolog.Nop()
+
+	client := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	err := listener.Listen(context.Background())
+	assert.NoError(t, err, "Listen should return nil on EOF")
+}
+
+func TestListen_ExitsOnCanceled(t *testing.T) {
+	// Verifies that Listen returns nil on gRPC Canceled status.
+
+	logger := zerolog.Nop()
+
+	client := &mockSubscribeClient{
+		recvErr: status.Error(codes.Canceled, "context canceled"),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	err := listener.Listen(context.Background())
+	assert.NoError(t, err, "Listen should return nil on Canceled")
+}
+
+func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
+	// Verifies that after a Recv error, Listen reconnects and reads from the new client.
+
+	logger := zerolog.Nop()
+
+	newRecvChan := make(chan *dispatchercontracts.WorkflowRunEvent, 1)
+
+	// First client errors immediately on Recv
+	brokenClient := &mockSubscribeClient{
+		recvErr: fmt.Errorf("stream broken"),
+	}
+
+	// Second client delivers an event then closes cleanly (EOF)
+	workingClient := &mockSubscribeClient{
+		recvChan: newRecvChan,
+	}
+
+	constructorCalls := atomic.Int32{}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return workingClient, nil
+		},
+		client: brokenClient,
+		l:      &logger,
+	}
+
+	var receivedEvent atomic.Value
+	listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		receivedEvent.Store(event)
+		return nil
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	// Send an event on the new client, then close to trigger EOF (clean exit)
+	newRecvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+	close(newRecvChan)
+
+	err := <-listenErr
+	assert.NoError(t, err, "Listen should exit cleanly on EOF after reconnection")
+
+	// Verify the constructor was called for reconnection
+	assert.GreaterOrEqual(t, constructorCalls.Load(), int32(1), "constructor should have been called to reconnect")
+
+	// Verify handler received the event from the new client
+	ev := receivedEvent.Load()
+	require.NotNil(t, ev, "handler should have received event from new client")
+	assert.Equal(t, "run-1", ev.(WorkflowRunEvent).WorkflowRunId)
+}
+
+func TestClose_NilClient(t *testing.T) {
+	// Verifies that Close returns nil when client is nil.
+
+	logger := zerolog.Nop()
+
+	listener := &WorkflowRunsListener{
+		client: nil,
+		l:      &logger,
+	}
+
+	err := listener.Close()
+	assert.NoError(t, err, "Close should return nil for nil client")
+}
+
+func TestClose_CallsCloseSend(t *testing.T) {
+	// Verifies that Close calls CloseSend on the client.
+
+	logger := zerolog.Nop()
+	closeCalled := atomic.Bool{}
+
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+		closeSendFn: func() error {
+			closeCalled.Store(true)
+			return nil
+		},
+	}
+
+	listener := &WorkflowRunsListener{
+		client: client,
+		l:      &logger,
+	}
+
+	err := listener.Close()
+	assert.NoError(t, err)
+	assert.True(t, closeCalled.Load(), "CloseSend should have been called")
+}
+
+func TestRetrySubscribe_SingleflightCoalescesConcurrentCalls(t *testing.T) {
+	// Verifies that concurrent retrySubscribe calls are coalesced into one
+	// actual reconnection via singleflight.
+
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			// Simulate some latency so concurrent calls overlap
+			time.Sleep(50 * time.Millisecond)
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	numGoroutines := 10
+	var wg sync.WaitGroup
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := listener.retrySubscribe(context.Background())
+			assert.NoError(t, err)
+		}()
+	}
+
+	wg.Wait()
+
+	// singleflight should coalesce all concurrent calls into 1 constructor invocation
+	assert.Equal(t, int32(1), constructorCalls.Load(),
+		"concurrent retrySubscribe calls should be coalesced into a single reconnection")
+}
+
+func TestRetrySubscribe_GenerationIncrements(t *testing.T) {
+	// Verifies that the generation counter increments on each successful reconnection.
+
+	logger := zerolog.Nop()
+
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	_, gen0 := listener.getClientSnapshot()
+	assert.Equal(t, uint64(0), gen0, "initial generation should be 0")
+
+	err := listener.retrySubscribe(context.Background())
+	require.NoError(t, err)
+
+	_, gen1 := listener.getClientSnapshot()
+	assert.Equal(t, uint64(1), gen1, "generation should be 1 after first reconnect")
+
+	err = listener.retrySubscribe(context.Background())
+	require.NoError(t, err)
+
+	_, gen2 := listener.getClientSnapshot()
+	assert.Equal(t, uint64(2), gen2, "generation should be 2 after second reconnect")
+}
+
+func TestGetClientSnapshot_ReturnsCurrentClient(t *testing.T) {
+	// Verifies that getClientSnapshot returns the current client and generation.
+
+	logger := zerolog.Nop()
+
+	client1 := &mockSubscribeClient{recvChan: make(chan *dispatchercontracts.WorkflowRunEvent)}
+
+	listener := &WorkflowRunsListener{
+		client: client1,
+		l:      &logger,
+	}
+
+	got, gen := listener.getClientSnapshot()
+	assert.Equal(t, client1, got)
+	assert.Equal(t, uint64(0), gen)
 }

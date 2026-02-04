@@ -5,9 +5,10 @@
 set -eux
 
 # deps
-version=7.3.0
+version=7.12.0
 
 openapi-generator-cli version || npm install @openapitools/openapi-generator-cli -g
+openapi-generator-cli version-manager set "$version"
 
 # if [ "$(openapi-generator-cli version)" != "$version" ]; then
 #   version-manager set "$version"

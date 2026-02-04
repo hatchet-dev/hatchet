@@ -24,6 +24,8 @@ func (a BasicAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhook
 		Name:               opts.Name,
 		SourceName:         opts.SourceName,
 		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
 		AuthType:           rest.V1CreateWebhookRequestBasicAuthAuthType("BASIC"),
 		Auth: rest.V1WebhookBasicAuth{
 			Username: a.Username,
@@ -44,6 +46,8 @@ func (a APIKeyAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhoo
 		Name:               opts.Name,
 		SourceName:         opts.SourceName,
 		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
 		AuthType:           rest.V1CreateWebhookRequestAPIKeyAuthType("API_KEY"),
 		Auth: rest.V1WebhookAPIKeyAuth{
 			HeaderName: a.HeaderName,
@@ -66,6 +70,8 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 		Name:               opts.Name,
 		SourceName:         opts.SourceName,
 		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
 		AuthType:           rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
 		Auth: rest.V1WebhookHMACAuth{
 			SigningSecret:       a.SigningSecret,
@@ -81,11 +87,15 @@ type CreateWebhookOpts struct {
 	Name               string
 	SourceName         rest.V1WebhookSourceName
 	EventKeyExpression string
+	ScopeExpression    *string
+	StaticPayload      *map[string]interface{}
 	Auth               WebhookAuth
 }
 
 type UpdateWebhookOpts struct {
 	EventKeyExpression string
+	ScopeExpression    *string
+	StaticPayload      *map[string]interface{}
 }
 
 // WebhooksClient provides methods for managing webhook configurations
@@ -178,6 +188,8 @@ func (c *WebhooksClient) Update(ctx context.Context, webhookName string, opts Up
 		webhookName,
 		rest.V1UpdateWebhookRequest{
 			EventKeyExpression: opts.EventKeyExpression,
+			ScopeExpression:    opts.ScopeExpression,
+			StaticPayload:      opts.StaticPayload,
 		},
 	)
 	if err != nil {

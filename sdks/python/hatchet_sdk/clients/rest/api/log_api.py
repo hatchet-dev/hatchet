@@ -28,6 +28,9 @@ from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
 from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
+from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
+    V1LogLineOrderByDirection,
+)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -473,6 +476,13 @@ class LogApi:
             Optional[List[V1LogLineLevel]],
             Field(description="The log level(s) to include"),
         ] = None,
+        order_by_direction: Annotated[
+            Optional[V1LogLineOrderByDirection],
+            Field(description="The direction to order by"),
+        ] = None,
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number to filter for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -501,6 +511,10 @@ class LogApi:
         :type search: str
         :param levels: The log level(s) to include
         :type levels: List[V1LogLineLevel]
+        :param order_by_direction: The direction to order by
+        :type order_by_direction: V1LogLineOrderByDirection
+        :param attempt: The attempt number to filter for
+        :type attempt: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -530,6 +544,8 @@ class LogApi:
             until=until,
             search=search,
             levels=levels,
+            order_by_direction=order_by_direction,
+            attempt=attempt,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -574,6 +590,13 @@ class LogApi:
             Optional[List[V1LogLineLevel]],
             Field(description="The log level(s) to include"),
         ] = None,
+        order_by_direction: Annotated[
+            Optional[V1LogLineOrderByDirection],
+            Field(description="The direction to order by"),
+        ] = None,
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number to filter for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -602,6 +625,10 @@ class LogApi:
         :type search: str
         :param levels: The log level(s) to include
         :type levels: List[V1LogLineLevel]
+        :param order_by_direction: The direction to order by
+        :type order_by_direction: V1LogLineOrderByDirection
+        :param attempt: The attempt number to filter for
+        :type attempt: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -631,6 +658,8 @@ class LogApi:
             until=until,
             search=search,
             levels=levels,
+            order_by_direction=order_by_direction,
+            attempt=attempt,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -675,6 +704,13 @@ class LogApi:
             Optional[List[V1LogLineLevel]],
             Field(description="The log level(s) to include"),
         ] = None,
+        order_by_direction: Annotated[
+            Optional[V1LogLineOrderByDirection],
+            Field(description="The direction to order by"),
+        ] = None,
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number to filter for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -703,6 +739,10 @@ class LogApi:
         :type search: str
         :param levels: The log level(s) to include
         :type levels: List[V1LogLineLevel]
+        :param order_by_direction: The direction to order by
+        :type order_by_direction: V1LogLineOrderByDirection
+        :param attempt: The attempt number to filter for
+        :type attempt: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -732,6 +772,8 @@ class LogApi:
             until=until,
             search=search,
             levels=levels,
+            order_by_direction=order_by_direction,
+            attempt=attempt,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -756,6 +798,8 @@ class LogApi:
         until,
         search,
         levels,
+        order_by_direction,
+        attempt,
         _request_auth,
         _content_type,
         _headers,
@@ -814,6 +858,14 @@ class LogApi:
         if levels is not None:
 
             _query_params.append(("levels", levels))
+
+        if order_by_direction is not None:
+
+            _query_params.append(("order_by_direction", order_by_direction.value))
+
+        if attempt is not None:
+
+            _query_params.append(("attempt", attempt))
 
         # process the header parameters
         # process the form parameters

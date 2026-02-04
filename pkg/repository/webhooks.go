@@ -16,7 +16,7 @@ type WebhookRepository interface {
 	DeleteWebhook(ctx context.Context, tenantId uuid.UUID, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	GetWebhook(ctx context.Context, tenantId uuid.UUID, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	CanCreate(ctx context.Context, tenantId uuid.UUID, webhookLimit int32) (bool, error)
-	UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookId, newExpression string) (*sqlcv1.V1IncomingWebhook, error)
+	UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookName string, opts UpdateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error)
 }
 
 type webhookRepository struct {
@@ -95,6 +95,8 @@ type CreateWebhookOpts struct {
 	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
 	Name               string                             `json:"name" validate:"required"`
 	Eventkeyexpression string                             `json:"eventkeyexpression"`
+	ScopeExpression    *string                            `json:"scope_expression,omitempty"`
+	StaticPayload      []byte                             `json:"static_payload,omitempty"`
 	AuthConfig         AuthConfig                         `json:"auth_config,omitempty"`
 }
 
@@ -113,6 +115,17 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 		Name:               opts.Name,
 		Eventkeyexpression: opts.Eventkeyexpression,
 		Authmethod:         sqlcv1.V1IncomingWebhookAuthType(opts.AuthConfig.Type),
+	}
+
+	if opts.ScopeExpression != nil {
+		params.ScopeExpression = pgtype.Text{
+			String: *opts.ScopeExpression,
+			Valid:  true,
+		}
+	}
+
+	if opts.StaticPayload != nil {
+		params.StaticPayload = opts.StaticPayload
 	}
 
 	switch opts.AuthConfig.Type {
@@ -210,10 +223,35 @@ func (r *webhookRepository) CanCreate(ctx context.Context, tenantId uuid.UUID, w
 	})
 }
 
-func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookName, newExpression string) (*sqlcv1.V1IncomingWebhook, error) {
-	return r.queries.UpdateWebhookExpression(ctx, r.pool, sqlcv1.UpdateWebhookExpressionParams{
-		Tenantid:           tenantId,
-		Webhookname:        webhookName,
-		Eventkeyexpression: newExpression,
-	})
+type UpdateWebhookOpts struct {
+	EventKeyExpression *string `json:"event_key_expression,omitempty"`
+	ScopeExpression    *string `json:"scope_expression,omitempty"`
+	StaticPayload      []byte  `json:"static_payload,omitempty"`
+}
+
+func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookName string, opts UpdateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
+	params := sqlcv1.UpdateWebhookExpressionParams{
+		Tenantid:    tenantId,
+		Webhookname: webhookName,
+	}
+
+	if opts.EventKeyExpression != nil {
+		params.EventKeyExpression = pgtype.Text{
+			String: *opts.EventKeyExpression,
+			Valid:  true,
+		}
+	}
+
+	if opts.ScopeExpression != nil {
+		params.ScopeExpression = pgtype.Text{
+			String: *opts.ScopeExpression,
+			Valid:  true,
+		}
+	}
+
+	if opts.StaticPayload != nil {
+		params.StaticPayload = opts.StaticPayload
+	}
+
+	return r.queries.UpdateWebhookExpression(ctx, r.pool, params)
 }

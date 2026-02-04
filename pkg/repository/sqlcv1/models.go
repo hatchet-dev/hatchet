@@ -3113,6 +3113,8 @@ type V1IncomingWebhook struct {
 	Name                         string                             `json:"name"`
 	SourceName                   V1IncomingWebhookSourceName        `json:"source_name"`
 	EventKeyExpression           string                             `json:"event_key_expression"`
+	ScopeExpression              pgtype.Text                        `json:"scope_expression"`
+	StaticPayload                []byte                             `json:"static_payload"`
 	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`
 	AuthBasicUsername            pgtype.Text                        `json:"auth__basic__username"`
 	AuthBasicPassword            []byte                             `json:"auth__basic__password"`
