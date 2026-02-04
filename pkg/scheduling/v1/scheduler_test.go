@@ -404,6 +404,159 @@ func TestScheduler_Replenish_SkipsIfCannotAcquireActionsLock(t *testing.T) {
 	require.NoError(t, s.replenish(context.Background(), false))
 }
 
+func TestScheduler_ReplenishAndTryAssignBatch_NoDeadlock_LockOrder(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, gotTenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			require.Equal(t, tenantId, gotTenantId)
+			require.Len(t, workerIds, 1)
+			require.Equal(t, workerId, workerIds[0])
+
+			return []*sqlcv1.ListActionsForWorkersRow{
+				{
+					WorkerId: workerId,
+					ActionId: pgtype.Text{String: "A", Valid: true},
+				},
+			}, nil
+		},
+		listWorkerSlotConfigsFn: func(ctx context.Context, gotTenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			require.Equal(t, tenantId, gotTenantId)
+			require.Len(t, workerIds, 1)
+			require.Equal(t, workerId, workerIds[0])
+
+			return []*sqlcv1.ListWorkerSlotConfigsRow{
+				{
+					WorkerID: workerId,
+					SlotType: repo.SlotTypeDefault,
+					MaxUnits: 1,
+				},
+			}, nil
+		},
+		listAvailableSlotsForWorkersFn: func(ctx context.Context, gotTenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			require.Equal(t, tenantId, gotTenantId)
+			require.Equal(t, repo.SlotTypeDefault, params.Slottype)
+			require.Len(t, params.Workerids, 1)
+			require.Equal(t, workerId, params.Workerids[0])
+
+			return []*sqlcv1.ListAvailableSlotsForWorkersRow{
+				{
+					ID:             workerId,
+					AvailableSlots: 1,
+				},
+			}, nil
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
+
+	// Pre-create an action with a slot so tryAssignBatch will enter the critical section.
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	sl := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	s.actions["A"] = actionWithSlots("A", sl)
+
+	reachedHook := make(chan struct{})
+	releaseHook := make(chan struct{})
+
+	orderedLockReached := make(chan struct{})
+	replenishUnackedLockReached := make(chan struct{})
+
+	// Force a specific interleaving:
+	// - tryAssignBatch holds action.mu (write) and pauses
+	// - replenish starts and (correctly) must attempt action.mu before unackedMu
+	// If replenish ever acquires unackedMu before locking action.mu, this test will deadlock.
+	testHookBeforeUsingSelectedSlots = func(selected []*slot) {
+		select {
+		case <-reachedHook:
+			// already closed
+		default:
+			close(reachedHook)
+		}
+
+		<-releaseHook
+	}
+	defer func() { testHookBeforeUsingSelectedSlots = nil }()
+
+	testHookBeforeOrderedLock = func(actions []*action) {
+		select {
+		case <-orderedLockReached:
+		default:
+			close(orderedLockReached)
+		}
+	}
+	defer func() { testHookBeforeOrderedLock = nil }()
+
+	testHookBeforeReplenishUnackedLock = func() {
+		select {
+		case <-replenishUnackedLockReached:
+		default:
+			close(replenishUnackedLockReached)
+		}
+	}
+	defer func() { testHookBeforeReplenishUnackedLock = nil }()
+
+	assignDone := make(chan error, 1)
+	go func() {
+		qis := []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1)}
+		res, _, err := s.tryAssignBatch(context.Background(), "A", qis, 0, nil, nil, nil)
+		if err == nil {
+			if len(res) != 1 || !res[0].succeeded {
+				err = fmt.Errorf("expected 1 successful assignment, got %+v", res)
+			}
+		}
+		assignDone <- err
+	}()
+
+	select {
+	case <-reachedHook:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for tryAssignBatch to reach hook")
+	}
+
+	replenishDone := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		replenishDone <- s.replenish(ctx, true)
+	}()
+
+	// replenish should reach the action-locking stage, but must not reach unackedMu lock
+	// while tryAssignBatch still holds action.mu.
+	select {
+	case <-orderedLockReached:
+	case <-replenishUnackedLockReached:
+		t.Fatalf("replenish reached unackedMu lock before ordered action locks (lock order violation)")
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for replenish to reach ordered action locks")
+	}
+
+	select {
+	case <-replenishUnackedLockReached:
+		t.Fatalf("replenish reached unackedMu lock while tryAssignBatch still holds action.mu (lock order violation)")
+	case <-time.After(100 * time.Millisecond):
+		// ok: replenish should be blocked trying to lock action.mu
+	}
+
+	// Let tryAssignBatch proceed and attempt to lock unackedMu.
+	close(releaseHook)
+
+	select {
+	case err := <-assignDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for tryAssignBatch to complete (possible deadlock)")
+	}
+
+	select {
+	case err := <-replenishDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for replenish to complete (possible deadlock)")
+	}
+}
+
 func TestScheduler_TryAssignBatch_AssignsUntilExhausted(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
