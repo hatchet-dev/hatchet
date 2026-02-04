@@ -107,7 +107,7 @@ describe('DispatcherClient', () => {
         jobId: 'a',
         jobRunId: 'b',
         taskId: 'c',
-        taskRunId: 'd',
+        taskExternalId: 'd',
         eventTimestamp: expect.any(Object),
       });
     });
