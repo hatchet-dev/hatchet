@@ -9,13 +9,11 @@ from pydantic import BaseModel, Field
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import Action as ProtoAction
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
-    BaseMatchCondition,
-    ParentOverrideMatchCondition,
-    SleepMatchCondition,
-    UserEventMatchCondition,
-)
+    BaseMatchCondition, ParentOverrideMatchCondition, SleepMatchCondition,
+    UserEventMatchCondition)
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import (Duration,
+                                                       timedelta_to_expr)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task

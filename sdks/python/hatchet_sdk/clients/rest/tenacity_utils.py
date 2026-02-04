@@ -4,7 +4,8 @@ from typing import ParamSpec, TypeVar
 import grpc
 import tenacity
 
-from hatchet_sdk.clients.rest.exceptions import NotFoundException, ServiceException
+from hatchet_sdk.clients.rest.exceptions import (NotFoundException,
+                                                 ServiceException)
 from hatchet_sdk.config import TenacityConfig
 from hatchet_sdk.logger import logger
 

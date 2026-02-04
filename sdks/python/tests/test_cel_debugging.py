@@ -3,9 +3,8 @@ from typing import Literal
 import pytest
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
-    V1CELDebugResponseStatus,
-)
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import \
+    V1CELDebugResponseStatus
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 

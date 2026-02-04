@@ -13,29 +13,21 @@
 
 
 from __future__ import annotations
+
 import json
 import pprint
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    StrictStr,
-    ValidationError,
-    field_validator,
-)
-from typing import Any, List, Optional
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
-    V1CreateWebhookRequestAPIKey,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
-    V1CreateWebhookRequestBasicAuth,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
-    V1CreateWebhookRequestHMAC,
-)
-from pydantic import StrictStr, Field
-from typing import Union, List, Set, Optional, Dict
+from typing import Any, Dict, List, Optional, Set, Union
+
+from pydantic import (BaseModel, ConfigDict, Field, StrictStr, ValidationError,
+                      field_validator)
 from typing_extensions import Literal, Self
+
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import \
+    V1CreateWebhookRequestAPIKey
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import \
+    V1CreateWebhookRequestBasicAuth
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import \
+    V1CreateWebhookRequestHMAC
 
 V1CREATEWEBHOOKREQUEST_ONE_OF_SCHEMAS = [
     "V1CreateWebhookRequestAPIKey",

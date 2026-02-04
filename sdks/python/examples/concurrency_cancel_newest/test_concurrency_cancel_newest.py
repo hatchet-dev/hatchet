@@ -5,9 +5,7 @@ from uuid import uuid4
 import pytest
 
 from examples.concurrency_cancel_newest.worker import (
-    WorkflowInput,
-    concurrency_cancel_newest_workflow,
-)
+    WorkflowInput, concurrency_cancel_newest_workflow)
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions, V1TaskStatus
 
 

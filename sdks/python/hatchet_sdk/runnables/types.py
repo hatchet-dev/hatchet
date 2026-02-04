@@ -9,13 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
-from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
+from hatchet_sdk.contracts.v1.workflows_pb2 import \
+    DefaultFilter as DefaultFilterProto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.utils.typing import (
-    AwaitableLike,
-    DataclassInstance,
-    JSONSerializableMapping,
-)
+from hatchet_sdk.utils.typing import (AwaitableLike, DataclassInstance,
+                                      JSONSerializableMapping)
 
 ValidTaskReturnType = BaseModel | Mapping[str, Any] | DataclassInstance | None
 

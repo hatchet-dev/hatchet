@@ -13,18 +13,19 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List
-from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
-from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
-    V1WorkflowRunDisplayName,
-)
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.pagination_response import \
+    PaginationResponse
+from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import \
+    V1WorkflowRunDisplayName
 
 
 class V1WorkflowRunDisplayNameList(BaseModel):

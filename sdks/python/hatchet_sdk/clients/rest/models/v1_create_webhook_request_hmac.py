@@ -13,16 +13,19 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
-from typing import Any, ClassVar, Dict, List
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import \
+    V1WebhookHMACAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import \
+    V1WebhookSourceName
 
 
 class V1CreateWebhookRequestHMAC(BaseModel):

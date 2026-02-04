@@ -4,7 +4,8 @@ import base64
 import zlib
 from typing import Annotated, Any
 
-from pydantic import BaseModel, PlainSerializer, ValidationInfo, model_validator
+from pydantic import (BaseModel, PlainSerializer, ValidationInfo,
+                      model_validator)
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.serde import is_in_hatchet_serialization_context

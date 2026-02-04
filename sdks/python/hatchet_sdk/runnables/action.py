@@ -3,7 +3,8 @@ from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (BaseModel, ConfigDict, Field, field_validator,
+                      model_validator)
 
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping

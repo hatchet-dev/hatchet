@@ -5,10 +5,10 @@ from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.rest.api.cel_api import CELApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
-from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
-from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
-    V1CELDebugResponseStatus,
-)
+from hatchet_sdk.clients.rest.models.v1_cel_debug_request import \
+    V1CELDebugRequest
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import \
+    V1CELDebugResponseStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.utils.typing import JSONSerializableMapping

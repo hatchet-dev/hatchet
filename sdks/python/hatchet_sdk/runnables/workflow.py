@@ -3,27 +3,16 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Concatenate,
-    Generic,
-    Literal,
-    ParamSpec,
-    TypeVar,
-    cast,
-    get_type_hints,
-    overload,
-)
+from typing import (TYPE_CHECKING, Any, Concatenate, Generic, Literal,
+                    ParamSpec, TypeVar, cast, get_type_hints, overload)
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
+from pydantic import (BaseModel, ConfigDict, SkipValidation, TypeAdapter,
+                      model_validator)
 
-from hatchet_sdk.clients.admin import (
-    ScheduleTriggerWorkflowOptions,
-    TriggerWorkflowOptions,
-    WorkflowRunTriggerConfig,
-)
+from hatchet_sdk.clients.admin import (ScheduleTriggerWorkflowOptions,
+                                       TriggerWorkflowOptions,
+                                       WorkflowRunTriggerConfig)
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
@@ -32,25 +21,18 @@ from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
-    CreateWorkflowVersionRequest,
-    DesiredWorkerLabels,
-)
-from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
+    CreateWorkflowVersionRequest, DesiredWorkerLabels)
+from hatchet_sdk.contracts.v1.workflows_pb2 import \
+    StickyStrategy as StickyStrategyProto
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import (
-    ConcurrencyExpression,
-    EmptyModel,
-    R,
-    StepType,
-    TaskDefaults,
-    TaskPayloadForInternalUse,
-    TWorkflowInput,
-    WorkflowConfig,
-    normalize_validator,
-)
+from hatchet_sdk.runnables.types import (ConcurrencyExpression, EmptyModel, R,
+                                         StepType, TaskDefaults,
+                                         TaskPayloadForInternalUse,
+                                         TWorkflowInput, WorkflowConfig,
+                                         normalize_validator)
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration

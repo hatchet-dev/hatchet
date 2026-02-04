@@ -1,10 +1,8 @@
 from typing import ParamSpec, TypeVar, cast
 
-from openai.types.chat import (
-    ChatCompletionMessageParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionUserMessageParam,
-)
+from openai.types.chat import (ChatCompletionMessageParam,
+                               ChatCompletionSystemMessageParam,
+                               ChatCompletionUserMessageParam)
 
 T = TypeVar("T")
 P = ParamSpec("P")

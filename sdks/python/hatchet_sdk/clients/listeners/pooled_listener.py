@@ -6,11 +6,8 @@ from typing import Generic, Literal, TypeVar
 import grpc
 import grpc.aio
 
-from hatchet_sdk.clients.event_ts import (
-    ThreadSafeEvent,
-    UnexpectedEOF,
-    read_with_interrupt,
-)
+from hatchet_sdk.clients.event_ts import (ThreadSafeEvent, UnexpectedEOF,
+                                          read_with_interrupt)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata

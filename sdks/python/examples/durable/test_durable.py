@@ -2,12 +2,8 @@ import asyncio
 
 import pytest
 
-from examples.durable.worker import (
-    EVENT_KEY,
-    SLEEP_TIME,
-    durable_workflow,
-    wait_for_sleep_twice,
-)
+from examples.durable.worker import (EVENT_KEY, SLEEP_TIME, durable_workflow,
+                                     wait_for_sleep_twice)
 from hatchet_sdk import Hatchet
 
 

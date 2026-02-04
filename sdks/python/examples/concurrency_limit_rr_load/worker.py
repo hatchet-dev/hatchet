@@ -3,12 +3,8 @@ import time
 
 from pydantic import BaseModel
 
-from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
-    Context,
-    Hatchet,
-)
+from hatchet_sdk import (ConcurrencyExpression, ConcurrencyLimitStrategy,
+                         Context, Hatchet)
 
 hatchet = Hatchet(debug=True)
 

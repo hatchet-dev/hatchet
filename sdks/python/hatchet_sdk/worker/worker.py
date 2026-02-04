@@ -25,10 +25,9 @@ from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
-    ActionEvent,
-    worker_action_listener_process,
-)
-from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
+    ActionEvent, worker_action_listener_process)
+from hatchet_sdk.worker.runner.run_loop_manager import \
+    WorkerActionRunLoopManager
 
 T = TypeVar("T")
 

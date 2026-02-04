@@ -13,18 +13,18 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
-from typing import Any, ClassVar, Dict, List
-from hatchet_sdk.clients.rest.models.webhook_worker_request_method import (
-    WebhookWorkerRequestMethod,
-)
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.webhook_worker_request_method import \
+    WebhookWorkerRequestMethod
 
 
 class WebhookWorkerRequest(BaseModel):

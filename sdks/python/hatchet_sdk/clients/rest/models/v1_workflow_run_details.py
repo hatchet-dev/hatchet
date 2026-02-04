@@ -13,20 +13,20 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
-from hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details import (
-    WorkflowRunShapeItemForWorkflowRunDetails,
-)
-from typing import Optional, Set
-from typing_extensions import Self
+from hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details import \
+    WorkflowRunShapeItemForWorkflowRunDetails
 
 
 class V1WorkflowRunDetails(BaseModel):

@@ -9,6 +9,7 @@ from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
+
 _runtime_version.ValidateProtobufRuntimeVersion(
     _runtime_version.Domain.PUBLIC,
     6,
@@ -22,8 +23,8 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
-
+from google.protobuf import \
+    timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x65vents.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd7\x01\n\x05\x45vent\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x10\n\x08\x65vent_id\x18\x02 \x01(\t\x12\x0b\n\x03key\x18\x03 \x01(\t\x12\x0f\n\x07payload\x18\x04 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12 \n\x13\x61\x64\x64itional_metadata\x18\x06 \x01(\tH\x00\x88\x01\x01\x12\x12\n\x05scope\x18\x07 \x01(\tH\x01\x88\x01\x01\x42\x16\n\x14_additional_metadataB\x08\n\x06_scope\" \n\x06\x45vents\x12\x16\n\x06\x65vents\x18\x01 \x03(\x0b\x32\x06.Event\"\xd2\x01\n\rPutLogRequest\x12\x1c\n\x14task_run_external_id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07message\x18\x03 \x01(\t\x12\x12\n\x05level\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x10\n\x08metadata\x18\x05 \x01(\t\x12\x1d\n\x10task_retry_count\x18\x06 \x01(\x05H\x01\x88\x01\x01\x42\x08\n\x06_levelB\x13\n\x11_task_retry_count\"\x10\n\x0ePutLogResponse\"\xb2\x01\n\x15PutStreamEventRequest\x12\x1c\n\x14task_run_external_id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07message\x18\x03 \x01(\x0c\x12\x10\n\x08metadata\x18\x05 \x01(\t\x12\x18\n\x0b\x65vent_index\x18\x06 \x01(\x03H\x00\x88\x01\x01\x42\x0e\n\x0c_event_index\"\x18\n\x16PutStreamEventResponse\"9\n\x14\x42ulkPushEventRequest\x12!\n\x06\x65vents\x18\x01 \x03(\x0b\x32\x11.PushEventRequest\"\xe1\x01\n\x10PushEventRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0f\n\x07payload\x18\x02 \x01(\t\x12\x33\n\x0f\x65vent_timestamp\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12 \n\x13\x61\x64\x64itional_metadata\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x15\n\x08priority\x18\x05 \x01(\x05H\x01\x88\x01\x01\x12\x12\n\x05scope\x18\x06 \x01(\tH\x02\x88\x01\x01\x42\x16\n\x14_additional_metadataB\x0b\n\t_priorityB\x08\n\x06_scope\"&\n\x12ReplayEventRequest\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t2\x88\x02\n\rEventsService\x12#\n\x04Push\x12\x11.PushEventRequest\x1a\x06.Event\"\x00\x12,\n\x08\x42ulkPush\x12\x15.BulkPushEventRequest\x1a\x07.Events\"\x00\x12\x32\n\x11ReplaySingleEvent\x12\x13.ReplayEventRequest\x1a\x06.Event\"\x00\x12+\n\x06PutLog\x12\x0e.PutLogRequest\x1a\x0f.PutLogResponse\"\x00\x12\x43\n\x0ePutStreamEvent\x12\x16.PutStreamEventRequest\x1a\x17.PutStreamEventResponse\"\x00\x42\x45ZCgithub.com/hatchet-dev/hatchet/internal/services/ingestor/contractsb\x06proto3')
 
