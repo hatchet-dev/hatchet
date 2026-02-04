@@ -240,8 +240,22 @@ class RESTClientObject:
                     headers=headers,
                     preload_content=False,
                 )
-        except urllib3.exceptions.SSLError as e:
-            msg = "\n".join([type(e).__name__, str(e)])
+        except (
+            urllib3.exceptions.SSLError,
+            urllib3.exceptions.ConnectTimeoutError,
+            urllib3.exceptions.ReadTimeoutError,
+            urllib3.exceptions.MaxRetryError,
+            urllib3.exceptions.NewConnectionError,
+            urllib3.exceptions.ProtocolError,
+        ) as e:
+            msg = "\n".join(
+                [
+                    type(e).__name__,
+                    str(e),
+                    f"method={method}",
+                    f"url={url}",
+                    f"timeout={_request_timeout}",
+                ]
+            )
             raise ApiException(status=0, reason=msg)
-
         return RESTResponse(r)
