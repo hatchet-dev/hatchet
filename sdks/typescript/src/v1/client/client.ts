@@ -142,7 +142,7 @@ export class HatchetClient implements IHatchetClient {
               );
           }
         })
-        .catch((error) => {
+        .catch(() => {
           // Do nothing here
         });
     } catch (e) {
