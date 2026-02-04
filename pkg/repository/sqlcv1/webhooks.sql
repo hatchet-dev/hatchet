@@ -4,6 +4,8 @@ INSERT INTO v1_incoming_webhook (
     name,
     source_name,
     event_key_expression,
+    scope_expression,
+    static_payload,
     auth_method,
     auth__basic__username,
     auth__basic__password,
@@ -19,6 +21,8 @@ INSERT INTO v1_incoming_webhook (
     @name::TEXT,
     @sourceName::v1_incoming_webhook_source_name,
     @eventKeyExpression::TEXT,
+    sqlc.narg('scopeExpression')::TEXT,
+    sqlc.narg('staticPayload')::JSONB,
     @authMethod::v1_incoming_webhook_auth_type,
     sqlc.narg('authBasicUsername')::TEXT,
     @authBasicPassword::BYTEA,
@@ -73,7 +77,10 @@ WHERE
 -- name: UpdateWebhookExpression :one
 UPDATE v1_incoming_webhook
 SET
-    event_key_expression = @eventKeyExpression::TEXT
+    event_key_expression = COALESCE(sqlc.narg('eventKeyExpression')::TEXT, event_key_expression),
+    scope_expression = NULLIF(COALESCE(sqlc.narg('scopeExpression')::TEXT, scope_expression), ''),
+    static_payload = COALESCE(sqlc.narg('staticPayload')::JSONB, static_payload),
+    updated_at = CURRENT_TIMESTAMP
 WHERE
     tenant_id = @tenantId::UUID
     AND name = @webhookName::TEXT
