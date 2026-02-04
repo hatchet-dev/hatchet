@@ -67,7 +67,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
 	}
 
-	ctx = context.WithValue(ctx, constants.ResourceIdKey, event.ID)
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, event.ID.String())
 	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
 
 	grpcmiddleware.TriggerCallback(ctx)
@@ -169,7 +169,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
 		}
 
-		ctx = context.WithValue(ctx, constants.ResourceIdKey, e.ID)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, e.ID.String())
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
 
 		grpcmiddleware.TriggerCallback(ctx)

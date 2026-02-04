@@ -73,7 +73,7 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		}
 	}
 
-	ctx.Set(constants.ResourceIdKey.String(), scheduled.ID)
+	ctx.Set(constants.ResourceIdKey.String(), scheduled.ID.String())
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeScheduledWorkflow.String())
 
 	return gen.ScheduledWorkflowRunCreate200JSONResponse(
