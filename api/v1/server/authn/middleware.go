@@ -161,7 +161,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	}
 
 	// read the user id in the token
-	userID, ok := session.Values["user_id"].(string)
+	userID, ok := session.Values["user_id"].(uuid.UUID)
 
 	if !ok {
 		a.l.Debug().Msgf("could not cast user_id to string")
@@ -169,14 +169,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return forbidden
 	}
 
-	userIdUUID, err := uuid.Parse(userID)
-	if err != nil {
-		a.l.Debug().Err(err).Msg("error parsing user id from session")
-
-		return forbidden
-	}
-
-	user, err := a.config.V1.User().GetUserByID(c.Request().Context(), userIdUUID)
+	user, err := a.config.V1.User().GetUserByID(c.Request().Context(), userID)
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting user by id")
 
