@@ -321,8 +321,22 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		slotTypeToWorkerIds[config.SlotType][config.WorkerID] = true
 	}
 
-	orderedLock(actionsToReplenish)
-	unlock := orderedUnlock(actionsToReplenish)
+	// We may update slots for any action that is active on a worker with slot capacity.
+	// Since tryAssignBatch can hold action.mu without holding actionsMu, we must lock every
+	// action we might write to here (not just the subset that triggered a replenish).
+	actionsToLock := make(map[string]*action)
+	for _, workerSet := range slotTypeToWorkerIds {
+		for workerId := range workerSet {
+			for _, actionId := range workerIdsToActions[workerId] {
+				if a := s.actions[actionId]; a != nil {
+					actionsToLock[actionId] = a
+				}
+			}
+		}
+	}
+
+	orderedLock(actionsToLock)
+	unlock := orderedUnlock(actionsToLock)
 	defer unlock()
 
 	if testHookBeforeReplenishUnackedLock != nil {
@@ -334,33 +348,43 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	availableSlotsByType := make(map[string]map[uuid.UUID]int, len(slotTypeToWorkerIds))
 
+	slotTypes := make([]string, 0, len(slotTypeToWorkerIds))
+	workerUUIDSet := make(map[uuid.UUID]struct{})
+
 	for slotType, workerSet := range slotTypeToWorkerIds {
-		workerUUIDs := make([]uuid.UUID, 0, len(workerSet))
+		slotTypes = append(slotTypes, slotType)
+
+		// Preserve the prior behavior of creating a map entry per slot type even if it ends up empty.
+		if _, ok := availableSlotsByType[slotType]; !ok {
+			availableSlotsByType[slotType] = make(map[uuid.UUID]int, len(workerSet))
+		}
 
 		for workerId := range workerSet {
+			workerUUIDSet[workerId] = struct{}{}
+		}
+	}
+
+	if len(slotTypes) > 0 && len(workerUUIDSet) > 0 {
+		workerUUIDs := make([]uuid.UUID, 0, len(workerUUIDSet))
+		for workerId := range workerUUIDSet {
 			workerUUIDs = append(workerUUIDs, workerId)
 		}
 
-		if len(workerUUIDs) == 0 {
-			continue
-		}
-
-		availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, s.tenantId, sqlcv1.ListAvailableSlotsForWorkersParams{
+		availableSlots, err := s.repo.ListAvailableSlotsForWorkersAndTypes(ctx, s.tenantId, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams{
 			Tenantid:  s.tenantId,
 			Workerids: workerUUIDs,
-			Slottype:  slotType,
+			Slottypes: slotTypes,
 		})
-
 		if err != nil {
 			return err
 		}
 
-		if _, ok := availableSlotsByType[slotType]; !ok {
-			availableSlotsByType[slotType] = make(map[uuid.UUID]int, len(availableSlots))
-		}
-
 		for _, row := range availableSlots {
-			availableSlotsByType[slotType][row.ID] = int(row.AvailableSlots)
+			if _, ok := availableSlotsByType[row.SlotType]; !ok {
+				availableSlotsByType[row.SlotType] = make(map[uuid.UUID]int)
+			}
+
+			availableSlotsByType[row.SlotType][row.ID] = int(row.AvailableSlots)
 		}
 	}
 
@@ -439,15 +463,21 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	// first pass: write all actions with new slots to the scheduler
 	for actionId, newSlots := range actionsToNewSlots {
+		storedAction := actionsToLock[actionId]
+		if storedAction == nil {
+			// Defensive: actionsToNewSlots should only contain actions for workers we locked above.
+			continue
+		}
+
 		// randomly sort the slots
 		randSource.Shuffle(len(newSlots), func(i, j int) { newSlots[i], newSlots[j] = newSlots[j], newSlots[i] })
 
 		// we overwrite the slots for the action. we know that the action is in the map because we checked
 		// for it in the first pass.
-		s.actions[actionId].slots = newSlots
-		s.actions[actionId].slotsByWorker = actionsToSlotsByWorker[actionId]
-		s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
-		s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
+		storedAction.slots = newSlots
+		storedAction.slotsByWorker = actionsToSlotsByWorker[actionId]
+		storedAction.lastReplenishedSlotCount = actionsToTotalSlots[actionId]
+		storedAction.lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
 
 		s.l.Debug().Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}

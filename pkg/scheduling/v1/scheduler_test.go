@@ -18,9 +18,10 @@ import (
 )
 
 type mockAssignmentRepo struct {
-	listActionsForWorkersFn        func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error)
-	listAvailableSlotsForWorkersFn func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error)
-	listWorkerSlotConfigsFn        func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error)
+	listActionsForWorkersFn                func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error)
+	listAvailableSlotsForWorkersFn         func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error)
+	listAvailableSlotsForWorkersAndTypesFn func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error)
+	listWorkerSlotConfigsFn                func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error)
 }
 
 func (m *mockAssignmentRepo) ListActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
@@ -37,6 +38,40 @@ func (m *mockAssignmentRepo) ListAvailableSlotsForWorkers(ctx context.Context, t
 	}
 
 	return m.listAvailableSlotsForWorkersFn(ctx, tenantId, params)
+}
+
+func (m *mockAssignmentRepo) ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+	if m.listAvailableSlotsForWorkersAndTypesFn != nil {
+		return m.listAvailableSlotsForWorkersAndTypesFn(ctx, tenantId, params)
+	}
+
+	// Backwards-compat fallback: emulate the multi-type query by calling the per-type query.
+	if m.listAvailableSlotsForWorkersFn != nil {
+		out := make([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, 0)
+
+		for _, slotType := range params.Slottypes {
+			rows, err := m.listAvailableSlotsForWorkersFn(ctx, tenantId, sqlcv1.ListAvailableSlotsForWorkersParams{
+				Tenantid:  params.Tenantid,
+				Workerids: params.Workerids,
+				Slottype:  slotType,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			for _, row := range rows {
+				out = append(out, &sqlcv1.ListAvailableSlotsForWorkersAndTypesRow{
+					ID:             row.ID,
+					SlotType:       slotType,
+					AvailableSlots: row.AvailableSlots,
+				})
+			}
+		}
+
+		return out, nil
+	}
+
+	return nil, fmt.Errorf("ListAvailableSlotsForWorkersAndTypes not configured")
 }
 
 func (m *mockAssignmentRepo) ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
