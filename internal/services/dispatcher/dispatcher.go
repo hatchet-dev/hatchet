@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -52,17 +53,17 @@ type DispatcherImpl struct {
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
 
 type workers struct {
-	innerMap sync.Map
+	innerMap syncx.Map[uuid.UUID, *syncx.Map[string, *subscribedWorker]]
 }
 
-func (w *workers) Range(f func(key, value interface{}) bool) {
+func (w *workers) Range(f func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool) {
 	w.innerMap.Range(f)
 }
 
 func (w *workers) Add(workerId uuid.UUID, sessionId string, worker *subscribedWorker) {
-	actual, _ := w.innerMap.LoadOrStore(workerId, &sync.Map{})
+	actual, _ := w.innerMap.LoadOrStore(workerId, &syncx.Map[string, *subscribedWorker]{})
 
-	actual.(*sync.Map).Store(sessionId, worker)
+	actual.Store(sessionId, worker)
 }
 
 func (w *workers) GetForSession(workerId uuid.UUID, sessionId string) (*subscribedWorker, error) {
@@ -71,12 +72,12 @@ func (w *workers) GetForSession(workerId uuid.UUID, sessionId string) (*subscrib
 		return nil, ErrWorkerNotFound
 	}
 
-	worker, ok := actual.(*sync.Map).Load(sessionId)
+	worker, ok := actual.Load(sessionId)
 	if !ok {
 		return nil, ErrWorkerNotFound
 	}
 
-	return worker.(*subscribedWorker), nil
+	return worker, nil
 }
 
 func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
@@ -88,8 +89,8 @@ func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 
 	workers := []*subscribedWorker{}
 
-	actual.(*sync.Map).Range(func(key, value interface{}) bool {
-		workers = append(workers, value.(*subscribedWorker))
+	actual.Range(func(key string, value *subscribedWorker) bool {
+		workers = append(workers, value)
 		return true
 	})
 
@@ -103,7 +104,7 @@ func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId string) {
 		return
 	}
 
-	actual.(*sync.Map).Delete(sessionId)
+	actual.Delete(sessionId)
 }
 
 func (w *workers) Delete(workerId uuid.UUID) {
@@ -322,9 +323,9 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		// drain the existing connections
 		d.l.Debug().Msg("draining existing connections")
 
-		d.workers.Range(func(key, value interface{}) bool {
-			value.(*sync.Map).Range(func(key, value interface{}) bool {
-				w := value.(*subscribedWorker)
+		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
+			value.Range(func(key string, value *subscribedWorker) bool {
+				w := value
 
 				w.finished <- true
 

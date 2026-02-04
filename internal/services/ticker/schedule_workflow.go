@@ -25,8 +25,8 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 
 		existingSchedules := make(map[string]bool)
 
-		t.scheduledWorkflows.Range(func(key, value interface{}) bool {
-			existingSchedules[key.(string)] = false
+		t.scheduledWorkflows.Range(func(key string, _ context.CancelFunc) bool {
+			existingSchedules[key] = false
 			return true
 		})
 
@@ -138,19 +138,13 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 	t.l.Debug().Msg("ticker: canceling scheduled workflow")
 
 	// get the cancel function
-	cancelVal, ok := t.scheduledWorkflows.Load(key)
+	cancel, ok := t.scheduledWorkflows.Load(key)
 
 	if !ok {
 		return fmt.Errorf("could not find scheduled workflow with key %s", key)
 	}
 
 	defer t.scheduledWorkflows.Delete(key)
-
-	cancel, ok := cancelVal.(context.CancelFunc)
-
-	if !ok {
-		return fmt.Errorf("could not cast cancel function")
-	}
 
 	// cancel the scheduled workflow
 	cancel()
