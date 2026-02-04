@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
+from hatchet_sdk.clients.rest.models.scheduled_run_status import \
+    ScheduledRunStatus
 
 hatchet = Hatchet()
 

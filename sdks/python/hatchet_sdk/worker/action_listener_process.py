@@ -19,26 +19,20 @@ from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import (
-    ActionListener,
-    GetActionListenerRequest,
-)
+    ActionListener, GetActionListenerRequest)
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
-from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
+from hatchet_sdk.clients.rest.models.update_worker_request import \
+    UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.contracts.dispatcher_pb2 import (
-    STEP_EVENT_TYPE_STARTED,
-    ActionEventResponse,
-    StepActionEvent,
-)
+from hatchet_sdk.contracts.dispatcher_pb2 import (STEP_EVENT_TYPE_STARTED,
+                                                  ActionEventResponse,
+                                                  StepActionEvent)
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType
-from hatchet_sdk.runnables.contextvars import (
-    ctx_action_key,
-    ctx_step_run_id,
-    ctx_task_retry_count,
-    ctx_worker_id,
-    ctx_workflow_run_id,
-)
+from hatchet_sdk.runnables.contextvars import (ctx_action_key, ctx_step_run_id,
+                                               ctx_task_retry_count,
+                                               ctx_worker_id,
+                                               ctx_workflow_run_id)
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 

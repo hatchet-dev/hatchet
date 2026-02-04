@@ -4,7 +4,8 @@ from examples.opentelemetry_instrumentation.client import hatchet
 from examples.opentelemetry_instrumentation.tracer import trace_provider
 from examples.opentelemetry_instrumentation.worker import otel_workflow
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
-from hatchet_sdk.clients.events import BulkPushEventWithMetadata, PushEventOptions
+from hatchet_sdk.clients.events import (BulkPushEventWithMetadata,
+                                        PushEventOptions)
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 instrumentor = HatchetInstrumentor(tracer_provider=trace_provider)

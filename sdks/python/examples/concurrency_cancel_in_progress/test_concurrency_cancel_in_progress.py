@@ -5,10 +5,9 @@ from uuid import uuid4
 import pytest
 
 from examples.concurrency_cancel_in_progress.worker import (
-    WorkflowInput,
-    concurrency_cancel_in_progress_workflow,
-)
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions, V1TaskStatus, WorkflowRunRef
+    WorkflowInput, concurrency_cancel_in_progress_workflow)
+from hatchet_sdk import (Hatchet, TriggerWorkflowOptions, V1TaskStatus,
+                         WorkflowRunRef)
 
 
 @pytest.mark.asyncio(loop_scope="session")

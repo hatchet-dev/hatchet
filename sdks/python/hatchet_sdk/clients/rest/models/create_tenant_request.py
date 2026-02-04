@@ -13,16 +13,18 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
-from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.tenant_environment import \
+    TenantEnvironment
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 
 
 class CreateTenantRequest(BaseModel):

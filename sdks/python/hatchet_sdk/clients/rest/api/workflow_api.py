@@ -12,69 +12,61 @@
 """  # noqa: E501
 
 import warnings
-from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from datetime import datetime
-from pydantic import Field, StrictInt, StrictStr
-from typing import List, Optional
-from typing_extensions import Annotated
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.cron_workflows_list import CronWorkflowsList
-from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
-    CronWorkflowsOrderByField,
-)
-from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
-from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request import (
-    ScheduledWorkflowsBulkDeleteRequest,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import (
-    ScheduledWorkflowsBulkDeleteResponse,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request import (
-    ScheduledWorkflowsBulkUpdateRequest,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import (
-    ScheduledWorkflowsBulkUpdateResponse,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
-    ScheduledWorkflowsList,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
-    ScheduledWorkflowsOrderByField,
-)
-from hatchet_sdk.clients.rest.models.tenant_queue_metrics import TenantQueueMetrics
-from hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request import (
-    UpdateCronWorkflowTriggerRequest,
-)
-from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request import (
-    UpdateScheduledWorkflowRunRequest,
-)
+from hatchet_sdk.clients.rest.models.cron_workflows_list import \
+    CronWorkflowsList
+from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import \
+    CronWorkflowsOrderByField
+from hatchet_sdk.clients.rest.models.scheduled_run_status import \
+    ScheduledRunStatus
+from hatchet_sdk.clients.rest.models.scheduled_workflows import \
+    ScheduledWorkflows
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request import \
+    ScheduledWorkflowsBulkDeleteRequest
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import \
+    ScheduledWorkflowsBulkDeleteResponse
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request import \
+    ScheduledWorkflowsBulkUpdateRequest
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import \
+    ScheduledWorkflowsBulkUpdateResponse
+from hatchet_sdk.clients.rest.models.scheduled_workflows_list import \
+    ScheduledWorkflowsList
+from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import \
+    ScheduledWorkflowsOrderByField
+from hatchet_sdk.clients.rest.models.tenant_queue_metrics import \
+    TenantQueueMetrics
+from hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request import \
+    UpdateCronWorkflowTriggerRequest
+from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request import \
+    UpdateScheduledWorkflowRunRequest
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_kind import WorkflowKind
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_metrics import WorkflowMetrics
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
-    WorkflowRunOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import (
-    WorkflowRunOrderByField,
-)
+from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import \
+    WorkflowRunOrderByDirection
+from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import \
+    WorkflowRunOrderByField
 from hatchet_sdk.clients.rest.models.workflow_run_shape import WorkflowRunShape
-from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
-from hatchet_sdk.clients.rest.models.workflow_runs_metrics import WorkflowRunsMetrics
-from hatchet_sdk.clients.rest.models.workflow_update_request import (
-    WorkflowUpdateRequest,
-)
+from hatchet_sdk.clients.rest.models.workflow_run_status import \
+    WorkflowRunStatus
+from hatchet_sdk.clients.rest.models.workflow_runs_metrics import \
+    WorkflowRunsMetrics
+from hatchet_sdk.clients.rest.models.workflow_update_request import \
+    WorkflowUpdateRequest
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
-from hatchet_sdk.clients.rest.models.workflow_workers_count import WorkflowWorkersCount
-
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from hatchet_sdk.clients.rest.models.workflow_workers_count import \
+    WorkflowWorkersCount
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

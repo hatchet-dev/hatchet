@@ -5,7 +5,8 @@ import asyncio
 from langfuse import get_client  # type: ignore
 from opentelemetry.trace import StatusCode
 
-from examples.opentelemetry_instrumentation.langfuse.worker import langfuse_task
+from examples.opentelemetry_instrumentation.langfuse.worker import \
+    langfuse_task
 
 # > Trigger task
 tracer = get_client()

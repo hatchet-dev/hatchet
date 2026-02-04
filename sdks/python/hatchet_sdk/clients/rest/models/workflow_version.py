@@ -13,20 +13,23 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.concurrency_setting import ConcurrencySetting
+from hatchet_sdk.clients.rest.models.concurrency_setting import \
+    ConcurrencySetting
 from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
+from hatchet_sdk.clients.rest.models.workflow_concurrency import \
+    WorkflowConcurrency
 from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
-from typing import Optional, Set
-from typing_extensions import Self
 
 
 class WorkflowVersion(BaseModel):

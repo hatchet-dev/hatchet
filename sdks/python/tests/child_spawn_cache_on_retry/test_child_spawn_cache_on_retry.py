@@ -7,9 +7,7 @@ import pytest
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from tests.child_spawn_cache_on_retry.worker import (
-    spawn_cache_on_retry_child,
-    spawn_cache_on_retry_parent,
-)
+    spawn_cache_on_retry_child, spawn_cache_on_retry_parent)
 
 
 @pytest.mark.parametrize(

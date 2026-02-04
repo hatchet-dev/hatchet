@@ -13,16 +13,17 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.api_meta_auth import APIMetaAuth
 from hatchet_sdk.clients.rest.models.api_meta_posthog import APIMetaPosthog
-from typing import Optional, Set
-from typing_extensions import Self
 
 
 class APIMeta(BaseModel):

@@ -13,20 +13,15 @@ from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.clients.v1.api_client import (
-    BaseRestClient,
-    maybe_additional_metadata_to_kv,
-)
+from hatchet_sdk.clients.v1.api_client import (BaseRestClient,
+                                               maybe_additional_metadata_to_kv)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.events_pb2 import (
-    BulkPushEventRequest,
-    PushEventRequest,
-    PutLogRequest,
-    PutStreamEventRequest,
-)
+from hatchet_sdk.contracts.events_pb2 import BulkPushEventRequest
 from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
+from hatchet_sdk.contracts.events_pb2 import (PushEventRequest, PutLogRequest,
+                                              PutStreamEventRequest)
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata

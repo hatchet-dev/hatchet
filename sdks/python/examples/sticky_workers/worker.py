@@ -1,10 +1,5 @@
-from hatchet_sdk import (
-    Context,
-    EmptyModel,
-    Hatchet,
-    StickyStrategy,
-    TriggerWorkflowOptions,
-)
+from hatchet_sdk import (Context, EmptyModel, Hatchet, StickyStrategy,
+                         TriggerWorkflowOptions)
 
 hatchet = Hatchet(debug=True)
 

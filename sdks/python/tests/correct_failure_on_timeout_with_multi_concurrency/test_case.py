@@ -8,10 +8,8 @@ import pytest
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
-    TIMEOUT_SECONDS,
-    InputModel,
-    multiple_concurrent_cancellations_test_workflow,
-)
+    TIMEOUT_SECONDS, InputModel,
+    multiple_concurrent_cancellations_test_workflow)
 
 
 @pytest.mark.parametrize(

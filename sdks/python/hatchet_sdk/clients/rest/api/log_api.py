@@ -12,28 +12,24 @@
 """  # noqa: E501
 
 import warnings
-from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
-from typing import Any, Dict, List, Optional, Tuple, Union
-from typing_extensions import Annotated
-
 from datetime import datetime
-from pydantic import Field, StrictInt, StrictStr
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
-from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
-from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
-    LogLineOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
-from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
-from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
-from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
-    V1LogLineOrderByDirection,
-)
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
+from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
+from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
+from hatchet_sdk.clients.rest.models.log_line_order_by_direction import \
+    LogLineOrderByDirection
+from hatchet_sdk.clients.rest.models.log_line_order_by_field import \
+    LogLineOrderByField
+from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
+from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
+from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import \
+    V1LogLineOrderByDirection
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

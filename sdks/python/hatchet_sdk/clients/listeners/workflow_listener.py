@@ -8,15 +8,10 @@ import grpc.aio
 from hatchet_sdk.clients.listeners.pooled_listener import PooledListener
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
-    SubscribeToWorkflowRunsRequest,
-    WorkflowRunEvent,
-)
+    SubscribeToWorkflowRunsRequest, WorkflowRunEvent)
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.exceptions import (
-    DedupeViolationError,
-    FailedTaskRunExceptionGroup,
-    TaskRunError,
-)
+from hatchet_sdk.exceptions import (DedupeViolationError,
+                                    FailedTaskRunExceptionGroup, TaskRunError)
 
 DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
 

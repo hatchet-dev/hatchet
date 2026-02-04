@@ -9,19 +9,11 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from examples.events.worker import (
-    EVENT_KEY,
-    SECONDARY_KEY,
-    WILDCARD_KEY,
-    EventWorkflowInput,
-    event_workflow,
-)
-from hatchet_sdk.clients.events import (
-    BulkPushEventOptions,
-    BulkPushEventWithMetadata,
-    Event,
-    PushEventOptions,
-)
+from examples.events.worker import (EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY,
+                                    EventWorkflowInput, event_workflow)
+from hatchet_sdk.clients.events import (BulkPushEventOptions,
+                                        BulkPushEventWithMetadata, Event,
+                                        PushEventOptions)
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.hatchet import Hatchet

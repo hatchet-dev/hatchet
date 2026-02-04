@@ -12,24 +12,19 @@
 """  # noqa: E501
 
 import warnings
-from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-from typing_extensions import Annotated
 
-from pydantic import Field, StrictInt, StrictStr
-from typing import List, Optional
+from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
-    V1CreateFilterRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
-from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
-from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
-    V1UpdateFilterRequest,
-)
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
+from hatchet_sdk.clients.rest.models.v1_create_filter_request import \
+    V1CreateFilterRequest
+from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
+from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
+from hatchet_sdk.clients.rest.models.v1_update_filter_request import \
+    V1UpdateFilterRequest
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

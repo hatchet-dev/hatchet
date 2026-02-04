@@ -2,10 +2,9 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
-    RunEventListener,
-    RunEventListenerClient,
-)
-from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
+    RunEventListener, RunEventListenerClient)
+from hatchet_sdk.clients.listeners.workflow_listener import \
+    PooledWorkflowRunListener
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 
 if TYPE_CHECKING:

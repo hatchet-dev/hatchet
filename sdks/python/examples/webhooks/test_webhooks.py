@@ -15,32 +15,30 @@ import pytest
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
-    V1CreateWebhookRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
-    V1CreateWebhookRequestAPIKey,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
-    V1CreateWebhookRequestBasicAuth,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
-    V1CreateWebhookRequestHMAC,
-)
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request import \
+    V1CreateWebhookRequest
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import \
+    V1CreateWebhookRequestAPIKey
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import \
+    V1CreateWebhookRequestBasicAuth
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import \
+    V1CreateWebhookRequestHMAC
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
-from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
-    V1WebhookHMACAlgorithm,
-)
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
-    V1WebhookHMACEncoding,
-)
-from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
+from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import \
+    V1WebhookAPIKeyAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import \
+    V1WebhookBasicAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import \
+    V1WebhookHMACAlgorithm
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import \
+    V1WebhookHMACAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import \
+    V1WebhookHMACEncoding
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import \
+    V1WebhookSourceName
 
 TEST_BASIC_USERNAME = "test_user"
 TEST_BASIC_PASSWORD = "test_password"

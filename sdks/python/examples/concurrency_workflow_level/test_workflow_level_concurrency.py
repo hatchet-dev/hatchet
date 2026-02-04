@@ -9,11 +9,8 @@ import pytest
 from pydantic import BaseModel
 
 from examples.concurrency_workflow_level.worker import (
-    DIGIT_MAX_RUNS,
-    NAME_MAX_RUNS,
-    WorkflowInput,
-    concurrency_workflow_level_workflow,
-)
+    DIGIT_MAX_RUNS, NAME_MAX_RUNS, WorkflowInput,
+    concurrency_workflow_level_workflow)
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
