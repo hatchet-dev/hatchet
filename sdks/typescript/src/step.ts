@@ -287,7 +287,7 @@ export class V0Context<T, K = {}> {
    * @returns The name of the task.
    */
   taskName(): string {
-    return this.action.stepName;
+    return this.action.taskName;
   }
 
   /**
@@ -302,8 +302,8 @@ export class V0Context<T, K = {}> {
    * Gets the ID of the current task run.
    * @returns The task run ID.
    */
-  taskExternalId(): string {
-    return this.action.taskExternalId;
+  taskRunExternalId(): string {
+    return this.action.taskRunExternalId;
   }
 
   /**
@@ -320,15 +320,15 @@ export class V0Context<T, K = {}> {
    * @param level - The log level (optional).
    */
   log(message: string, level?: LogLevel) {
-    const { taskExternalId } = this.action;
+    const { taskRunExternalId } = this.action;
 
-    if (!taskExternalId) {
+    if (!taskRunExternalId) {
       // log a warning
       this.logger.warn('cannot log from context without stepRunId');
       return;
     }
 
-    this.v0.event.putLog(taskExternalId, message, level, this.retryCount());
+    this.v0.event.putLog(taskRunExternalId, message, level, this.retryCount());
   }
 
   /**
@@ -337,15 +337,15 @@ export class V0Context<T, K = {}> {
    * The interval should be specified in the format of '10s' for 10 seconds, '1m' for 1 minute, or '1d' for 1 day.
    */
   async refreshTimeout(incrementBy: Duration) {
-    const { taskExternalId } = this.action;
+    const { taskRunExternalId } = this.action;
 
-    if (!taskExternalId) {
+    if (!taskRunExternalId) {
       // log a warning
       this.logger.warn('cannot refresh timeout from context without stepRunId');
       return;
     }
 
-    await this.v0.dispatcher.refreshTimeout(incrementBy, taskExternalId);
+    await this.v0.dispatcher.refreshTimeout(incrementBy, taskRunExternalId);
   }
 
   /**
@@ -355,7 +355,7 @@ export class V0Context<T, K = {}> {
    */
   async releaseSlot(): Promise<void> {
     await this.v0.dispatcher.client.releaseSlot({
-      stepRunId: this.action.taskExternalId,
+      taskRunExternalId: this.action.taskRunExternalId,
     });
   }
 
@@ -365,15 +365,15 @@ export class V0Context<T, K = {}> {
    * @returns A promise that resolves when the data has been streamed.
    */
   async putStream(data: string | Uint8Array) {
-    const { taskExternalId } = this.action;
+    const { taskRunExternalId } = this.action;
 
-    if (!taskExternalId) {
+    if (!taskRunExternalId) {
       // log a warning
       this.logger.warn('cannot log from context without stepRunId');
       return;
     }
 
-    await this.v0.event.putStream(taskExternalId, data, undefined);
+    await this.v0.event.putStream(taskRunExternalId, data, undefined);
   }
 
   /**
@@ -421,7 +421,7 @@ export class V0Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    const { workflowRunId, taskExternalId } = this.action;
+    const { workflowRunId, taskRunExternalId } = this.action;
 
     const workflowRuns = workflows.map(({ workflow, input, options }) => {
       let workflowName: string;
@@ -449,7 +449,7 @@ export class V0Context<T, K = {}> {
         options: {
           ...opts,
           parentId: workflowRunId,
-          parentStepRunId: taskExternalId,
+          parentStepRunId: taskRunExternalId,
           childIndex: this.spawnIndex,
           desiredWorkerId: sticky ? this.worker.id() : undefined,
         },
@@ -531,7 +531,7 @@ export class V0Context<T, K = {}> {
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
-    const { workflowRunId, taskExternalId } = this.action;
+    const { workflowRunId, taskRunExternalId } = this.action;
 
     let workflowName: string = '';
 
@@ -555,7 +555,7 @@ export class V0Context<T, K = {}> {
     try {
       const resp = await this.v0.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
-        parentStepRunId: taskExternalId,
+        parentStepRunId: taskRunExternalId,
         childIndex: this.spawnIndex,
         desiredWorkerId: sticky ? this.worker.id() : undefined,
         ...opts,
@@ -650,14 +650,14 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
     await this.v0.durableListener.registerDurableEvent({
-      taskId: this.action.taskExternalId,
+      taskId: this.action.taskRunExternalId,
       signalKey: key,
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
 
     const listener = this.v0.durableListener.subscribe({
-      taskId: this.action.taskExternalId,
+      taskId: this.action.taskRunExternalId,
       signalKey: key,
     });
 

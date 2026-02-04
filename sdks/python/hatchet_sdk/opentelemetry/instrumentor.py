@@ -46,10 +46,10 @@ from hatchet_sdk.clients.admin import (
 from hatchet_sdk.clients.events import (
     BulkPushEventOptions,
     BulkPushEventWithMetadata,
-    Event,
     EventClient,
     PushEventOptions,
 )
+from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.utils.opentelemetry import OTelAttribute

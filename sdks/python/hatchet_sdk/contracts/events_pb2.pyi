@@ -37,38 +37,38 @@ class Events(_message.Message):
     def __init__(self, events: _Optional[_Iterable[_Union[Event, _Mapping]]] = ...) -> None: ...
 
 class PutLogRequest(_message.Message):
-    __slots__ = ("task_external_id", "created_at", "message", "level", "metadata", "task_retry_count")
-    TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("task_run_external_id", "created_at", "message", "level", "metadata", "task_retry_count")
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     LEVEL_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     TASK_RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
-    task_external_id: str
+    task_run_external_id: str
     created_at: _timestamp_pb2.Timestamp
     message: str
     level: str
     metadata: str
     task_retry_count: int
-    def __init__(self, task_external_id: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ..., level: _Optional[str] = ..., metadata: _Optional[str] = ..., task_retry_count: _Optional[int] = ...) -> None: ...
+    def __init__(self, task_run_external_id: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ..., level: _Optional[str] = ..., metadata: _Optional[str] = ..., task_retry_count: _Optional[int] = ...) -> None: ...
 
 class PutLogResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class PutStreamEventRequest(_message.Message):
-    __slots__ = ("task_external_id", "created_at", "message", "metadata", "event_index")
-    TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("task_run_external_id", "created_at", "message", "metadata", "event_index")
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     EVENT_INDEX_FIELD_NUMBER: _ClassVar[int]
-    task_external_id: str
+    task_run_external_id: str
     created_at: _timestamp_pb2.Timestamp
     message: bytes
     metadata: str
     event_index: int
-    def __init__(self, task_external_id: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[bytes] = ..., metadata: _Optional[str] = ..., event_index: _Optional[int] = ...) -> None: ...
+    def __init__(self, task_run_external_id: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[bytes] = ..., metadata: _Optional[str] = ..., event_index: _Optional[int] = ...) -> None: ...
 
 class PutStreamEventResponse(_message.Message):
     __slots__ = ()

@@ -144,7 +144,7 @@ message ScheduleWorkflowRequest {
     optional string parent_id = 4;
 
     // (optional) the parent task external run id
-    optional string parent_task_external_id = 5;
+    optional string parent_task_run_external_id = 5;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
     // child key will be a no-op, even if the schedule has changed.
@@ -209,7 +209,7 @@ message TriggerWorkflowRequest {
     optional string parent_id = 3;
 
     // (optional) the parent task external run id
-    optional string parent_task_external_id = 4;
+    optional string parent_task_run_external_id = 4;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
     // child key will return an existing workflow run if the parent id, parent task run id, and

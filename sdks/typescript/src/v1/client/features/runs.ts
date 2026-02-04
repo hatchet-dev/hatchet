@@ -47,13 +47,23 @@ export interface ListRunsOpts extends RunFilter {
   workerId?: string;
   /** Whether to include DAGs or only to include tasks */
   onlyTasks: boolean;
-  /**
-   * The parent task external id to filter by
+
+ /**
+   * The parent task run external id to filter by
+   * @deprecated use parentTaskRunExternalId instead
    * @format uuid
    * @minLength 36
    * @maxLength 36
    */
-  parentTaskExternalId?: string;
+ parentTaskExternalId?: string;
+
+  /**
+   * The parent task run external id to filter by
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentTaskRunExternalId?: string;
 
   /**
    * The triggering event external id to filter by
@@ -100,6 +110,11 @@ export class RunsClient {
   }
 
   async list(opts?: Partial<ListRunsOpts>) {
+
+    if (opts?.parentTaskExternalId && !opts?.parentTaskRunExternalId) {
+      opts.parentTaskRunExternalId = opts.parentTaskExternalId;
+    }
+
     const { data } = await this.api.v1WorkflowRunList(this.tenantId, {
       ...(await this.prepareListFilter(opts || {})),
     });
@@ -166,7 +181,7 @@ export class RunsClient {
       ),
       additional_metadata: am,
       only_tasks: opts.onlyTasks || false,
-      parent_task_external_id: opts.parentTaskExternalId,
+      parent_task_external_id: opts.parentTaskRunExternalId,
       triggering_event_external_id: opts.triggeringEventExternalId,
       include_payloads: opts.includePayloads,
     };

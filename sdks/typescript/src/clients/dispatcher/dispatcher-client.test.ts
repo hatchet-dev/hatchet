@@ -96,7 +96,7 @@ describe('DispatcherClient', () => {
         jobId: 'a',
         jobRunId: 'b',
         taskId: 'c',
-        taskExternalId: 'd',
+        taskRunExternalId: 'd',
       });
 
       expect(clientSpy).toHaveBeenCalledWith({
@@ -107,7 +107,7 @@ describe('DispatcherClient', () => {
         jobId: 'a',
         jobRunId: 'b',
         taskId: 'c',
-        taskExternalId: 'd',
+        taskRunExternalId: 'd',
         eventTimestamp: expect.any(Object),
       });
     });

@@ -19,7 +19,7 @@ import (
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenantId := tenant.ID
 
-	taskExternalId, err := uuid.Parse(req.TaskExternalId)
+	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
 
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")
@@ -67,7 +67,7 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := tenant.ID
-	taskExternalId, err := uuid.Parse(req.TaskExternalId)
+	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
 
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")

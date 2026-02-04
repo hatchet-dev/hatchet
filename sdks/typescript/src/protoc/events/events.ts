@@ -34,7 +34,7 @@ export interface Events {
 
 export interface PutLogRequest {
   /** the task external run id for the request */
-  taskExternalId: string;
+  taskRunExternalId: string;
   /** when the log line was created */
   createdAt: Date | undefined;
   /** the log line message */
@@ -51,7 +51,7 @@ export interface PutLogResponse {}
 
 export interface PutStreamEventRequest {
   /** the task external run id for the request */
-  taskExternalId: string;
+  taskRunExternalId: string;
   /** when the stream event was created */
   createdAt: Date | undefined;
   /** the stream event message */
@@ -318,7 +318,7 @@ export const Events: MessageFns<Events> = {
 
 function createBasePutLogRequest(): PutLogRequest {
   return {
-    taskExternalId: '',
+    taskRunExternalId: '',
     createdAt: undefined,
     message: '',
     level: undefined,
@@ -329,8 +329,8 @@ function createBasePutLogRequest(): PutLogRequest {
 
 export const PutLogRequest: MessageFns<PutLogRequest> = {
   encode(message: PutLogRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.taskExternalId !== '') {
-      writer.uint32(10).string(message.taskExternalId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(10).string(message.taskRunExternalId);
     }
     if (message.createdAt !== undefined) {
       Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(18).fork()).join();
@@ -362,7 +362,7 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
             break;
           }
 
-          message.taskExternalId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
         case 2: {
@@ -416,7 +416,9 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
 
   fromJSON(object: any): PutLogRequest {
     return {
-      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
       createdAt: isSet(object.createdAt) ? fromJsonTimestamp(object.createdAt) : undefined,
       message: isSet(object.message) ? globalThis.String(object.message) : '',
       level: isSet(object.level) ? globalThis.String(object.level) : undefined,
@@ -429,8 +431,8 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
 
   toJSON(message: PutLogRequest): unknown {
     const obj: any = {};
-    if (message.taskExternalId !== '') {
-      obj.taskExternalId = message.taskExternalId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
     if (message.createdAt !== undefined) {
       obj.createdAt = message.createdAt.toISOString();
@@ -455,7 +457,7 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
   },
   fromPartial(object: DeepPartial<PutLogRequest>): PutLogRequest {
     const message = createBasePutLogRequest();
-    message.taskExternalId = object.taskExternalId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
     message.createdAt = object.createdAt ?? undefined;
     message.message = object.message ?? '';
     message.level = object.level ?? undefined;
@@ -510,7 +512,7 @@ export const PutLogResponse: MessageFns<PutLogResponse> = {
 
 function createBasePutStreamEventRequest(): PutStreamEventRequest {
   return {
-    taskExternalId: '',
+    taskRunExternalId: '',
     createdAt: undefined,
     message: new Uint8Array(0),
     metadata: '',
@@ -520,8 +522,8 @@ function createBasePutStreamEventRequest(): PutStreamEventRequest {
 
 export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
   encode(message: PutStreamEventRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.taskExternalId !== '') {
-      writer.uint32(10).string(message.taskExternalId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(10).string(message.taskRunExternalId);
     }
     if (message.createdAt !== undefined) {
       Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(18).fork()).join();
@@ -550,7 +552,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
             break;
           }
 
-          message.taskExternalId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
         case 2: {
@@ -596,7 +598,9 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
 
   fromJSON(object: any): PutStreamEventRequest {
     return {
-      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
       createdAt: isSet(object.createdAt) ? fromJsonTimestamp(object.createdAt) : undefined,
       message: isSet(object.message) ? bytesFromBase64(object.message) : new Uint8Array(0),
       metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : '',
@@ -606,8 +610,8 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
 
   toJSON(message: PutStreamEventRequest): unknown {
     const obj: any = {};
-    if (message.taskExternalId !== '') {
-      obj.taskExternalId = message.taskExternalId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
     if (message.createdAt !== undefined) {
       obj.createdAt = message.createdAt.toISOString();
@@ -629,7 +633,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
   },
   fromPartial(object: DeepPartial<PutStreamEventRequest>): PutStreamEventRequest {
     const message = createBasePutStreamEventRequest();
-    message.taskExternalId = object.taskExternalId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
     message.createdAt = object.createdAt ?? undefined;
     message.message = object.message ?? new Uint8Array(0);
     message.metadata = object.metadata ?? '';

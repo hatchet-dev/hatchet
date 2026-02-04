@@ -137,7 +137,7 @@ message AssignedAction {
     string task_id = 7;
 
     // the task external run id
-    string task_external_id = 8;
+    string task_run_external_id = 8;
 
     // the action id
     string action_id = 9;
@@ -149,7 +149,7 @@ message AssignedAction {
     string action_payload = 11;
 
     // the task name
-    string step_name = 12;
+    string task_name = 12;
 
     // the count number of the retry attempt
     int32 retry_count = 13;
@@ -244,7 +244,7 @@ message StepActionEvent {
     string task_id = 4;
 
     // the task external run id
-    string task_external_id = 5;
+    string task_run_external_id = 5;
 
     // the action id
     string action_id = 6;
@@ -324,7 +324,7 @@ message WorkflowEvent {
     bool hangup = 7;
 
     // (optional) the max number of retries this task can handle
-    optional int32 step_retries = 8;
+    optional int32 task_retries = 8;
 
     // (optional) the retry count of this task
     optional int32 retry_count = 9;
@@ -348,9 +348,9 @@ message WorkflowRunEvent {
 }
 
 message StepRunResult {
-    string step_run_id = 1;
+    string task_run_external_id = 1;
 
-    string step_readable_id = 2;
+    string task_name = 2;
 
     string job_run_id = 3;
 
@@ -361,7 +361,7 @@ message StepRunResult {
 
 message OverridesData {
     // the task run id
-    string step_run_id = 1;
+    string task_run_external_id = 1;
 
     // the path of the data to set
     string path = 2;
@@ -387,7 +387,7 @@ message HeartbeatResponse {}
 
 message RefreshTimeoutRequest {
     // the id of the task run to release
-    string step_run_id = 1;
+    string task_run_external_id = 1;
 
     string increment_timeout_by = 2;
 }
@@ -398,7 +398,7 @@ message RefreshTimeoutResponse {
 }
 message ReleaseSlotRequest {
     // the id of the task run to release
-    string step_run_id = 1;
+    string task_run_external_id = 1;
 }
 
 message ReleaseSlotResponse {}

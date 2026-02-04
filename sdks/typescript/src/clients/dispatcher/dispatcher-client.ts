@@ -69,11 +69,11 @@ export class DispatcherClient {
   }
 
   async sendStepActionEvent(in_: StepActionEventInput) {
-    const { taskId, taskExternalId, ...rest } = in_;
+    const { taskId, taskRunExternalId, ...rest } = in_;
     const event: StepActionEvent = {
       ...rest,
       taskId: taskId ?? '',
-      taskExternalId: taskExternalId ?? '',
+      taskRunExternalId: taskRunExternalId ?? '',
     };
 
     try {
@@ -97,10 +97,10 @@ export class DispatcherClient {
     });
   }
 
-  async refreshTimeout(incrementTimeoutBy: string, stepRunId: string) {
+  async refreshTimeout(incrementTimeoutBy: string, taskRunExternalId: string) {
     try {
       return this.client.refreshTimeout({
-        stepRunId,
+        taskRunExternalId,
         incrementTimeoutBy,
       });
     } catch (e: any) {
