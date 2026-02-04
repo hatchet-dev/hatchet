@@ -752,6 +752,10 @@ func findAssignableSlots(
 	rateLimitAck func(),
 	rateLimitNack func(),
 ) *assignedSlots {
+	// NOTE: the caller must hold action.mu (RLock or Lock) while calling this
+	// function. We read from action.slotsByWorker, which is rebuilt during
+	// replenish under action.mu.
+
 	for _, candidateSlot := range candidateSlots {
 		if !candidateSlot.active() {
 			continue
@@ -875,6 +879,10 @@ func (s *Scheduler) tryAssignSingleton(
 ) (
 	res assignSingleResult, err error,
 ) {
+	// NOTE: the caller must hold action.mu (RLock or Lock) while calling this
+	// function. We read from action.slotsByWorker, which is rebuilt during
+	// replenish under action.mu.
+
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 

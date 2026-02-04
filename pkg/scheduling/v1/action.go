@@ -8,8 +8,8 @@ import (
 )
 
 type action struct {
-	mu        sync.RWMutex
-	actionId  string
+	mu       sync.RWMutex
+	actionId string
 
 	lastReplenishedSlotCount   int
 	lastReplenishedWorkerCount int
