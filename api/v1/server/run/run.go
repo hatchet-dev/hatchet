@@ -283,7 +283,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		// at the moment, API tokens should have a tenant id, because there are no other types of
 		// API tokens. If we add other types of API tokens, we'll need to pass in a parent id to query
 		// for.
-		if apiToken.TenantId == nil || *apiToken.TenantId == uuid.Nil {
+		if apiToken.TenantId == nil {
 			return nil, "", fmt.Errorf("api token has no tenant id")
 		}
 
