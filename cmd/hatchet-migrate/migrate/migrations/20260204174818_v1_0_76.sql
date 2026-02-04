@@ -26,6 +26,8 @@ CREATE TYPE v1_durable_event_log_entry_kind AS ENUM (
 );
 
 CREATE TABLE v1_durable_event_log_entry (
+    -- need an external id for consistency with the payload store logic (unfortunately)
+    external_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at BIGINT NOT NULL,
@@ -60,7 +62,7 @@ CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
     -- WAIT_FOR_COMPLETED can represent a durable sleep, an event, or some boolean combination of
     -- these.
     'WAIT_FOR_COMPLETED',
-    'MEMO_COMPLETED',
+    'MEMO_COMPLETED'
 );
 
 -- v1_durable_event_log_callback stores callbacks that complete a durable event log entry. This needs to be stateful
