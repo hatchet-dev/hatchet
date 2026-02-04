@@ -2,6 +2,7 @@ import asyncio
 import ctypes
 import functools
 import json
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, is_dataclass
@@ -29,6 +30,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.exceptions import (
+    CancellationReason,
     IllegalTaskOutputError,
     NonRetryableException,
     TaskRunError,
@@ -39,6 +41,7 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_cancellation_token,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -60,6 +63,7 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopyDict,
     ContextVarToCopyInt,
     ContextVarToCopyStr,
+    ContextVarToCopyToken,
     copy_context_vars,
 )
 
@@ -251,6 +255,7 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
         ctx_task_retry_count.set(action.retry_count)
+        ctx_cancellation_token.set(ctx.cancellation_token)
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
@@ -296,6 +301,12 @@ class Runner:
                             var=ContextVarToCopyInt(
                                 name="ctx_task_retry_count",
                                 value=action.retry_count,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyToken(
+                                name="ctx_cancellation_token",
+                                value=ctx.cancellation_token,
                             )
                         ),
                     ],
@@ -480,27 +491,95 @@ class Runner:
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_cancel_action(self, action: Action) -> None:
         key = action.key
+        start_time = time.monotonic()
+
+        logger.debug(
+            f"Cancellation: received cancel action for {action.action_id}, "
+            f"reason={CancellationReason.WORKFLOW_CANCELLED.value}"
+        )
+
         try:
-            # call cancel to signal the context to stop
+            # Trigger the cancellation token to signal the context to stop
             if key in self.contexts:
-                self.contexts[key]._set_cancellation_flag()
+                ctx = self.contexts[key]
+                child_count = len(ctx.cancellation_token.get_child_run_ids())
+                logger.debug(
+                    f"Cancellation: triggering token for {action.action_id}, "
+                    f"reason={CancellationReason.WORKFLOW_CANCELLED.value}, "
+                    f"{child_count} children registered"
+                )
+                ctx._set_cancellation_flag(CancellationReason.WORKFLOW_CANCELLED)
                 self.cancellations[key] = True
+                # Note: Child workflows are not cancelled here - they run independently
+                # and are managed by Hatchet's normal cancellation mechanisms
+            else:
+                logger.debug(f"Cancellation: no context found for {action.action_id}")
 
-            await asyncio.sleep(1)
+            # Wait with supervision (using timedelta configs)
+            grace_period = self.config.cancellation_grace_period.total_seconds()
+            warning_threshold = (
+                self.config.cancellation_warning_threshold.total_seconds()
+            )
 
-            if key in self.tasks:
-                self.tasks[key].cancel()
+            # Wait until warning threshold
+            await asyncio.sleep(warning_threshold)
+            elapsed = time.monotonic() - start_time
 
-            # check if thread is still running, if so, print a warning
-            if key in self.threads:
-                thread = self.threads[key]
+            # Check if task is still running after warning threshold
+            task_was_running = key in self.tasks and not self.tasks[key].done()
 
-                if self.config.enable_force_kill_sync_threads:
-                    self.force_kill_thread(thread)
-                    await asyncio.sleep(1)
-
+            if task_was_running:
                 logger.warning(
-                    f"thread {self.threads[key].ident} with key {key} is still running after cancellation. This could cause the thread pool to get blocked and prevent new tasks from running."
+                    f"Cancellation: task {action.action_id} has not cancelled after "
+                    f"{elapsed:.1f}s. Consider checking for blocking operations. "
+                    f"See https://docs.hatchet.run/home/cancellation"
+                )
+
+                # Continue waiting until grace period only if task is still running
+                remaining = grace_period - elapsed
+                if remaining > 0:
+                    await asyncio.sleep(remaining)
+
+                # Force cancel if still running after grace period
+                if key in self.tasks and not self.tasks[key].done():
+                    logger.debug(
+                        f"Cancellation: force-cancelling task {action.action_id} after grace period"
+                    )
+                    self.tasks[key].cancel()
+
+                # Check if thread is still running
+                if key in self.threads:
+                    thread = self.threads[key]
+
+                    if self.config.enable_force_kill_sync_threads:
+                        logger.debug(
+                            f"Cancellation: force-killing thread for {action.action_id}"
+                        )
+                        self.force_kill_thread(thread)
+                        await asyncio.sleep(1)
+
+                    if thread.is_alive():
+                        logger.warning(
+                            f"Cancellation: thread {thread.ident} with key {key} is still running "
+                            f"after cancellation. This could cause the thread pool to get blocked "
+                            f"and prevent new tasks from running."
+                        )
+
+                # Log final status for slow cancellation
+                total_elapsed = time.monotonic() - start_time
+                if total_elapsed > grace_period:
+                    logger.warning(
+                        f"Cancellation: cancellation of {action.action_id} took {total_elapsed:.1f}s "
+                        f"(exceeded grace period of {self.config.cancellation_grace_period})"
+                    )
+                else:
+                    logger.debug(
+                        f"Cancellation: task {action.action_id} eventually completed in {total_elapsed:.1f}s"
+                    )
+            else:
+                # Task completed quickly - log success and exit
+                logger.debug(
+                    f"Cancellation: task {action.action_id} completed within {elapsed:.1f}s"
                 )
         finally:
             self.cleanup_run_id(key)

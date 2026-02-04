@@ -135,6 +135,37 @@ class ClientConfig(BaseSettings):
     force_shutdown_on_shutdown_signal: bool = False
     tenacity: TenacityConfig = TenacityConfig()
 
+    # Cancellation configuration
+    cancellation_grace_period: timedelta = Field(
+        default=timedelta(seconds=5),
+        description="The maximum time to wait for a task to complete after cancellation is triggered before force-cancelling. Value is interpreted as seconds when provided as int/float.",
+    )
+    cancellation_warning_threshold: timedelta = Field(
+        default=timedelta(seconds=3),
+        description="If a task has not completed cancellation within this duration, a warning will be logged. Value is interpreted as seconds when provided as int/float.",
+    )
+
+    @field_validator(
+        "cancellation_grace_period", "cancellation_warning_threshold", mode="before"
+    )
+    @classmethod
+    def validate_cancellation_timedelta(
+        cls, value: timedelta | int | float | str
+    ) -> timedelta:
+        """Convert int/float/string to timedelta, interpreting as seconds."""
+        if isinstance(value, timedelta):
+            return value
+
+        if isinstance(value, int | float):
+            return timedelta(seconds=float(value))
+
+        v = value.strip()
+        # Allow a small convenience suffix, but keep "seconds" as the contract.
+        if v.endswith("s"):
+            v = v[:-1].strip()
+
+        return timedelta(seconds=float(v))
+
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
         if not self.token:

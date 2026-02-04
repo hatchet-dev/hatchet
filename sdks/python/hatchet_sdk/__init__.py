@@ -1,3 +1,4 @@
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.admin import (
     RunStatus,
     ScheduleTriggerWorkflowOptions,
@@ -148,6 +149,8 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     WorkerLabelComparator,
 )
 from hatchet_sdk.exceptions import (
+    CancellationReason,
+    CancelledError,
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
     NonRetryableException,
@@ -186,6 +189,9 @@ __all__ = [
     "CELEvaluationResult",
     "CELFailure",
     "CELSuccess",
+    "CancellationReason",
+    "CancellationToken",
+    "CancelledError",
     "ClientConfig",
     "ClientTLSConfig",
     "ConcurrencyExpression",
