@@ -55,11 +55,6 @@ message DurableTaskResponseRegisterCallbackAck {
     int64 session_id = 1;
     string durable_task_external_id = 2;
     int64 node_id = 3;
-
-    // TODO: not sure if this is the correct approach, but we need some way to indicate
-    // to the SDK to stop polling for the callback for this specific session. I figured if the
-    // node_id is equal to the latest_registered_node_id, then the SDK can stop polling.
-    int64 latest_registered_node_id = 4;
 }
 
 message DurableTaskResponseCallbackCompleted {
