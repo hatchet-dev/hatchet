@@ -606,6 +606,10 @@ func (s *Scheduler) tryAssignBatch(
 		}
 	}
 
+	// Get or create the action and try to assign the batch of queue items.
+	// NOTE: if we change the position of these locks, make sure that we are still acquiring locks in the same
+	// order as the replenish() function, otherwise we may deadlock. The order is:
+	// actionsMu -> action.mu -> unackedMu
 	action := s.ensureAction(actionId)
 
 	rlAcks := make([]func(), len(qis))
@@ -645,8 +649,8 @@ func (s *Scheduler) tryAssignBatch(
 			}
 		}
 
-		rlAcks[i] = onceFn(rateLimitAck)
-		rlNacks[i] = onceFn(rateLimitNack)
+		rlAcks[i] = rateLimitAck
+		rlNacks[i] = rateLimitNack
 	}
 
 	action.mu.RLock()
@@ -830,20 +834,6 @@ func normalizeSlotRequests(requests map[string]int32) map[string]int32 {
 	return normalized
 }
 
-func onceFn(fn func()) func() {
-	if fn == nil {
-		return func() {}
-	}
-
-	called := false
-	return func() {
-		if called {
-			return
-		}
-		called = true
-		fn()
-	}
-}
 
 // tryAssignSingleton attempts to assign a singleton step to a worker.
 func (s *Scheduler) tryAssignSingleton(
