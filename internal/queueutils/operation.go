@@ -7,39 +7,34 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 )
 
-type ID interface {
-	string | int64 | uuid.UUID
-}
-
-type OpMethod[T ID] func(ctx context.Context, id T) (bool, error)
+type OpMethod func(ctx context.Context, id string) (bool, error)
 
 // SerialOperation represents a method that can only run serially.
 // It can be configured with a maxJitter duration to add a random delay
 // before executing, which helps prevent the "thundering herd" problem
 // when many operations might start at the same time. The jitter is disabled
 // by default (maxJitter=0) and can be enabled via OperationPool.WithJitter().
-type SerialOperation[T ID] struct {
+type SerialOperation struct {
+	lastRun        time.Time
+	method         OpMethod
+	id             string
+	description    string
+	timeout        time.Duration
+	maxJitter      time.Duration
 	mu             sync.RWMutex
 	shouldContinue bool
 	isRunning      bool
-	id             T
-	lastRun        time.Time
-	description    string
-	timeout        time.Duration
-	method         OpMethod[T]
-	maxJitter      time.Duration
 }
 
-func (o *SerialOperation[T]) RunOrContinue(ql *zerolog.Logger) {
+func (o *SerialOperation) RunOrContinue(ql *zerolog.Logger) {
 	o.setContinue(true)
 	o.Run(ql)
 }
 
-func (o *SerialOperation[T]) Run(ql *zerolog.Logger) {
+func (o *SerialOperation) Run(ql *zerolog.Logger) {
 	if !o.setRunning(true, ql) {
 		return
 	}
@@ -87,7 +82,7 @@ func (o *SerialOperation[T]) Run(ql *zerolog.Logger) {
 
 // setRunning sets the running state of the operation and returns true if the state was changed,
 // false if the state was not changed.
-func (o *SerialOperation[T]) setRunning(isRunning bool, ql *zerolog.Logger) bool {
+func (o *SerialOperation) setRunning(isRunning bool, ql *zerolog.Logger) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
@@ -116,14 +111,14 @@ func (o *SerialOperation[T]) setRunning(isRunning bool, ql *zerolog.Logger) bool
 	return true
 }
 
-func (o *SerialOperation[T]) setContinue(shouldContinue bool) {
+func (o *SerialOperation) setContinue(shouldContinue bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	o.shouldContinue = shouldContinue
 }
 
-func (o *SerialOperation[T]) getContinue() bool {
+func (o *SerialOperation) getContinue() bool {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 

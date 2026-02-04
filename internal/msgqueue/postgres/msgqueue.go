@@ -258,7 +258,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		return eg.Wait()
 	}
 
-	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod[string](func(ctx context.Context, id string) (bool, error) {
+	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, _ string) (bool, error) {
 		messages, err := p.repo.ReadMessages(subscribeCtx, queue.Name(), p.qos)
 
 		if err != nil {
