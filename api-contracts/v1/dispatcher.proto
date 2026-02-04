@@ -7,46 +7,88 @@ package v1;
 import "v1/shared/condition.proto";
 
 service V1Dispatcher {
-    rpc DurableEventStream(stream DurableEventRequest) returns (stream DurableEventCallbackOrAck) {}
+    rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse) {}
 
     // NOTE: deprecated after DurableEventLog is implemented
     rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
 }
 
-enum DurableEventRequestKind {
-    RUN_TRIGGERED = 0;
-    WAIT_FOR_STARTED = 1;
+message DurableTaskRequestRegisterWorker {
+    string worker_id = 1;
 }
 
-message DurableEventRequest {
-    string durable_task_external_id = 1; // external uuid for the task run
-    DurableEventRequestKind kind = 2;
-    optional bytes payload = 3;
-    optional DurableEventListenerConditions wait_for_conditions = 4;
+message DurableTaskResponseRegisterWorker {
+    string worker_id = 1;
 }
 
-enum DurableEventCallbackKind {
-    RUN_COMPLETED = 0;
-    WAIT_FOR_COMPLETED = 1;
+enum DurableTaskTriggerKind {
+    DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED = 0;
+    DURABLE_TASK_TRIGGER_KIND_RUN = 1;
+    DURABLE_TASK_TRIGGER_KIND_WAIT_FOR = 2;
+    DURABLE_TASK_TRIGGER_KIND_MEMO = 3;
 }
 
-message DurableEventCallback {
-
+message DurableTaskRequestTrigger {
+    // The session_id is used to identify the worker session for this durable task, since
+    // there can be many sessions for the same durable task (e.g. retries)
+    int64 session_id = 1;
+    string durable_task_external_id = 2;
+    DurableTaskTriggerKind kind = 3;
+    optional bytes payload = 4;
+    optional DurableEventListenerConditions wait_for_conditions = 5;
 }
 
-message DurableEventAck {
-
+message DurableTaskResponseTriggerAck {
+    int64 session_id = 1;
+    string durable_task_external_id = 2;
+    int64 node_id = 3;
 }
 
-/*
-To discuss: should callbacks be implicit or explicit? Currently treated as implicit, we always send the callback over the stream,
-even when the worker may not be expecting it. We can also consider having the worker request a callback explicitly.
-*/
-message DurableEventCallbackOrAck {
+message DurableTaskRequestRegisterCallback {
+    int64 session_id = 1;
+    string durable_task_external_id = 2;
+    int64 node_id = 3;
+}
+
+message DurableTaskResponseRegisterCallbackAck {
+    int64 session_id = 1;
+    string durable_task_external_id = 2;
+    int64 node_id = 3;
+
+    // TODO: not sure if this is the correct approach, but we need some way to indicate
+    // to the SDK to stop polling for the callback for this specific session. I figured if the
+    // node_id is equal to the latest_registered_node_id, then the SDK can stop polling.
+    int64 latest_registered_node_id = 4;
+}
+
+message DurableTaskResponseCallbackCompleted {
+    int64 session_id = 1;
+    string durable_task_external_id = 2;
+    int64 node_id = 3;
+    bytes payload = 4;
+}
+
+message DurableTaskRequestEvictSession {
+    int64 session_id = 1;
+    string durable_task_external_id = 2;
+}
+
+message DurableTaskRequest {
     oneof message {
-        DurableEventCallback callback = 1;
-        DurableEventAck ack = 2;
+        DurableTaskRequestRegisterWorker register_worker = 1;
+        DurableTaskRequestTrigger trigger = 2;
+        DurableTaskRequestRegisterCallback register_callback = 3;
+        DurableTaskRequestEvictSession evict_session = 4;
+    }
+}
+
+message DurableTaskResponse {
+    oneof message {
+        DurableTaskResponseRegisterWorker register_worker = 1;
+        DurableTaskResponseTriggerAck trigger_ack = 2;
+        DurableTaskResponseRegisterCallbackAck register_callback_ack = 3;
+        DurableTaskResponseCallbackCompleted callback_completed = 4;
     }
 }
 
