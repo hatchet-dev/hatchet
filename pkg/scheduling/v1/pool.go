@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -31,7 +32,7 @@ type sharedConfig struct {
 type SchedulingPool struct {
 	Extensions *Extensions
 
-	tenants sync.Map
+	tenants syncx.Map[uuid.UUID, *tenantManager]
 	setMu   mutex
 
 	cf *sharedConfig
@@ -92,8 +93,8 @@ func (p *SchedulingPool) GetConcurrencyResultsCh() chan *ConcurrencyResults {
 func (p *SchedulingPool) cleanup() {
 	toCleanup := make([]*tenantManager, 0)
 
-	p.tenants.Range(func(key, value interface{}) bool {
-		toCleanup = append(toCleanup, value.(*tenantManager))
+	p.tenants.Range(func(key uuid.UUID, value *tenantManager) bool {
+		toCleanup = append(toCleanup, value)
 
 		return true
 	})
@@ -125,11 +126,9 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 	toCleanup := make([]*tenantManager, 0)
 
 	// delete tenants that are not in the list
-	p.tenants.Range(func(key, value interface{}) bool {
-		tenantId := key.(uuid.UUID)
-
+	p.tenants.Range(func(tenantId uuid.UUID, value *tenantManager) bool {
 		if _, ok := tenantMap[tenantId]; !ok {
-			toCleanup = append(toCleanup, value.(*tenantManager))
+			toCleanup = append(toCleanup, value)
 		}
 
 		return true
@@ -137,8 +136,7 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 
 	// delete each tenant from the map
 	for _, tm := range toCleanup {
-		tenantId := tm.tenantId.String()
-		p.tenants.Delete(tenantId)
+		p.tenants.Delete(tm.tenantId)
 	}
 
 	go func() {
@@ -200,7 +198,7 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 		}
 	}
 
-	return tm.(*tenantManager)
+	return tm
 }
 
 var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")

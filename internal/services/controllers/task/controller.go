@@ -54,11 +54,11 @@ type TasksControllerImpl struct {
 	celParser                             *cel.CELParser
 	opsPoolPollInterval                   time.Duration
 	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *operation.OperationPool
-	reassignTaskOperations                *operation.OperationPool
-	retryTaskOperations                   *operation.OperationPool
-	emitSleepOperations                   *operation.OperationPool
-	evictExpiredIdempotencyKeysOperations *operation.OperationPool
+	timeoutTaskOperations                 *operation.TenantOperationPool
+	reassignTaskOperations                *operation.TenantOperationPool
+	retryTaskOperations                   *operation.TenantOperationPool
+	emitSleepOperations                   *operation.TenantOperationPool
+	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
 	replayEnabled                         bool
 	analyzeCronInterval                   time.Duration
 	signaler                              *signal.OLAPSignaler
@@ -230,7 +230,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	jitter := t.opsPoolJitter
 	timeout := time.Second * 30
 
-	t.timeoutTaskOperations = operation.NewOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
+	t.timeoutTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -239,7 +239,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.emitSleepOperations = operation.NewOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
+	t.emitSleepOperations = operation.NewTenantOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -248,7 +248,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.reassignTaskOperations = operation.NewOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
+	t.reassignTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -257,7 +257,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.retryTaskOperations = operation.NewOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
+	t.retryTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -266,7 +266,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.evictExpiredIdempotencyKeysOperations = operation.NewOperationPool(opts.p, opts.l, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
+	t.evictExpiredIdempotencyKeysOperations = operation.NewTenantOperationPool(opts.p, opts.l, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,

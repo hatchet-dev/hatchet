@@ -44,7 +44,7 @@ type OLAPControllerImpl struct {
 	p                            *partition.Partition
 	s                            gocron.Scheduler
 	ta                           *alerting.TenantAlertManager
-	processTenantAlertOperations *queueutils.OperationPool[string]
+	processTenantAlertOperations *queueutils.OperationPool
 	samplingHashThreshold        *int64
 	olapConfig                   *server.ConfigFileOperations
 	prometheusMetricsEnabled     bool
