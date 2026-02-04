@@ -25,6 +25,7 @@ SELECT
     i.latest_branch_first_parent_node_id
 FROM
     inputs i
+RETURNING *
 ;
 
 -- name: GetDurableEventLogFileForTask :one
@@ -82,4 +83,79 @@ ORDER BY
     i.durable_task_inserted_at,
     i.node_id
 -- todo: conflict resolution here
+RETURNING *
+;
+
+-- name: ListDurableEventLogEntries :many
+SELECT *
+FROM v1_durable_event_log_entry
+WHERE durable_task_id = @durableTaskId
+  AND durable_task_inserted_at = @durableTaskInsertedAt
+ORDER BY node_id ASC
+;
+
+-- name: GetDurableEventLogEntry :one
+SELECT *
+FROM v1_durable_event_log_entry
+WHERE durable_task_id = @durableTaskId
+  AND durable_task_inserted_at = @durableTaskInsertedAt
+  AND node_id = @nodeId
+;
+
+-- name: CreateDurableEventLogCallbacks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST(@kinds::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
+        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+)
+INSERT INTO v1_durable_event_log_callback (
+    durable_task_id,
+    durable_task_inserted_at,
+    inserted_at,
+    kind,
+    key,
+    node_id,
+    is_satisfied
+)
+SELECT
+    i.durable_task_id,
+    i.durable_task_inserted_at,
+    i.inserted_at,
+    i.kind,
+    i.key,
+    i.node_id,
+    i.is_satisfied
+FROM
+    inputs i
+RETURNING *
+;
+
+-- name: GetDurableEventLogCallback :one
+SELECT *
+FROM v1_durable_event_log_callback
+WHERE durable_task_id = @durableTaskId
+  AND durable_task_inserted_at = @durableTaskInsertedAt
+  AND key = @key
+;
+
+-- name: ListDurableEventLogCallbacks :many
+SELECT *
+FROM v1_durable_event_log_callback
+WHERE durable_task_id = @durableTaskId
+  AND durable_task_inserted_at = @durableTaskInsertedAt
+ORDER BY inserted_at ASC
+;
+
+-- name: UpdateDurableEventLogCallbackSatisfied :one
+UPDATE v1_durable_event_log_callback
+SET is_satisfied = @isSatisfied
+WHERE durable_task_id = @durableTaskId
+  AND durable_task_inserted_at = @durableTaskInsertedAt
+  AND key = @key
+RETURNING *
 ;
