@@ -488,11 +488,11 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 			defaultUnits = int32(*opts.Slots) // nolint: gosec
 		}
 
-		slotTypes = append(slotTypes, "default")
+		slotTypes = append(slotTypes, SlotTypeDefault)
 		maxUnits = append(maxUnits, defaultUnits)
 
 		if opts.DurableSlots != nil && *opts.DurableSlots > 0 {
-			slotTypes = append(slotTypes, "durable")
+			slotTypes = append(slotTypes, SlotTypeDurable)
 			maxUnits = append(maxUnits, int32(*opts.DurableSlots)) // nolint: gosec
 		}
 	}

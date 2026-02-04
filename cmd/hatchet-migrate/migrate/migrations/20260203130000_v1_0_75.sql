@@ -55,7 +55,6 @@ CREATE TABLE IF NOT EXISTS v1_task_runtime_slot (
 );
 -- +goose StatementEnd
 
--- TODO: concurrently create the index
 -- -- +goose NO TRANSACTION
 CREATE INDEX IF NOT EXISTS v1_task_runtime_tenantId_workerId_slotGroup_idx
     ON v1_task_runtime (tenant_id ASC, worker_id ASC, slot_group ASC)
