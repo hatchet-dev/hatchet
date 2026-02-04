@@ -91,46 +91,6 @@ func (s *Scheduler) nack(ids []int) {
 	}
 }
 
-type assignedSlots struct {
-	slots         []*slot
-	rateLimitAck  func()
-	rateLimitNack func()
-}
-
-// testHookBeforeUsingSelectedSlots exists to make certain concurrent/rollback
-// branches deterministic in unit tests. It is nil in production.
-var testHookBeforeUsingSelectedSlots func(selected []*slot)
-
-// testHookBeforeReplenishUnackedLock exists to make lock-order assertions
-// deterministic in unit tests. It is nil in production.
-var testHookBeforeReplenishUnackedLock func()
-
-func (a *assignedSlots) workerId() uuid.UUID {
-	if len(a.slots) == 0 {
-		return uuid.Nil
-	}
-
-	return a.slots[0].getWorkerId()
-}
-
-func (a *assignedSlots) ack() {
-	for _, slot := range a.slots {
-		slot.ack()
-	}
-	if a.rateLimitAck != nil {
-		a.rateLimitAck()
-	}
-}
-
-func (a *assignedSlots) nack() {
-	for _, slot := range a.slots {
-		slot.nack()
-	}
-	if a.rateLimitNack != nil {
-		a.rateLimitNack()
-	}
-}
-
 func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
