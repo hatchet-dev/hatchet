@@ -141,13 +141,13 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		return nil, err
 	}
 
-	runIdStrs := make([]string, len(req.Workflows))
+	runIds := make([]string, len(req.Workflows))
 
 	for i, opt := range opts {
-		runIdStrs[i] = opt.ExternalId.String()
+		runIds[i] = opt.ExternalId.String()
 	}
 
-	for i, runId := range runIdStrs {
+	for i, runId := range runIds {
 		additionalMeta := ""
 		if req.Workflows[i].AdditionalMetadata != nil {
 			additionalMeta = *req.Workflows[i].AdditionalMetadata
@@ -162,7 +162,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{
-		WorkflowRunIds: runIdStrs,
+		WorkflowRunIds: runIds,
 	}, nil
 }
 
