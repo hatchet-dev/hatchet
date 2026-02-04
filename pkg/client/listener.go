@@ -218,7 +218,7 @@ func (l *WorkflowRunsListener) RemoveWorkflowRun(
 
 func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 	for i := 0; i < DefaultActionListenerRetryCount; i++ {
-		client, _ := l.getClientSnapshot()
+		client, genBefore := l.getClientSnapshot()
 
 		if client == nil {
 			return fmt.Errorf("client is not connected")
@@ -233,6 +233,12 @@ func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 		}
 
 		l.l.Warn().Err(err).Msgf("failed to send workflow run subscription, attempt %d/%d", i+1, DefaultActionListenerRetryCount)
+
+		// Check if someone else (e.g. Listen) already reconnected while we were sending.
+		// If so, skip the reconnect and retry the send on the new client immediately.
+		if _, genAfter := l.getClientSnapshot(); genAfter != genBefore {
+			continue
+		}
 
 		if retryErr := l.retrySubscribe(context.Background()); retryErr != nil {
 			l.l.Error().Err(retryErr).Msg("failed to resubscribe after send failure")
@@ -279,7 +285,6 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 				continue
 			}
 
-			// Grab the new client after successful reconnection.
 			client, _ = l.getClientSnapshot()
 			consecutiveErrors = 0
 			continue
