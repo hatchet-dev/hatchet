@@ -20,8 +20,6 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns",
-    "durableMaxRuns",
     "webhookId",
     "type",
     "sdkVersion",
@@ -36,15 +34,13 @@ INSERT INTO "Worker" (
     $1::uuid,
     $2::text,
     $3::uuid,
-    $4::int,
-    coalesce($5::int, 0),
-    $6::uuid,
-    $7::"WorkerType",
+    $4::uuid,
+    $5::"WorkerType",
+    $6::text,
+    $7::"WorkerSDKS",
     $8::text,
-    $9::"WorkerSDKS",
-    $10::text,
-    $11::text,
-    $12::text
+    $9::text,
+    $10::text
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
@@ -52,8 +48,6 @@ type CreateWorkerParams struct {
 	Tenantid        uuid.UUID      `json:"tenantid"`
 	Name            string         `json:"name"`
 	Dispatcherid    uuid.UUID      `json:"dispatcherid"`
-	MaxRuns         pgtype.Int4    `json:"maxRuns"`
-	DurableMaxRuns  pgtype.Int4    `json:"durableMaxRuns"`
 	WebhookId       *uuid.UUID     `json:"webhookId"`
 	Type            NullWorkerType `json:"type"`
 	SdkVersion      pgtype.Text    `json:"sdkVersion"`
@@ -68,8 +62,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Tenantid,
 		arg.Name,
 		arg.Dispatcherid,
-		arg.MaxRuns,
-		arg.DurableMaxRuns,
 		arg.WebhookId,
 		arg.Type,
 		arg.SdkVersion,
@@ -987,11 +979,14 @@ WHERE
     )
     AND (
         $4::boolean IS NULL OR
-        workers."maxRuns" IS NULL OR
-        ($4::boolean AND workers."maxRuns" > (
-            SELECT COUNT(*)
-            FROM "StepRun" srs
-            WHERE srs."workerId" = workers."id" AND srs."status" = 'RUNNING'
+        ($4::boolean AND (
+            SELECT COALESCE(SUM(cap.max_units), 0)
+            FROM v1_worker_slot_config cap
+            WHERE cap.tenant_id = workers."tenantId" AND cap.worker_id = workers."id"
+        ) > (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
 GROUP BY
@@ -1067,20 +1062,16 @@ UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce($1::uuid, "dispatcherId"),
-    "maxRuns" = coalesce($2::int, "maxRuns"),
-    "durableMaxRuns" = coalesce($3::int, "durableMaxRuns"),
-    "lastHeartbeatAt" = coalesce($4::timestamp, "lastHeartbeatAt"),
-    "isActive" = coalesce($5::boolean, "isActive"),
-    "isPaused" = coalesce($6::boolean, "isPaused")
+    "lastHeartbeatAt" = coalesce($2::timestamp, "lastHeartbeatAt"),
+    "isActive" = coalesce($3::boolean, "isActive"),
+    "isPaused" = coalesce($4::boolean, "isPaused")
 WHERE
-    "id" = $7::uuid
+    "id" = $5::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkerParams struct {
 	DispatcherId    *uuid.UUID       `json:"dispatcherId"`
-	MaxRuns         pgtype.Int4      `json:"maxRuns"`
-	DurableMaxRuns  pgtype.Int4      `json:"durableMaxRuns"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	IsActive        pgtype.Bool      `json:"isActive"`
 	IsPaused        pgtype.Bool      `json:"isPaused"`
@@ -1090,8 +1081,6 @@ type UpdateWorkerParams struct {
 func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerParams) (*Worker, error) {
 	row := db.QueryRow(ctx, updateWorker,
 		arg.DispatcherId,
-		arg.MaxRuns,
-		arg.DurableMaxRuns,
 		arg.LastHeartbeatAt,
 		arg.IsActive,
 		arg.IsPaused,

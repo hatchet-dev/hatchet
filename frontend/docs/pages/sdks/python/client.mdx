@@ -73,14 +73,14 @@ Create a Hatchet worker on which to run workflows.
 
 Parameters:
 
-| Name            | Type                              | Description                                                                                                                                                | Default           |
-| --------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `name`          | `str`                             | The name of the worker.                                                                                                                                    | _required_        |
-| `slots`         | `int`                             | Maximum number of concurrent runs.                                                                                                                         | `100`             |
-| `durable_slots` | `int`                             | Maximum number of concurrent durable tasks.                                                                                                                | `1000`            |
-| `labels`        | `dict[str, str \| int] \| None`   | A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.                                             | `None`            |
-| `workflows`     | `list[BaseWorkflow[Any]] \| None` | A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.              | `None`            |
-| `lifespan`      | `LifespanFn \| None`              | A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks. | `None`            |
+| Name            | Type                              | Description                                                                                                                                                | Default    |
+| --------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `name`          | `str`                             | The name of the worker.                                                                                                                                    | _required_ |
+| `slots`         | `int`                             | Maximum number of concurrent runs.                                                                                                                         | `100`      |
+| `durable_slots` | `int`                             | Maximum number of concurrent durable tasks.                                                                                                                | `1000`     |
+| `labels`        | `dict[str, str \| int] \| None`   | A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.                                             | `None`     |
+| `workflows`     | `list[BaseWorkflow[Any]] \| None` | A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.              | `None`     |
+| `lifespan`      | `LifespanFn \| None`              | A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks. | `None`     |
 
 Returns:
 

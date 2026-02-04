@@ -410,25 +410,6 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Valid:      true,
 	}
 
-	if opts.Slots != nil {
-		createParams.MaxRuns = pgtype.Int4{
-			Int32: int32(*opts.Slots), // nolint: gosec
-			Valid: true,
-		}
-	} else {
-		createParams.MaxRuns = pgtype.Int4{
-			Int32: 100,
-			Valid: true,
-		}
-	}
-
-	if opts.DurableSlots != nil {
-		createParams.DurableMaxRuns = pgtype.Int4{
-			Int32: int32(*opts.DurableSlots), // nolint: gosec
-			Valid: true,
-		}
-	}
-
 	var worker *sqlcv1.Worker
 
 	if opts.RuntimeInfo != nil {
