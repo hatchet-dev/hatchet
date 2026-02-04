@@ -48,7 +48,6 @@ export interface WorkerOpts {
   handleKill?: boolean;
   slots?: number;
   durableSlots?: number;
-  slotConfig?: SlotConfig;
   labels?: WorkerLabels;
   healthPort?: number;
   enableHealthServer?: boolean;

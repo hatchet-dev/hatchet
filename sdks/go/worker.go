@@ -7,14 +7,6 @@ import (
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
-// SlotType represents supported slot types.
-type SlotType string
-
-const (
-	SlotTypeDefault SlotType = "default"
-	SlotTypeDurable SlotType = "durable"
-)
-
 // WorkerOption configures a worker instance.
 type WorkerOption func(*workerConfig)
 
@@ -24,7 +16,6 @@ type workerConfig struct {
 	slotsSet        bool
 	durableSlots    int
 	durableSlotsSet bool
-	slotConfig      map[SlotType]int
 	labels          map[string]any
 	logger          *zerolog.Logger
 	panicHandler    func(ctx Context, recovered any)
@@ -73,12 +64,6 @@ func WithDurableSlots(durableSlots int) WorkerOption {
 	return func(config *workerConfig) {
 		config.durableSlots = durableSlots
 		config.durableSlotsSet = true
-	}
-}
-
-func WithSlotConfig(slotConfig map[SlotType]int) WorkerOption {
-	return func(config *workerConfig) {
-		config.slotConfig = slotConfig
 	}
 }
 

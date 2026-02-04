@@ -61,15 +61,6 @@ export class Worker {
     name: string,
     options: CreateWorkerOpts
   ) {
-    const hasSlotConfig = options.slotConfig !== undefined;
-    const hasLegacySlots =
-      options.slots !== undefined ||
-      options.durableSlots !== undefined ||
-      options.maxRuns !== undefined;
-    if (hasSlotConfig && hasLegacySlots) {
-      throw new Error('Cannot set both slotConfig and slots/durableSlots. Use slotConfig only.');
-    }
-
     const resolvedOptions = resolveWorkerOptions(options);
     const opts = {
       name,
@@ -181,4 +172,4 @@ export class Worker {
   }
 }
 
-export { __testing } from './slot-utils';
+export { testingExports as __testing } from './slot-utils';

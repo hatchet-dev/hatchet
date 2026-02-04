@@ -20,13 +20,13 @@ func TestResolveWorkerSlotConfig_NoDurable(t *testing.T) {
 		},
 	}
 
-	resolved := resolveWorkerSlotConfig(map[SlotType]int{}, dumps)
+	resolved := resolveWorkerSlotConfig(map[slotType]int{}, dumps)
 
-	if resolved[SlotTypeDefault] != 100 {
-		t.Fatalf("expected default slots to be 100, got %d", resolved[SlotTypeDefault])
+	if resolved[slotTypeDefault] != 100 {
+		t.Fatalf("expected default slots to be 100, got %d", resolved[slotTypeDefault])
 	}
-	if _, ok := resolved[SlotTypeDurable]; ok {
-		t.Fatalf("expected durable slots to be unset, got %d", resolved[SlotTypeDurable])
+	if _, ok := resolved[slotTypeDurable]; ok {
+		t.Fatalf("expected durable slots to be unset, got %d", resolved[slotTypeDurable])
 	}
 }
 
@@ -44,13 +44,13 @@ func TestResolveWorkerSlotConfig_OnlyDurable(t *testing.T) {
 		},
 	}
 
-	resolved := resolveWorkerSlotConfig(map[SlotType]int{}, dumps)
+	resolved := resolveWorkerSlotConfig(map[slotType]int{}, dumps)
 
-	if resolved[SlotTypeDurable] != 1000 {
-		t.Fatalf("expected durable slots to be 1000, got %d", resolved[SlotTypeDurable])
+	if resolved[slotTypeDurable] != 1000 {
+		t.Fatalf("expected durable slots to be 1000, got %d", resolved[slotTypeDurable])
 	}
-	if _, ok := resolved[SlotTypeDefault]; ok {
-		t.Fatalf("expected default slots to be unset, got %d", resolved[SlotTypeDefault])
+	if _, ok := resolved[slotTypeDefault]; ok {
+		t.Fatalf("expected default slots to be unset, got %d", resolved[slotTypeDefault])
 	}
 }
 
@@ -72,12 +72,12 @@ func TestResolveWorkerSlotConfig_Mixed(t *testing.T) {
 		},
 	}
 
-	resolved := resolveWorkerSlotConfig(map[SlotType]int{}, dumps)
+	resolved := resolveWorkerSlotConfig(map[slotType]int{}, dumps)
 
-	if resolved[SlotTypeDefault] != 100 {
-		t.Fatalf("expected default slots to be 100, got %d", resolved[SlotTypeDefault])
+	if resolved[slotTypeDefault] != 100 {
+		t.Fatalf("expected default slots to be 100, got %d", resolved[slotTypeDefault])
 	}
-	if resolved[SlotTypeDurable] != 1000 {
-		t.Fatalf("expected durable slots to be 1000, got %d", resolved[SlotTypeDurable])
+	if resolved[slotTypeDurable] != 1000 {
+		t.Fatalf("expected durable slots to be 1000, got %d", resolved[slotTypeDurable])
 	}
 }

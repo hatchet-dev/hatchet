@@ -6,8 +6,6 @@ const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
 export interface WorkerSlotOptions {
-  /** (optional) Slot config for this worker (slot_type -> units). Defaults to { [SlotType.Default]: 100 }. */
-  slotConfig?: SlotConfig;
   /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
   slots?: number;
   /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
@@ -30,15 +28,14 @@ export function resolveWorkerOptions<T extends WorkerSlotOptions>(
     : new Set<SlotType>();
 
   const slotConfig: SlotConfig =
-    options.slotConfig ||
-    (options.slots || options.durableSlots || options.maxRuns
+    options.slots || options.durableSlots || options.maxRuns
       ? {
           ...(options.slots || options.maxRuns
             ? { [SlotType.Default]: options.slots || options.maxRuns || 0 }
             : {}),
           ...(options.durableSlots ? { [SlotType.Durable]: options.durableSlots } : {}),
         }
-      : {});
+      : {};
 
   if (requiredSlotTypes.has(SlotType.Default) && slotConfig[SlotType.Default] == null) {
     slotConfig[SlotType.Default] = DEFAULT_DEFAULT_SLOTS;

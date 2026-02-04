@@ -1,8 +1,8 @@
-import { __testing } from '@hatchet/v1/client/worker/slot-utils';
+import { testingExports } from '@hatchet/v1/client/worker/slot-utils';
 import { WorkflowDeclaration } from '../../declaration';
 import { SlotType } from '../../slot-types';
 
-const { resolveWorkerOptions } = __testing;
+const { resolveWorkerOptions } = testingExports;
 
 describe('resolveWorkerOptions slot config', () => {
   it('sets default slots for non-durable tasks', () => {
