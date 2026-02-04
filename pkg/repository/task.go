@@ -273,9 +273,9 @@ type TaskRepository interface {
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error)
 
-	GetDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLog, error)
+	GetDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLog, error)
 
-	CreateDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error)
+	CreateDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -4182,9 +4182,9 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) GetDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLog, error) {
+func (r *TaskRepositoryImpl) GetDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLog, error) {
 	res, err := r.queries.GetDurableEventLog(ctx, r.pool, sqlcv1.GetDurableEventLogParams{
-		TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+		TenantID:       tenantId,
 		TaskID:         taskId,
 		TaskInsertedAt: taskInsertedAt,
 		Key:            key,
@@ -4198,7 +4198,7 @@ func (r *TaskRepositoryImpl) GetDurableEventLog(ctx context.Context, tenantId st
 		Id:         res.ID.Int64,
 		InsertedAt: res.CreatedAt,
 		Type:       sqlcv1.V1PayloadTypeMEMOOUTPUT,
-		TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		TenantId:   tenantId,
 	}
 
 	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpt)
@@ -4214,9 +4214,9 @@ func (r *TaskRepositoryImpl) GetDurableEventLog(ctx context.Context, tenantId st
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) CreateDurableEventLog(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error) {
+func (r *TaskRepositoryImpl) CreateDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error) {
 	res, err := r.queries.CreateDurableEventLog(ctx, r.pool, sqlcv1.CreateDurableEventLogParams{
-		TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+		TenantID:       tenantId,
 		TaskID:         taskId,
 		TaskInsertedAt: taskInsertedAt,
 		EventType:      eventType,

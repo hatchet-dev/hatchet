@@ -3017,8 +3017,8 @@ type V1DagsOlap struct {
 
 type V1DurableEventLog struct {
 	ID             pgtype.Int8        `json:"id"`
-	TenantID       pgtype.UUID        `json:"tenant_id"`
-	ExternalID     pgtype.UUID        `json:"external_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	ExternalID     uuid.UUID          `json:"external_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	EventType      string             `json:"event_type"`

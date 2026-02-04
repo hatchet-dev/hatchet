@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -32,7 +33,7 @@ RETURNING id, tenant_id, external_id, task_id, task_inserted_at, event_type, key
 `
 
 type CreateDurableEventLogParams struct {
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	EventType      string             `json:"event_type"`
@@ -76,7 +77,7 @@ LIMIT 1
 `
 
 type GetDurableEventLogParams struct {
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	Key            string             `json:"key"`
