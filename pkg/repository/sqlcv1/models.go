@@ -1569,11 +1569,12 @@ func (ns NullV1PayloadLocationOlap) Value() (driver.Value, error) {
 type V1PayloadType string
 
 const (
-	V1PayloadTypeTASKINPUT      V1PayloadType = "TASK_INPUT"
-	V1PayloadTypeDAGINPUT       V1PayloadType = "DAG_INPUT"
-	V1PayloadTypeTASKOUTPUT     V1PayloadType = "TASK_OUTPUT"
-	V1PayloadTypeTASKEVENTDATA  V1PayloadType = "TASK_EVENT_DATA"
-	V1PayloadTypeUSEREVENTINPUT V1PayloadType = "USER_EVENT_INPUT"
+	V1PayloadTypeTASKINPUT                V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT                 V1PayloadType = "DAG_INPUT"
+	V1PayloadTypeTASKOUTPUT               V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKEVENTDATA            V1PayloadType = "TASK_EVENT_DATA"
+	V1PayloadTypeUSEREVENTINPUT           V1PayloadType = "USER_EVENT_INPUT"
+	V1PayloadTypeDURABLEEVENTLOGENTRYDATA V1PayloadType = "DURABLE_EVENT_LOG_ENTRY_DATA"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {

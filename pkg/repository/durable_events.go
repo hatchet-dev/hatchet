@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -19,6 +21,7 @@ type CreateEventLogFileOpts struct {
 }
 
 type CreateEventLogEntryOpts struct {
+	TenantId              uuid.UUID
 	ExternalId            uuid.UUID
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
@@ -27,8 +30,7 @@ type CreateEventLogEntryOpts struct {
 	NodeId                int64
 	ParentNodeId          int64
 	BranchId              int64
-	DataHash              []byte
-	DataHashAlg           string
+	Data                  []byte
 }
 
 type CreateEventLogCallbackOpts struct {
@@ -66,6 +68,13 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 }
 
 func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts []CreateEventLogFileOpts) ([]*sqlcv1.V1DurableEventLogFile, error) {
+	// note: might need to pass a tx in here instead
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
 	durableTaskIds := make([]int64, len(opts))
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	latestInsertedAts := make([]pgtype.Timestamptz, len(opts))
@@ -82,7 +91,7 @@ func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts 
 		latestBranchFirstParentNodeIds[i] = opt.LatestBranchFirstParentNodeId
 	}
 
-	return r.queries.CreateDurableEventLogFile(ctx, r.pool, sqlcv1.CreateDurableEventLogFileParams{
+	files, err := r.queries.CreateDurableEventLogFile(ctx, tx, sqlcv1.CreateDurableEventLogFileParams{
 		Durabletaskids:                 durableTaskIds,
 		Durabletaskinsertedats:         durableTaskInsertedAts,
 		Latestinsertedats:              latestInsertedAts,
@@ -90,6 +99,15 @@ func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts 
 		Latestbranchids:                latestBranchIds,
 		Latestbranchfirstparentnodeids: latestBranchFirstParentNodeIds,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 func (r *durableEventsRepository) GetEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
@@ -100,6 +118,13 @@ func (r *durableEventsRepository) GetEventLogFileForTask(ctx context.Context, du
 }
 
 func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.V1DurableEventLogEntry, error) {
+	// note: might need to pass a tx in here instead
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
 	externalIds := make([]uuid.UUID, len(opts))
 	durableTaskIds := make([]int64, len(opts))
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, len(opts))
@@ -111,6 +136,8 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 	dataHashes := make([][]byte, len(opts))
 	dataHashAlgs := make([]string, len(opts))
 
+	payloadOpts := make([]StorePayloadOpts, 0, len(opts))
+
 	for i, opt := range opts {
 		externalIds[i] = opt.ExternalId
 		durableTaskIds[i] = opt.DurableTaskId
@@ -120,11 +147,24 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 		nodeIds[i] = opt.NodeId
 		parentNodeIds[i] = opt.ParentNodeId
 		branchIds[i] = opt.BranchId
-		dataHashes[i] = opt.DataHash
-		dataHashAlgs[i] = opt.DataHashAlg
+
+		if len(opt.Data) > 0 {
+			hash := sha256.Sum256(opt.Data)
+			dataHashes[i] = hash[:]
+			dataHashAlgs[i] = "sha256"
+
+			payloadOpts = append(payloadOpts, StorePayloadOpts{
+				Id:         opt.DurableTaskId,
+				InsertedAt: opt.DurableTaskInsertedAt,
+				ExternalId: opt.ExternalId,
+				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+				Payload:    opt.Data,
+				TenantId:   opt.TenantId,
+			})
+		}
 	}
 
-	return r.queries.CreateDurableEventLogEntries(ctx, r.pool, sqlcv1.CreateDurableEventLogEntriesParams{
+	entries, err := r.queries.CreateDurableEventLogEntries(ctx, tx, sqlcv1.CreateDurableEventLogEntriesParams{
 		Externalids:            externalIds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
@@ -136,6 +176,22 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 		Datahashes:             dataHashes,
 		Datahashalgs:           dataHashAlgs,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(payloadOpts) > 0 {
+		err = r.payloadStore.Store(ctx, tx, payloadOpts...)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return entries, nil
 }
 
 func (r *durableEventsRepository) GetEventLogEntry(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*sqlcv1.V1DurableEventLogEntry, error) {
@@ -154,6 +210,13 @@ func (r *durableEventsRepository) ListEventLogEntries(ctx context.Context, durab
 }
 
 func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, opts []CreateEventLogCallbackOpts) ([]*sqlcv1.V1DurableEventLogCallback, error) {
+	// note: might need to pass a tx in here instead
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
 	durableTaskIds := make([]int64, len(opts))
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	insertedAts := make([]pgtype.Timestamptz, len(opts))
@@ -172,7 +235,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		isSatisfieds[i] = opt.IsSatisfied
 	}
 
-	return r.queries.CreateDurableEventLogCallbacks(ctx, r.pool, sqlcv1.CreateDurableEventLogCallbacksParams{
+	callbacks, err := r.queries.CreateDurableEventLogCallbacks(ctx, tx, sqlcv1.CreateDurableEventLogCallbacksParams{
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
 		Insertedats:            insertedAts,
@@ -181,6 +244,15 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		Nodeids:                nodeIds,
 		Issatisfieds:           isSatisfieds,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return callbacks, nil
 }
 
 func (r *durableEventsRepository) GetEventLogCallback(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLogCallback, error) {
@@ -199,10 +271,26 @@ func (r *durableEventsRepository) ListEventLogCallbacks(ctx context.Context, dur
 }
 
 func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool) (*sqlcv1.V1DurableEventLogCallback, error) {
-	return r.queries.UpdateDurableEventLogCallbackSatisfied(ctx, r.pool, sqlcv1.UpdateDurableEventLogCallbackSatisfiedParams{
+	// note: might need to pass a tx in here instead
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
+	callback, err := r.queries.UpdateDurableEventLogCallbackSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbackSatisfiedParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Key:                   key,
 		Issatisfied:           isSatisfied,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return callback, nil
 }
