@@ -239,6 +239,45 @@ func TestScheduler_SetWorkers_GetWorkers(t *testing.T) {
 	require.Equal(t, w2.ID, got[w2.ID].ID)
 }
 
+func TestScheduler_EnsureAction_TriggersImmediateReplenish(t *testing.T) {
+	tenantId := uuid.New()
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			// No workers required to validate the wakeup behavior.
+			return nil, nil
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+
+	replenishStarted := make(chan struct{})
+
+	testHookBeforeReplenishUnackedLock = func() {
+		select {
+		case <-replenishStarted:
+			// already closed
+		default:
+			close(replenishStarted)
+		}
+	}
+	defer func() { testHookBeforeReplenishUnackedLock = nil }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.loopReplenish(ctx)
+
+	// Creating a new action should wake loopReplenish without waiting for the 1s ticker.
+	s.ensureAction("A")
+
+	select {
+	case <-replenishStarted:
+		// ok
+	case <-time.After(300 * time.Millisecond):
+		t.Fatalf("timed out waiting for replenish after observing a new action")
+	}
+}
+
 func TestScheduleRateLimitResult_ShouldRemoveFromQueue(t *testing.T) {
 	// nil underlying result -> false
 	r := &scheduleRateLimitResult{}

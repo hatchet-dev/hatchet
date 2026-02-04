@@ -29,6 +29,8 @@ type Scheduler struct {
 	actions     map[string]*action
 	actionsMu   rwMutex
 	replenishMu mutex
+	// replenishSignal is poked to trigger an immediate replenish. It's buffered to drain signal bursts while we're already awake.
+	replenishSignal chan struct{}
 
 	workersMu mutex
 	workers   map[uuid.UUID]*worker
@@ -57,6 +59,7 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 		rl:              rl,
 		actionsMu:       newRWMu(cf.l),
 		replenishMu:     newMu(cf.l),
+		replenishSignal: make(chan struct{}, 1),
 		workersMu:       newMu(cf.l),
 		assignedCountMu: newMu(cf.l),
 		unackedMu:       newMu(cf.l),
@@ -164,6 +167,12 @@ func (s *Scheduler) ensureAction(actionId string) *action {
 	}
 
 	s.actions[actionId] = newAction
+
+	// Signal the replenisher so this new action gets slots ASAP.
+	select {
+	case s.replenishSignal <- struct{}{}:
+	default:
+	}
 
 	return newAction
 }
@@ -537,14 +546,25 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			err := s.replenish(innerCtx, true)
-
-			if err != nil {
-				s.l.Error().Err(err).Msg("error replenishing slots")
+		case <-s.replenishSignal:
+			// drain signal bursts while we're already awake.
+			for {
+				select {
+				case <-s.replenishSignal:
+					continue
+				default:
+				}
+				break
 			}
-			cancel()
 		}
+
+		innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err := s.replenish(innerCtx, true)
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("error replenishing slots")
+		}
+		cancel()
 	}
 }
 
