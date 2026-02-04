@@ -70,9 +70,7 @@ func (s *Scheduler) ack(ids []int) {
 
 	for _, id := range ids {
 		if assigned, ok := s.unackedSlots[id]; ok {
-			for _, slot := range assigned.slots {
-				slot.ack()
-			}
+			assigned.ack()
 			delete(s.unackedSlots, id)
 		}
 	}
@@ -84,16 +82,16 @@ func (s *Scheduler) nack(ids []int) {
 
 	for _, id := range ids {
 		if assigned, ok := s.unackedSlots[id]; ok {
-			for _, slot := range assigned.slots {
-				slot.nack()
-			}
+			assigned.nack()
 			delete(s.unackedSlots, id)
 		}
 	}
 }
 
 type assignedSlots struct {
-	slots []*slot
+	slots         []*slot
+	rateLimitAck  func()
+	rateLimitNack func()
 }
 
 func (a *assignedSlots) workerId() uuid.UUID {
@@ -102,6 +100,24 @@ func (a *assignedSlots) workerId() uuid.UUID {
 	}
 
 	return a.slots[0].getWorkerId()
+}
+
+func (a *assignedSlots) ack() {
+	for _, slot := range a.slots {
+		slot.ack()
+	}
+	if a.rateLimitAck != nil {
+		a.rateLimitAck()
+	}
+}
+
+func (a *assignedSlots) nack() {
+	for _, slot := range a.slots {
+		slot.nack()
+	}
+	if a.rateLimitNack != nil {
+		a.rateLimitNack()
+	}
 }
 
 func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
@@ -710,9 +726,6 @@ func findAssignableSlots(
 	rateLimitAck func(),
 	rateLimitNack func(),
 ) *assignedSlots {
-	ackOnce := onceFn(rateLimitAck)
-	nackOnce := onceFn(rateLimitNack)
-
 	for _, candidateSlot := range candidateSlots {
 		if !candidateSlot.active() {
 			continue
@@ -733,7 +746,7 @@ func findAssignableSlots(
 		success := true
 
 		for _, selectedSlot := range selected {
-			if !selectedSlot.use([]func(){ackOnce}, []func(){nackOnce}) {
+			if !selectedSlot.use(nil, nil) {
 				success = false
 				break
 			}
@@ -741,13 +754,21 @@ func findAssignableSlots(
 		}
 
 		if !success {
+			// Release partially allocated slots
 			for _, usedSlot := range usedSlots {
 				usedSlot.nack()
 			}
 			continue
 		}
 
-		return &assignedSlots{slots: usedSlots}
+		// Rate limit callbacks are stored at assignedSlots level,
+		// not on individual slots. They're called once when the
+		// entire assignment is acked/nacked.
+		return &assignedSlots{
+			slots:         usedSlots,
+			rateLimitAck:  rateLimitAck,
+			rateLimitNack: rateLimitNack,
+		}
 	}
 
 	return nil
@@ -791,7 +812,7 @@ func selectSlotsForWorker(workerSlots map[string][]*slot, requests map[string]in
 
 func normalizeSlotRequests(requests map[string]int32) map[string]int32 {
 	if len(requests) == 0 {
-		return map[string]int32{"default": 1}
+		return map[string]int32{v1.SlotTypeDefault: 1}
 	}
 
 	normalized := make(map[string]int32, len(requests))
@@ -803,7 +824,7 @@ func normalizeSlotRequests(requests map[string]int32) map[string]int32 {
 	}
 
 	if len(normalized) == 0 {
-		return map[string]int32{"default": 1}
+		return map[string]int32{v1.SlotTypeDefault: 1}
 	}
 
 	return normalized
