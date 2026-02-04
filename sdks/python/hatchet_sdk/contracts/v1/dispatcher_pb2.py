@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from hatchet_sdk.contracts.v1.shared import condition_pb2 as v1_dot_shared_dot_condition__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13v1/dispatcher.proto\x12\x02v1\x1a\x19v1/shared/condition.proto\"z\n\x1bRegisterDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x36\n\nconditions\x18\x03 \x01(\x0b\x32\".v1.DurableEventListenerConditions\"\x1e\n\x1cRegisterDurableEventResponse\"C\n\x1cListenForDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\"A\n\x0c\x44urableEvent\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\x32\xbe\x01\n\x0cV1Dispatcher\x12[\n\x14RegisterDurableEvent\x12\x1f.v1.RegisterDurableEventRequest\x1a .v1.RegisterDurableEventResponse\"\x00\x12Q\n\x15ListenForDurableEvent\x12 .v1.ListenForDurableEventRequest\x1a\x10.v1.DurableEvent\"\x00(\x01\x30\x01\x42\x42Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13v1/dispatcher.proto\x12\x02v1\x1a\x19v1/shared/condition.proto\"z\n\x1bRegisterDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x36\n\nconditions\x18\x03 \x01(\x0b\x32\".v1.DurableEventListenerConditions\"\x1e\n\x1cRegisterDurableEventResponse\"C\n\x1cListenForDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\"A\n\x0c\x44urableEvent\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"=\n\x19GetDurableEventLogRequest\x12\x13\n\x0b\x65xternal_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\"9\n\x1aGetDurableEventLogResponse\x12\r\n\x05\x66ound\x18\x01 \x01(\x08\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\"N\n\x1c\x43reateDurableEventLogRequest\x12\x13\n\x0b\x65xternal_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"\x1f\n\x1d\x43reateDurableEventLogResponse2\xf5\x02\n\x0cV1Dispatcher\x12[\n\x14RegisterDurableEvent\x12\x1f.v1.RegisterDurableEventRequest\x1a .v1.RegisterDurableEventResponse\"\x00\x12Q\n\x15ListenForDurableEvent\x12 .v1.ListenForDurableEventRequest\x1a\x10.v1.DurableEvent\"\x00(\x01\x30\x01\x12U\n\x12GetDurableEventLog\x12\x1d.v1.GetDurableEventLogRequest\x1a\x1e.v1.GetDurableEventLogResponse\"\x00\x12^\n\x15\x43reateDurableEventLog\x12 .v1.CreateDurableEventLogRequest\x1a!.v1.CreateDurableEventLogResponse\"\x00\x42\x42Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -41,6 +41,14 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_LISTENFORDURABLEEVENTREQUEST']._serialized_end=277
   _globals['_DURABLEEVENT']._serialized_start=279
   _globals['_DURABLEEVENT']._serialized_end=344
-  _globals['_V1DISPATCHER']._serialized_start=347
-  _globals['_V1DISPATCHER']._serialized_end=537
+  _globals['_GETDURABLEEVENTLOGREQUEST']._serialized_start=346
+  _globals['_GETDURABLEEVENTLOGREQUEST']._serialized_end=407
+  _globals['_GETDURABLEEVENTLOGRESPONSE']._serialized_start=409
+  _globals['_GETDURABLEEVENTLOGRESPONSE']._serialized_end=466
+  _globals['_CREATEDURABLEEVENTLOGREQUEST']._serialized_start=468
+  _globals['_CREATEDURABLEEVENTLOGREQUEST']._serialized_end=546
+  _globals['_CREATEDURABLEEVENTLOGRESPONSE']._serialized_start=548
+  _globals['_CREATEDURABLEEVENTLOGRESPONSE']._serialized_end=579
+  _globals['_V1DISPATCHER']._serialized_start=582
+  _globals['_V1DISPATCHER']._serialized_end=955
 # @@protoc_insertion_point(module_scope)

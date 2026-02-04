@@ -1,5 +1,6 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable max-classes-per-file */
+import { createHash } from 'crypto';
 import {
   Priority,
   RunOpts,
@@ -752,4 +753,38 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
     return res.CREATE;
   }
+
+  async memo<R>(fn: () => Promise<R>, deps: any[]): Promise<R> {
+    const key = computeMemoKey(this.action.stepName, deps);
+
+    const resp = await this.v1._v0.durableListener.getDurableEventLog({
+      externalId: this.action.workflowRunId,
+      key,
+    });
+
+    if (resp.found) {
+      const data =
+        resp.data instanceof Uint8Array ? new TextDecoder().decode(resp.data) : resp.data;
+      return JSON.parse(data) as R;
+    }
+
+    const result = await fn();
+
+    const data = new TextEncoder().encode(JSON.stringify(result));
+
+    await this.v1._v0.durableListener.createDurableEventLog({
+      externalId: this.action.workflowRunId,
+      key,
+      data,
+    });
+
+    return result;
+  }
+}
+
+function computeMemoKey(stepName: string, deps: any[]): string {
+  const h = createHash('sha256');
+  h.update(stepName);
+  h.update(JSON.stringify(deps));
+  return h.digest('hex');
 }

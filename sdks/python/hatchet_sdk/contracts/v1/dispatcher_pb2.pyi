@@ -37,3 +37,33 @@ class DurableEvent(_message.Message):
     signal_key: str
     data: bytes
     def __init__(self, task_id: _Optional[str] = ..., signal_key: _Optional[str] = ..., data: _Optional[bytes] = ...) -> None: ...
+
+class GetDurableEventLogRequest(_message.Message):
+    __slots__ = ("external_id", "key")
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    key: str
+    def __init__(self, external_id: _Optional[str] = ..., key: _Optional[str] = ...) -> None: ...
+
+class GetDurableEventLogResponse(_message.Message):
+    __slots__ = ("found", "data")
+    FOUND_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    found: bool
+    data: bytes
+    def __init__(self, found: bool = ..., data: _Optional[bytes] = ...) -> None: ...
+
+class CreateDurableEventLogRequest(_message.Message):
+    __slots__ = ("external_id", "key", "data")
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    key: str
+    data: bytes
+    def __init__(self, external_id: _Optional[str] = ..., key: _Optional[str] = ..., data: _Optional[bytes] = ...) -> None: ...
+
+class CreateDurableEventLogResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
