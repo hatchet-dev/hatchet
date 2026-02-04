@@ -98,6 +98,10 @@ type assignedSlots struct {
 // branches deterministic in unit tests. It is nil in production.
 var testHookBeforeUsingSelectedSlots func(selected []*slot)
 
+// testHookBeforeReplenishUnackedLock exists to make lock-order assertions
+// deterministic in unit tests. It is nil in production.
+var testHookBeforeReplenishUnackedLock func()
+
 func (a *assignedSlots) workerId() uuid.UUID {
 	if len(a.slots) == 0 {
 		return uuid.Nil
@@ -320,6 +324,10 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	orderedLock(actionsToReplenish)
 	unlock := orderedUnlock(actionsToReplenish)
 	defer unlock()
+
+	if testHookBeforeReplenishUnackedLock != nil {
+		testHookBeforeReplenishUnackedLock()
+	}
 
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
