@@ -770,9 +770,9 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		slotRequests := stepOpts.SlotRequests
 		if len(slotRequests) == 0 {
 			if stepOpts.IsDurable {
-				slotRequests = map[string]int32{"durable": 1}
+				slotRequests = map[string]int32{SlotTypeDurable: 1}
 			} else {
-				slotRequests = map[string]int32{"default": 1}
+				slotRequests = map[string]int32{SlotTypeDefault: 1}
 			}
 		}
 
@@ -787,7 +787,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 
 		if len(slotTypes) == 0 {
-			slotTypes = append(slotTypes, "default")
+			slotTypes = append(slotTypes, SlotTypeDefault)
 			units = append(units, 1)
 		}
 
