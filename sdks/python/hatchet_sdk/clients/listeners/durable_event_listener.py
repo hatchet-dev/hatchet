@@ -143,9 +143,7 @@ class DurableEventListener(
             metadata=get_metadata(self.token),
         )
 
-    def create_durable_event_log(
-        self, external_id: str, key: str, data: bytes
-    ) -> None:
+    def create_durable_event_log(self, external_id: str, key: str, data: bytes) -> None:
         conn = new_conn(self.config, True)
         client = V1DispatcherStub(conn)
 
