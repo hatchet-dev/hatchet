@@ -22,6 +22,48 @@ When a task is canceled, Hatchet sends a cancellation signal to the task. The ta
 
     />
 
+### CancelledError Exception
+
+When a sync task is cancelled while waiting for a child workflow or during a cancellation-aware operation, a `CancelledError` exception is raised.
+
+<Callout type="warning">
+  **Important:** `CancelledError` inherits from `BaseException`, not
+  `Exception`. This means it will **not** be caught by bare `except Exception:`
+  handlers. This is intentional and mirrors the behavior of Python's
+  `asyncio.CancelledError`.
+</Callout>
+
+```python
+from hatchet_sdk import CancelledError, CancellationReason
+
+@hatchet.task()
+def my_task(input: MyInput, ctx: Context) -> dict:
+    try:
+        result = child_workflow.run(input)
+    except CancelledError as e:
+        # Handle cancellation - i.e. perform cleanup, then re-raise
+        print(f"Task cancelled: {e.reason}")
+        # Always re-raise CancelledError so Hatchet can properly handle the cancellation
+        raise
+    except Exception as e:
+        # This will NOT catch CancelledError
+        print(f"Other error: {e}")
+        raise
+    return result
+```
+
+### Cancellation Reasons
+
+The `CancelledError` includes a `reason` attribute that indicates why the cancellation occurred:
+
+| Reason                                  | Description                                                           |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| `CancellationReason.USER_REQUESTED`     | The user explicitly requested cancellation via `ctx.cancel()`         |
+| `CancellationReason.WORKFLOW_CANCELLED` | The workflow run was cancelled (e.g., via API or concurrency control) |
+| `CancellationReason.PARENT_CANCELLED`   | The parent workflow was cancelled while waiting for a child           |
+| `CancellationReason.TIMEOUT`            | The operation timed out                                               |
+| `CancellationReason.UNKNOWN`            | Unknown or unspecified reason                                         |
+
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
     <Snippet
