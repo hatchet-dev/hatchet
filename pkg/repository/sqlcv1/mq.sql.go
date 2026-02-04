@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -231,11 +232,11 @@ RETURNING name, "lastActive", durable, "autoDeleted", exclusive, "exclusiveConsu
 `
 
 type UpsertMessageQueueParams struct {
-	Name                string      `json:"name"`
-	Durable             bool        `json:"durable"`
-	Autodeleted         bool        `json:"autodeleted"`
-	Exclusive           bool        `json:"exclusive"`
-	ExclusiveConsumerId pgtype.UUID `json:"exclusiveConsumerId"`
+	Name                string     `json:"name"`
+	Durable             bool       `json:"durable"`
+	Autodeleted         bool       `json:"autodeleted"`
+	Exclusive           bool       `json:"exclusive"`
+	ExclusiveConsumerId *uuid.UUID `json:"exclusiveConsumerId"`
 }
 
 func (q *Queries) UpsertMessageQueue(ctx context.Context, db DBTX, arg UpsertMessageQueueParams) (*MessageQueue, error) {

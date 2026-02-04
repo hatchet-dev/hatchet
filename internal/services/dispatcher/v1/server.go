@@ -16,20 +16,20 @@ import (
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
+	taskId, err := uuid.Parse(req.TaskId)
 
-	if _, err := uuid.Parse(req.TaskId); err != nil {
+	if err != nil {
 		d.l.Error().Msgf("task id %s is not a valid uuid", req.TaskId)
 		return nil, status.Error(codes.InvalidArgument, "task id is not a valid uuid")
 	}
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.TaskId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskId, false)
 
 	if err != nil {
 		return nil, err
@@ -38,19 +38,33 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
 	for _, condition := range req.Conditions.SleepConditions {
+		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+
+		if err != nil {
+			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+		}
+
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 			Kind:            v1.CreateExternalSignalConditionKindSLEEP,
 			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       condition.Base.OrGroupId,
+			OrGroupId:       orGroupId,
 			SleepFor:        &condition.SleepFor,
 		})
 	}
 
 	for _, condition := range req.Conditions.UserEventConditions {
+		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+
+		if err != nil {
+			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+		}
+
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 			Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
 			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       condition.Base.OrGroupId,
+			OrGroupId:       orGroupId,
 			UserEventKey:    &condition.UserEventKey,
 			Expression:      condition.Base.Expression,
 		})
@@ -62,7 +76,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		Conditions:           createConditionOpts,
 		SignalTaskId:         task.ID,
 		SignalTaskInsertedAt: task.InsertedAt,
-		SignalExternalId:     sqlchelpers.UUIDToStr(task.ExternalID),
+		SignalExternalId:     task.ExternalID,
 		SignalKey:            req.SignalKey,
 	})
 
@@ -78,11 +92,11 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 // map of durable signals to whether the durable signals are finished and have sent a message
 // that the signal is finished
 type durableEventAcks struct {
-	acks map[v1.TaskIdInsertedAtSignalKey]string
+	acks map[v1.TaskIdInsertedAtSignalKey]uuid.UUID
 	mu   sync.RWMutex
 }
 
-func (w *durableEventAcks) addEvent(taskExternalId string, taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) {
+func (w *durableEventAcks) addEvent(taskExternalId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -100,7 +114,7 @@ func (w *durableEventAcks) getNonAckdEvents() []v1.TaskIdInsertedAtSignalKey {
 	ids := make([]v1.TaskIdInsertedAtSignalKey, 0, len(w.acks))
 
 	for id := range w.acks {
-		if w.acks[id] != "" {
+		if w.acks[id] != uuid.Nil {
 			ids = append(ids, id)
 		}
 	}
@@ -108,7 +122,7 @@ func (w *durableEventAcks) getNonAckdEvents() []v1.TaskIdInsertedAtSignalKey {
 	return ids
 }
 
-func (w *durableEventAcks) getExternalId(taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) string {
+func (w *durableEventAcks) getExternalId(taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) uuid.UUID {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -138,10 +152,10 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 
 func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatcher_ListenForDurableEventServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	acks := &durableEventAcks{
-		acks: make(map[v1.TaskIdInsertedAtSignalKey]string),
+		acks: make(map[v1.TaskIdInsertedAtSignalKey]uuid.UUID),
 	}
 
 	ctx, cancel := context.WithCancel(server.Context())
@@ -162,7 +176,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 		externalId := acks.getExternalId(e.TaskID, e.TaskInsertedAt, e.EventKey.String)
 
-		if externalId == "" {
+		if externalId == uuid.Nil {
 			d.l.Warn().Msgf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 			return fmt.Errorf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 		}
@@ -170,7 +184,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		// send the task to the client
 		sendMu.Lock()
 		err := server.Send(&contracts.DurableEvent{
-			TaskId:    externalId,
+			TaskId:    externalId.String(),
 			SignalKey: e.EventKey.String,
 			Data:      e.Payload,
 		})
@@ -238,20 +252,22 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				return
 			}
 
-			if _, err = uuid.Parse(req.TaskId); err != nil {
+			taskId, err := uuid.Parse(req.TaskId)
+
+			if err != nil {
 				d.l.Warn().Msgf("task id %s is not a valid uuid", req.TaskId)
 				continue
 			}
 
 			// FIXME: buffer/batch this to make it more efficient
-			task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.TaskId, false)
+			task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskId, false)
 
 			if err != nil {
 				d.l.Error().Err(err).Msg("could not get task by external id")
 				continue
 			}
 
-			acks.addEvent(req.TaskId, task.ID, task.InsertedAt, req.SignalKey)
+			acks.addEvent(taskId, task.ID, task.InsertedAt, req.SignalKey)
 		}
 	}()
 

@@ -19,7 +19,7 @@ on:
 
 jobs:
   test-templates:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 15
 
     steps:

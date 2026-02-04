@@ -6,7 +6,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -25,7 +24,7 @@ func (t *TenantService) AlertEmailGroupUpdate(ctx echo.Context, request gen.Aler
 		Emails: request.Body.Emails,
 	}
 
-	emailGroup, err := t.config.V1.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), sqlchelpers.UUIDToStr(emailGroup.ID), updateOpts)
+	emailGroup, err := t.config.V1.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), emailGroup.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

@@ -57,6 +57,8 @@ class Context:
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
         max_attempts: int,
+        task_name: str,
+        workflow_name: str,
     ):
         self.worker = worker
 
@@ -80,6 +82,8 @@ class Context:
 
         self.stream_index = 0
         self._max_attempts = max_attempts
+        self._workflow_name = workflow_name
+        self._task_name = task_name
 
     def _increment_stream_index(self) -> int:
         index = self.stream_index
@@ -389,6 +393,14 @@ class Context:
 
         return errors
 
+    @property
+    def workflow_name(self) -> str:
+        return self._workflow_name
+
+    @property
+    def task_name(self) -> str:
+        return self._task_name
+
     def fetch_task_run_error(
         self,
         task: "Task[TWorkflowInput, R]",
@@ -443,6 +455,8 @@ class DurableContext(Context):
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
         max_attempts: int,
+        task_name: str,
+        workflow_name: str,
     ):
         super().__init__(
             action,
@@ -455,6 +469,8 @@ class DurableContext(Context):
             lifespan_context,
             log_sender,
             max_attempts,
+            task_name,
+            workflow_name,
         )
 
         self._wait_index = 0

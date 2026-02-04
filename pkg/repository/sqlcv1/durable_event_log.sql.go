@@ -28,7 +28,7 @@ INSERT INTO v1_durable_event_log (
     $6::jsonb
 )
 ON CONFLICT (task_id, task_inserted_at, key) DO NOTHING
-RETURNING id, tenant_id, task_id, task_inserted_at, event_type, key, data, created_at
+RETURNING id, tenant_id, external_id, task_id, task_inserted_at, event_type, key, data, created_at
 `
 
 type CreateDurableEventLogParams struct {
@@ -53,6 +53,7 @@ func (q *Queries) CreateDurableEventLog(ctx context.Context, db DBTX, arg Create
 	err := row.Scan(
 		&i.ID,
 		&i.TenantID,
+		&i.ExternalID,
 		&i.TaskID,
 		&i.TaskInsertedAt,
 		&i.EventType,
@@ -64,7 +65,7 @@ func (q *Queries) CreateDurableEventLog(ctx context.Context, db DBTX, arg Create
 }
 
 const getDurableEventLog = `-- name: GetDurableEventLog :one
-SELECT id, tenant_id, task_id, task_inserted_at, event_type, key, data, created_at
+SELECT id, tenant_id, external_id, task_id, task_inserted_at, event_type, key, data, created_at
 FROM v1_durable_event_log
 WHERE
     tenant_id = $1::uuid
@@ -92,6 +93,7 @@ func (q *Queries) GetDurableEventLog(ctx context.Context, db DBTX, arg GetDurabl
 	err := row.Scan(
 		&i.ID,
 		&i.TenantID,
+		&i.ExternalID,
 		&i.TaskID,
 		&i.TaskInsertedAt,
 		&i.EventType,

@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -20,7 +22,6 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -117,6 +118,8 @@ type Scheduler struct {
 
 	pool *v1.SchedulingPool
 
+	signaler *signal.OLAPSignaler
+
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 }
 
@@ -159,6 +162,8 @@ func New(
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
+
 	q := &Scheduler{
 		mq:                     opts.mq,
 		pubBuffer:              pubBuffer,
@@ -171,6 +176,7 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		signaler:               signaler,
 	}
 
 	return q, nil
@@ -241,7 +247,7 @@ func (s *Scheduler) Start() (func() error, error) {
 				}
 
 				go func(results *v1.QueueResults) {
-					err := s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(results.TenantId), results)
+					err := s.scheduleStepRuns(ctx, results.TenantId, results)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("could not schedule step runs")
@@ -265,7 +271,7 @@ func (s *Scheduler) Start() (func() error, error) {
 					continue
 				}
 
-				go s.notifyAfterConcurrency(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
+				go s.notifyAfterConcurrency(ctx, res.TenantId, res)
 			}
 		}
 	}()
@@ -352,7 +358,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	}
 }
 
-func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *v1.QueueResults) error {
+func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
 
@@ -360,15 +366,15 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]int64)
+		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
 
-		workerIds := make([]string, 0)
+		workerIds := make([]uuid.UUID, 0)
 
 		for _, assigned := range res.Assigned {
-			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
+			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		var dispatcherIdWorkerIds map[string][]string
+		var dispatcherIdWorkerIds map[uuid.UUID][]uuid.UUID
 
 		dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
@@ -378,7 +384,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
 
-		workerIdToDispatcherId := make(map[string]string)
+		workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
 
 		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
 			for _, workerId := range workerIds {
@@ -389,7 +395,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
 		for _, bulkAssigned := range res.Assigned {
-			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
+			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
 			if !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
@@ -400,16 +406,18 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			}
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]int64)
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
 			}
 
-			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
+			workerId := bulkAssigned.WorkerId
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			if !bulkAssigned.IsAssignedLocally {
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			}
 
 			taskId := bulkAssigned.QueueItem.TaskID
 
@@ -510,8 +518,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				tenantId,
 				schedulingTimedOut.TaskID,
 				schedulingTimedOut.TaskInsertedAt,
-				sqlchelpers.UUIDToStr(schedulingTimedOut.ExternalID),
-				sqlchelpers.UUIDToStr(schedulingTimedOut.WorkflowRunID),
+				schedulingTimedOut.ExternalID,
+				schedulingTimedOut.WorkflowRunID,
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
@@ -537,7 +545,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	if len(res.Unassigned) > 0 {
 		for _, unassigned := range res.Unassigned {
-			taskExternalId := sqlchelpers.UUIDToStr(unassigned.ExternalID)
+			taskExternalId := unassigned.ExternalID.String()
 
 			// if we have seen this task recently, don't send it again
 			if _, ok := s.tasksWithNoWorkerCache.Get(taskExternalId); ok {
@@ -580,14 +588,14 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	return outerErr
 }
 
-func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov1.AssignedItem) {
+func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assigned ...*repov1.AssignedItem) {
 	for _, a := range assigned {
 		msg, err := tasktypes.FailedTaskMessage(
 			tenantId,
 			a.QueueItem.TaskID,
 			a.QueueItem.TaskInsertedAt,
-			sqlchelpers.UUIDToStr(a.QueueItem.ExternalID),
-			sqlchelpers.UUIDToStr(a.QueueItem.WorkflowRunID),
+			a.QueueItem.ExternalID,
+			a.QueueItem.WorkflowRunID,
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",
@@ -612,7 +620,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 	}
 }
 
-func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string, res *v1.ConcurrencyResults) {
+func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UUID, res *v1.ConcurrencyResults) {
 	uniqueQueueNames := make(map[string]struct{}, 0)
 
 	for _, task := range res.Queued {
@@ -684,7 +692,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 	}
 }
 
-func taskBulkAssignedTask(tenantId string, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
@@ -748,8 +756,8 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			tenantId,
 			task.ID,
 			task.InsertedAt,
-			sqlchelpers.UUIDToStr(task.ExternalID),
-			sqlchelpers.UUIDToStr(task.WorkflowRunID),
+			task.ExternalID,
+			task.WorkflowRunID,
 			task.RetryCount,
 			false,
 			"Could not send task to worker",
@@ -777,7 +785,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	payloads := msgqueue.JSONConvert[tasktypes.SignalTaskCancelledPayload](msg.Payloads)
 
 	// try to resend the cancellation signal to the impacted worker.
-	workerIds := make([]string, 0)
+	workerIds := make([]uuid.UUID, 0)
 
 	for _, p := range payloads {
 		s.l.Error().Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
@@ -791,7 +799,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
 
-	workerIdToDispatcherId := make(map[string]string)
+	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
 
 	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
 		for _, workerId := range workerIds {
@@ -799,7 +807,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 		}
 	}
 
-	dispatcherIdsToPayloads := make(map[string][]tasktypes.SignalTaskCancelledPayload)
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message

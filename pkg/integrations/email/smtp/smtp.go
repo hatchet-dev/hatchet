@@ -24,10 +24,10 @@ var (
 )
 
 type SMTPService struct {
+	client       *mail.Client
 	fromEmail    string
 	fromName     string
 	supportEmail string
-	client       *mail.Client
 }
 
 // NewSMTPService creates a new service which sends emails
@@ -101,6 +101,35 @@ func (s *SMTPService) SendTenantResourceLimitAlert(ctx context.Context, emails [
 		Bcc:           strings.Join(append(emails, s.supportEmail), ","),
 		TemplateAlias: email.ResourceLimitAlertTemplate,
 		TemplateModel: data,
+	})
+}
+
+func (s *SMTPService) SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+	var bcc string
+
+	if bccSupport {
+		bcc = s.supportEmail
+	}
+
+	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
+		To:            to,
+		Bcc:           bcc,
+		TemplateAlias: templateAlias,
+		TemplateModel: templateModelData,
+	})
+}
+
+func (s *SMTPService) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+	if bccSupport {
+		bcc = fmt.Sprintf("%s,%s", bcc, s.supportEmail)
+	}
+
+	return s.sendRequest(ctx, &email.SendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", s.fromName, s.fromEmail),
+		Bcc:           bcc,
+		TemplateAlias: templateAlias,
+		TemplateModel: templateModelData,
 	})
 }
 
