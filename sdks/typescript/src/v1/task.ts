@@ -138,9 +138,7 @@ export type CreateBaseTaskOpts<
    */
   concurrency?: Concurrency | Concurrency[];
 
-  /**
-   * (optional) slot requests for the task (slot_type -> units)
-   */
+  /** @internal */
   slotRequests?: Record<string, number>;
 };
 

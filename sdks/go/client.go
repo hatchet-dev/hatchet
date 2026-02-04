@@ -53,6 +53,14 @@ type Worker struct {
 	name   string
 }
 
+// slotType represents supported slot types (internal use).
+type slotType string
+
+const (
+	slotTypeDefault slotType = "default"
+	slotTypeDurable slotType = "durable"
+)
+
 // NewWorker creates a worker that can execute workflows.
 func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error) {
 	config := &workerConfig{
@@ -66,27 +74,19 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 
 	dumps := gatherWorkflowDumps(config.workflows)
 
-	if config.slotConfig != nil && (config.slotsSet || config.durableSlotsSet) {
-		return nil, fmt.Errorf("cannot set both slot config and slots/durable slots")
-	}
-
-	if config.slotConfig != nil {
-		config.slotConfig = resolveWorkerSlotConfig(config.slotConfig, dumps)
-	} else {
-		config.slotConfig = resolveWorkerSlotConfig(map[SlotType]int{}, dumps)
-	}
+	slotConfig := resolveWorkerSlotConfig(map[slotType]int{}, dumps)
 
 	workerOpts := []worker.WorkerOpt{
 		worker.WithClient(c.legacyClient),
 		worker.WithName(name),
 	}
 
-	if len(config.slotConfig) > 0 {
-		slotConfig := make(map[string]int32, len(config.slotConfig))
-		for key, value := range config.slotConfig {
-			slotConfig[string(key)] = int32(value)
+	if len(slotConfig) > 0 {
+		slotConfigMap := make(map[string]int32, len(slotConfig))
+		for key, value := range slotConfig {
+			slotConfigMap[string(key)] = int32(value)
 		}
-		workerOpts = append(workerOpts, worker.WithSlotConfig(slotConfig))
+		workerOpts = append(workerOpts, worker.WithSlotConfig(slotConfigMap))
 	} else {
 		workerOpts = append(workerOpts,
 			worker.WithSlots(config.slots),
@@ -171,19 +171,19 @@ func gatherWorkflowDumps(workflows []WorkflowBase) []workflowDump {
 }
 
 func resolveWorkerSlotConfig(
-	slotConfig map[SlotType]int,
+	slotConfig map[slotType]int,
 	dumps []workflowDump,
-) map[SlotType]int {
-	requiredSlotTypes := map[SlotType]bool{}
+) map[slotType]int {
+	requiredSlotTypes := map[slotType]bool{}
 	addFromRequests := func(requests map[string]int32) {
 		if requests == nil {
 			return
 		}
-		if _, ok := requests[string(SlotTypeDefault)]; ok {
-			requiredSlotTypes[SlotTypeDefault] = true
+		if _, ok := requests[string(slotTypeDefault)]; ok {
+			requiredSlotTypes[slotTypeDefault] = true
 		}
-		if _, ok := requests[string(SlotTypeDurable)]; ok {
-			requiredSlotTypes[SlotTypeDurable] = true
+		if _, ok := requests[string(slotTypeDurable)]; ok {
+			requiredSlotTypes[slotTypeDurable] = true
 		}
 	}
 
@@ -200,26 +200,26 @@ func resolveWorkerSlotConfig(
 		for _, dump := range dumps {
 			for _, task := range dump.req.Tasks {
 				if task.IsDurable {
-					requiredSlotTypes[SlotTypeDurable] = true
+					requiredSlotTypes[slotTypeDurable] = true
 					break
 				}
 			}
 		}
 	}
 
-	if requiredSlotTypes[SlotTypeDefault] {
-		if _, ok := slotConfig[SlotTypeDefault]; !ok {
-			slotConfig[SlotTypeDefault] = 100
+	if requiredSlotTypes[slotTypeDefault] {
+		if _, ok := slotConfig[slotTypeDefault]; !ok {
+			slotConfig[slotTypeDefault] = 100
 		}
 	}
-	if requiredSlotTypes[SlotTypeDurable] {
-		if _, ok := slotConfig[SlotTypeDurable]; !ok {
-			slotConfig[SlotTypeDurable] = 1000
+	if requiredSlotTypes[slotTypeDurable] {
+		if _, ok := slotConfig[slotTypeDurable]; !ok {
+			slotConfig[slotTypeDurable] = 1000
 		}
 	}
 
 	if len(slotConfig) == 0 {
-		slotConfig[SlotTypeDefault] = 100
+		slotConfig[slotTypeDefault] = 100
 	}
 
 	return slotConfig
