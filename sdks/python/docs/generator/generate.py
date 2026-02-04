@@ -6,7 +6,7 @@ from typing import cast
 from docs.generator.llm import parse_markdown
 from docs.generator.paths import crawl_directory, find_child_paths
 from docs.generator.shared import TMP_GEN_PATH
-from docs.generator.types import Document
+from docs.generator.doc_types import Document
 from docs.generator.utils import gather_max_concurrency, rm_rf
 
 
