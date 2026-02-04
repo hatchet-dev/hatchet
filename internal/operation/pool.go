@@ -14,22 +14,22 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type OperationPool struct {
-	ops         syncx.Map[uuid.UUID, *SerialOperation]
-	timeout     time.Duration
-	description string
-	method      OpMethod
-	ql          *zerolog.Logger
-	operationId string
-	cancel      context.CancelFunc
-
-	hasInterval             bool
+// TenantOperationPool manages operations across multiple tenants.
+type TenantOperationPool struct {
 	intervalRepo            v1.IntervalSettingsRepository
+	cancel                  context.CancelFunc
+	method                  OpMethod
+	ql                      *zerolog.Logger
+	intervalGauge           IntervalGauge
+	ops                     syncx.Map[uuid.UUID, *SerialOperation]
+	description             string
+	operationId             string
+	timeout                 time.Duration
 	intervalMaxJitter       time.Duration
 	intervalStartInterval   time.Duration
 	intervalMaxInterval     time.Duration
 	intervalIncBackoffCount int
-	intervalGauge           IntervalGauge
+	hasInterval             bool
 }
 
 func WithPoolInterval(
@@ -37,8 +37,8 @@ func WithPoolInterval(
 	maxJitter, startInterval, maxInterval time.Duration,
 	incBackoffCount int,
 	gauge IntervalGauge,
-) func(*OperationPool) {
-	return func(p *OperationPool) {
+) func(*TenantOperationPool) {
+	return func(p *TenantOperationPool) {
 		p.hasInterval = true
 		p.intervalRepo = repo
 		p.intervalMaxJitter = maxJitter
@@ -49,8 +49,8 @@ func WithPoolInterval(
 	}
 }
 
-func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*OperationPool)) *OperationPool {
-	pool := &OperationPool{
+func NewTenantOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*TenantOperationPool)) *TenantOperationPool {
+	pool := &TenantOperationPool{
 		operationId: operationId,
 		timeout:     timeout,
 		description: description,
@@ -98,20 +98,18 @@ func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId st
 	return pool
 }
 
-func (p *OperationPool) Cleanup() {
+func (p *TenantOperationPool) Cleanup() {
 	p.cancel()
 
 	// stop all operations
 	p.ops.Range(func(key uuid.UUID, op *SerialOperation) bool {
-		if op != nil {
-			op.Stop()
-		}
+		op.Stop()
 		p.ops.Delete(key)
 		return true
 	})
 }
 
-func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
+func (p *TenantOperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
@@ -126,9 +124,7 @@ func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	// delete tenants that are not in the list
 	p.ops.Range(func(key uuid.UUID, op *SerialOperation) bool {
 		if _, ok := tenantMap[key]; !ok {
-			if op != nil {
-				op.Stop()
-			}
+			op.Stop()
 			p.ops.Delete(key)
 		}
 
@@ -136,11 +132,11 @@ func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	})
 }
 
-func (p *OperationPool) RunOrContinue(id uuid.UUID) {
+func (p *TenantOperationPool) RunOrContinue(id uuid.UUID) {
 	p.getOperation(id).RunOrContinue(p.ql)
 }
 
-func (p *OperationPool) getOperation(id uuid.UUID) *SerialOperation {
+func (p *TenantOperationPool) getOperation(id uuid.UUID) *SerialOperation {
 	op, ok := p.ops.Load(id)
 
 	if !ok {

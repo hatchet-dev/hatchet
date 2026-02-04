@@ -12,7 +12,7 @@ import (
 )
 
 type sharedTenantSub struct {
-	fs        syncx.Map[int, AckHook]
+	fs        *syncx.Map[int, AckHook]
 	counter   int
 	isRunning bool
 	mu        sync.Mutex
@@ -33,7 +33,7 @@ func NewSharedTenantReader(mq MessageQueue) *SharedTenantReader {
 
 func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck AckHook) (func() error, error) {
 	t, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
-		fs: syncx.Map[int, AckHook]{},
+		fs: &syncx.Map[int, AckHook]{},
 	})
 
 	t.mu.Lock()
@@ -100,27 +100,27 @@ func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck AckHook) (fun
 
 type sharedBufferedTenantSub struct {
 	cleanup   func() error
-	fs        syncx.Map[int, DstFunc]
+	fs        *syncx.Map[int, DstFunc]
 	counter   int
 	mu        sync.Mutex
 	isRunning bool
 }
 
 type SharedBufferedTenantReader struct {
-	tenants syncx.Map[uuid.UUID, *sharedBufferedTenantSub]
+	tenants *syncx.Map[uuid.UUID, *sharedBufferedTenantSub]
 	mq      MessageQueue
 }
 
 func NewSharedBufferedTenantReader(mq MessageQueue) *SharedBufferedTenantReader {
 	return &SharedBufferedTenantReader{
-		tenants: syncx.Map[uuid.UUID, *sharedBufferedTenantSub]{},
+		tenants: &syncx.Map[uuid.UUID, *sharedBufferedTenantSub]{},
 		mq:      mq,
 	}
 }
 
 func (s *SharedBufferedTenantReader) Subscribe(tenantId uuid.UUID, f DstFunc) (func() error, error) {
 	t, _ := s.tenants.LoadOrStore(tenantId, &sharedBufferedTenantSub{
-		fs: syncx.Map[int, DstFunc]{},
+		fs: &syncx.Map[int, DstFunc]{},
 	})
 
 	t.mu.Lock()
