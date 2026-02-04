@@ -3102,7 +3102,7 @@ type V1DagsOlap struct {
 
 type V1DurableEventLogCallback struct {
 	DurableTaskID         int64                             `json:"durable_task_id"`
-	DurableTaskInsertedAt int64                             `json:"durable_task_inserted_at"`
+	DurableTaskInsertedAt pgtype.Timestamptz                `json:"durable_task_inserted_at"`
 	InsertedAt            pgtype.Timestamptz                `json:"inserted_at"`
 	Kind                  NullV1DurableEventLogCallbackKind `json:"kind"`
 	Key                   string                            `json:"key"`
@@ -3113,7 +3113,7 @@ type V1DurableEventLogCallback struct {
 type V1DurableEventLogEntry struct {
 	ExternalID            uuid.UUID                      `json:"external_id"`
 	DurableTaskID         int64                          `json:"durable_task_id"`
-	DurableTaskInsertedAt int64                          `json:"durable_task_inserted_at"`
+	DurableTaskInsertedAt pgtype.Timestamptz             `json:"durable_task_inserted_at"`
 	InsertedAt            pgtype.Timestamptz             `json:"inserted_at"`
 	Kind                  NullV1DurableEventLogEntryKind `json:"kind"`
 	NodeID                int64                          `json:"node_id"`
@@ -3125,7 +3125,7 @@ type V1DurableEventLogEntry struct {
 
 type V1DurableEventLogFile struct {
 	DurableTaskID                 int64              `json:"durable_task_id"`
-	DurableTaskInsertedAt         int64              `json:"durable_task_inserted_at"`
+	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
 	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
 	LatestNodeID                  int64              `json:"latest_node_id"`
 	LatestBranchID                int64              `json:"latest_branch_id"`

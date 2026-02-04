@@ -7,7 +7,7 @@
 CREATE TABLE v1_durable_event_log_file (
     -- The id and inserted_at of the durable task which created this entry
     durable_task_id BIGINT NOT NULL,
-    durable_task_inserted_at BIGINT NOT NULL,
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     latest_inserted_at TIMESTAMPTZ NOT NULL,
     -- A monotonically increasing node id for this durable event log scoped to the durable task.
     -- Starts at 0 and increments by 1 for each new entry.
@@ -30,7 +30,7 @@ CREATE TABLE v1_durable_event_log_entry (
     external_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
     durable_task_id BIGINT NOT NULL,
-    durable_task_inserted_at BIGINT NOT NULL,
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     -- The inserted_at time of this event from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
     inserted_at TIMESTAMPTZ NOT NULL,
@@ -77,7 +77,7 @@ CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
 --    of this, we likely need to add a `callback_key` field to the v1_match table.
 CREATE TABLE v1_durable_event_log_callback (
     durable_task_id BIGINT NOT NULL,
-    durable_task_inserted_at BIGINT NOT NULL,
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     -- The inserted_at time of this callback from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
     inserted_at TIMESTAMPTZ NOT NULL,
