@@ -102,11 +102,14 @@ WHERE
     )
     AND (
         sqlc.narg('assignable')::boolean IS NULL OR
-        workers."maxRuns" IS NULL OR
-        (sqlc.narg('assignable')::boolean AND workers."maxRuns" > (
-            SELECT COUNT(*)
-            FROM "StepRun" srs
-            WHERE srs."workerId" = workers."id" AND srs."status" = 'RUNNING'
+        (sqlc.narg('assignable')::boolean AND (
+            SELECT COALESCE(SUM(cap.max_units), 0)
+            FROM v1_worker_slot_config cap
+            WHERE cap.tenant_id = workers."tenantId" AND cap.worker_id = workers."id"
+        ) > (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
 GROUP BY
@@ -289,8 +292,6 @@ UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
-    "maxRuns" = coalesce(sqlc.narg('maxRuns')::int, "maxRuns"),
-    "durableMaxRuns" = coalesce(sqlc.narg('durableMaxRuns')::int, "durableMaxRuns"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
     "isActive" = coalesce(sqlc.narg('isActive')::boolean, "isActive"),
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
@@ -430,8 +431,6 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns",
-    "durableMaxRuns",
     "webhookId",
     "type",
     "sdkVersion",
@@ -446,8 +445,6 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('maxRuns')::int,
-    coalesce(sqlc.narg('durableMaxRuns')::int, 0),
     sqlc.narg('webhookId')::uuid,
     sqlc.narg('type')::"WorkerType",
     sqlc.narg('sdkVersion')::text,
