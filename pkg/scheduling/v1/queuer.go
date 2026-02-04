@@ -218,7 +218,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			continue
 		}
 
-		durabilityTime := time.Since(checkpoint)
+		getSlotRequestsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
 		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
@@ -301,7 +301,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			).Dur(
 				"desired_labels_time", desiredLabelsTime,
 			).Dur(
-				"durability_time", durabilityTime,
+				"get_slot_requests_time", getSlotRequestsTime,
 			).Dur(
 				"assign_time", assignTime,
 			).Msgf("queue %s took longer than 100ms (%s) to process %d items", q.queueName, elapsed, len(qis))
