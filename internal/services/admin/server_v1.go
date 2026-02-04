@@ -141,15 +141,13 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		return nil, err
 	}
 
-	runIds := make([]uuid.UUID, len(req.Workflows))
 	runIdStrs := make([]string, len(req.Workflows))
 
 	for i, opt := range opts {
-		runIds[i] = opt.ExternalId
 		runIdStrs[i] = opt.ExternalId.String()
 	}
 
-	for i, runId := range runIds {
+	for i, runId := range runIdStrs {
 		additionalMeta := ""
 		if req.Workflows[i].AdditionalMetadata != nil {
 			additionalMeta = *req.Workflows[i].AdditionalMetadata
@@ -157,7 +155,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		corrId := datautils.ExtractCorrelationId(additionalMeta)
 
 		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
-		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId.String())
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
 		grpcmiddleware.TriggerCallback(ctx)
