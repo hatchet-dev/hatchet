@@ -298,8 +298,6 @@ export class V0Context<T, K = {}> {
     return this.action.workflowRunId;
   }
 
-
-
   /**
    * Gets the ID of the current task run.
    * @returns The task run ID.
@@ -760,7 +758,7 @@ export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): Creat
 }
 
 // Helper function to validate CEL expressions
-function validateCelExpression(expr: string): boolean {
+function validateCelExpression(_expr: string): boolean {
   // This is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
   // For now, we'll just return true to mimic the behavior.
   return true;
