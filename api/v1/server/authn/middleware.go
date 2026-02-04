@@ -164,7 +164,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	userID, ok := session.Values["user_id"].(uuid.UUID)
 
 	if !ok {
-		a.l.Debug().Msgf("could not cast user_id to string")
+		a.l.Debug().Msgf("could not cast user_id to uuid.UUID")
 
 		return forbidden
 	}
