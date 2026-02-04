@@ -137,8 +137,8 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 
 	// delete each tenant from the map
 	for _, tm := range toCleanup {
-		tenantId := tm.tenantId.String()
-		p.tenants.Delete(tenantId)
+		// tenants are stored by uuid.UUID key (see getTenantManager); delete using the same key type.
+		p.tenants.Delete(tm.tenantId)
 	}
 
 	go func() {

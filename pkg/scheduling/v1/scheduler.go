@@ -94,6 +94,10 @@ type assignedSlots struct {
 	rateLimitNack func()
 }
 
+// testHookBeforeUsingSelectedSlots exists to make certain concurrent/rollback
+// branches deterministic in unit tests. It is nil in production.
+var testHookBeforeUsingSelectedSlots func(selected []*slot)
+
 func (a *assignedSlots) workerId() uuid.UUID {
 	if len(a.slots) == 0 {
 		return uuid.Nil
@@ -510,8 +514,8 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 	ticker := randomticker.NewRandomTicker(10*time.Millisecond, 90*time.Millisecond)
 	defer ticker.Stop()
 
+	count := 0
 	for {
-		count := 0
 
 		select {
 		case <-ctx.Done():
@@ -746,6 +750,11 @@ func findAssignableSlots(
 			continue
 		}
 
+		// test hook to deterministically exercise rollback paths
+		if testHookBeforeUsingSelectedSlots != nil {
+			testHookBeforeUsingSelectedSlots(selected)
+		}
+
 		usedSlots := make([]*slot, 0, len(selected))
 		success := true
 
@@ -833,7 +842,6 @@ func normalizeSlotRequests(requests map[string]int32) map[string]int32 {
 
 	return normalized
 }
-
 
 // tryAssignSingleton attempts to assign a singleton step to a worker.
 func (s *Scheduler) tryAssignSingleton(
