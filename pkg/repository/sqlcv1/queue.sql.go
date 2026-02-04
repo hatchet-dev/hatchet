@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -186,10 +187,10 @@ type GetDesiredLabelsRow struct {
 	Required   bool                  `json:"required"`
 	Weight     int32                 `json:"weight"`
 	Comparator WorkerLabelComparator `json:"comparator"`
-	StepId     pgtype.UUID           `json:"stepId"`
+	StepId     uuid.UUID             `json:"stepId"`
 }
 
-func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []pgtype.UUID) ([]*GetDesiredLabelsRow, error) {
+func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetDesiredLabelsRow, error) {
 	rows, err := db.Query(ctx, getDesiredLabels, stepids)
 	if err != nil {
 		return nil, err
@@ -284,8 +285,8 @@ FROM (
 `
 
 type GetMinUnprocessedQueueItemIdParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Queue    string      `json:"queue"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Queue    string    `json:"queue"`
 }
 
 func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg GetMinUnprocessedQueueItemIdParams) (int64, error) {
@@ -312,7 +313,7 @@ type GetQueuedCountsRow struct {
 	Count int64  `json:"count"`
 }
 
-func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetQueuedCountsRow, error) {
+func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetQueuedCountsRow, error) {
 	rows, err := db.Query(ctx, getQueuedCounts, tenantid)
 	if err != nil {
 		return nil, err
@@ -352,12 +353,12 @@ WHERE
 `
 
 type ListActionsForWorkersParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
 }
 
 type ListActionsForWorkersRow struct {
-	WorkerId pgtype.UUID `json:"workerId"`
+	WorkerId uuid.UUID   `json:"workerId"`
 	ActionId pgtype.Text `json:"actionId"`
 }
 
@@ -413,13 +414,13 @@ LEFT JOIN
 `
 
 type ListAvailableSlotsForWorkersParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
 }
 
 type ListAvailableSlotsForWorkersRow struct {
-	ID             pgtype.UUID `json:"id"`
-	AvailableSlots int32       `json:"availableSlots"`
+	ID             uuid.UUID `json:"id"`
+	AvailableSlots int32     `json:"availableSlots"`
 }
 
 // subtract the filled slots from the max runs to get the available slots
@@ -465,7 +466,7 @@ LIMIT
 `
 
 type ListQueueItemsForQueueParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Queue    string      `json:"queue"`
 	GtId     pgtype.Int8 `json:"gtId"`
 	Limit    pgtype.Int4 `json:"limit"`
@@ -530,7 +531,7 @@ WHERE
 `
 
 type ListQueueItemsForTasksParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
@@ -588,7 +589,7 @@ WHERE
     AND last_active > NOW() - INTERVAL '1 day'
 `
 
-func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*V1Queue, error) {
+func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*V1Queue, error) {
 	rows, err := db.Query(ctx, listQueues, tenantid)
 	if err != nil {
 		return nil, err
@@ -681,7 +682,7 @@ type MoveRateLimitedQueueItemsParams struct {
 }
 
 type MoveRateLimitedQueueItemsRow struct {
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
@@ -826,13 +827,13 @@ RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
 `
 
 type RequeueRateLimitedQueueItemsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Queue    string      `json:"queue"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Queue    string    `json:"queue"`
 }
 
 type RequeueRateLimitedQueueItemsRow struct {
 	ID             int64              `json:"id"`
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
@@ -925,14 +926,14 @@ FROM
 type UpdateTasksToAssignedParams struct {
 	Taskids           []int64              `json:"taskids"`
 	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
-	Workerids         []pgtype.UUID        `json:"workerids"`
+	Workerids         []uuid.UUID          `json:"workerids"`
 	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
-	Tenantid          pgtype.UUID          `json:"tenantid"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
 }
 
 type UpdateTasksToAssignedRow struct {
-	TaskID   int64       `json:"task_id"`
-	WorkerID pgtype.UUID `json:"worker_id"`
+	TaskID   int64      `json:"task_id"`
+	WorkerID *uuid.UUID `json:"worker_id"`
 }
 
 func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg UpdateTasksToAssignedParams) ([]*UpdateTasksToAssignedRow, error) {
@@ -996,8 +997,8 @@ ON CONFLICT (tenant_id, name) DO NOTHING
 `
 
 type UpsertQueuesParams struct {
-	TenantID pgtype.UUID `json:"tenant_id"`
-	Names    []string    `json:"names"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Names    []string  `json:"names"`
 }
 
 // Insert new queues

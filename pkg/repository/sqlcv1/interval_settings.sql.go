@@ -8,7 +8,7 @@ package sqlcv1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const listIntervalsByOperationId = `-- name: ListIntervalsByOperationId :many
@@ -52,8 +52,8 @@ LIMIT 1
 `
 
 type ReadIntervalParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Operationid string      `json:"operationid"`
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Operationid string    `json:"operationid"`
 }
 
 func (q *Queries) ReadInterval(ctx context.Context, db DBTX, arg ReadIntervalParams) (*V1OperationIntervalSettings, error) {
@@ -80,9 +80,9 @@ RETURNING
 `
 
 type UpsertIntervalParams struct {
-	Tenantid            pgtype.UUID `json:"tenantid"`
-	Operationid         string      `json:"operationid"`
-	Intervalnanoseconds int64       `json:"intervalnanoseconds"`
+	Tenantid            uuid.UUID `json:"tenantid"`
+	Operationid         string    `json:"operationid"`
+	Intervalnanoseconds int64     `json:"intervalnanoseconds"`
 }
 
 func (q *Queries) UpsertInterval(ctx context.Context, db DBTX, arg UpsertIntervalParams) (*V1OperationIntervalSettings, error) {

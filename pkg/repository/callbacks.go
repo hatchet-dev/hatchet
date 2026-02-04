@@ -1,10 +1,13 @@
 package repository
 
-import "github.com/rs/zerolog"
+import (
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+)
 
-type TenantScopedCallback[T any] func(string, T) error
+type TenantScopedCallback[T any] func(uuid.UUID, T) error
 
-func (c TenantScopedCallback[T]) Do(l *zerolog.Logger, tenantId string, v T) {
+func (c TenantScopedCallback[T]) Do(l *zerolog.Logger, tenantId uuid.UUID, v T) {
 	// wrap in panic recover to avoid panics in the callback
 	defer func() {
 		if r := recover(); r != nil {
@@ -57,7 +60,7 @@ func WithPostCommitCallback[T any](cb TenantScopedCallback[T]) CallbackOptFunc[T
 	}
 }
 
-func RunPreCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []CallbackOptFunc[T]) {
+func RunPreCommit[T any](l *zerolog.Logger, tenantId uuid.UUID, v T, opts []CallbackOptFunc[T]) {
 	// initialize the opts
 	o := &TenantCallbackOpts[T]{
 		cbs: make([]TenantScopedCallback[T], 0),
@@ -71,7 +74,7 @@ func RunPreCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []Callbac
 	o.Run(l, tenantId, v)
 }
 
-func RunPostCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []CallbackOptFunc[T]) {
+func RunPostCommit[T any](l *zerolog.Logger, tenantId uuid.UUID, v T, opts []CallbackOptFunc[T]) {
 	// initialize the opts
 	o := &TenantCallbackOpts[T]{
 		cbs: make([]TenantScopedCallback[T], 0),
@@ -89,7 +92,7 @@ type TenantCallbackOpts[T any] struct {
 	cbs []TenantScopedCallback[T]
 }
 
-func (o *TenantCallbackOpts[T]) Run(l *zerolog.Logger, tenantId string, v T) {
+func (o *TenantCallbackOpts[T]) Run(l *zerolog.Logger, tenantId uuid.UUID, v T) {
 	for _, cb := range o.cbs {
 		cb.Do(l, tenantId, v)
 	}

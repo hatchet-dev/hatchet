@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -24,7 +25,7 @@ type RuntimeInfo struct {
 
 type CreateWorkerOpts struct {
 	// The id of the dispatcher
-	DispatcherId string `validate:"required,uuid"`
+	DispatcherId uuid.UUID `validate:"required"`
 
 	// The maximum number of runs this worker can run at a time
 	MaxRuns *int `validate:"omitempty,gte=1"`
@@ -44,7 +45,7 @@ type CreateWorkerOpts struct {
 
 type UpdateWorkerOpts struct {
 	// The id of the dispatcher
-	DispatcherId *string `validate:"omitempty,uuid"`
+	DispatcherId *uuid.UUID `validate:"omitempty"`
 
 	// When the last worker heartbeat was
 	LastHeartbeatAt *time.Time
@@ -74,44 +75,44 @@ type UpsertWorkerLabelOpts struct {
 }
 
 type WorkerRepository interface {
-	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
-	GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error)
-	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error)
-	CountActiveSlotsPerTenant() (map[string]int64, error)
-	CountActiveWorkersPerTenant() (map[string]int64, error)
+	ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
+	GetWorkerById(workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
+	ListWorkerState(tenantId uuid.UUID, workerId uuid.UUID, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error)
+	CountActiveSlotsPerTenant() (map[uuid.UUID]int64, error)
+	CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error)
 	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
-	GetWorkerActionsByWorkerId(tenantid string, workerId []string) (map[string][]string, error)
+	GetWorkerActionsByWorkerId(tenantId uuid.UUID, workerId []uuid.UUID) (map[string][]string, error)
 
 	// GetWorkerWorkflowsByWorkerId returns a list of workflows for a worker
-	GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*sqlcv1.Workflow, error)
+	GetWorkerWorkflowsByWorkerId(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
-	ListWorkerLabels(tenantId, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error)
+	ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error)
 
 	// CreateNewWorker creates a new worker for a given tenant.
-	CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
+	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
 	// UpdateWorker updates a worker for a given tenant.
-	UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
+	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
 
 	// UpdateWorker updates a worker in the
 	// It will only update the worker if there is no lock on the worker, else it will skip.
-	UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeatAt time.Time) error
+	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
 
 	// DeleteWorker removes the worker from the database
-	DeleteWorker(ctx context.Context, tenantId, workerId string) error
+	DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
 
-	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*sqlcv1.GetWorkerForEngineRow, error)
+	GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerForEngineRow, error)
 
-	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
+	UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
 
-	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
+	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
-	DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error)
+	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
-	GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error)
+	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
 type workerRepository struct {
@@ -124,15 +125,13 @@ func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 	}
 }
 
-func (w *workerRepository) ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
+func (w *workerRepository) ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
 	queryParams := sqlcv1.ListWorkersWithSlotCountParams{
-		Tenantid: pgTenantId,
+		Tenantid: tenantId,
 	}
 
 	if opts.Action != nil {
@@ -163,14 +162,14 @@ func (w *workerRepository) ListWorkers(tenantId string, opts *ListWorkersOpts) (
 	return workers, nil
 }
 
-func (w *workerRepository) GetWorkerById(workerId string) (*sqlcv1.GetWorkerByIdRow, error) {
-	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+func (w *workerRepository) GetWorkerById(workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(context.Background(), w.pool, workerId)
 }
 
-func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error) {
+func (w *workerRepository) ListWorkerState(tenantId uuid.UUID, workerId uuid.UUID, maxRuns int) ([]*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, sqlcv1.ListSemaphoreSlotsWithStateForWorkerParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Workerid: workerId,
+		Tenantid: tenantId,
 		Limit: pgtype.Int4{
 			Int32: int32(maxRuns), // nolint: gosec
 			Valid: true,
@@ -184,17 +183,17 @@ func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns in
 	return slots, nil
 }
 
-func (w *workerRepository) CountActiveSlotsPerTenant() (map[string]int64, error) {
+func (w *workerRepository) CountActiveSlotsPerTenant() (map[uuid.UUID]int64, error) {
 	slots, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active slots per tenant: %w", err)
 	}
 
-	tenantToSlots := make(map[string]int64)
+	tenantToSlots := make(map[uuid.UUID]int64)
 
 	for _, slot := range slots {
-		tenantToSlots[slot.TenantId.String()] = slot.TotalActiveSlots
+		tenantToSlots[slot.TenantId] = slot.TotalActiveSlots
 	}
 
 	return tenantToSlots, nil
@@ -208,7 +207,7 @@ type SDK struct {
 }
 
 type TenantIdSDKTuple struct {
-	TenantId string
+	TenantId uuid.UUID
 	SDK      SDK
 }
 
@@ -222,7 +221,7 @@ func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64
 	tenantIdSDKTupleToCount := make(map[TenantIdSDKTuple]int64)
 
 	for _, sdk := range sdks {
-		tenantId := sdk.TenantId.String()
+		tenantId := sdk.TenantId
 		tenantIdSdkTuple := TenantIdSDKTuple{
 			TenantId: tenantId,
 			SDK: SDK{
@@ -239,31 +238,26 @@ func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64
 	return tenantIdSDKTupleToCount, nil
 }
 
-func (w *workerRepository) CountActiveWorkersPerTenant() (map[string]int64, error) {
+func (w *workerRepository) CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error) {
 	workers, err := w.queries.ListActiveWorkersPerTenant(context.Background(), w.pool)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
 	}
 
-	tenantToWorkers := make(map[string]int64)
+	tenantToWorkers := make(map[uuid.UUID]int64)
 
 	for _, worker := range workers {
-		tenantToWorkers[worker.TenantId.String()] = worker.Count
+		tenantToWorkers[worker.TenantId] = worker.Count
 	}
 
 	return tenantToWorkers, nil
 }
 
-func (w *workerRepository) GetWorkerActionsByWorkerId(tenantid string, workerIds []string) (map[string][]string, error) {
-	uuidWorkerIds := make([]pgtype.UUID, len(workerIds))
-	for i, workerId := range workerIds {
-		uuidWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
-	}
-
+func (w *workerRepository) GetWorkerActionsByWorkerId(tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error) {
 	records, err := w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
-		Workerids: uuidWorkerIds,
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantid),
+		Workerids: workerIds,
+		Tenantid:  tenantId,
 	})
 
 	if err != nil {
@@ -286,25 +280,25 @@ func (w *workerRepository) GetWorkerActionsByWorkerId(tenantid string, workerIds
 	return workerIdToActionIds, nil
 }
 
-func (w *workerRepository) GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*sqlcv1.Workflow, error) {
+func (w *workerRepository) GetWorkerWorkflowsByWorkerId(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error) {
 	return w.queries.GetWorkerWorkflowsByWorkerId(context.Background(), w.pool, sqlcv1.GetWorkerWorkflowsByWorkerIdParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantid),
+		Workerid: workerId,
+		Tenantid: tenantId,
 	})
 }
 
-func (w *workerRepository) ListWorkerLabels(tenantId, workerId string) ([]*sqlcv1.ListWorkerLabelsRow, error) {
-	return w.queries.ListWorkerLabels(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+func (w *workerRepository) ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error) {
+	return w.queries.ListWorkerLabels(context.Background(), w.pool, workerId)
 }
 
-func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*sqlcv1.GetWorkerForEngineRow, error) {
+func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerForEngineRow, error) {
 	return w.queries.GetWorkerForEngine(ctx, w.pool, sqlcv1.GetWorkerForEngineParams{
-		ID:       sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       workerId,
+		Tenantid: tenantId,
 	})
 }
 
-func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
+func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
 	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
 
 	if err := preWorker(); err != nil {
@@ -335,11 +329,9 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
 	createParams := sqlcv1.CreateWorkerParams{
-		Tenantid:     pgTenantId,
-		Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
+		Tenantid:     tenantId,
+		Dispatcherid: opts.DispatcherId,
 		Name:         opts.Name,
 	}
 
@@ -407,12 +399,12 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 		}
 	}
 
-	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+	svcUUIDs := make([]uuid.UUID, len(opts.Services))
 
 	for i, svc := range opts.Services {
 		dbSvc, err := w.queries.UpsertService(ctx, tx, sqlcv1.UpsertServiceParams{
 			Name:     svc,
-			Tenantid: pgTenantId,
+			Tenantid: tenantId,
 		})
 
 		if err != nil {
@@ -431,12 +423,12 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 		return nil, fmt.Errorf("could not link services to worker: %w", err)
 	}
 
-	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+	actionUUIDs := make([]uuid.UUID, len(opts.Actions))
 
 	for i, action := range opts.Actions {
 		dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
 			Action:   action,
-			Tenantid: pgTenantId,
+			Tenantid: tenantId,
 		})
 
 		if err != nil {
@@ -469,7 +461,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId string,
 
 // UpdateWorker updates a worker.
 // It will only update the worker if there is no lock on the worker, else it will skip.
-func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error) {
+func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -482,10 +474,8 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
 	updateParams := sqlcv1.UpdateWorkerParams{
-		ID: sqlchelpers.UUIDFromStr(workerId),
+		ID: workerId,
 	}
 
 	if opts.LastHeartbeatAt != nil {
@@ -493,7 +483,8 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 	}
 
 	if opts.DispatcherId != nil {
-		updateParams.DispatcherId = sqlchelpers.UUIDFromStr(*opts.DispatcherId)
+		parsed := *opts.DispatcherId
+		updateParams.DispatcherId = &parsed
 	}
 
 	if opts.IsActive != nil {
@@ -517,12 +508,12 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 	}
 
 	if len(opts.Actions) > 0 {
-		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+		actionUUIDs := make([]uuid.UUID, len(opts.Actions))
 
 		for i, action := range opts.Actions {
 			dbAction, err := w.queries.UpsertAction(ctx, tx, sqlcv1.UpsertActionParams{
 				Action:   action,
-				Tenantid: pgTenantId,
+				Tenantid: tenantId,
 			})
 
 			if err != nil {
@@ -534,7 +525,7 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 
 		err = w.queries.LinkActionsToWorker(ctx, tx, sqlcv1.LinkActionsToWorkerParams{
 			Actionids: actionUUIDs,
-			Workerid:  sqlchelpers.UUIDFromStr(workerId),
+			Workerid:  workerId,
 		})
 
 		if err != nil {
@@ -551,9 +542,9 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId, workerId 
 	return worker, nil
 }
 
-func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
+func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeat time.Time) error {
 	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatParams{
-		ID:              sqlchelpers.UUIDFromStr(workerId),
+		ID:              workerId,
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
 
@@ -564,15 +555,15 @@ func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, 
 	return nil
 }
 
-func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
-	_, err := w.queries.DeleteWorker(ctx, w.pool, sqlchelpers.UUIDFromStr(workerId))
+func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {
+	_, err := w.queries.DeleteWorker(ctx, w.pool, workerId)
 
 	return err
 }
 
-func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
+func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
 	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, sqlcv1.UpdateWorkerActiveStatusParams{
-		ID:                      sqlchelpers.UUIDFromStr(workerId),
+		ID:                      workerId,
 		Isactive:                isActive,
 		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
 	})
@@ -584,7 +575,7 @@ func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantI
 	return worker, nil
 }
 
-func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
@@ -627,9 +618,9 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId pgty
 	return affinities, nil
 }
 
-func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
+func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
 	hasMore, err := w.queries.DeleteOldWorkers(ctx, w.pool, sqlcv1.DeleteOldWorkersParams{
-		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:            tenantId,
 		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
 		Limit:               20,
 	})
@@ -645,30 +636,24 @@ func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId string
 	return hasMore, nil
 }
 
-func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
-	pgWorkerIds := make([]pgtype.UUID, len(workerIds))
-
-	for i, workerId := range workerIds {
-		pgWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
-	}
-
+func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
 	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Workerids: sqlchelpers.UniqueSet(pgWorkerIds),
+		Tenantid:  tenantId,
+		Workerids: sqlchelpers.UniqueSet(workerIds),
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get dispatcher ids for workers: %w", err)
 	}
 
-	dispatcherIdsToWorkers := make(map[string][]string)
+	dispatcherIdsToWorkers := make(map[uuid.UUID][]uuid.UUID)
 
 	for _, row := range rows {
-		dispatcherId := sqlchelpers.UUIDToStr(row.DispatcherId)
-		workerId := sqlchelpers.UUIDToStr(row.WorkerId)
+		dispatcherId := *row.DispatcherId
+		workerId := row.WorkerId
 
 		if _, ok := dispatcherIdsToWorkers[dispatcherId]; !ok {
-			dispatcherIdsToWorkers[dispatcherId] = make([]string, 0)
+			dispatcherIdsToWorkers[dispatcherId] = make([]uuid.UUID, 0)
 		}
 
 		dispatcherIdsToWorkers[dispatcherId] = append(dispatcherIdsToWorkers[dispatcherId], workerId)

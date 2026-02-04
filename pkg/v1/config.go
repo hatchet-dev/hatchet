@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -8,7 +9,7 @@ import (
 )
 
 type Config struct {
-	TenantId           string
+	TenantId           uuid.UUID
 	Token              string
 	HostPort           string
 	ServerURL          string
@@ -31,7 +32,7 @@ func mapConfigToCF(opts Config) *v0Config.ClientConfigFile {
 
 	// Apply provided config to the internal configuration
 	// Zero values won't override server defaults
-	cf.TenantId = opts.TenantId
+	cf.TenantId = opts.TenantId.String()
 	cf.Token = opts.Token
 	cf.HostPort = opts.HostPort
 	cf.ServerURL = opts.ServerURL

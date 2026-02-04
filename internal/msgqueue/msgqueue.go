@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
@@ -159,8 +160,8 @@ func (d dispatcherQueue) IsExpirable() bool {
 	return true
 }
 
-func QueueTypeFromDispatcherID(d string) dispatcherQueue {
-	return dispatcherQueue(d + "_dispatcher_v1")
+func QueueTypeFromDispatcherID(d uuid.UUID) dispatcherQueue {
+	return dispatcherQueue(d.String() + "_dispatcher_v1")
 }
 
 type consumerQueue string
@@ -219,15 +220,15 @@ func (f fanoutQueue) FanoutExchangeKey() string {
 	return f.consumerQueue.Name()
 }
 
-func TenantEventConsumerQueue(t string) fanoutQueue {
+func TenantEventConsumerQueue(t uuid.UUID) fanoutQueue {
 	// generate a unique queue name for the tenant
 	return fanoutQueue{
 		consumerQueue: consumerQueue(GetTenantExchangeName(t)),
 	}
 }
 
-func GetTenantExchangeName(t string) string {
-	return t + "_v1"
+func GetTenantExchangeName(t uuid.UUID) string {
+	return t.String() + "_v1"
 }
 
 type AckHook func(task *Message) error
@@ -250,7 +251,7 @@ type MessageQueue interface {
 	// new tenant is created. If this is not called, implementors should ensure that there's a check
 	// on the first message to a tenant to ensure that the tenant is registered, and store the tenant
 	// in an LRU cache which lives in-memory.
-	RegisterTenant(ctx context.Context, tenantId string) error
+	RegisterTenant(ctx context.Context, tenantId uuid.UUID) error
 
 	// IsReady returns true if the task queue is ready to accept tasks.
 	IsReady() bool
