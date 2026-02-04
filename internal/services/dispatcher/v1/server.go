@@ -306,13 +306,13 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 func (d *DispatcherServiceImpl) GetDurableEventLog(ctx context.Context, req *contracts.GetDurableEventLogRequest) (*contracts.GetDurableEventLogResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	if _, err := uuid.Parse(req.ExternalId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "external id is not a valid uuid")
 	}
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ExternalId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, uuid.MustParse(req.ExternalId), false)
 	if err != nil {
 		return nil, err
 	}
@@ -330,13 +330,13 @@ func (d *DispatcherServiceImpl) GetDurableEventLog(ctx context.Context, req *con
 
 func (d *DispatcherServiceImpl) CreateDurableEventLog(ctx context.Context, req *contracts.CreateDurableEventLogRequest) (*contracts.CreateDurableEventLogResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	if _, err := uuid.Parse(req.ExternalId); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "external id is not a valid uuid")
 	}
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ExternalId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, uuid.MustParse(req.ExternalId), false)
 	if err != nil {
 		return nil, err
 	}
