@@ -8,18 +8,24 @@ import grpc
 import grpc.aio
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from hatchet_sdk.clients.event_ts import (ThreadSafeEvent, UnexpectedEOF,
-                                          read_with_interrupt)
+from hatchet_sdk.clients.event_ts import (
+    ThreadSafeEvent,
+    UnexpectedEOF,
+    read_with_interrupt,
+)
 from hatchet_sdk.clients.events import proto_timestamp_now
-from hatchet_sdk.clients.listeners.run_event_listener import \
-    DEFAULT_ACTION_LISTENER_RETRY_INTERVAL
+from hatchet_sdk.clients.listeners.run_event_listener import (
+    DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
+)
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
-from hatchet_sdk.contracts.dispatcher_pb2 import (AssignedAction,
-                                                  HeartbeatRequest,
-                                                  WorkerLabels,
-                                                  WorkerListenRequest,
-                                                  WorkerUnsubscribeRequest)
+from hatchet_sdk.contracts.dispatcher_pb2 import (
+    AssignedAction,
+    HeartbeatRequest,
+    WorkerLabels,
+    WorkerListenRequest,
+    WorkerUnsubscribeRequest,
+)
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata

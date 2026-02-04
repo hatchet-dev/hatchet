@@ -1,34 +1,66 @@
 import asyncio
 from collections.abc import AsyncIterator, Callable
-from contextlib import (AbstractAsyncContextManager, AbstractContextManager,
-                        asynccontextmanager)
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    asynccontextmanager,
+)
 from dataclasses import asdict, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
-from typing import (TYPE_CHECKING, Annotated, Any, Concatenate, Generic,
-                    ParamSpec, Protocol, TypeGuard, TypeVar, cast, get_args,
-                    get_origin, get_type_hints)
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Concatenate,
+    Generic,
+    ParamSpec,
+    Protocol,
+    TypeGuard,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
-from hatchet_sdk.conditions import (Action, Condition, OrGroup,
-                                    ParentCondition, SleepCondition,
-                                    UserEventCondition, flatten_conditions)
+from hatchet_sdk.conditions import (
+    Action,
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    flatten_conditions,
+)
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
-from hatchet_sdk.contracts.v1.workflows_pb2 import (CreateTaskOpts,
-                                                    CreateTaskRateLimit,
-                                                    DesiredWorkerLabels)
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    CreateTaskOpts,
+    CreateTaskRateLimit,
+    DesiredWorkerLabels,
+)
 from hatchet_sdk.exceptions import InvalidDependencyError
-from hatchet_sdk.runnables.types import (ConcurrencyExpression, R, StepType,
-                                         TaskIOValidator, TWorkflowInput,
-                                         TWorkflowInput_contra, is_async_fn,
-                                         is_sync_fn, normalize_validator)
+from hatchet_sdk.runnables.types import (
+    ConcurrencyExpression,
+    R,
+    StepType,
+    TaskIOValidator,
+    TWorkflowInput,
+    TWorkflowInput_contra,
+    is_async_fn,
+    is_sync_fn,
+    normalize_validator,
+)
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.utils.timedelta_to_expression import (Duration,
-                                                       timedelta_to_expr)
-from hatchet_sdk.utils.typing import (AwaitableLike, CoroutineLike,
-                                      JSONSerializableMapping)
+from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.typing import (
+    AwaitableLike,
+    CoroutineLike,
+    JSONSerializableMapping,
+)
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
 
 if TYPE_CHECKING:
@@ -423,8 +455,7 @@ class Task(Generic[TWorkflowInput, R]):
         retry_count: int = 0,
         lifespan_context: Any = None,
     ) -> Context | DurableContext:
-        from hatchet_sdk.runnables.action import (Action, ActionPayload,
-                                                  ActionType)
+        from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
 
         additional_metadata = additional_metadata or {}
         parent_outputs = parent_outputs or {}

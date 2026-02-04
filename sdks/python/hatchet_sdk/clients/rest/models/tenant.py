@@ -23,8 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.tenant_environment import \
-    TenantEnvironment
+from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 
 

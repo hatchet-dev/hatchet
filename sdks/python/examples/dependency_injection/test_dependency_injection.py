@@ -1,11 +1,21 @@
 import pytest
 
 from examples.dependency_injection.worker import (
-    ASYNC_CM_DEPENDENCY_VALUE, ASYNC_DEPENDENCY_VALUE, CHAINED_ASYNC_CM_VALUE,
-    CHAINED_CM_VALUE, SYNC_CM_DEPENDENCY_VALUE, SYNC_DEPENDENCY_VALUE, Output,
-    async_dep, async_task_with_dependencies, di_workflow,
-    durable_async_task_with_dependencies, durable_sync_task_with_dependencies,
-    sync_dep, sync_task_with_dependencies)
+    ASYNC_CM_DEPENDENCY_VALUE,
+    ASYNC_DEPENDENCY_VALUE,
+    CHAINED_ASYNC_CM_VALUE,
+    CHAINED_CM_VALUE,
+    SYNC_CM_DEPENDENCY_VALUE,
+    SYNC_DEPENDENCY_VALUE,
+    Output,
+    async_dep,
+    async_task_with_dependencies,
+    di_workflow,
+    durable_async_task_with_dependencies,
+    durable_sync_task_with_dependencies,
+    sync_dep,
+    sync_task_with_dependencies,
+)
 from hatchet_sdk import EmptyModel
 from hatchet_sdk.runnables.workflow import Standalone
 

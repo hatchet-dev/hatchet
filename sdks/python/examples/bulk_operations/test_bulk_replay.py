@@ -4,11 +4,12 @@ from uuid import uuid4
 
 import pytest
 
-from examples.bulk_operations.worker import (bulk_replay_test_1,
-                                             bulk_replay_test_2,
-                                             bulk_replay_test_3)
-from hatchet_sdk import (BulkCancelReplayOpts, Hatchet, RunFilter,
-                         TriggerWorkflowOptions)
+from examples.bulk_operations.worker import (
+    bulk_replay_test_1,
+    bulk_replay_test_2,
+    bulk_replay_test_3,
+)
+from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 

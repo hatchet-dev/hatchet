@@ -7,23 +7,28 @@ import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import (
-    ActionListener, GetActionListenerRequest)
+    ActionListener,
+    GetActionListenerRequest,
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.dispatcher_pb2 import (SDKS,
-                                                  STEP_EVENT_TYPE_COMPLETED,
-                                                  STEP_EVENT_TYPE_FAILED,
-                                                  ActionEventResponse,
-                                                  OverridesData,
-                                                  RefreshTimeoutRequest,
-                                                  ReleaseSlotRequest,
-                                                  RuntimeInfo, StepActionEvent,
-                                                  StepActionEventType,
-                                                  UpsertWorkerLabelsRequest,
-                                                  WorkerLabels,
-                                                  WorkerRegisterRequest,
-                                                  WorkerRegisterResponse)
+from hatchet_sdk.contracts.dispatcher_pb2 import (
+    SDKS,
+    STEP_EVENT_TYPE_COMPLETED,
+    STEP_EVENT_TYPE_FAILED,
+    ActionEventResponse,
+    OverridesData,
+    RefreshTimeoutRequest,
+    ReleaseSlotRequest,
+    RuntimeInfo,
+    StepActionEvent,
+    StepActionEventType,
+    UpsertWorkerLabelsRequest,
+    WorkerLabels,
+    WorkerRegisterRequest,
+    WorkerRegisterResponse,
+)
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.runnables.action import Action

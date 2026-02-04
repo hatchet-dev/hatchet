@@ -8,16 +8,22 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 try:
     from opentelemetry.context import Context
-    from opentelemetry.instrumentation.instrumentor import \
-        BaseInstrumentor  # type: ignore[attr-defined]
+    from opentelemetry.instrumentation.instrumentor import (
+        BaseInstrumentor,  # type: ignore[attr-defined]
+    )
     from opentelemetry.instrumentation.utils import unwrap
-    from opentelemetry.metrics import (MeterProvider, NoOpMeterProvider,
-                                       get_meter)
-    from opentelemetry.trace import (NoOpTracerProvider, SpanKind, StatusCode,
-                                     TracerProvider, get_tracer,
-                                     get_tracer_provider)
-    from opentelemetry.trace.propagation.tracecontext import \
-        TraceContextTextMapPropagator
+    from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
+    from opentelemetry.trace import (
+        NoOpTracerProvider,
+        SpanKind,
+        StatusCode,
+        TracerProvider,
+        get_tracer,
+        get_tracer_provider,
+    )
+    from opentelemetry.trace.propagation.tracecontext import (
+        TraceContextTextMapPropagator,
+    )
     from wrapt import wrap_function_wrapper  # type: ignore[import-untyped]
 except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     raise ModuleNotFoundError(
@@ -31,13 +37,19 @@ from google.protobuf import timestamp_pb2
 
 import hatchet_sdk
 from hatchet_sdk import ClientConfig
-from hatchet_sdk.clients.admin import (AdminClient,
-                                       ScheduleTriggerWorkflowOptions,
-                                       TriggerWorkflowOptions,
-                                       WorkflowRunTriggerConfig)
-from hatchet_sdk.clients.events import (BulkPushEventOptions,
-                                        BulkPushEventWithMetadata, Event,
-                                        EventClient, PushEventOptions)
+from hatchet_sdk.clients.admin import (
+    AdminClient,
+    ScheduleTriggerWorkflowOptions,
+    TriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
+)
+from hatchet_sdk.clients.events import (
+    BulkPushEventOptions,
+    BulkPushEventWithMetadata,
+    Event,
+    EventClient,
+    PushEventOptions,
+)
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.utils.opentelemetry import OTelAttribute

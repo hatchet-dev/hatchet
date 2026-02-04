@@ -5,8 +5,15 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
-from hatchet_sdk import (Context, EmptyModel, Hatchet, ParentCondition,
-                         SleepCondition, UserEventCondition, or_)
+from hatchet_sdk import (
+    Context,
+    EmptyModel,
+    Hatchet,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    or_,
+)
 
 hatchet = Hatchet(debug=True)
 

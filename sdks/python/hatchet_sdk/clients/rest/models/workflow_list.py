@@ -23,8 +23,7 @@ from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.pagination_response import \
-    PaginationResponse
+from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 
 

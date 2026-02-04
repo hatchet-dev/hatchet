@@ -164,8 +164,7 @@ class Workflow(BaseModel):
         return _obj
 
 
-from hatchet_sdk.clients.rest.models.workflow_version_meta import \
-    WorkflowVersionMeta
+from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
 
 # TODO: Rewrite to not use raise_errors
 Workflow.model_rebuild(raise_errors=False)

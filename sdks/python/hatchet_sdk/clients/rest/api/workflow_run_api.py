@@ -19,24 +19,30 @@ from typing_extensions import Annotated
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import \
-    CreateCronWorkflowTriggerRequest
+from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
+    CreateCronWorkflowTriggerRequest,
+)
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.event_update_cancel200_response import \
-    EventUpdateCancel200Response
-from hatchet_sdk.clients.rest.models.replay_workflow_runs_request import \
-    ReplayWorkflowRunsRequest
-from hatchet_sdk.clients.rest.models.replay_workflow_runs_response import \
-    ReplayWorkflowRunsResponse
-from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import \
-    ScheduleWorkflowRunRequest
-from hatchet_sdk.clients.rest.models.scheduled_workflows import \
-    ScheduledWorkflows
-from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import \
-    TriggerWorkflowRunRequest
+from hatchet_sdk.clients.rest.models.event_update_cancel200_response import (
+    EventUpdateCancel200Response,
+)
+from hatchet_sdk.clients.rest.models.replay_workflow_runs_request import (
+    ReplayWorkflowRunsRequest,
+)
+from hatchet_sdk.clients.rest.models.replay_workflow_runs_response import (
+    ReplayWorkflowRunsResponse,
+)
+from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
+    ScheduleWorkflowRunRequest,
+)
+from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
+from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
+    TriggerWorkflowRunRequest,
+)
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
-from hatchet_sdk.clients.rest.models.workflow_runs_cancel_request import \
-    WorkflowRunsCancelRequest
+from hatchet_sdk.clients.rest.models.workflow_runs_cancel_request import (
+    WorkflowRunsCancelRequest,
+)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

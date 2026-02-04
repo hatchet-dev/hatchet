@@ -19,8 +19,7 @@ from typing_extensions import Annotated
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.list_slack_webhooks import \
-    ListSlackWebhooks
+from hatchet_sdk.clients.rest.models.list_slack_webhooks import ListSlackWebhooks
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

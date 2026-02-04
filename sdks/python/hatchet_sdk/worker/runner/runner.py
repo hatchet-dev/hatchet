@@ -17,31 +17,36 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.listeners.durable_event_listener import \
-    DurableEventListener
-from hatchet_sdk.clients.listeners.run_event_listener import \
-    RunEventListenerClient
-from hatchet_sdk.clients.listeners.workflow_listener import \
-    PooledWorkflowRunListener
+from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.dispatcher_pb2 import (STEP_EVENT_TYPE_COMPLETED,
-                                                  STEP_EVENT_TYPE_FAILED,
-                                                  STEP_EVENT_TYPE_STARTED)
-from hatchet_sdk.exceptions import (IllegalTaskOutputError,
-                                    NonRetryableException, TaskRunError)
+from hatchet_sdk.contracts.dispatcher_pb2 import (
+    STEP_EVENT_TYPE_COMPLETED,
+    STEP_EVENT_TYPE_FAILED,
+    STEP_EVENT_TYPE_STARTED,
+)
+from hatchet_sdk.exceptions import (
+    IllegalTaskOutputError,
+    NonRetryableException,
+    TaskRunError,
+)
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
-from hatchet_sdk.runnables.contextvars import (ctx_action_key,
-                                               ctx_additional_metadata,
-                                               ctx_step_run_id,
-                                               ctx_task_retry_count,
-                                               ctx_worker_id,
-                                               ctx_workflow_run_id,
-                                               spawn_index_lock, task_count,
-                                               workflow_spawn_indices)
+from hatchet_sdk.runnables.contextvars import (
+    ctx_action_key,
+    ctx_additional_metadata,
+    ctx_step_run_id,
+    ctx_task_retry_count,
+    ctx_worker_id,
+    ctx_workflow_run_id,
+    spawn_index_lock,
+    task_count,
+    workflow_spawn_indices,
+)
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
@@ -49,12 +54,14 @@ from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
-from hatchet_sdk.worker.runner.utils.capture_logs import (AsyncLogSender,
-                                                          ContextVarToCopy,
-                                                          ContextVarToCopyDict,
-                                                          ContextVarToCopyInt,
-                                                          ContextVarToCopyStr,
-                                                          copy_context_vars)
+from hatchet_sdk.worker.runner.utils.capture_logs import (
+    AsyncLogSender,
+    ContextVarToCopy,
+    ContextVarToCopyDict,
+    ContextVarToCopyInt,
+    ContextVarToCopyStr,
+    copy_context_vars,
+)
 
 
 class WorkerStatus(Enum):

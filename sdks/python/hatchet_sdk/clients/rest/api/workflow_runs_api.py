@@ -15,24 +15,22 @@ import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from pydantic import (Field, StrictBool, StrictFloat, StrictInt, StrictStr,
-                      validate_call)
+from pydantic import Field, StrictBool, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import \
-    V1TaskSummaryList
-from hatchet_sdk.clients.rest.models.v1_task_timing_list import \
-    V1TaskTimingList
-from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import \
-    V1TriggerWorkflowRunRequest
-from hatchet_sdk.clients.rest.models.v1_workflow_run_details import \
-    V1WorkflowRunDetails
-from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import \
-    V1WorkflowRunDisplayNameList
+from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk.clients.rest.models.v1_task_timing_list import V1TaskTimingList
+from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
+    V1TriggerWorkflowRunRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
+from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import (
+    V1WorkflowRunDisplayNameList,
+)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

@@ -22,8 +22,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.v1_webhook_source_name import \
-    V1WebhookSourceName
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 
 
 class V1CreateWebhookRequestBase(BaseModel):

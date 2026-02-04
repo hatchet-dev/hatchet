@@ -4,8 +4,7 @@ from uuid import uuid4
 import pytest
 
 from examples.run_details.worker import MockInput, run_detail_test_workflow
-from hatchet_sdk import (Hatchet, RunStatus, TriggerWorkflowOptions,
-                         V1TaskStatus)
+from hatchet_sdk import Hatchet, RunStatus, TriggerWorkflowOptions, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")

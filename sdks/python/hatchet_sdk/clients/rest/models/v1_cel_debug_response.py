@@ -22,8 +22,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import \
-    V1CELDebugResponseStatus
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
+    V1CELDebugResponseStatus,
+)
 
 
 class V1CELDebugResponse(BaseModel):

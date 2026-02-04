@@ -22,8 +22,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Annotated, Self
 
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import \
-    ScheduledWorkflowsBulkUpdateItem
+from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import (
+    ScheduledWorkflowsBulkUpdateItem,
+)
 
 
 class ScheduledWorkflowsBulkUpdateRequest(BaseModel):

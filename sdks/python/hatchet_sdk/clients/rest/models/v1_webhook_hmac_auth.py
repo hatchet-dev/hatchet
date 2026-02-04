@@ -22,10 +22,12 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import \
-    V1WebhookHMACAlgorithm
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import \
-    V1WebhookHMACEncoding
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+    V1WebhookHMACAlgorithm,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+    V1WebhookHMACEncoding,
+)
 
 
 class V1WebhookHMACAuth(BaseModel):

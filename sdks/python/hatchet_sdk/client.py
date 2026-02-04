@@ -1,10 +1,8 @@
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.listeners.run_event_listener import \
-    RunEventListenerClient
-from hatchet_sdk.clients.listeners.workflow_listener import \
-    PooledWorkflowRunListener
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient

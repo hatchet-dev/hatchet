@@ -4,9 +4,13 @@ from uuid import uuid4
 import pytest
 
 from examples.bug_tests.payload_bug_on_replay.worker import (
-    Input, StepOutput, payload_initial_cancel_bug_workflow, step1, step2)
-from hatchet_sdk import (EmptyModel, Hatchet, TriggerWorkflowOptions,
-                         V1TaskStatus)
+    Input,
+    StepOutput,
+    payload_initial_cancel_bug_workflow,
+    step1,
+    step2,
+)
+from hatchet_sdk import EmptyModel, Hatchet, TriggerWorkflowOptions, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")

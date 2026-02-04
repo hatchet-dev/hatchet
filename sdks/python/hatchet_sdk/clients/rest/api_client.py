@@ -31,12 +31,15 @@ from hatchet_sdk.clients.rest import rest
 from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.api_response import T as ApiResponseT
 from hatchet_sdk.clients.rest.configuration import Configuration
-from hatchet_sdk.clients.rest.exceptions import (ApiException, ApiValueError,
-                                                 BadRequestException,
-                                                 ForbiddenException,
-                                                 NotFoundException,
-                                                 ServiceException,
-                                                 UnauthorizedException)
+from hatchet_sdk.clients.rest.exceptions import (
+    ApiException,
+    ApiValueError,
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+    ServiceException,
+    UnauthorizedException,
+)
 from hatchet_sdk.logger import logger
 
 RequestSerialized = Tuple[str, str, Dict[str, str], Optional[str], List[str]]

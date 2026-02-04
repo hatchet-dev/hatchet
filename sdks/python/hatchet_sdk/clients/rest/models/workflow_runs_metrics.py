@@ -22,8 +22,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import \
-    WorkflowRunsMetricsCounts
+from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
+    WorkflowRunsMetricsCounts,
+)
 
 
 class WorkflowRunsMetrics(BaseModel):
