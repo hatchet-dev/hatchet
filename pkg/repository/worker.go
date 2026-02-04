@@ -649,7 +649,7 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 	dispatcherIdsToWorkers := make(map[uuid.UUID][]uuid.UUID)
 
 	for _, row := range rows {
-		if row.DispatcherId == nil {
+		if row.DispatcherId == nil || (row.DispatcherId != nil && *row.DispatcherId == uuid.Nil) {
 			continue
 		}
 
