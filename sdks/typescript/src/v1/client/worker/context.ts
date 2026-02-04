@@ -275,7 +275,13 @@ export class Context<T, K = {}> {
 
     // FIXME: this is a hack to get around the fact that the log level is not typed
     promises.push(
-      this.v1.event.putLog(taskRunExternalId, message, level as any, this.retryCount(), extra?.extra)
+      this.v1.event.putLog(
+        taskRunExternalId,
+        message,
+        level as any,
+        this.retryCount(),
+        extra?.extra
+      )
     );
 
     return Promise.all(promises);
