@@ -154,8 +154,9 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 			dataHashAlgs[i] = "sha256"
 
 			payloadOpts = append(payloadOpts, StorePayloadOpts{
-				Id:         opt.DurableTaskId,
-				InsertedAt: opt.DurableTaskInsertedAt,
+				// todo: confirm node id + inserted at uniquely identifies an entry
+				Id:         opt.NodeId,
+				InsertedAt: opt.InsertedAt,
 				ExternalId: opt.ExternalId,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
 				Payload:    opt.Data,
