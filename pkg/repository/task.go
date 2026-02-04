@@ -1730,7 +1730,7 @@ func (r *sharedRepository) insertTasks(
 	stepTimeouts := make([]string, len(tasks))
 	priorities := make([]int32, len(tasks))
 	stickies := make([]string, len(tasks))
-	desiredWorkerIds := make([]uuid.UUID, len(tasks))
+	desiredWorkerIds := make([]*uuid.UUID, len(tasks))
 	externalIds := make([]uuid.UUID, len(tasks))
 	displayNames := make([]string, len(tasks))
 	retryCounts := make([]int32, len(tasks))
@@ -1801,11 +1801,7 @@ func (r *sharedRepository) insertTasks(
 			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
 		}
 
-		desiredWorkerIds[i] = uuid.Nil
-
-		if task.DesiredWorkerId != nil {
-			desiredWorkerIds[i] = *task.DesiredWorkerId
-		}
+		desiredWorkerIds[i] = task.DesiredWorkerId
 
 		initialStates[i] = string(task.InitialState)
 		if initialStates[i] == "" {
@@ -2045,7 +2041,7 @@ func (r *sharedRepository) insertTasks(
 				Steptimeouts:                 make([]string, 0),
 				Priorities:                   make([]int32, 0),
 				Stickies:                     make([]string, 0),
-				Desiredworkerids:             make([]uuid.UUID, 0),
+				Desiredworkerids:             make([]*uuid.UUID, 0),
 				Externalids:                  make([]uuid.UUID, 0),
 				Displaynames:                 make([]string, 0),
 				Retrycounts:                  make([]int32, 0),
