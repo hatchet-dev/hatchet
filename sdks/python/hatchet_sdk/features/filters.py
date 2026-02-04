@@ -2,12 +2,14 @@ import asyncio
 
 from hatchet_sdk.clients.rest.api.filter_api import FilterApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
-from hatchet_sdk.clients.rest.models.v1_create_filter_request import \
-    V1CreateFilterRequest
+from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
+    V1CreateFilterRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
-from hatchet_sdk.clients.rest.models.v1_update_filter_request import \
-    V1UpdateFilterRequest
+from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
+    V1UpdateFilterRequest,
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.utils.typing import JSONSerializableMapping

@@ -22,8 +22,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.pagination_response import \
-    PaginationResponse
+from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
 from hatchet_sdk.clients.rest.models.v1_task_timing import V1TaskTiming
 
 

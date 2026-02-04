@@ -1,5 +1,7 @@
 from examples.concurrency_limit_rr.worker import (
-    WorkflowInput, concurrency_limit_rr_workflow)
+    WorkflowInput,
+    concurrency_limit_rr_workflow,
+)
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()

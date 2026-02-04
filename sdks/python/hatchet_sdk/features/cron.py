@@ -5,18 +5,22 @@ from pydantic import BaseModel, Field, field_validator
 from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
-from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import \
-    CreateCronWorkflowTriggerRequest
+from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
+    CreateCronWorkflowTriggerRequest,
+)
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.cron_workflows_list import \
-    CronWorkflowsList
-from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import \
-    CronWorkflowsOrderByField
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import \
-    WorkflowRunOrderByDirection
+from hatchet_sdk.clients.rest.models.cron_workflows_list import CronWorkflowsList
+from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
+    CronWorkflowsOrderByField,
+)
+from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
+    WorkflowRunOrderByDirection,
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.clients.v1.api_client import (BaseRestClient,
-                                               maybe_additional_metadata_to_kv)
+from hatchet_sdk.clients.v1.api_client import (
+    BaseRestClient,
+    maybe_additional_metadata_to_kv,
+)
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 

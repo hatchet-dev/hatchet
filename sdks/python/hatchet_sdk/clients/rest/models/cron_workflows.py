@@ -23,8 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing_extensions import Annotated, Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.cron_workflows_method import \
-    CronWorkflowsMethod
+from hatchet_sdk.clients.rest.models.cron_workflows_method import CronWorkflowsMethod
 
 
 class CronWorkflows(BaseModel):

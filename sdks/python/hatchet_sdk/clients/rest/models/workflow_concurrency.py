@@ -22,8 +22,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.concurrency_limit_strategy import \
-    ConcurrencyLimitStrategy
+from hatchet_sdk.clients.rest.models.concurrency_limit_strategy import (
+    ConcurrencyLimitStrategy,
+)
 
 
 class WorkflowConcurrency(BaseModel):

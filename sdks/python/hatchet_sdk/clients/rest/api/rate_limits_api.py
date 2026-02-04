@@ -20,10 +20,12 @@ from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.models.rate_limit_list import RateLimitList
-from hatchet_sdk.clients.rest.models.rate_limit_order_by_direction import \
-    RateLimitOrderByDirection
-from hatchet_sdk.clients.rest.models.rate_limit_order_by_field import \
-    RateLimitOrderByField
+from hatchet_sdk.clients.rest.models.rate_limit_order_by_direction import (
+    RateLimitOrderByDirection,
+)
+from hatchet_sdk.clients.rest.models.rate_limit_order_by_field import (
+    RateLimitOrderByField,
+)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

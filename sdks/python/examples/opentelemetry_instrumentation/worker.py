@@ -1,6 +1,7 @@
 from examples.opentelemetry_instrumentation.client import hatchet
 from examples.opentelemetry_instrumentation.tracer import trace_provider
 from hatchet_sdk import Context, EmptyModel
+
 # > Configure the instrumentor
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 

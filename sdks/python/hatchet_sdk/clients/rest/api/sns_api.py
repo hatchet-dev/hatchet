@@ -19,10 +19,10 @@ from typing_extensions import Annotated
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.create_sns_integration_request import \
-    CreateSNSIntegrationRequest
-from hatchet_sdk.clients.rest.models.list_sns_integrations import \
-    ListSNSIntegrations
+from hatchet_sdk.clients.rest.models.create_sns_integration_request import (
+    CreateSNSIntegrationRequest,
+)
+from hatchet_sdk.clients.rest.models.list_sns_integrations import ListSNSIntegrations
 from hatchet_sdk.clients.rest.models.sns_integration import SNSIntegration
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 

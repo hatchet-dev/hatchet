@@ -3,8 +3,15 @@ import time
 from datetime import timedelta
 from uuid import uuid4
 
-from hatchet_sdk import (Context, DurableContext, EmptyModel, Hatchet,
-                         SleepCondition, UserEventCondition, or_)
+from hatchet_sdk import (
+    Context,
+    DurableContext,
+    EmptyModel,
+    Hatchet,
+    SleepCondition,
+    UserEventCondition,
+    or_,
+)
 
 hatchet = Hatchet(debug=True)
 

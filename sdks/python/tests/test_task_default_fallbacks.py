@@ -21,8 +21,7 @@ from typing import Any
 
 import pytest
 
-from hatchet_sdk import (Context, DurableContext, EmptyModel, Hatchet, Task,
-                         TaskDefaults)
+from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, Task, TaskDefaults
 
 
 def dummy_task(input: EmptyModel, context: Context) -> dict[str, str]:

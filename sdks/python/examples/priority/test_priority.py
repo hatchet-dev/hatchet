@@ -10,10 +10,8 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel
 
-from examples.priority.worker import (DEFAULT_PRIORITY, SLEEP_TIME,
-                                      priority_workflow)
-from hatchet_sdk import (Hatchet, ScheduleTriggerWorkflowOptions,
-                         TriggerWorkflowOptions)
+from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
+from hatchet_sdk import Hatchet, ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 Priority = Literal["low", "medium", "high", "default"]

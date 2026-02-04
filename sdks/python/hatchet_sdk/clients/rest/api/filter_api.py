@@ -19,12 +19,14 @@ from typing_extensions import Annotated
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.v1_create_filter_request import \
-    V1CreateFilterRequest
+from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
+    V1CreateFilterRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
-from hatchet_sdk.clients.rest.models.v1_update_filter_request import \
-    V1UpdateFilterRequest
+from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
+    V1UpdateFilterRequest,
+)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

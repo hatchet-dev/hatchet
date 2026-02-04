@@ -25,10 +25,10 @@ from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant import Tenant
-from hatchet_sdk.clients.rest.models.v1_event_triggered_run import \
-    V1EventTriggeredRun
-from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import \
-    V1EventWorkflowRunSummary
+from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun
+from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
+    V1EventWorkflowRunSummary,
+)
 
 
 class V1Event(BaseModel):

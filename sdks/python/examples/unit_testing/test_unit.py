@@ -1,19 +1,23 @@
 import pytest
 
-from examples.unit_testing.workflows import (Lifespan, UnitTestInput,
-                                             UnitTestOutput,
-                                             async_complex_workflow,
-                                             async_simple_workflow,
-                                             async_standalone,
-                                             durable_async_complex_workflow,
-                                             durable_async_simple_workflow,
-                                             durable_async_standalone,
-                                             durable_sync_complex_workflow,
-                                             durable_sync_simple_workflow,
-                                             durable_sync_standalone, start,
-                                             sync_complex_workflow,
-                                             sync_simple_workflow,
-                                             sync_standalone)
+from examples.unit_testing.workflows import (
+    Lifespan,
+    UnitTestInput,
+    UnitTestOutput,
+    async_complex_workflow,
+    async_simple_workflow,
+    async_standalone,
+    durable_async_complex_workflow,
+    durable_async_simple_workflow,
+    durable_async_standalone,
+    durable_sync_complex_workflow,
+    durable_sync_simple_workflow,
+    durable_sync_standalone,
+    start,
+    sync_complex_workflow,
+    sync_simple_workflow,
+    sync_standalone,
+)
 from hatchet_sdk import Task
 
 

@@ -2,14 +2,15 @@ import asyncio
 
 import pytest
 
-from examples.non_retryable.worker import (non_retryable_workflow,
-                                           should_not_retry,
-                                           should_not_retry_successful_task,
-                                           should_retry_wrong_exception_type)
+from examples.non_retryable.worker import (
+    non_retryable_workflow,
+    should_not_retry,
+    should_not_retry_successful_task,
+    should_retry_wrong_exception_type,
+)
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
-from hatchet_sdk.clients.rest.models.v1_workflow_run_details import \
-    V1WorkflowRunDetails
+from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
 
 

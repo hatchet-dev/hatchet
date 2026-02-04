@@ -20,30 +20,28 @@ from typing_extensions import Annotated
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.bulk_create_event_request import \
-    BulkCreateEventRequest
-from hatchet_sdk.clients.rest.models.cancel_event_request import \
-    CancelEventRequest
-from hatchet_sdk.clients.rest.models.create_event_request import \
-    CreateEventRequest
+from hatchet_sdk.clients.rest.models.bulk_create_event_request import (
+    BulkCreateEventRequest,
+)
+from hatchet_sdk.clients.rest.models.cancel_event_request import CancelEventRequest
+from hatchet_sdk.clients.rest.models.create_event_request import CreateEventRequest
 from hatchet_sdk.clients.rest.models.event import Event
 from hatchet_sdk.clients.rest.models.event_data import EventData
 from hatchet_sdk.clients.rest.models.event_key_list import EventKeyList
 from hatchet_sdk.clients.rest.models.event_list import EventList
-from hatchet_sdk.clients.rest.models.event_order_by_direction import \
-    EventOrderByDirection
-from hatchet_sdk.clients.rest.models.event_order_by_field import \
-    EventOrderByField
-from hatchet_sdk.clients.rest.models.event_update_cancel200_response import \
-    EventUpdateCancel200Response
+from hatchet_sdk.clients.rest.models.event_order_by_direction import (
+    EventOrderByDirection,
+)
+from hatchet_sdk.clients.rest.models.event_order_by_field import EventOrderByField
+from hatchet_sdk.clients.rest.models.event_update_cancel200_response import (
+    EventUpdateCancel200Response,
+)
 from hatchet_sdk.clients.rest.models.events import Events
-from hatchet_sdk.clients.rest.models.replay_event_request import \
-    ReplayEventRequest
+from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.workflow_run_status import \
-    WorkflowRunStatus
+from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

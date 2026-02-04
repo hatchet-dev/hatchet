@@ -25,10 +25,10 @@ from typing_extensions import Annotated, Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job_run import JobRun
-from hatchet_sdk.clients.rest.models.workflow_run_status import \
-    WorkflowRunStatus
-from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import \
-    WorkflowRunTriggeredBy
+from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import (
+    WorkflowRunTriggeredBy,
+)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 
 

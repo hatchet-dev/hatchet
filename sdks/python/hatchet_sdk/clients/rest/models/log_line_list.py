@@ -23,8 +23,7 @@ from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.log_line import LogLine
-from hatchet_sdk.clients.rest.models.pagination_response import \
-    PaginationResponse
+from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
 
 
 class LogLineList(BaseModel):

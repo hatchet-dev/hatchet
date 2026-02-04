@@ -19,8 +19,14 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import (BaseModel, ConfigDict, Field, StrictBool, StrictStr,
-                      field_validator)
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictStr,
+    field_validator,
+)
 from typing_extensions import Self
 
 
