@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 package factory
 
 import (
@@ -7,9 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 )
 
-// NewWorkflow creates a new workflow declaration with the specified input and output types before a client is initialized.
-// This function is used to create strongly typed workflow declarations with the given client.
-// NOTE: This is placed on the client due to circular dependency concerns.
+// Deprecated: NewWorkflow is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func NewWorkflow[I any, O any](opts create.WorkflowCreateOpts[I], client v1.HatchetClient) workflow.WorkflowDeclaration[I, O] {
 	var v0 v0Client.Client
 	if client != nil {

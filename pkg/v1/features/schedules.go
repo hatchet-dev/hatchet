@@ -9,6 +9,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 )
 
+// Deprecated: SchedulesClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+//
 // SchedulesClient provides methods for interacting with workflow schedules
 // in the Hatchet platform.
 type SchedulesClient interface {
@@ -25,6 +28,9 @@ type SchedulesClient interface {
 	Get(ctx context.Context, scheduledRunId string) (*rest.ScheduledWorkflows, error)
 }
 
+// Deprecated: CreateScheduledRunTrigger is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+//
 // CreateScheduledRunTrigger contains the configuration for creating a scheduled run trigger.
 type CreateScheduledRunTrigger struct {
 	// TriggerAt specifies when the workflow should be triggered.
@@ -46,6 +52,9 @@ type schedulesClientImpl struct {
 	namespace *string
 }
 
+// Deprecated: NewSchedulesClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+//
 // NewSchedulesClient creates a new client for interacting with workflow schedules.
 func NewSchedulesClient(
 	api *rest.ClientWithResponses,

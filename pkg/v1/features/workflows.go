@@ -10,6 +10,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 )
 
+// Deprecated: WorkflowsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+//
 // WorkflowsClient provides methods for interacting with workflows
 // in the Hatchet platform.
 type WorkflowsClient interface {
@@ -42,6 +45,9 @@ type workflowsClientImpl struct {
 	cache    *cache.Cache
 }
 
+// Deprecated: NewWorkflowsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+//
 // NewWorkflowsClient creates a new client for interacting with workflows.
 func NewWorkflowsClient(
 	api *rest.ClientWithResponses,

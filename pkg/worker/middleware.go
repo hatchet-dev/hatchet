@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+// Deprecated: MiddlewareFunc is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly.
 type MiddlewareFunc func(ctx HatchetContext, next func(HatchetContext) error) error
 
 type middlewares struct {

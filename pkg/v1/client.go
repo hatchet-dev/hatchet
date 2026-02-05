@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 package v1
 
 import (
@@ -9,8 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 )
 
-// HatchetClient is the main interface for interacting with the Hatchet task orchestrator.
-// It provides access to workflow creation, worker registration, and legacy V0 client functionality.
+// Deprecated: HatchetClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 type HatchetClient interface {
 	// V0 returns the underlying V0 client for backward compatibility.
 	V0() v0Client.Client
@@ -59,8 +61,8 @@ type v1HatchetClientImpl struct {
 	webhooks   features.WebhooksClient
 }
 
-// NewHatchetClient creates a new V1 Hatchet client with the provided configuration.
-// If no configuration is provided, default settings will be used.
+// Deprecated: NewHatchetClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func NewHatchetClient(config ...Config) (HatchetClient, error) {
 	cf := &v0Config.ClientConfigFile{}
 

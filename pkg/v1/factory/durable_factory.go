@@ -8,6 +8,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
+// Deprecated: NewDurableTask is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+//
 // NewDurableTask creates a durable task that is implemented as a simple workflow with a single task.
 // It provides proper type inference for the input and output types.
 //

@@ -9,6 +9,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: CELClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+//
 // The CEL client is a client for debugging CEL expressions within Hatchet
 type CELClient interface {
 	Debug(ctx context.Context, expression string, input map[string]interface{}, additionalMetadata, filterPayload *map[string]interface{}) (*CELEvaluationResult, error)
@@ -19,6 +22,8 @@ type celClientImpl struct {
 	tenantId uuid.UUID
 }
 
+// Deprecated: NewCELClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func NewCELClient(
 	api *rest.ClientWithResponses,
 	tenantId *string,
@@ -31,6 +36,8 @@ func NewCELClient(
 	}
 }
 
+// Deprecated: CELEvaluationResult is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 type CELEvaluationResult struct {
 	status gen.V1CELDebugResponseStatus
 	output *bool

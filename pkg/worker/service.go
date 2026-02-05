@@ -7,6 +7,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
+// Deprecated: Service is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 type Service struct {
 	Name string
 
@@ -15,15 +17,20 @@ type Service struct {
 	worker *Worker
 }
 
+// Deprecated: Use is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func (s *Service) Use(mws ...MiddlewareFunc) {
 	s.mws.add(mws...)
 }
 
+// Deprecated: RegisterWorkflow is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func (s *Service) RegisterWorkflow(workflow workflowConverter) error {
 	return s.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
-// Deprecated: Use RegisterWorkflow instead
+// Deprecated: On is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	namespace := s.worker.client.Namespace()
 
@@ -67,25 +74,35 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	return nil
 }
 
+// Deprecated: registerActionOpts is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 type registerActionOpts struct {
 	name    string
 	compute *compute.Compute
 }
 
+// Deprecated: RegisterActionOpt is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 type RegisterActionOpt func(*registerActionOpts)
 
+// Deprecated: WithActionName is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func WithActionName(name string) RegisterActionOpt {
 	return func(opts *registerActionOpts) {
 		opts.name = name
 	}
 }
 
+// Deprecated: WithCompute is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func WithCompute(compute *compute.Compute) RegisterActionOpt {
 	return func(opts *registerActionOpts) {
 		opts.compute = compute
 	}
 }
 
+// Deprecated: RegisterAction is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 	fnOpts := &registerActionOpts{}
 
@@ -100,6 +117,8 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 	return s.worker.registerAction(s.Name, fnOpts.name, fn, fnOpts.compute)
 }
 
+// Deprecated: Call is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
 func (s *Service) Call(verb string) *WorkflowStep {
 	actionId := fmt.Sprintf("%s:%s", s.Name, verb)
 
