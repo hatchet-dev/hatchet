@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -202,6 +203,20 @@ func getLastDeniedAt(t *testing.T, pool *pgxpool.Pool, tenantId uuid.UUID, key I
 	return lastDeniedAt
 }
 
+func getClaimedByExternalId(t *testing.T, pool *pgxpool.Pool, tenantId uuid.UUID, key IdempotencyKey) *uuid.UUID {
+	t.Helper()
+	ctx := context.Background()
+
+	var claimedByExternalId *uuid.UUID
+	err := pool.QueryRow(ctx, `
+        SELECT claimed_by_external_id
+        FROM v1_idempotency_key
+        WHERE tenant_id = $1 AND key = $2
+    `, tenantId, string(key)).Scan(&claimedByExternalId)
+	require.NoError(t, err)
+	return claimedByExternalId
+}
+
 func TestTriggerWorkflowIdempotency_DedupesActiveRun(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
@@ -351,6 +366,162 @@ func TestTriggerWorkflowIdempotency_ReclaimsAfterTerminalStatus(t *testing.T) {
 
 	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{second})
 	require.NoError(t, err)
+}
+
+func TestTriggerWorkflowIdempotency_ReclaimDoesNotUpdateLastDeniedAt(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo, cleanupRepo := setupRepositoryWithTTL(t, pool, 30*time.Minute, 1*time.Minute)
+	defer cleanupRepo()
+
+	tenantId := setupTenant(t, repo, pool)
+	wf := createMinimalWorkflow(t, pool, tenantId, "test-workflow")
+
+	ctx := context.Background()
+	key := IdempotencyKey("idem-key-reclaim-denied")
+
+	first := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &key,
+	}
+
+	_, _, err := repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{first})
+	require.NoError(t, err)
+
+	insertRunStatus(t, pool, tenantId, wf, first.ExternalId, sqlcv1.V1ReadableStatusOlapFAILED)
+
+	second := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &key,
+	}
+
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{second})
+	require.NoError(t, err)
+
+	lastDeniedAt := getLastDeniedAt(t, pool, tenantId, key)
+	assert.False(t, lastDeniedAt.Valid)
+}
+
+func TestTriggerWorkflowIdempotency_MixedKeysDeniesBatch(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo, cleanupRepo := setupRepositoryWithTTL(t, pool, 30*time.Minute, 1*time.Minute)
+	defer cleanupRepo()
+
+	tenantId := setupTenant(t, repo, pool)
+	wf := createMinimalWorkflow(t, pool, tenantId, "test-workflow")
+
+	ctx := context.Background()
+	keyTerminal := IdempotencyKey("idem-key-terminal")
+	keyRunning := IdempotencyKey("idem-key-running")
+
+	terminalFirst := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &keyTerminal,
+	}
+	_, _, err := repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{terminalFirst})
+	require.NoError(t, err)
+	insertRunStatus(t, pool, tenantId, wf, terminalFirst.ExternalId, sqlcv1.V1ReadableStatusOlapFAILED)
+
+	runningFirst := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &keyRunning,
+	}
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{runningFirst})
+	require.NoError(t, err)
+	insertRunStatus(t, pool, tenantId, wf, runningFirst.ExternalId, sqlcv1.V1ReadableStatusOlapRUNNING)
+
+	terminalSecond := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &keyTerminal,
+	}
+	runningSecond := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &keyRunning,
+	}
+
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{terminalSecond, runningSecond})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrIdempotencyKeyAlreadyClaimed)
+
+	claimedTerminal := getClaimedByExternalId(t, pool, tenantId, keyTerminal)
+	require.NotNil(t, claimedTerminal)
+	assert.Equal(t, terminalFirst.ExternalId, *claimedTerminal)
+}
+
+func TestTriggerWorkflowIdempotency_ConcurrentDuplicateKey(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo, cleanupRepo := setupRepositoryWithTTL(t, pool, 30*time.Minute, 1*time.Minute)
+	defer cleanupRepo()
+
+	tenantId := setupTenant(t, repo, pool)
+	_ = createMinimalWorkflow(t, pool, tenantId, "test-workflow")
+
+	key := IdempotencyKey("idem-key-concurrent")
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+
+	run := func(externalId uuid.UUID) {
+		<-start
+		opts := &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{
+				WorkflowName: "test-workflow",
+			},
+			ExternalId:     externalId,
+			IdempotencyKey: &key,
+		}
+		_, _, err := repo.Triggers().TriggerFromWorkflowNames(context.Background(), tenantId, []*WorkflowNameTriggerOpts{opts})
+		errs <- err
+	}
+
+	go run(uuid.New())
+	go run(uuid.New())
+
+	close(start)
+
+	var (
+		successCount int
+		dupCount     int
+	)
+
+	for i := 0; i < 2; i++ {
+		err := <-errs
+		if err == nil {
+			successCount++
+			continue
+		}
+		if errors.Is(err, ErrIdempotencyKeyAlreadyClaimed) {
+			dupCount++
+		} else {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	assert.Equal(t, 1, successCount)
+	assert.Equal(t, 1, dupCount)
 }
 
 func TestTriggerWorkflowIdempotency_RecheckThrottled(t *testing.T) {
