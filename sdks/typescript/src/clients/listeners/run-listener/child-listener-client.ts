@@ -174,6 +174,7 @@ export class RunEventListener {
       this.eventEmitter.emit('event');
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _ of on(this.eventEmitter, 'event')) {
       while (this.q.length > 0) {
         const r = this.q.shift();

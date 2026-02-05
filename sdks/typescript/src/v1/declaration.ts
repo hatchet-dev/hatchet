@@ -320,8 +320,10 @@ export class BaseWorkflowDeclaration<
       );
     }
 
+    const inheritedSignal = parentRunContext?.signal;
+
     const runOpts = {
-      ...options,
+      ...(options ?? {}),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
@@ -357,6 +359,9 @@ export class BaseWorkflowDeclaration<
           // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = _standaloneTaskName;
         }
+        // Ensure result subscriptions inherit cancellation if no signal is provided explicitly.
+        // eslint-disable-next-line no-param-reassign
+        ref.defaultSignal = inheritedSignal;
         res.push(ref);
       });
       return res;
@@ -368,6 +373,7 @@ export class BaseWorkflowDeclaration<
       res._standaloneTaskName = _standaloneTaskName;
     }
 
+    res.defaultSignal = inheritedSignal;
     return res;
   }
 
@@ -435,7 +441,7 @@ export class BaseWorkflowDeclaration<
     const scheduled = this.client.scheduled.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
     });
 
     return scheduled;
@@ -477,7 +483,7 @@ export class BaseWorkflowDeclaration<
     const cronDef = this.client.crons.create(this.definition.name, {
       expression,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
       additionalMetadata: options?.additionalMetadata,
       name,
     });

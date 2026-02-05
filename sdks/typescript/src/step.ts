@@ -655,13 +655,13 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
-
-    const listener = this.v0.durableListener.subscribe({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-    });
-
-    const event = await listener.get();
+    const event = await this.v0.durableListener.result(
+      {
+        taskId: this.action.taskRunExternalId,
+        signalKey: key,
+      },
+      { signal: this.abortController.signal }
+    );
 
     // Convert event.data from Uint8Array to string if needed
     const eventData =
@@ -758,8 +758,9 @@ export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): Creat
 }
 
 // Helper function to validate CEL expressions
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function validateCelExpression(_expr: string): boolean {
-  // This is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
+  // FIXME: this is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
   // For now, we'll just return true to mimic the behavior.
   return true;
 }

@@ -25,11 +25,11 @@ import {
   DesiredWorkerLabels,
   WorkflowConcurrencyOpts,
 } from '@hatchet/protoc/workflows';
-import { Logger } from '@hatchet/util/logger';
+import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { WebhookHandler } from '@clients/worker/handler';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
 import { WorkflowDefinition } from '@hatchet/v1';
-import { CreateWorkflowTaskOpts, NonRetryableError } from '@hatchet/v1/task';
+import { NonRetryableError } from '@hatchet/v1/task';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { V0Context, CreateStep, V0DurableContext, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
@@ -43,6 +43,7 @@ export interface WorkerOpts {
   labels?: WorkerLabels;
 }
 
+// TODO: can i nerf this now...
 export class V0Worker {
   client: LegacyHatchetClient;
   name: string;
@@ -236,7 +237,7 @@ export class V0Worker {
   }
 
   async handleStartStepRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, taskName, taskRunExternalId } = action;
 
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
@@ -256,7 +257,7 @@ export class V0Worker {
       };
 
       const success = async (result: any) => {
-        this.logger.info(`Task run ${action.taskRunExternalId} succeeded`);
+        this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
 
         try {
           // Send the action event to the dispatcher
@@ -301,7 +302,7 @@ export class V0Worker {
       };
 
       const failure = async (error: any) => {
-        this.logger.error(`Task run ${action.taskRunExternalId} failed: ${error.message}`);
+        this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
         if (error.stack) {
           this.logger.error(error.stack);
@@ -362,7 +363,7 @@ export class V0Worker {
       } catch (e: any) {
         const message = e?.message || String(e);
         if (message.includes('Cancelled')) {
-          this.logger.debug(`Task run ${action.taskRunExternalId} was cancelled`);
+          this.logger.debug(taskRunLog(taskName, taskRunExternalId, 'was cancelled'));
         } else {
           this.logger.error(
             `Could not wait for task run ${action.taskRunExternalId} to finish. ` +
@@ -377,7 +378,7 @@ export class V0Worker {
   }
 
   async handleStartGroupKeyRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, taskName, taskRunExternalId } = action;
 
     try {
       const context = new V0Context(action, this.client, this);
@@ -405,7 +406,7 @@ export class V0Worker {
       };
 
       const success = (result: any) => {
-        this.logger.info(`Task run ${action.taskRunExternalId} succeeded`);
+        this.logger.info(taskRunLog(taskName, taskRunExternalId, 'succeeded'));
 
         try {
           // Send the action event to the dispatcher
@@ -427,7 +428,7 @@ export class V0Worker {
       };
 
       const failure = (error: any) => {
-        this.logger.error(`Task run ${key} failed: ${error.message}`);
+        this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
         try {
           // Send the action event to the dispatcher
@@ -508,9 +509,7 @@ export class V0Worker {
   }
 
   async handleCancelStepRun(action: Action) {
-    const { taskRunExternalId } = action;
     try {
-      this.logger.info(`Cancelling task run ${action.taskRunExternalId}`);
       const future = this.futures[createActionKey(action)];
       const context = this.contexts[createActionKey(action)];
 
@@ -520,14 +519,18 @@ export class V0Worker {
 
       if (future) {
         future.promise.catch(() => {
-          this.logger.info(`Cancelled task run ${action.taskRunExternalId}`);
+          this.logger.info(
+            taskRunLog(action.taskName, action.taskRunExternalId, 'cancellation completed')
+          );
         });
         future.cancel('Cancelled by worker');
         await future.promise;
       }
     } catch (e: any) {
       // Expected: the promise rejects when cancelled
-      this.logger.debug(`Task run ${taskRunExternalId} cancellation completed`);
+      this.logger.debug(
+        taskRunLog(action.taskName, action.taskRunExternalId, 'cancellation completed')
+      );
     } finally {
       delete this.futures[createActionKey(action)];
       delete this.contexts[createActionKey(action)];
@@ -586,8 +589,9 @@ export class V0Worker {
       this.logger.info(`Worker ${this.name} listening for actions`);
 
       for await (const action of generator) {
+        const receivedType = actionMap(action.actionType);
         this.logger.info(
-          `Worker ${this.name} received action ${action.actionId}:${action.actionType}`
+          taskRunLog(action.taskName, action.taskRunExternalId, `received action ${receivedType}`)
         );
 
         void this.handleAction(action);
@@ -683,19 +687,4 @@ function toPbWorkerLabel(
     },
     {} as Record<string, DesiredWorkerLabels>
   );
-}
-
-function onFailureTaskName(workflow: WorkflowDefinition) {
-  return `${workflow.name}:on-failure-task`;
-}
-
-function getLeaves(tasks: CreateWorkflowTaskOpts<any, any>[]): CreateWorkflowTaskOpts<any, any>[] {
-  return tasks.filter((task) => isLeafTask(task, tasks));
-}
-
-function isLeafTask(
-  task: CreateWorkflowTaskOpts<any, any>,
-  allTasks: CreateWorkflowTaskOpts<any, any>[]
-): boolean {
-  return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
 }
