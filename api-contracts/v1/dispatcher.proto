@@ -22,49 +22,49 @@ message DurableTaskResponseRegisterWorker {
     string worker_id = 1;
 }
 
-enum DurableTaskTriggerKind {
+enum DurableTaskEventKind {
     DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED = 0;
     DURABLE_TASK_TRIGGER_KIND_RUN = 1;
     DURABLE_TASK_TRIGGER_KIND_WAIT_FOR = 2;
     DURABLE_TASK_TRIGGER_KIND_MEMO = 3;
 }
 
-message DurableTaskRequestTrigger {
+message DurableTaskEventRequest {
     // The session_id is used to identify the worker session for this durable task, since
     // there can be many sessions for the same durable task (e.g. retries)
     int64 session_id = 1;
     string durable_task_external_id = 2;
-    DurableTaskTriggerKind kind = 3;
+    DurableTaskEventKind kind = 3;
     optional bytes payload = 4;
     optional DurableEventListenerConditions wait_for_conditions = 5;
 }
 
-message DurableTaskResponseTriggerAck {
+message DurableTaskEventAckResponse {
     int64 session_id = 1;
     string durable_task_external_id = 2;
     int64 node_id = 3;
 }
 
-message DurableTaskRequestRegisterCallback {
+message DurableTaskRegisterCallbackRequest {
     int64 session_id = 1;
     string durable_task_external_id = 2;
     int64 node_id = 3;
 }
 
-message DurableTaskResponseRegisterCallbackAck {
+message DurableTaskRegisterCallbackAckResponse {
     int64 session_id = 1;
     string durable_task_external_id = 2;
     int64 node_id = 3;
 }
 
-message DurableTaskResponseCallbackCompleted {
+message DurableTaskCallbackCompletedResponse {
     int64 session_id = 1;
     string durable_task_external_id = 2;
     int64 node_id = 3;
     bytes payload = 4;
 }
 
-message DurableTaskRequestEvictSession {
+message DurableTaskEvictSessionRequest {
     int64 session_id = 1;
     string durable_task_external_id = 2;
 }
@@ -72,18 +72,18 @@ message DurableTaskRequestEvictSession {
 message DurableTaskRequest {
     oneof message {
         DurableTaskRequestRegisterWorker register_worker = 1;
-        DurableTaskRequestTrigger trigger = 2;
-        DurableTaskRequestRegisterCallback register_callback = 3;
-        DurableTaskRequestEvictSession evict_session = 4;
+        DurableTaskEventRequest event = 2;
+        DurableTaskRegisterCallbackRequest register_callback = 3;
+        DurableTaskEvictSessionRequest evict_session = 4;
     }
 }
 
 message DurableTaskResponse {
     oneof message {
         DurableTaskResponseRegisterWorker register_worker = 1;
-        DurableTaskResponseTriggerAck trigger_ack = 2;
-        DurableTaskResponseRegisterCallbackAck register_callback_ack = 3;
-        DurableTaskResponseCallbackCompleted callback_completed = 4;
+        DurableTaskEventAckResponse trigger_ack = 2;
+        DurableTaskRegisterCallbackAckResponse register_callback_ack = 3;
+        DurableTaskCallbackCompletedResponse callback_completed = 4;
     }
 }
 
