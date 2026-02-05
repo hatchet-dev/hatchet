@@ -25,25 +25,9 @@ import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
-import { createAbortError } from '@hatchet/util/abort-error';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
-
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (!signal?.aborted) {
-    return;
-  }
-
-  const reason = (signal as any).reason;
-
-  if (reason instanceof Error) {
-    throw reason;
-  }
-
-  throw createAbortError(
-    typeof reason === 'string' && reason.length > 0 ? reason : 'Operation cancelled by AbortSignal'
-  );
-}
 
 // eslint-disable-next-line no-shadow
 export enum Priority {
@@ -340,7 +324,13 @@ export class BaseWorkflowDeclaration<
 
     // Precheck: if we're being called from a cancelled parent task, do not enqueue more work.
     // The signal is inherited from the parent task's `ctx.abortController.signal`.
-    throwIfAborted(inheritedSignal);
+    throwIfAborted(inheritedSignal, {
+      isTrigger: true,
+      context: parentRunContext?.parentTaskRunExternalId
+        ? `task run ${parentRunContext.parentTaskRunExternalId}`
+        : undefined,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
 
     parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
 
@@ -461,7 +451,10 @@ export class BaseWorkflowDeclaration<
     }
 
     // If called from within a cancelled parent task, do not enqueue scheduled work.
-    throwIfAborted(parentRunContextManager.getContext()?.signal);
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
 
     const scheduled = this.client.scheduled.create(this.definition.name, {
       triggerAt: enqueueAt,
@@ -506,7 +499,10 @@ export class BaseWorkflowDeclaration<
     }
 
     // If called from within a cancelled parent task, do not enqueue cron work.
-    throwIfAborted(parentRunContextManager.getContext()?.signal);
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
 
     const cronDef = this.client.crons.create(this.definition.name, {
       expression,

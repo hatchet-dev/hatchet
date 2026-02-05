@@ -37,6 +37,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import sleep from '@hatchet/util/sleep';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -563,7 +564,11 @@ export class V1Worker {
             desiredWorkerId: this.workerId || '',
             signal: context.abortController.signal,
           },
-          () => step(context)
+          () => {
+            // Precheck: if cancellation already happened, don't execute user code.
+            throwIfAborted(context.abortController.signal);
+            return step(context);
+          }
         );
       };
 
@@ -660,6 +665,19 @@ export class V1Worker {
             await failure(e);
             return;
           }
+
+          // Postcheck: user code may swallow AbortError; don't report completion after cancellation.
+          // If we reached this point and the signal is aborted, the task likely caught/ignored cancellation.
+          if (context.abortController.signal.aborted) {
+            this.logger.warn(
+              `Cancellation: task run ${taskRunExternalId} returned after cancellation was signaled. ` +
+                `This usually means an AbortError was caught and not propagated. ` +
+                `See https://docs.hatchet.run/home/cancellation`
+            );
+            return;
+          }
+          throwIfAborted(context.abortController.signal);
+
           await success(result);
         })()
       );
@@ -867,11 +885,9 @@ export class V1Worker {
           ]);
 
           if (winner === 'warn') {
-            const elapsedSeconds = (Date.now() - start) / 1000;
+            const milliseconds = Date.now() - start;
             this.logger.warn(
-              `Cancellation: task run ${taskRunExternalId} has not cancelled after ${elapsedSeconds.toFixed(
-                1
-              )}s. Consider checking for blocking operations. ` +
+              `Cancellation: task run ${taskRunExternalId} has not cancelled after ${milliseconds}ms. Consider checking for blocking operations. ` +
                 `See https://docs.hatchet.run/home/cancellation`
             );
           }
@@ -889,10 +905,10 @@ export class V1Worker {
           this.logger.info(taskRunLog(taskName, taskRunExternalId, 'cancelled'));
         } else {
           const totalElapsedMs = Date.now() - start;
-          this.logger.warn(
-            `Cancellation: task run ${taskRunExternalId} still running after grace period ` +
-              `${gracePeriodMs}ms (elapsed ${totalElapsedMs.toFixed(1)}ms). ` +
-              `JavaScript cannot force-kill user code; ensure your tasks honor ctx.abortController.signal.`
+          this.logger.error(
+            `Cancellation: task run ${taskRunExternalId} still running after cancellation grace period ` +
+              `${totalElapsedMs}ms.\n` +
+              `JavaScript cannot force-kill user code; see: https://docs.hatchet.run/home/cancellation`
           );
         }
       }

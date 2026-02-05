@@ -21,7 +21,7 @@ import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { ContextWorker, NextStep } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
-import { createAbortError } from '@hatchet/util/abort-error';
+import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -95,6 +95,18 @@ export class Context<T, K = {}> {
     if (this.abortController.signal.aborted) {
       throw createAbortError('Operation cancelled by AbortSignal');
     }
+  }
+
+  /**
+   * Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
+   *
+   * Example:
+   * ```ts
+   * try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
+   * ```
+   */
+  rethrowIfCancelled(err: unknown): void {
+    rethrowIfAborted(err);
   }
 
   async cancel() {
