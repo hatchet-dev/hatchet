@@ -207,7 +207,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		stepRequests, err := q.repo.GetStepSlotRequests(ctx, stepIds)
+		stepRequests, err := q.repo.GetStepSlotRequests(ctx, nil, stepIds)
 
 		if err != nil {
 			span.RecordError(err)
@@ -610,7 +610,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	stepRequests, err := q.repo.GetStepSlotRequests(ctx, stepIds)
+	stepRequests, err := q.repo.GetStepSlotRequests(ctx, tx, stepIds)
 	if err != nil {
 		return nil, nil, err
 	}
