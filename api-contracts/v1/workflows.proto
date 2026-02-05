@@ -50,6 +50,8 @@ message TriggerWorkflowRunRequest {
     bytes additional_metadata = 3;
     optional int32 priority = 4;
     map<string, DesiredWorkerLabels> desired_worker_labels = 5;
+    // (optional) idempotency key for deduplicating workflow runs
+    optional string idempotency_key = 6;
 }
 
 message TriggerWorkflowRunResponse {

@@ -285,6 +285,14 @@ func WithDesiredWorkerLabels(labels map[string]*types.DesiredWorkerLabel) RunOpt
 	}
 }
 
+func WithIdempotencyKey(key string) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		r.IdempotencyKey = &key
+
+		return nil
+	}
+}
+
 func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map[string]*admincontracts.DesiredWorkerLabels {
 	if labels == nil {
 		return nil
@@ -318,7 +326,6 @@ func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map
 
 	return result
 }
-
 // func WithSticky(sticky bool) RunOptFunc {
 // 	return func(r *admincontracts.TriggerWorkflowRequest) error {
 // 		r.Sticky = &sticky
