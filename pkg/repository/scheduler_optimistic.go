@@ -73,9 +73,20 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 }
 
 func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error) {
-	triggerOpts, err := r.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
+	triggerOpts, denyUpdateKeys, err := r.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
+		if errors.Is(err, ErrIdempotencyKeyAlreadyClaimed) && len(denyUpdateKeys) > 0 {
+			tx.Rollback()
+			updateErr := r.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, r.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
+				Tenantid: tenantId,
+				Keys:     denyUpdateKeys,
+			})
+			if updateErr != nil {
+				err = errors.Join(err, fmt.Errorf("failed to update idempotency key deny timestamps: %w", updateErr))
+			}
+		}
+
 		return nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 

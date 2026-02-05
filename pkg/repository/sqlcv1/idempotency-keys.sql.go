@@ -128,6 +128,13 @@ VALUES (
     $2::TEXT,
     $3::TIMESTAMPTZ
 )
+ON CONFLICT (tenant_id, key) DO UPDATE
+SET
+    expires_at = EXCLUDED.expires_at,
+    updated_at = NOW()
+WHERE
+    v1_idempotency_key.claimed_by_external_id IS NULL
+    AND v1_idempotency_key.expires_at < NOW()
 `
 
 type CreateIdempotencyKeyParams struct {
@@ -152,7 +159,13 @@ SELECT
     k,
     $2::TIMESTAMPTZ
 FROM UNNEST($3::TEXT[]) AS k
-ON CONFLICT (tenant_id, key) DO NOTHING
+ON CONFLICT (tenant_id, key) DO UPDATE
+SET
+    expires_at = EXCLUDED.expires_at,
+    updated_at = NOW()
+WHERE
+    v1_idempotency_key.claimed_by_external_id IS NULL
+    AND v1_idempotency_key.expires_at < NOW()
 `
 
 type CreateIdempotencyKeysParams struct {
@@ -248,5 +261,36 @@ type UpdateIdempotencyKeysLastDeniedAtParams struct {
 
 func (q *Queries) UpdateIdempotencyKeysLastDeniedAt(ctx context.Context, db DBTX, arg UpdateIdempotencyKeysLastDeniedAtParams) error {
 	_, err := db.Exec(ctx, updateIdempotencyKeysLastDeniedAt, arg.Tenantid, arg.Keys)
+	return err
+}
+
+const updateIdempotencyKeysLastDeniedAtSkipLocked = `-- name: UpdateIdempotencyKeysLastDeniedAtSkipLocked :exec
+WITH target AS (
+    SELECT
+        tenant_id,
+        key
+    FROM v1_idempotency_key
+    WHERE
+        tenant_id = $1::UUID
+        AND key = ANY($2::TEXT[])
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE v1_idempotency_key k
+SET
+    last_denied_at = NOW(),
+    updated_at = NOW()
+FROM target t
+WHERE
+    k.tenant_id = t.tenant_id
+    AND k.key = t.key
+`
+
+type UpdateIdempotencyKeysLastDeniedAtSkipLockedParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Keys     []string  `json:"keys"`
+}
+
+func (q *Queries) UpdateIdempotencyKeysLastDeniedAtSkipLocked(ctx context.Context, db DBTX, arg UpdateIdempotencyKeysLastDeniedAtSkipLockedParams) error {
+	_, err := db.Exec(ctx, updateIdempotencyKeysLastDeniedAtSkipLocked, arg.Tenantid, arg.Keys)
 	return err
 }
