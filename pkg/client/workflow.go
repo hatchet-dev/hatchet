@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
 // Workflow represents a running workflow instance and provides methods to retrieve its results.
@@ -40,7 +38,7 @@ func (r *Workflow) WorkflowRunId() string {
 }
 
 type WorkflowResult struct {
-	workflowRun *dispatchercontracts.WorkflowRunEvent
+	workflowRun *workflowRunEvent
 }
 
 func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
