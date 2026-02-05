@@ -578,9 +578,16 @@ func (a *AdminServiceImpl) newTriggerOpt(
 		t.Priority = req.Priority
 	}
 
-	return &v1.WorkflowNameTriggerOpts{
+	opts := &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: t,
-	}, nil
+	}
+
+	if req.IdempotencyKey != nil {
+		key := v1.IdempotencyKey(*req.IdempotencyKey)
+		opts.IdempotencyKey = &key
+	}
+
+	return opts, nil
 }
 
 func (a *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
