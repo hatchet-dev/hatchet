@@ -3,7 +3,7 @@ import { lower, SIMPLE_EVENT } from './workflow';
 
 // > Create a filter
 hatchet.filters.create({
-  workflowId: lower.id,
+  workflowId: lower.name,
   expression: 'input.ShouldSkip == false',
   scope: 'foobarbaz',
   payload: {

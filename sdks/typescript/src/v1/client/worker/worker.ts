@@ -1,8 +1,6 @@
 /* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { LegacyHatchetClient } from '@hatchet/clients/hatchet-client';
-import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
 import { BaseWorkflowDeclaration } from '../../declaration';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
@@ -28,7 +26,6 @@ export class Worker {
   _v1: HatchetClient;
   _v0: LegacyHatchetClient;
 
-  /** Internal reference to the underlying V0 worker implementation */
   _internal: V1Worker;
 
   /**
@@ -78,18 +75,12 @@ export class Worker {
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>) {
+  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any>>) {
     for (const wf of workflows || []) {
-      if (wf instanceof BaseWorkflowDeclaration) {
-        // TODO check if tenant is V1
-        await this._internal.registerWorkflowV1(wf);
+      await this._internal.registerWorkflowV1(wf);
 
-        if (wf.definition._durableTasks.length > 0) {
-          this._internal.registerDurableActionsV1(wf.definition);
-        }
-      } else {
-        // fallback to v0 client for backwards compatibility
-        await this._internal.registerWorkflow(wf);
+      if (wf.definition._durableTasks.length > 0) {
+        this._internal.registerDurableActionsV1(wf.definition);
       }
     }
   }
@@ -100,7 +91,7 @@ export class Worker {
    * @returns A promise that resolves when the workflow is registered
    * @deprecated use registerWorkflows instead
    */
-  registerWorkflow(workflow: BaseWorkflowDeclaration<any, any> | V0Workflow) {
+  registerWorkflow(workflow: BaseWorkflowDeclaration<any, any>) {
     return this.registerWorkflows([workflow]);
   }
 
@@ -135,15 +126,6 @@ export class Worker {
    */
   getLabels() {
     return this._internal.labels;
-  }
-
-  /**
-   * Register a webhook with the worker
-   * @param webhook - The webhook to register
-   * @returns A promise that resolves when the webhook is registered
-   */
-  registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this._internal.registerWebhook(webhook);
   }
 
   async isPaused() {

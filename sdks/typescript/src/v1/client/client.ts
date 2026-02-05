@@ -8,8 +8,6 @@ import {
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { V0DurableContext } from '@hatchet/step';
 import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
@@ -44,6 +42,7 @@ import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
 import { CELClient } from './features/cel';
 import { TenantClient } from './features/tenant';
+import { DurableContext } from './worker/context';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -245,7 +244,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A TaskWorkflowDeclaration instance with inferred types
    */
   durableTask<
-    Fn extends (input: I, ctx: V0DurableContext<I>) => O | Promise<O>,
+    Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
     I extends InputType = Parameters<Fn>[0],
     O extends OutputType = ReturnType<Fn> extends Promise<infer P>
       ? P extends OutputType
@@ -277,15 +276,15 @@ export class HatchetClient implements IHatchetClient {
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
   async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | string,
     input: I,
     options: RunOpts
   ): Promise<WorkflowRunRef<O>> {
     let name: string;
     if (typeof workflow === 'string') {
       name = workflow;
-    } else if ('id' in workflow) {
-      name = workflow.id;
+    } else if ('name' in workflow) {
+      name = workflow.name;
     } else {
       throw new Error('unable to identify workflow');
     }
@@ -304,7 +303,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async runAndWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
@@ -321,7 +320,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async run<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
@@ -544,15 +543,6 @@ export class HatchetClient implements IHatchetClient {
     }
 
     return Worker.create(this, this._v0, name, opts);
-  }
-
-  /**
-   * Register a webhook with the worker
-   * @param workflows - The workflows to register on the webhooks
-   * @returns A promise that resolves when the webhook is registered
-   */
-  webhooks(workflows: V0Workflow[]) {
-    return this._v0.webhooks(workflows);
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {

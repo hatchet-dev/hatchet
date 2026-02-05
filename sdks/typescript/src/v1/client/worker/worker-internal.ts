@@ -11,16 +11,12 @@ import {
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
-import { Workflow } from '@hatchet/workflow';
 import {
-  ConcurrencyLimitStrategy,
-  CreateWorkflowJobOpts,
-  CreateWorkflowStepOpts,
+  CreateStepRateLimit,
   DesiredWorkerLabels,
-  WorkflowConcurrencyOpts,
+  StickyStrategy,
 } from '@hatchet/protoc/workflows';
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
-import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import {
@@ -34,7 +30,6 @@ import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
@@ -63,7 +58,7 @@ export class V1Worker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
-  workflow_registry: Array<WorkflowDefinition | Workflow> = [];
+  workflow_registry: Array<WorkflowDefinition> = [];
   listener: ActionListener | undefined;
   futures: Record<Action['taskRunExternalId'], HatchetPromise<any>> = {};
   contexts: Record<Action['taskRunExternalId'], Context<any, any>> = {};
@@ -165,46 +160,6 @@ export class V1Worker {
     this.logger.debug(`Worker status changed to: ${status}`);
   }
 
-  private registerActions(workflow: Workflow) {
-    const newActions = workflow.steps.reduce<ActionRegistry>((acc, step) => {
-      acc[`${workflow.id}:${step.name.toLowerCase()}`] = step.run;
-      return acc;
-    }, {});
-
-    const onFailureAction = workflow.onFailure
-      ? {
-          [`${workflow.id}-on-failure:${workflow.onFailure.name}`]: workflow.onFailure.run,
-        }
-      : {};
-
-    this.action_registry = {
-      ...this.action_registry,
-      ...newActions,
-      ...onFailureAction,
-    };
-
-    this.action_registry =
-      workflow.concurrency?.name && workflow.concurrency.key
-        ? {
-            ...this.action_registry,
-            [`${workflow.id}:${workflow.concurrency.name.toLowerCase()}`]: workflow.concurrency.key,
-          }
-        : {
-            ...this.action_registry,
-          };
-  }
-
-  async registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this.client._v0.admin.registerWebhook({ ...webhook });
-  }
-
-  /**
-   * @deprecated use registerWorkflow instead
-   */
-  async register_workflow(initWorkflow: Workflow) {
-    return this.registerWorkflow(initWorkflow);
-  }
-
   registerDurableActionsV1(workflow: WorkflowDefinition) {
     const newActions = workflow._durableTasks
       .filter((task) => !!task.fn)
@@ -297,8 +252,8 @@ export class V1Worker {
           inputs: '{}',
           parents: [],
           retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
-          rateLimits: mapRateLimit(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: toPbWorkerLabel(
+          rateLimits: mapRateLimitPb(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: mapWorkerLabelPb(
             onFailure.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
           ),
           concurrency: [],
@@ -318,11 +273,11 @@ export class V1Worker {
         onSuccessTask = {
           name: 'on-success-task',
           fn: workflow.onSuccess,
-          timeout: '60s',
+          executionTimeout: '60s',
           parents,
           retries: 0,
           rateLimits: [],
-          desiredWorkerLabels: {},
+          desiredWorkerLabels: undefined,
           concurrency: [],
         };
       }
@@ -334,7 +289,8 @@ export class V1Worker {
         onSuccessTask = {
           name: 'on-success-task',
           fn: onSuccess.fn,
-          timeout: onSuccess.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
+          executionTimeout:
+            onSuccess.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
           scheduleTimeout: onSuccess.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
           parents,
           retries: onSuccess.retries || workflow.taskDefaults?.retries || 0,
@@ -362,13 +318,19 @@ export class V1Worker {
         ...(workflow.onEvents || []).map((event) =>
           applyNamespace(event, this.client.config.namespace)
         ),
-        ...(workflow.on?.event
-          ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
+        ...(workflow.on && 'event' in workflow.on && workflow.on.event
+          ? Array.isArray(workflow.on.event)
+            ? workflow.on.event.map((event) => applyNamespace(event, this.client.config.namespace))
+            : [applyNamespace(workflow.on.event, this.client.config.namespace)]
           : []),
       ];
-      const cronTriggers = [
+      const cronTriggers: string[] = [
         ...(workflow.onCrons || []),
-        ...(workflow.on?.cron ? [workflow.on.cron] : []),
+        ...(workflow.on && 'cron' in workflow.on && workflow.on.cron
+          ? Array.isArray(workflow.on.cron)
+            ? workflow.on.cron
+            : [workflow.on.cron]
+          : []),
       ];
 
       const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
@@ -384,13 +346,31 @@ export class V1Worker {
 
       const durableTaskSet = new Set(workflow._durableTasks);
 
+      let stickyStrategy: StickyStrategy | undefined;
+      // `workflow.sticky` is a v1 (non-protobuf) config which may also include legacy protobuf
+      // enum values for backwards compatibility.
+      switch (workflow.sticky) {
+        case 'soft':
+        case 'SOFT':
+        case 0:
+          stickyStrategy = StickyStrategy.SOFT;
+          break;
+        case 'hard':
+        case 'HARD':
+        case 1:
+          stickyStrategy = StickyStrategy.HARD;
+          break;
+        default:
+          throw new HatchetError(`Invalid sticky strategy: ${workflow.sticky}`);
+      }
+
       const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
         version: workflow.version || '',
         eventTriggers,
         cronTriggers,
-        sticky: workflow.sticky,
+        sticky: stickyStrategy,
         concurrencyArr,
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
@@ -398,18 +378,14 @@ export class V1Worker {
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
-          timeout:
-            task.executionTimeout ||
-            task.timeout ||
-            workflow.taskDefaults?.executionTimeout ||
-            '60s',
+          timeout: task.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
           scheduleTimeout: task.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
           inputs: '{}',
           parents: task.parents?.map((p) => p.name) ?? [],
           userData: '{}',
           retries: task.retries || workflow.taskDefaults?.retries || 0,
-          rateLimits: mapRateLimit(task.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: toPbWorkerLabel(
+          rateLimits: mapRateLimitPb(task.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: mapWorkerLabelPb(
             task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
           ),
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
@@ -444,99 +420,6 @@ export class V1Worker {
     }
 
     this.registerActionsV1(workflow);
-  }
-
-  async registerWorkflow(initWorkflow: Workflow) {
-    const workflow: Workflow = {
-      ...initWorkflow,
-      id: applyNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
-    };
-    try {
-      if (workflow.concurrency?.key && workflow.concurrency.expression) {
-        throw new HatchetError(
-          'Cannot have both key function and expression in workflow concurrency configuration'
-        );
-      }
-
-      const concurrency: WorkflowConcurrencyOpts | undefined =
-        workflow.concurrency?.name || workflow.concurrency?.expression
-          ? {
-              action: !workflow.concurrency.expression
-                ? `${workflow.id}:${workflow.concurrency.name}`
-                : undefined,
-              maxRuns: workflow.concurrency.maxRuns || 1,
-              expression: workflow.concurrency.expression,
-              limitStrategy:
-                workflow.concurrency.limitStrategy || ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-            }
-          : undefined;
-
-      const onFailureJob: CreateWorkflowJobOpts | undefined = workflow.onFailure
-        ? {
-            name: `${workflow.id}-on-failure`,
-            description: workflow.description,
-            steps: [
-              {
-                readableId: workflow.onFailure.name,
-                action: `${workflow.id}-on-failure:${workflow.onFailure.name}`,
-                timeout: workflow.onFailure.timeout || '60s',
-                inputs: '{}',
-                parents: [],
-                userData: '{}',
-                retries: workflow.onFailure.retries || 0,
-                rateLimits: mapRateLimit(workflow.onFailure.rate_limits),
-                workerLabels: {}, // no worker labels for on failure steps
-              },
-            ],
-          }
-        : undefined;
-
-      const registeredWorkflow = this.client._v0.admin.putWorkflow({
-        name: workflow.id,
-        description: workflow.description,
-        version: workflow.version || '',
-        eventTriggers:
-          workflow.on && workflow.on.event
-            ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
-            : [],
-        cronTriggers: workflow.on && workflow.on.cron ? [workflow.on.cron] : [],
-        scheduledTriggers: [],
-        concurrency,
-        scheduleTimeout: workflow.scheduleTimeout,
-        onFailureJob,
-        sticky: workflow.sticky,
-        jobs: [
-          {
-            name: workflow.id,
-            description: workflow.description,
-            steps: workflow.steps.map<CreateWorkflowStepOpts>((step) => ({
-              readableId: step.name,
-              action: `${workflow.id}:${step.name}`,
-              timeout: step.timeout || '60s',
-              inputs: '{}',
-              parents: step.parents ?? [],
-              userData: '{}',
-              retries: step.retries || 0,
-              rateLimits: mapRateLimit(step.rate_limits),
-              workerLabels: toPbWorkerLabel(step.worker_labels),
-              backoffFactor: step.backoff?.factor,
-              backoffMaxSeconds: step.backoff?.maxSeconds,
-            })),
-          },
-        ],
-      });
-      this.registeredWorkflowPromises.push(registeredWorkflow);
-      await registeredWorkflow;
-      this.workflow_registry.push(workflow);
-    } catch (e: any) {
-      throw new HatchetError(`Could not register workflow: ${e.message}`);
-    }
-
-    this.registerActions(workflow);
-  }
-
-  registerAction<T, K>(actionId: string, action: StepRunFunction<T, K>) {
-    this.action_registry[actionId.toLowerCase()] = action;
   }
 
   async handleStartStepRun(action: Action) {
@@ -1042,16 +925,16 @@ export class V1Worker {
   }
 }
 
-function toPbWorkerLabel(
-  in_: CreateStep<unknown, unknown>['worker_labels']
+function mapWorkerLabelPb(
+  in_: CreateWorkflowTaskOpts<any, any>['desiredWorkerLabels']
 ): Record<string, DesiredWorkerLabels> {
   if (!in_) {
     return {};
   }
 
   return Object.entries(in_).reduce<Record<string, DesiredWorkerLabels>>(
-    (acc, [key, value]) => {
-      if (!value) {
+    (acc, [key, label]) => {
+      if (!label) {
         return {
           ...acc,
           [key]: {
@@ -1061,22 +944,22 @@ function toPbWorkerLabel(
         };
       }
 
-      if (typeof value === 'string') {
+      if (typeof label === 'string') {
         return {
           ...acc,
           [key]: {
-            strValue: value,
+            strValue: label,
             intValue: undefined,
           },
         };
       }
 
-      if (typeof value === 'number') {
+      if (typeof label === 'number') {
         return {
           ...acc,
           [key]: {
             strValue: undefined,
-            intValue: value,
+            intValue: label,
           },
         };
       }
@@ -1084,11 +967,11 @@ function toPbWorkerLabel(
       return {
         ...acc,
         [key]: {
-          strValue: typeof value.value === 'string' ? value.value : undefined,
-          intValue: typeof value.value === 'number' ? value.value : undefined,
-          required: value.required,
-          weight: value.weight,
-          comparator: value.comparator,
+          strValue: typeof label.value === 'string' ? label.value : undefined,
+          intValue: typeof label.value === 'number' ? label.value : undefined,
+          required: label.required,
+          weight: label.weight,
+          comparator: label.comparator,
         },
       };
     },
@@ -1108,4 +991,86 @@ function getLeaves(tasks: LeafableTask[]): LeafableTask[] {
 
 function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
   return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
+}
+
+export function mapRateLimitPb(
+  limits: CreateWorkflowTaskOpts<any, any>['rateLimits']
+): CreateStepRateLimit[] {
+  if (!limits) return [];
+
+  return limits.map((l) => {
+    let key = l.staticKey;
+    const keyExpression = l.dynamicKey;
+
+    if (l.key !== undefined) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        'key is deprecated and will be removed in a future release, please use staticKey instead'
+      );
+      key = l.key;
+    }
+
+    if (keyExpression !== undefined) {
+      if (key !== undefined) {
+        throw new Error('Cannot have both static key and dynamic key set');
+      }
+      key = keyExpression;
+      if (!validateCelExpression(keyExpression)) {
+        throw new Error(`Invalid CEL expression: ${keyExpression}`);
+      }
+    }
+
+    if (key === undefined) {
+      throw new Error(`Invalid key`);
+    }
+
+    let units: number | undefined;
+    let unitsExpression: string | undefined;
+    if (typeof l.units === 'number') {
+      units = l.units;
+    } else {
+      if (!validateCelExpression(l.units)) {
+        throw new Error(`Invalid CEL expression: ${l.units}`);
+      }
+      unitsExpression = l.units;
+    }
+
+    let limitExpression: string | undefined;
+    if (l.limit !== undefined) {
+      if (typeof l.limit === 'number') {
+        limitExpression = `${l.limit}`;
+      } else {
+        if (!validateCelExpression(l.limit)) {
+          throw new Error(`Invalid CEL expression: ${l.limit}`);
+        }
+
+        limitExpression = l.limit;
+      }
+    }
+
+    if (keyExpression !== undefined && limitExpression === undefined) {
+      throw new Error('CEL based keys requires limit to be set');
+    }
+
+    if (limitExpression === undefined) {
+      limitExpression = `-1`;
+    }
+
+    return {
+      key,
+      keyExpr: keyExpression,
+      units,
+      unitsExpr: unitsExpression,
+      limitValuesExpr: limitExpression,
+      duration: l.duration,
+    };
+  });
+}
+
+// Helper function to validate CEL expressions
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function validateCelExpression(_expr: string): boolean {
+  // FIXME: this is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
+  // For now, we'll just return true to mimic the behavior.
+  return true;
 }

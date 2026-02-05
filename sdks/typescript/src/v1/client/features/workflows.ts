@@ -1,18 +1,19 @@
-import { Workflow } from '@hatchet/workflow';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import { isValidUUID } from '@util/uuid';
 import { HatchetClient } from '../client';
 
 export const workflowNameString = (
-  workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+  workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
 ) => {
   if (typeof workflow === 'string') {
     return workflow;
   }
-  if (typeof workflow === 'object' && 'id' in workflow) {
-    return workflow.id;
+  if (typeof workflow === 'object' && 'name' in workflow) {
+    return workflow.name as string;
   }
-  return workflow.name;
+  throw new Error(
+    'Invalid workflow: must be a string, Workflow object, or WorkflowDefinition object'
+  );
 };
 
 /**
@@ -42,7 +43,7 @@ export class WorkflowsClient {
    * @returns The workflow ID as a string.
    */
   async getWorkflowIdFromName(
-    workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+    workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
   ): Promise<string> {
     const str = (() => {
       if (typeof workflow === 'string') {
@@ -51,13 +52,6 @@ export class WorkflowsClient {
 
       if (typeof workflow === 'object' && 'name' in workflow) {
         return workflow.name;
-      }
-
-      if (typeof workflow === 'object' && 'id' in workflow) {
-        if (!workflow.id) {
-          throw new Error('Workflow ID is required');
-        }
-        return workflow.id;
       }
 
       throw new Error(
@@ -76,7 +70,7 @@ export class WorkflowsClient {
     return str;
   }
 
-  async get(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
+  async get(workflow: string | BaseWorkflowDeclaration<any, any>) {
     // Get workflow name string
     const name = workflowNameString(workflow);
 
@@ -121,7 +115,7 @@ export class WorkflowsClient {
     return data;
   }
 
-  async delete(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
+  async delete(workflow: string | BaseWorkflowDeclaration<any, any>) {
     const name = workflowNameString(workflow);
 
     try {

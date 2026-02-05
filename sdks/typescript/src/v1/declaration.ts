@@ -7,7 +7,6 @@ import {
   ScheduledWorkflows,
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { z } from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
@@ -91,29 +90,48 @@ export type TaskOutputType<
 
 type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
 
+/**
+ * Sticky strategy for workflow scheduling.
+ *
+ * Prefer using `StickyStrategy.SOFT` / `StickyStrategy.HARD` (v1, non-protobuf).
+ * For backwards compatibility, the workflow/task `sticky` field also accepts legacy
+ * protobuf enum values (`0`/`1`) and strings (`'SOFT'`/`'HARD'`).
+ */
+export const StickyStrategy = {
+  SOFT: 'soft',
+  HARD: 'hard',
+} as const;
+
+// eslint-disable-next-line no-redeclare
+export type StickyStrategy = (typeof StickyStrategy)[keyof typeof StickyStrategy];
+
+export type StickyStrategyInput = StickyStrategy | 'SOFT' | 'HARD' | 0 | 1;
 export type CreateBaseWorkflowOpts = {
   /**
    * The name of the workflow.
    */
-  name: WorkflowV0['id'];
+  name: string;
   /**
    * (optional) description of the workflow.
    */
-  description?: WorkflowV0['description'];
+  description?: string;
   /**
    * (optional) version of the workflow.
    */
-  version?: WorkflowV0['version'];
+  version?: string;
   /**
    * (optional) sticky strategy for the workflow.
    */
-  sticky?: WorkflowV0['sticky'];
+  sticky?: StickyStrategyInput;
 
   /**
    * (optional) on config for the workflow.
-   * @deprecated use onCrons and onEvents instead
+   * @alias for onCrons and onEvents instead
    */
-  on?: WorkflowV0['on'];
+  on?: {
+    cron?: string | string[];
+    event?: string | string[];
+  };
 
   /**
    * (optional) cron config for the workflow.

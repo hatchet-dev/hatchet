@@ -143,20 +143,5 @@ describe('Client', () => {
         }
       );
     });
-
-    describe('run', () => {
-      xit('should start a worker', () => {
-        const worker = hatchet.run('workflow1');
-        expect(worker).toBeDefined();
-      });
-    });
-
-    describe('worker', () => {
-      it('should start a worker', () => {
-        const worker = hatchet.worker('workflow1');
-
-        expect(worker).toBeDefined();
-      });
-    });
   });
 });

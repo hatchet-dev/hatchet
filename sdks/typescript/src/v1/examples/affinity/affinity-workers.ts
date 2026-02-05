@@ -1,4 +1,4 @@
-import { WorkerLabelComparator } from '@hatchet/protoc/workflows';
+import { WorkerLabelComparator } from '@hatchet/v1';
 import { hatchet } from '../hatchet-client';
 
 // > AffinityWorkflow
@@ -11,11 +11,11 @@ const workflow = hatchet.workflow({
 workflow.task({
   name: 'step1',
   fn: async (_, ctx) => {
-    const results: Promise<any>[] = [];
+    const results = [];
     // eslint-disable-next-line no-plusplus
     for (let i = 0; i < 50; i++) {
-      const result = await ctx.spawnWorkflow(childWorkflow.id, {});
-      results.push(result.output);
+      const result = await childWorkflow.run({});
+      results.push(result);
     }
     console.log('Spawned 50 child workflows');
     console.log('Results:', await Promise.all(results));

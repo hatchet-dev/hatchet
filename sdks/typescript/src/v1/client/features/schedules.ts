@@ -6,7 +6,6 @@ import {
   ScheduledWorkflowsList,
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
-import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
@@ -75,10 +74,7 @@ export class ScheduleClient {
    * @returns A promise that resolves to the created ScheduledWorkflows object.
    * @throws Will throw an error if the input is invalid or the API call fails.
    */
-  async create(
-    workflow: string | Workflow,
-    cron: CreateScheduledRunInput
-  ): Promise<ScheduledWorkflows> {
+  async create(workflow: string, cron: CreateScheduledRunInput): Promise<ScheduledWorkflows> {
     const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
 
     // Validate cron input with zod schema
@@ -153,7 +149,7 @@ export class ScheduleClient {
    */
   async list(
     query: Parameters<typeof this.api.workflowScheduledList>[1] & {
-      workflow?: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>;
+      workflow?: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any>;
     }
   ): Promise<ScheduledWorkflowsList> {
     const { workflow, ...rest } = query;

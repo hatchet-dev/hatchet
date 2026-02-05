@@ -4,8 +4,6 @@ import { EventClient } from '@clients/event/event-client';
 import { DispatcherClient } from '@clients/dispatcher/dispatcher-client';
 import { AdminClient } from '@clients/admin/admin-client';
 import { ChannelCredentials, createClientFactory } from 'nice-grpc';
-import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
@@ -128,53 +126,5 @@ export class LegacyHatchetClient {
     axiosConfig?: AxiosRequestConfig
   ): LegacyHatchetClient {
     return new LegacyHatchetClient(config, options, axiosConfig);
-  }
-
-  // @deprecated
-  async run(workflow: string | V0Workflow): Promise<V0Worker> {
-    this.logger.warn(
-      'HatchetClient.run is deprecated and will be removed in a future release. Use HatchetClient.worker and Worker.start instead.'
-    );
-    const worker = await this.worker(workflow);
-    worker.start();
-    return worker;
-  }
-
-  async worker(
-    workflow: string | V0Workflow,
-    opts?: Omit<WorkerOpts, 'name'> | number
-  ): Promise<V0Worker> {
-    const name = typeof workflow === 'string' ? workflow : workflow.id;
-
-    let options: WorkerOpts = {
-      name,
-    };
-
-    if (typeof opts === 'number') {
-      this.logger.warn(
-        '@deprecated maxRuns param is deprecated and will be removed in a future release in favor of WorkerOpts'
-      );
-      options = { ...options, maxRuns: opts };
-    } else {
-      options = { ...options, ...opts };
-    }
-
-    const worker = new V0Worker(this, options);
-
-    if (typeof workflow !== 'string') {
-      await worker.registerWorkflow(workflow);
-      return worker;
-    }
-
-    return worker;
-  }
-
-  webhooks(workflows: Array<V0Workflow>) {
-    // TODO v1 workflows
-    const worker = new V0Worker(this, {
-      name: 'webhook-worker',
-    });
-
-    return worker.getHandler(workflows);
   }
 }

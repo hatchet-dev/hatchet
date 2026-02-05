@@ -1,6 +1,5 @@
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
-import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration } from '@hatchet/v1';
@@ -63,7 +62,7 @@ export class CronClient {
    * @throws Will throw an error if the input is invalid or the API call fails.
    */
   async create(
-    workflow: string | Workflow | BaseWorkflowDeclaration<any, any>,
+    workflow: string | BaseWorkflowDeclaration<any, any>,
     cron: CreateCronInput
   ): Promise<CronWorkflows> {
     const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
@@ -109,7 +108,7 @@ export class CronClient {
    */
   async list(
     query: Parameters<typeof this.api.cronWorkflowList>[1] & {
-      workflow?: string | Workflow | BaseWorkflowDeclaration<any, any>;
+      workflow?: string | BaseWorkflowDeclaration<any, any>;
     }
   ): Promise<CronWorkflowsList> {
     const { workflow, ...rest } = query;

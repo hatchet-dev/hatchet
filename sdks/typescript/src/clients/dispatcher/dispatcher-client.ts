@@ -32,7 +32,7 @@ interface GetActionListenerOptions {
   durableSlots?: number;
   /** @deprecated use slots */
   maxRuns?: number;
-  labels: Record<string, string | number | undefined>;
+  labels: WorkerLabels;
 }
 
 type StepActionEventInput = StepActionEvent & {
