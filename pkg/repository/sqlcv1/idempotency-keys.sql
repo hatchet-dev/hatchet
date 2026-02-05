@@ -10,11 +10,56 @@ VALUES (
     @expiresAt::TIMESTAMPTZ
 );
 
+-- name: CreateIdempotencyKeys :exec
+INSERT INTO v1_idempotency_key (
+    tenant_id,
+    key,
+    expires_at
+)
+SELECT
+    @tenantId::UUID,
+    k,
+    @expiresAt::TIMESTAMPTZ
+FROM UNNEST(@keys::TEXT[]) AS k
+ON CONFLICT (tenant_id, key) DO NOTHING;
+
 -- name: CleanUpExpiredIdempotencyKeys :exec
 DELETE FROM v1_idempotency_key
 WHERE
     tenant_id = @tenantId::UUID
     AND expires_at < NOW()
+;
+
+-- name: DeleteIdempotencyKeysByExternalId :exec
+DELETE FROM v1_idempotency_key
+WHERE
+    tenant_id = @tenantId::UUID
+    AND claimed_by_external_id = @externalId::UUID
+;
+
+-- name: ListIdempotencyKeysByKeys :many
+SELECT
+    tenant_id,
+    key,
+    expires_at,
+    claimed_by_external_id,
+    last_denied_at,
+    inserted_at,
+    updated_at
+FROM v1_idempotency_key
+WHERE
+    tenant_id = @tenantId::UUID
+    AND key = ANY(@keys::TEXT[])
+;
+
+-- name: UpdateIdempotencyKeysLastDeniedAt :exec
+UPDATE v1_idempotency_key
+SET
+    last_denied_at = NOW(),
+    updated_at = NOW()
+WHERE
+    tenant_id = @tenantId::UUID
+    AND key = ANY(@keys::TEXT[])
 ;
 
 -- name: ClaimIdempotencyKeys :many

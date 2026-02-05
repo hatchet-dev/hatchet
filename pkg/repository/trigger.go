@@ -3,12 +3,14 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
@@ -326,13 +328,31 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	triggerOpts, err := r.prepareTriggerFromWorkflowNames(ctx, r.pool, tenantId, opts)
+	tx, err := r.PrepareOptimisticTx(ctx)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer tx.Rollback()
+
+	triggerOpts, err := r.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	return r.triggerWorkflows(ctx, nil, tenantId, triggerOpts, nil)
+	tasks, dags, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	return tasks, dags, nil
 }
 
 type ErrNamesNotFound struct {
@@ -341,6 +361,31 @@ type ErrNamesNotFound struct {
 
 func (e *ErrNamesNotFound) Error() string {
 	return fmt.Sprintf("workflow names not found: %s", strings.Join(e.Names, ", "))
+}
+
+var ErrIdempotencyKeyAlreadyClaimed = errors.New("idempotency key already claimed")
+
+type IdempotencyKeyAlreadyClaimedError struct {
+	Keys []string
+}
+
+func (e *IdempotencyKeyAlreadyClaimedError) Error() string {
+	return fmt.Sprintf("idempotency key already claimed: %s", strings.Join(e.Keys, ", "))
+}
+
+func (e *IdempotencyKeyAlreadyClaimedError) Is(target error) bool {
+	return target == ErrIdempotencyKeyAlreadyClaimed
+}
+
+func isTerminalReadableStatus(status sqlcv1.V1ReadableStatusOlap) bool {
+	switch status {
+	case sqlcv1.V1ReadableStatusOlapCOMPLETED,
+		sqlcv1.V1ReadableStatusOlapFAILED,
+		sqlcv1.V1ReadableStatusOlapCANCELLED:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
@@ -2109,10 +2154,66 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		})
 	}
 
-	keyClaimantPairToWasClaimed, err := claimIdempotencyKeys(ctx, r.queries, tx, tenantId, keyClaimantPairs)
+	keyClaimantPairToWasClaimed := make(map[KeyClaimantPair]WasSuccessfullyClaimed)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+	if len(keyClaimantPairs) > 0 {
+		keys := make([]string, 0, len(keyClaimantPairs))
+
+		for _, pair := range keyClaimantPairs {
+			keys = append(keys, string(pair.IdempotencyKey))
+		}
+
+		ttl := r.idempotencyKeyTTL
+		if ttl <= 0 {
+			ttl = 24 * time.Hour
+		}
+		expiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(ttl))
+
+		err := r.queries.CreateIdempotencyKeys(ctx, tx, sqlcv1.CreateIdempotencyKeysParams{
+			Tenantid:  tenantId,
+			Keys:      keys,
+			Expiresat: expiresAt,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create idempotency keys: %w", err)
+		}
+
+		keyClaimantPairToWasClaimed, err = claimIdempotencyKeys(ctx, r.queries, tx, tenantId, keyClaimantPairs)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+		}
+	}
+
+	if len(keyClaimantPairs) > 0 {
+		unclaimedKeys := make([]string, 0)
+
+		for _, pair := range keyClaimantPairs {
+			if !keyClaimantPairToWasClaimed[pair] {
+				unclaimedKeys = append(unclaimedKeys, string(pair.IdempotencyKey))
+			}
+		}
+
+		if len(unclaimedKeys) > 0 {
+			err := r.tryReclaimIdempotencyKeys(ctx, tx, tenantId, keyClaimantPairs, keyClaimantPairToWasClaimed, unclaimedKeys)
+
+			if err != nil {
+				return nil, err
+			}
+
+			unclaimedKeys = unclaimedKeys[:0]
+
+			for _, pair := range keyClaimantPairs {
+				if !keyClaimantPairToWasClaimed[pair] {
+					unclaimedKeys = append(unclaimedKeys, string(pair.IdempotencyKey))
+				}
+			}
+
+			if len(unclaimedKeys) > 0 {
+				return nil, &IdempotencyKeyAlreadyClaimedError{Keys: unclaimedKeys}
+			}
+		}
 	}
 
 	workflowVersionsByNames, err := r.listWorkflowsByNames(ctx, tx, tenantId, workflowNames)
@@ -2165,4 +2266,156 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	}
 
 	return triggerOpts, nil
+}
+
+func (r *sharedRepository) tryReclaimIdempotencyKeys(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	tenantId uuid.UUID,
+	keyClaimantPairs []KeyClaimantPair,
+	keyClaimantPairToWasClaimed map[KeyClaimantPair]WasSuccessfullyClaimed,
+	unclaimedKeys []string,
+) error {
+	if len(unclaimedKeys) == 0 {
+		return nil
+	}
+
+	if r.idempotencyKeyDenyRecheckInterval <= 0 {
+		return nil
+	}
+
+	rows, err := r.queries.ListIdempotencyKeysByKeys(ctx, r.pool, sqlcv1.ListIdempotencyKeysByKeysParams{
+		Tenantid: tenantId,
+		Keys:     unclaimedKeys,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to list idempotency keys for recheck: %w", err)
+	}
+
+	if len(rows) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	keysToCheck := make([]string, 0, len(rows))
+	keysToReclaim := make([]string, 0)
+	keysToReclaimSet := make(map[string]struct{})
+	keyToExternalId := make(map[string]uuid.UUID)
+	externalIdsToCheck := make(map[uuid.UUID]struct{})
+
+	for _, row := range rows {
+		if row.ClaimedByExternalID == nil {
+			continue
+		}
+
+		if row.LastDeniedAt.Valid {
+			if now.Sub(row.LastDeniedAt.Time) < r.idempotencyKeyDenyRecheckInterval {
+				continue
+			}
+		}
+
+		keysToCheck = append(keysToCheck, row.Key)
+		keyToExternalId[row.Key] = *row.ClaimedByExternalID
+		externalIdsToCheck[*row.ClaimedByExternalID] = struct{}{}
+	}
+
+	if len(keysToCheck) == 0 {
+		return nil
+	}
+
+	externalIdToStatus := make(map[uuid.UUID]sqlcv1.V1ReadableStatusOlap)
+
+	for externalId := range externalIdsToCheck {
+		statusRow, statusErr := r.queries.ReadWorkflowRunStatusByExternalId(ctx, r.pool, externalId)
+
+		if statusErr != nil {
+			if errors.Is(statusErr, pgx.ErrNoRows) {
+				continue
+			}
+			return fmt.Errorf("failed to read workflow run status for idempotency recheck: %w", statusErr)
+		}
+
+		externalIdToStatus[externalId] = statusRow.ReadableStatus
+	}
+
+	for _, key := range keysToCheck {
+		externalId, ok := keyToExternalId[key]
+		if !ok {
+			continue
+		}
+
+		status, ok := externalIdToStatus[externalId]
+		if ok && isTerminalReadableStatus(status) {
+			if err := r.queries.DeleteIdempotencyKeysByExternalId(ctx, tx, sqlcv1.DeleteIdempotencyKeysByExternalIdParams{
+				Tenantid:   tenantId,
+				Externalid: externalId,
+			}); err != nil {
+				return fmt.Errorf("failed to delete idempotency keys for completed workflow run: %w", err)
+			}
+
+			keysToReclaim = append(keysToReclaim, key)
+			keysToReclaimSet[key] = struct{}{}
+		}
+	}
+
+	keysToUpdate := keysToCheck
+	if len(keysToReclaimSet) > 0 {
+		keysToUpdate = make([]string, 0, len(keysToCheck))
+		for _, key := range keysToCheck {
+			if _, ok := keysToReclaimSet[key]; !ok {
+				keysToUpdate = append(keysToUpdate, key)
+			}
+		}
+	}
+
+	if len(keysToUpdate) > 0 {
+		if err := r.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, r.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
+			Tenantid: tenantId,
+			Keys:     keysToUpdate,
+		}); err != nil {
+			return fmt.Errorf("failed to update idempotency key deny timestamps: %w", err)
+		}
+	}
+
+	if len(keysToReclaim) == 0 {
+		return nil
+	}
+
+	ttl := r.idempotencyKeyTTL
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+
+	expiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(ttl))
+
+	if err := r.queries.CreateIdempotencyKeys(ctx, tx, sqlcv1.CreateIdempotencyKeysParams{
+		Tenantid:  tenantId,
+		Keys:      keysToReclaim,
+		Expiresat: expiresAt,
+	}); err != nil {
+		return fmt.Errorf("failed to recreate idempotency keys after reclaim: %w", err)
+	}
+
+	pairsToReclaim := make([]KeyClaimantPair, 0, len(keysToReclaim))
+	for _, pair := range keyClaimantPairs {
+		if _, ok := keysToReclaimSet[string(pair.IdempotencyKey)]; ok {
+			pairsToReclaim = append(pairsToReclaim, pair)
+		}
+	}
+
+	if len(pairsToReclaim) == 0 {
+		return nil
+	}
+
+	claimResults, err := claimIdempotencyKeys(ctx, r.queries, tx, tenantId, pairsToReclaim)
+	if err != nil {
+		return fmt.Errorf("failed to reclaim idempotency keys: %w", err)
+	}
+
+	for pair, claimed := range claimResults {
+		keyClaimantPairToWasClaimed[pair] = claimed
+	}
+
+	return nil
 }
