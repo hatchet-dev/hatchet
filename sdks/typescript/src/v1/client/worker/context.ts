@@ -379,7 +379,7 @@ export class Context<T, K = {}> {
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const finalOpts = {
-      ...options,
+      ...opts,
       parentId: workflowRunId,
       parentTaskRunExternalId: taskRunExternalId,
       childIndex: this.spawnIndex,
@@ -432,7 +432,12 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    return this.spawnBulk<Q, P>(children);
+    const refs = await this.spawnBulk<Q, P>(children);
+    refs.forEach((ref) => {
+      // eslint-disable-next-line no-param-reassign
+      ref.defaultSignal = this.abortController.signal;
+    });
+    return refs;
   }
 
   /**
@@ -465,6 +470,9 @@ export class Context<T, K = {}> {
     options?: ChildRunOpts
   ): Promise<P> {
     const run = await this.spawn(workflow, input, options);
+    // Ensure waiting for the child result aborts when this task is cancelled.
+    // eslint-disable-next-line no-param-reassign
+    run.defaultSignal = this.abortController.signal;
     return run.output;
   }
 
@@ -482,6 +490,7 @@ export class Context<T, K = {}> {
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
     const ref = await this.spawn(workflow, input, options);
+    ref.defaultSignal = this.abortController.signal;
     return ref;
   }
 
@@ -608,11 +617,16 @@ export class Context<T, K = {}> {
         );
       }
 
+      // `signal` must never be sent over the wire.
+      const optsWithoutSignal: Omit<ChildRunOpts, 'signal'> & { signal?: never } = { ...opts };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (optsWithoutSignal as any).signal;
+
       const resp = {
         workflowName: name,
         input,
         options: {
-          ...opts,
+          ...optsWithoutSignal,
           parentId: workflowRunId,
           parentTaskRunExternalId: taskRunExternalId,
           childIndex: this.spawnIndex,
@@ -743,13 +757,13 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
-
-    const listener = this.v1._v0.durableListener.subscribe({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-    });
-
-    const event = await listener.get();
+    const event = await this.v1._v0.durableListener.result(
+      {
+        taskId: this.action.taskRunExternalId,
+        signalKey: key,
+      },
+      { signal: this.abortController.signal }
+    );
 
     // Convert event.data from Uint8Array to string if needed
     const eventData =

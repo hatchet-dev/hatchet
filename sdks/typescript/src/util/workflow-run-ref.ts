@@ -53,6 +53,12 @@ export default class WorkflowRunRef<T> {
   private client: RunListenerClient;
   private runs: RunsClient | undefined;
   _standaloneTaskName?: string;
+  /**
+   * Optional default AbortSignal used for listener-backed waits (e.g. `.result()`).
+   * This is primarily set when a run is spawned from within a task so cancellations propagate
+   * without manually threading `{ signal }` everywhere.
+   */
+  defaultSignal?: AbortSignal;
 
   constructor(
     workflowRunId:
@@ -64,13 +70,15 @@ export default class WorkflowRunRef<T> {
     client: RunListenerClient,
     runsClient?: RunsClient,
     parentWorkflowRunId?: string,
-    standaloneTaskName?: string
+    standaloneTaskName?: string,
+    defaultSignal?: AbortSignal
   ) {
     this.workflowRunId = workflowRunId;
     this.parentWorkflowRunId = parentWorkflowRunId;
     this.client = client;
     this.runs = runsClient;
     this._standaloneTaskName = standaloneTaskName;
+    this.defaultSignal = defaultSignal;
   }
 
   // TODO docstrings
@@ -103,7 +111,8 @@ export default class WorkflowRunRef<T> {
 
     return new Promise<T>((resolve, reject) => {
       (async () => {
-        for await (const event of streamable.stream()) {
+        const signal = this.defaultSignal;
+        for await (const event of streamable.stream({ signal })) {
           if (event.eventType === WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED) {
             if (event.results.some((r) => r.error !== undefined)) {
               // HACK: this might replace intentional empty errors but this is the more common case
@@ -168,7 +177,7 @@ export default class WorkflowRunRef<T> {
             return;
           }
         }
-      })();
+      })().catch(reject);
     });
   }
 

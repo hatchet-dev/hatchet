@@ -15,22 +15,71 @@ import {
 } from '@hatchet/protoc/v1/shared/condition';
 import { DurableListenerClient } from './durable-listener-client';
 
+function createAbortError(message = 'Operation aborted'): Error {
+  const err: any = new Error(message);
+  err.name = 'AbortError';
+  err.code = 'ABORT_ERR';
+  return err as Error;
+}
+
 export class DurableEventStreamable {
   listener: AsyncIterable<DurableEvent>;
   taskId: string;
   signalKey: string;
+  subscriptionId: string;
+  onCleanup: () => void;
 
   responseEmitter = new EventEmitter();
 
-  constructor(listener: AsyncIterable<DurableEvent>, taskId: string, signalKey: string) {
+  constructor(
+    listener: AsyncIterable<DurableEvent>,
+    taskId: string,
+    signalKey: string,
+    subscriptionId: string,
+    onCleanup: () => void
+  ) {
     this.listener = listener;
     this.taskId = taskId;
     this.signalKey = signalKey;
+    this.subscriptionId = subscriptionId;
+    this.onCleanup = onCleanup;
   }
 
-  async get(): Promise<DurableEvent> {
-    return new Promise((resolve) => {
-      this.responseEmitter.once('response', resolve);
+  async get(opts?: { signal?: AbortSignal }): Promise<DurableEvent> {
+    const signal = opts?.signal;
+
+    return new Promise((resolve, reject) => {
+      let cleanedUp = false;
+
+      const cleanup = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        this.responseEmitter.removeListener('response', onResponse);
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+        this.onCleanup();
+      };
+
+      const onResponse = (event: DurableEvent) => {
+        cleanup();
+        resolve(event);
+      };
+
+      const onAbort = () => {
+        cleanup();
+        reject(createAbortError('Operation cancelled by AbortSignal'));
+      };
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      this.responseEmitter.once('response', onResponse);
+      if (signal) {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
     });
   }
 }
@@ -106,15 +155,7 @@ export class DurableEventGrpcPooledListener {
           const emitter = this.subscribers[subId];
           if (emitter) {
             emitter.responseEmitter.emit('response', event);
-            delete this.subscribers[subId];
-
-            // Remove this subscription from the mapping
-            this.taskSignalKeyToSubscriptionIds[subscriptionKey] =
-              this.taskSignalKeyToSubscriptionIds[subscriptionKey].filter((id) => id !== subId);
-
-            if (this.taskSignalKeyToSubscriptionIds[subscriptionKey].length === 0) {
-              delete this.taskSignalKeyToSubscriptionIds[subscriptionKey];
-            }
+            this.cleanupSubscription(subId);
           }
         }
       }
@@ -138,6 +179,28 @@ export class DurableEventGrpcPooledListener {
     }
   }
 
+  private cleanupSubscription(subscriptionId: string) {
+    const emitter = this.subscribers[subscriptionId];
+    if (!emitter) {
+      return;
+    }
+
+    const subscriptionKey = keyHelper(emitter.taskId, emitter.signalKey);
+
+    delete this.subscribers[subscriptionId];
+
+    // Remove from the mapping
+    if (this.taskSignalKeyToSubscriptionIds[subscriptionKey]) {
+      this.taskSignalKeyToSubscriptionIds[subscriptionKey] = this.taskSignalKeyToSubscriptionIds[
+        subscriptionKey
+      ].filter((id) => id !== subscriptionId);
+
+      if (this.taskSignalKeyToSubscriptionIds[subscriptionKey].length === 0) {
+        delete this.taskSignalKeyToSubscriptionIds[subscriptionKey];
+      }
+    }
+  }
+
   subscribe(request: { taskId: string; signalKey: string }): DurableEventStreamable {
     const { taskId, signalKey } = request;
 
@@ -145,7 +208,13 @@ export class DurableEventGrpcPooledListener {
 
     // eslint-disable-next-line no-plusplus
     const subscriptionId = (this.subscriptionCounter++).toString();
-    const subscriber = new DurableEventStreamable(this.listener, taskId, signalKey);
+    const subscriber = new DurableEventStreamable(
+      this.listener,
+      taskId,
+      signalKey,
+      subscriptionId,
+      () => this.cleanupSubscription(subscriptionId)
+    );
 
     this.subscribers[subscriptionId] = subscriber;
 
@@ -159,9 +228,12 @@ export class DurableEventGrpcPooledListener {
     return subscriber;
   }
 
-  async result(request: { taskId: string; signalKey: string }): Promise<DurableEvent> {
+  async result(
+    request: { taskId: string; signalKey: string },
+    opts?: { signal?: AbortSignal }
+  ): Promise<DurableEvent> {
     const subscriber = this.subscribe(request);
-    const event = await subscriber.get();
+    const event = await subscriber.get({ signal: opts?.signal });
     return event;
   }
 
@@ -189,7 +261,7 @@ export class DurableEventGrpcPooledListener {
     const subscriptionEntries = Object.entries(this.taskSignalKeyToSubscriptionIds);
     this.client.logger.debug(`Replaying ${subscriptionEntries.length} requests...`);
 
-    for (const [key, _] of subscriptionEntries) {
+    for (const [key] of subscriptionEntries) {
       const [taskId, signalKey] = key.split('|');
       this.requestEmitter.emit('subscribe', { taskId, signalKey });
     }
