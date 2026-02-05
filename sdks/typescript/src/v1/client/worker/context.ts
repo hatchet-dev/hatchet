@@ -381,7 +381,7 @@ export class Context<T, K = {}> {
     const finalOpts = {
       ...options,
       parentId: workflowRunId,
-      parentTaskExternalId: taskRunExternalId,
+      parentTaskRunExternalId: taskRunExternalId,
       childIndex: this.spawnIndex,
       childKey: options?.key,
       desiredWorkerId: sticky ? this.worker.id() : undefined,
@@ -614,7 +614,7 @@ export class Context<T, K = {}> {
         options: {
           ...opts,
           parentId: workflowRunId,
-          parentTaskExternalId: taskRunExternalId,
+          parentTaskRunExternalId: taskRunExternalId,
           childIndex: this.spawnIndex,
           desiredWorkerId: sticky ? this.worker.id() : undefined,
         },
@@ -687,7 +687,7 @@ export class Context<T, K = {}> {
     try {
       const resp = await this.v1._v0.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
-        parentTaskExternalId: taskRunExternalId,
+        parentTaskRunExternalId: taskRunExternalId,
         childIndex: this.spawnIndex,
         desiredWorkerId: sticky ? this.worker.id() : undefined,
         ...opts,

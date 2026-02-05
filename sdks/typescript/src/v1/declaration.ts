@@ -323,7 +323,7 @@ export class BaseWorkflowDeclaration<
     const runOpts = {
       ...options,
       parentId: parentRunContext?.parentId,
-      parentTaskExternalId: parentRunContext?.parentTaskExternalId,
+      parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
       sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
       childKey: options?.childKey,

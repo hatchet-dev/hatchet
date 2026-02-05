@@ -31,11 +31,6 @@ export type WorkflowRun<T = object> = {
      * @deprecated Use `parentTaskRunExternalId` instead.
      * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
      */
-    parentTaskExternalId?: string | undefined;
-    /**
-     * @deprecated Use `parentTaskRunExternalId` instead.
-     * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
-     */
     parentStepRunId?: string | undefined;
     childIndex?: number | undefined;
     childKey?: string | undefined;
@@ -83,11 +78,6 @@ export class AdminClient {
        * @deprecated Use `parentTaskRunExternalId` instead.
        * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
        */
-      parentTaskExternalId?: string | undefined;
-      /**
-       * @deprecated Use `parentTaskRunExternalId` instead.
-       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
-       */
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
@@ -103,20 +93,14 @@ export class AdminClient {
       const inputStr = JSON.stringify(input);
 
       const opts = options ?? {};
-      const {
-        additionalMetadata,
-        parentStepRunId,
-        parentTaskExternalId,
-        parentTaskRunExternalId,
-        ...rest
-      } = opts;
+      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
 
       const request = {
         name: computedName,
         input: inputStr,
         ...rest,
         // API expects `parentTaskRunExternalId`; accept old names as aliases.
-        parentTaskRunExternalId: parentTaskRunExternalId ?? parentTaskExternalId ?? parentStepRunId,
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
         additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
         priority: opts.priority,
       };
@@ -162,11 +146,6 @@ export class AdminClient {
          * @deprecated Use `parentTaskRunExternalId` instead.
          * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
          */
-        parentTaskExternalId?: string | undefined;
-        /**
-         * @deprecated Use `parentTaskRunExternalId` instead.
-         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
-         */
         parentStepRunId?: string | undefined;
         childIndex?: number | undefined;
         childKey?: string | undefined;
@@ -184,20 +163,14 @@ export class AdminClient {
       const inputStr = JSON.stringify(input);
 
       const opts = options ?? {};
-      const {
-        additionalMetadata,
-        parentStepRunId,
-        parentTaskExternalId,
-        parentTaskRunExternalId,
-        ...rest
-      } = opts;
+      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
 
       return {
         name: computedName,
         input: inputStr,
         ...rest,
         // API expects `parentTaskRunExternalId`; accept old names as aliases.
-        parentTaskRunExternalId: parentTaskRunExternalId ?? parentTaskExternalId ?? parentStepRunId,
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
         additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
       };
     });

@@ -4,10 +4,8 @@ export interface ParentRunContext {
   parentId: string;
   /**
    * External ID of the parent task/step run.
-   *
-   * This is the value expected by the workflows gRPC API as `parentTaskExternalId`.
    */
-  parentTaskExternalId: string;
+  parentTaskRunExternalId: string;
   desiredWorkerId: string;
   childIndex?: number;
 }
@@ -29,7 +27,7 @@ export class ParentRunContextManager {
     const parentRunContext = this.getContext();
     if (parentRunContext) {
       parentRunContext.parentId = opts.parentId;
-      parentRunContext.parentTaskExternalId = opts.parentTaskExternalId;
+      parentRunContext.parentTaskRunExternalId = opts.parentTaskRunExternalId;
       parentRunContext.childIndex = (parentRunContext.childIndex ?? 0) + 1;
       this.setContext(parentRunContext);
     }
