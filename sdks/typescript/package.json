@@ -22,7 +22,7 @@
     "dump-version": "node -e \"console.log('export const HATCHET_VERSION = \\'' + require('./package.json').version + '\\';');\" > src/version.ts",
     "tsc:build": "pnpm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
-    "test:e2e": "jest --testMatch='**/*.e2e.ts'",
+    "test:e2e": "jest --testMatch='**/*.e2e.ts' --silent",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
     "generate-api": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated -n hatchet.ts --modular --axios",

@@ -1,5 +1,5 @@
 // eslint-disable-next-line max-classes-per-file
-import { EventEmitter, on } from 'events';
+import { EventEmitter, getMaxListeners, on, setMaxListeners } from 'events';
 import {
   WorkflowRunEvent,
   SubscribeToWorkflowRunsRequest,
@@ -59,6 +59,19 @@ export class Streamable {
 
       this.responseEmitter.once('response', onResponse);
       if (signal) {
+        /**
+         * Node defaults AbortSignal max listeners to 10, which is easy to exceed with
+         * legitimate high-concurrency waits (e.g. a cancelled parent task fanning out
+         * to many child `.result()` waits).
+         *
+         * If the signal is still at the default cap, bump it to a reasonable level
+         * to avoid noisy `MaxListenersExceededWarning` while still keeping protection
+         * against true leaks in unusual cases.
+         */
+        const max = getMaxListeners(signal);
+        if (max !== 0 && max < 50) {
+          setMaxListeners(50, signal);
+        }
         signal.addEventListener('abort', onAbort, { once: true });
       }
     });
