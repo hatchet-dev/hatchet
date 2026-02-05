@@ -867,7 +867,7 @@ export class V1Worker {
         ]);
 
         if (winner === 'done') {
-          this.logger.info(taskRunLog(taskName, taskRunExternalId, 'cancellation completed'));
+          this.logger.info(taskRunLog(taskName, taskRunExternalId, 'cancelled'));
         } else {
           const totalElapsedMs = Date.now() - start;
           this.logger.warn(

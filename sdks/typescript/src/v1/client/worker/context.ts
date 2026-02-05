@@ -21,6 +21,7 @@ import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { ContextWorker, NextStep } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { createAbortError } from '@hatchet/util/abort-error';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -88,6 +89,12 @@ export class Context<T, K = {}> {
 
   get cancelled() {
     return this.controller.signal.aborted;
+  }
+
+  protected throwIfCancelled(): void {
+    if (this.abortController.signal.aborted) {
+      throw createAbortError('Operation cancelled by AbortSignal');
+    }
   }
 
   async cancel() {
@@ -359,6 +366,8 @@ export class Context<T, K = {}> {
   }
 
   private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
+    this.throwIfCancelled();
+
     let workflowName: string;
 
     if (typeof workflow === 'string') {
@@ -410,6 +419,7 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ) {
+    this.throwIfCancelled();
     const workflows: Parameters<typeof this.v1.admin.runWorkflows<Q, P>>[0] = children.map(
       (child) => {
         const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
@@ -595,6 +605,7 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const workflowRuns = workflows.map(({ workflow, input, options }) => {
@@ -677,6 +688,7 @@ export class Context<T, K = {}> {
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
     let workflowName: string = '';
@@ -747,6 +759,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
+    this.throwIfCancelled();
     const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
 
     // eslint-disable-next-line no-plusplus
