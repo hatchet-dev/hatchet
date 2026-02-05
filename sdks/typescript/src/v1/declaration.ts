@@ -491,12 +491,17 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the workflow metrics.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  metrics(opts?: Parameters<MetricsClient['getWorkflowMetrics']>[1]) {
+  async metrics(opts?: Omit<Parameters<MetricsClient['getTaskStatusMetrics']>[0], 'workflows'>) {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return this.client.metrics.getWorkflowMetrics(this.definition.name, opts);
+    const workflow = await this.client.workflows.get(this.definition.name);
+    return this.client.metrics.getTaskStatusMetrics({
+      since: opts?.since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      until: opts?.until || new Date().toISOString(),
+      workflow_ids: [workflow.metadata.id],
+    });
   }
 
   /**
@@ -505,14 +510,19 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the workflow metrics.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  queueMetrics(opts?: Omit<Parameters<MetricsClient['getQueueMetrics']>[0], 'workflows'>) {
+  async taskStatusMetrics(
+    opts?: Omit<Parameters<MetricsClient['getTaskStatusMetrics']>[0], 'workflows'>
+  ) {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return this.client.metrics.getQueueMetrics({
-      ...opts,
-      workflows: [this.definition.name],
+    const workflow = await this.client.workflows.get(this.definition.name);
+
+    return this.client.metrics.getTaskStatusMetrics({
+      since: opts?.since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      until: opts?.until || new Date().toISOString(),
+      workflow_ids: [workflow.metadata.id],
     });
   }
 
