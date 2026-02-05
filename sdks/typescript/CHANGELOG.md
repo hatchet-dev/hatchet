@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated the metrics client to align with the latest server metrics API.
+- Updated the metrics client for the latest server metrics APIs (including adding `getTaskStatusMetrics` for tenant task/run status counts).
+- Removes deprecated metrics methods.
 
 ## [1.10.8] - 2026-02-02
 
