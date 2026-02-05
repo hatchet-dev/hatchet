@@ -1506,6 +1506,24 @@ WHERE
     lt.external_id = @workflowRunExternalId::uuid
 ;
 
+-- name: ReadWorkflowRunStatusesByExternalIds :many
+SELECT
+    r.tenant_id,
+    r.external_id,
+    r.readable_status
+FROM
+    v1_lookup_table_olap lt
+JOIN
+    v1_runs_olap r ON r.inserted_at = lt.inserted_at
+        AND (
+            (lt.dag_id IS NOT NULL AND r.id = lt.dag_id)
+            OR (lt.task_id IS NOT NULL AND r.id = lt.task_id)
+        )
+WHERE
+    lt.external_id = ANY(@workflowRunExternalIds::uuid[])
+    AND lt.tenant_id = @tenantId::uuid
+;
+
 -- name: GetWorkflowRunIdFromDagIdInsertedAt :one
 SELECT external_id
 FROM v1_dags_olap
