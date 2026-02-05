@@ -932,6 +932,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					orGroupIdStr := userEventCondition.Base.OrGroupId
 
 					if orGroupIdStr == "" {
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
 						orGroupIdStr = uuid.New().String()
 					}
 
@@ -965,7 +966,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 					orGroupIdStr := sleepCondition.Base.OrGroupId
 
-					if orGroupIdStr == "" {
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
 						orGroupIdStr = uuid.New().String()
 					}
 
@@ -996,7 +997,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 					orGroupIdStr := parentOverrideCondition.Base.OrGroupId
 
-					if orGroupIdStr == "" {
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
 						orGroupIdStr = uuid.New().String()
 					}
 
