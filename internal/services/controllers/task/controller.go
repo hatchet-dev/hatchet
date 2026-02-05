@@ -870,18 +870,10 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 		workerIds = append(workerIds, task.WorkerId)
 	}
 
-	dispatcherIdWorkerIds, err := tc.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+	workerIdToDispatcherId, _, err := tc.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
-	}
-
-	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
-
-	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-		for _, workerId := range workerIds {
-			workerIdToDispatcherId[workerId] = dispatcherId
-		}
 	}
 
 	// assemble messages

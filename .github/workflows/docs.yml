@@ -25,7 +25,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate snippets
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -53,7 +53,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate snippets
         working-directory: frontend/snippets
         run: python3 generate.py
