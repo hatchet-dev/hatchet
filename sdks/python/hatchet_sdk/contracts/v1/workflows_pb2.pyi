@@ -107,7 +107,7 @@ class ReplayTasksResponse(_message.Message):
     def __init__(self, replayed_tasks: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRunRequest(_message.Message):
-    __slots__ = ("workflow_name", "input", "additional_metadata", "priority", "desired_worker_labels")
+    __slots__ = ("workflow_name", "input", "additional_metadata", "priority", "desired_worker_labels", "idempotency_key")
     class DesiredWorkerLabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -120,12 +120,14 @@ class TriggerWorkflowRunRequest(_message.Message):
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     DESIRED_WORKER_LABELS_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
     workflow_name: str
     input: bytes
     additional_metadata: bytes
     priority: int
     desired_worker_labels: _containers.MessageMap[str, _trigger_pb2.DesiredWorkerLabels]
-    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ...) -> None: ...
+    idempotency_key: str
+    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowRunResponse(_message.Message):
     __slots__ = ("external_id",)
