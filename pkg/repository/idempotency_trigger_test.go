@@ -189,6 +189,54 @@ func insertRunStatus(t *testing.T, pool *pgxpool.Pool, tenantId uuid.UUID, wf mi
 	require.NoError(t, err)
 }
 
+func insertTerminalTaskEventsForRun(t *testing.T, pool *pgxpool.Pool, tenantId uuid.UUID, externalId uuid.UUID) {
+	t.Helper()
+	ctx := context.Background()
+
+	rows, err := pool.Query(ctx, `
+		WITH lookup AS (
+			SELECT external_id, dag_id, task_id, inserted_at
+			FROM v1_lookup_table
+			WHERE tenant_id = $1 AND external_id = $2
+		), dag_tasks AS (
+			SELECT t.id, t.inserted_at, t.retry_count
+			FROM lookup l
+			JOIN v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
+			JOIN v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+			WHERE l.dag_id IS NOT NULL
+		), task_only AS (
+			SELECT t.id, t.inserted_at, t.retry_count
+			FROM lookup l
+			JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+			WHERE l.task_id IS NOT NULL
+		)
+		SELECT id, inserted_at, retry_count FROM dag_tasks
+		UNION ALL
+		SELECT id, inserted_at, retry_count FROM task_only
+	`, tenantId, externalId)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	taskCount := 0
+	for rows.Next() {
+		var (
+			taskId       int64
+			taskInserted time.Time
+			retryCount   int32
+		)
+		require.NoError(t, rows.Scan(&taskId, &taskInserted, &retryCount))
+		taskCount++
+
+		_, err = pool.Exec(ctx, `
+			INSERT INTO v1_task_event (tenant_id, task_id, task_inserted_at, retry_count, event_type)
+			VALUES ($1, $2, $3, $4, 'COMPLETED')
+		`, tenantId, taskId, taskInserted, retryCount)
+		require.NoError(t, err)
+	}
+	require.NoError(t, rows.Err())
+	require.Greater(t, taskCount, 0)
+}
+
 func getLastDeniedAt(t *testing.T, pool *pgxpool.Pool, tenantId uuid.UUID, key IdempotencyKey) pgtype.Timestamptz {
 	t.Helper()
 	ctx := context.Background()
@@ -461,8 +509,8 @@ func TestTriggerWorkflowIdempotency_ReclaimDoesNotUpdateLastDeniedAt(t *testing.
 	assert.False(t, lastDeniedAt.Valid)
 }
 
-func TestTriggerWorkflowIdempotency_MixedKeysDeniesBatch(t *testing.T) {
-	// Mixed batch: one reclaimable, one running. The batch should be denied and no partial commit occurs.
+func TestTriggerWorkflowIdempotency_MixedKeysAllowsPartial(t *testing.T) {
+	// Mixed batch: one reclaimable, one running. We should allow the reclaimable run and skip the duplicate.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -514,12 +562,19 @@ func TestTriggerWorkflowIdempotency_MixedKeysDeniesBatch(t *testing.T) {
 	}
 
 	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{terminalSecond, runningSecond})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrIdempotencyKeyAlreadyClaimed)
+	require.NoError(t, err)
 
 	claimedTerminal := getClaimedByExternalId(t, pool, tenantId, keyTerminal)
 	require.NotNil(t, claimedTerminal)
-	assert.Equal(t, terminalFirst.ExternalId, *claimedTerminal)
+	assert.Equal(t, terminalSecond.ExternalId, *claimedTerminal)
+
+	claimedRunning := getClaimedByExternalId(t, pool, tenantId, keyRunning)
+	require.NotNil(t, claimedRunning)
+	assert.Equal(t, runningFirst.ExternalId, *claimedRunning)
+
+	lastDeniedAt := getLastDeniedAt(t, pool, tenantId, keyRunning)
+	assert.True(t, lastDeniedAt.Valid)
+	assert.WithinDuration(t, time.Now(), lastDeniedAt.Time, 2*time.Minute)
 }
 
 func TestTriggerWorkflowIdempotency_ConcurrentDuplicateKey(t *testing.T) {
@@ -705,6 +760,49 @@ func TestTriggerWorkflowIdempotency_RecheckMissingOlapUpdatesLastDeniedAt(t *tes
 	lastDeniedAt := getLastDeniedAt(t, pool, tenantId, key)
 	assert.True(t, lastDeniedAt.Valid)
 	assert.WithinDuration(t, time.Now(), lastDeniedAt.Time, 2*time.Minute)
+}
+
+func TestTriggerWorkflowIdempotency_RecheckUsesCoreWhenOlapMissing(t *testing.T) {
+	// If OLAP is missing but core task events are terminal, we should reclaim and allow a new run.
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo, cleanupRepo := setupRepositoryWithTTL(t, pool, 30*time.Minute, 1*time.Minute)
+	defer cleanupRepo()
+
+	tenantId := setupTenant(t, repo, pool)
+	_ = createMinimalWorkflow(t, pool, tenantId, "test-workflow")
+
+	ctx := context.Background()
+	key := IdempotencyKey("idem-key-core-fallback")
+
+	first := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &key,
+	}
+
+	_, _, err := repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{first})
+	require.NoError(t, err)
+
+	insertTerminalTaskEventsForRun(t, pool, tenantId, first.ExternalId)
+
+	second := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &key,
+	}
+
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{second})
+	require.NoError(t, err)
+
+	claimed := getClaimedByExternalId(t, pool, tenantId, key)
+	require.NotNil(t, claimed)
+	assert.Equal(t, second.ExternalId, *claimed)
 }
 
 func TestTriggerWorkflowIdempotency_RecheckUpdatesLastDeniedAtWhenNonTerminal(t *testing.T) {
