@@ -7,14 +7,8 @@ import {
 } from '@hatchet/protoc/dispatcher';
 import { isAbortError } from 'abort-controller-x';
 import sleep from '@hatchet/util/sleep';
+import { createAbortError } from '@hatchet/util/abort-error';
 import { RunListenerClient } from './child-listener-client';
-
-function createAbortError(message = 'Operation aborted'): Error {
-  const err: any = new Error(message);
-  err.name = 'AbortError';
-  err.code = 'ABORT_ERR';
-  return err as Error;
-}
 
 export class Streamable {
   listener: AsyncIterable<WorkflowRunEvent>;
