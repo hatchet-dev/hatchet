@@ -230,6 +230,9 @@ message TriggerWorkflowRequest {
 
     // (optional) override for the priority of the workflow tasks, will set all tasks to this priority
     optional int32 priority = 9;
+
+    // (optional) idempotency key for deduplicating workflow runs
+    optional string idempotency_key = 10;
 }
 
 message TriggerWorkflowResponse {

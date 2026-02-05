@@ -241,6 +241,14 @@ func WithPriority(priority int32) RunOptFunc {
 	}
 }
 
+func WithIdempotencyKey(key string) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		r.IdempotencyKey = &key
+
+		return nil
+	}
+}
+
 // func WithSticky(sticky bool) RunOptFunc {
 // 	return func(r *admincontracts.TriggerWorkflowRequest) error {
 // 		r.Sticky = &sticky

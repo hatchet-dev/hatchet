@@ -240,9 +240,16 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		t.ChildKey = req.ChildKey
 	}
 
-	return &v1.WorkflowNameTriggerOpts{
+	opts := &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: t,
-	}, nil
+	}
+
+	if req.IdempotencyKey != nil {
+		key := v1.IdempotencyKey(*req.IdempotencyKey)
+		opts.IdempotencyKey = &key
+	}
+
+	return opts, nil
 }
 
 func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
