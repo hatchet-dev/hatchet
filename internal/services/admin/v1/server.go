@@ -931,7 +931,6 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 					orGroupIdStr := userEventCondition.Base.OrGroupId
 
-					if orGroupIdStr == "" {
 					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
 						orGroupIdStr = uuid.New().String()
 					}
