@@ -21,8 +21,69 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-type WorkflowEvent *dispatchercontracts.WorkflowEvent
-type WorkflowRunEvent *dispatchercontracts.WorkflowRunEvent
+// ResourceType represents the type of resource
+type ResourceType int32
+
+const (
+	ResourceType_RESOURCE_TYPE_UNKNOWN      ResourceType = 0
+	ResourceType_RESOURCE_TYPE_STEP_RUN     ResourceType = 1
+	ResourceType_RESOURCE_TYPE_WORKFLOW_RUN ResourceType = 2
+)
+
+// ResourceEventType represents the type of event
+type ResourceEventType int32
+
+const (
+	ResourceEventType_RESOURCE_EVENT_TYPE_UNKNOWN   ResourceEventType = 0
+	ResourceEventType_RESOURCE_EVENT_TYPE_STARTED   ResourceEventType = 1
+	ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED ResourceEventType = 2
+	ResourceEventType_RESOURCE_EVENT_TYPE_FAILED    ResourceEventType = 3
+	ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED ResourceEventType = 4
+	ResourceEventType_RESOURCE_EVENT_TYPE_TIMED_OUT ResourceEventType = 5
+	ResourceEventType_RESOURCE_EVENT_TYPE_STREAM    ResourceEventType = 6
+)
+
+// WorkflowRunEventType represents the type of workflow run event
+type WorkflowRunEventType int32
+
+const (
+	WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED WorkflowRunEventType = 0
+)
+
+// workflowEvent is the internal representation of a workflow event
+type workflowEvent struct {
+	EventTimestamp *time.Time
+	StepRetries    *int32
+	RetryCount     *int32
+	EventIndex     *int64
+	WorkflowRunId  string
+	ResourceId     string
+	EventPayload   string
+	ResourceType   ResourceType
+	EventType      ResourceEventType
+	Hangup         bool
+}
+
+// StepRunResult represents the result of a step run
+type StepRunResult struct {
+	Error          *string
+	Output         *string
+	StepRunId      string
+	StepReadableId string
+	JobRunId       string
+}
+
+// workflowRunEvent is the internal representation of a workflow run event
+type workflowRunEvent struct {
+	EventTimestamp *time.Time
+	WorkflowRunId  string
+	Results        []*StepRunResult
+	EventType      WorkflowRunEventType
+}
+
+type WorkflowEvent *workflowEvent
+
+type WorkflowRunEvent *workflowRunEvent
 
 type StreamEvent struct {
 	Message []byte
@@ -328,7 +389,12 @@ func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.Work
 		handlerCp := handler
 
 		eg.Go(func() error {
-			return handlerCp(event)
+			workflowRunEvent, err := workflowRunEventToDeprecatedWorkflowRunEvent(event)
+			if err != nil {
+				return err
+			}
+
+			return handlerCp(workflowRunEvent)
 		})
 	}
 
@@ -407,7 +473,12 @@ func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, hand
 			continue
 		}
 
-		if err := handler(event); err != nil {
+		workflowEvent, err := workflowEventToDeprecatedWorkflowEvent(event)
+		if err != nil {
+			return err
+		}
+
+		if err := handler(workflowEvent); err != nil {
 			return err
 		}
 	}
@@ -484,4 +555,52 @@ func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) 
 
 func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
 	return r.getDurableEventsListener(context.Background())
+}
+
+func workflowEventToDeprecatedWorkflowEvent(event *dispatchercontracts.WorkflowEvent) (*workflowEvent, error) {
+	result := &workflowEvent{
+		WorkflowRunId: event.WorkflowRunId,
+		ResourceType:  ResourceType(event.ResourceType),
+		EventType:     ResourceEventType(event.EventType),
+		ResourceId:    event.ResourceId,
+		EventPayload:  event.EventPayload,
+		Hangup:        event.Hangup,
+		StepRetries:   event.StepRetries,
+		RetryCount:    event.RetryCount,
+		EventIndex:    event.EventIndex,
+	}
+
+	if event.EventTimestamp != nil {
+		t := event.EventTimestamp.AsTime()
+		result.EventTimestamp = &t
+	}
+
+	return result, nil
+}
+
+func workflowRunEventToDeprecatedWorkflowRunEvent(event *dispatchercontracts.WorkflowRunEvent) (*workflowRunEvent, error) {
+	result := &workflowRunEvent{
+		WorkflowRunId: event.WorkflowRunId,
+		EventType:     WorkflowRunEventType(event.EventType),
+	}
+
+	if event.EventTimestamp != nil {
+		t := event.EventTimestamp.AsTime()
+		result.EventTimestamp = &t
+	}
+
+	if event.Results != nil {
+		result.Results = make([]*StepRunResult, len(event.Results))
+		for i, r := range event.Results {
+			result.Results[i] = &StepRunResult{
+				StepRunId:      r.StepRunId,
+				StepReadableId: r.StepReadableId,
+				JobRunId:       r.JobRunId,
+				Error:          r.Error,
+				Output:         r.Output,
+			}
+		}
+	}
+
+	return result, nil
 }
