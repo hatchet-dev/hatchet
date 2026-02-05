@@ -822,6 +822,63 @@ WHERE
     t.tenant_id = @tenantId::uuid
     AND dt.dag_id = ANY(@dagIds::bigint[]);
 
+-- name: ReadWorkflowRunTerminalStatesByExternalIds :many
+WITH input AS (
+    SELECT
+        UNNEST(@externalIds::uuid[]) AS external_id
+), lookup AS (
+    SELECT
+        lt.external_id,
+        lt.dag_id,
+        lt.task_id,
+        lt.inserted_at
+    FROM v1_lookup_table lt
+    JOIN input i ON i.external_id = lt.external_id
+    WHERE
+        lt.tenant_id = @tenantId::uuid
+), dag_tasks AS (
+    SELECT
+        l.external_id,
+        t.id,
+        t.inserted_at,
+        t.retry_count
+    FROM lookup l
+    JOIN v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
+    JOIN v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+    WHERE l.dag_id IS NOT NULL
+), task_only AS (
+    SELECT
+        l.external_id,
+        t.id,
+        t.inserted_at,
+        t.retry_count
+    FROM lookup l
+    JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+    WHERE l.task_id IS NOT NULL
+), all_tasks AS (
+    SELECT * FROM dag_tasks
+    UNION ALL
+    SELECT * FROM task_only
+), terminal_tasks AS (
+    SELECT
+        at.external_id,
+        EXISTS (
+            SELECT 1
+            FROM v1_task_event e
+            WHERE
+                e.tenant_id = @tenantId::uuid
+                AND (e.task_id, e.task_inserted_at, e.retry_count) = (at.id, at.inserted_at, at.retry_count)
+                AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
+        ) AS is_terminal
+    FROM all_tasks at
+)
+SELECT
+    external_id,
+    BOOL_AND(is_terminal) AS all_terminal,
+    COUNT(*) AS task_count
+FROM terminal_tasks
+GROUP BY external_id;
+
 -- name: ListTaskExpressionEvals :many
 WITH input AS (
     SELECT
