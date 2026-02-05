@@ -275,7 +275,7 @@ class BulkTriggerWorkflowResponse(_message.Message):
     def __init__(self, workflow_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority", "desired_worker_labels")
+    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority", "desired_worker_labels", "idempotency_key")
     class DesiredWorkerLabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -293,6 +293,7 @@ class TriggerWorkflowRequest(_message.Message):
     DESIRED_WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     DESIRED_WORKER_LABELS_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
     name: str
     input: str
     parent_id: str
@@ -303,7 +304,8 @@ class TriggerWorkflowRequest(_message.Message):
     desired_worker_id: str
     priority: int
     desired_worker_labels: _containers.MessageMap[str, DesiredWorkerLabels]
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ...) -> None: ...
+    idempotency_key: str
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)
