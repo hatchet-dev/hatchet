@@ -2615,11 +2615,12 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 
 		status, ok := externalIdToStatus[externalId]
 		if ok && isTerminalReadableStatus(status) {
-			if err := r.queries.DeleteIdempotencyKeysByExternalId(ctx, tx, sqlcv1.DeleteIdempotencyKeysByExternalIdParams{
+			deleteErr := r.queries.DeleteIdempotencyKeysByExternalId(ctx, tx, sqlcv1.DeleteIdempotencyKeysByExternalIdParams{
 				Tenantid:   tenantId,
 				Externalid: externalId,
-			}); err != nil {
-				return fmt.Errorf("failed to delete idempotency keys for completed workflow run: %w", err)
+			})
+			if deleteErr != nil {
+				return fmt.Errorf("failed to delete idempotency keys for completed workflow run: %w", deleteErr)
 			}
 
 			keysToReclaim = append(keysToReclaim, key)
@@ -2638,11 +2639,12 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 	}
 
 	if len(keysToUpdate) > 0 {
-		if err := r.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, r.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
+		updateErr := r.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, r.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
 			Tenantid: tenantId,
 			Keys:     keysToUpdate,
-		}); err != nil {
-			return fmt.Errorf("failed to update idempotency key deny timestamps: %w", err)
+		})
+		if updateErr != nil {
+			return fmt.Errorf("failed to update idempotency key deny timestamps: %w", updateErr)
 		}
 	}
 
@@ -2657,12 +2659,13 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 
 	expiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(ttl))
 
-	if err := r.queries.CreateIdempotencyKeys(ctx, tx, sqlcv1.CreateIdempotencyKeysParams{
+	createErr := r.queries.CreateIdempotencyKeys(ctx, tx, sqlcv1.CreateIdempotencyKeysParams{
 		Tenantid:  tenantId,
 		Keys:      keysToReclaim,
 		Expiresat: expiresAt,
-	}); err != nil {
-		return fmt.Errorf("failed to recreate idempotency keys after reclaim: %w", err)
+	})
+	if createErr != nil {
+		return fmt.Errorf("failed to recreate idempotency keys after reclaim: %w", createErr)
 	}
 
 	pairsToReclaim := make([]KeyClaimantPair, 0, len(keysToReclaim))
