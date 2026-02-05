@@ -218,6 +218,7 @@ func getClaimedByExternalId(t *testing.T, pool *pgxpool.Pool, tenantId uuid.UUID
 }
 
 func TestTriggerWorkflowIdempotency_DedupesActiveRun(t *testing.T) {
+	// Ensures a duplicate idempotency key is rejected while an active run holds the claim.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -255,6 +256,7 @@ func TestTriggerWorkflowIdempotency_DedupesActiveRun(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_AllowsAfterRelease(t *testing.T) {
+	// Shows that once a key is released (deleted), the same key can be used again.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -294,6 +296,7 @@ func TestTriggerWorkflowIdempotency_AllowsAfterRelease(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_UsesConfiguredTTL(t *testing.T) {
+	// Validates that the configured TTL is applied to the stored idempotency key.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -331,6 +334,7 @@ func TestTriggerWorkflowIdempotency_UsesConfiguredTTL(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_ReclaimsAfterTerminalStatus(t *testing.T) {
+	// When OLAP reports terminal status, a previously claimed key is reclaimed and a new run is allowed.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -369,6 +373,7 @@ func TestTriggerWorkflowIdempotency_ReclaimsAfterTerminalStatus(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_ReclaimDoesNotUpdateLastDeniedAt(t *testing.T) {
+	// Reclaimed keys should not have last_denied_at set since the enqueue succeeds.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -410,6 +415,7 @@ func TestTriggerWorkflowIdempotency_ReclaimDoesNotUpdateLastDeniedAt(t *testing.
 }
 
 func TestTriggerWorkflowIdempotency_MixedKeysDeniesBatch(t *testing.T) {
+	// Mixed batch: one reclaimable, one running. The batch should be denied and no partial commit occurs.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -470,6 +476,7 @@ func TestTriggerWorkflowIdempotency_MixedKeysDeniesBatch(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_ConcurrentDuplicateKey(t *testing.T) {
+	// Two concurrent triggers with the same key should yield one success and one duplicate error.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -525,6 +532,7 @@ func TestTriggerWorkflowIdempotency_ConcurrentDuplicateKey(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_RecheckThrottled(t *testing.T) {
+	// If last_denied_at is recent, recheck is skipped and the duplicate is denied.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -568,6 +576,7 @@ func TestTriggerWorkflowIdempotency_RecheckThrottled(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_RecheckDisabled(t *testing.T) {
+	// With recheck disabled, duplicates are denied and last_denied_at remains unset.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -610,6 +619,7 @@ func TestTriggerWorkflowIdempotency_RecheckDisabled(t *testing.T) {
 }
 
 func TestTriggerWorkflowIdempotency_RecheckUpdatesLastDeniedAtWhenNonTerminal(t *testing.T) {
+	// If the run is non-terminal, we deny and update last_denied_at for throttling.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
