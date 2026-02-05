@@ -520,10 +520,13 @@ class Runner:
             warning_threshold = (
                 self.config.cancellation_warning_threshold.total_seconds()
             )
+            grace_period_ms = int(round(grace_period * 1000))
+            warning_threshold_ms = int(round(warning_threshold * 1000))
 
             # Wait until warning threshold
             await asyncio.sleep(warning_threshold)
             elapsed = time.monotonic() - start_time
+            elapsed_ms = int(round(elapsed * 1000))
 
             # Check if task is still running after warning threshold
             task_was_running = key in self.tasks and not self.tasks[key].done()
@@ -531,7 +534,8 @@ class Runner:
             if task_was_running:
                 logger.warning(
                     f"Cancellation: task {action.action_id} has not cancelled after "
-                    f"{elapsed:.1f}s. Consider checking for blocking operations. "
+                    f"{elapsed_ms}ms (warning threshold {warning_threshold_ms}ms). "
+                    f"Consider checking for blocking operations. "
                     f"See https://docs.hatchet.run/home/cancellation"
                 )
 
@@ -543,7 +547,8 @@ class Runner:
                 # Force cancel if still running after grace period
                 if key in self.tasks and not self.tasks[key].done():
                     logger.debug(
-                        f"Cancellation: force-cancelling task {action.action_id} after grace period"
+                        f"Cancellation: force-cancelling task {action.action_id} "
+                        f"after grace period ({grace_period_ms}ms)"
                     )
                     self.tasks[key].cancel()
 
@@ -567,19 +572,20 @@ class Runner:
 
                 # Log final status for slow cancellation
                 total_elapsed = time.monotonic() - start_time
+                total_elapsed_ms = int(round(total_elapsed * 1000))
                 if total_elapsed > grace_period:
                     logger.warning(
-                        f"Cancellation: cancellation of {action.action_id} took {total_elapsed:.1f}s "
-                        f"(exceeded grace period of {self.config.cancellation_grace_period})"
+                        f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
+                        f"(exceeded grace period of {grace_period_ms}ms)"
                     )
                 else:
                     logger.debug(
-                        f"Cancellation: task {action.action_id} eventually completed in {total_elapsed:.1f}s"
+                        f"Cancellation: task {action.action_id} eventually completed in {total_elapsed_ms}ms"
                     )
             else:
                 # Task completed quickly - log success and exit
                 logger.debug(
-                    f"Cancellation: task {action.action_id} completed within {elapsed:.1f}s"
+                    f"Cancellation: task {action.action_id} completed within {elapsed_ms}ms"
                 )
         finally:
             self.cleanup_run_id(key)

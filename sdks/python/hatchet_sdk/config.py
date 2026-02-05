@@ -137,11 +137,11 @@ class ClientConfig(BaseSettings):
 
     # Cancellation configuration
     cancellation_grace_period: timedelta = Field(
-        default=timedelta(seconds=5),
+        default=timedelta(milliseconds=1000),
         description="The maximum time to wait for a task to complete after cancellation is triggered before force-cancelling. Value is interpreted as seconds when provided as int/float.",
     )
     cancellation_warning_threshold: timedelta = Field(
-        default=timedelta(seconds=3),
+        default=timedelta(milliseconds=300),
         description="If a task has not completed cancellation within this duration, a warning will be logged. Value is interpreted as seconds when provided as int/float.",
     )
 
