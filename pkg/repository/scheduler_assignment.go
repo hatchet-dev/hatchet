@@ -34,3 +34,20 @@ func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context,
 
 	return d.queries.ListAvailableSlotsForWorkers(ctx, d.pool, params)
 }
+
+func (d *assignmentRepository) ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers-and-types")
+	defer span.End()
+
+	return d.queries.ListAvailableSlotsForWorkersAndTypes(ctx, d.pool, params)
+}
+
+func (d *assignmentRepository) ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-worker-slot-configs")
+	defer span.End()
+
+	return d.queries.ListWorkerSlotConfigs(ctx, d.pool, sqlcv1.ListWorkerSlotConfigsParams{
+		Tenantid:  tenantId,
+		Workerids: workerIds,
+	})
+}

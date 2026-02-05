@@ -81,6 +81,42 @@ FROM
 LEFT JOIN
     worker_filled_slots wfs ON wmr."id" = wfs.worker_id;
 
+-- name: ListAvailableSlotsForWorkersAndTypes :many
+WITH worker_capacities AS (
+    SELECT
+        worker_id,
+        slot_type,
+        max_units
+    FROM
+        v1_worker_slot_config
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND worker_id = ANY(@workerIds::uuid[])
+        AND slot_type = ANY(@slotTypes::text[])
+), worker_used_slots AS (
+    SELECT
+        worker_id,
+        slot_type,
+        SUM(units) AS used_units
+    FROM
+        v1_task_runtime_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND worker_id = ANY(@workerIds::uuid[])
+        AND slot_type = ANY(@slotTypes::text[])
+    GROUP BY
+        worker_id,
+        slot_type
+)
+SELECT
+    wc.worker_id AS "id",
+    wc.slot_type AS "slotType",
+    wc.max_units - COALESCE(wus.used_units, 0) AS "availableSlots"
+FROM
+    worker_capacities wc
+LEFT JOIN
+    worker_used_slots wus ON wc.worker_id = wus.worker_id AND wc.slot_type = wus.slot_type;
+
 -- name: ListQueues :many
 SELECT
     *
