@@ -11,7 +11,6 @@ from hatchet_sdk.exceptions import CancellationReason, CancelledError
 from hatchet_sdk.runnables.contextvars import ctx_cancellation_token
 from hatchet_sdk.utils.cancellation import await_with_cancellation
 
-
 # CancellationToken
 
 
@@ -284,6 +283,59 @@ async def test_cancel_callback_invoked() -> None:
         )
 
     assert callback_called == [True]
+
+
+@pytest.mark.asyncio
+async def test_sync_cancel_callback_invoked() -> None:
+    """Sync cancel callback should be invoked on cancellation (and not awaited)."""
+    token = CancellationToken()
+    callback_called = []
+
+    def cancel_callback() -> None:
+        callback_called.append(True)
+
+    async def slow_coro() -> str:
+        await asyncio.sleep(10)
+        return "result"
+
+    async def cancel_after_delay() -> None:
+        await asyncio.sleep(0.1)
+        token.cancel()
+
+    asyncio.create_task(cancel_after_delay())
+
+    with pytest.raises(asyncio.CancelledError):
+        await await_with_cancellation(
+            slow_coro(), token, cancel_callback=cancel_callback
+        )
+
+    assert callback_called == [True]
+
+
+@pytest.mark.asyncio
+async def test_cancel_callback_invoked_on_external_task_cancel() -> None:
+    """Cancel callback should be invoked if the awaiting task is cancelled externally."""
+    token = CancellationToken()
+    callback_called = asyncio.Event()
+
+    def cancel_callback() -> None:
+        callback_called.set()
+
+    async def slow_coro() -> str:
+        await asyncio.sleep(10)
+        return "result"
+
+    task = asyncio.create_task(
+        await_with_cancellation(slow_coro(), token, cancel_callback=cancel_callback)
+    )
+
+    await asyncio.sleep(0.1)
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    await asyncio.wait_for(callback_called.wait(), timeout=1.0)
 
 
 @pytest.mark.asyncio
