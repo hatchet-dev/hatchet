@@ -640,7 +640,7 @@ func TestWorkflowRunEventToDeprecatedWorkflowRunEvent_WithResults(t *testing.T) 
 		EventTimestamp: timestamppb.New(time.Now()),
 		Results: []*dispatchercontracts.StepRunResult{
 			{
-				StepRunId: "step-1",
+				TaskRunExternalId: "step-1",
 			},
 		},
 	}

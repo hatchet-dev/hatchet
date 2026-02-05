@@ -50,8 +50,8 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	if request.MaxRuns != nil {
-		mr := int(*request.MaxRuns)
+	if request.Slots != nil {
+		mr := int(*request.Slots)
 		opts.MaxRuns = &mr
 	}
 
