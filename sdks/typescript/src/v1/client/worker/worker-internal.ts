@@ -552,7 +552,7 @@ export class V1Worker {
       const run = async () => {
         parentRunContextManager.setContext({
           parentId: action.workflowRunId,
-          parentRunId: taskRunExternalId,
+          parentTaskExternalId: taskRunExternalId,
           childIndex: 0,
           desiredWorkerId: this.workerId || '',
         });

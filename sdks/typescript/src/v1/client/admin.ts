@@ -21,6 +21,21 @@ export type WorkflowRun<T = object> = {
   input: T;
   options?: {
     parentId?: string | undefined;
+    /**
+     * (optional) the parent task run external id.
+     *
+     * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
+     */
+    parentTaskRunExternalId?: string | undefined;
+    /**
+     * @deprecated Use `parentTaskRunExternalId` instead.
+     * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+     */
+    parentTaskExternalId?: string | undefined;
+    /**
+     * @deprecated Use `parentTaskRunExternalId` instead.
+     * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+     */
     parentStepRunId?: string | undefined;
     childIndex?: number | undefined;
     childKey?: string | undefined;
@@ -58,6 +73,21 @@ export class AdminClient {
     input: Q,
     options?: {
       parentId?: string | undefined;
+      /**
+       * (optional) the parent task run external id.
+       *
+       * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
+       */
+      parentTaskRunExternalId?: string | undefined;
+      /**
+       * @deprecated Use `parentTaskRunExternalId` instead.
+       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+       */
+      parentTaskExternalId?: string | undefined;
+      /**
+       * @deprecated Use `parentTaskRunExternalId` instead.
+       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+       */
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
@@ -72,14 +102,23 @@ export class AdminClient {
 
       const inputStr = JSON.stringify(input);
 
+      const opts = options ?? {};
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskExternalId,
+        parentTaskRunExternalId,
+        ...rest
+      } = opts;
+
       const request = {
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options?.additionalMetadata)
-          : undefined,
-        priority: options?.priority,
+        ...rest,
+        // API expects `parentTaskRunExternalId`; accept old names as aliases.
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentTaskExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        priority: opts.priority,
       };
 
       const resp = await retrier(async () => this.grpc.triggerWorkflow(request), this.logger);
@@ -113,6 +152,21 @@ export class AdminClient {
       input: Q;
       options?: {
         parentId?: string | undefined;
+        /**
+         * (optional) the parent task run external id.
+         *
+         * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
+         */
+        parentTaskRunExternalId?: string | undefined;
+        /**
+         * @deprecated Use `parentTaskRunExternalId` instead.
+         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+         */
+        parentTaskExternalId?: string | undefined;
+        /**
+         * @deprecated Use `parentTaskRunExternalId` instead.
+         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+         */
         parentStepRunId?: string | undefined;
         childIndex?: number | undefined;
         childKey?: string | undefined;
@@ -129,13 +183,22 @@ export class AdminClient {
       const computedName = applyNamespace(workflowName, this.config.namespace);
       const inputStr = JSON.stringify(input);
 
+      const opts = options ?? {};
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskExternalId,
+        parentTaskRunExternalId,
+        ...rest
+      } = opts;
+
       return {
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options.additionalMetadata)
-          : undefined,
+        ...rest,
+        // API expects `parentTaskRunExternalId`; accept old names as aliases.
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentTaskExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
       };
     });
 
