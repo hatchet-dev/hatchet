@@ -106,6 +106,13 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+    V1WebhookHMACAlgorithm,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+    V1WebhookHMACEncoding,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_deployment_config import (
@@ -273,6 +280,9 @@ __all__ = [
     "UserTenantMembershipsList",
     "UserTenantPublic",
     "V1TaskStatus",
+    "V1WebhookHMACAlgorithm",
+    "V1WebhookHMACEncoding",
+    "V1WebhookSourceName",
     "Worker",
     "Worker",
     "WorkerContext",
