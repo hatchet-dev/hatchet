@@ -232,6 +232,9 @@ message TriggerWorkflowRequest {
     optional int32 priority = 9;
 
     map<string, DesiredWorkerLabels> desired_worker_labels = 10; // (optional) override for the desired worker labels for the workflow tasks, used for routing to specific workers (or worker pools)
+
+    // (optional) idempotency key for deduplicating workflow runs
+    optional string idempotency_key = 11;
 }
 
 message TriggerWorkflowResponse {
