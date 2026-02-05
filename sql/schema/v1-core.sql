@@ -2193,6 +2193,7 @@ CREATE TABLE v1_idempotency_key (
 
     expires_at TIMESTAMPTZ NOT NULL,
     claimed_by_external_id UUID,
+    last_denied_at TIMESTAMPTZ,
 
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
