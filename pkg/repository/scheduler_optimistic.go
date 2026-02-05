@@ -73,7 +73,7 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 }
 
 func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error) {
-	triggerOpts, denyUpdateKeys, err := r.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
+	triggerOpts, denyUpdateKeys, duplicateKeys, err := r.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, ErrIdempotencyKeyAlreadyClaimed) && len(denyUpdateKeys) > 0 {
@@ -88,6 +88,29 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 		}
 
 		return nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
+	}
+
+	if len(duplicateKeys) > 0 && len(triggerOpts) > 0 {
+		r.l.Warn().
+			Str("tenantId", tenantId.String()).
+			Int("duplicateKeyCount", len(duplicateKeys)).
+			Msg("partial idempotency duplicates skipped during optimistic trigger")
+	}
+
+	if len(denyUpdateKeys) > 0 {
+		tx.AddPostCommit(func() {
+			updateErr := r.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, r.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
+				Tenantid: tenantId,
+				Keys:     denyUpdateKeys,
+			})
+			if updateErr != nil {
+				r.l.Error().
+					Err(updateErr).
+					Str("tenantId", tenantId.String()).
+					Int("keyCount", len(denyUpdateKeys)).
+					Msg("failed to update idempotency key deny timestamps after optimistic trigger")
+			}
+		})
 	}
 
 	tasks, dags, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
