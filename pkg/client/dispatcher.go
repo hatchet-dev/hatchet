@@ -457,8 +457,8 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				JobName:             assignedAction.JobName,
 				JobRunId:            assignedAction.JobRunId,
 				StepId:              assignedAction.TaskId,
-				StepName:            assignedAction.StepName,
-				StepRunId:           assignedAction.TaskExternalId,
+				StepName:            assignedAction.TaskName,
+				StepRunId:           assignedAction.TaskRunExternalId,
 				ActionId:            assignedAction.ActionId,
 				ActionType:          actionType,
 				ActionPayload:       []byte(unquoted),
@@ -566,17 +566,17 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 	}
 
 	resp, err := d.client.SendStepActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.StepActionEvent{
-		WorkerId:       in.WorkerId,
-		JobId:          in.JobId,
-		JobRunId:       in.JobRunId,
-		TaskId:         in.StepId,
-		TaskExternalId: in.StepRunId,
-		ActionId:       in.ActionId,
-		EventTimestamp: timestamppb.New(*in.EventTimestamp),
-		EventType:      actionEventType,
-		EventPayload:   string(payloadBytes),
-		RetryCount:     &in.RetryCount,
-		ShouldNotRetry: in.ShouldNotRetry,
+		WorkerId:          in.WorkerId,
+		JobId:             in.JobId,
+		JobRunId:          in.JobRunId,
+		TaskId:            in.StepId,
+		TaskRunExternalId: in.StepRunId,
+		ActionId:          in.ActionId,
+		EventTimestamp:    timestamppb.New(*in.EventTimestamp),
+		EventType:         actionEventType,
+		EventPayload:      string(payloadBytes),
+		RetryCount:        &in.RetryCount,
+		ShouldNotRetry:    in.ShouldNotRetry,
 	})
 
 	if err != nil {
@@ -636,7 +636,7 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 
 func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
-		StepRunId: stepRunId,
+		TaskRunExternalId: stepRunId,
 	})
 
 	if err != nil {
@@ -648,7 +648,7 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 
 func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
 	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
-		StepRunId:          stepRunId,
+		TaskRunExternalId:  stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,
 	})
 

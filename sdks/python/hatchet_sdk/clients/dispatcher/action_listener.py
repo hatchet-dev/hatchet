@@ -235,7 +235,7 @@ class ActionListener:
                         job_name=assigned_action.job_name,
                         job_run_id=assigned_action.job_run_id,
                         step_id=assigned_action.task_id,
-                        step_run_id=assigned_action.task_external_id,
+                        step_run_id=assigned_action.task_run_external_id,
                         action_id=assigned_action.action_id,
                         action_payload=action_payload,
                         action_type=convert_proto_enum_to_python(

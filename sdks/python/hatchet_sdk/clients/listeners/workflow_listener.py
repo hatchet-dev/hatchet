@@ -47,7 +47,7 @@ class PooledWorkflowRunListener(
             )
 
         return {
-            result.step_readable_id: json.loads(result.output)
+            result.task_name: json.loads(result.output)
             for result in event.results
             if result.output
         }

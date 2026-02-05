@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
 // nolint: staticcheck
@@ -79,8 +79,8 @@ type MQSubBuffer struct {
 
 	mq MessageQueue
 
-	// buffers is keyed on (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
-	buffers sync.Map
+	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
+	buffers syncx.Map[string, *msgIdBuffer]
 
 	// the destination function to send the messages to
 	dst DstFunc
@@ -216,14 +216,13 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 
 	k := getKey(msg.TenantID, msg.ID)
 
-	buf, ok := m.buffers.Load(k)
+	msgBuf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
+		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
 	// this places some backpressure on the consumer if buffers are full
-	msgBuf := buf.(*msgIdBuffer)
 	msgBuf.msgIdBufferCh <- msgWithResult
 	msgBuf.notifier <- struct{}{}
 

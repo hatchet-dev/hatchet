@@ -342,15 +342,15 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	metadata := string(metadataBytes)
 
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
-		Name:                 workflowName,
-		Input:                string(inputBytes),
-		ParentId:             &opts.ParentId,
-		ParentTaskExternalId: &opts.ParentTaskRunId,
-		ChildIndex:           &childIndex,
-		ChildKey:             opts.ChildKey,
-		DesiredWorkerId:      opts.DesiredWorkerId,
-		AdditionalMetadata:   &metadata,
-		Priority:             opts.Priority,
+		Name:                    workflowName,
+		Input:                   string(inputBytes),
+		ParentId:                &opts.ParentId,
+		ParentTaskRunExternalId: &opts.ParentTaskRunId,
+		ChildIndex:              &childIndex,
+		ChildKey:                opts.ChildKey,
+		DesiredWorkerId:         opts.DesiredWorkerId,
+		AdditionalMetadata:      &metadata,
+		Priority:                opts.Priority,
 	})
 
 	if err != nil {
@@ -404,15 +404,15 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 		metadata := string(metadataBytes)
 
 		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
-			Name:                 workflowName,
-			Input:                string(inputBytes),
-			ParentId:             &workflow.Opts.ParentId,
-			ParentTaskExternalId: &workflow.Opts.ParentTaskRunId,
-			ChildIndex:           &childIndex,
-			ChildKey:             workflow.Opts.ChildKey,
-			DesiredWorkerId:      workflow.Opts.DesiredWorkerId,
-			AdditionalMetadata:   &metadata,
-			Priority:             workflow.Opts.Priority,
+			Name:                    workflowName,
+			Input:                   string(inputBytes),
+			ParentId:                &workflow.Opts.ParentId,
+			ParentTaskRunExternalId: &workflow.Opts.ParentTaskRunId,
+			ChildIndex:              &childIndex,
+			ChildKey:                workflow.Opts.ChildKey,
+			DesiredWorkerId:         workflow.Opts.DesiredWorkerId,
+			AdditionalMetadata:      &metadata,
+			Priority:                workflow.Opts.Priority,
 		}
 
 	}

@@ -46,7 +46,7 @@ type WorkflowResult struct {
 func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 	var outputBytes []byte
 	for _, stepRunResult := range r.workflowRun.Results {
-		if stepRunResult.StepReadableId == key {
+		if stepRunResult.TaskName == key {
 			if stepRunResult.Error != nil {
 				return fmt.Errorf("%s", *stepRunResult.Error)
 			}
@@ -81,7 +81,7 @@ func (r *WorkflowResult) Results() (interface{}, error) {
 		}
 
 		if stepRunResult.Output != nil {
-			results[stepRunResult.StepReadableId] = stepRunResult.Output
+			results[stepRunResult.TaskName] = stepRunResult.Output
 		}
 	}
 

@@ -136,4 +136,33 @@ describe('AdminClient', () => {
       });
     });
   });
+
+  describe('runWorkflows', () => {
+    it('should map parentTaskRunExternalId to parentTaskRunExternalId', async () => {
+      const bulkSpy = jest.spyOn(client.client, 'bulkTriggerWorkflow').mockResolvedValue({
+        workflowRunIds: ['run-1'],
+      });
+
+      await client.runWorkflows([
+        {
+          workflowName: 'workflowName',
+          input: { hello: 'world' },
+          options: {
+            parentId: 'parent-wf-run',
+            parentTaskRunExternalId: 'parent-task-run',
+          },
+        },
+      ]);
+
+      expect(bulkSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflows: [
+            expect.objectContaining({
+              parentTaskRunExternalId: 'parent-task-run',
+            }),
+          ],
+        })
+      );
+    });
+  });
 });

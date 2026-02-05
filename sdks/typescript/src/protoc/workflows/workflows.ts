@@ -393,7 +393,7 @@ export interface ScheduleWorkflowRequest {
   /** (optional) the parent workflow run id */
   parentId?: string | undefined;
   /** (optional) the parent task external run id */
-  parentTaskExternalId?: string | undefined;
+  parentTaskRunExternalId?: string | undefined;
   /**
    * (optional) the index of the child workflow. if this is set, matches on the index or the
    * child key will be a no-op, even if the schedule has changed.
@@ -454,7 +454,7 @@ export interface TriggerWorkflowRequest {
   /** (optional) the parent workflow run id */
   parentId?: string | undefined;
   /** (optional) the parent task external run id */
-  parentTaskExternalId?: string | undefined;
+  parentTaskRunExternalId?: string | undefined;
   /**
    * (optional) the index of the child workflow. if this is set, matches on the index or the
    * child key will return an existing workflow run if the parent id, parent task run id, and
@@ -1758,7 +1758,7 @@ function createBaseScheduleWorkflowRequest(): ScheduleWorkflowRequest {
     schedules: [],
     input: '',
     parentId: undefined,
-    parentTaskExternalId: undefined,
+    parentTaskRunExternalId: undefined,
     childIndex: undefined,
     childKey: undefined,
     additionalMetadata: undefined,
@@ -1783,8 +1783,8 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     if (message.parentId !== undefined) {
       writer.uint32(34).string(message.parentId);
     }
-    if (message.parentTaskExternalId !== undefined) {
-      writer.uint32(42).string(message.parentTaskExternalId);
+    if (message.parentTaskRunExternalId !== undefined) {
+      writer.uint32(42).string(message.parentTaskRunExternalId);
     }
     if (message.childIndex !== undefined) {
       writer.uint32(48).int32(message.childIndex);
@@ -1845,7 +1845,7 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
             break;
           }
 
-          message.parentTaskExternalId = reader.string();
+          message.parentTaskRunExternalId = reader.string();
           continue;
         }
         case 6: {
@@ -1897,8 +1897,8 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
         : [],
       input: isSet(object.input) ? globalThis.String(object.input) : '',
       parentId: isSet(object.parentId) ? globalThis.String(object.parentId) : undefined,
-      parentTaskExternalId: isSet(object.parentTaskExternalId)
-        ? globalThis.String(object.parentTaskExternalId)
+      parentTaskRunExternalId: isSet(object.parentTaskRunExternalId)
+        ? globalThis.String(object.parentTaskRunExternalId)
         : undefined,
       childIndex: isSet(object.childIndex) ? globalThis.Number(object.childIndex) : undefined,
       childKey: isSet(object.childKey) ? globalThis.String(object.childKey) : undefined,
@@ -1923,8 +1923,8 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     if (message.parentId !== undefined) {
       obj.parentId = message.parentId;
     }
-    if (message.parentTaskExternalId !== undefined) {
-      obj.parentTaskExternalId = message.parentTaskExternalId;
+    if (message.parentTaskRunExternalId !== undefined) {
+      obj.parentTaskRunExternalId = message.parentTaskRunExternalId;
     }
     if (message.childIndex !== undefined) {
       obj.childIndex = Math.round(message.childIndex);
@@ -1950,7 +1950,7 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     message.schedules = object.schedules?.map((e) => e) || [];
     message.input = object.input ?? '';
     message.parentId = object.parentId ?? undefined;
-    message.parentTaskExternalId = object.parentTaskExternalId ?? undefined;
+    message.parentTaskRunExternalId = object.parentTaskRunExternalId ?? undefined;
     message.childIndex = object.childIndex ?? undefined;
     message.childKey = object.childKey ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
@@ -2492,7 +2492,7 @@ function createBaseTriggerWorkflowRequest(): TriggerWorkflowRequest {
     name: '',
     input: '',
     parentId: undefined,
-    parentTaskExternalId: undefined,
+    parentTaskRunExternalId: undefined,
     childIndex: undefined,
     childKey: undefined,
     additionalMetadata: undefined,
@@ -2512,8 +2512,8 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     if (message.parentId !== undefined) {
       writer.uint32(26).string(message.parentId);
     }
-    if (message.parentTaskExternalId !== undefined) {
-      writer.uint32(34).string(message.parentTaskExternalId);
+    if (message.parentTaskRunExternalId !== undefined) {
+      writer.uint32(34).string(message.parentTaskRunExternalId);
     }
     if (message.childIndex !== undefined) {
       writer.uint32(40).int32(message.childIndex);
@@ -2569,7 +2569,7 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
             break;
           }
 
-          message.parentTaskExternalId = reader.string();
+          message.parentTaskRunExternalId = reader.string();
           continue;
         }
         case 5: {
@@ -2626,8 +2626,8 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
       name: isSet(object.name) ? globalThis.String(object.name) : '',
       input: isSet(object.input) ? globalThis.String(object.input) : '',
       parentId: isSet(object.parentId) ? globalThis.String(object.parentId) : undefined,
-      parentTaskExternalId: isSet(object.parentTaskExternalId)
-        ? globalThis.String(object.parentTaskExternalId)
+      parentTaskRunExternalId: isSet(object.parentTaskRunExternalId)
+        ? globalThis.String(object.parentTaskRunExternalId)
         : undefined,
       childIndex: isSet(object.childIndex) ? globalThis.Number(object.childIndex) : undefined,
       childKey: isSet(object.childKey) ? globalThis.String(object.childKey) : undefined,
@@ -2652,8 +2652,8 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     if (message.parentId !== undefined) {
       obj.parentId = message.parentId;
     }
-    if (message.parentTaskExternalId !== undefined) {
-      obj.parentTaskExternalId = message.parentTaskExternalId;
+    if (message.parentTaskRunExternalId !== undefined) {
+      obj.parentTaskRunExternalId = message.parentTaskRunExternalId;
     }
     if (message.childIndex !== undefined) {
       obj.childIndex = Math.round(message.childIndex);
@@ -2681,7 +2681,7 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     message.name = object.name ?? '';
     message.input = object.input ?? '';
     message.parentId = object.parentId ?? undefined;
-    message.parentTaskExternalId = object.parentTaskExternalId ?? undefined;
+    message.parentTaskRunExternalId = object.parentTaskRunExternalId ?? undefined;
     message.childIndex = object.childIndex ?? undefined;
     message.childKey = object.childKey ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;

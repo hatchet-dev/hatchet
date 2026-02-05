@@ -409,7 +409,7 @@ export interface AssignedAction {
   /** the task id */
   taskId: string;
   /** the task external run id */
-  taskExternalId: string;
+  taskRunExternalId: string;
   /** the action id */
   actionId: string;
   /** the action type */
@@ -417,7 +417,7 @@ export interface AssignedAction {
   /** the action payload */
   actionPayload: string;
   /** the task name */
-  stepName: string;
+  taskName: string;
   /** the count number of the retry attempt */
   retryCount: number;
   /** (optional) additional metadata set on the workflow */
@@ -478,7 +478,7 @@ export interface StepActionEvent {
   /** the id of the task */
   taskId: string;
   /** the task external run id */
-  taskExternalId: string;
+  taskRunExternalId: string;
   /** the action id */
   actionId: string;
   eventTimestamp: Date | undefined;
@@ -528,7 +528,7 @@ export interface WorkflowEvent {
    */
   hangup: boolean;
   /** (optional) the max number of retries this task can handle */
-  stepRetries?: number | undefined;
+  taskRetries?: number | undefined;
   /** (optional) the retry count of this task */
   retryCount?: number | undefined;
   eventIndex?: number | undefined;
@@ -543,8 +543,8 @@ export interface WorkflowRunEvent {
 }
 
 export interface StepRunResult {
-  stepRunId: string;
-  stepReadableId: string;
+  taskRunExternalId: string;
+  taskName: string;
   jobRunId: string;
   error?: string | undefined;
   output?: string | undefined;
@@ -552,7 +552,7 @@ export interface StepRunResult {
 
 export interface OverridesData {
   /** the task run id */
-  stepRunId: string;
+  taskRunExternalId: string;
   /** the path of the data to set */
   path: string;
   /** the value to set */
@@ -574,7 +574,7 @@ export interface HeartbeatResponse {}
 
 export interface RefreshTimeoutRequest {
   /** the id of the task run to release */
-  stepRunId: string;
+  taskRunExternalId: string;
   incrementTimeoutBy: string;
 }
 
@@ -584,7 +584,7 @@ export interface RefreshTimeoutResponse {
 
 export interface ReleaseSlotRequest {
   /** the id of the task run to release */
-  stepRunId: string;
+  taskRunExternalId: string;
 }
 
 export interface ReleaseSlotResponse {}
@@ -1606,11 +1606,11 @@ function createBaseAssignedAction(): AssignedAction {
     jobName: '',
     jobRunId: '',
     taskId: '',
-    taskExternalId: '',
+    taskRunExternalId: '',
     actionId: '',
     actionType: 0,
     actionPayload: '',
-    stepName: '',
+    taskName: '',
     retryCount: 0,
     additionalMetadata: undefined,
     childWorkflowIndex: undefined,
@@ -1645,8 +1645,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.taskId !== '') {
       writer.uint32(58).string(message.taskId);
     }
-    if (message.taskExternalId !== '') {
-      writer.uint32(66).string(message.taskExternalId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(66).string(message.taskRunExternalId);
     }
     if (message.actionId !== '') {
       writer.uint32(74).string(message.actionId);
@@ -1657,8 +1657,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.actionPayload !== '') {
       writer.uint32(90).string(message.actionPayload);
     }
-    if (message.stepName !== '') {
-      writer.uint32(98).string(message.stepName);
+    if (message.taskName !== '') {
+      writer.uint32(98).string(message.taskName);
     }
     if (message.retryCount !== 0) {
       writer.uint32(104).int32(message.retryCount);
@@ -1755,7 +1755,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
             break;
           }
 
-          message.taskExternalId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
         case 9: {
@@ -1787,7 +1787,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
             break;
           }
 
-          message.stepName = reader.string();
+          message.taskName = reader.string();
           continue;
         }
         case 13: {
@@ -1874,11 +1874,13 @@ export const AssignedAction: MessageFns<AssignedAction> = {
       jobName: isSet(object.jobName) ? globalThis.String(object.jobName) : '',
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
       taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
       actionType: isSet(object.actionType) ? actionTypeFromJSON(object.actionType) : 0,
       actionPayload: isSet(object.actionPayload) ? globalThis.String(object.actionPayload) : '',
-      stepName: isSet(object.stepName) ? globalThis.String(object.stepName) : '',
+      taskName: isSet(object.taskName) ? globalThis.String(object.taskName) : '',
       retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : 0,
       additionalMetadata: isSet(object.additionalMetadata)
         ? globalThis.String(object.additionalMetadata)
@@ -1923,8 +1925,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.taskId !== '') {
       obj.taskId = message.taskId;
     }
-    if (message.taskExternalId !== '') {
-      obj.taskExternalId = message.taskExternalId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
     if (message.actionId !== '') {
       obj.actionId = message.actionId;
@@ -1935,8 +1937,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.actionPayload !== '') {
       obj.actionPayload = message.actionPayload;
     }
-    if (message.stepName !== '') {
-      obj.stepName = message.stepName;
+    if (message.taskName !== '') {
+      obj.taskName = message.taskName;
     }
     if (message.retryCount !== 0) {
       obj.retryCount = Math.round(message.retryCount);
@@ -1977,11 +1979,11 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.jobName = object.jobName ?? '';
     message.jobRunId = object.jobRunId ?? '';
     message.taskId = object.taskId ?? '';
-    message.taskExternalId = object.taskExternalId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
     message.actionId = object.actionId ?? '';
     message.actionType = object.actionType ?? 0;
     message.actionPayload = object.actionPayload ?? '';
-    message.stepName = object.stepName ?? '';
+    message.taskName = object.taskName ?? '';
     message.retryCount = object.retryCount ?? 0;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
     message.childWorkflowIndex = object.childWorkflowIndex ?? undefined;
@@ -2366,7 +2368,7 @@ function createBaseStepActionEvent(): StepActionEvent {
     jobId: '',
     jobRunId: '',
     taskId: '',
-    taskExternalId: '',
+    taskRunExternalId: '',
     actionId: '',
     eventTimestamp: undefined,
     eventType: 0,
@@ -2390,8 +2392,8 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.taskId !== '') {
       writer.uint32(34).string(message.taskId);
     }
-    if (message.taskExternalId !== '') {
-      writer.uint32(42).string(message.taskExternalId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(42).string(message.taskRunExternalId);
     }
     if (message.actionId !== '') {
       writer.uint32(50).string(message.actionId);
@@ -2458,7 +2460,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
             break;
           }
 
-          message.taskExternalId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
         case 6: {
@@ -2524,7 +2526,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
       jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : '',
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
       taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
       eventTimestamp: isSet(object.eventTimestamp)
         ? fromJsonTimestamp(object.eventTimestamp)
@@ -2552,8 +2556,8 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.taskId !== '') {
       obj.taskId = message.taskId;
     }
-    if (message.taskExternalId !== '') {
-      obj.taskExternalId = message.taskExternalId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
     if (message.actionId !== '') {
       obj.actionId = message.actionId;
@@ -2585,7 +2589,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     message.jobId = object.jobId ?? '';
     message.jobRunId = object.jobRunId ?? '';
     message.taskId = object.taskId ?? '';
-    message.taskExternalId = object.taskExternalId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
     message.actionId = object.actionId ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventType = object.eventType ?? 0;
@@ -2847,7 +2851,7 @@ function createBaseWorkflowEvent(): WorkflowEvent {
     eventTimestamp: undefined,
     eventPayload: '',
     hangup: false,
-    stepRetries: undefined,
+    taskRetries: undefined,
     retryCount: undefined,
     eventIndex: undefined,
   };
@@ -2876,8 +2880,8 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     if (message.hangup !== false) {
       writer.uint32(56).bool(message.hangup);
     }
-    if (message.stepRetries !== undefined) {
-      writer.uint32(64).int32(message.stepRetries);
+    if (message.taskRetries !== undefined) {
+      writer.uint32(64).int32(message.taskRetries);
     }
     if (message.retryCount !== undefined) {
       writer.uint32(72).int32(message.retryCount);
@@ -2956,7 +2960,7 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
             break;
           }
 
-          message.stepRetries = reader.int32();
+          message.taskRetries = reader.int32();
           continue;
         }
         case 9: {
@@ -2995,7 +2999,7 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
         : undefined,
       eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : '',
       hangup: isSet(object.hangup) ? globalThis.Boolean(object.hangup) : false,
-      stepRetries: isSet(object.stepRetries) ? globalThis.Number(object.stepRetries) : undefined,
+      taskRetries: isSet(object.taskRetries) ? globalThis.Number(object.taskRetries) : undefined,
       retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : undefined,
       eventIndex: isSet(object.eventIndex) ? globalThis.Number(object.eventIndex) : undefined,
     };
@@ -3024,8 +3028,8 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     if (message.hangup !== false) {
       obj.hangup = message.hangup;
     }
-    if (message.stepRetries !== undefined) {
-      obj.stepRetries = Math.round(message.stepRetries);
+    if (message.taskRetries !== undefined) {
+      obj.taskRetries = Math.round(message.taskRetries);
     }
     if (message.retryCount !== undefined) {
       obj.retryCount = Math.round(message.retryCount);
@@ -3048,7 +3052,7 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventPayload = object.eventPayload ?? '';
     message.hangup = object.hangup ?? false;
-    message.stepRetries = object.stepRetries ?? undefined;
+    message.taskRetries = object.taskRetries ?? undefined;
     message.retryCount = object.retryCount ?? undefined;
     message.eventIndex = object.eventIndex ?? undefined;
     return message;
@@ -3168,16 +3172,16 @@ export const WorkflowRunEvent: MessageFns<WorkflowRunEvent> = {
 };
 
 function createBaseStepRunResult(): StepRunResult {
-  return { stepRunId: '', stepReadableId: '', jobRunId: '', error: undefined, output: undefined };
+  return { taskRunExternalId: '', taskName: '', jobRunId: '', error: undefined, output: undefined };
 }
 
 export const StepRunResult: MessageFns<StepRunResult> = {
   encode(message: StepRunResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.stepRunId !== '') {
-      writer.uint32(10).string(message.stepRunId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(10).string(message.taskRunExternalId);
     }
-    if (message.stepReadableId !== '') {
-      writer.uint32(18).string(message.stepReadableId);
+    if (message.taskName !== '') {
+      writer.uint32(18).string(message.taskName);
     }
     if (message.jobRunId !== '') {
       writer.uint32(26).string(message.jobRunId);
@@ -3203,7 +3207,7 @@ export const StepRunResult: MessageFns<StepRunResult> = {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
         case 2: {
@@ -3211,7 +3215,7 @@ export const StepRunResult: MessageFns<StepRunResult> = {
             break;
           }
 
-          message.stepReadableId = reader.string();
+          message.taskName = reader.string();
           continue;
         }
         case 3: {
@@ -3249,8 +3253,10 @@ export const StepRunResult: MessageFns<StepRunResult> = {
 
   fromJSON(object: any): StepRunResult {
     return {
-      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '',
-      stepReadableId: isSet(object.stepReadableId) ? globalThis.String(object.stepReadableId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
+      taskName: isSet(object.taskName) ? globalThis.String(object.taskName) : '',
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
       error: isSet(object.error) ? globalThis.String(object.error) : undefined,
       output: isSet(object.output) ? globalThis.String(object.output) : undefined,
@@ -3259,11 +3265,11 @@ export const StepRunResult: MessageFns<StepRunResult> = {
 
   toJSON(message: StepRunResult): unknown {
     const obj: any = {};
-    if (message.stepRunId !== '') {
-      obj.stepRunId = message.stepRunId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
-    if (message.stepReadableId !== '') {
-      obj.stepReadableId = message.stepReadableId;
+    if (message.taskName !== '') {
+      obj.taskName = message.taskName;
     }
     if (message.jobRunId !== '') {
       obj.jobRunId = message.jobRunId;
@@ -3282,8 +3288,8 @@ export const StepRunResult: MessageFns<StepRunResult> = {
   },
   fromPartial(object: DeepPartial<StepRunResult>): StepRunResult {
     const message = createBaseStepRunResult();
-    message.stepRunId = object.stepRunId ?? '';
-    message.stepReadableId = object.stepReadableId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
+    message.taskName = object.taskName ?? '';
     message.jobRunId = object.jobRunId ?? '';
     message.error = object.error ?? undefined;
     message.output = object.output ?? undefined;
@@ -3292,13 +3298,13 @@ export const StepRunResult: MessageFns<StepRunResult> = {
 };
 
 function createBaseOverridesData(): OverridesData {
-  return { stepRunId: '', path: '', value: '', callerFilename: '' };
+  return { taskRunExternalId: '', path: '', value: '', callerFilename: '' };
 }
 
 export const OverridesData: MessageFns<OverridesData> = {
   encode(message: OverridesData, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.stepRunId !== '') {
-      writer.uint32(10).string(message.stepRunId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(10).string(message.taskRunExternalId);
     }
     if (message.path !== '') {
       writer.uint32(18).string(message.path);
@@ -3324,7 +3330,7 @@ export const OverridesData: MessageFns<OverridesData> = {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
         case 2: {
@@ -3362,7 +3368,9 @@ export const OverridesData: MessageFns<OverridesData> = {
 
   fromJSON(object: any): OverridesData {
     return {
-      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
       path: isSet(object.path) ? globalThis.String(object.path) : '',
       value: isSet(object.value) ? globalThis.String(object.value) : '',
       callerFilename: isSet(object.callerFilename) ? globalThis.String(object.callerFilename) : '',
@@ -3371,8 +3379,8 @@ export const OverridesData: MessageFns<OverridesData> = {
 
   toJSON(message: OverridesData): unknown {
     const obj: any = {};
-    if (message.stepRunId !== '') {
-      obj.stepRunId = message.stepRunId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
     if (message.path !== '') {
       obj.path = message.path;
@@ -3391,7 +3399,7 @@ export const OverridesData: MessageFns<OverridesData> = {
   },
   fromPartial(object: DeepPartial<OverridesData>): OverridesData {
     const message = createBaseOverridesData();
-    message.stepRunId = object.stepRunId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
     message.path = object.path ?? '';
     message.value = object.value ?? '';
     message.callerFilename = object.callerFilename ?? '';
@@ -3562,13 +3570,13 @@ export const HeartbeatResponse: MessageFns<HeartbeatResponse> = {
 };
 
 function createBaseRefreshTimeoutRequest(): RefreshTimeoutRequest {
-  return { stepRunId: '', incrementTimeoutBy: '' };
+  return { taskRunExternalId: '', incrementTimeoutBy: '' };
 }
 
 export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
   encode(message: RefreshTimeoutRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.stepRunId !== '') {
-      writer.uint32(10).string(message.stepRunId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(10).string(message.taskRunExternalId);
     }
     if (message.incrementTimeoutBy !== '') {
       writer.uint32(18).string(message.incrementTimeoutBy);
@@ -3588,7 +3596,7 @@ export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
         case 2: {
@@ -3610,7 +3618,9 @@ export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
 
   fromJSON(object: any): RefreshTimeoutRequest {
     return {
-      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
       incrementTimeoutBy: isSet(object.incrementTimeoutBy)
         ? globalThis.String(object.incrementTimeoutBy)
         : '',
@@ -3619,8 +3629,8 @@ export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
 
   toJSON(message: RefreshTimeoutRequest): unknown {
     const obj: any = {};
-    if (message.stepRunId !== '') {
-      obj.stepRunId = message.stepRunId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
     if (message.incrementTimeoutBy !== '') {
       obj.incrementTimeoutBy = message.incrementTimeoutBy;
@@ -3633,7 +3643,7 @@ export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
   },
   fromPartial(object: DeepPartial<RefreshTimeoutRequest>): RefreshTimeoutRequest {
     const message = createBaseRefreshTimeoutRequest();
-    message.stepRunId = object.stepRunId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
     message.incrementTimeoutBy = object.incrementTimeoutBy ?? '';
     return message;
   },
@@ -3698,13 +3708,13 @@ export const RefreshTimeoutResponse: MessageFns<RefreshTimeoutResponse> = {
 };
 
 function createBaseReleaseSlotRequest(): ReleaseSlotRequest {
-  return { stepRunId: '' };
+  return { taskRunExternalId: '' };
 }
 
 export const ReleaseSlotRequest: MessageFns<ReleaseSlotRequest> = {
   encode(message: ReleaseSlotRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.stepRunId !== '') {
-      writer.uint32(10).string(message.stepRunId);
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(10).string(message.taskRunExternalId);
     }
     return writer;
   },
@@ -3721,7 +3731,7 @@ export const ReleaseSlotRequest: MessageFns<ReleaseSlotRequest> = {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.taskRunExternalId = reader.string();
           continue;
         }
       }
@@ -3734,13 +3744,17 @@ export const ReleaseSlotRequest: MessageFns<ReleaseSlotRequest> = {
   },
 
   fromJSON(object: any): ReleaseSlotRequest {
-    return { stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '' };
+    return {
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
+    };
   },
 
   toJSON(message: ReleaseSlotRequest): unknown {
     const obj: any = {};
-    if (message.stepRunId !== '') {
-      obj.stepRunId = message.stepRunId;
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
     }
     return obj;
   },
@@ -3750,7 +3764,7 @@ export const ReleaseSlotRequest: MessageFns<ReleaseSlotRequest> = {
   },
   fromPartial(object: DeepPartial<ReleaseSlotRequest>): ReleaseSlotRequest {
     const message = createBaseReleaseSlotRequest();
-    message.stepRunId = object.stepRunId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
     return message;
   },
 };

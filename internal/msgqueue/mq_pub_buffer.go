@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
 // nolint: staticcheck
@@ -54,8 +54,8 @@ type PubFunc func(m *Message) error
 type MQPubBuffer struct {
 	mq MessageQueue
 
-	// buffers is keyed on (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
-	buffers sync.Map
+	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
+	buffers syncx.Map[string, *msgIdPubBuffer]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -87,10 +87,10 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 
 	k := getPubKey(queue, msg.TenantID, msg.ID)
 
-	buf, ok := m.buffers.Load(k)
+	msgBuf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIDPubBuffer(m.ctx, msg.TenantID, msg.ID, func(msg *Message) error {
+		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDPubBuffer(m.ctx, msg.TenantID, msg.ID, func(msg *Message) error {
 			msgCtx, cancel := context.WithTimeout(context.Background(), PUB_TIMEOUT)
 			defer cancel()
 
@@ -107,7 +107,6 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 	}
 
 	// this places some backpressure on the consumer if buffers are full
-	msgBuf := buf.(*msgIdPubBuffer)
 	msgBuf.msgIdPubBufferCh <- msgWithErr
 	msgBuf.notifier <- struct{}{}
 

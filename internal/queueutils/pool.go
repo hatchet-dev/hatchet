@@ -1,25 +1,25 @@
 package queueutils
 
 import (
-	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/rs/zerolog"
 )
 
-type OperationPool[T ID] struct {
-	ops         sync.Map
-	timeout     time.Duration
-	description string
-	method      OpMethod[T]
+type OperationPool struct {
+	method      OpMethod
 	ql          *zerolog.Logger
+	ops         syncx.Map[string, *SerialOperation]
+	description string
+	timeout     time.Duration
 	maxJitter   time.Duration
 }
 
-func NewOperationPool[T ID](ql *zerolog.Logger, timeout time.Duration, description string, method OpMethod[T]) *OperationPool[T] {
-	return &OperationPool[T]{
+func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description string, method OpMethod) *OperationPool {
+	return &OperationPool{
 		timeout:     timeout,
 		description: description,
 		method:      method,
@@ -28,12 +28,12 @@ func NewOperationPool[T ID](ql *zerolog.Logger, timeout time.Duration, descripti
 	}
 }
 
-func (p *OperationPool[T]) WithJitter(maxJitter time.Duration) *OperationPool[T] {
+func (p *OperationPool) WithJitter(maxJitter time.Duration) *OperationPool {
 	p.maxJitter = maxJitter
 	return p
 }
 
-func (p *OperationPool[T]) SetTenants(tenants []*sqlcv1.Tenant) {
+func (p *OperationPool) SetTenants(tenants []*sqlcv1.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
@@ -41,8 +41,8 @@ func (p *OperationPool[T]) SetTenants(tenants []*sqlcv1.Tenant) {
 	}
 
 	// delete tenants that are not in the list
-	p.ops.Range(func(key, value interface{}) bool {
-		if _, ok := tenantMap[key.(string)]; !ok {
+	p.ops.Range(func(key string, value *SerialOperation) bool {
+		if _, ok := tenantMap[key]; !ok {
 			p.ops.Delete(key)
 		}
 
@@ -50,31 +50,15 @@ func (p *OperationPool[T]) SetTenants(tenants []*sqlcv1.Tenant) {
 	})
 }
 
-func (p *OperationPool[T]) SetPartitions(partitions []int64) {
-	partitionMap := make(map[int64]bool)
-
-	for _, partitionId := range partitions {
-		partitionMap[partitionId] = true
-	}
-
-	p.ops.Range(func(key, value interface{}) bool {
-		if _, ok := partitionMap[key.(int64)]; !ok {
-			p.ops.Delete(key)
-		}
-
-		return true
-	})
-}
-
-func (p *OperationPool[T]) RunOrContinue(id T) {
+func (p *OperationPool) RunOrContinue(id string) {
 	p.GetOperation(id).RunOrContinue(p.ql)
 }
 
-func (p *OperationPool[T]) GetOperation(id T) *SerialOperation[T] {
+func (p *OperationPool) GetOperation(id string) *SerialOperation {
 	op, ok := p.ops.Load(id)
 
 	if !ok {
-		op = &SerialOperation[T]{
+		op = &SerialOperation{
 			id:          id,
 			lastRun:     time.Now(),
 			description: p.description,
@@ -86,5 +70,5 @@ func (p *OperationPool[T]) GetOperation(id T) *SerialOperation[T] {
 		p.ops.Store(id, op)
 	}
 
-	return op.(*SerialOperation[T])
+	return op
 }

@@ -235,7 +235,7 @@ class EventClient(BaseRestClient):
             self.events_service_client.PutLog, self.client_config.tenacity
         )
         request = PutLogRequest(
-            task_external_id=step_run_id,
+            task_run_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
@@ -256,7 +256,7 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         request = PutStreamEventRequest(
-            task_external_id=step_run_id,
+            task_run_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=data_bytes,
             event_index=index,

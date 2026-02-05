@@ -177,7 +177,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	span.SetAttributes(
 		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
 		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
-		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskExternalId != nil),
+		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
 	)
 
 	additionalMeta := ""
@@ -210,8 +210,8 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		t.Priority = req.Priority
 	}
 
-	if req.ParentTaskExternalId != nil {
-		parentTaskExternalId, err := uuid.Parse(*req.ParentTaskExternalId)
+	if req.ParentTaskRunExternalId != nil {
+		parentTaskExternalId, err := uuid.Parse(*req.ParentTaskRunExternalId)
 
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "parentStepRunId must be a valid UUID: %s", err)

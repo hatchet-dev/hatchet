@@ -39,7 +39,7 @@ export function createActionKey(action: Action): ActionKey {
     case ActionType.CANCEL_STEP_RUN:
     case ActionType.START_STEP_RUN:
     case ActionType.UNRECOGNIZED:
-      return `${action.taskExternalId}/${action.retryCount}`;
+      return `${action.taskRunExternalId}/${action.retryCount}`;
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustivenessCheck: never = action.actionType;
@@ -89,7 +89,7 @@ export class ActionListener {
           for await (const assignedAction of listenClient) {
             const action: Action = {
               ...assignedAction,
-              stepRunId: assignedAction.taskExternalId,
+              stepRunId: assignedAction.taskRunExternalId,
               stepId: assignedAction.taskId,
             };
 

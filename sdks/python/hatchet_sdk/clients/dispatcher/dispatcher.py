@@ -131,7 +131,7 @@ class DispatcherClient:
             job_id=action.job_id,
             job_run_id=action.job_run_id,
             task_id=action.step_id,
-            task_external_id=action.step_run_id,
+            task_run_external_id=action.step_run_id,
             action_id=action.action_id,
             event_timestamp=event_timestamp,
             event_type=event_type,
@@ -167,7 +167,7 @@ class DispatcherClient:
         client = self._get_or_create_client()
 
         client.ReleaseSlot(
-            ReleaseSlotRequest(step_run_id=step_run_id),
+            ReleaseSlotRequest(task_run_external_id=step_run_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
         )
@@ -177,7 +177,7 @@ class DispatcherClient:
 
         client.RefreshTimeout(
             RefreshTimeoutRequest(
-                step_run_id=step_run_id,
+                task_run_external_id=step_run_id,
                 increment_timeout_by=increment_by,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,

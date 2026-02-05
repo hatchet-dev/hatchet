@@ -46,7 +46,7 @@ message Events {
 
 message PutLogRequest {
     // the task external run id for the request
-    string task_external_id = 1;
+    string task_run_external_id = 1;
 
     // when the log line was created
     google.protobuf.Timestamp created_at = 2;
@@ -68,7 +68,7 @@ message PutLogResponse {}
 
 message PutStreamEventRequest {
     // the task external run id for the request
-    string task_external_id = 1;
+    string task_run_external_id = 1;
 
     // when the stream event was created
     google.protobuf.Timestamp created_at = 2;

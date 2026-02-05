@@ -14,13 +14,13 @@ const mockStart: Action = {
   jobName: 'Job One',
   jobRunId: 'run1',
   taskId: 'step1',
-  taskExternalId: 'runStep1',
+  taskRunExternalId: 'runStep1',
   actionId: 'action1',
   actionType: ActionType.START_STEP_RUN,
   actionPayload: JSON.stringify('{"input": {"data": 1}}'),
   workflowRunId: 'workflowRun1',
   getGroupKeyRunId: 'groupKeyRun1',
-  stepName: 'step1',
+  taskName: 'step1',
   retryCount: 0,
   priority: 1,
 };
@@ -124,7 +124,7 @@ describe('Worker', () => {
         { data: 4 },
         0
       );
-      expect(worker.futures[mockStart.taskExternalId]).toBeUndefined();
+      expect(worker.futures[mockStart.taskRunExternalId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
 
@@ -158,7 +158,7 @@ describe('Worker', () => {
         expect.anything(),
         0
       );
-      expect(worker.futures[mockStart.taskExternalId]).toBeUndefined();
+      expect(worker.futures[mockStart.taskRunExternalId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
   });
