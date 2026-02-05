@@ -121,6 +121,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(basicAuth.SourceName)
 		params.Name = basicAuth.Name
 		params.Eventkeyexpression = basicAuth.EventKeyExpression
+		params.ScopeExpression = basicAuth.ScopeExpression
+		if basicAuth.StaticPayload != nil {
+			payloadBytes, err := json.Marshal(basicAuth.StaticPayload)
+			if err != nil {
+				return params, fmt.Errorf("failed to marshal static payload: %w", err)
+			}
+			params.StaticPayload = payloadBytes
+		}
 		params.AuthConfig = authConfig
 	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
 		apiKeyAuth, err := request.AsV1CreateWebhookRequestAPIKey()
@@ -148,6 +156,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(apiKeyAuth.SourceName)
 		params.Name = apiKeyAuth.Name
 		params.Eventkeyexpression = apiKeyAuth.EventKeyExpression
+		params.ScopeExpression = apiKeyAuth.ScopeExpression
+		if apiKeyAuth.StaticPayload != nil {
+			payloadBytes, err := json.Marshal(apiKeyAuth.StaticPayload)
+			if err != nil {
+				return params, fmt.Errorf("failed to marshal static payload: %w", err)
+			}
+			params.StaticPayload = payloadBytes
+		}
 		params.AuthConfig = authConfig
 	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
 		hmacAuth, err := request.AsV1CreateWebhookRequestHMAC()
@@ -175,6 +191,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(hmacAuth.SourceName)
 		params.Name = hmacAuth.Name
 		params.Eventkeyexpression = hmacAuth.EventKeyExpression
+		params.ScopeExpression = hmacAuth.ScopeExpression
+		if hmacAuth.StaticPayload != nil {
+			payloadBytes, err := json.Marshal(hmacAuth.StaticPayload)
+			if err != nil {
+				return params, fmt.Errorf("failed to marshal static payload: %w", err)
+			}
+			params.StaticPayload = payloadBytes
+		}
 		params.AuthConfig = authConfig
 	default:
 		return params, fmt.Errorf("unsupported auth type: %s", discriminator)

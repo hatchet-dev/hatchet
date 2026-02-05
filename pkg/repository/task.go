@@ -1730,7 +1730,7 @@ func (r *sharedRepository) insertTasks(
 	stepTimeouts := make([]string, len(tasks))
 	priorities := make([]int32, len(tasks))
 	stickies := make([]string, len(tasks))
-	desiredWorkerIds := make([]uuid.UUID, len(tasks))
+	desiredWorkerIds := make([]*uuid.UUID, len(tasks))
 	externalIds := make([]uuid.UUID, len(tasks))
 	displayNames := make([]string, len(tasks))
 	retryCounts := make([]int32, len(tasks))
@@ -1801,11 +1801,7 @@ func (r *sharedRepository) insertTasks(
 			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
 		}
 
-		desiredWorkerIds[i] = uuid.Nil
-
-		if task.DesiredWorkerId != nil {
-			desiredWorkerIds[i] = *task.DesiredWorkerId
-		}
+		desiredWorkerIds[i] = task.DesiredWorkerId
 
 		initialStates[i] = string(task.InitialState)
 		if initialStates[i] == "" {
@@ -2045,7 +2041,7 @@ func (r *sharedRepository) insertTasks(
 				Steptimeouts:                 make([]string, 0),
 				Priorities:                   make([]int32, 0),
 				Stickies:                     make([]string, 0),
-				Desiredworkerids:             make([]uuid.UUID, 0),
+				Desiredworkerids:             make([]*uuid.UUID, 0),
 				Externalids:                  make([]uuid.UUID, 0),
 				Displaynames:                 make([]string, 0),
 				Retrycounts:                  make([]int32, 0),
@@ -3139,8 +3135,12 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				childKey = &task.ChildKey.String
 			}
 
-			parentExternalId := task.ParentTaskExternalID
-			k := getChildSignalEventKey(*parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
+			var parentExternalId uuid.UUID
+
+			if task.ParentTaskExternalID == nil {
+				parentExternalId = *task.ParentTaskExternalID
+			}
+			k := getChildSignalEventKey(parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
 
 			signalEventKeys = append(signalEventKeys, k)
 			parentTaskIds = append(parentTaskIds, task.ParentTaskID.Int64)
@@ -3149,7 +3149,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			eventMatches = append(eventMatches, CreateMatchOpts{
 				Kind:                 sqlcv1.V1MatchKindSIGNAL,
 				Conditions:           getChildWorkflowGroupMatches(task.ExternalID, task.StepReadableID),
-				SignalExternalId:     parentExternalId,
+				SignalExternalId:     task.ParentTaskExternalID,
 				SignalTaskId:         &task.ParentTaskID.Int64,
 				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
 				SignalKey:            &k,

@@ -170,8 +170,9 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	}
 
 	userIdUUID, err := uuid.Parse(userID)
+
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error parsing user id from session")
+		a.l.Debug().Err(err).Msg("error parsing user id uuid from session")
 
 		return forbidden
 	}

@@ -137,7 +137,7 @@ type CreateTasksParams struct {
 	Steptimeouts        []string             `json:"steptimeouts"`
 	Priorities          []int32              `json:"priorities"`
 	Stickies            []string             `json:"stickies"`
-	Desiredworkerids    []uuid.UUID          `json:"desiredworkerids"`
+	Desiredworkerids    []*uuid.UUID         `json:"desiredworkerids"`
 	Externalids         []uuid.UUID          `json:"externalids"`
 	Displaynames        []string             `json:"displaynames"`
 	Inputs              [][]byte             `json:"inputs"`

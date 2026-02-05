@@ -44,7 +44,7 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 		return nil, err
 	}
 
-	ctx.Set(constants.ResourceIdKey.String(), token.TokenId)
+	ctx.Set(constants.ResourceIdKey.String(), token.TokenId.String())
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
 	a.config.Analytics.Enqueue(
