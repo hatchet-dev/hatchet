@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
@@ -373,9 +372,19 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 }
 
 func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
+	triggerOpts, denyUpdateKeys, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
+		if errors.Is(err, ErrIdempotencyKeyAlreadyClaimed) && len(denyUpdateKeys) > 0 {
+			updateErr := s.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, s.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
+				Tenantid: tenantId,
+				Keys:     denyUpdateKeys,
+			})
+			if updateErr != nil {
+				err = errors.Join(err, fmt.Errorf("failed to update idempotency key deny timestamps: %w", updateErr))
+			}
+		}
+
 		return nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
@@ -2273,6 +2282,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 
 func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) (
 	[]triggerTuple,
+	[]string,
 	error,
 ) {
 	workflowNames := make([]string, 0, len(opts))
@@ -2326,13 +2336,13 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to create idempotency keys: %w", err)
+			return nil, nil, fmt.Errorf("failed to create idempotency keys: %w", err)
 		}
 
 		keyClaimantPairToWasClaimed, err = claimIdempotencyKeys(ctx, r.queries, tx, tenantId, keyClaimantPairs)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+			return nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 		}
 	}
 
@@ -2346,10 +2356,10 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		}
 
 		if len(unclaimedKeys) > 0 {
-			err := r.tryReclaimIdempotencyKeys(ctx, tx, tenantId, keyClaimantPairs, keyClaimantPairToWasClaimed, unclaimedKeys)
+			denyUpdateKeys, err := r.tryReclaimIdempotencyKeys(ctx, tx, tenantId, keyClaimantPairs, keyClaimantPairToWasClaimed, unclaimedKeys)
 
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			unclaimedKeys = unclaimedKeys[:0]
@@ -2361,7 +2371,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 			}
 
 			if len(unclaimedKeys) > 0 {
-				return nil, &IdempotencyKeyAlreadyClaimedError{Keys: unclaimedKeys}
+				return nil, denyUpdateKeys, &IdempotencyKeyAlreadyClaimedError{Keys: unclaimedKeys}
 			}
 		}
 	}
@@ -2369,7 +2379,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	workflowVersionsByNames, err := r.listWorkflowsByNames(ctx, tx, tenantId, workflowNames)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list workflows for names: %w", err)
+		return nil, nil, fmt.Errorf("failed to list workflows for names: %w", err)
 	}
 
 	// each (workflowVersionId, opt) is a separate workflow that we need to create
@@ -2416,7 +2426,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		}
 	}
 
-	return triggerOpts, nil
+	return triggerOpts, nil, nil
 }
 
 type TriggerOptInvalidArgumentError struct {
@@ -2543,13 +2553,13 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 	keyClaimantPairs []KeyClaimantPair,
 	keyClaimantPairToWasClaimed map[KeyClaimantPair]WasSuccessfullyClaimed,
 	unclaimedKeys []string,
-) error {
+) ([]string, error) {
 	if len(unclaimedKeys) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	if r.idempotencyKeyDenyRecheckInterval <= 0 {
-		return nil
+		return nil, nil
 	}
 
 	rows, err := r.queries.ListIdempotencyKeysByKeys(ctx, r.pool, sqlcv1.ListIdempotencyKeysByKeysParams{
@@ -2558,11 +2568,11 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to list idempotency keys for recheck: %w", err)
+		return nil, fmt.Errorf("failed to list idempotency keys for recheck: %w", err)
 	}
 
 	if len(rows) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	now := time.Now()
@@ -2589,22 +2599,26 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 	}
 
 	if len(keysToCheck) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	externalIdToStatus := make(map[uuid.UUID]sqlcv1.V1ReadableStatusOlap)
 
+	externalIds := make([]uuid.UUID, 0, len(externalIdsToCheck))
 	for externalId := range externalIdsToCheck {
-		statusRow, statusErr := r.queries.ReadWorkflowRunStatusByExternalId(ctx, r.pool, externalId)
+		externalIds = append(externalIds, externalId)
+	}
 
-		if statusErr != nil {
-			if errors.Is(statusErr, pgx.ErrNoRows) {
-				continue
-			}
-			return fmt.Errorf("failed to read workflow run status for idempotency recheck: %w", statusErr)
-		}
+	statusRows, statusErr := r.queries.ReadWorkflowRunStatusesByExternalIds(ctx, r.pool, sqlcv1.ReadWorkflowRunStatusesByExternalIdsParams{
+		Workflowrunexternalids: externalIds,
+		Tenantid:               tenantId,
+	})
+	if statusErr != nil {
+		return nil, fmt.Errorf("failed to read workflow run status for idempotency recheck: %w", statusErr)
+	}
 
-		externalIdToStatus[externalId] = statusRow.ReadableStatus
+	for _, row := range statusRows {
+		externalIdToStatus[row.ExternalID] = row.ReadableStatus
 	}
 
 	for _, key := range keysToCheck {
@@ -2620,7 +2634,7 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 				Externalid: externalId,
 			})
 			if deleteErr != nil {
-				return fmt.Errorf("failed to delete idempotency keys for completed workflow run: %w", deleteErr)
+				return nil, fmt.Errorf("failed to delete idempotency keys for completed workflow run: %w", deleteErr)
 			}
 
 			keysToReclaim = append(keysToReclaim, key)
@@ -2638,18 +2652,8 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 		}
 	}
 
-	if len(keysToUpdate) > 0 {
-		updateErr := r.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, r.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
-			Tenantid: tenantId,
-			Keys:     keysToUpdate,
-		})
-		if updateErr != nil {
-			return fmt.Errorf("failed to update idempotency key deny timestamps: %w", updateErr)
-		}
-	}
-
 	if len(keysToReclaim) == 0 {
-		return nil
+		return keysToUpdate, nil
 	}
 
 	ttl := r.idempotencyKeyTTL
@@ -2665,7 +2669,7 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 		Expiresat: expiresAt,
 	})
 	if createErr != nil {
-		return fmt.Errorf("failed to recreate idempotency keys after reclaim: %w", createErr)
+		return nil, fmt.Errorf("failed to recreate idempotency keys after reclaim: %w", createErr)
 	}
 
 	pairsToReclaim := make([]KeyClaimantPair, 0, len(keysToReclaim))
@@ -2676,17 +2680,17 @@ func (r *sharedRepository) tryReclaimIdempotencyKeys(
 	}
 
 	if len(pairsToReclaim) == 0 {
-		return nil
+		return keysToUpdate, nil
 	}
 
 	claimResults, err := claimIdempotencyKeys(ctx, r.queries, tx, tenantId, pairsToReclaim)
 	if err != nil {
-		return fmt.Errorf("failed to reclaim idempotency keys: %w", err)
+		return nil, fmt.Errorf("failed to reclaim idempotency keys: %w", err)
 	}
 
 	for pair, claimed := range claimResults {
 		keyClaimantPairToWasClaimed[pair] = claimed
 	}
 
-	return nil
+	return keysToUpdate, nil
 }
