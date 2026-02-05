@@ -31,6 +31,7 @@ import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contrac
 import { WorkflowDefinition } from '@hatchet/v1';
 import { NonRetryableError } from '@hatchet/v1/task';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 import { V0Context, CreateStep, V0DurableContext, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
 
@@ -253,10 +254,16 @@ export class V0Worker {
       }
 
       const run = async () => {
+        // Precheck: if cancellation already happened, don't execute user code.
+        throwIfAborted(context.controller?.signal);
         return step(context);
       };
 
       const success = async (result: any) => {
+        // If cancellation happened, do not report completion.
+        if (context.controller?.signal?.aborted) {
+          return;
+        }
         this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
 
         try {
@@ -302,6 +309,10 @@ export class V0Worker {
       };
 
       const failure = async (error: any) => {
+        // If cancellation happened, do not report failure.
+        if (context.controller?.signal?.aborted) {
+          return;
+        }
         this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
         if (error.stack) {
@@ -341,6 +352,19 @@ export class V0Worker {
             await failure(e);
             return;
           }
+
+          // Postcheck: user code may swallow AbortError; don't report completion after cancellation.
+          // If we reached this point and the signal is aborted, the task likely caught/ignored cancellation.
+          if (context.controller?.signal?.aborted) {
+            this.logger.warn(
+              `Cancellation: task run ${taskRunExternalId} returned after cancellation was signaled. ` +
+                `This usually means an AbortError was caught and not propagated. ` +
+                `See https://docs.hatchet.run/home/cancellation`
+            );
+            return;
+          }
+          throwIfAborted(context.controller?.signal);
+
           await success(result);
         })()
       );
