@@ -929,7 +929,13 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						continue
 					}
 
-					orGroupId, err := uuid.Parse(userEventCondition.Base.OrGroupId)
+					orGroupIdStr := userEventCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
 					if err != nil {
 						return nil, fmt.Errorf("invalid OrGroupId in UserEventCondition for step %s: %w", stepCp.ReadableId, err)
 					}
