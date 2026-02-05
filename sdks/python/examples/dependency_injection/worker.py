@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager, contextmanager
-from typing import Annotated, AsyncGenerator, Generator
+from typing import Annotated, AsyncGenerator, Generator, TypeAlias
 
 from pydantic import BaseModel
 
@@ -88,12 +88,15 @@ class Output(BaseModel):
     chained_async_dep: str
 
 
+type AsyncDep = Annotated[str, Depends(async_dep)]
+
+
 # > Inject dependencies
 @hatchet.task()
 async def async_task_with_dependencies(
     _i: EmptyModel,
     ctx: Context,
-    async_dep: Annotated[str, Depends(async_dep)],
+    async_dep: AsyncDep,
     sync_dep: Annotated[str, Depends(sync_dep)],
     async_cm_dep: Annotated[str, Depends(async_cm_dep)],
     sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],

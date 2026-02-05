@@ -22,6 +22,7 @@ from typing import (
     get_origin,
     get_type_hints,
 )
+from typing_extensions import TypeAliasType
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
@@ -269,6 +270,8 @@ class Task(Generic[TWorkflowInput, R]):
         ) = None,
     ) -> DependencyToInject | None:
         annotation = param.annotation
+        if isinstance(annotation, TypeAliasType):
+            annotation = annotation.__value__
 
         if get_origin(annotation) is Annotated:
             args = get_args(annotation)
