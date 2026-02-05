@@ -112,7 +112,7 @@ type WorkerRepository interface {
 
 	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
-	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
+	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error)
 }
 
 type workerRepository struct {
@@ -636,28 +636,38 @@ func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId uuid.U
 	return hasMore, nil
 }
 
-func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {
 	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
 		Tenantid:  tenantId,
 		Workerids: sqlchelpers.UniqueSet(workerIds),
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get dispatcher ids for workers: %w", err)
+		return nil, nil, fmt.Errorf("could not get dispatcher ids for workers: %w", err)
 	}
 
-	dispatcherIdsToWorkers := make(map[uuid.UUID][]uuid.UUID)
+	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
+	workerIdToHasDispatcher := make(map[uuid.UUID]bool)
 
 	for _, row := range rows {
+		if row.DispatcherId == nil || (row.DispatcherId != nil && *row.DispatcherId == uuid.Nil) {
+			continue
+		}
+
 		dispatcherId := *row.DispatcherId
 		workerId := row.WorkerId
 
-		if _, ok := dispatcherIdsToWorkers[dispatcherId]; !ok {
-			dispatcherIdsToWorkers[dispatcherId] = make([]uuid.UUID, 0)
-		}
-
-		dispatcherIdsToWorkers[dispatcherId] = append(dispatcherIdsToWorkers[dispatcherId], workerId)
+		workerIdToDispatcherId[workerId] = dispatcherId
+		workerIdToHasDispatcher[workerId] = true
 	}
 
-	return dispatcherIdsToWorkers, nil
+	workerIdsWithoutDispatchers := make(map[uuid.UUID]struct{})
+
+	for workerId, hasDispatcher := range workerIdToHasDispatcher {
+		if !hasDispatcher {
+			workerIdsWithoutDispatchers[workerId] = struct{}{}
+		}
+	}
+
+	return workerIdToDispatcherId, workerIdsWithoutDispatchers, nil
 }

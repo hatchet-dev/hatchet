@@ -374,9 +374,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		var dispatcherIdWorkerIds map[uuid.UUID][]uuid.UUID
-
-		dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -384,20 +382,13 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
 
-		workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
-
-		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-			for _, workerId := range workerIds {
-				workerIdToDispatcherId[workerId] = dispatcherId
-			}
-		}
-
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
 		for _, bulkAssigned := range res.Assigned {
+			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
 			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
-			if !ok {
+			if hasNoDispatcher || !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
 
 				s.internalRetry(ctx, tenantId, bulkAssigned)
@@ -793,32 +784,24 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	}
 
 	// since the dispatcher IDs may have changed since the previous send, we need to query them again
-	dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
+	workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
-	}
-
-	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
-
-	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-		for _, workerId := range workerIds {
-			workerIdToDispatcherId[workerId] = dispatcherId
-		}
 	}
 
 	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message
-		if _, ok := workerIdToDispatcherId[p.WorkerId]; !ok {
+		dispatcherId, ok := workerIdToDispatcherId[p.WorkerId]
+		_, hasNoDispatcher := workersWithoutDispatchers[p.WorkerId]
+
+		if hasNoDispatcher || !ok {
 			continue
 		}
 
-		pcp := *p
-		dispatcherId := workerIdToDispatcherId[pcp.WorkerId]
-
-		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], pcp)
+		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], *p)
 	}
 
 	for dispatcherId, payloads := range dispatcherIdsToPayloads {
