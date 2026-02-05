@@ -41,6 +41,9 @@
     --chart-3: 216 92% 60%;
     --chart-4: 210 98% 78%;
     --chart-5: 212 97% 87%;
+
+    --terminal-bg: #f8fafc;
+    --terminal-fg: #1e293b;
   }
 
   .dark {
@@ -77,6 +80,9 @@
     --chart-3: 216 92% 60%;
     --chart-4: 210 98% 78%;
     --chart-5: 212 97% 87%;
+
+    --terminal-bg: #1e293b;
+    --terminal-fg: #e2e8f0;
   }
 }
 
@@ -498,4 +504,64 @@ pre.shiki > code > span::before {
 
 .animate-pulse-border {
   animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Terminal styling */
+.terminal-root {
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-fg) !important;
+}
+
+.terminal-root .react-lazylog {
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-fg) !important;
+}
+
+/* Log line styling - truncate with ellipsis */
+.terminal-root .log-line {
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-fg) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.terminal-root .log-line:hover {
+  background-color: hsl(var(--muted) / 0.3) !important;
+}
+
+/* Expanded log line */
+.terminal-root .log-line.expanded {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: visible;
+  text-overflow: unset;
+  background-color: hsl(var(--muted) / 0.4) !important;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 4px 0;
+  display: block;
+  line-height: 1.6;
+}
+
+/* Fix virtualization row wrapper background */
+.terminal-root div[style*="position: absolute"] {
+  background-color: var(--terminal-bg) !important;
+}
+
+/* Terminal scrollbar styling */
+.terminal-root ::-webkit-scrollbar-track {
+  background-color: var(--terminal-bg);
+}
+
+.terminal-root ::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+.terminal-root ::-webkit-scrollbar-corner {
+  background-color: var(--terminal-bg);
 }

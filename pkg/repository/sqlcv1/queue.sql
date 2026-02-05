@@ -110,6 +110,21 @@ ORDER BY
 LIMIT
     COALESCE(sqlc.narg('limit')::integer, 100);
 
+-- name: ListQueueItemsForTasks :many
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@retryCounts::integer[]) AS retry_count
+)
+SELECT
+    qi.*
+FROM
+    v1_queue_item qi
+WHERE
+    (qi.task_id, qi.task_inserted_at, qi.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    AND qi.tenant_id = @tenantId::uuid;
+
 -- name: GetMinUnprocessedQueueItemId :one
 WITH priority_1 AS (
     SELECT
@@ -511,3 +526,26 @@ WHERE (task_id, task_inserted_at) IN (
     SELECT task_id, task_inserted_at
     FROM locked_qis
 );
+
+-- name: ReactivateInactiveQueuesWithItems :execresult
+-- Reactivates queues that have been marked inactive (last_active > 1 day ago)
+-- but still have pending items in v1_queue_item. This is a fallback mechanism
+-- to ensure queues don't get stuck inactive while they have work to do.
+WITH inactive_queues_with_items AS (
+    SELECT q.tenant_id, q.name
+    FROM v1_queue q
+    WHERE q.last_active <= NOW() - INTERVAL '1 day'
+      AND EXISTS (
+        SELECT 1
+        FROM v1_queue_item qi
+        WHERE qi.tenant_id = q.tenant_id
+          AND qi.queue = q.name
+        LIMIT 1
+      )
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE v1_queue q
+SET last_active = NOW()
+FROM inactive_queues_with_items i
+WHERE q.tenant_id = i.tenant_id
+  AND q.name = i.name;

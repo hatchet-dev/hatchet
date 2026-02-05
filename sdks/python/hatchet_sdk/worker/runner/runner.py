@@ -40,6 +40,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_step_run_id,
+    ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
@@ -49,6 +50,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
@@ -56,6 +58,7 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
     ContextVarToCopyDict,
+    ContextVarToCopyInt,
     ContextVarToCopyStr,
     copy_context_vars,
 )
@@ -86,6 +89,7 @@ class Runner:
         self.slots = slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
+        self.cancellations = BoundedDict[str, bool](maxsize=1000)
         self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
@@ -156,8 +160,9 @@ class Runner:
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
+            was_cancelled = self.cancellations.pop(action.key, False)
 
-            if task.cancelled():
+            if was_cancelled or task.cancelled():
                 return
 
             try:
@@ -245,6 +250,7 @@ class Runner:
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
+        ctx_task_retry_count.set(action.retry_count)
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
@@ -284,6 +290,12 @@ class Runner:
                             var=ContextVarToCopyDict(
                                 name="ctx_additional_metadata",
                                 value=action.additional_metadata,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyInt(
+                                name="ctx_task_retry_count",
+                                value=action.retry_count,
                             )
                         ),
                     ],
@@ -348,22 +360,25 @@ class Runner:
             del self.threads[key]
 
         if key in self.contexts:
+            if self.contexts[key].exit_flag:
+                self.cancellations[key] = True
+
             del self.contexts[key]
 
     @overload
     def create_context(
-        self, action: Action, max_attempts: int, is_durable: Literal[True] = True
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[True] = True
     ) -> DurableContext: ...
 
     @overload
     def create_context(
-        self, action: Action, max_attempts: int, is_durable: Literal[False] = False
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[False] = False
     ) -> Context: ...
 
     def create_context(
         self,
         action: Action,
-        max_attempts: int,
+        task: Task[Any, Any],
         is_durable: bool = True,
     ) -> Context | DurableContext:
         constructor = DurableContext if is_durable else Context
@@ -378,7 +393,9 @@ class Runner:
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
             log_sender=self.log_sender,
-            max_attempts=max_attempts,
+            max_attempts=task.retries + 1,
+            task_name=task.name,
+            workflow_name=task.workflow.name,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -391,7 +408,7 @@ class Runner:
         if action_func:
             context = self.create_context(
                 action=action,
-                max_attempts=action_func.retries + 1,
+                task=action_func,
                 is_durable=True if action_func.is_durable else False,  # noqa: SIM210
             )
 
@@ -400,7 +417,7 @@ class Runner:
                 ActionEvent(
                     action=action,
                     type=STEP_EVENT_TYPE_STARTED,
-                    payload="",
+                    payload=None,
                     should_not_retry=False,
                 )
             )
@@ -467,6 +484,7 @@ class Runner:
             # call cancel to signal the context to stop
             if key in self.contexts:
                 self.contexts[key]._set_cancellation_flag()
+                self.cancellations[key] = True
 
             await asyncio.sleep(1)
 
@@ -487,9 +505,9 @@ class Runner:
         finally:
             self.cleanup_run_id(key)
 
-    def serialize_output(self, output: Any) -> str:
+    def serialize_output(self, output: Any) -> str | None:
         if not output:
-            return ""
+            return None
 
         if isinstance(output, BaseModel):
             try:
@@ -511,7 +529,7 @@ class Runner:
             )
 
         if output is None:
-            return ""
+            return None
 
         try:
             serialized_output = json.dumps(output, default=str)

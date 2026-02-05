@@ -11,6 +11,7 @@ import (
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -34,8 +35,11 @@ type WorkflowRunEventHandler func(event WorkflowRunEvent) error
 type WorkflowRunsListener struct {
 	constructor func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
 
-	client   dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
-	clientMu sync.RWMutex
+	client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
+	clientMu   sync.Mutex
+	generation uint64
+
+	reconnectGroup singleflight.Group
 
 	l *zerolog.Logger
 
@@ -93,7 +97,23 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	return w, nil
 }
 
+// getClientSnapshot returns the current client and its generation without holding the lock.
+func (w *WorkflowRunsListener) getClientSnapshot() (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, uint64) {
+	w.clientMu.Lock()
+	defer w.clientMu.Unlock()
+	return w.client, w.generation
+}
+
+// retrySubscribe coalesces concurrent reconnection attempts via singleflight.
+// Multiple goroutines calling this concurrently will share a single reconnection attempt.
 func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
+	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
+		return nil, w.doRetrySubscribe(ctx)
+	})
+	return err
+}
+
+func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
 	w.clientMu.Lock()
 	defer w.clientMu.Unlock()
 
@@ -138,6 +158,7 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 			continue
 		}
 
+		w.generation++
 		return nil
 	}
 
@@ -197,9 +218,7 @@ func (l *WorkflowRunsListener) RemoveWorkflowRun(
 
 func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 	for i := 0; i < DefaultActionListenerRetryCount; i++ {
-		l.clientMu.RLock()
-		client := l.client
-		l.clientMu.RUnlock()
+		client, genBefore := l.getClientSnapshot()
 
 		if client == nil {
 			return fmt.Errorf("client is not connected")
@@ -215,6 +234,12 @@ func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 
 		l.l.Warn().Err(err).Msgf("failed to send workflow run subscription, attempt %d/%d", i+1, DefaultActionListenerRetryCount)
 
+		// Check if someone else (e.g. Listen) already reconnected while we were sending.
+		// If so, skip the reconnect and retry the send on the new client immediately.
+		if _, genAfter := l.getClientSnapshot(); genAfter != genBefore {
+			continue
+		}
+
 		if retryErr := l.retrySubscribe(context.Background()); retryErr != nil {
 			l.l.Error().Err(retryErr).Msg("failed to resubscribe after send failure")
 		}
@@ -229,10 +254,11 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 	consecutiveErrors := 0
 	maxConsecutiveErrors := 10
 
+	// Take a snapshot of the client so we never hold the lock during a blocking Recv.
+	client, _ := l.getClientSnapshot()
+
 	for {
-		l.clientMu.RLock()
-		event, err := l.client.Recv()
-		l.clientMu.RUnlock()
+		event, err := client.Recv()
 
 		if err != nil {
 			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
@@ -259,6 +285,7 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 				continue
 			}
 
+			client, _ = l.getClientSnapshot()
 			consecutiveErrors = 0
 			continue
 		}
@@ -272,7 +299,15 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 }
 
 func (l *WorkflowRunsListener) Close() error {
-	return l.client.CloseSend()
+	l.clientMu.Lock()
+	client := l.client
+	l.clientMu.Unlock()
+
+	if client == nil {
+		return nil
+	}
+
+	return client.CloseSend()
 }
 
 func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.WorkflowRunEvent) error {

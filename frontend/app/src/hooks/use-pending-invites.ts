@@ -4,10 +4,10 @@ import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
 
 export const usePendingInvites = () => {
-  const { isCloudEnabled } = useCloud();
+  const { isCloudEnabled, isCloudLoading } = useCloud();
 
   const query = useQuery({
-    queryKey: ['pending-invites'],
+    queryKey: ['pending-invites', isCloudEnabled],
     queryFn: async () => {
       const [tenantInvites, orgInvites] = await Promise.allSettled([
         api.userListTenantInvites(),
@@ -27,11 +27,11 @@ export const usePendingInvites = () => {
 
       return tenantCount + orgCount;
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
-    enabled: true,
+    refetchInterval: 30000,
   });
 
   return {
     pendingInvitesQuery: query,
+    isLoading: isCloudLoading || query.isLoading,
   };
 };

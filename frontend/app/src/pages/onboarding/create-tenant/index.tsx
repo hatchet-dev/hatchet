@@ -11,6 +11,7 @@ import {
 } from '@/components/v1/ui/tooltip';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
 import api, {
   CreateTenantRequest,
   queries,
@@ -38,6 +39,8 @@ function CreateTenantInner() {
   const { cloud } = useCloud();
   const [showHelp, setShowHelp] = useState(false);
   const { capture } = useAnalytics();
+  const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
+    usePendingInvites();
 
   const organizationId = searchParams.get('organizationId');
 
@@ -86,6 +89,16 @@ function CreateTenantInner() {
     setFieldErrors: setFieldErrors,
   });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (
+      !isPendingInvitesLoading &&
+      pendingInvitesQuery.data &&
+      pendingInvitesQuery.data > 0
+    ) {
+      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
+    }
+  }, [isPendingInvitesLoading, pendingInvitesQuery.data, navigate]);
 
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,

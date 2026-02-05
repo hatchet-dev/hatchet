@@ -105,6 +105,7 @@ import {
   V1FilterList,
   V1LogLineLevel,
   V1LogLineList,
+  V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
   V1TaskEventList,
@@ -241,6 +242,10 @@ export class Api<
       search?: string;
       /** The log level(s) to include */
       levels?: V1LogLineLevel[];
+      /** The direction to order by */
+      order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
     },
     params: RequestParams = {},
   ) =>

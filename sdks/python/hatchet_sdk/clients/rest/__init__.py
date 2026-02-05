@@ -69,6 +69,8 @@ from hatchet_sdk.clients.rest.models.cancel_event_request import CancelEventRequ
 from hatchet_sdk.clients.rest.models.concurrency_limit_strategy import (
     ConcurrencyLimitStrategy,
 )
+from hatchet_sdk.clients.rest.models.concurrency_scope import ConcurrencyScope
+from hatchet_sdk.clients.rest.models.concurrency_setting import ConcurrencySetting
 from hatchet_sdk.clients.rest.models.concurrency_stat import ConcurrencyStat
 from hatchet_sdk.clients.rest.models.create_api_token_request import (
     CreateAPITokenRequest,
@@ -303,6 +305,9 @@ from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
+from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
+    V1LogLineOrderByDirection,
+)
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
 from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent

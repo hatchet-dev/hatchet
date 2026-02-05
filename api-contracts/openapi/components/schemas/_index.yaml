@@ -376,6 +376,8 @@ V1LogLine:
   $ref: "./v1/logs.yaml#/V1LogLine"
 V1LogLineLevel:
   $ref: "./v1/logs.yaml#/V1LogLineLevel"
+V1LogLineOrderByDirection:
+  $ref: "./v1/logs.yaml#/V1LogLineOrderByDirection"
 V1LogLineList:
   $ref: "./v1/logs.yaml#/V1LogLineList"
 V1TaskTiming:

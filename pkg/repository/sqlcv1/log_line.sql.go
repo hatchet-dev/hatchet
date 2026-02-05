@@ -8,11 +8,12 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type InsertLogLineParams struct {
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	Message        string             `json:"message"`
@@ -34,22 +35,26 @@ WHERE
     AND ($5::TIMESTAMPTZ IS NULL OR l.created_at > $5::TIMESTAMPTZ)
     AND ($6::TIMESTAMPTZ IS NULL OR l.created_at < $6::TIMESTAMPTZ)
     AND ($7::v1_log_line_level[] IS NULL OR l.level = ANY($7::v1_log_line_level[]))
+    AND ($8::INTEGER IS NULL OR l.retry_count = ($8::INTEGER - 1))
 ORDER BY
-    l.created_at ASC
-LIMIT COALESCE($9, 1000)
-OFFSET COALESCE($8, 0)
+    CASE WHEN $9::TEXT = 'DESC' THEN l.created_at END DESC,
+    CASE WHEN $9::TEXT = 'ASC' THEN l.created_at END ASC
+LIMIT COALESCE($11::BIGINT, 1000)
+OFFSET COALESCE($10::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
-	Tenantid       pgtype.UUID        `json:"tenantid"`
-	Taskid         int64              `json:"taskid"`
-	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
-	Search         pgtype.Text        `json:"search"`
-	Since          pgtype.Timestamptz `json:"since"`
-	Until          pgtype.Timestamptz `json:"until"`
-	Levels         []V1LogLineLevel   `json:"levels"`
-	Offset         interface{}        `json:"offset"`
-	Limit          interface{}        `json:"limit"`
+	Tenantid         uuid.UUID          `json:"tenantid"`
+	Taskid           int64              `json:"taskid"`
+	Taskinsertedat   pgtype.Timestamptz `json:"taskinsertedat"`
+	Search           pgtype.Text        `json:"search"`
+	Since            pgtype.Timestamptz `json:"since"`
+	Until            pgtype.Timestamptz `json:"until"`
+	Levels           []V1LogLineLevel   `json:"levels"`
+	Attempt          pgtype.Int4        `json:"attempt"`
+	Orderbydirection string             `json:"orderbydirection"`
+	Offset           pgtype.Int8        `json:"offset"`
+	Limit            pgtype.Int8        `json:"limit"`
 }
 
 func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesParams) ([]*V1LogLine, error) {
@@ -61,6 +66,8 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Since,
 		arg.Until,
 		arg.Levels,
+		arg.Attempt,
+		arg.Orderbydirection,
 		arg.Offset,
 		arg.Limit,
 	)

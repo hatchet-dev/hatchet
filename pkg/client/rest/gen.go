@@ -227,6 +227,12 @@ const (
 	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
 )
 
+// Defines values for V1LogLineOrderByDirection.
+const (
+	V1LogLineOrderByDirectionASC  V1LogLineOrderByDirection = "ASC"
+	V1LogLineOrderByDirectionDESC V1LogLineOrderByDirection = "DESC"
+)
+
 // Defines values for V1TaskEventType.
 const (
 	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
@@ -328,8 +334,8 @@ const (
 
 // Defines values for WorkflowRunOrderByDirection.
 const (
-	ASC  WorkflowRunOrderByDirection = "ASC"
-	DESC WorkflowRunOrderByDirection = "DESC"
+	WorkflowRunOrderByDirectionASC  WorkflowRunOrderByDirection = "ASC"
+	WorkflowRunOrderByDirectionDESC WorkflowRunOrderByDirection = "DESC"
 )
 
 // Defines values for WorkflowRunOrderByField.
@@ -1446,8 +1452,14 @@ type V1CreateWebhookRequestAPIKey struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestAPIKeyAuthType The type of authentication to use for the webhook
@@ -1459,8 +1471,14 @@ type V1CreateWebhookRequestBase struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestBasicAuth defines model for V1CreateWebhookRequestBasicAuth.
@@ -1474,8 +1492,14 @@ type V1CreateWebhookRequestBasicAuth struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestBasicAuthAuthType The type of authentication to use for the webhook
@@ -1492,8 +1516,14 @@ type V1CreateWebhookRequestHMAC struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestHMACAuthType The type of authentication to use for the webhook
@@ -1623,6 +1653,9 @@ type V1LogLineList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]V1LogLine        `json:"rows,omitempty"`
 }
+
+// V1LogLineOrderByDirection defines model for V1LogLineOrderByDirection.
+type V1LogLineOrderByDirection string
 
 // V1ReplayTaskRequest defines model for V1ReplayTaskRequest.
 type V1ReplayTaskRequest struct {
@@ -1860,6 +1893,12 @@ type V1UpdateFilterRequest struct {
 type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string `json:"scopeExpression,omitempty"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1Webhook defines model for V1Webhook.
@@ -1871,8 +1910,14 @@ type V1Webhook struct {
 	Metadata           APIResourceMeta `json:"metadata"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 
 	// TenantId The ID of the tenant associated with this webhook.
 	TenantId string `json:"tenantId"`
@@ -2339,11 +2384,14 @@ type WorkflowVersion struct {
 	Concurrency *WorkflowConcurrency `json:"concurrency,omitempty"`
 
 	// DefaultPriority The default priority of the workflow.
-	DefaultPriority *int32          `json:"defaultPriority,omitempty"`
-	Jobs            *[]Job          `json:"jobs,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
-	Order           int32           `json:"order"`
-	ScheduleTimeout *string         `json:"scheduleTimeout,omitempty"`
+	DefaultPriority *int32 `json:"defaultPriority,omitempty"`
+
+	// InputJsonSchema The JSON schema for the workflow input.
+	InputJsonSchema *map[string]interface{} `json:"inputJsonSchema,omitempty"`
+	Jobs            *[]Job                  `json:"jobs,omitempty"`
+	Metadata        APIResourceMeta         `json:"metadata"`
+	Order           int32                   `json:"order"`
+	ScheduleTimeout *string                 `json:"scheduleTimeout,omitempty"`
 
 	// Sticky The sticky strategy of the workflow.
 	Sticky        *string               `json:"sticky,omitempty"`
@@ -2406,6 +2454,12 @@ type V1LogLineListParams struct {
 
 	// Levels The log level(s) to include
 	Levels *[]V1LogLineLevel `form:"levels,omitempty" json:"levels,omitempty"`
+
+	// OrderByDirection The direction to order by
+	OrderByDirection *V1LogLineOrderByDirection `form:"order_by_direction,omitempty" json:"order_by_direction,omitempty"`
+
+	// Attempt The attempt number to filter for
+	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
 }
 
 // V1TaskEventListParams defines parameters for V1TaskEventList.
@@ -6360,6 +6414,38 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1L
 		if params.Levels != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "levels", runtime.ParamLocationQuery, *params.Levels); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "order_by_direction", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Attempt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "attempt", runtime.ParamLocationQuery, *params.Attempt); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

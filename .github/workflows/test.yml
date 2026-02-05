@@ -9,7 +9,7 @@ on:
 
 jobs:
   generate:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
@@ -54,7 +54,7 @@ jobs:
         run: docker compose down
 
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - uses: actions/checkout@v6
       - name: Setup Go
@@ -72,7 +72,7 @@ jobs:
         run: go test $(go list ./... | grep -v "quickstart") -v -failfast
 
   integration:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
@@ -118,7 +118,7 @@ jobs:
         run: docker compose down
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -208,7 +208,7 @@ jobs:
         run: docker compose down
 
   e2e-pgmq:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -300,13 +300,14 @@ jobs:
         run: docker compose down
 
   load:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     strategy:
       matrix:
         migrate-strategy: ["latest"]
-        rabbitmq-enabled: ["true", "false"]
-        pg-version: ["15-alpine"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["17-alpine"]
+        optimistic-scheduling: ["true", "false"]
 
     steps:
       - uses: actions/checkout@v6
@@ -339,9 +340,10 @@ jobs:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
   rampup:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     strategy:
       matrix:

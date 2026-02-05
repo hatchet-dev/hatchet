@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,7 +20,7 @@ VALUES
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
 `
 
-func (q *Queries) CreateTicker(ctx context.Context, db DBTX, id pgtype.UUID) (*Ticker, error) {
+func (q *Queries) CreateTicker(ctx context.Context, db DBTX, id uuid.UUID) (*Ticker, error) {
 	row := db.QueryRow(ctx, createTicker, id)
 	var i Ticker
 	err := row.Scan(
@@ -42,7 +43,7 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
 `
 
-func (q *Queries) DeactivateTicker(ctx context.Context, db DBTX, id pgtype.UUID) (*Ticker, error) {
+func (q *Queries) DeactivateTicker(ctx context.Context, db DBTX, id uuid.UUID) (*Ticker, error) {
 	row := db.QueryRow(ctx, deactivateTicker, id)
 	var i Ticker
 	err := row.Scan(
@@ -85,7 +86,7 @@ type IsTenantAlertActiveRow struct {
 	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
 }
 
-func (q *Queries) IsTenantAlertActive(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*IsTenantAlertActiveRow, error) {
+func (q *Queries) IsTenantAlertActive(ctx context.Context, db DBTX, tenantid uuid.UUID) (*IsTenantAlertActiveRow, error) {
 	row := db.QueryRow(ctx, isTenantAlertActive, tenantid)
 	var i IsTenantAlertActiveRow
 	err := row.Scan(&i.IsActive, &i.LastAlertedAt)
@@ -286,9 +287,9 @@ RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId"
 `
 
 type PollCronSchedulesRow struct {
-	ParentId           pgtype.UUID                   `json:"parentId"`
+	ParentId           uuid.UUID                     `json:"parentId"`
 	Cron               string                        `json:"cron"`
-	TickerId           pgtype.UUID                   `json:"tickerId"`
+	TickerId           *uuid.UUID                    `json:"tickerId"`
 	Input              []byte                        `json:"input"`
 	Enabled            bool                          `json:"enabled"`
 	AdditionalMetadata []byte                        `json:"additionalMetadata"`
@@ -296,14 +297,14 @@ type PollCronSchedulesRow struct {
 	DeletedAt          pgtype.Timestamp              `json:"deletedAt"`
 	UpdatedAt          pgtype.Timestamp              `json:"updatedAt"`
 	Name               pgtype.Text                   `json:"name"`
-	ID                 pgtype.UUID                   `json:"id"`
+	ID                 uuid.UUID                     `json:"id"`
 	Method             WorkflowTriggerCronRefMethods `json:"method"`
 	Priority           int32                         `json:"priority"`
-	WorkflowVersionId  pgtype.UUID                   `json:"workflowVersionId"`
-	TenantId           pgtype.UUID                   `json:"tenantId"`
+	WorkflowVersionId  uuid.UUID                     `json:"workflowVersionId"`
+	TenantId           uuid.UUID                     `json:"tenantId"`
 }
 
-func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollCronSchedulesRow, error) {
+func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid uuid.UUID) ([]*PollCronSchedulesRow, error) {
 	rows, err := db.Query(ctx, pollCronSchedules, tickerid)
 	if err != nil {
 		return nil, err
@@ -373,9 +374,9 @@ RETURNING
 `
 
 type PollExpiringTokensRow struct {
-	ID        pgtype.UUID      `json:"id"`
+	ID        uuid.UUID        `json:"id"`
 	Name      pgtype.Text      `json:"name"`
-	TenantId  pgtype.UUID      `json:"tenantId"`
+	TenantId  *uuid.UUID       `json:"tenantId"`
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
@@ -463,28 +464,28 @@ RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflo
 `
 
 type PollScheduledWorkflowsRow struct {
-	ID                  pgtype.UUID                        `json:"id"`
-	ParentId            pgtype.UUID                        `json:"parentId"`
+	ID                  uuid.UUID                          `json:"id"`
+	ParentId            uuid.UUID                          `json:"parentId"`
 	TriggerAt           pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId            pgtype.UUID                        `json:"tickerId"`
+	TickerId            *uuid.UUID                         `json:"tickerId"`
 	Input               []byte                             `json:"input"`
 	ChildIndex          pgtype.Int4                        `json:"childIndex"`
 	ChildKey            pgtype.Text                        `json:"childKey"`
-	ParentStepRunId     pgtype.UUID                        `json:"parentStepRunId"`
-	ParentWorkflowRunId pgtype.UUID                        `json:"parentWorkflowRunId"`
+	ParentStepRunId     *uuid.UUID                         `json:"parentStepRunId"`
+	ParentWorkflowRunId *uuid.UUID                         `json:"parentWorkflowRunId"`
 	AdditionalMetadata  []byte                             `json:"additionalMetadata"`
 	CreatedAt           pgtype.Timestamp                   `json:"createdAt"`
 	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
 	UpdatedAt           pgtype.Timestamp                   `json:"updatedAt"`
 	Method              WorkflowTriggerScheduledRefMethods `json:"method"`
 	Priority            int32                              `json:"priority"`
-	WorkflowVersionId   pgtype.UUID                        `json:"workflowVersionId"`
-	TenantId            pgtype.UUID                        `json:"tenantId"`
+	WorkflowVersionId   uuid.UUID                          `json:"workflowVersionId"`
+	TenantId            uuid.UUID                          `json:"tenantId"`
 }
 
 // Finds workflows that are either past their execution time or will be in the next 5 seconds and assigns them
 // to a ticker, or finds workflows that were assigned to a ticker that is no longer active
-func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollScheduledWorkflowsRow, error) {
+func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid uuid.UUID) ([]*PollScheduledWorkflowsRow, error) {
 	rows, err := db.Query(ctx, pollScheduledWorkflows, tickerid)
 	if err != nil {
 		return nil, err
@@ -567,14 +568,14 @@ RETURNING alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt",
 `
 
 type PollTenantAlertsRow struct {
-	ID                              pgtype.UUID      `json:"id"`
+	ID                              uuid.UUID        `json:"id"`
 	CreatedAt                       pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt                       pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt                       pgtype.Timestamp `json:"deletedAt"`
-	TenantId                        pgtype.UUID      `json:"tenantId"`
+	TenantId                        uuid.UUID        `json:"tenantId"`
 	MaxFrequency                    string           `json:"maxFrequency"`
 	LastAlertedAt                   pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId                        pgtype.UUID      `json:"tickerId"`
+	TickerId                        *uuid.UUID       `json:"tickerId"`
 	EnableExpiringTokenAlerts       bool             `json:"enableExpiringTokenAlerts"`
 	EnableWorkflowRunFailureAlerts  bool             `json:"enableWorkflowRunFailureAlerts"`
 	EnableTenantResourceLimitAlerts bool             `json:"enableTenantResourceLimitAlerts"`
@@ -582,7 +583,7 @@ type PollTenantAlertsRow struct {
 }
 
 // Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker
-func (q *Queries) PollTenantAlerts(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollTenantAlertsRow, error) {
+func (q *Queries) PollTenantAlerts(ctx context.Context, db DBTX, tickerid uuid.UUID) ([]*PollTenantAlertsRow, error) {
 	rows, err := db.Query(ctx, pollTenantAlerts, tickerid)
 	if err != nil {
 		return nil, err
@@ -735,7 +736,7 @@ type SetTickersInactiveRow struct {
 	Ticker Ticker `json:"ticker"`
 }
 
-func (q *Queries) SetTickersInactive(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*SetTickersInactiveRow, error) {
+func (q *Queries) SetTickersInactive(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*SetTickersInactiveRow, error) {
 	rows, err := db.Query(ctx, setTickersInactive, ids)
 	if err != nil {
 		return nil, err
@@ -773,7 +774,7 @@ RETURNING id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
 
 type UpdateTickerParams struct {
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	ID              pgtype.UUID      `json:"id"`
+	ID              uuid.UUID        `json:"id"`
 }
 
 func (q *Queries) UpdateTicker(ctx context.Context, db DBTX, arg UpdateTickerParams) (*Ticker, error) {

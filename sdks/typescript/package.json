@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.10.5",
+  "version": "1.10.8",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -89,7 +89,8 @@
     "qs": "^6.14.1",
     "semver": "^7.7.1",
     "yaml": "^2.7.1",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.1"
   },
   "optionalDependencies": {
     "@opentelemetry/api": "^1.9.0",
@@ -100,7 +101,7 @@
   "pnpm": {
     "overrides": {
       "diff": "8.0.3",
-      "tar": "7.5.4",
+      "tar": "^7.5.7",
       "js-yaml": "^4.1.1"
     }
   }

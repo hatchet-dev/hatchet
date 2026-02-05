@@ -13,13 +13,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWorkflowListRequestObject) (gen.CronWorkflowListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	limit := 50
 	offset := 0
@@ -31,6 +30,7 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 		Offset:         &offset,
 		OrderBy:        &orderBy,
 		OrderDirection: &orderDirection,
+		WorkflowId:     request.Params.WorkflowId,
 	}
 
 	if request.Params.OrderByField != nil {
@@ -51,11 +51,6 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	if request.Params.Offset != nil {
 		offset = int(*request.Params.Offset)
 		listOpts.Offset = &offset
-	}
-
-	if request.Params.WorkflowId != nil {
-		workflowIdStr := request.Params.WorkflowId.String()
-		listOpts.WorkflowId = &workflowIdStr
 	}
 
 	if request.Params.CronName != nil {

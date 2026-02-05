@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -17,14 +17,19 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	defer span.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+	tenantIdUUID, err := uuid.Parse(tenantId)
 
-	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskTimeouts(ctx, tenantId)
+	if err != nil {
+		return false, fmt.Errorf("could not parse tenant id %s: %w", tenantId, err)
+	}
+
+	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskTimeouts(ctx, tenantIdUUID)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
 	}
 
-	err = tc.processFailTasksResponse(ctx, tenantId, res.FailTasksResponse)
+	err = tc.processFailTasksResponse(ctx, tenantIdUUID, res.FailTasksResponse)
 
 	if err != nil {
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)
@@ -33,16 +38,21 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
 
 	for _, task := range res.TimeoutTasks {
+		var workerId uuid.UUID
+		if task.WorkerID != nil {
+			workerId = *task.WorkerID
+		}
+
 		cancellationSignals = append(cancellationSignals, tasktypes.SignalTaskCancelledPayload{
 			TaskId:     task.ID,
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
-			WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
+			WorkerId:   workerId,
 		})
 
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
+			tenantIdUUID,
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
@@ -66,7 +76,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	}
 
 	if len(cancellationSignals) > 0 {
-		err = tc.sendTaskCancellationsToDispatcher(ctx, tenantId, cancellationSignals)
+		err = tc.sendTaskCancellationsToDispatcher(ctx, tenantIdUUID, cancellationSignals)
 
 		if err != nil {
 			return false, fmt.Errorf("could not send task cancellations to dispatcher: %w",

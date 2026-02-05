@@ -29,7 +29,9 @@ export function loginSession(
           `expected redirect to land on tenant shell or onboarding, got ${pathname}`,
         ).to.satisfy(
           (p: string) =>
-            p.includes('/tenants/') || p.includes('/onboarding/create-tenant'),
+            p.includes('/tenants/') ||
+            p.includes('/onboarding/create-tenant') ||
+            p.includes('/onboarding/invites'),
         );
       });
 
@@ -48,6 +50,15 @@ export function loginSession(
             .type(tenantName);
           cy.contains('button', 'Create Tenant').click();
           cy.wait('@createTenant').its('response.statusCode').should('eq', 200);
+        }
+
+        // If the user has pending invites, accept the first one to proceed
+        if (pathname.includes('/onboarding/invites')) {
+          cy.intercept('POST', '/api/v1/users/invites/accept').as(
+            'acceptInvite',
+          );
+          cy.contains('button', 'Accept').first().click();
+          cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
         }
       });
 

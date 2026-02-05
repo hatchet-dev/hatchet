@@ -19,6 +19,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/operation"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -28,7 +30,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -53,13 +54,15 @@ type TasksControllerImpl struct {
 	celParser                             *cel.CELParser
 	opsPoolPollInterval                   time.Duration
 	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *operation.OperationPool
-	reassignTaskOperations                *operation.OperationPool
-	retryTaskOperations                   *operation.OperationPool
-	emitSleepOperations                   *operation.OperationPool
-	evictExpiredIdempotencyKeysOperations *operation.OperationPool
+	timeoutTaskOperations                 *operation.TenantOperationPool
+	reassignTaskOperations                *operation.TenantOperationPool
+	retryTaskOperations                   *operation.TenantOperationPool
+	emitSleepOperations                   *operation.TenantOperationPool
+	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
 	replayEnabled                         bool
 	analyzeCronInterval                   time.Duration
+	signaler                              *signal.OLAPSignaler
+	tw                                    *trigger.TriggerWriter
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -201,6 +204,9 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0)
+
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,
 		pubBuffer:           pubBuffer,
@@ -217,12 +223,14 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opsPoolPollInterval: opts.opsPoolPollInterval,
 		replayEnabled:       opts.replayEnabled,
 		analyzeCronInterval: opts.analyzeCronInterval,
+		signaler:            signaler,
+		tw:                  tw,
 	}
 
 	jitter := t.opsPoolJitter
 	timeout := time.Second * 30
 
-	t.timeoutTaskOperations = operation.NewOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
+	t.timeoutTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -231,7 +239,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.emitSleepOperations = operation.NewOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
+	t.emitSleepOperations = operation.NewTenantOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -240,7 +248,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.reassignTaskOperations = operation.NewOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
+	t.reassignTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -249,7 +257,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.retryTaskOperations = operation.NewOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
+	t.retryTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -258,7 +266,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	t.evictExpiredIdempotencyKeysOperations = operation.NewOperationPool(opts.p, opts.l, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
+	t.evictExpiredIdempotencyKeysOperations = operation.NewTenantOperationPool(opts.p, opts.l, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
@@ -401,7 +409,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloads [][]byte) (err error) {
+func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId string, payloads [][]byte) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoverErr := recoveryutils.RecoverWithAlert(tc.l, tc.a, r)
@@ -434,7 +442,7 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 	return fmt.Errorf("unknown message id: %s", msgId)
 }
 
-func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
 
@@ -470,15 +478,15 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
-		prometheus.TenantSucceededTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	return tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
+	return tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
 
-func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskFailed")
 	defer span.End()
 
@@ -557,7 +565,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	return nil
 }
 
-func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId string, res *v1.FailTasksResponse) error {
+func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId uuid.UUID, res *v1.FailTasksResponse) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
 	defer span.End()
 
@@ -575,19 +583,19 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
-			prometheus.TenantRetriedTasks.WithLabelValues(tenantId).Inc()
+			prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
 			continue
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 		prometheus.FailedTasks.Inc()
-		prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err := tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
+	err := tc.signaler.SendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
 		err = fmt.Errorf("could not send internal events: %w", err)
@@ -615,7 +623,7 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	return outerErr
 }
 
-func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCancelled")
 	defer span.End()
 
@@ -651,7 +659,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		if shouldTasksNotify[task.ID] {
 			tasksToSendToDispatcher = append(tasksToSendToDispatcher, tasktypes.SignalTaskCancelledPayload{
 				TaskId:     task.ID,
-				WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
+				WorkerId:   task.WorkerID,
 				RetryCount: task.RetryCount,
 			})
 		}
@@ -670,7 +678,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
+	err = tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
 
 	if err != nil {
 		err = fmt.Errorf("could not send internal events: %w", err)
@@ -723,13 +731,13 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
-		prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
+		prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
 	}
 
 	return err
 }
 
-func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
 	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
@@ -770,7 +778,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 	})
 }
 
-func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	if !tc.replayEnabled {
 		tc.l.Debug().Msg("replay is disabled, skipping handleReplayTasks")
 		return nil
@@ -797,7 +805,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
 	for _, task := range taskIdRetryCounts {
-		if !task.WorkflowRunExternalId.Valid {
+		if task.WorkflowRunExternalId == uuid.Nil {
 			// Use a random uuid to effectively send tasks one at a time
 			randomUuid := uuid.NewString()
 			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task.TaskIdInsertedAtRetryCount)
@@ -817,7 +825,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 		if len(replayRes.ReplayedTasks) > 0 {
 			eg.Go(func() error {
-				err := tc.signalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
+				err := tc.signaler.SignalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
 
 				if err != nil {
 					return fmt.Errorf("could not signal replayed tasks: %w", err)
@@ -829,7 +837,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 		if len(replayRes.UpsertedTasks) > 0 {
 			eg.Go(func() error {
-				err := tc.signalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
+				err := tc.signaler.SignalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
 
 				if err != nil {
 					return fmt.Errorf("could not signal queued tasks: %w", err)
@@ -841,7 +849,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 		if len(replayRes.InternalEventResults.CreatedTasks) > 0 {
 			eg.Go(func() error {
-				err := tc.signalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
+				err := tc.signaler.SignalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
 
 				if err != nil {
 					return fmt.Errorf("could not signal created tasks: %w", err)
@@ -855,29 +863,21 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId string, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
-	workerIds := make([]string, 0)
+func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId uuid.UUID, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
+	workerIds := make([]uuid.UUID, 0)
 
 	for _, task := range releasedTasks {
 		workerIds = append(workerIds, task.WorkerId)
 	}
 
-	dispatcherIdWorkerIds, err := tc.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+	workerIdToDispatcherId, _, err := tc.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
 
-	workerIdToDispatcherId := make(map[string]string)
-
-	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-		for _, workerId := range workerIds {
-			workerIdToDispatcherId[workerId] = dispatcherId
-		}
-	}
-
 	// assemble messages
-	dispatcherIdsToPayloads := make(map[string][]tasktypes.SignalTaskCancelledPayload)
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, task := range releasedTasks {
 		workerId := task.WorkerId
@@ -914,7 +914,7 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 	return nil
 }
 
-func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId string, releasedTasks []*sqlcv1.ReleaseTasksRow) {
+func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId uuid.UUID, releasedTasks []*sqlcv1.ReleaseTasksRow) {
 	if len(releasedTasks) == 0 {
 		return
 	}
@@ -948,7 +948,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 
 	for _, releasedTask := range releasedTasks {
 		payloads = append(payloads, tasktypes.CandidateFinalizedPayload{
-			WorkflowRunId: sqlchelpers.UUIDToStr(releasedTask.WorkflowRunID),
+			WorkflowRunId: releasedTask.WorkflowRunID,
 		})
 	}
 
@@ -978,7 +978,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 }
 
 // handleProcessUserEvents is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessUserEvents")
 	defer span.End()
 
@@ -1001,11 +1001,15 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId string, msgs []*tasktypes.UserEventTaskPayload) error {
+func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.UserEventTaskPayload) error {
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
-	eventIdToOpts := make(map[string]v1.EventTriggerOpts)
+	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
+		if msg.WasProcessedLocally {
+			continue
+		}
+
 		opt := v1.EventTriggerOpts{
 			ExternalId:            msg.EventExternalId,
 			Key:                   msg.EventKey,
@@ -1021,100 +1025,16 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		eventIdToOpts[msg.EventExternalId] = opt
 	}
 
-	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
-
-	if err != nil {
-		return fmt.Errorf("could not trigger tasks from events: %w", err)
-	}
-
-	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
-
-	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
-	eventSeenAt := time.Now()
-
-	for eventExternalId, runs := range result.EventExternalIdToRuns {
-		opts := eventIdToOpts[eventExternalId]
-
-		if len(runs) == 0 {
-			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-				EventSeenAt:             eventSeenAt,
-				EventKey:                opts.Key,
-				EventExternalId:         opts.ExternalId,
-				EventPayload:            opts.Data,
-				EventAdditionalMetadata: opts.AdditionalMetadata,
-				TriggeringWebhookName:   opts.TriggeringWebhookName,
-				EventScope:              opts.Scope,
-			})
-		} else {
-			for _, run := range runs {
-				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-					MaybeRunId:              &run.Id,
-					MaybeRunInsertedAt:      &run.InsertedAt,
-					EventSeenAt:             eventSeenAt,
-					EventKey:                opts.Key,
-					EventExternalId:         opts.ExternalId,
-					EventPayload:            opts.Data,
-					EventAdditionalMetadata: opts.AdditionalMetadata,
-					EventScope:              opts.Scope,
-					FilterId:                run.FilterId,
-					TriggeringWebhookName:   opts.TriggeringWebhookName,
-				})
-			}
-		}
-	}
-
-	msg, err := tasktypes.CreatedEventTriggerMessage(
-		tenantId,
-		tasktypes.CreatedEventTriggerPayload{
-			Payloads: eventTriggerOpts,
-		},
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not create event trigger message: %w", err)
-	}
-
-	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-
-	if err != nil {
-		return fmt.Errorf("could not trigger tasks from events: %w", err)
-	}
-
-	evalFailuresMsg, err := tasktypes.CELEvaluationFailureMessage(
-		tenantId,
-		result.CELEvaluationFailures,
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not create CEL evaluation failure message: %w", err)
-	}
-
-	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, evalFailuresMsg, false)
-
-	if err != nil {
-		return fmt.Errorf("could not deliver CEL evaluation failure message: %w", err)
-	}
-
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		return tc.signalTasksCreated(ctx, tenantId, result.Tasks)
-	})
-
-	eg.Go(func() error {
-		return tc.signalDAGsCreated(ctx, tenantId, result.Dags)
-	})
-
-	return eg.Wait()
+	return tc.tw.TriggerFromEvents(ctx, tenantId, eventIdToOpts)
 }
 
 // handleProcessUserEventMatches is responsible for signaling or creating tasks based on user event matches.
-func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId string, payloads []*tasktypes.UserEventTaskPayload) error {
+func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, payloads []*tasktypes.UserEventTaskPayload) error {
 	return tc.processUserEventMatches(ctx, tenantId, payloads)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, tenantId string, payloads [][]byte) error {
+func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessInternalEvents")
 	defer span.End()
 
@@ -1126,61 +1046,12 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
-	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
-
-	if err != nil {
-		if err == v1.ErrResourceExhausted {
-			tc.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
-
-			return nil
-		}
-
-		return fmt.Errorf("could not trigger workflows from names: %w", err)
-	}
-
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		return tc.signalTasksCreated(ctx, tenantId, tasks)
-	})
-
-	eg.Go(func() error {
-		return tc.signalDAGsCreated(ctx, tenantId, dags)
-	})
-
-	return eg.Wait()
-}
-
-func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
-	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.sendInternalEvents")
-	defer span.End()
-
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
-
-	if len(events) == 0 {
-		return nil
-	}
-
-	msg, err := tasktypes.NewInternalEventMessage(tenantId, time.Now(), events...)
-
-	if err != nil {
-		err = fmt.Errorf("could not create internal event message: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not create internal event message")
-		return err
-	}
-
-	return tc.mq.SendMessage(
-		ctx,
-		msgqueue.TASK_PROCESSING_QUEUE,
-		msg,
-	)
+func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	return tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
 }
 
 // processUserEventMatches looks for user event matches
-func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId string, events []*tasktypes.UserEventTaskPayload) error {
+func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []*tasktypes.UserEventTaskPayload) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
@@ -1200,7 +1071,7 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
-		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
+		err = tc.signaler.SignalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
 
 		if err != nil {
 			return fmt.Errorf("could not signal created tasks: %w", err)
@@ -1210,17 +1081,18 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	return nil
 }
 
-func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*v1.InternalTaskEvent) error {
+func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId uuid.UUID, events []*v1.InternalTaskEvent) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
+		resourceHint := event.TaskExternalID.String()
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
-			ID:             uuid.NewString(),
+			ID:             uuid.New(),
 			EventTimestamp: time.Now(),
 			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
 			Key:          string(event.EventType),
 			Data:         event.Data,
-			ResourceHint: &event.TaskExternalID,
+			ResourceHint: &resourceHint,
 		})
 	}
 
@@ -1231,7 +1103,7 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
-		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
+		err = tc.signaler.SignalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
 
 		if err != nil {
 			return fmt.Errorf("could not signal created tasks: %w", err)
@@ -1239,7 +1111,7 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	}
 
 	if len(matchResult.ReplayedTasks) > 0 {
-		err = tc.signalTasksReplayedFromMatch(ctx, tenantId, matchResult.ReplayedTasks)
+		err = tc.signaler.SignalTasksReplayedFromMatch(ctx, tenantId, matchResult.ReplayedTasks)
 
 		if err != nil {
 			return fmt.Errorf("could not signal replayed tasks: %w", err)
@@ -1249,602 +1121,7 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId string, dags []*v1.DAGWithData) error {
-	// notify that tasks have been created
-	// TODO: make this transactionally safe?
-	for _, dag := range dags {
-		dagCp := dag
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, dagCp)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			msg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
-			continue
-		}
-	}
-
-	return nil
-}
-
-func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	// group tasks by initial states
-	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
-	failedTasks := make([]*v1.V1TaskWithPayload, 0)
-	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
-	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
-
-	for _, task := range tasks {
-		switch task.InitialState {
-		case sqlcv1.V1TaskInitialStateQUEUED:
-			queuedTasks = append(queuedTasks, task)
-		case sqlcv1.V1TaskInitialStateFAILED:
-			failedTasks = append(failedTasks, task)
-		case sqlcv1.V1TaskInitialStateCANCELLED:
-			cancelledTasks = append(cancelledTasks, task)
-		case sqlcv1.V1TaskInitialStateSKIPPED:
-			skippedTasks = append(skippedTasks, task)
-		}
-
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, task)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			msg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
-			continue
-		}
-	}
-
-	eg := &errgroup.Group{}
-
-	if len(queuedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(failedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(cancelledTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(skippedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	return eg.Wait()
-}
-
-func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	if !tc.replayEnabled {
-		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
-		return nil
-	}
-
-	// group tasks by initial states
-	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
-	failedTasks := make([]*v1.V1TaskWithPayload, 0)
-	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
-	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
-
-	for _, task := range tasks {
-		switch task.InitialState {
-		case sqlcv1.V1TaskInitialStateQUEUED:
-			queuedTasks = append(queuedTasks, task)
-		case sqlcv1.V1TaskInitialStateFAILED:
-			failedTasks = append(failedTasks, task)
-		case sqlcv1.V1TaskInitialStateCANCELLED:
-			cancelledTasks = append(cancelledTasks, task)
-		case sqlcv1.V1TaskInitialStateSKIPPED:
-			skippedTasks = append(skippedTasks, task)
-		}
-	}
-
-	eg := &errgroup.Group{}
-
-	if len(queuedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(failedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(cancelledTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(skippedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	return eg.Wait()
-}
-
-func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	// group tasks by initial states
-	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
-	failedTasks := make([]*v1.V1TaskWithPayload, 0)
-	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
-	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
-
-	for _, task := range tasks {
-		switch task.InitialState {
-		case sqlcv1.V1TaskInitialStateQUEUED:
-			queuedTasks = append(queuedTasks, task)
-		case sqlcv1.V1TaskInitialStateFAILED:
-			failedTasks = append(failedTasks, task)
-		case sqlcv1.V1TaskInitialStateCANCELLED:
-			cancelledTasks = append(cancelledTasks, task)
-		case sqlcv1.V1TaskInitialStateSKIPPED:
-			skippedTasks = append(skippedTasks, task)
-		}
-	}
-
-	eg := &errgroup.Group{}
-
-	if len(queuedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(failedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(cancelledTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	if len(skippedTasks) > 0 {
-		eg.Go(func() error {
-			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
-
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
-
-			return nil
-		})
-	}
-
-	return eg.Wait()
-}
-
-func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	// get all unique queues and notify them
-	queues := make(map[string]struct{})
-
-	for _, task := range tasks {
-		queues[task.Queue] = struct{}{}
-	}
-
-	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
-
-	if err != nil {
-		return err
-	}
-
-	if tenant.SchedulerPartitionId.Valid {
-		msg, err := tasktypes.NotifyTaskCreated(tenantId, tasks)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create message for scheduler partition queue")
-		} else {
-			err = tc.mq.SendMessage(
-				ctx,
-				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
-				msg,
-			)
-
-			if err != nil {
-				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
-			}
-		}
-	}
-
-	// notify that tasks have been created
-	// TODO: make this transactionally safe?
-	for _, task := range tasks {
-		msg := ""
-
-		if len(task.ConcurrencyKeys) > 0 {
-			msg = "concurrency keys evaluated as:"
-
-			for _, key := range task.ConcurrencyKeys {
-				msg += fmt.Sprintf(" %s", key)
-			}
-		}
-
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
-				EventTimestamp: time.Now(),
-				EventMessage:   msg,
-			},
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create monitoring event message")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
-			continue
-		}
-	}
-
-	// instrumentation
-	go func() {
-		for range tasks {
-			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
-		}
-	}()
-
-	return nil
-}
-
-func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	internalEvents := make([]v1.InternalTaskEvent, 0)
-
-	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
-
-		internalEvents = append(internalEvents, v1.InternalTaskEvent{
-			TenantID:       tenantId,
-			TaskID:         task.ID,
-			TaskExternalID: taskExternalId,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1TaskEventTypeCANCELLED,
-			Data:           dataBytes,
-		})
-	}
-
-	err := tc.sendInternalEvents(ctx, tenantId, internalEvents)
-
-	if err != nil {
-		return err
-	}
-
-	// notify that tasks have been cancelled
-	// TODO: make this transactionally safe?
-	for _, task := range tasks {
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapCANCELLED,
-			EventTimestamp: time.Now(),
-		})
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			msg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
-			continue
-		}
-	}
-
-	// instrumentation
-	go func() {
-		for range tasks {
-			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
-			prometheus.CancelledTasks.Inc()
-			prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
-		}
-	}()
-
-	return nil
-}
-
-func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	internalEvents := make([]v1.InternalTaskEvent, 0)
-
-	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		dataBytes := v1.NewFailedTaskOutputEventFromTask(task).Bytes()
-
-		internalEvents = append(internalEvents, v1.InternalTaskEvent{
-			TenantID:       tenantId,
-			TaskID:         task.ID,
-			TaskExternalID: taskExternalId,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1TaskEventTypeFAILED,
-			Data:           dataBytes,
-		})
-	}
-
-	err := tc.sendInternalEvents(ctx, tenantId, internalEvents)
-
-	if err != nil {
-		return err
-	}
-
-	// notify that tasks have been cancelled
-	// TODO: make this transactionally safe?
-	for _, task := range tasks {
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapFAILED,
-			EventPayload:   task.InitialStateReason.String,
-			EventTimestamp: time.Now(),
-		})
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			msg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
-			continue
-		}
-	}
-
-	// instrumentation
-	go func() {
-		for range tasks {
-			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
-			prometheus.FailedTasks.Inc()
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
-		}
-	}()
-
-	return nil
-}
-
-func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
-	internalEvents := make([]v1.InternalTaskEvent, 0)
-
-	for _, task := range tasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task).Bytes()
-
-		internalEvents = append(internalEvents, v1.InternalTaskEvent{
-			TenantID:       tenantId,
-			TaskID:         task.ID,
-			TaskExternalID: taskExternalId,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1TaskEventTypeCOMPLETED,
-			Data:           dataBytes,
-		})
-	}
-
-	err := tc.sendInternalEvents(ctx, tenantId, internalEvents)
-
-	if err != nil {
-		return err
-	}
-
-	// notify that tasks have been cancelled
-	// TODO: make this transactionally safe?
-	for _, task := range tasks {
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapSKIPPED,
-			EventTimestamp: time.Now(),
-		})
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create message for olap queue")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			msg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not add message to olap queue")
-			continue
-		}
-	}
-
-	// instrumentation
-	go func() {
-		for range tasks {
-			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
-			prometheus.SkippedTasks.Inc()
-			prometheus.TenantSkippedTasks.WithLabelValues(tenantId).Inc()
-		}
-	}()
-
-	return nil
-}
-
-func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdInsertedAtRetryCount) error {
-	if !tc.replayEnabled {
-		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayed")
-		return nil
-	}
-
-	// notify that tasks have been created
-	// TODO: make this transactionally safe?
-	for _, task := range tasks {
-		msg := "Task was replayed, resetting task result."
-
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.Id,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
-				EventTimestamp: time.Now(),
-				EventMessage:   msg,
-			},
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not create monitoring event message")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
-			continue
-		}
-	}
-
-	return nil
-}
-
-func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId string, task v1.RetriedTask) error {
+func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.UUID, task v1.RetriedTask) error {
 	taskId := task.Id
 
 	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
