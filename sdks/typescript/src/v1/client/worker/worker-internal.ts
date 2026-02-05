@@ -347,21 +347,25 @@ export class V1Worker {
       const durableTaskSet = new Set(workflow._durableTasks);
 
       let stickyStrategy: StickyStrategy | undefined;
-      // `workflow.sticky` is a v1 (non-protobuf) config which may also include legacy protobuf
-      // enum values for backwards compatibility.
-      switch (workflow.sticky) {
-        case 'soft':
-        case 'SOFT':
-        case 0:
-          stickyStrategy = StickyStrategy.SOFT;
-          break;
-        case 'hard':
-        case 'HARD':
-        case 1:
-          stickyStrategy = StickyStrategy.HARD;
-          break;
-        default:
-          throw new HatchetError(`Invalid sticky strategy: ${workflow.sticky}`);
+      // `workflow.sticky` is optional. When omitted, we don't set any sticky strategy.
+      //
+      // When provided, `workflow.sticky` is a v1 (non-protobuf) config which may also include
+      // legacy protobuf enum values for backwards compatibility.
+      if (workflow.sticky != null) {
+        switch (workflow.sticky) {
+          case 'soft':
+          case 'SOFT':
+          case 0:
+            stickyStrategy = StickyStrategy.SOFT;
+            break;
+          case 'hard':
+          case 'HARD':
+          case 1:
+            stickyStrategy = StickyStrategy.HARD;
+            break;
+          default:
+            throw new HatchetError(`Invalid sticky strategy: ${workflow.sticky}`);
+        }
       }
 
       const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
