@@ -493,7 +493,7 @@ class Runner:
         key = action.key
         start_time = time.monotonic()
 
-        logger.debug(
+        logger.info(
             f"Cancellation: received cancel action for {action.action_id}, "
             f"reason={CancellationReason.WORKFLOW_CANCELLED.value}"
         )
@@ -584,8 +584,8 @@ class Runner:
                     )
             else:
                 # Task completed quickly - log success and exit
-                logger.debug(
-                    f"Cancellation: task {action.action_id} completed within {elapsed_ms}ms"
+                logger.info(
+                    f"Cancellation: task {action.action_id} completed"
                 )
         finally:
             self.cleanup_run_id(key)
