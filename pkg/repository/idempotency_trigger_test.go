@@ -333,6 +333,53 @@ func TestTriggerWorkflowIdempotency_UsesConfiguredTTL(t *testing.T) {
 	assert.WithinDuration(t, expected, expiresAt, 2*time.Minute)
 }
 
+func TestTriggerWorkflowIdempotency_ExpiredUnclaimedKeyIsReusable(t *testing.T) {
+	// An expired, unclaimed key should be refreshed and claimed instead of blocking.
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo, cleanupRepo := setupRepositoryWithTTL(t, pool, 30*time.Minute, 1*time.Minute)
+	defer cleanupRepo()
+
+	tenantId := setupTenant(t, repo, pool)
+	_ = createMinimalWorkflow(t, pool, tenantId, "test-workflow")
+
+	ctx := context.Background()
+	key := IdempotencyKey("idem-key-expired")
+
+	_, err := pool.Exec(ctx,
+		`INSERT INTO v1_idempotency_key (tenant_id, key, expires_at) VALUES ($1, $2, $3)`,
+		tenantId,
+		string(key),
+		time.Now().Add(-1*time.Hour),
+	)
+	require.NoError(t, err)
+
+	opts := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &key,
+	}
+
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{opts})
+	require.NoError(t, err)
+
+	claimed := getClaimedByExternalId(t, pool, tenantId, key)
+	require.NotNil(t, claimed)
+	assert.Equal(t, opts.ExternalId, *claimed)
+
+	var expiresAt time.Time
+	err = pool.QueryRow(ctx,
+		`SELECT expires_at FROM v1_idempotency_key WHERE tenant_id = $1 AND key = $2`,
+		tenantId,
+		string(key),
+	).Scan(&expiresAt)
+	require.NoError(t, err)
+	assert.True(t, expiresAt.After(time.Now()))
+}
+
 func TestTriggerWorkflowIdempotency_ReclaimsAfterTerminalStatus(t *testing.T) {
 	// When OLAP reports terminal status, a previously claimed key is reclaimed and a new run is allowed.
 	pool, cleanup := setupPostgresWithMigration(t)
@@ -616,6 +663,48 @@ func TestTriggerWorkflowIdempotency_RecheckDisabled(t *testing.T) {
 
 	lastDeniedAt := getLastDeniedAt(t, pool, tenantId, key)
 	assert.False(t, lastDeniedAt.Valid)
+}
+
+func TestTriggerWorkflowIdempotency_RecheckMissingOlapUpdatesLastDeniedAt(t *testing.T) {
+	// If OLAP has no status row, duplicates should be denied and last_denied_at updated.
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo, cleanupRepo := setupRepositoryWithTTL(t, pool, 30*time.Minute, 1*time.Minute)
+	defer cleanupRepo()
+
+	tenantId := setupTenant(t, repo, pool)
+	_ = createMinimalWorkflow(t, pool, tenantId, "test-workflow")
+
+	ctx := context.Background()
+	key := IdempotencyKey("idem-key-missing-olap")
+
+	first := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &key,
+	}
+
+	_, _, err := repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{first})
+	require.NoError(t, err)
+
+	second := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &key,
+	}
+
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{second})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrIdempotencyKeyAlreadyClaimed)
+
+	lastDeniedAt := getLastDeniedAt(t, pool, tenantId, key)
+	assert.True(t, lastDeniedAt.Valid)
+	assert.WithinDuration(t, time.Now(), lastDeniedAt.Time, 2*time.Minute)
 }
 
 func TestTriggerWorkflowIdempotency_RecheckUpdatesLastDeniedAtWhenNonTerminal(t *testing.T) {
