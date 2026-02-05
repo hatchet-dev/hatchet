@@ -565,7 +565,7 @@ func workflowEventToDeprecatedWorkflowEvent(event *dispatchercontracts.WorkflowE
 		ResourceId:    event.ResourceId,
 		EventPayload:  event.EventPayload,
 		Hangup:        event.Hangup,
-		StepRetries:   event.StepRetries,
+		StepRetries:   event.TaskRetries,
 		RetryCount:    event.RetryCount,
 		EventIndex:    event.EventIndex,
 	}
@@ -593,8 +593,8 @@ func workflowRunEventToDeprecatedWorkflowRunEvent(event *dispatchercontracts.Wor
 		result.Results = make([]*StepRunResult, len(event.Results))
 		for i, r := range event.Results {
 			result.Results[i] = &StepRunResult{
-				StepRunId:      r.StepRunId,
-				StepReadableId: r.StepReadableId,
+				StepRunId:      r.TaskRunExternalId,
+				StepReadableId: r.TaskName,
 				JobRunId:       r.JobRunId,
 				Error:          r.Error,
 				Output:         r.Output,
