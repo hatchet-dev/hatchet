@@ -620,6 +620,10 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
+			if errors.Is(schedulingErr, v1.ErrIdempotencyKeyAlreadyClaimed) {
+				return status.Error(codes.AlreadyExists, schedulingErr.Error())
+			}
+
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
 				a.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
 			}
@@ -659,8 +663,14 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		triggerErr := a.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
 
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
-		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			a.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+		if triggerErr != nil {
+			if errors.Is(triggerErr, v1.ErrIdempotencyKeyAlreadyClaimed) {
+				return status.Error(codes.AlreadyExists, triggerErr.Error())
+			}
+
+			if !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
+				a.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+			}
 		} else if triggerErr == nil {
 			return nil
 		}
