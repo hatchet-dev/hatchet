@@ -18,23 +18,16 @@ const sleep = (ms: number) =>
   });
 
 // > Concurrency Strategy With Key
-export const multiConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
+export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
-  concurrency: [
-    {
-      maxRuns: 1,
-      limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-      expression: 'input.GroupKey',
-    },
-    {
-      maxRuns: 1,
-      limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-      expression: 'input.UserId',
-    },
-  ],
+  concurrency: {
+    maxRuns: 1,
+    limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    expression: 'input.GroupKey',
+  },
 });
 
-multiConcurrency.task({
+simpleConcurrency.task({
   name: 'to-lower',
   fn: async (input) => {
     await sleep(Math.floor(Math.random() * (1000 - 200 + 1)) + 200);
@@ -43,3 +36,31 @@ multiConcurrency.task({
     };
   },
 });
+
+// > Multiple Concurrency Keys
+export const multipleConcurrencyKeys = hatchet.workflow<SimpleInput, SimpleOutput>({
+  name: 'simple-concurrency',
+  concurrency: [
+    {
+      maxRuns: 1,
+      limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+      expression: 'input.Tier',
+    },
+    {
+      maxRuns: 1,
+      limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+      expression: 'input.Account',
+    },
+  ],
+});
+
+multipleConcurrencyKeys.task({
+  name: 'to-lower',
+  fn: async (input) => {
+    await sleep(Math.floor(Math.random() * (1000 - 200 + 1)) + 200);
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+
