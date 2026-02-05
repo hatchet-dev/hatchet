@@ -533,7 +533,8 @@ export class V1Worker {
     this.action_registry[actionId.toLowerCase()] = action;
   }
 
-  async handleStartStepRun(action: Action) {
+  // IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
+  async handleStartStepRun(action: Action): Promise<Error | undefined> {
     const { actionId } = action;
 
     try {
@@ -546,7 +547,7 @@ export class V1Worker {
       if (!step) {
         this.logger.error(`Registered actions: '${Object.keys(this.action_registry).join(', ')}'`);
         this.logger.error(`Could not find step '${actionId}'`);
-        return;
+        return undefined;
       }
 
       const run = async () => {
@@ -643,16 +644,18 @@ export class V1Worker {
         }
       };
 
-      const future = new HatchetPromise(
+      const future = new HatchetPromise<Error | undefined>(
         (async () => {
           let result: any;
           try {
             result = await run();
           } catch (e: any) {
             await failure(e);
-            return;
+            // Return error for OTel instrumentor to capture
+            return e;
           }
           await success(result);
+          return undefined;
         })()
       );
       this.futures[action.stepRunId] = future;
@@ -670,7 +673,7 @@ export class V1Worker {
       });
 
       try {
-        await future.promise;
+        return await future.promise;
       } catch (e: any) {
         const message = e?.message || String(e);
         if (message.includes('Cancelled')) {
@@ -685,6 +688,7 @@ export class V1Worker {
       }
     } catch (e: any) {
       this.logger.error('Could not send action event (outer): ', e);
+      return e instanceof Error ? e : new Error(String(e));
     }
   }
 

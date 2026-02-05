@@ -15,6 +15,22 @@ const HealthcheckConfigSchema = z.object({
   port: z.number().optional().default(8001),
 });
 
+export const OpenTelemetryConfigSchema = z.object({
+  /**
+   * List of attribute keys to exclude from spans.
+   * Useful for filtering sensitive or verbose data like payloads.
+   */
+  excludedAttributes: z.array(z.string()).optional().default([]),
+
+  /**
+   * If true, includes the task name in the span name for start_step_run spans.
+   * e.g., "hatchet.start_step_run.my_task" instead of "hatchet.start_step_run"
+   */
+  includeTaskNameInSpanName: z.boolean().optional().default(false),
+});
+
+export type OpenTelemetryConfig = z.infer<typeof OpenTelemetryConfigSchema>;
+
 export const ClientConfigSchema = z.object({
   token: z.string(),
   tls_config: ClientTLSConfigSchema,
@@ -24,6 +40,7 @@ export const ClientConfigSchema = z.object({
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
   tenant_id: z.string(),
   namespace: z.string().optional(),
+  otel: OpenTelemetryConfigSchema.optional(),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
