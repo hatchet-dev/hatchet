@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
@@ -524,4 +525,130 @@ func TestGetClientSnapshot_ReturnsCurrentClient(t *testing.T) {
 	got, gen := listener.getClientSnapshot()
 	assert.Equal(t, client1, got)
 	assert.Equal(t, uint64(0), gen)
+}
+
+func TestWorkflowEventToDeprecatedWorkflowEvent_Success(t *testing.T) {
+	// Verifies successful conversion of WorkflowEvent to deprecated WorkflowEvent
+
+	workflowRunId := "test-workflow-run-123"
+	stepId := "test-step-456"
+	eventPayload := "test-payload"
+
+	event := &dispatchercontracts.WorkflowEvent{
+		WorkflowRunId:  workflowRunId,
+		ResourceType:   dispatchercontracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
+		ResourceId:     stepId,
+		EventType:      dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED,
+		EventPayload:   eventPayload,
+		EventTimestamp: timestamppb.New(time.Unix(1234567890, 123456789)),
+	}
+
+	deprecated, err := workflowEventToDeprecatedWorkflowEvent(event)
+
+	require.NoError(t, err, "conversion should succeed")
+	require.NotNil(t, deprecated, "deprecated event should not be nil")
+
+	// Verify key fields are preserved
+	assert.Equal(t, workflowRunId, deprecated.WorkflowRunId)
+	assert.Equal(t, stepId, deprecated.ResourceId)
+	assert.Equal(t, eventPayload, deprecated.EventPayload)
+}
+
+func TestWorkflowEventToDeprecatedWorkflowEvent_WithNilTimestamp(t *testing.T) {
+	// Verifies conversion works when timestamp is nil
+
+	event := &dispatchercontracts.WorkflowEvent{
+		WorkflowRunId:  "test-run",
+		ResourceId:     "test-resource",
+		EventType:      dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
+		EventPayload:   "payload",
+		EventTimestamp: nil,
+	}
+
+	deprecated, err := workflowEventToDeprecatedWorkflowEvent(event)
+
+	require.NoError(t, err, "conversion should succeed even with nil timestamp")
+	require.NotNil(t, deprecated, "deprecated event should not be nil")
+	assert.Equal(t, "test-run", deprecated.WorkflowRunId)
+}
+
+func TestWorkflowEventToDeprecatedWorkflowEvent_EmptyEvent(t *testing.T) {
+	// Verifies conversion works with an empty event
+
+	event := &dispatchercontracts.WorkflowEvent{}
+
+	deprecated, err := workflowEventToDeprecatedWorkflowEvent(event)
+
+	require.NoError(t, err, "conversion should succeed with empty event")
+	require.NotNil(t, deprecated, "deprecated event should not be nil")
+}
+
+func TestWorkflowRunEventToDeprecatedWorkflowRunEvent_Success(t *testing.T) {
+	// Verifies successful conversion of WorkflowRunEvent to deprecated WorkflowRunEvent
+
+	workflowRunId := "test-workflow-run-789"
+
+	event := &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId:  workflowRunId,
+		EventType:      dispatchercontracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED,
+		EventTimestamp: timestamppb.New(time.Unix(9876543210, 987654321)),
+	}
+
+	deprecated, err := workflowRunEventToDeprecatedWorkflowRunEvent(event)
+
+	require.NoError(t, err, "conversion should succeed")
+	require.NotNil(t, deprecated, "deprecated event should not be nil")
+
+	// Verify key fields are preserved
+	assert.Equal(t, workflowRunId, deprecated.WorkflowRunId)
+	assert.NotNil(t, deprecated.EventTimestamp)
+}
+
+func TestWorkflowRunEventToDeprecatedWorkflowRunEvent_WithNilTimestamp(t *testing.T) {
+	// Verifies conversion works when timestamp is nil
+
+	event := &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId:  "test-run-2",
+		EventType:      dispatchercontracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED,
+		EventTimestamp: nil,
+	}
+
+	deprecated, err := workflowRunEventToDeprecatedWorkflowRunEvent(event)
+
+	require.NoError(t, err, "conversion should succeed even with nil timestamp")
+	require.NotNil(t, deprecated, "deprecated event should not be nil")
+	assert.Equal(t, "test-run-2", deprecated.WorkflowRunId)
+}
+
+func TestWorkflowRunEventToDeprecatedWorkflowRunEvent_EmptyEvent(t *testing.T) {
+	// Verifies conversion works with an empty event
+
+	event := &dispatchercontracts.WorkflowRunEvent{}
+
+	deprecated, err := workflowRunEventToDeprecatedWorkflowRunEvent(event)
+
+	require.NoError(t, err, "conversion should succeed with empty event")
+	require.NotNil(t, deprecated, "deprecated event should not be nil")
+}
+
+func TestWorkflowRunEventToDeprecatedWorkflowRunEvent_WithResults(t *testing.T) {
+	// Verifies conversion works with step run results
+
+	event := &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId:  "test-run-3",
+		EventType:      dispatchercontracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED,
+		EventTimestamp: timestamppb.New(time.Now()),
+		Results: []*dispatchercontracts.StepRunResult{
+			{
+				StepRunId: "step-1",
+			},
+		},
+	}
+
+	deprecated, err := workflowRunEventToDeprecatedWorkflowRunEvent(event)
+
+	require.NoError(t, err, "conversion should succeed with results")
+	require.NotNil(t, deprecated, "deprecated event should not be nil")
+	assert.Equal(t, "test-run-3", deprecated.WorkflowRunId)
+	assert.NotNil(t, deprecated.Results)
 }
