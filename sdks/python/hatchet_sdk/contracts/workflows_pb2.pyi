@@ -143,7 +143,7 @@ class DesiredWorkerLabels(_message.Message):
     required: bool
     comparator: WorkerLabelComparator
     weight: int
-    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
+    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: _Optional[bool] = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
 
 class CreateWorkflowStepOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds")
@@ -275,7 +275,7 @@ class BulkTriggerWorkflowResponse(_message.Message):
     def __init__(self, workflow_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority")
+    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority", "idempotency_key")
     NAME_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     PARENT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -285,6 +285,7 @@ class TriggerWorkflowRequest(_message.Message):
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
     DESIRED_WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
     name: str
     input: str
     parent_id: str
@@ -294,7 +295,8 @@ class TriggerWorkflowRequest(_message.Message):
     additional_metadata: str
     desired_worker_id: str
     priority: int
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
+    idempotency_key: str
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)

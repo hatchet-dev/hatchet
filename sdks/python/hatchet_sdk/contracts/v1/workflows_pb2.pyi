@@ -119,16 +119,18 @@ class ReplayTasksResponse(_message.Message):
     def __init__(self, replayed_tasks: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRunRequest(_message.Message):
-    __slots__ = ("workflow_name", "input", "additional_metadata", "priority")
+    __slots__ = ("workflow_name", "input", "additional_metadata", "priority", "idempotency_key")
     WORKFLOW_NAME_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
     workflow_name: str
     input: bytes
     additional_metadata: bytes
     priority: int
-    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ...) -> None: ...
+    idempotency_key: str
+    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowRunResponse(_message.Message):
     __slots__ = ("external_id",)

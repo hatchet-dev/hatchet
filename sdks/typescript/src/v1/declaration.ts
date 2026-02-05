@@ -57,6 +57,11 @@ export type RunOpts = {
   priority?: Priority;
 
   /**
+   * (optional) idempotency key for deduplicating workflow runs.
+   */
+  idempotencyKey?: string;
+
+  /**
    * (optional) if the task run should be run on the same worker.
    * only used if spawned from within a parent task.
    */
