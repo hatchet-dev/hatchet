@@ -62,6 +62,7 @@ type ExternalStore interface {
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
 	DualWritesEnabled() bool
@@ -280,6 +281,24 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	return p.retrieve(ctx, tx, opts...)
+}
+
+func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error) {
+	if tx == nil {
+		tx = p.pool
+	}
+
+	optsToPayload, err := p.retrieve(ctx, tx, opt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(optsToPayload) == 0 {
+		return nil, err
+	}
+
+	return optsToPayload[opt], nil
 }
 
 func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error) {

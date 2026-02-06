@@ -320,6 +320,11 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	}
 }
 
+type durableTaskInvocationKey struct {
+	taskExternalId  string
+	invocationCount int64
+}
+
 type durableTaskInvocation struct {
 	server   contracts.V1Dispatcher_DurableTaskServer
 	tenantId uuid.UUID
@@ -327,6 +332,23 @@ type durableTaskInvocation struct {
 	l        *zerolog.Logger
 
 	sendMu sync.Mutex
+
+	nextNodeIdMu sync.Mutex
+	nextNodeId   map[durableTaskInvocationKey]int64
+}
+
+func (inv *durableTaskInvocation) getNextNodeId(taskExternalId string, invocationCount int64) int64 {
+	inv.nextNodeIdMu.Lock()
+	defer inv.nextNodeIdMu.Unlock()
+
+	if inv.nextNodeId == nil {
+		inv.nextNodeId = make(map[durableTaskInvocationKey]int64)
+	}
+
+	key := durableTaskInvocationKey{taskExternalId: taskExternalId, invocationCount: invocationCount}
+	nodeId := inv.nextNodeId[key] + 1
+	inv.nextNodeId[key] = nodeId
+	return nodeId
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -430,12 +452,25 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
+	nodeId := invocation.getNextNodeId(req.DurableTaskExternalId, req.InvocationCount)
+	existingEntry, err := d.repo.DurableEvents().GetEventLogEntry(ctx, task.ID, task.InsertedAt, nodeId)
+
+	if err == nil && existingEntry != nil {
+		return invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_TriggerAck{
+				TriggerAck: &contracts.DurableTaskEventAckResponse{
+					InvocationCount:       req.InvocationCount,
+					DurableTaskExternalId: req.DurableTaskExternalId,
+					NodeId:                nodeId,
+				},
+			},
+		})
+	}
+
 	logFile, err := d.repo.DurableEvents().GetOrCreateEventLogFileForTask(ctx, task.ID, task.InsertedAt)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get or create event log file: %v", err)
 	}
-
-	nodeId := logFile.LatestNodeID + 1
 
 	var entryKind string
 	switch req.Kind {
@@ -547,10 +582,38 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
-
+	tenantId := invocation.tenantId
+	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.InvocationCount, req.NodeId)
 	callbackKey := fmt.Sprintf("%s:%d:%d", req.DurableTaskExternalId, req.InvocationCount, req.NodeId)
 
+	existingCallback, err := d.repo.DurableEvents().GetEventLogCallback(ctx, tenantId, task.ID, task.InsertedAt, callbackKey)
+
+	if err == nil && existingCallback != nil && existingCallback.Callback.IsSatisfied {
+		if ackErr := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_RegisterCallbackAck{
+				RegisterCallbackAck: &contracts.DurableTaskRegisterCallbackAckResponse{
+					InvocationCount:       req.InvocationCount,
+					DurableTaskExternalId: req.DurableTaskExternalId,
+					NodeId:                req.NodeId,
+				},
+			},
+		}); ackErr != nil {
+			return ackErr
+		}
+
+		return invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_CallbackCompleted{
+				CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+					InvocationCount:       req.InvocationCount,
+					DurableTaskExternalId: req.DurableTaskExternalId,
+					NodeId:                req.NodeId,
+					Payload:               existingCallback.Result,
+				},
+			},
+		})
+	}
+
+	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 	_, err = d.repo.DurableEvents().CreateEventLogCallbacks(ctx, []v1.CreateEventLogCallbackOpts{{
 		DurableTaskId:         task.ID,
 		DurableTaskInsertedAt: task.InsertedAt,
@@ -578,8 +641,6 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	if err != nil {
 		return err
 	}
-
-	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.InvocationCount, req.NodeId)
 
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
@@ -614,6 +675,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 								},
 							},
 						})
+
 						if sendErr != nil {
 							d.l.Error().Err(sendErr).Msg("failed to send callback_completed")
 						}

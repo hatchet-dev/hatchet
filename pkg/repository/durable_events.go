@@ -46,6 +46,11 @@ type CreateEventLogCallbackOpts struct {
 	IsSatisfied           bool
 }
 
+type EventLogCallbackWithPayload struct {
+	Callback *sqlcv1.V1DurableEventLogCallback
+	Result   []byte
+}
+
 type DurableEventsRepository interface {
 	CreateEventLogFiles(ctx context.Context, opts []CreateEventLogFileOpts) ([]*sqlcv1.V1DurableEventLogFile, error)
 	GetOrCreateEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
@@ -55,7 +60,7 @@ type DurableEventsRepository interface {
 	ListEventLogEntries(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogEntry, error)
 
 	CreateEventLogCallbacks(ctx context.Context, opts []CreateEventLogCallbackOpts) ([]*sqlcv1.V1DurableEventLogCallback, error)
-	GetEventLogCallback(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLogCallback, error)
+	GetEventLogCallback(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*EventLogCallbackWithPayload, error)
 	ListEventLogCallbacks(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogCallback, error)
 	UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error)
 }
@@ -288,12 +293,32 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 	return callbacks, nil
 }
 
-func (r *durableEventsRepository) GetEventLogCallback(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLogCallback, error) {
-	return r.queries.GetDurableEventLogCallback(ctx, r.pool, sqlcv1.GetDurableEventLogCallbackParams{
+func (r *durableEventsRepository) GetEventLogCallback(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*EventLogCallbackWithPayload, error) {
+	callback, err := r.queries.GetDurableEventLogCallback(ctx, r.pool, sqlcv1.GetDurableEventLogCallbackParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Key:                   key,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
+		Id:         callback.ID,
+		InsertedAt: callback.InsertedAt,
+		Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+		TenantId:   tenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &EventLogCallbackWithPayload{
+		Callback: callback,
+		Result:   result,
+	}, nil
 }
 
 func (r *durableEventsRepository) ListEventLogCallbacks(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogCallback, error) {
