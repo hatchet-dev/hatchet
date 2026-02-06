@@ -595,9 +595,42 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskCompleted(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleTaskFailed(ctx, task, retryCount, request)
+	// TODO-DURABLE: handle StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED as its own case
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESUMING:
+		// Monitoring-only events: publish to OLAP, but do not affect task execution status.
+		return s.handleTaskMonitoringOnly(ctx, task, retryCount, request)
 	}
 
 	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
+}
+
+func (s *DispatcherImpl) handleTaskMonitoringOnly(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+		tenantId,
+		task.ID,
+		retryCount,
+		request,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {

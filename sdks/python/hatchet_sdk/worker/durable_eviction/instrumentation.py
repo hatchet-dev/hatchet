@@ -1,16 +1,16 @@
-# TODO file name
+# TODO-DURABLE: file name
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import asynccontextmanager, contextmanager
-from typing import Iterator
 
+from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_durable_eviction_manager,
     ctx_is_durable,
 )
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
-from hatchet_sdk.runnables.action import ActionKey
 
 
 def _get_eviction_ctx() -> tuple[ActionKey | None, DurableEvictionManager | None]:
@@ -40,7 +40,7 @@ def durable_eviction_wait(wait_kind: str, resource_id: str) -> Iterator[None]:
         yield
     finally:
         if key and mgr is not None:
-            mgr.mark_active(key) 
+            mgr.mark_active(key)
 
 
 @asynccontextmanager

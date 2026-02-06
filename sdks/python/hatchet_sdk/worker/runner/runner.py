@@ -27,7 +27,11 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
+    STEP_EVENT_TYPE_CANCELLATION_FAILED,
+    STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+    STEP_EVENT_TYPE_CANCELLING,
     STEP_EVENT_TYPE_COMPLETED,
+    STEP_EVENT_TYPE_DURABLE_EVICTED,
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
@@ -64,20 +68,21 @@ from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
-from hatchet_sdk.worker.runner.utils.capture_logs import (
-    AsyncLogSender,
-    ContextVarToCopy,
-    ContextVarToCopyDict,
-    ContextVarToCopyInt,
-    ContextVarToCopyToken,
-    ContextVarToCopyBool,
-    ContextVarToCopyStr,
-    copy_context_vars,
-)
+from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
 from hatchet_sdk.worker.durable_eviction.manager import (
     DEFAULT_DURABLE_EVICTION_CONFIG,
     DurableEvictionConfig,
     DurableEvictionManager,
+)
+from hatchet_sdk.worker.runner.utils.capture_logs import (
+    AsyncLogSender,
+    ContextVarToCopy,
+    ContextVarToCopyBool,
+    ContextVarToCopyDict,
+    ContextVarToCopyInt,
+    ContextVarToCopyStr,
+    ContextVarToCopyToken,
+    copy_context_vars,
 )
 
 
@@ -110,6 +115,9 @@ class Runner:
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
         self.cancellations = BoundedDict[str, bool](maxsize=1000)
+        # Persist cancellation reasons beyond context cleanup, so cancellation actions which
+        # arrive after local cancellation (e.g. durable eviction) can still emit correct reasons.
+        self.cancellation_reasons = BoundedDict[str, str](maxsize=1000)
         self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
@@ -153,6 +161,8 @@ class Runner:
         self.durable_eviction_manager = DurableEvictionManager(
             durable_slots=self.durable_slots,
             cancel_remote=self.runs_client.aio_cancel,
+            on_eviction_selected=self._emit_durable_evicted,
+            on_eviction_cancelled=self._emit_durable_eviction_cancelling,
             config=durable_eviction_config,
         )
         self.durable_eviction_manager.start()
@@ -548,9 +558,23 @@ class Runner:
         key = action.key
         start_time = time.monotonic()
 
+        # Prefer the SDK-local cancellation token reason if it was already set
+        # (e.g. durable eviction cancels the local token before the engine cancel arrives).
+        reason = (
+            self.contexts[key].cancellation_token.reason.value
+            if key in self.contexts
+            and self.contexts[key].cancellation_token.reason is not None
+            else self.cancellation_reasons.get(
+                key, CancellationReason.WORKFLOW_CANCELLED.value
+            )
+        )
+
+        # Persist the reason so we can still reference it after context cleanup.
+        self.cancellation_reasons[key] = reason
+
         logger.info(
             f"Cancellation: received cancel action for {action.action_id}, "
-            f"reason={CancellationReason.WORKFLOW_CANCELLED.value}"
+            f"reason={reason}"
         )
 
         try:
@@ -560,7 +584,7 @@ class Runner:
                 child_count = len(ctx.cancellation_token.child_run_ids)
                 logger.debug(
                     f"Cancellation: triggering token for {action.action_id}, "
-                    f"reason={CancellationReason.WORKFLOW_CANCELLED.value}, "
+                    f"reason={reason}, "
                     f"{child_count} children registered"
                 )
                 ctx._set_cancellation_flag(CancellationReason.WORKFLOW_CANCELLED)
@@ -622,6 +646,22 @@ class Runner:
                             f"and prevent new tasks from running."
                         )
 
+                        total_elapsed_ms = int(
+                            round((time.monotonic() - start_time) * 1000)
+                        )
+                        await self.dispatcher_client.send_step_action_event(
+                            action,
+                            STEP_EVENT_TYPE_CANCELLATION_FAILED,
+                            json.dumps(
+                                {
+                                    "reason": reason,
+                                    "elapsed_ms": total_elapsed_ms,
+                                }
+                            ),
+                            should_not_retry=False,
+                        )
+
+                # Log final status for slow cancellation
                 total_elapsed = time.monotonic() - start_time
                 total_elapsed_ms = round(total_elapsed * 1000)
                 if total_elapsed > grace_period:
@@ -629,14 +669,102 @@ class Runner:
                         f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
                         f"(exceeded grace period of {grace_period_ms}ms)"
                     )
+
+                    # Emit another monitoring event for grace-period exceedance.
+                    await self.dispatcher_client.send_step_action_event(
+                        action,
+                        STEP_EVENT_TYPE_CANCELLING,
+                        json.dumps(
+                            {
+                                "reason": reason,
+                                "elapsed_ms": total_elapsed_ms,
+                            }
+                        ),
+                        should_not_retry=False,
+                    )
                 else:
                     logger.debug(
                         f"Cancellation: task {action.action_id} eventually completed in {total_elapsed_ms}ms"
                     )
+
+                # Emit confirmation if task has completed.
+                task_done = key not in self.tasks or self.tasks[key].done()
+                if task_done:
+                    await self.dispatcher_client.send_step_action_event(
+                        action,
+                        STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+                        json.dumps(
+                            {
+                                "reason": reason,
+                                "elapsed_ms": total_elapsed_ms,
+                            }
+                        ),
+                        should_not_retry=False,
+                    )
             else:
-                logger.info(f"Cancellation: task {action.action_id} completed")
+                # Task completed quickly - log success and exit
+                logger.info(
+                    f"Cancellation: task {action.action_id} completed"
+                )
+
+                total_elapsed_ms = int(round((time.monotonic() - start_time) * 1000))
+                await self.dispatcher_client.send_step_action_event(
+                    action,
+                    STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+                    json.dumps(
+                        {
+                            "reason": reason,
+                            "elapsed_ms": total_elapsed_ms,
+                        }
+                    ),
+                    should_not_retry=False,
+                )
         finally:
             self.cleanup_run_id(key)
+
+    async def _emit_durable_evicted(self, key: ActionKey, rec: DurableRunRecord) -> None:
+        ctx = self.contexts.get(key)
+        if ctx is None:
+            return
+
+        ttl_seconds: float | None = None
+        if rec.eviction is not None:
+            ttl_seconds = rec.eviction.ttl.total_seconds()
+
+        await self.dispatcher_client.send_step_action_event(
+            ctx.action,
+            STEP_EVENT_TYPE_DURABLE_EVICTED,
+            json.dumps(
+                {
+                    "reason": CancellationReason.EVICTED.value,
+                    "wait_kind": rec.wait_kind,
+                    "resource_id": rec.wait_resource_id,
+                    "ttl_seconds": ttl_seconds,
+                    "capacity_allowed": (
+                        rec.eviction.allow_capacity_eviction if rec.eviction else None
+                    ),
+                }
+            ),
+            should_not_retry=False,
+        )
+
+    async def _emit_durable_eviction_cancelling(
+        self, key: ActionKey, rec: DurableRunRecord
+    ) -> None:
+        ctx = self.contexts.get(key)
+        if ctx is None:
+            return
+
+        # Ensure later cancellation handling can still find the correct reason,
+        # even if the engine cancel action arrives after cleanup.
+        self.cancellation_reasons[key] = CancellationReason.EVICTED.value
+
+        await self.dispatcher_client.send_step_action_event(
+            ctx.action,
+            STEP_EVENT_TYPE_CANCELLING,
+            json.dumps({"reason": CancellationReason.EVICTED.value}),
+            should_not_retry=False,
+        )
 
     def serialize_output(self, output: Any) -> str | None:
         if not output:

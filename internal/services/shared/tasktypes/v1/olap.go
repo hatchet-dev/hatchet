@@ -124,6 +124,16 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 		payload.EventType = sqlcv1.V1EventTypeOlapFAILED
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		payload.EventType = sqlcv1.V1EventTypeOlapSTARTED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED_CONFIRMED:
+		payload.EventType = sqlcv1.V1EventTypeOlapCANCELLEDCONFIRMED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED:
+		payload.EventType = sqlcv1.V1EventTypeOlapCANCELLATIONFAILED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED:
+		payload.EventType = sqlcv1.V1EventTypeOlapDURABLEEVICTED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESUMING:
+		payload.EventType = sqlcv1.V1EventTypeOlapDURABLERESUMING
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING:
+		payload.EventType = sqlcv1.V1EventTypeOlapCANCELLING
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	}

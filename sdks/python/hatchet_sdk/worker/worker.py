@@ -32,10 +32,7 @@ from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
 )
-from hatchet_sdk.worker.durable_eviction.manager import (
-    DEFAULT_DURABLE_EVICTION_CONFIG,
-    DurableEvictionConfig,
-)
+from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionConfig
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
 
 T = TypeVar("T")

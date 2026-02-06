@@ -42,7 +42,7 @@ ctx_cancellation_token: ContextVar[CancellationToken | None] = ContextVar(
 
 # Durable-run eviction instrumentation.
 ctx_is_durable: ContextVar[bool] = ContextVar("ctx_is_durable", default=False)
-ctx_durable_eviction_manager: ContextVar["DurableEvictionManager | None"] = ContextVar(
+ctx_durable_eviction_manager: ContextVar[DurableEvictionManager | None] = ContextVar(
     "ctx_durable_eviction_manager", default=None
 )
 
