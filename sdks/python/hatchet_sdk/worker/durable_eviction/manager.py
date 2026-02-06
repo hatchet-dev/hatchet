@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Callable
+from collections.abc import Awaitable, Callable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -37,7 +37,7 @@ class DurableEvictionManager:
         self,
         *,
         durable_slots: int,
-        cancel_remote: Callable[[str], None],
+        cancel_remote: Callable[[str], Awaitable[None]],
         config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
         cache: DurableEvictionCache | None = None,
     ) -> None:
@@ -150,7 +150,7 @@ class DurableEvictionManager:
 
                 # Ensure engine sees it as cancelled (best-effort).
                 # TODO: eviction ack
-                # await asyncio.to_thread(self._cancel_remote, rec.step_run_id)
+                await self._cancel_remote(rec.step_run_id)
 
                 # Unwind locally ASAP (causes waits to raise).
                 rec.token.cancel(CancellationReason.EVICTED)

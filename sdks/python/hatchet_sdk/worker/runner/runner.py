@@ -145,7 +145,7 @@ class Runner:
         # Durable eviction manager (no-op unless durable runs are registered).
         self.durable_eviction_manager = DurableEvictionManager(
             durable_slots=self.durable_slots,
-            cancel_remote=self.runs_client.cancel,
+            cancel_remote=self.runs_client.aio_cancel,
             config=durable_eviction_config,
         )
         self.durable_eviction_manager.start()
