@@ -38,7 +38,7 @@ function TaskRunLogsContent() {
 
   return (
     <div className="my-4 flex flex-col gap-y-2">
-      {isLogSearchEnabled && <LogSearchInput />}
+      {<LogSearchInput />}
       <LogViewer
         key={queryString}
         logs={logs}
