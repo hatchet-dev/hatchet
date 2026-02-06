@@ -16,6 +16,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_cancellation_token,
+    ctx_is_durable,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -52,6 +53,11 @@ class ContextVarToCopyDict(BaseModel):
     value: JSONSerializableMapping | None
 
 
+class ContextVarToCopyBool(BaseModel):
+    name: Literal["ctx_is_durable"]
+    value: bool
+
+
 class ContextVarToCopyToken(BaseModel):
     """Special type for copying CancellationToken to threads."""
 
@@ -66,6 +72,7 @@ class ContextVarToCopy(BaseModel):
         ContextVarToCopyStr
         | ContextVarToCopyDict
         | ContextVarToCopyInt
+        | ContextVarToCopyBool
         | ContextVarToCopyToken
     ) = Field(discriminator="name")
 
@@ -91,6 +98,8 @@ def copy_context_vars(
             ctx_additional_metadata.set(var.var.value or {})
         elif var.var.name == "ctx_cancellation_token":
             ctx_cancellation_token.set(var.var.value)
+        elif var.var.name == "ctx_is_durable":
+            ctx_is_durable.set(var.var.value)
         else:
             raise ValueError(f"Unknown context variable name: {var.var.name}")
 

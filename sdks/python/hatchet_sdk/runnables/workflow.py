@@ -47,6 +47,10 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_cancellation_token,
     ctx_durable_context,
 )
+from hatchet_sdk.runnables.eviction import (
+    DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+    EvictionPolicy,
+)
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -1084,6 +1088,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
+        :param eviction: Task-scoped durable eviction parameters. If set to `None`, this durable task
+            run will never be eligible for eviction.
+
         :returns: A decorator which creates a `Task` object.
         """
 
@@ -1122,6 +1129,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                durable_eviction=None,
             )
 
             self._default_tasks.append(task)
@@ -1145,6 +1153,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
+        eviction: EvictionPolicy
+        | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[
@@ -1224,6 +1234,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                durable_eviction=eviction,
             )
 
             self._durable_tasks.append(task)
@@ -1291,6 +1302,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=None,
                 skip_if=None,
                 cancel_if=None,
+                durable_eviction=None,
             )
 
             if self._on_failure_task:
@@ -1361,6 +1373,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=None,
                 skip_if=None,
                 cancel_if=None,
+                durable_eviction=None,
             )
 
             if self._on_success_task:

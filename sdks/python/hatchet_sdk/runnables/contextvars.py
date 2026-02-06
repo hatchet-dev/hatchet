@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.cancellation import CancellationToken
     from hatchet_sdk.clients.admin import AdminClient
     from hatchet_sdk.context.context import DurableContext
+    from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None
@@ -37,6 +38,12 @@ ctx_admin_client: ContextVar[AdminClient | None] = ContextVar(
 
 ctx_cancellation_token: ContextVar[CancellationToken | None] = ContextVar(
     "ctx_cancellation_token", default=None
+)
+
+# Durable-run eviction instrumentation.
+ctx_is_durable: ContextVar[bool] = ContextVar("ctx_is_durable", default=False)
+ctx_durable_eviction_manager: ContextVar["DurableEvictionManager | None"] = ContextVar(
+    "ctx_durable_eviction_manager", default=None
 )
 
 workflow_spawn_indices = Counter[ActionKey]()

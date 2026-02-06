@@ -45,7 +45,10 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_additional_metadata,
     ctx_admin_client,
     ctx_cancellation_token,
+    # TODO-DURABLE: is this redundant?
     ctx_durable_context,
+    ctx_durable_eviction_manager,
+    ctx_is_durable,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -66,9 +69,15 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopy,
     ContextVarToCopyDict,
     ContextVarToCopyInt,
-    ContextVarToCopyStr,
     ContextVarToCopyToken,
+    ContextVarToCopyBool,
+    ContextVarToCopyStr,
     copy_context_vars,
+)
+from hatchet_sdk.worker.durable_eviction.manager import (
+    DEFAULT_DURABLE_EVICTION_CONFIG,
+    DurableEvictionConfig,
+    DurableEvictionManager,
 )
 
 
@@ -85,16 +94,19 @@ class Runner:
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int,
+        durable_slots: int,
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        durable_eviction_config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
 
         self.slots = slots
+        self.durable_slots = durable_slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
         self.cancellations = BoundedDict[str, bool](maxsize=1000)
@@ -136,6 +148,14 @@ class Runner:
 
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
+
+        # Durable eviction manager (no-op unless durable runs are registered).
+        self.durable_eviction_manager = DurableEvictionManager(
+            durable_slots=self.durable_slots,
+            cancel_remote=self.runs_client.cancel,
+            config=durable_eviction_config,
+        )
+        self.durable_eviction_manager.start()
 
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
@@ -271,6 +291,10 @@ class Runner:
             ctx if isinstance(ctx, DurableContext) and task.is_durable else None
         )
         ctx_cancellation_token.set(ctx.cancellation_token)
+        ctx_is_durable.set(bool(task.is_durable))
+        ctx_durable_eviction_manager.set(
+            self.durable_eviction_manager if task.is_durable else None
+        )
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
@@ -322,6 +346,12 @@ class Runner:
                             var=ContextVarToCopyToken(
                                 name="ctx_cancellation_token",
                                 value=ctx.cancellation_token,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyBool(
+                                name="ctx_is_durable",
+                                value=bool(task.is_durable),
                             )
                         ),
                     ],
@@ -379,6 +409,9 @@ class Runner:
         logger.debug("started thread pool monitoring background task")
 
     def cleanup_run_id(self, key: ActionKey) -> None:
+        # Ensure we don't leak eviction records.
+        self.durable_eviction_manager.unregister_run(key)
+
         if key in self.tasks:
             del self.tasks[key]
 
@@ -439,6 +472,13 @@ class Runner:
             )
 
             self.contexts[action.key] = context
+            if action_func.is_durable:
+                self.durable_eviction_manager.register_run(
+                    action.key,
+                    step_run_id=action.step_run_id,
+                    token=context.cancellation_token,
+                    eviction=action_func.durable_eviction,
+                )
             self.event_queue.put(
                 ActionEvent(
                     action=action,

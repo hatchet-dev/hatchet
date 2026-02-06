@@ -16,6 +16,10 @@ from hatchet_sdk.exceptions import (
 )
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.cancellation import await_with_cancellation
+from hatchet_sdk.worker.durable_eviction.instrumentation import (
+    aio_durable_eviction_wait,
+    durable_eviction_wait,
+)
 
 if TYPE_CHECKING:
     from hatchet_sdk.cancellation import CancellationToken
@@ -55,12 +59,15 @@ class WorkflowRunRef:
             f"token={cancellation_token is not None}"
         )
 
-        if cancellation_token:
-            return await await_with_cancellation(
-                self.workflow_run_listener.aio_result(self.workflow_run_id),
-                cancellation_token,
-            )
-        return await self.workflow_run_listener.aio_result(self.workflow_run_id)
+        async with aio_durable_eviction_wait(
+            "workflow_run_result", self.workflow_run_id
+        ):
+            if cancellation_token:
+                return await await_with_cancellation(
+                    self.workflow_run_listener.aio_result(self.workflow_run_id),
+                    cancellation_token,
+                )
+            return await self.workflow_run_listener.aio_result(self.workflow_run_id)
 
     def _safely_get_action_name(self, action_id: str | None) -> str | None:
         if not action_id:
@@ -95,88 +102,91 @@ class WorkflowRunRef:
 
         retries = 0
 
-        while True:
-            # Check cancellation at start of each iteration
-            if cancellation_token and cancellation_token.is_cancelled:
+        with durable_eviction_wait("workflow_run_result", self.workflow_run_id):
+            while True:
+                # Check cancellation at start of each iteration
+                if cancellation_token and cancellation_token.is_cancelled:
+                    logger.debug(
+                        f"WorkflowRunRef.result: cancellation detected for {self.workflow_run_id}, "
+                        f"reason={CancellationReason.PARENT_CANCELLED.value}"
+                    )
+                    raise CancelledError(
+                        "Operation cancelled by cancellation token",
+                        reason=CancellationReason.PARENT_CANCELLED,
+                    )
+
+                try:
+                    details = self.admin_client.get_details(self.workflow_run_id)
+                except Exception as e:
+                    retries += 1
+
+                    if retries > 10:
+                        raise ValueError(
+                            f"Workflow run {self.workflow_run_id} not found"
+                        ) from e
+
+                    # Use interruptible sleep via token.wait()
+                    if cancellation_token:
+                        if cancellation_token.wait(timeout=1.0):
+                            logger.debug(
+                                f"WorkflowRunRef.result: cancellation during retry sleep for {self.workflow_run_id}, "
+                                f"reason={CancellationReason.PARENT_CANCELLED.value}"
+                            )
+                            raise CancelledError(
+                                "Operation cancelled by cancellation token",
+                                reason=CancellationReason.PARENT_CANCELLED,
+                            ) from None
+                    else:
+                        time.sleep(1)
+                    continue
+
                 logger.debug(
-                    f"WorkflowRunRef.result: cancellation detected for {self.workflow_run_id}, "
-                    f"reason={CancellationReason.PARENT_CANCELLED.value}"
-                )
-                raise CancelledError(
-                    "Operation cancelled by cancellation token",
-                    reason=CancellationReason.PARENT_CANCELLED,
+                    f"WorkflowRunRef.result: {self.workflow_run_id} status={details.status}"
                 )
 
-            try:
-                details = self.admin_client.get_details(self.workflow_run_id)
-            except Exception as e:
-                retries += 1
+                if (
+                    details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
+                    or details.done is False
+                ):
+                    # Use interruptible sleep via token.wait()
+                    if cancellation_token:
+                        if cancellation_token.wait(timeout=1.0):
+                            logger.debug(
+                                f"WorkflowRunRef.result: cancellation during poll sleep for {self.workflow_run_id}, "
+                                f"reason={CancellationReason.PARENT_CANCELLED.value}"
+                            )
+                            raise CancelledError(
+                                "Operation cancelled by cancellation token",
+                                reason=CancellationReason.PARENT_CANCELLED,
+                            )
+                    else:
+                        time.sleep(1)
+                    continue
 
-                if retries > 10:
+                if details.status == RunStatus.FAILED:
+                    raise FailedTaskRunExceptionGroup(
+                        f"Workflow run {self.workflow_run_id} failed.",
+                        [
+                            TaskRunError.deserialize(run.error)
+                            for run in details.task_runs.values()
+                            if run.error
+                        ],
+                    )
+
+                if details.status == RunStatus.COMPLETED:
+                    logger.debug(
+                        f"WorkflowRunRef.result: {self.workflow_run_id} completed successfully"
+                    )
+                    return {
+                        readable_id: run.output
+                        for readable_id, run in details.task_runs.items()
+                    } or {}
+
+                if details.status == RunStatus.CANCELLED:
                     raise ValueError(
-                        f"Workflow run {self.workflow_run_id} not found"
-                    ) from e
+                        f"Workflow run {self.workflow_run_id} was cancelled."
+                    )
 
-                # Use interruptible sleep via token.wait()
-                if cancellation_token:
-                    if cancellation_token.wait(timeout=1.0):
-                        logger.debug(
-                            f"WorkflowRunRef.result: cancellation during retry sleep for {self.workflow_run_id}, "
-                            f"reason={CancellationReason.PARENT_CANCELLED.value}"
-                        )
-                        raise CancelledError(
-                            "Operation cancelled by cancellation token",
-                            reason=CancellationReason.PARENT_CANCELLED,
-                        ) from None
-                else:
-                    time.sleep(1)
-                continue
-
-            logger.debug(
-                f"WorkflowRunRef.result: {self.workflow_run_id} status={details.status}"
-            )
-
-            if (
-                details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
-                or details.done is False
-            ):
-                # Use interruptible sleep via token.wait()
-                if cancellation_token:
-                    if cancellation_token.wait(timeout=1.0):
-                        logger.debug(
-                            f"WorkflowRunRef.result: cancellation during poll sleep for {self.workflow_run_id}, "
-                            f"reason={CancellationReason.PARENT_CANCELLED.value}"
-                        )
-                        raise CancelledError(
-                            "Operation cancelled by cancellation token",
-                            reason=CancellationReason.PARENT_CANCELLED,
-                        )
-                else:
-                    time.sleep(1)
-                continue
-
-            if details.status == RunStatus.FAILED:
-                raise FailedTaskRunExceptionGroup(
-                    f"Workflow run {self.workflow_run_id} failed.",
-                    [
-                        TaskRunError.deserialize(run.error)
-                        for run in details.task_runs.values()
-                        if run.error
-                    ],
+                raise ValueError(
+                    f"Workflow run {self.workflow_run_id} has not completed yet."
                 )
-
-            if details.status == RunStatus.COMPLETED:
-                logger.debug(
-                    f"WorkflowRunRef.result: {self.workflow_run_id} completed successfully"
-                )
-                return {
-                    readable_id: run.output
-                    for readable_id, run in details.task_runs.items()
-                } or {}
-
-            if details.status == RunStatus.CANCELLED:
-                raise ValueError(f"Workflow run {self.workflow_run_id} was cancelled.")
-
-            raise ValueError(
-                f"Workflow run {self.workflow_run_id} has not completed yet."
-            )

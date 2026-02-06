@@ -191,6 +191,8 @@ class CancellationReason(Enum):
     TOKEN_CANCELLED = "token_cancelled"
     """The cancellation token was cancelled."""
 
+    EVICTED = "evicted"
+    """The operation was cancelled due to durable-run eviction."""
 
 class CancelledError(BaseException):
     """
