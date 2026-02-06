@@ -138,7 +138,8 @@ WITH inputs AS (
         UNNEST(CAST(@kinds::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
         UNNEST(@keys::TEXT[]) AS key,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
+        UNNEST(@externalIds::UUID[]) AS external_id
 )
 INSERT INTO v1_durable_event_log_callback (
     durable_task_id,
@@ -147,7 +148,8 @@ INSERT INTO v1_durable_event_log_callback (
     kind,
     key,
     node_id,
-    is_satisfied
+    is_satisfied,
+    external_id
 )
 SELECT
     i.durable_task_id,
@@ -156,7 +158,8 @@ SELECT
     i.kind,
     i.key,
     i.node_id,
-    i.is_satisfied
+    i.is_satisfied,
+    i.external_id
 FROM
     inputs i
 RETURNING *

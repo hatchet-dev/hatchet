@@ -614,6 +614,8 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
+	externalId := uuid.New()
+
 	_, err = d.repo.DurableEvents().CreateEventLogCallbacks(ctx, []v1.CreateEventLogCallbackOpts{{
 		DurableTaskId:         task.ID,
 		DurableTaskInsertedAt: task.InsertedAt,
@@ -622,6 +624,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 		Key:                   callbackKey,
 		NodeId:                req.NodeId,
 		IsSatisfied:           false,
+		ExternalId:            externalId,
 	}})
 
 	if err != nil {

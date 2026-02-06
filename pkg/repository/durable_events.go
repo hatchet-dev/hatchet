@@ -40,6 +40,7 @@ type CreateEventLogCallbackOpts struct {
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
 	InsertedAt            pgtype.Timestamptz
+	ExternalId            uuid.UUID
 	Kind                  string
 	Key                   string
 	NodeId                int64
@@ -262,6 +263,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 	keys := make([]string, len(opts))
 	nodeIds := make([]int64, len(opts))
 	isSatisfieds := make([]bool, len(opts))
+	externalIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
 		durableTaskIds[i] = opt.DurableTaskId
@@ -271,6 +273,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		keys[i] = opt.Key
 		nodeIds[i] = opt.NodeId
 		isSatisfieds[i] = opt.IsSatisfied
+		externalIds[i] = opt.ExternalId
 	}
 
 	callbacks, err := r.queries.CreateDurableEventLogCallbacks(ctx, tx, sqlcv1.CreateDurableEventLogCallbacksParams{
@@ -281,7 +284,9 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		Keys:                   keys,
 		Nodeids:                nodeIds,
 		Issatisfieds:           isSatisfieds,
+		Externalids:            externalIds,
 	})
+
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,8 @@ WITH inputs AS (
         UNNEST(CAST($4::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
         UNNEST($5::TEXT[]) AS key,
         UNNEST($6::BIGINT[]) AS node_id,
-        UNNEST($7::BOOLEAN[]) AS is_satisfied
+        UNNEST($7::BOOLEAN[]) AS is_satisfied,
+        UNNEST($8::UUID[]) AS external_id
 )
 INSERT INTO v1_durable_event_log_callback (
     durable_task_id,
@@ -30,7 +31,8 @@ INSERT INTO v1_durable_event_log_callback (
     kind,
     key,
     node_id,
-    is_satisfied
+    is_satisfied,
+    external_id
 )
 SELECT
     i.durable_task_id,
@@ -39,7 +41,8 @@ SELECT
     i.kind,
     i.key,
     i.node_id,
-    i.is_satisfied
+    i.is_satisfied,
+    i.external_id
 FROM
     inputs i
 RETURNING external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied
@@ -53,6 +56,7 @@ type CreateDurableEventLogCallbacksParams struct {
 	Keys                   []string             `json:"keys"`
 	Nodeids                []int64              `json:"nodeids"`
 	Issatisfieds           []bool               `json:"issatisfieds"`
+	Externalids            []uuid.UUID          `json:"externalids"`
 }
 
 func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, arg CreateDurableEventLogCallbacksParams) ([]*V1DurableEventLogCallback, error) {
@@ -64,6 +68,7 @@ func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, a
 		arg.Keys,
 		arg.Nodeids,
 		arg.Issatisfieds,
+		arg.Externalids,
 	)
 	if err != nil {
 		return nil, err
