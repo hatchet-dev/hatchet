@@ -13,20 +13,19 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
     EventWorkflowRunSummary,
 )
 from hatchet_sdk.clients.rest.models.tenant import Tenant
+from typing import Optional, Set
+from typing_extensions import Self
 
 
 class Event(BaseModel):

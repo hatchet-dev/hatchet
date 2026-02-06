@@ -12,13 +12,13 @@
 """  # noqa: E501
 
 import warnings
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from pydantic import Field
+from typing import Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.user import User
 from hatchet_sdk.clients.rest.models.user_change_password_request import (
     UserChangePasswordRequest,
@@ -28,6 +28,9 @@ from hatchet_sdk.clients.rest.models.user_register_request import UserRegisterRe
 from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
     UserTenantMembershipsList,
 )
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 

@@ -13,19 +13,18 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.step import Step
 from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
+from typing import Optional, Set
+from typing_extensions import Self
 
 
 class StepRun(BaseModel):

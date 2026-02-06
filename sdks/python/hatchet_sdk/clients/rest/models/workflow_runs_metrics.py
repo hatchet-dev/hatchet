@@ -12,19 +12,18 @@
 """  # noqa: E501
 
 
-from __future__ import annotations
-
-import json
-import pprint
-import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
-from pydantic import BaseModel, ConfigDict
-from typing_extensions import Self
-
 from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
     WorkflowRunsMetricsCounts,
 )
+from __future__ import annotations
+import pprint
+import re  # noqa: F401
+import json
+
+from pydantic import BaseModel, ConfigDict
+from typing import Any, ClassVar, Dict, List, Optional
+from typing import Optional, Set
+from typing_extensions import Self
 
 
 class WorkflowRunsMetrics(BaseModel):

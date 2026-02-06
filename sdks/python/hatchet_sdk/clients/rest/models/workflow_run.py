@@ -13,22 +13,22 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Annotated, Self
-
+from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import (
     WorkflowRunTriggeredBy,
 )
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
+from typing import Optional, Set
+from typing_extensions import Self
 
 
 class WorkflowRun(BaseModel):

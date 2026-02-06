@@ -13,19 +13,19 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Annotated, Self
-
+from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_workflow_type import V1WorkflowType
+from typing import Optional, Set
+from typing_extensions import Self
 
 
 class V1TaskSummary(BaseModel):
