@@ -103,7 +103,9 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
+  V1LogLineLevel,
   V1LogLineList,
+  V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
   V1TaskEventList,
@@ -234,6 +236,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The direction to order by */
+      order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
     },
     params: RequestParams = {}
   ) =>

@@ -117,6 +117,11 @@ export enum StepRunStatus {
   BACKOFF = 'BACKOFF',
 }
 
+export enum ConcurrencyScope {
+  WORKFLOW = 'WORKFLOW',
+  TASK = 'TASK',
+}
+
 export enum ConcurrencyLimitStrategy {
   CANCEL_IN_PROGRESS = 'CANCEL_IN_PROGRESS',
   DROP_NEWEST = 'DROP_NEWEST',
@@ -199,7 +204,6 @@ export enum TenantResource {
   WORKER = 'WORKER',
   WORKER_SLOT = 'WORKER_SLOT',
   EVENT = 'EVENT',
-  WORKFLOW_RUN = 'WORKFLOW_RUN',
   TASK_RUN = 'TASK_RUN',
   CRON = 'CRON',
   SCHEDULE = 'SCHEDULE',
@@ -248,6 +252,11 @@ export enum TenantEnvironment {
 export enum TenantVersion {
   V0 = 'V0',
   V1 = 'V1',
+}
+
+export enum V1LogLineOrderByDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
 }
 
 export enum V1LogLineLevel {
@@ -1558,6 +1567,10 @@ export interface Step {
   action: string;
   /** The timeout of the step. */
   timeout?: string;
+  /** Whether the step is durable. */
+  isDurable?: boolean;
+  /** Slot requests for the step (slot_type -> units). */
+  slotRequests?: Record<string, number>;
   children?: string[];
   parents?: string[];
 }
@@ -1788,6 +1801,22 @@ export interface WorkflowTriggers {
   crons?: WorkflowTriggerCronRef[];
 }
 
+export interface ConcurrencySetting {
+  /**
+   * The maximum number of concurrent workflow runs.
+   * @format int32
+   */
+  maxRuns: number;
+  /** The strategy to use when the concurrency limit is reached. */
+  limitStrategy: ConcurrencyLimitStrategy;
+  /** The concurrency expression, used to generate a key from task inputs, metadata, etc. */
+  expression: string;
+  /** The readable id of the step to which this concurrency setting applies. */
+  stepReadableId?: string;
+  /** The scope of the concurrency setting. */
+  scope: ConcurrencyScope;
+}
+
 export interface WorkflowVersion {
   metadata: APIResourceMeta;
   /** The version of the workflow. */
@@ -1808,6 +1837,9 @@ export interface WorkflowVersion {
   scheduleTimeout?: string;
   jobs?: Job[];
   workflowConfig?: object;
+  v1Concurrency?: ConcurrencySetting[];
+  /** The JSON schema for the workflow input. */
+  inputJsonSchema?: object;
 }
 
 export interface TriggerWorkflowRunRequest {
@@ -2117,6 +2149,14 @@ export interface RecentStepRuns {
   workflowRunId: string;
 }
 
+/** Slot availability and limits for a slot type. */
+export interface WorkerSlotConfig {
+  /** The number of available units for this slot type. */
+  available?: number;
+  /** The maximum number of units for this slot type. */
+  limit: number;
+}
+
 export interface WorkerLabel {
   metadata: APIResourceMeta;
   /** The key of the label. */
@@ -2160,10 +2200,8 @@ export interface Worker {
   recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
   status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
-  /** The maximum number of runs this worker can execute concurrently. */
-  maxRuns?: number;
-  /** The number of runs this worker can execute concurrently. */
-  availableRuns?: number;
+  /** Slot availability and limits for this worker (slot_type -> { available, limit }). */
+  slotConfig?: Record<string, WorkerSlotConfig>;
   /**
    * the id of the assigned dispatcher, in UUID format
    * @format uuid
