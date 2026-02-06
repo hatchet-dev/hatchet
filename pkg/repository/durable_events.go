@@ -3,8 +3,11 @@ package repository
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -45,7 +48,7 @@ type CreateEventLogCallbackOpts struct {
 
 type DurableEventsRepository interface {
 	CreateEventLogFiles(ctx context.Context, opts []CreateEventLogFileOpts) ([]*sqlcv1.V1DurableEventLogFile, error)
-	GetEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
+	GetOrCreateEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
 
 	CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.V1DurableEventLogEntry, error)
 	GetEventLogEntry(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*sqlcv1.V1DurableEventLogEntry, error)
@@ -110,11 +113,32 @@ func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts 
 	return files, nil
 }
 
-func (r *durableEventsRepository) GetEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
-	return r.queries.GetDurableEventLogFileForTask(ctx, r.pool, sqlcv1.GetDurableEventLogFileForTaskParams{
+func (r *durableEventsRepository) GetOrCreateEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+	lf, err := r.queries.GetDurableEventLogFileForTask(ctx, r.pool, sqlcv1.GetDurableEventLogFileForTaskParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		files, err := r.CreateEventLogFiles(ctx, []CreateEventLogFileOpts{{
+			DurableTaskId:                 durableTaskId,
+			DurableTaskInsertedAt:         durableTaskInsertedAt,
+			LatestInsertedAt:              sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+			LatestNodeId:                  0,
+			LatestBranchId:                1,
+			LatestBranchFirstParentNodeId: 0,
+		}})
+
+		if err != nil {
+			return nil, err
+		}
+
+		return files[0], nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return lf, nil
 }
 
 func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.V1DurableEventLogEntry, error) {
