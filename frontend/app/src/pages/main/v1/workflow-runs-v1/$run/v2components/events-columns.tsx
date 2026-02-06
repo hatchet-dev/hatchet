@@ -1,4 +1,5 @@
 import { EventWithMetadata } from './step-run-events-for-workflow-run';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -8,11 +9,11 @@ import {
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
 import { V1TaskEventType, V1TaskEvent } from '@/lib/api';
+import { docsPages } from '@/lib/generated/docs';
 import { cn, emptyGolangUUID } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
   ArrowLeftEndOnRectangleIcon,
-  ArrowTopRightOnSquareIcon,
   ServerStackIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
@@ -108,22 +109,11 @@ export function DescriptionCell({
 
   if (event.eventType === V1TaskEventType.CANCELLATION_FAILED) {
     items.push(
-      <Button
-        asChild
-        variant="link"
-        size="xs"
-        leftIcon={<ArrowTopRightOnSquareIcon className="size-4" />}
+      <DocsButton
+        doc={docsPages.home.cancellation}
+        label="View cancellation docs"
         key="cancellation-docs"
-      >
-        {/* TODO-DURABLE: Doc component */}
-        <a
-          href="https://docs.hatchet.run/home/cancellation"
-          target="_blank"
-          rel="noreferrer"
-        >
-          View cancellation docs
-        </a>
-      </Button>,
+      />,
     );
   }
 

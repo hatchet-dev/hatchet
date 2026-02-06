@@ -209,36 +209,6 @@ class UnprocessableEntityException(ApiException):
     pass
 
 
-class RestTransportError(ApiException):
-    """Base exception for REST transport-level errors (network, timeout, TLS)."""
-
-    pass
-
-
-class RestTimeoutError(RestTransportError):
-    """Raised when a REST request times out (connect or read timeout)."""
-
-    pass
-
-
-class RestConnectionError(RestTransportError):
-    """Raised when a REST request fails to establish a connection."""
-
-    pass
-
-
-class RestTLSError(RestTransportError):
-    """Raised when a REST request fails due to SSL/TLS errors."""
-
-    pass
-
-
-class RestProtocolError(RestTransportError):
-    """Raised when a REST request fails due to protocol-level errors."""
-
-    pass
-
-
 def render_path(path_to_item):
     """Returns a string representation of a path"""
     result = ""

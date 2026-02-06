@@ -1153,8 +1153,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
-        eviction: EvictionPolicy
-        | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[

@@ -8,7 +8,9 @@ from hatchet_sdk.worker.durable_eviction.cache import InMemoryDurableEvictionCac
 
 
 def dt(seconds: int) -> datetime:
-    return datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc) + timedelta(seconds=seconds)
+    return datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc) + timedelta(
+        seconds=seconds
+    )
 
 
 def test_ttl_eviction_prefers_oldest_waiting_and_priority() -> None:
@@ -22,15 +24,15 @@ def test_ttl_eviction_prefers_oldest_waiting_and_priority() -> None:
     eviction_low_prio = EvictionPolicy(ttl=timedelta(seconds=10), priority=0)
     eviction_high_prio = EvictionPolicy(ttl=timedelta(seconds=10), priority=10)
 
-    cache.register_run(
-        key1, "run-1", tok1, now=dt(0), eviction=eviction_high_prio
-    )
-    cache.register_run(
-        key2, "run-2", tok2, now=dt(0), eviction=eviction_low_prio
-    )
+    cache.register_run(key1, "run-1", tok1, now=dt(0), eviction=eviction_high_prio)
+    cache.register_run(key2, "run-2", tok2, now=dt(0), eviction=eviction_low_prio)
 
-    cache.mark_waiting(key1, now=dt(0), wait_kind="workflow_run_result", resource_id="wf1")
-    cache.mark_waiting(key2, now=dt(5), wait_kind="workflow_run_result", resource_id="wf2")
+    cache.mark_waiting(
+        key1, now=dt(0), wait_kind="workflow_run_result", resource_id="wf1"
+    )
+    cache.mark_waiting(
+        key2, now=dt(5), wait_kind="workflow_run_result", resource_id="wf2"
+    )
 
     # Both are past TTL at now=20, but low priority should be evicted first.
     chosen = cache.select_eviction_candidate(
@@ -94,7 +96,9 @@ def test_capacity_eviction_respects_allow_capacity_and_min_wait() -> None:
         ),
     )
 
-    cache.mark_waiting(key_blocked, now=dt(0), wait_kind="durable_event", resource_id="x")
+    cache.mark_waiting(
+        key_blocked, now=dt(0), wait_kind="durable_event", resource_id="x"
+    )
     cache.mark_waiting(key_ok, now=dt(0), wait_kind="durable_event", resource_id="y")
 
     # Capacity pressure because waiting_count==durable_slots==2, but enforce min-wait.
@@ -114,4 +118,3 @@ def test_capacity_eviction_respects_allow_capacity_and_min_wait() -> None:
         min_wait_for_capacity_eviction=timedelta(seconds=10),
     )
     assert chosen == key_ok
-

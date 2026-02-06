@@ -28,7 +28,6 @@ class WorkerRuntimeSDKs(str, Enum):
     GOLANG = "GOLANG"
     PYTHON = "PYTHON"
     TYPESCRIPT = "TYPESCRIPT"
-    RUBY = "RUBY"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

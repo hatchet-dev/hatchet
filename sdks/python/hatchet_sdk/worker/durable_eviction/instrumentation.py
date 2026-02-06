@@ -1,7 +1,7 @@
 # TODO-DURABLE: file name
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 
 from hatchet_sdk.runnables.action import ActionKey
@@ -33,8 +33,7 @@ def durable_eviction_wait(wait_kind: str, resource_id: str) -> Iterator[None]:
 
     key, mgr = _get_eviction_ctx()
     if key and mgr is not None:
-        # Manager type is intentionally erased to avoid import cycles.
-        mgr.mark_waiting(key, wait_kind=wait_kind, resource_id=resource_id)  # type: ignore[attr-defined]
+        mgr.mark_waiting(key, wait_kind=wait_kind, resource_id=resource_id)
 
     try:
         yield
@@ -44,11 +43,12 @@ def durable_eviction_wait(wait_kind: str, resource_id: str) -> Iterator[None]:
 
 
 @asynccontextmanager
-async def aio_durable_eviction_wait(wait_kind: str, resource_id: str):
+async def aio_durable_eviction_wait(
+    wait_kind: str, resource_id: str
+) -> AsyncIterator[None]:
     """
     Async variant of `durable_eviction_wait`.
     """
 
     with durable_eviction_wait(wait_kind, resource_id):
         yield
-

@@ -30,7 +30,6 @@ class V1WebhookSourceName(str, Enum):
     STRIPE = "STRIPE"
     SLACK = "SLACK"
     LINEAR = "LINEAR"
-    SVIX = "SVIX"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

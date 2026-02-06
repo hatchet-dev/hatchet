@@ -208,4 +208,3 @@ class InMemoryDurableEvictionCache(DurableEvictionCache):
             f"step_run_id={chosen.step_run_id} kind={chosen.wait_kind}"
         )
         return chosen.key
-

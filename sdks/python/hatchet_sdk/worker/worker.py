@@ -32,7 +32,10 @@ from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
 )
-from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionConfig
+from hatchet_sdk.worker.durable_eviction.manager import (
+    DEFAULT_DURABLE_EVICTION_CONFIG,
+    DurableEvictionConfig,
+)
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
 
 T = TypeVar("T")
@@ -71,7 +74,7 @@ class Worker:
         name: str,
         config: ClientConfig,
         slot_config: dict[str, int],
-        durable_eviction_config: DurableEvictionConfig = None,
+        durable_eviction_config: DurableEvictionConfig | None = None,
         labels: dict[str, str | int] | None = None,
         debug: bool = False,
         owned_loop: bool = True,
@@ -84,7 +87,9 @@ class Worker:
         self.slot_config = slot_config
         self._slots = slot_config.get("default", 0)
         self._durable_slots = slot_config.get("durable", 0)
-        self.durable_eviction_config = durable_eviction_config
+        self.durable_eviction_config: DurableEvictionConfig = (
+            durable_eviction_config or DEFAULT_DURABLE_EVICTION_CONFIG
+        )
         self.debug = debug
         self.labels = labels or {}
         self.handle_kill = handle_kill

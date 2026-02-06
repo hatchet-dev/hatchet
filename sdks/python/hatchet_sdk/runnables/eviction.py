@@ -34,4 +34,3 @@ DEFAULT_DURABLE_TASK_EVICTION_POLICY = EvictionPolicy(
     allow_capacity_eviction=True,
     priority=0,
 )
-
