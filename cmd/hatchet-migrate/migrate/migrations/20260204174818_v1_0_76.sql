@@ -19,6 +19,9 @@ CREATE TABLE v1_durable_event_log_file (
     CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
+SELECT create_v1_range_partition('v1_durable_event_log_file', NOW()::DATE);
+SELECT create_v1_range_partition('v1_durable_event_log_file', (NOW() + INTERVAL '1 day')::DATE);
+
 CREATE TYPE v1_durable_event_log_entry_kind AS ENUM (
     'RUN_TRIGGERED',
     'WAIT_FOR_STARTED',
@@ -56,6 +59,9 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Possible: we may want to query a range of inserted_ats for a durable task
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
+SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE);
+SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE);
 
 CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
     'RUN_COMPLETED',
@@ -96,6 +102,9 @@ CREATE TABLE v1_durable_event_log_callback (
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied
     CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, key)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
+SELECT create_v1_range_partition('v1_durable_event_log_callback', NOW()::DATE);
+SELECT create_v1_range_partition('v1_durable_event_log_callback', (NOW() + INTERVAL '1 day')::DATE);
 -- +goose StatementEnd
 
 -- +goose Down
