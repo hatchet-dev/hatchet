@@ -100,6 +100,7 @@ WITH inputs AS (
     -- todo: conflict resolution here
     RETURNING *
 ), node_id_update AS (
+    -- todo: might need to explicitly lock here before the initial select / inserts
     UPDATE v1_durable_event_log_file AS f
     SET latest_node_id = GREATEST(f.latest_node_id, l.latest_node_id)
     FROM latest_node_ids l

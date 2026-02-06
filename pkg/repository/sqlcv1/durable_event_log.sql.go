@@ -146,6 +146,7 @@ WITH inputs AS (
     -- todo: conflict resolution here
     RETURNING external_id, durable_task_id, durable_task_inserted_at, inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
 ), node_id_update AS (
+    -- todo: might need to explicitly lock here before the initial select / inserts
     UPDATE v1_durable_event_log_file AS f
     SET latest_node_id = GREATEST(f.latest_node_id, l.latest_node_id)
     FROM latest_node_ids l
