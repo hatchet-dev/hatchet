@@ -584,9 +584,7 @@ class Runner:
                     )
             else:
                 # Task completed quickly - log success and exit
-                logger.info(
-                    f"Cancellation: task {action.action_id} completed"
-                )
+                logger.info(f"Cancellation: task {action.action_id} completed")
         finally:
             self.cleanup_run_id(key)
 
