@@ -1,6 +1,8 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from contextlib import suppress
+from typing import Self, cast
 
 import grpc.aio
 from pydantic import BaseModel
@@ -8,6 +10,7 @@ from pydantic import BaseModel
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    DurableTaskCallbackCompletedResponse,
     DurableTaskEventKind,
     DurableTaskEventRequest,
     DurableTaskRegisterCallbackRequest,
@@ -33,6 +36,19 @@ class DurableTaskCallbackResult(BaseModel):
     durable_task_external_id: str
     node_id: int
     payload: JSONSerializableMapping | None
+
+    @classmethod
+    def from_proto(cls, proto: DurableTaskCallbackCompletedResponse) -> Self:
+        payload: JSONSerializableMapping | None = None
+        if proto.payload:
+            payload = json.loads(proto.payload.decode("utf-8"))
+
+        return cls(
+            invocation_count=proto.invocation_count,
+            durable_task_external_id=proto.durable_task_external_id,
+            node_id=proto.node_id,
+            payload=payload,
+        )
 
 
 class DurableTaskClient:
@@ -89,9 +105,12 @@ class DurableTaskClient:
             self._stub = V1DispatcherStub(self._conn)
 
             logger.info("Creating DurableTask stream...")
-            self._stream = self._stub.DurableTask(
-                self._request_iterator(),
-                metadata=get_metadata(self.token),
+            self._stream = cast(
+                grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
+                self._stub.DurableTask(
+                    self._request_iterator(),  # type: ignore[arg-type]
+                    metadata=get_metadata(self.token),
+                ),
             )
 
             self._receive_task = asyncio.create_task(self._receive_loop())
@@ -122,6 +141,9 @@ class DurableTaskClient:
             await self._conn.close()
 
     async def _request_iterator(self) -> AsyncIterator[DurableTaskRequest]:
+        if not self._request_queue:
+            raise RuntimeError("Request queue not initialized")
+
         while self._running:
             with suppress(asyncio.TimeoutError):
                 yield await asyncio.wait_for(self._request_queue.get(), timeout=1.0)
@@ -160,42 +182,44 @@ class DurableTaskClient:
             )
 
         elif response.HasField("trigger_ack"):
-            ack = response.trigger_ack
-            key = (ack.durable_task_external_id, ack.invocation_count)
-            if key in self._pending_event_acks:
-                self._pending_event_acks[key].set_result(
+            trigger_ack = response.trigger_ack
+            event_key = (
+                trigger_ack.durable_task_external_id,
+                trigger_ack.invocation_count,
+            )
+            if event_key in self._pending_event_acks:
+                self._pending_event_acks[event_key].set_result(
                     DurableTaskEventAck(
-                        invocation_count=ack.invocation_count,
-                        durable_task_external_id=ack.durable_task_external_id,
-                        node_id=ack.node_id,
+                        invocation_count=trigger_ack.invocation_count,
+                        durable_task_external_id=trigger_ack.durable_task_external_id,
+                        node_id=trigger_ack.node_id,
                     )
                 )
-                del self._pending_event_acks[key]
+                del self._pending_event_acks[event_key]
 
         elif response.HasField("register_callback_ack"):
-            ack = response.register_callback_ack
-            key = (ack.durable_task_external_id, ack.invocation_count, ack.node_id)
-            if key in self._pending_callback_acks:
-                self._pending_callback_acks[key].set_result(None)
-                del self._pending_callback_acks[key]
+            callback_ack = response.register_callback_ack
+            callback_ack_key = (
+                callback_ack.durable_task_external_id,
+                callback_ack.invocation_count,
+                callback_ack.node_id,
+            )
+            if callback_ack_key in self._pending_callback_acks:
+                self._pending_callback_acks[callback_ack_key].set_result(None)
+                del self._pending_callback_acks[callback_ack_key]
 
         elif response.HasField("callback_completed"):
             completed = response.callback_completed
-            key = (
+            completed_key = (
                 completed.durable_task_external_id,
                 completed.invocation_count,
                 completed.node_id,
             )
-            if key in self._pending_callbacks:
-                self._pending_callbacks[key].set_result(
-                    DurableTaskCallbackResult(
-                        invocation_count=completed.invocation_count,
-                        durable_task_external_id=completed.durable_task_external_id,
-                        node_id=completed.node_id,
-                        payload=completed.payload,
-                    )
+            if completed_key in self._pending_callbacks:
+                self._pending_callbacks[completed_key].set_result(
+                    DurableTaskCallbackResult.from_proto(completed)
                 )
-                del self._pending_callbacks[key]
+                del self._pending_callbacks[completed_key]
 
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:
@@ -212,8 +236,8 @@ class DurableTaskClient:
         self,
         durable_task_external_id: str,
         invocation_count: int,
-        kind: DurableTaskEventKind.ValueType,
-        payload: bytes | None = None,
+        kind: DurableTaskEventKind,
+        payload: JSONSerializableMapping | None = None,
         wait_for_conditions: DurableEventListenerConditions | None = None,
     ) -> DurableTaskEventAck:
         if self._request_queue is None:
@@ -235,7 +259,7 @@ class DurableTaskClient:
         )
 
         if payload is not None:
-            event_request.payload = payload
+            event_request.payload = json.dumps(payload).encode("utf-8")
 
         if wait_for_conditions is not None:
             event_request.wait_for_conditions.CopyFrom(wait_for_conditions)

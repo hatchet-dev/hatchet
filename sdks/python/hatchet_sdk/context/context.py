@@ -530,7 +530,7 @@ class DurableContext(Context):
             node_id=node_id,
         )
 
-        return result.payload
+        return result.payload or {}
 
     async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
         """
@@ -574,7 +574,7 @@ class DurableContext(Context):
             durable_task_external_id=self.step_run_id,
             invocation_count=self.retry_count + 1,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
-            payload=json.dumps(workflow._serialize_input(input)).encode(),
+            payload=workflow._serialize_input(input),
         )
 
         node_id = ack.node_id
@@ -590,7 +590,7 @@ class DurableContext(Context):
             node_id=node_id,
         )
 
-        return result.payload
+        return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:
         logger.info(f"_ensure_stream_started called, client={self.durable_task_client}")
