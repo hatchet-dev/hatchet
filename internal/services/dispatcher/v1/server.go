@@ -624,7 +624,9 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 							task.InsertedAt,
 							callbackKey,
 							true,
+							event.Payload,
 						)
+
 						if updateErr != nil {
 							d.l.Error().Err(updateErr).Msg("failed to update callback as satisfied")
 						}

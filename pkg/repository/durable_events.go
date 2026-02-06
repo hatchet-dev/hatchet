@@ -57,7 +57,7 @@ type DurableEventsRepository interface {
 	CreateEventLogCallbacks(ctx context.Context, opts []CreateEventLogCallbackOpts) ([]*sqlcv1.V1DurableEventLogCallback, error)
 	GetEventLogCallback(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLogCallback, error)
 	ListEventLogCallbacks(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogCallback, error)
-	UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool) (*sqlcv1.V1DurableEventLogCallback, error)
+	UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error)
 }
 
 type durableEventsRepository struct {
@@ -159,8 +159,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 	branchIds := make([]int64, len(opts))
 	dataHashes := make([][]byte, len(opts))
 	dataHashAlgs := make([]string, len(opts))
-
-	payloadOpts := make([]StorePayloadOpts, 0, len(opts))
+	externalIdToOpts := make(map[uuid.UUID]CreateEventLogEntryOpts, len(opts))
 
 	for i, opt := range opts {
 		externalIds[i] = opt.ExternalId
@@ -171,22 +170,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 		nodeIds[i] = opt.NodeId
 		parentNodeIds[i] = opt.ParentNodeId
 		branchIds[i] = opt.BranchId
-
-		if len(opt.Data) > 0 {
-			hash := sha256.Sum256(opt.Data)
-			dataHashes[i] = hash[:]
-			dataHashAlgs[i] = "sha256"
-
-			payloadOpts = append(payloadOpts, StorePayloadOpts{
-				// todo: confirm node id + inserted at uniquely identifies an entry
-				Id:         opt.NodeId,
-				InsertedAt: opt.InsertedAt,
-				ExternalId: opt.ExternalId,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
-				Payload:    opt.Data,
-				TenantId:   opt.TenantId,
-			})
-		}
+		externalIdToOpts[opt.ExternalId] = opt
 	}
 
 	entries, err := r.queries.CreateDurableEventLogEntries(ctx, tx, sqlcv1.CreateDurableEventLogEntriesParams{
@@ -201,12 +185,36 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 		Datahashes:             dataHashes,
 		Datahashalgs:           dataHashAlgs,
 	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	if len(payloadOpts) > 0 {
-		err = r.payloadStore.Store(ctx, tx, payloadOpts...)
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(entries))
+
+	for i, entry := range entries {
+		opt, ok := externalIdToOpts[entry.ExternalID]
+
+		if !ok {
+			continue
+		}
+
+		hash := sha256.Sum256(opt.Data)
+		dataHashes[i] = hash[:]
+		dataHashAlgs[i] = "sha256"
+
+		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			Id:         entry.ID,
+			InsertedAt: entry.InsertedAt,
+			ExternalId: entry.ExternalID,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+			Payload:    opt.Data,
+			TenantId:   opt.TenantId,
+		})
+	}
+
+	if len(storePayloadOpts) > 0 {
+		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -295,7 +303,7 @@ func (r *durableEventsRepository) ListEventLogCallbacks(ctx context.Context, dur
 	})
 }
 
-func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool) (*sqlcv1.V1DurableEventLogCallback, error) {
+func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error) {
 	// note: might need to pass a tx in here instead
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
@@ -309,8 +317,24 @@ func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Co
 		Key:                   key,
 		Issatisfied:           isSatisfied,
 	})
+
 	if err != nil {
 		return nil, err
+	}
+
+	if isSatisfied && len(result) > 0 {
+		storePayloadOpts := StorePayloadOpts{
+			Id:         callback.ID,
+			InsertedAt: callback.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+			Payload:    result,
+		}
+
+		err = r.payloadStore.Store(ctx, tx, storePayloadOpts)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := commit(ctx); err != nil {
