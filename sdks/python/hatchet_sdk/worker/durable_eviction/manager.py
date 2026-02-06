@@ -30,6 +30,7 @@ class DurableEvictionConfig(BaseModel):
     min_wait_for_capacity_eviction: timedelta = timedelta(seconds=10)
     """Avoid immediately evicting runs that have just entered a wait."""
 
+
 DEFAULT_DURABLE_EVICTION_CONFIG = DurableEvictionConfig()
 
 
@@ -39,10 +40,12 @@ class DurableEvictionManager:
         *,
         durable_slots: int,
         cancel_remote: Callable[[str], Awaitable[None]],
-        on_eviction_selected: Callable[[ActionKey, DurableRunRecord], Awaitable[None]]
-        | None = None,
-        on_eviction_cancelled: Callable[[ActionKey, DurableRunRecord], Awaitable[None]]
-        | None = None,
+        on_eviction_selected: (
+            Callable[[ActionKey, DurableRunRecord], Awaitable[None]] | None
+        ) = None,
+        on_eviction_cancelled: (
+            Callable[[ActionKey, DurableRunRecord], Awaitable[None]] | None
+        ) = None,
         config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
         cache: DurableEvictionCache | None = None,
     ) -> None:
@@ -109,14 +112,18 @@ class DurableEvictionManager:
     async def _run_loop(self) -> None:
         interval = self._config.check_interval.total_seconds()
 
-        while True:
-            try:
+        try:
+            while True:
                 await asyncio.sleep(interval)
-                await self._tick()
-            except asyncio.CancelledError:
-                return
-            except Exception:
-                logger.exception("DurableEvictionManager: error in eviction loop")
+                await self._tick_safe()
+        except asyncio.CancelledError:
+            return
+
+    async def _tick_safe(self) -> None:
+        try:
+            await self._tick()
+        except Exception:
+            logger.exception("DurableEvictionManager: error in eviction loop")
 
     async def _tick(self) -> None:
         # Only one eviction *cycle* at a time.
@@ -184,4 +191,3 @@ class DurableEvictionManager:
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
-

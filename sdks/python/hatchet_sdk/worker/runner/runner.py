@@ -192,10 +192,68 @@ class Runner:
         self, action: Action, t: Task[TWorkflowInput, R]
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
-            self.cleanup_run_id(action.key)
-            was_cancelled = self.cancellations.pop(action.key, False)
+            key = action.key
 
-            if was_cancelled or task.cancelled():
+            # Prefer the live token reason (important for local cancellations like durable eviction),
+            # then fall back to any stored reason.
+            ctx = self.contexts.get(key)
+            token_reason: str | None = None
+            if ctx is not None and ctx.cancellation_token.reason is not None:
+                token_reason = ctx.cancellation_token.reason.value
+
+            reason = token_reason or self.cancellation_reasons.get(
+                key,
+                CancellationReason.WORKFLOW_CANCELLED.value,
+            )
+
+            # Keep cleanup semantics consistent with prior behavior: clean up immediately,
+            # but only after we’ve captured any useful context (like token reason).
+            self.cleanup_run_id(key)
+
+            was_cancelled = self.cancellations.pop(key, False)
+            task_cancelled = task.cancelled()
+
+            if was_cancelled and task_cancelled:
+                self.event_queue.put(
+                    ActionEvent(
+                        action=action,
+                        type=STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+                        payload=json.dumps({"reason": reason}),
+                        should_not_retry=False,
+                    )
+                )
+                return
+
+            if was_cancelled or task_cancelled:
+                # If a cancellation was requested but the task still finished normally (returned or errored),
+                # emit a monitoring event so OLAP can represent this as a cancellation failure.
+                if was_cancelled and not task_cancelled:
+                    payload: dict[str, Any] = {"reason": reason}
+                    try:
+                        exc = task.exception()
+                    except BaseException as e:
+                        # Extremely defensive: retrieving exception should be safe here, but avoid
+                        # breaking the callback if it isn't.
+                        payload["completion"] = "errored"
+                        payload["error_type"] = e.__class__.__name__
+                        payload["error"] = str(e)
+                    else:
+                        if exc is None:
+                            payload["completion"] = "returned"
+                        else:
+                            payload["completion"] = "errored"
+                            payload["error_type"] = exc.__class__.__name__
+                            payload["error"] = str(exc)
+
+                    self.event_queue.put(
+                        ActionEvent(
+                            action=action,
+                            type=STEP_EVENT_TYPE_CANCELLATION_FAILED,
+                            payload=json.dumps(payload),
+                            should_not_retry=False,
+                        )
+                    )
+                    return
                 return
 
             try:
@@ -571,7 +629,15 @@ class Runner:
                     f"reason={reason}, "
                     f"{child_count} children registered"
                 )
-                ctx._set_cancellation_flag(CancellationReason.WORKFLOW_CANCELLED)
+                cancel_reason = CancellationReason.WORKFLOW_CANCELLED
+                try:
+                    cancel_reason = CancellationReason(reason)
+                except Exception:
+                    # Be defensive: if we receive an unknown reason string from the engine,
+                    # still cancel the token with a sensible default.
+                    cancel_reason = CancellationReason.WORKFLOW_CANCELLED
+
+                ctx._set_cancellation_flag(cancel_reason)
                 self.cancellations[key] = True
                 # Note: Child workflows are not cancelled here - they run independently
                 # and are managed by Hatchet's normal cancellation mechanisms
@@ -643,6 +709,7 @@ class Runner:
                                 {
                                     "reason": reason,
                                     "elapsed_ms": total_elapsed_ms,
+                                    "phase": "thread_still_alive",
                                 }
                             ),
                             should_not_retry=False,
@@ -657,65 +724,49 @@ class Runner:
                         f"(exceeded grace period of {grace_period_ms}ms)"
                     )
 
-                    # Emit another monitoring event for grace-period exceedance.
-                    await self.dispatcher_client.send_step_action_event(
-                        action,
-                        STEP_EVENT_TYPE_CANCELLING,
-                        json.dumps(
-                            {
-                                "reason": reason,
-                                "elapsed_ms": total_elapsed_ms,
-                            }
-                        ),
-                        should_not_retry=False,
-                    )
+                    # Emit a failure monitoring event for grace-period exceedance. This covers
+                    # async tasks that ignore cancellation, and also provides a consistent signal
+                    # even when we can't conclusively determine liveness (e.g. no thread key).
+                    if not sent_cancellation_failed:
+                        await self.dispatcher_client.send_step_action_event(
+                            action,
+                            STEP_EVENT_TYPE_CANCELLATION_FAILED,
+                            json.dumps(
+                                {
+                                    "reason": reason,
+                                    "elapsed_ms": total_elapsed_ms,
+                                    "phase": "grace_period_exceeded",
+                                }
+                            ),
+                            should_not_retry=False,
+                        )
+                        sent_cancellation_failed = True
                 else:
                     logger.debug(
                         f"Cancellation: task {action.action_id} eventually completed in {total_elapsed_ms}ms"
                     )
 
-                # Emit confirmation if task has completed.
                 task_done = key not in self.tasks or self.tasks[key].done()
                 if task_done:
-                    await self.dispatcher_client.send_step_action_event(
-                        action,
-                        STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
-                        json.dumps(
-                            {
-                                "reason": reason,
-                                "elapsed_ms": total_elapsed_ms,
-                            }
-                        ),
-                        should_not_retry=False,
-                    )
+                    # Do not emit CANCELLED_CONFIRMED here, it is emitted via await_with_cancellation's cancel_callback,
+                    # which runs immediately after `CancellationToken.aio_wait()` completes.
+                    pass
             else:
                 # Task completed quickly - log success and exit
-                logger.info(
-                    f"Cancellation: task {action.action_id} completed"
-                )
-
-                total_elapsed_ms = int(round((time.monotonic() - start_time) * 1000))
-                await self.dispatcher_client.send_step_action_event(
-                    action,
-                    STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
-                    json.dumps(
-                        {
-                            "reason": reason,
-                            "elapsed_ms": total_elapsed_ms,
-                        }
-                    ),
-                    should_not_retry=False,
-                )
+                logger.info(f"Cancellation: task {action.action_id} completed")
+                # Do not emit CANCELLED_CONFIRMED here (see note above).
         finally:
             self.cleanup_run_id(key)
 
-    async def _emit_durable_evicted(self, key: ActionKey, rec: DurableRunRecord) -> None:
+    async def _emit_durable_evicted(
+        self, key: ActionKey, rec: DurableRunRecord
+    ) -> None:
         ctx = self.contexts.get(key)
         if ctx is None:
             return
 
         ttl_seconds: float | None = None
-        if rec.eviction is not None:
+        if rec.eviction is not None and rec.eviction.ttl is not None:
             ttl_seconds = rec.eviction.ttl.total_seconds()
 
         await self.dispatcher_client.send_step_action_event(

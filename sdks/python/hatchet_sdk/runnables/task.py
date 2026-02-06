@@ -159,7 +159,9 @@ class Task(Generic[TWorkflowInput, R]):
         self.slot_requests = slot_requests
 
         if not is_durable and durable_eviction is not None:
-            raise ValueError("Durable eviction policy cannot be set for a non-durable task.")
+            raise ValueError(
+                "Durable eviction policy cannot be set for a non-durable task."
+            )
 
         # Durable-only: if None, the durable task run is not eviction-eligible.
         self.durable_eviction: EvictionPolicy | None = (

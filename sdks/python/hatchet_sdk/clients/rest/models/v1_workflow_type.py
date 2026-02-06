@@ -28,12 +28,10 @@ class V1WorkflowType(str, Enum):
     """
     allowed enum values
     """
-    DAG = 'DAG'
-    TASK = 'TASK'
+    DAG = "DAG"
+    TASK = "TASK"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of V1WorkflowType from a JSON string"""
         return cls(json.loads(json_str))
-
-

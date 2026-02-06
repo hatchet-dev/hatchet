@@ -29,7 +29,8 @@ from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
 class V1TaskEvent(BaseModel):
     """
     V1TaskEvent
-    """ # noqa: E501
+    """  # noqa: E501
+
     id: StrictInt
     task_id: StrictStr = Field(alias="taskId")
     timestamp: datetime
@@ -38,17 +39,36 @@ class V1TaskEvent(BaseModel):
     error_message: Optional[StrictStr] = Field(default=None, alias="errorMessage")
     output: Optional[StrictStr] = None
     worker_id: Optional[StrictStr] = Field(default=None, alias="workerId")
-    task_display_name: Optional[StrictStr] = Field(default=None, alias="taskDisplayName")
-    retry_count: Optional[StrictInt] = Field(default=None, description="The number of retries of the task.", alias="retryCount")
-    attempt: Optional[StrictInt] = Field(default=None, description="The attempt number of the task.")
-    __properties: ClassVar[List[str]] = ["id", "taskId", "timestamp", "eventType", "message", "errorMessage", "output", "workerId", "taskDisplayName", "retryCount", "attempt"]
+    task_display_name: Optional[StrictStr] = Field(
+        default=None, alias="taskDisplayName"
+    )
+    retry_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of retries of the task.",
+        alias="retryCount",
+    )
+    attempt: Optional[StrictInt] = Field(
+        default=None, description="The attempt number of the task."
+    )
+    __properties: ClassVar[List[str]] = [
+        "id",
+        "taskId",
+        "timestamp",
+        "eventType",
+        "message",
+        "errorMessage",
+        "output",
+        "workerId",
+        "taskDisplayName",
+        "retryCount",
+        "attempt",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -74,8 +94,7 @@ class V1TaskEvent(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -93,19 +112,19 @@ class V1TaskEvent(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "id": obj.get("id"),
-            "taskId": obj.get("taskId"),
-            "timestamp": obj.get("timestamp"),
-            "eventType": obj.get("eventType"),
-            "message": obj.get("message"),
-            "errorMessage": obj.get("errorMessage"),
-            "output": obj.get("output"),
-            "workerId": obj.get("workerId"),
-            "taskDisplayName": obj.get("taskDisplayName"),
-            "retryCount": obj.get("retryCount"),
-            "attempt": obj.get("attempt")
-        })
+        _obj = cls.model_validate(
+            {
+                "id": obj.get("id"),
+                "taskId": obj.get("taskId"),
+                "timestamp": obj.get("timestamp"),
+                "eventType": obj.get("eventType"),
+                "message": obj.get("message"),
+                "errorMessage": obj.get("errorMessage"),
+                "output": obj.get("output"),
+                "workerId": obj.get("workerId"),
+                "taskDisplayName": obj.get("taskDisplayName"),
+                "retryCount": obj.get("retryCount"),
+                "attempt": obj.get("attempt"),
+            }
+        )
         return _obj
-
-

@@ -31,20 +31,37 @@ from hatchet_sdk.clients.rest.models.concurrency_scope import ConcurrencyScope
 class ConcurrencySetting(BaseModel):
     """
     ConcurrencySetting
-    """ # noqa: E501
-    max_runs: StrictInt = Field(description="The maximum number of concurrent workflow runs.", alias="maxRuns")
-    limit_strategy: ConcurrencyLimitStrategy = Field(description="The strategy to use when the concurrency limit is reached.", alias="limitStrategy")
-    expression: StrictStr = Field(description="The concurrency expression, used to generate a key from task inputs, metadata, etc.")
-    step_readable_id: Optional[StrictStr] = Field(default=None, description="The readable id of the step to which this concurrency setting applies.", alias="stepReadableId")
+    """  # noqa: E501
+
+    max_runs: StrictInt = Field(
+        description="The maximum number of concurrent workflow runs.", alias="maxRuns"
+    )
+    limit_strategy: ConcurrencyLimitStrategy = Field(
+        description="The strategy to use when the concurrency limit is reached.",
+        alias="limitStrategy",
+    )
+    expression: StrictStr = Field(
+        description="The concurrency expression, used to generate a key from task inputs, metadata, etc."
+    )
+    step_readable_id: Optional[StrictStr] = Field(
+        default=None,
+        description="The readable id of the step to which this concurrency setting applies.",
+        alias="stepReadableId",
+    )
     scope: ConcurrencyScope = Field(description="The scope of the concurrency setting.")
-    __properties: ClassVar[List[str]] = ["maxRuns", "limitStrategy", "expression", "stepReadableId", "scope"]
+    __properties: ClassVar[List[str]] = [
+        "maxRuns",
+        "limitStrategy",
+        "expression",
+        "stepReadableId",
+        "scope",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -70,8 +87,7 @@ class ConcurrencySetting(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -89,13 +105,13 @@ class ConcurrencySetting(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "maxRuns": obj.get("maxRuns"),
-            "limitStrategy": obj.get("limitStrategy"),
-            "expression": obj.get("expression"),
-            "stepReadableId": obj.get("stepReadableId"),
-            "scope": obj.get("scope")
-        })
+        _obj = cls.model_validate(
+            {
+                "maxRuns": obj.get("maxRuns"),
+                "limitStrategy": obj.get("limitStrategy"),
+                "expression": obj.get("expression"),
+                "stepReadableId": obj.get("stepReadableId"),
+                "scope": obj.get("scope"),
+            }
+        )
         return _obj
-
-

@@ -28,22 +28,48 @@ from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 class V1Filter(BaseModel):
     """
     V1Filter
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
-    tenant_id: StrictStr = Field(description="The ID of the tenant associated with this filter.", alias="tenantId")
-    workflow_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(description="The workflow id associated with this filter.", alias="workflowId")
-    scope: StrictStr = Field(description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time")
-    expression: StrictStr = Field(description="The expression associated with this filter.")
-    payload: Dict[str, Any] = Field(description="Additional payload data associated with the filter")
-    is_declarative: Optional[StrictBool] = Field(default=None, description="Whether the filter is declarative (true) or programmatic (false)", alias="isDeclarative")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "workflowId", "scope", "expression", "payload", "isDeclarative"]
+    tenant_id: StrictStr = Field(
+        description="The ID of the tenant associated with this filter.",
+        alias="tenantId",
+    )
+    workflow_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = (
+        Field(
+            description="The workflow id associated with this filter.",
+            alias="workflowId",
+        )
+    )
+    scope: StrictStr = Field(
+        description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time"
+    )
+    expression: StrictStr = Field(
+        description="The expression associated with this filter."
+    )
+    payload: Dict[str, Any] = Field(
+        description="Additional payload data associated with the filter"
+    )
+    is_declarative: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the filter is declarative (true) or programmatic (false)",
+        alias="isDeclarative",
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "tenantId",
+        "workflowId",
+        "scope",
+        "expression",
+        "payload",
+        "isDeclarative",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -69,8 +95,7 @@ class V1Filter(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,7 +104,7 @@ class V1Filter(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -91,15 +116,19 @@ class V1Filter(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "tenantId": obj.get("tenantId"),
-            "workflowId": obj.get("workflowId"),
-            "scope": obj.get("scope"),
-            "expression": obj.get("expression"),
-            "payload": obj.get("payload"),
-            "isDeclarative": obj.get("isDeclarative")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "workflowId": obj.get("workflowId"),
+                "scope": obj.get("scope"),
+                "expression": obj.get("expression"),
+                "payload": obj.get("payload"),
+                "isDeclarative": obj.get("isDeclarative"),
+            }
+        )
         return _obj
-
-

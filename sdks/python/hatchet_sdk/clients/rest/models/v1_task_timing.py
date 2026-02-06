@@ -30,30 +30,82 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 class V1TaskTiming(BaseModel):
     """
     V1TaskTiming
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     depth: StrictInt = Field(description="The depth of the task in the waterfall.")
     status: V1TaskStatus
-    task_display_name: StrictStr = Field(description="The display name of the task run.", alias="taskDisplayName")
-    task_external_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(description="The external ID of the task.", alias="taskExternalId")
+    task_display_name: StrictStr = Field(
+        description="The display name of the task run.", alias="taskDisplayName"
+    )
+    task_external_id: Annotated[
+        str, Field(min_length=36, strict=True, max_length=36)
+    ] = Field(description="The external ID of the task.", alias="taskExternalId")
     task_id: StrictInt = Field(description="The ID of the task.", alias="taskId")
-    task_inserted_at: datetime = Field(description="The timestamp the task was inserted.", alias="taskInsertedAt")
-    tenant_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(description="The ID of the tenant.", alias="tenantId")
-    parent_task_external_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, description="The external ID of the parent task.", alias="parentTaskExternalId")
-    queued_at: Optional[datetime] = Field(default=None, description="The timestamp the task run was queued.", alias="queuedAt")
-    started_at: Optional[datetime] = Field(default=None, description="The timestamp the task run started.", alias="startedAt")
-    finished_at: Optional[datetime] = Field(default=None, description="The timestamp the task run finished.", alias="finishedAt")
-    workflow_run_id: Optional[StrictStr] = Field(default=None, description="The external ID of the workflow run.", alias="workflowRunId")
-    retry_count: Optional[StrictInt] = Field(default=None, description="The number of retries of the task.", alias="retryCount")
-    attempt: Optional[StrictInt] = Field(default=None, description="The attempt number of the task.")
-    __properties: ClassVar[List[str]] = ["metadata", "depth", "status", "taskDisplayName", "taskExternalId", "taskId", "taskInsertedAt", "tenantId", "parentTaskExternalId", "queuedAt", "startedAt", "finishedAt", "workflowRunId", "retryCount", "attempt"]
+    task_inserted_at: datetime = Field(
+        description="The timestamp the task was inserted.", alias="taskInsertedAt"
+    )
+    tenant_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(
+        description="The ID of the tenant.", alias="tenantId"
+    )
+    parent_task_external_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(
+        default=None,
+        description="The external ID of the parent task.",
+        alias="parentTaskExternalId",
+    )
+    queued_at: Optional[datetime] = Field(
+        default=None,
+        description="The timestamp the task run was queued.",
+        alias="queuedAt",
+    )
+    started_at: Optional[datetime] = Field(
+        default=None,
+        description="The timestamp the task run started.",
+        alias="startedAt",
+    )
+    finished_at: Optional[datetime] = Field(
+        default=None,
+        description="The timestamp the task run finished.",
+        alias="finishedAt",
+    )
+    workflow_run_id: Optional[StrictStr] = Field(
+        default=None,
+        description="The external ID of the workflow run.",
+        alias="workflowRunId",
+    )
+    retry_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of retries of the task.",
+        alias="retryCount",
+    )
+    attempt: Optional[StrictInt] = Field(
+        default=None, description="The attempt number of the task."
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "depth",
+        "status",
+        "taskDisplayName",
+        "taskExternalId",
+        "taskId",
+        "taskInsertedAt",
+        "tenantId",
+        "parentTaskExternalId",
+        "queuedAt",
+        "startedAt",
+        "finishedAt",
+        "workflowRunId",
+        "retryCount",
+        "attempt",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -79,8 +131,7 @@ class V1TaskTiming(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -89,7 +140,7 @@ class V1TaskTiming(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -101,23 +152,27 @@ class V1TaskTiming(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "depth": obj.get("depth"),
-            "status": obj.get("status"),
-            "taskDisplayName": obj.get("taskDisplayName"),
-            "taskExternalId": obj.get("taskExternalId"),
-            "taskId": obj.get("taskId"),
-            "taskInsertedAt": obj.get("taskInsertedAt"),
-            "tenantId": obj.get("tenantId"),
-            "parentTaskExternalId": obj.get("parentTaskExternalId"),
-            "queuedAt": obj.get("queuedAt"),
-            "startedAt": obj.get("startedAt"),
-            "finishedAt": obj.get("finishedAt"),
-            "workflowRunId": obj.get("workflowRunId"),
-            "retryCount": obj.get("retryCount"),
-            "attempt": obj.get("attempt")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "depth": obj.get("depth"),
+                "status": obj.get("status"),
+                "taskDisplayName": obj.get("taskDisplayName"),
+                "taskExternalId": obj.get("taskExternalId"),
+                "taskId": obj.get("taskId"),
+                "taskInsertedAt": obj.get("taskInsertedAt"),
+                "tenantId": obj.get("tenantId"),
+                "parentTaskExternalId": obj.get("parentTaskExternalId"),
+                "queuedAt": obj.get("queuedAt"),
+                "startedAt": obj.get("startedAt"),
+                "finishedAt": obj.get("finishedAt"),
+                "workflowRunId": obj.get("workflowRunId"),
+                "retryCount": obj.get("retryCount"),
+                "attempt": obj.get("attempt"),
+            }
+        )
         return _obj
-
-

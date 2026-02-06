@@ -28,10 +28,13 @@ from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 class WorkerLabel(BaseModel):
     """
     WorkerLabel
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     key: StrictStr = Field(description="The key of the label.")
-    value: Optional[StrictStr] = Field(default=None, description="The value of the label.")
+    value: Optional[StrictStr] = Field(
+        default=None, description="The value of the label."
+    )
     __properties: ClassVar[List[str]] = ["metadata", "key", "value"]
 
     model_config = ConfigDict(
@@ -39,7 +42,6 @@ class WorkerLabel(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -65,8 +67,7 @@ class WorkerLabel(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -75,7 +76,7 @@ class WorkerLabel(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -87,11 +88,15 @@ class WorkerLabel(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "key": obj.get("key"),
-            "value": obj.get("value")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "key": obj.get("key"),
+                "value": obj.get("value"),
+            }
+        )
         return _obj
-
-

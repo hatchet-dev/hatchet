@@ -28,10 +28,16 @@ from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSour
 class V1CreateWebhookRequestBase(BaseModel):
     """
     V1CreateWebhookRequestBase
-    """ # noqa: E501
-    source_name: V1WebhookSourceName = Field(description="The name of the source for this webhook", alias="sourceName")
+    """  # noqa: E501
+
+    source_name: V1WebhookSourceName = Field(
+        description="The name of the source for this webhook", alias="sourceName"
+    )
     name: StrictStr = Field(description="The name of the webhook")
-    event_key_expression: StrictStr = Field(description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.", alias="eventKeyExpression")
+    event_key_expression: StrictStr = Field(
+        description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
+        alias="eventKeyExpression",
+    )
     __properties: ClassVar[List[str]] = ["sourceName", "name", "eventKeyExpression"]
 
     model_config = ConfigDict(
@@ -39,7 +45,6 @@ class V1CreateWebhookRequestBase(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -65,8 +70,7 @@ class V1CreateWebhookRequestBase(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -84,11 +88,11 @@ class V1CreateWebhookRequestBase(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "sourceName": obj.get("sourceName"),
-            "name": obj.get("name"),
-            "eventKeyExpression": obj.get("eventKeyExpression")
-        })
+        _obj = cls.model_validate(
+            {
+                "sourceName": obj.get("sourceName"),
+                "name": obj.get("name"),
+                "eventKeyExpression": obj.get("eventKeyExpression"),
+            }
+        )
         return _obj
-
-

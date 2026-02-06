@@ -27,7 +27,8 @@ from typing_extensions import Self
 class V1TaskPointMetric(BaseModel):
     """
     V1TaskPointMetric
-    """ # noqa: E501
+    """  # noqa: E501
+
     time: datetime
     succeeded: StrictInt = Field(alias="SUCCEEDED")
     failed: StrictInt = Field(alias="FAILED")
@@ -38,7 +39,6 @@ class V1TaskPointMetric(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,8 +64,7 @@ class V1TaskPointMetric(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -83,11 +82,11 @@ class V1TaskPointMetric(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "time": obj.get("time"),
-            "SUCCEEDED": obj.get("SUCCEEDED"),
-            "FAILED": obj.get("FAILED")
-        })
+        _obj = cls.model_validate(
+            {
+                "time": obj.get("time"),
+                "SUCCEEDED": obj.get("SUCCEEDED"),
+                "FAILED": obj.get("FAILED"),
+            }
+        )
         return _obj
-
-

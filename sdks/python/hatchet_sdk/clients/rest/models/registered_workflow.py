@@ -26,9 +26,12 @@ from typing_extensions import Self
 class RegisteredWorkflow(BaseModel):
     """
     RegisteredWorkflow
-    """ # noqa: E501
+    """  # noqa: E501
+
     id: StrictStr = Field(description="The workflow id registered on this worker.")
-    name: StrictStr = Field(description="The name of the workflow registered on this worker.")
+    name: StrictStr = Field(
+        description="The name of the workflow registered on this worker."
+    )
     __properties: ClassVar[List[str]] = ["id", "name"]
 
     model_config = ConfigDict(
@@ -36,7 +39,6 @@ class RegisteredWorkflow(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -62,8 +64,7 @@ class RegisteredWorkflow(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,10 +82,5 @@ class RegisteredWorkflow(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "id": obj.get("id"),
-            "name": obj.get("name")
-        })
+        _obj = cls.model_validate({"id": obj.get("id"), "name": obj.get("name")})
         return _obj
-
-

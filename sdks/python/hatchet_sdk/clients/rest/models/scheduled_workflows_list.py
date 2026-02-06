@@ -29,7 +29,8 @@ from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflo
 class ScheduledWorkflowsList(BaseModel):
     """
     ScheduledWorkflowsList
-    """ # noqa: E501
+    """  # noqa: E501
+
     rows: Optional[List[ScheduledWorkflows]] = None
     pagination: Optional[PaginationResponse] = None
     __properties: ClassVar[List[str]] = ["rows", "pagination"]
@@ -39,7 +40,6 @@ class ScheduledWorkflowsList(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -65,8 +65,7 @@ class ScheduledWorkflowsList(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,10 +78,10 @@ class ScheduledWorkflowsList(BaseModel):
             for _item_rows in self.rows:
                 if _item_rows:
                     _items.append(_item_rows.to_dict())
-            _dict['rows'] = _items
+            _dict["rows"] = _items
         # override the default output from pydantic by calling `to_dict()` of pagination
         if self.pagination:
-            _dict['pagination'] = self.pagination.to_dict()
+            _dict["pagination"] = self.pagination.to_dict()
         return _dict
 
     @classmethod
@@ -94,10 +93,18 @@ class ScheduledWorkflowsList(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "rows": [ScheduledWorkflows.from_dict(_item) for _item in obj["rows"]] if obj.get("rows") is not None else None,
-            "pagination": PaginationResponse.from_dict(obj["pagination"]) if obj.get("pagination") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "rows": (
+                    [ScheduledWorkflows.from_dict(_item) for _item in obj["rows"]]
+                    if obj.get("rows") is not None
+                    else None
+                ),
+                "pagination": (
+                    PaginationResponse.from_dict(obj["pagination"])
+                    if obj.get("pagination") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

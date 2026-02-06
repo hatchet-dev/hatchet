@@ -26,10 +26,15 @@ from typing_extensions import Self
 class PaginationResponse(BaseModel):
     """
     PaginationResponse
-    """ # noqa: E501
-    current_page: Optional[StrictInt] = Field(default=None, description="the current page")
+    """  # noqa: E501
+
+    current_page: Optional[StrictInt] = Field(
+        default=None, description="the current page"
+    )
     next_page: Optional[StrictInt] = Field(default=None, description="the next page")
-    num_pages: Optional[StrictInt] = Field(default=None, description="the total number of pages for listing")
+    num_pages: Optional[StrictInt] = Field(
+        default=None, description="the total number of pages for listing"
+    )
     __properties: ClassVar[List[str]] = ["current_page", "next_page", "num_pages"]
 
     model_config = ConfigDict(
@@ -37,7 +42,6 @@ class PaginationResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +67,7 @@ class PaginationResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,11 +85,11 @@ class PaginationResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "current_page": obj.get("current_page"),
-            "next_page": obj.get("next_page"),
-            "num_pages": obj.get("num_pages")
-        })
+        _obj = cls.model_validate(
+            {
+                "current_page": obj.get("current_page"),
+                "next_page": obj.get("next_page"),
+                "num_pages": obj.get("num_pages"),
+            }
+        )
         return _obj
-
-

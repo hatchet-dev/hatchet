@@ -28,7 +28,8 @@ from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 class ReplayWorkflowRunsResponse(BaseModel):
     """
     ReplayWorkflowRunsResponse
-    """ # noqa: E501
+    """  # noqa: E501
+
     workflow_runs: List[WorkflowRun] = Field(alias="workflowRuns")
     __properties: ClassVar[List[str]] = ["workflowRuns"]
 
@@ -37,7 +38,6 @@ class ReplayWorkflowRunsResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +63,7 @@ class ReplayWorkflowRunsResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -77,7 +76,7 @@ class ReplayWorkflowRunsResponse(BaseModel):
             for _item_workflow_runs in self.workflow_runs:
                 if _item_workflow_runs:
                     _items.append(_item_workflow_runs.to_dict())
-            _dict['workflowRuns'] = _items
+            _dict["workflowRuns"] = _items
         return _dict
 
     @classmethod
@@ -89,9 +88,13 @@ class ReplayWorkflowRunsResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "workflowRuns": [WorkflowRun.from_dict(_item) for _item in obj["workflowRuns"]] if obj.get("workflowRuns") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "workflowRuns": (
+                    [WorkflowRun.from_dict(_item) for _item in obj["workflowRuns"]]
+                    if obj.get("workflowRuns") is not None
+                    else None
+                )
+            }
+        )
         return _obj
-
-

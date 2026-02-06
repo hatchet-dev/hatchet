@@ -27,7 +27,8 @@ from typing_extensions import Annotated, Self
 class ScheduledWorkflowsBulkUpdateItem(BaseModel):
     """
     ScheduledWorkflowsBulkUpdateItem
-    """ # noqa: E501
+    """  # noqa: E501
+
     id: Annotated[str, Field(min_length=36, strict=True, max_length=36)]
     trigger_at: datetime = Field(alias="triggerAt")
     __properties: ClassVar[List[str]] = ["id", "triggerAt"]
@@ -37,7 +38,6 @@ class ScheduledWorkflowsBulkUpdateItem(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +63,7 @@ class ScheduledWorkflowsBulkUpdateItem(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,10 +81,7 @@ class ScheduledWorkflowsBulkUpdateItem(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "id": obj.get("id"),
-            "triggerAt": obj.get("triggerAt")
-        })
+        _obj = cls.model_validate(
+            {"id": obj.get("id"), "triggerAt": obj.get("triggerAt")}
+        )
         return _obj
-
-

@@ -26,19 +26,34 @@ from typing_extensions import Annotated, Self
 class ScheduledWorkflowsBulkDeleteFilter(BaseModel):
     """
     ScheduledWorkflowsBulkDeleteFilter
-    """ # noqa: E501
-    workflow_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, alias="workflowId")
-    parent_workflow_run_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, alias="parentWorkflowRunId")
-    parent_step_run_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, alias="parentStepRunId")
-    additional_metadata: Optional[List[StrictStr]] = Field(default=None, description="A list of metadata key value pairs to filter by", alias="additionalMetadata")
-    __properties: ClassVar[List[str]] = ["workflowId", "parentWorkflowRunId", "parentStepRunId", "additionalMetadata"]
+    """  # noqa: E501
+
+    workflow_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(default=None, alias="workflowId")
+    parent_workflow_run_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(default=None, alias="parentWorkflowRunId")
+    parent_step_run_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(default=None, alias="parentStepRunId")
+    additional_metadata: Optional[List[StrictStr]] = Field(
+        default=None,
+        description="A list of metadata key value pairs to filter by",
+        alias="additionalMetadata",
+    )
+    __properties: ClassVar[List[str]] = [
+        "workflowId",
+        "parentWorkflowRunId",
+        "parentStepRunId",
+        "additionalMetadata",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,8 +79,7 @@ class ScheduledWorkflowsBulkDeleteFilter(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -83,12 +97,12 @@ class ScheduledWorkflowsBulkDeleteFilter(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "workflowId": obj.get("workflowId"),
-            "parentWorkflowRunId": obj.get("parentWorkflowRunId"),
-            "parentStepRunId": obj.get("parentStepRunId"),
-            "additionalMetadata": obj.get("additionalMetadata")
-        })
+        _obj = cls.model_validate(
+            {
+                "workflowId": obj.get("workflowId"),
+                "parentWorkflowRunId": obj.get("parentWorkflowRunId"),
+                "parentStepRunId": obj.get("parentStepRunId"),
+                "additionalMetadata": obj.get("additionalMetadata"),
+            }
+        )
         return _obj
-
-

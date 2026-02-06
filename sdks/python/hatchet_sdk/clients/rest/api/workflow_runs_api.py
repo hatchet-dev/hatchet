@@ -46,19 +46,24 @@ class WorkflowRunsApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
-
     @validate_call
     def v1_workflow_run_create(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_trigger_workflow_run_request: Annotated[V1TriggerWorkflowRunRequest, Field(description="The workflow run to create")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_trigger_workflow_run_request: Annotated[
+            V1TriggerWorkflowRunRequest, Field(description="The workflow run to create")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -93,7 +98,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_create_serialize(
             tenant=tenant,
@@ -101,17 +106,16 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDetails",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1WorkflowRunDetails",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -119,19 +123,24 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_create_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_trigger_workflow_run_request: Annotated[V1TriggerWorkflowRunRequest, Field(description="The workflow run to create")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_trigger_workflow_run_request: Annotated[
+            V1TriggerWorkflowRunRequest, Field(description="The workflow run to create")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -166,7 +175,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_create_serialize(
             tenant=tenant,
@@ -174,17 +183,16 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDetails",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1WorkflowRunDetails",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -192,19 +200,24 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_create_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        v1_trigger_workflow_run_request: Annotated[V1TriggerWorkflowRunRequest, Field(description="The workflow run to create")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        v1_trigger_workflow_run_request: Annotated[
+            V1TriggerWorkflowRunRequest, Field(description="The workflow run to create")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -239,7 +252,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_create_serialize(
             tenant=tenant,
@@ -247,20 +260,18 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDetails",
-            '400': "APIErrors",
-            '403': "APIErrors",
+            "200": "V1WorkflowRunDetails",
+            "400": "APIErrors",
+            "403": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_create_serialize(
         self,
@@ -274,8 +285,7 @@ class WorkflowRunsApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -288,7 +298,7 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -296,38 +306,28 @@ class WorkflowRunsApi:
         if v1_trigger_workflow_run_request is not None:
             _body_params = v1_trigger_workflow_run_request
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params['Content-Type'] = _content_type
+            _header_params["Content-Type"] = _content_type
         else:
-            _default_content_type = (
-                self.api_client.select_header_content_type(
-                    [
-                        'application/json'
-                    ]
-                )
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params['Content-Type'] = _default_content_type
+                _header_params["Content-Type"] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/stable/tenants/{tenant}/workflow-runs/trigger',
+            method="POST",
+            resource_path="/api/v1/stable/tenants/{tenant}/workflow-runs/trigger",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -337,24 +337,30 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_workflow_run_display_names_list(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        external_ids: Annotated[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external ids of the workflow runs to get display names for")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        external_ids: Annotated[
+            List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The external ids of the workflow runs to get display names for"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -389,7 +395,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_display_names_list_serialize(
             tenant=tenant,
@@ -397,18 +403,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDisplayNameList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1WorkflowRunDisplayNameList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -416,19 +421,27 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_display_names_list_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        external_ids: Annotated[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external ids of the workflow runs to get display names for")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        external_ids: Annotated[
+            List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The external ids of the workflow runs to get display names for"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -463,7 +476,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_display_names_list_serialize(
             tenant=tenant,
@@ -471,18 +484,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDisplayNameList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1WorkflowRunDisplayNameList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -490,19 +502,27 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_display_names_list_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        external_ids: Annotated[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external ids of the workflow runs to get display names for")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        external_ids: Annotated[
+            List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The external ids of the workflow runs to get display names for"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -537,7 +557,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_display_names_list_serialize(
             tenant=tenant,
@@ -545,21 +565,19 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDisplayNameList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1WorkflowRunDisplayNameList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_display_names_list_serialize(
         self,
@@ -574,7 +592,7 @@ class WorkflowRunsApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'external_ids': 'multi',
+            "external_ids": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -588,35 +606,28 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         if external_ids is not None:
-            
-            _query_params.append(('external_ids', external_ids))
-            
+
+            _query_params.append(("external_ids", external_ids))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tenants/{tenant}/workflow-runs/display-names',
+            method="GET",
+            resource_path="/api/v1/stable/tenants/{tenant}/workflow-runs/display-names",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -626,28 +637,42 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_workflow_run_external_ids_list(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         since: Annotated[datetime, Field(description="The earliest date to filter by")],
-        statuses: Annotated[Optional[List[V1TaskStatus]], Field(description="A list of statuses to filter by")] = None,
-        until: Annotated[Optional[datetime], Field(description="The latest date to filter by")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to find runs for")] = None,
+        statuses: Annotated[
+            Optional[List[V1TaskStatus]],
+            Field(description="A list of statuses to filter by"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The latest date to filter by")
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to find runs for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -690,7 +715,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_external_ids_list_serialize(
             tenant=tenant,
@@ -702,18 +727,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[str]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[str]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -721,23 +745,39 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_external_ids_list_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         since: Annotated[datetime, Field(description="The earliest date to filter by")],
-        statuses: Annotated[Optional[List[V1TaskStatus]], Field(description="A list of statuses to filter by")] = None,
-        until: Annotated[Optional[datetime], Field(description="The latest date to filter by")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to find runs for")] = None,
+        statuses: Annotated[
+            Optional[List[V1TaskStatus]],
+            Field(description="A list of statuses to filter by"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The latest date to filter by")
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to find runs for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -780,7 +820,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_external_ids_list_serialize(
             tenant=tenant,
@@ -792,18 +832,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[str]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[str]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -811,23 +850,39 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_external_ids_list_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         since: Annotated[datetime, Field(description="The earliest date to filter by")],
-        statuses: Annotated[Optional[List[V1TaskStatus]], Field(description="A list of statuses to filter by")] = None,
-        until: Annotated[Optional[datetime], Field(description="The latest date to filter by")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to find runs for")] = None,
+        statuses: Annotated[
+            Optional[List[V1TaskStatus]],
+            Field(description="A list of statuses to filter by"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The latest date to filter by")
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to find runs for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -870,7 +925,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_external_ids_list_serialize(
             tenant=tenant,
@@ -882,21 +937,19 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[str]",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "List[str]",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_external_ids_list_serialize(
         self,
@@ -915,9 +968,9 @@ class WorkflowRunsApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'statuses': 'multi',
-            'additional_metadata': 'multi',
-            'workflow_ids': 'multi',
+            "statuses": "multi",
+            "additional_metadata": "multi",
+            "workflow_ids": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -931,69 +984,58 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         if statuses is not None:
-            
-            _query_params.append(('statuses', statuses))
-            
+
+            _query_params.append(("statuses", statuses))
+
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
                     (
-                        'since',
-                        since.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "since",
+                        since.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('since', since))
-            
+                _query_params.append(("since", since))
+
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
                     (
-                        'until',
-                        until.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "until",
+                        until.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('until', until))
-            
+                _query_params.append(("until", until))
+
         if additional_metadata is not None:
-            
-            _query_params.append(('additional_metadata', additional_metadata))
-            
+
+            _query_params.append(("additional_metadata", additional_metadata))
+
         if workflow_ids is not None:
-            
-            _query_params.append(('workflow_ids', workflow_ids))
-            
+
+            _query_params.append(("workflow_ids", workflow_ids))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tenants/{tenant}/workflow-runs/external-ids',
+            method="GET",
+            resource_path="/api/v1/stable/tenants/{tenant}/workflow-runs/external-ids",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1003,23 +1045,27 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_workflow_run_get(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get")],
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1052,25 +1098,24 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_serialize(
             v1_workflow_run=v1_workflow_run,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDetails",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1WorkflowRunDetails",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1078,18 +1123,24 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_get_with_http_info(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get")],
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1122,25 +1173,24 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_serialize(
             v1_workflow_run=v1_workflow_run,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDetails",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1WorkflowRunDetails",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1148,18 +1198,24 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_get_without_preload_content(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get")],
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1192,28 +1248,26 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_serialize(
             v1_workflow_run=v1_workflow_run,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1WorkflowRunDetails",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1WorkflowRunDetails",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_get_serialize(
         self,
@@ -1226,8 +1280,7 @@ class WorkflowRunsApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1240,31 +1293,24 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if v1_workflow_run is not None:
-            _path_params['v1-workflow-run'] = v1_workflow_run
+            _path_params["v1-workflow-run"] = v1_workflow_run
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/workflow-runs/{v1-workflow-run}',
+            method="GET",
+            resource_path="/api/v1/stable/workflow-runs/{v1-workflow-run}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1274,23 +1320,27 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_workflow_run_get_status(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get the status for")],
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get the status for",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1323,26 +1373,25 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_status_serialize(
             v1_workflow_run=v1_workflow_run,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskStatus",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskStatus",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1350,18 +1399,24 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_get_status_with_http_info(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get the status for")],
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get the status for",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1394,26 +1449,25 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_status_serialize(
             v1_workflow_run=v1_workflow_run,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskStatus",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskStatus",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1421,18 +1475,24 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_get_status_without_preload_content(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get the status for")],
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get the status for",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1465,29 +1525,27 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_status_serialize(
             v1_workflow_run=v1_workflow_run,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskStatus",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '404': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskStatus",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_get_status_serialize(
         self,
@@ -1500,8 +1558,7 @@ class WorkflowRunsApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1514,31 +1571,24 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if v1_workflow_run is not None:
-            _path_params['v1-workflow-run'] = v1_workflow_run
+            _path_params["v1-workflow-run"] = v1_workflow_run
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/workflow-runs/{v1-workflow-run}/status',
+            method="GET",
+            resource_path="/api/v1/stable/workflow-runs/{v1-workflow-run}/status",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1548,24 +1598,30 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_workflow_run_get_timings(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get")],
-        depth: Annotated[Optional[StrictInt], Field(description="The depth to retrieve children")] = None,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get",
+            ),
+        ],
+        depth: Annotated[
+            Optional[StrictInt], Field(description="The depth to retrieve children")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1600,7 +1656,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_timings_serialize(
             v1_workflow_run=v1_workflow_run,
@@ -1608,18 +1664,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskTimingList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskTimingList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1627,19 +1682,27 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_get_timings_with_http_info(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get")],
-        depth: Annotated[Optional[StrictInt], Field(description="The depth to retrieve children")] = None,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get",
+            ),
+        ],
+        depth: Annotated[
+            Optional[StrictInt], Field(description="The depth to retrieve children")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1674,7 +1737,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_timings_serialize(
             v1_workflow_run=v1_workflow_run,
@@ -1682,18 +1745,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskTimingList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskTimingList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1701,19 +1763,27 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_get_timings_without_preload_content(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to get")],
-        depth: Annotated[Optional[StrictInt], Field(description="The depth to retrieve children")] = None,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get",
+            ),
+        ],
+        depth: Annotated[
+            Optional[StrictInt], Field(description="The depth to retrieve children")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1748,7 +1818,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_get_timings_serialize(
             v1_workflow_run=v1_workflow_run,
@@ -1756,21 +1826,19 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskTimingList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskTimingList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_get_timings_serialize(
         self,
@@ -1784,8 +1852,7 @@ class WorkflowRunsApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1798,35 +1865,28 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if v1_workflow_run is not None:
-            _path_params['v1-workflow-run'] = v1_workflow_run
+            _path_params["v1-workflow-run"] = v1_workflow_run
         # process the query parameters
         if depth is not None:
-            
-            _query_params.append(('depth', depth))
-            
+
+            _query_params.append(("depth", depth))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings',
+            method="GET",
+            resource_path="/api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1836,35 +1896,72 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_workflow_run_list(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         since: Annotated[datetime, Field(description="The earliest date to filter by")],
-        only_tasks: Annotated[StrictBool, Field(description="Whether to include DAGs or only to include tasks")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        statuses: Annotated[Optional[List[V1TaskStatus]], Field(description="A list of statuses to filter by")] = None,
-        until: Annotated[Optional[datetime], Field(description="The latest date to filter by")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to find runs for")] = None,
-        worker_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The worker id to filter by")] = None,
-        parent_task_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent task external id to filter by")] = None,
-        triggering_event_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external id of the event that triggered the workflow run")] = None,
-        include_payloads: Annotated[Optional[StrictBool], Field(description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.")] = None,
+        only_tasks: Annotated[
+            StrictBool,
+            Field(description="Whether to include DAGs or only to include tasks"),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        statuses: Annotated[
+            Optional[List[V1TaskStatus]],
+            Field(description="A list of statuses to filter by"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The latest date to filter by")
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to find runs for"),
+        ] = None,
+        worker_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The worker id to filter by"),
+        ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task external id to filter by"),
+        ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The external id of the event that triggered the workflow run"
+            ),
+        ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1921,7 +2018,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_list_serialize(
             tenant=tenant,
@@ -1940,18 +2037,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskSummaryList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskSummaryList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1959,30 +2055,69 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_list_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         since: Annotated[datetime, Field(description="The earliest date to filter by")],
-        only_tasks: Annotated[StrictBool, Field(description="Whether to include DAGs or only to include tasks")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        statuses: Annotated[Optional[List[V1TaskStatus]], Field(description="A list of statuses to filter by")] = None,
-        until: Annotated[Optional[datetime], Field(description="The latest date to filter by")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to find runs for")] = None,
-        worker_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The worker id to filter by")] = None,
-        parent_task_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent task external id to filter by")] = None,
-        triggering_event_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external id of the event that triggered the workflow run")] = None,
-        include_payloads: Annotated[Optional[StrictBool], Field(description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.")] = None,
+        only_tasks: Annotated[
+            StrictBool,
+            Field(description="Whether to include DAGs or only to include tasks"),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        statuses: Annotated[
+            Optional[List[V1TaskStatus]],
+            Field(description="A list of statuses to filter by"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The latest date to filter by")
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to find runs for"),
+        ] = None,
+        worker_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The worker id to filter by"),
+        ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task external id to filter by"),
+        ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The external id of the event that triggered the workflow run"
+            ),
+        ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2039,7 +2174,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_list_serialize(
             tenant=tenant,
@@ -2058,18 +2193,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskSummaryList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskSummaryList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -2077,30 +2211,69 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_list_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         since: Annotated[datetime, Field(description="The earliest date to filter by")],
-        only_tasks: Annotated[StrictBool, Field(description="Whether to include DAGs or only to include tasks")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
-        statuses: Annotated[Optional[List[V1TaskStatus]], Field(description="A list of statuses to filter by")] = None,
-        until: Annotated[Optional[datetime], Field(description="The latest date to filter by")] = None,
-        additional_metadata: Annotated[Optional[List[StrictStr]], Field(description="Additional metadata k-v pairs to filter by")] = None,
-        workflow_ids: Annotated[Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]], Field(description="The workflow ids to find runs for")] = None,
-        worker_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The worker id to filter by")] = None,
-        parent_task_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent task external id to filter by")] = None,
-        triggering_event_external_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The external id of the event that triggered the workflow run")] = None,
-        include_payloads: Annotated[Optional[StrictBool], Field(description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.")] = None,
+        only_tasks: Annotated[
+            StrictBool,
+            Field(description="Whether to include DAGs or only to include tasks"),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        statuses: Annotated[
+            Optional[List[V1TaskStatus]],
+            Field(description="A list of statuses to filter by"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The latest date to filter by")
+        ] = None,
+        additional_metadata: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="Additional metadata k-v pairs to filter by"),
+        ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow ids to find runs for"),
+        ] = None,
+        worker_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The worker id to filter by"),
+        ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task external id to filter by"),
+        ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The external id of the event that triggered the workflow run"
+            ),
+        ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2157,7 +2330,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_list_serialize(
             tenant=tenant,
@@ -2176,21 +2349,19 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskSummaryList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskSummaryList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_list_serialize(
         self,
@@ -2216,9 +2387,9 @@ class WorkflowRunsApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
-            'statuses': 'multi',
-            'additional_metadata': 'multi',
-            'workflow_ids': 'multi',
+            "statuses": "multi",
+            "additional_metadata": "multi",
+            "workflow_ids": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -2232,97 +2403,88 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         if offset is not None:
-            
-            _query_params.append(('offset', offset))
-            
+
+            _query_params.append(("offset", offset))
+
         if limit is not None:
-            
-            _query_params.append(('limit', limit))
-            
+
+            _query_params.append(("limit", limit))
+
         if statuses is not None:
-            
-            _query_params.append(('statuses', statuses))
-            
+
+            _query_params.append(("statuses", statuses))
+
         if since is not None:
             if isinstance(since, datetime):
                 _query_params.append(
                     (
-                        'since',
-                        since.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "since",
+                        since.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('since', since))
-            
+                _query_params.append(("since", since))
+
         if until is not None:
             if isinstance(until, datetime):
                 _query_params.append(
                     (
-                        'until',
-                        until.strftime(
-                            self.api_client.configuration.datetime_format
-                        )
+                        "until",
+                        until.strftime(self.api_client.configuration.datetime_format),
                     )
                 )
             else:
-                _query_params.append(('until', until))
-            
+                _query_params.append(("until", until))
+
         if additional_metadata is not None:
-            
-            _query_params.append(('additional_metadata', additional_metadata))
-            
+
+            _query_params.append(("additional_metadata", additional_metadata))
+
         if workflow_ids is not None:
-            
-            _query_params.append(('workflow_ids', workflow_ids))
-            
+
+            _query_params.append(("workflow_ids", workflow_ids))
+
         if worker_id is not None:
-            
-            _query_params.append(('worker_id', worker_id))
-            
+
+            _query_params.append(("worker_id", worker_id))
+
         if only_tasks is not None:
-            
-            _query_params.append(('only_tasks', only_tasks))
-            
+
+            _query_params.append(("only_tasks", only_tasks))
+
         if parent_task_external_id is not None:
-            
-            _query_params.append(('parent_task_external_id', parent_task_external_id))
-            
+
+            _query_params.append(("parent_task_external_id", parent_task_external_id))
+
         if triggering_event_external_id is not None:
-            
-            _query_params.append(('triggering_event_external_id', triggering_event_external_id))
-            
+
+            _query_params.append(
+                ("triggering_event_external_id", triggering_event_external_id)
+            )
+
         if include_payloads is not None:
-            
-            _query_params.append(('include_payloads', include_payloads))
-            
+
+            _query_params.append(("include_payloads", include_payloads))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/tenants/{tenant}/workflow-runs',
+            method="GET",
+            resource_path="/api/v1/stable/tenants/{tenant}/workflow-runs",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2332,25 +2494,33 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def v1_workflow_run_task_events_list(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to find runs for")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to find runs for",
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2387,7 +2557,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_task_events_list_serialize(
             v1_workflow_run=v1_workflow_run,
@@ -2396,18 +2566,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskEventList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskEventList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -2415,20 +2584,30 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def v1_workflow_run_task_events_list_with_http_info(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to find runs for")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to find runs for",
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2465,7 +2644,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_task_events_list_serialize(
             v1_workflow_run=v1_workflow_run,
@@ -2474,18 +2653,17 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskEventList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskEventList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -2493,20 +2671,30 @@ class WorkflowRunsApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def v1_workflow_run_task_events_list_without_preload_content(
         self,
-        v1_workflow_run: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The workflow run id to find runs for")],
-        offset: Annotated[Optional[StrictInt], Field(description="The number to skip")] = None,
-        limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to find runs for",
+            ),
+        ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2543,7 +2731,7 @@ class WorkflowRunsApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._v1_workflow_run_task_events_list_serialize(
             v1_workflow_run=v1_workflow_run,
@@ -2552,21 +2740,19 @@ class WorkflowRunsApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "V1TaskEventList",
-            '400': "APIErrors",
-            '403': "APIErrors",
-            '501': "APIErrors",
+            "200": "V1TaskEventList",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _v1_workflow_run_task_events_list_serialize(
         self,
@@ -2581,8 +2767,7 @@ class WorkflowRunsApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2595,39 +2780,32 @@ class WorkflowRunsApi:
 
         # process the path parameters
         if v1_workflow_run is not None:
-            _path_params['v1-workflow-run'] = v1_workflow_run
+            _path_params["v1-workflow-run"] = v1_workflow_run
         # process the query parameters
         if offset is not None:
-            
-            _query_params.append(('offset', offset))
-            
+
+            _query_params.append(("offset", offset))
+
         if limit is not None:
-            
-            _query_params.append(('limit', limit))
-            
+
+            _query_params.append(("limit", limit))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/stable/workflow-runs/{v1-workflow-run}/task-events',
+            method="GET",
+            resource_path="/api/v1/stable/workflow-runs/{v1-workflow-run}/task-events",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2637,7 +2815,5 @@ class WorkflowRunsApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-

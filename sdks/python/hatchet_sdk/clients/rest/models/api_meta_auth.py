@@ -26,8 +26,11 @@ from typing_extensions import Self
 class APIMetaAuth(BaseModel):
     """
     APIMetaAuth
-    """ # noqa: E501
-    schemes: Optional[List[StrictStr]] = Field(default=None, description="the supported types of authentication")
+    """  # noqa: E501
+
+    schemes: Optional[List[StrictStr]] = Field(
+        default=None, description="the supported types of authentication"
+    )
     __properties: ClassVar[List[str]] = ["schemes"]
 
     model_config = ConfigDict(
@@ -35,7 +38,6 @@ class APIMetaAuth(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +63,7 @@ class APIMetaAuth(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,9 +81,5 @@ class APIMetaAuth(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "schemes": obj.get("schemes")
-        })
+        _obj = cls.model_validate({"schemes": obj.get("schemes")})
         return _obj
-
-

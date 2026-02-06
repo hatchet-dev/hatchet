@@ -26,10 +26,17 @@ from typing_extensions import Self
 class QueueMetrics(BaseModel):
     """
     QueueMetrics
-    """ # noqa: E501
-    num_queued: StrictInt = Field(description="The number of items in the queue.", alias="numQueued")
-    num_running: StrictInt = Field(description="The number of items running.", alias="numRunning")
-    num_pending: StrictInt = Field(description="The number of items pending.", alias="numPending")
+    """  # noqa: E501
+
+    num_queued: StrictInt = Field(
+        description="The number of items in the queue.", alias="numQueued"
+    )
+    num_running: StrictInt = Field(
+        description="The number of items running.", alias="numRunning"
+    )
+    num_pending: StrictInt = Field(
+        description="The number of items pending.", alias="numPending"
+    )
     __properties: ClassVar[List[str]] = ["numQueued", "numRunning", "numPending"]
 
     model_config = ConfigDict(
@@ -37,7 +44,6 @@ class QueueMetrics(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +69,7 @@ class QueueMetrics(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,11 +87,11 @@ class QueueMetrics(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "numQueued": obj.get("numQueued"),
-            "numRunning": obj.get("numRunning"),
-            "numPending": obj.get("numPending")
-        })
+        _obj = cls.model_validate(
+            {
+                "numQueued": obj.get("numQueued"),
+                "numRunning": obj.get("numRunning"),
+                "numPending": obj.get("numPending"),
+            }
+        )
         return _obj
-
-

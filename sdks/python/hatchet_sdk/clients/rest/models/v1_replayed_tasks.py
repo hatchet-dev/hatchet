@@ -26,8 +26,13 @@ from typing_extensions import Annotated, Self
 class V1ReplayedTasks(BaseModel):
     """
     V1ReplayedTasks
-    """ # noqa: E501
-    ids: Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]] = Field(default=None, description="The list of task external ids that were replayed")
+    """  # noqa: E501
+
+    ids: Optional[
+        List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+    ] = Field(
+        default=None, description="The list of task external ids that were replayed"
+    )
     __properties: ClassVar[List[str]] = ["ids"]
 
     model_config = ConfigDict(
@@ -35,7 +40,6 @@ class V1ReplayedTasks(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +65,7 @@ class V1ReplayedTasks(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,9 +83,5 @@ class V1ReplayedTasks(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "ids": obj.get("ids")
-        })
+        _obj = cls.model_validate({"ids": obj.get("ids")})
         return _obj
-
-

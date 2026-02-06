@@ -26,9 +26,18 @@ from typing_extensions import Self
 class WorkflowMetrics(BaseModel):
     """
     WorkflowMetrics
-    """ # noqa: E501
-    group_key_runs_count: Optional[StrictInt] = Field(default=None, description="The number of runs for a specific group key (passed via filter)", alias="groupKeyRunsCount")
-    group_key_count: Optional[StrictInt] = Field(default=None, description="The total number of concurrency group keys.", alias="groupKeyCount")
+    """  # noqa: E501
+
+    group_key_runs_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of runs for a specific group key (passed via filter)",
+        alias="groupKeyRunsCount",
+    )
+    group_key_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The total number of concurrency group keys.",
+        alias="groupKeyCount",
+    )
     __properties: ClassVar[List[str]] = ["groupKeyRunsCount", "groupKeyCount"]
 
     model_config = ConfigDict(
@@ -36,7 +45,6 @@ class WorkflowMetrics(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -62,8 +70,7 @@ class WorkflowMetrics(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,10 +88,10 @@ class WorkflowMetrics(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "groupKeyRunsCount": obj.get("groupKeyRunsCount"),
-            "groupKeyCount": obj.get("groupKeyCount")
-        })
+        _obj = cls.model_validate(
+            {
+                "groupKeyRunsCount": obj.get("groupKeyRunsCount"),
+                "groupKeyCount": obj.get("groupKeyCount"),
+            }
+        )
         return _obj
-
-

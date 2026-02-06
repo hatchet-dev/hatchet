@@ -66,7 +66,9 @@ class ContextVarToCopyToken(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: Literal["ctx_cancellation_token"]
-    value: Any  # Arbitrary objects; using Any to avoid Pydantic issues with custom classes
+    value: (
+        Any  # Arbitrary objects; using Any to avoid Pydantic issues with custom classes
+    )
 
 
 class ContextVarToCopy(BaseModel):

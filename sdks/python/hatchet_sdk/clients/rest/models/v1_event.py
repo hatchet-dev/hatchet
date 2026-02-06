@@ -34,26 +34,67 @@ from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
 class V1Event(BaseModel):
     """
     V1Event
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     key: StrictStr = Field(description="The key for the event.")
-    tenant: Optional[Tenant] = Field(default=None, description="The tenant associated with this event.")
-    tenant_id: StrictStr = Field(description="The ID of the tenant associated with this event.", alias="tenantId")
-    workflow_run_summary: V1EventWorkflowRunSummary = Field(description="The workflow run summary for this event.", alias="workflowRunSummary")
-    additional_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata for the event.", alias="additionalMetadata")
-    payload: Optional[Dict[str, Any]] = Field(default=None, description="The payload of the event, which can be any JSON-serializable object.")
-    scope: Optional[StrictStr] = Field(default=None, description="The scope of the event, which can be used to filter or categorize events.")
-    seen_at: Optional[datetime] = Field(default=None, description="The timestamp when the event was seen.", alias="seenAt")
-    triggered_runs: Optional[List[V1EventTriggeredRun]] = Field(default=None, description="The external IDs of the runs that were triggered by this event.", alias="triggeredRuns")
-    triggering_webhook_name: Optional[StrictStr] = Field(default=None, description="The name of the webhook that triggered this event, if applicable.", alias="triggeringWebhookName")
-    __properties: ClassVar[List[str]] = ["metadata", "key", "tenant", "tenantId", "workflowRunSummary", "additionalMetadata", "payload", "scope", "seenAt", "triggeredRuns", "triggeringWebhookName"]
+    tenant: Optional[Tenant] = Field(
+        default=None, description="The tenant associated with this event."
+    )
+    tenant_id: StrictStr = Field(
+        description="The ID of the tenant associated with this event.", alias="tenantId"
+    )
+    workflow_run_summary: V1EventWorkflowRunSummary = Field(
+        description="The workflow run summary for this event.",
+        alias="workflowRunSummary",
+    )
+    additional_metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional metadata for the event.",
+        alias="additionalMetadata",
+    )
+    payload: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="The payload of the event, which can be any JSON-serializable object.",
+    )
+    scope: Optional[StrictStr] = Field(
+        default=None,
+        description="The scope of the event, which can be used to filter or categorize events.",
+    )
+    seen_at: Optional[datetime] = Field(
+        default=None,
+        description="The timestamp when the event was seen.",
+        alias="seenAt",
+    )
+    triggered_runs: Optional[List[V1EventTriggeredRun]] = Field(
+        default=None,
+        description="The external IDs of the runs that were triggered by this event.",
+        alias="triggeredRuns",
+    )
+    triggering_webhook_name: Optional[StrictStr] = Field(
+        default=None,
+        description="The name of the webhook that triggered this event, if applicable.",
+        alias="triggeringWebhookName",
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "key",
+        "tenant",
+        "tenantId",
+        "workflowRunSummary",
+        "additionalMetadata",
+        "payload",
+        "scope",
+        "seenAt",
+        "triggeredRuns",
+        "triggeringWebhookName",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -79,8 +120,7 @@ class V1Event(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -89,20 +129,20 @@ class V1Event(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of tenant
         if self.tenant:
-            _dict['tenant'] = self.tenant.to_dict()
+            _dict["tenant"] = self.tenant.to_dict()
         # override the default output from pydantic by calling `to_dict()` of workflow_run_summary
         if self.workflow_run_summary:
-            _dict['workflowRunSummary'] = self.workflow_run_summary.to_dict()
+            _dict["workflowRunSummary"] = self.workflow_run_summary.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in triggered_runs (list)
         _items = []
         if self.triggered_runs:
             for _item_triggered_runs in self.triggered_runs:
                 if _item_triggered_runs:
                     _items.append(_item_triggered_runs.to_dict())
-            _dict['triggeredRuns'] = _items
+            _dict["triggeredRuns"] = _items
         return _dict
 
     @classmethod
@@ -114,19 +154,38 @@ class V1Event(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "key": obj.get("key"),
-            "tenant": Tenant.from_dict(obj["tenant"]) if obj.get("tenant") is not None else None,
-            "tenantId": obj.get("tenantId"),
-            "workflowRunSummary": V1EventWorkflowRunSummary.from_dict(obj["workflowRunSummary"]) if obj.get("workflowRunSummary") is not None else None,
-            "additionalMetadata": obj.get("additionalMetadata"),
-            "payload": obj.get("payload"),
-            "scope": obj.get("scope"),
-            "seenAt": obj.get("seenAt"),
-            "triggeredRuns": [V1EventTriggeredRun.from_dict(_item) for _item in obj["triggeredRuns"]] if obj.get("triggeredRuns") is not None else None,
-            "triggeringWebhookName": obj.get("triggeringWebhookName")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "key": obj.get("key"),
+                "tenant": (
+                    Tenant.from_dict(obj["tenant"])
+                    if obj.get("tenant") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "workflowRunSummary": (
+                    V1EventWorkflowRunSummary.from_dict(obj["workflowRunSummary"])
+                    if obj.get("workflowRunSummary") is not None
+                    else None
+                ),
+                "additionalMetadata": obj.get("additionalMetadata"),
+                "payload": obj.get("payload"),
+                "scope": obj.get("scope"),
+                "seenAt": obj.get("seenAt"),
+                "triggeredRuns": (
+                    [
+                        V1EventTriggeredRun.from_dict(_item)
+                        for _item in obj["triggeredRuns"]
+                    ]
+                    if obj.get("triggeredRuns") is not None
+                    else None
+                ),
+                "triggeringWebhookName": obj.get("triggeringWebhookName"),
+            }
+        )
         return _obj
-
-

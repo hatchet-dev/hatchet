@@ -28,8 +28,11 @@ from hatchet_sdk.clients.rest.models.webhook_worker_request import WebhookWorker
 class WebhookWorkerRequestListResponse(BaseModel):
     """
     WebhookWorkerRequestListResponse
-    """ # noqa: E501
-    requests: Optional[List[WebhookWorkerRequest]] = Field(default=None, description="The list of webhook requests.")
+    """  # noqa: E501
+
+    requests: Optional[List[WebhookWorkerRequest]] = Field(
+        default=None, description="The list of webhook requests."
+    )
     __properties: ClassVar[List[str]] = ["requests"]
 
     model_config = ConfigDict(
@@ -37,7 +40,6 @@ class WebhookWorkerRequestListResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +65,7 @@ class WebhookWorkerRequestListResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -77,7 +78,7 @@ class WebhookWorkerRequestListResponse(BaseModel):
             for _item_requests in self.requests:
                 if _item_requests:
                     _items.append(_item_requests.to_dict())
-            _dict['requests'] = _items
+            _dict["requests"] = _items
         return _dict
 
     @classmethod
@@ -89,9 +90,13 @@ class WebhookWorkerRequestListResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "requests": [WebhookWorkerRequest.from_dict(_item) for _item in obj["requests"]] if obj.get("requests") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "requests": (
+                    [WebhookWorkerRequest.from_dict(_item) for _item in obj["requests"]]
+                    if obj.get("requests") is not None
+                    else None
+                )
+            }
+        )
         return _obj
-
-

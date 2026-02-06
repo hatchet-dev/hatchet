@@ -26,9 +26,18 @@ from typing_extensions import Annotated, Self
 class V1EventTriggeredRun(BaseModel):
     """
     V1EventTriggeredRun
-    """ # noqa: E501
-    workflow_run_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(description="The external ID of the triggered run.", alias="workflowRunId")
-    filter_id: Optional[StrictStr] = Field(default=None, description="The ID of the filter that triggered the run, if applicable.", alias="filterId")
+    """  # noqa: E501
+
+    workflow_run_id: Annotated[
+        str, Field(min_length=36, strict=True, max_length=36)
+    ] = Field(
+        description="The external ID of the triggered run.", alias="workflowRunId"
+    )
+    filter_id: Optional[StrictStr] = Field(
+        default=None,
+        description="The ID of the filter that triggered the run, if applicable.",
+        alias="filterId",
+    )
     __properties: ClassVar[List[str]] = ["workflowRunId", "filterId"]
 
     model_config = ConfigDict(
@@ -36,7 +45,6 @@ class V1EventTriggeredRun(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -62,8 +70,7 @@ class V1EventTriggeredRun(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,10 +88,7 @@ class V1EventTriggeredRun(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "workflowRunId": obj.get("workflowRunId"),
-            "filterId": obj.get("filterId")
-        })
+        _obj = cls.model_validate(
+            {"workflowRunId": obj.get("workflowRunId"), "filterId": obj.get("filterId")}
+        )
         return _obj
-
-
