@@ -543,18 +543,14 @@ export class V0Worker {
 
       if (future) {
         future.promise.catch(() => {
-          this.logger.info(
-            taskRunLog(action.taskName, action.taskRunExternalId, 'cancelled')
-          );
+          this.logger.info(taskRunLog(action.taskName, action.taskRunExternalId, 'cancelled'));
         });
         future.cancel('Cancelled by worker');
         await future.promise;
       }
     } catch (e: any) {
       // Expected: the promise rejects when cancelled
-      this.logger.debug(
-        taskRunLog(action.taskName, action.taskRunExternalId, 'cancelled')
-      );
+      this.logger.debug(taskRunLog(action.taskName, action.taskRunExternalId, 'cancelled'));
     } finally {
       delete this.futures[createActionKey(action)];
       delete this.contexts[createActionKey(action)];

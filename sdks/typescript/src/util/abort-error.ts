@@ -6,10 +6,7 @@ export function createAbortError(message = 'Operation aborted'): Error {
 }
 
 export function isAbortError(err: unknown): err is Error {
-  return (
-    err instanceof Error &&
-    (err.name === 'AbortError' || (err as any).code === 'ABORT_ERR')
-  );
+  return err instanceof Error && (err.name === 'AbortError' || (err as any).code === 'ABORT_ERR');
 }
 
 /**
@@ -78,7 +75,7 @@ export function throwIfAborted(
     );
   }
 
-  const reason = (signal as any).reason;
+  const { reason } = signal as any;
 
   if (reason instanceof Error) {
     throw reason;
