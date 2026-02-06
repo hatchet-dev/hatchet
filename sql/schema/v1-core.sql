@@ -144,8 +144,6 @@ CREATE TYPE v1_task_initial_state AS ENUM ('QUEUED', 'CANCELLED', 'SKIPPED', 'FA
 -- enqueue if the strategy is removed.
 CREATE TYPE v1_concurrency_strategy AS ENUM ('NONE', 'GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST');
 
-CREATE TYPE v1_worker_slot_group AS ENUM ('SLOTS', 'DURABLE_SLOTS');
-
 CREATE TABLE v1_workflow_concurrency (
     -- We need an id used for stable ordering to prevent deadlocks. We must process all concurrency
     -- strategies on a workflow in the same order.
@@ -417,14 +415,11 @@ CREATE TABLE v1_task_runtime (
     worker_id UUID,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
-    slot_group v1_worker_slot_group NOT NULL DEFAULT 'SLOTS',
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
 
 CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC) WHERE worker_id IS NOT NULL;
-
-CREATE INDEX v1_task_runtime_tenantId_workerId_slotGroup_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC, slot_group ASC) WHERE worker_id IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
 
@@ -459,6 +454,9 @@ CREATE TABLE v1_step_slot_request (
     PRIMARY KEY (tenant_id, step_id, slot_type)
 );
 
+CREATE INDEX v1_step_slot_request_step_idx
+    ON v1_step_slot_request (step_id ASC);
+
 -- v1_task_runtime_slot stores runtime slot consumption per task.
 CREATE TABLE v1_task_runtime_slot (
     tenant_id UUID NOT NULL,
@@ -475,9 +473,6 @@ CREATE TABLE v1_task_runtime_slot (
 
 CREATE INDEX v1_task_runtime_slot_tenant_worker_type_idx
     ON v1_task_runtime_slot (tenant_id ASC, worker_id ASC, slot_type ASC);
-
-CREATE INDEX v1_step_slot_request_step_idx
-    ON v1_step_slot_request (step_id ASC);
 
 -- v1_rate_limited_queue_items represents a queue item that has been rate limited and removed from the v1_queue_item table.
 CREATE TABLE v1_rate_limited_queue_items (
