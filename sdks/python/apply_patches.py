@@ -8,11 +8,20 @@ def prepend_import(content: str, import_statement: str) -> str:
     if import_statement in content:
         return content
 
+    future_import_pattern = r"^from __future__ import [^\n]+\n"
+    future_imports = re.findall(future_import_pattern, content, re.MULTILINE)
+    content = re.sub(future_import_pattern, "", content, flags=re.MULTILINE)
+
     match = re.search(r"^import\s+|^from\s+", content, re.MULTILINE)
     insert_position = match.start() if match else 0
 
+    future_block = "".join(future_imports)
     return (
-        content[:insert_position] + import_statement + "\n" + content[insert_position:]
+        content[:insert_position]
+        + future_block
+        + import_statement
+        + "\n"
+        + content[insert_position:]
     )
 
 
