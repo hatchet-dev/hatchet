@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
