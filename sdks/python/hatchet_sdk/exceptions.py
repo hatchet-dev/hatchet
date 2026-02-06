@@ -192,6 +192,9 @@ class CancellationReason(Enum):
     TOKEN_CANCELLED = "token_cancelled"
     """The cancellation token was cancelled."""
 
+    EVICTED = "evicted"
+    """The operation was cancelled due to durable-run eviction."""
+
     UNKNOWN = "unknown"
     """Unknown or unspecified cancellation reason."""
 

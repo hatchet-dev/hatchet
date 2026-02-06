@@ -54,6 +54,7 @@ from hatchet_sdk.runnables.types import (
     is_sync_fn,
     normalize_validator,
 )
+from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
@@ -149,12 +150,21 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
+        durable_eviction: EvictionPolicy | None = None,
         slot_requests: dict[str, int] | None = None,
     ) -> None:
         self.is_durable = is_durable
         if slot_requests is None:
             slot_requests = {"durable": 1} if is_durable else {"default": 1}
         self.slot_requests = slot_requests
+
+        if not is_durable and durable_eviction is not None:
+            raise ValueError("Durable eviction policy cannot be set for a non-durable task.")
+
+        # Durable-only: if None, the durable task run is not eviction-eligible.
+        self.durable_eviction: EvictionPolicy | None = (
+            durable_eviction if is_durable else None
+        )
 
         self.fn = _fn
         self.is_async_function = is_async_fn(self.fn)  # type: ignore

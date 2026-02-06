@@ -28,6 +28,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.cancellation import await_with_cancellation
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.worker.durable_eviction.instrumentation import aio_durable_eviction_wait
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -553,11 +554,14 @@ class DurableContext(Context):
 
         self.durable_event_listener.register_durable_event(request)
 
-        # Use await_with_cancellation to respect the cancellation token
-        return await await_with_cancellation(
-            self.durable_event_listener.result(task_id, signal_key),
-            self.cancellation_token,
-        )
+        async with aio_durable_eviction_wait(
+            "durable_event", f"{task_id}:{signal_key}"
+        ):
+            # Use await_with_cancellation to respect the cancellation token
+            return await await_with_cancellation(
+                self.durable_event_listener.result(task_id, signal_key),
+                self.cancellation_token,
+            )
 
     async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
         """

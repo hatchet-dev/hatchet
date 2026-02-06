@@ -38,10 +38,18 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
+from hatchet_sdk.runnables.eviction import (
+    DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+    EvictionPolicy,
+)
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
+from hatchet_sdk.worker.durable_eviction.manager import (
+    DEFAULT_DURABLE_EVICTION_CONFIG,
+    DurableEvictionConfig,
+)
 
 P = ParamSpec("P")
 
@@ -181,6 +189,7 @@ class Hatchet:
         name: str,
         slots: int | None = None,
         durable_slots: int | None = None,
+        durable_eviction_config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
         labels: dict[str, str | int] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
@@ -193,6 +202,10 @@ class Hatchet:
         :param slots: slot count for standard tasks.
 
         :param durable_slots: slot count for durable tasks.
+
+        :param durable_eviction_config: Configuration for durable-run eviction behavior
+            on this worker (e.g. check interval, reserved slots). Task-scoped eviction eligibility
+            is still controlled per durable task via `eviction=...` (or `eviction=None` to opt out).
 
         :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
 
@@ -224,6 +237,7 @@ class Hatchet:
             owned_loop=loop is None,
             workflows=workflows,
             lifespan=lifespan,
+            durable_eviction_config=durable_eviction_config,
         )
 
     @overload
@@ -462,6 +476,9 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
+        :param eviction: Task-scoped durable eviction parameters. If set to `None`, this durable task
+            run will never be eligible for eviction.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -543,6 +560,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -572,6 +590,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[
@@ -604,6 +623,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> (
         Callable[
             [
@@ -706,6 +726,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+                eviction=eviction,
             )
 
             return Standalone[TWorkflowInput, R](
