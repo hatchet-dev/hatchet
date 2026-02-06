@@ -63,7 +63,7 @@ type DurableEventsRepository interface {
 	CreateEventLogCallbacks(ctx context.Context, opts []CreateEventLogCallbackOpts) ([]*sqlcv1.V1DurableEventLogCallback, error)
 	GetEventLogCallback(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*EventLogCallbackWithPayload, error)
 	ListEventLogCallbacks(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogCallback, error)
-	UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error)
+	UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error)
 }
 
 type durableEventsRepository struct {
@@ -333,7 +333,7 @@ func (r *durableEventsRepository) ListEventLogCallbacks(ctx context.Context, dur
 	})
 }
 
-func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error) {
+func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error) {
 	// note: might need to pass a tx in here instead
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
@@ -358,6 +358,8 @@ func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Co
 			InsertedAt: callback.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
 			Payload:    result,
+			ExternalId: callback.ExternalID,
+			TenantId:   tenantId,
 		}
 
 		err = r.payloadStore.Store(ctx, tx, storePayloadOpts)

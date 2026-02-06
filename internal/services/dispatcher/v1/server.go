@@ -685,6 +685,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 
 						_, updateErr := d.repo.DurableEvents().UpdateEventLogCallbackSatisfied(
 							pollCtx,
+							event.TenantID,
 							task.ID,
 							task.InsertedAt,
 							callbackKey,
