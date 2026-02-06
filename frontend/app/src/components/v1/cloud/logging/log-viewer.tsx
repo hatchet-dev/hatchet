@@ -255,7 +255,7 @@ export function LogViewer({
         {sortedLogs.map((log, idx) => (
           <div
             key={`${log.timestamp}-${idx}`}
-            className="col-span-full grid grid-cols-subgrid border-b border-border/40 hover:bg-muted/30 transition-colors group"
+            className="col-span-full items-baseline grid grid-cols-subgrid border-b border-border/40 hover:bg-muted/30 transition-colors group"
             style={{ gridColumn: `1 / span ${colCount}` }}
           >
             <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground whitespace-nowrap tabular-nums">
