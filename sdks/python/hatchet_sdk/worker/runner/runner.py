@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.durable_task_client import DurableTaskClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
@@ -119,6 +120,7 @@ class Runner:
         )
         self.event_client = EventClient(self.config)
         self.durable_event_listener = DurableEventListener(self.config)
+        self.durable_task_client = DurableTaskClient(self.config)
 
         self.worker_context = WorkerContext(
             labels=labels or {}, client=Client(config=config).dispatcher
@@ -389,6 +391,7 @@ class Runner:
             admin_client=self.admin_client,
             event_client=self.event_client,
             durable_event_listener=self.durable_event_listener,
+            durable_task_client=self.durable_task_client,
             worker=self.worker_context,
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
