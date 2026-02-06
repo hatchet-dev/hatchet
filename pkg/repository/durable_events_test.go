@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"crypto/sha256"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -742,4 +743,297 @@ func TestEventLogCallbacksIsolation(t *testing.T) {
 	cb2, err := repo.GetEventLogCallback(ctx, task2Id, task2InsertedAt, "shared_key_name")
 	require.NoError(t, err)
 	assert.True(t, cb2.IsSatisfied)
+}
+
+func TestEventLogEntryDuplicateNodeId(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+	createDurableEventLogPartitions(t, pool)
+
+	repo := createDurableEventsRepository(pool)
+	ctx := context.Background()
+
+	durableTaskId, durableTaskInsertedAt := newDurableTaskId()
+	insertedAt := timestamptz(time.Now().UTC().Truncate(time.Microsecond))
+
+	opts := []CreateEventLogEntryOpts{
+		{
+			TenantId:              uuid.New(),
+			ExternalId:            uuid.New(),
+			DurableTaskId:         durableTaskId,
+			DurableTaskInsertedAt: durableTaskInsertedAt,
+			InsertedAt:            insertedAt,
+			Kind:                  "RUN_TRIGGERED",
+			NodeId:                1,
+			ParentNodeId:          0,
+			BranchId:              0,
+		},
+	}
+
+	_, err := repo.CreateEventLogEntries(ctx, opts)
+	require.NoError(t, err)
+
+	// Attempt to insert duplicate node_id - should fail with primary key violation
+	duplicateOpts := []CreateEventLogEntryOpts{
+		{
+			TenantId:              uuid.New(),
+			ExternalId:            uuid.New(),
+			DurableTaskId:         durableTaskId,
+			DurableTaskInsertedAt: durableTaskInsertedAt,
+			InsertedAt:            insertedAt,
+			Kind:                  "WAIT_FOR_STARTED",
+			NodeId:                1, // same node_id
+			ParentNodeId:          0,
+			BranchId:              0,
+		},
+	}
+
+	_, err = repo.CreateEventLogEntries(ctx, duplicateOpts)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate key")
+}
+
+func TestEventLogEntryRootNode(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+	createDurableEventLogPartitions(t, pool)
+
+	repo := createDurableEventsRepository(pool)
+	ctx := context.Background()
+
+	durableTaskId, durableTaskInsertedAt := newDurableTaskId()
+	insertedAt := timestamptz(time.Now().UTC().Truncate(time.Microsecond))
+
+	// Root node has parent_node_id = 0
+	opts := []CreateEventLogEntryOpts{
+		{
+			TenantId:              uuid.New(),
+			ExternalId:            uuid.New(),
+			DurableTaskId:         durableTaskId,
+			DurableTaskInsertedAt: durableTaskInsertedAt,
+			InsertedAt:            insertedAt,
+			Kind:                  "RUN_TRIGGERED",
+			NodeId:                1,
+			ParentNodeId:          0,
+			BranchId:              0,
+		},
+	}
+
+	entries, err := repo.CreateEventLogEntries(ctx, opts)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+
+	entry, err := repo.GetEventLogEntry(ctx, durableTaskId, durableTaskInsertedAt, 1)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), entry.ParentNodeID.Int64)
+}
+
+func TestCallbackKeyUniqueness(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+	createDurableEventLogPartitions(t, pool)
+
+	repo := createDurableEventsRepository(pool)
+	ctx := context.Background()
+
+	durableTaskId, durableTaskInsertedAt := newDurableTaskId()
+	insertedAt := timestamptz(time.Now().UTC().Truncate(time.Microsecond))
+
+	opts := []CreateEventLogCallbackOpts{
+		{
+			DurableTaskId:         durableTaskId,
+			DurableTaskInsertedAt: durableTaskInsertedAt,
+			InsertedAt:            insertedAt,
+			Kind:                  "RUN_COMPLETED",
+			Key:                   "unique_key",
+			NodeId:                1,
+			IsSatisfied:           false,
+		},
+	}
+
+	_, err := repo.CreateEventLogCallbacks(ctx, opts)
+	require.NoError(t, err)
+
+	// Attempt to insert duplicate key - should fail with primary key violation
+	duplicateOpts := []CreateEventLogCallbackOpts{
+		{
+			DurableTaskId:         durableTaskId,
+			DurableTaskInsertedAt: durableTaskInsertedAt,
+			InsertedAt:            insertedAt,
+			Kind:                  "WAIT_FOR_COMPLETED",
+			Key:                   "unique_key", // same key
+			NodeId:                2,
+			IsSatisfied:           true,
+		},
+	}
+
+	_, err = repo.CreateEventLogCallbacks(ctx, duplicateOpts)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate key")
+}
+
+func TestConcurrentCallbackUpdates(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+	createDurableEventLogPartitions(t, pool)
+
+	repo := createDurableEventsRepository(pool)
+	ctx := context.Background()
+
+	durableTaskId, durableTaskInsertedAt := newDurableTaskId()
+	insertedAt := timestamptz(time.Now().UTC().Truncate(time.Microsecond))
+
+	opts := []CreateEventLogCallbackOpts{
+		{
+			DurableTaskId:         durableTaskId,
+			DurableTaskInsertedAt: durableTaskInsertedAt,
+			InsertedAt:            insertedAt,
+			Kind:                  "WAIT_FOR_COMPLETED",
+			Key:                   "concurrent_key",
+			NodeId:                1,
+			IsSatisfied:           false,
+		},
+	}
+
+	_, err := repo.CreateEventLogCallbacks(ctx, opts)
+	require.NoError(t, err)
+
+	const numGoroutines = 10
+	var wg sync.WaitGroup
+	errChan := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(val bool) {
+			defer wg.Done()
+			_, err := repo.UpdateEventLogCallbackSatisfied(ctx, durableTaskId, durableTaskInsertedAt, "concurrent_key", val)
+			if err != nil {
+				errChan <- err
+			}
+		}(i%2 == 0)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		require.NoError(t, err)
+	}
+
+	// Verify callback still exists and has a valid state
+	callback, err := repo.GetEventLogCallback(ctx, durableTaskId, durableTaskInsertedAt, "concurrent_key")
+	require.NoError(t, err)
+	assert.NotNil(t, callback)
+}
+
+func TestConcurrentEntryInserts(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+	createDurableEventLogPartitions(t, pool)
+
+	repo := createDurableEventsRepository(pool)
+	ctx := context.Background()
+
+	durableTaskId, durableTaskInsertedAt := newDurableTaskId()
+	insertedAt := timestamptz(time.Now().UTC().Truncate(time.Microsecond))
+
+	const numGoroutines = 10
+	var wg sync.WaitGroup
+	errChan := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(nodeId int64) {
+			defer wg.Done()
+			opts := []CreateEventLogEntryOpts{
+				{
+					TenantId:              uuid.New(),
+					ExternalId:            uuid.New(),
+					DurableTaskId:         durableTaskId,
+					DurableTaskInsertedAt: durableTaskInsertedAt,
+					InsertedAt:            insertedAt,
+					Kind:                  "RUN_TRIGGERED",
+					NodeId:                nodeId,
+					ParentNodeId:          0,
+					BranchId:              0,
+				},
+			}
+			_, err := repo.CreateEventLogEntries(ctx, opts)
+			if err != nil {
+				errChan <- err
+			}
+		}(int64(i + 1))
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		require.NoError(t, err)
+	}
+
+	entries, err := repo.ListEventLogEntries(ctx, durableTaskId, durableTaskInsertedAt)
+	require.NoError(t, err)
+	assert.Len(t, entries, numGoroutines)
+}
+
+func TestEventLogBranchDiscovery(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+	createDurableEventLogPartitions(t, pool)
+
+	repo := createDurableEventsRepository(pool)
+	ctx := context.Background()
+
+	durableTaskId, durableTaskInsertedAt := newDurableTaskId()
+	insertedAt := timestamptz(time.Now().UTC().Truncate(time.Microsecond))
+
+	// Create a tree:
+	//   1 (root, branch 0)
+	//   ├── 2 (branch 0)
+	//   │   └── 4 (branch 0)
+	//   └── 3 (branch 1, first node of new branch from node 1)
+	//       └── 5 (branch 1)
+	opts := []CreateEventLogEntryOpts{
+		{TenantId: uuid.New(), ExternalId: uuid.New(), DurableTaskId: durableTaskId, DurableTaskInsertedAt: durableTaskInsertedAt, InsertedAt: insertedAt, Kind: "RUN_TRIGGERED", NodeId: 1, ParentNodeId: 0, BranchId: 0},
+		{TenantId: uuid.New(), ExternalId: uuid.New(), DurableTaskId: durableTaskId, DurableTaskInsertedAt: durableTaskInsertedAt, InsertedAt: insertedAt, Kind: "WAIT_FOR_STARTED", NodeId: 2, ParentNodeId: 1, BranchId: 0},
+		{TenantId: uuid.New(), ExternalId: uuid.New(), DurableTaskId: durableTaskId, DurableTaskInsertedAt: durableTaskInsertedAt, InsertedAt: insertedAt, Kind: "RUN_TRIGGERED", NodeId: 3, ParentNodeId: 1, BranchId: 1},
+		{TenantId: uuid.New(), ExternalId: uuid.New(), DurableTaskId: durableTaskId, DurableTaskInsertedAt: durableTaskInsertedAt, InsertedAt: insertedAt, Kind: "MEMO_STARTED", NodeId: 4, ParentNodeId: 2, BranchId: 0},
+		{TenantId: uuid.New(), ExternalId: uuid.New(), DurableTaskId: durableTaskId, DurableTaskInsertedAt: durableTaskInsertedAt, InsertedAt: insertedAt, Kind: "WAIT_FOR_STARTED", NodeId: 5, ParentNodeId: 3, BranchId: 1},
+	}
+
+	_, err := repo.CreateEventLogEntries(ctx, opts)
+	require.NoError(t, err)
+
+	entries, err := repo.ListEventLogEntries(ctx, durableTaskId, durableTaskInsertedAt)
+	require.NoError(t, err)
+	require.Len(t, entries, 5)
+
+	// Build a map for easy lookup
+	nodeMap := make(map[int64]*sqlcv1.V1DurableEventLogEntry)
+	for _, e := range entries {
+		nodeMap[e.NodeID] = e
+	}
+
+	// Traverse branch 1: start from node 5, go to 3, then to 1 (root)
+	node5 := nodeMap[5]
+	assert.Equal(t, int64(1), node5.BranchID)
+	assert.Equal(t, int64(3), node5.ParentNodeID.Int64)
+
+	node3 := nodeMap[3]
+	assert.Equal(t, int64(1), node3.BranchID)
+	assert.Equal(t, int64(1), node3.ParentNodeID.Int64)
+
+	node1 := nodeMap[1]
+	assert.Equal(t, int64(0), node1.BranchID)
+	assert.Equal(t, int64(0), node1.ParentNodeID.Int64)
+
+	// Traverse branch 0: node 4 -> 2 -> 1
+	node4 := nodeMap[4]
+	assert.Equal(t, int64(0), node4.BranchID)
+	assert.Equal(t, int64(2), node4.ParentNodeID.Int64)
+
+	node2 := nodeMap[2]
+	assert.Equal(t, int64(0), node2.BranchID)
+	assert.Equal(t, int64(1), node2.ParentNodeID.Int64)
 }
