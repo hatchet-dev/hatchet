@@ -26,18 +26,11 @@ from typing_extensions import Annotated, Self
 class V1CreateFilterRequest(BaseModel):
     """
     V1CreateFilterRequest
-    """  # noqa: E501
-
-    workflow_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = (
-        Field(description="The workflow id", alias="workflowId")
-    )
+    """ # noqa: E501
+    workflow_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(description="The workflow id", alias="workflowId")
     expression: StrictStr = Field(description="The expression for the filter")
-    scope: StrictStr = Field(
-        description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time"
-    )
-    payload: Optional[Dict[str, Any]] = Field(
-        default=None, description="The payload for the filter"
-    )
+    scope: StrictStr = Field(description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time")
+    payload: Optional[Dict[str, Any]] = Field(default=None, description="The payload for the filter")
     __properties: ClassVar[List[str]] = ["workflowId", "expression", "scope", "payload"]
 
     model_config = ConfigDict(
@@ -45,6 +38,7 @@ class V1CreateFilterRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -70,7 +64,8 @@ class V1CreateFilterRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -88,12 +83,12 @@ class V1CreateFilterRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "workflowId": obj.get("workflowId"),
-                "expression": obj.get("expression"),
-                "scope": obj.get("scope"),
-                "payload": obj.get("payload"),
-            }
-        )
+        _obj = cls.model_validate({
+            "workflowId": obj.get("workflowId"),
+            "expression": obj.get("expression"),
+            "scope": obj.get("scope"),
+            "payload": obj.get("payload")
+        })
         return _obj
+
+

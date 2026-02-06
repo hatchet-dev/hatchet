@@ -38,94 +38,63 @@ from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
     V1CreateWebhookRequestHMAC,
 )
 
-V1CREATEWEBHOOKREQUEST_ONE_OF_SCHEMAS = [
-    "V1CreateWebhookRequestAPIKey",
-    "V1CreateWebhookRequestBasicAuth",
-    "V1CreateWebhookRequestHMAC",
-]
-
+V1CREATEWEBHOOKREQUEST_ONE_OF_SCHEMAS = ["V1CreateWebhookRequestAPIKey", "V1CreateWebhookRequestBasicAuth", "V1CreateWebhookRequestHMAC"]
 
 class V1CreateWebhookRequest(BaseModel):
     """
     V1CreateWebhookRequest
     """
-
     # data type: V1CreateWebhookRequestBasicAuth
     oneof_schema_1_validator: Optional[V1CreateWebhookRequestBasicAuth] = None
     # data type: V1CreateWebhookRequestAPIKey
     oneof_schema_2_validator: Optional[V1CreateWebhookRequestAPIKey] = None
     # data type: V1CreateWebhookRequestHMAC
     oneof_schema_3_validator: Optional[V1CreateWebhookRequestHMAC] = None
-    actual_instance: Optional[
-        Union[
-            V1CreateWebhookRequestAPIKey,
-            V1CreateWebhookRequestBasicAuth,
-            V1CreateWebhookRequestHMAC,
-        ]
-    ] = None
-    one_of_schemas: Set[str] = {
-        "V1CreateWebhookRequestAPIKey",
-        "V1CreateWebhookRequestBasicAuth",
-        "V1CreateWebhookRequestHMAC",
-    }
+    actual_instance: Optional[Union[V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC]] = None
+    one_of_schemas: Set[str] = { "V1CreateWebhookRequestAPIKey", "V1CreateWebhookRequestBasicAuth", "V1CreateWebhookRequestHMAC" }
 
     model_config = ConfigDict(
         validate_assignment=True,
         protected_namespaces=(),
     )
 
+
     def __init__(self, *args, **kwargs) -> None:
         if args:
             if len(args) > 1:
-                raise ValueError(
-                    "If a position argument is used, only 1 is allowed to set `actual_instance`"
-                )
+                raise ValueError("If a position argument is used, only 1 is allowed to set `actual_instance`")
             if kwargs:
-                raise ValueError(
-                    "If a position argument is used, keyword arguments cannot be used."
-                )
+                raise ValueError("If a position argument is used, keyword arguments cannot be used.")
             super().__init__(actual_instance=args[0])
         else:
             super().__init__(**kwargs)
 
-    @field_validator("actual_instance")
+    @field_validator('actual_instance')
     def actual_instance_must_validate_oneof(cls, v):
         instance = V1CreateWebhookRequest.model_construct()
         error_messages = []
         match = 0
         # validate data type: V1CreateWebhookRequestBasicAuth
         if not isinstance(v, V1CreateWebhookRequestBasicAuth):
-            error_messages.append(
-                f"Error! Input type `{type(v)}` is not `V1CreateWebhookRequestBasicAuth`"
-            )
+            error_messages.append(f"Error! Input type `{type(v)}` is not `V1CreateWebhookRequestBasicAuth`")
         else:
             match += 1
         # validate data type: V1CreateWebhookRequestAPIKey
         if not isinstance(v, V1CreateWebhookRequestAPIKey):
-            error_messages.append(
-                f"Error! Input type `{type(v)}` is not `V1CreateWebhookRequestAPIKey`"
-            )
+            error_messages.append(f"Error! Input type `{type(v)}` is not `V1CreateWebhookRequestAPIKey`")
         else:
             match += 1
         # validate data type: V1CreateWebhookRequestHMAC
         if not isinstance(v, V1CreateWebhookRequestHMAC):
-            error_messages.append(
-                f"Error! Input type `{type(v)}` is not `V1CreateWebhookRequestHMAC`"
-            )
+            error_messages.append(f"Error! Input type `{type(v)}` is not `V1CreateWebhookRequestHMAC`")
         else:
             match += 1
         if match > 1:
             # more than 1 match
-            raise ValueError(
-                "Multiple matches found when setting `actual_instance` in V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: "
-                + ", ".join(error_messages)
-            )
+            raise ValueError("Multiple matches found when setting `actual_instance` in V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: " + ", ".join(error_messages))
         elif match == 0:
             # no match
-            raise ValueError(
-                "No match found when setting `actual_instance` in V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: "
-                + ", ".join(error_messages)
-            )
+            raise ValueError("No match found when setting `actual_instance` in V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: " + ", ".join(error_messages))
         else:
             return v
 
@@ -142,9 +111,7 @@ class V1CreateWebhookRequest(BaseModel):
 
         # deserialize data into V1CreateWebhookRequestBasicAuth
         try:
-            instance.actual_instance = V1CreateWebhookRequestBasicAuth.from_json(
-                json_str
-            )
+            instance.actual_instance = V1CreateWebhookRequestBasicAuth.from_json(json_str)
             match += 1
         except (ValidationError, ValueError) as e:
             error_messages.append(str(e))
@@ -163,16 +130,10 @@ class V1CreateWebhookRequest(BaseModel):
 
         if match > 1:
             # more than 1 match
-            raise ValueError(
-                "Multiple matches found when deserializing the JSON string into V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: "
-                + ", ".join(error_messages)
-            )
+            raise ValueError("Multiple matches found when deserializing the JSON string into V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: " + ", ".join(error_messages))
         elif match == 0:
             # no match
-            raise ValueError(
-                "No match found when deserializing the JSON string into V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: "
-                + ", ".join(error_messages)
-            )
+            raise ValueError("No match found when deserializing the JSON string into V1CreateWebhookRequest with oneOf schemas: V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC. Details: " + ", ".join(error_messages))
         else:
             return instance
 
@@ -181,30 +142,17 @@ class V1CreateWebhookRequest(BaseModel):
         if self.actual_instance is None:
             return "null"
 
-        if hasattr(self.actual_instance, "to_json") and callable(
-            self.actual_instance.to_json
-        ):
+        if hasattr(self.actual_instance, "to_json") and callable(self.actual_instance.to_json):
             return self.actual_instance.to_json()
         else:
             return json.dumps(self.actual_instance)
 
-    def to_dict(
-        self,
-    ) -> Optional[
-        Union[
-            Dict[str, Any],
-            V1CreateWebhookRequestAPIKey,
-            V1CreateWebhookRequestBasicAuth,
-            V1CreateWebhookRequestHMAC,
-        ]
-    ]:
+    def to_dict(self) -> Optional[Union[Dict[str, Any], V1CreateWebhookRequestAPIKey, V1CreateWebhookRequestBasicAuth, V1CreateWebhookRequestHMAC]]:
         """Returns the dict representation of the actual instance"""
         if self.actual_instance is None:
             return None
 
-        if hasattr(self.actual_instance, "to_dict") and callable(
-            self.actual_instance.to_dict
-        ):
+        if hasattr(self.actual_instance, "to_dict") and callable(self.actual_instance.to_dict):
             return self.actual_instance.to_dict()
         else:
             # primitive type
@@ -213,3 +161,5 @@ class V1CreateWebhookRequest(BaseModel):
     def to_str(self) -> str:
         """Returns the string representation of the actual instance"""
         return pprint.pformat(self.model_dump())
+
+

@@ -26,18 +26,10 @@ from typing_extensions import Self
 class V1UpdateFilterRequest(BaseModel):
     """
     V1UpdateFilterRequest
-    """  # noqa: E501
-
-    expression: Optional[StrictStr] = Field(
-        default=None, description="The expression for the filter"
-    )
-    scope: Optional[StrictStr] = Field(
-        default=None,
-        description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time",
-    )
-    payload: Optional[Dict[str, Any]] = Field(
-        default=None, description="The payload for the filter"
-    )
+    """ # noqa: E501
+    expression: Optional[StrictStr] = Field(default=None, description="The expression for the filter")
+    scope: Optional[StrictStr] = Field(default=None, description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time")
+    payload: Optional[Dict[str, Any]] = Field(default=None, description="The payload for the filter")
     __properties: ClassVar[List[str]] = ["expression", "scope", "payload"]
 
     model_config = ConfigDict(
@@ -45,6 +37,7 @@ class V1UpdateFilterRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -70,7 +63,8 @@ class V1UpdateFilterRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -88,11 +82,11 @@ class V1UpdateFilterRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "expression": obj.get("expression"),
-                "scope": obj.get("scope"),
-                "payload": obj.get("payload"),
-            }
-        )
+        _obj = cls.model_validate({
+            "expression": obj.get("expression"),
+            "scope": obj.get("scope"),
+            "payload": obj.get("payload")
+        })
         return _obj
+
+

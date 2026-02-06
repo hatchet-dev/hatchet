@@ -26,26 +26,20 @@ from typing_extensions import Self
 class V1EventWorkflowRunSummary(BaseModel):
     """
     V1EventWorkflowRunSummary
-    """  # noqa: E501
-
+    """ # noqa: E501
     running: StrictInt = Field(description="The number of running runs.")
     queued: StrictInt = Field(description="The number of queued runs.")
     succeeded: StrictInt = Field(description="The number of succeeded runs.")
     failed: StrictInt = Field(description="The number of failed runs.")
     cancelled: StrictInt = Field(description="The number of cancelled runs.")
-    __properties: ClassVar[List[str]] = [
-        "running",
-        "queued",
-        "succeeded",
-        "failed",
-        "cancelled",
-    ]
+    __properties: ClassVar[List[str]] = ["running", "queued", "succeeded", "failed", "cancelled"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -71,7 +65,8 @@ class V1EventWorkflowRunSummary(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -89,13 +84,13 @@ class V1EventWorkflowRunSummary(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "running": obj.get("running"),
-                "queued": obj.get("queued"),
-                "succeeded": obj.get("succeeded"),
-                "failed": obj.get("failed"),
-                "cancelled": obj.get("cancelled"),
-            }
-        )
+        _obj = cls.model_validate({
+            "running": obj.get("running"),
+            "queued": obj.get("queued"),
+            "succeeded": obj.get("succeeded"),
+            "failed": obj.get("failed"),
+            "cancelled": obj.get("cancelled")
+        })
         return _obj
+
+

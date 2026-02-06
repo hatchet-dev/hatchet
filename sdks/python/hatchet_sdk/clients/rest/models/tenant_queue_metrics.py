@@ -28,11 +28,8 @@ from hatchet_sdk.clients.rest.models.queue_metrics import QueueMetrics
 class TenantQueueMetrics(BaseModel):
     """
     TenantQueueMetrics
-    """  # noqa: E501
-
-    total: Optional[QueueMetrics] = Field(
-        default=None, description="The total queue metrics."
-    )
+    """ # noqa: E501
+    total: Optional[QueueMetrics] = Field(default=None, description="The total queue metrics.")
     workflow: Optional[Dict[str, QueueMetrics]] = None
     queues: Optional[Dict[str, StrictInt]] = None
     __properties: ClassVar[List[str]] = ["total", "workflow", "queues"]
@@ -42,6 +39,7 @@ class TenantQueueMetrics(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -67,7 +65,8 @@ class TenantQueueMetrics(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -76,14 +75,14 @@ class TenantQueueMetrics(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of total
         if self.total:
-            _dict["total"] = self.total.to_dict()
+            _dict['total'] = self.total.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each value in workflow (dict)
         _field_dict = {}
         if self.workflow:
             for _key_workflow in self.workflow:
                 if self.workflow[_key_workflow]:
                     _field_dict[_key_workflow] = self.workflow[_key_workflow].to_dict()
-            _dict["workflow"] = _field_dict
+            _dict['workflow'] = _field_dict
         return _dict
 
     @classmethod
@@ -95,22 +94,16 @@ class TenantQueueMetrics(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "total": (
-                    QueueMetrics.from_dict(obj["total"])
-                    if obj.get("total") is not None
-                    else None
-                ),
-                "workflow": (
-                    dict(
-                        (_k, QueueMetrics.from_dict(_v))
-                        for _k, _v in obj["workflow"].items()
-                    )
-                    if obj.get("workflow") is not None
-                    else None
-                ),
-                "queues": obj.get("queues"),
-            }
-        )
+        _obj = cls.model_validate({
+            "total": QueueMetrics.from_dict(obj["total"]) if obj.get("total") is not None else None,
+            "workflow": dict(
+                (_k, QueueMetrics.from_dict(_v))
+                for _k, _v in obj["workflow"].items()
+            )
+            if obj.get("workflow") is not None
+            else None,
+            "queues": obj.get("queues")
+        })
         return _obj
+
+

@@ -30,16 +30,10 @@ from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
 class V1CELDebugResponse(BaseModel):
     """
     V1CELDebugResponse
-    """  # noqa: E501
-
+    """ # noqa: E501
     status: V1CELDebugResponseStatus
-    output: Optional[StrictBool] = Field(
-        default=None,
-        description="The result of the CEL expression evaluation, if successful",
-    )
-    error: Optional[StrictStr] = Field(
-        default=None, description="The error message if the evaluation failed"
-    )
+    output: Optional[StrictBool] = Field(default=None, description="The result of the CEL expression evaluation, if successful")
+    error: Optional[StrictStr] = Field(default=None, description="The error message if the evaluation failed")
     __properties: ClassVar[List[str]] = ["status", "output", "error"]
 
     model_config = ConfigDict(
@@ -47,6 +41,7 @@ class V1CELDebugResponse(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -72,7 +67,8 @@ class V1CELDebugResponse(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -90,11 +86,11 @@ class V1CELDebugResponse(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "status": obj.get("status"),
-                "output": obj.get("output"),
-                "error": obj.get("error"),
-            }
-        )
+        _obj = cls.model_validate({
+            "status": obj.get("status"),
+            "output": obj.get("output"),
+            "error": obj.get("error")
+        })
         return _obj
+
+

@@ -26,14 +26,9 @@ from typing_extensions import Self
 class V1WebhookAPIKeyAuth(BaseModel):
     """
     V1WebhookAPIKeyAuth
-    """  # noqa: E501
-
-    header_name: StrictStr = Field(
-        description="The name of the header to use for the API key", alias="headerName"
-    )
-    api_key: StrictStr = Field(
-        description="The API key to use for authentication", alias="apiKey"
-    )
+    """ # noqa: E501
+    header_name: StrictStr = Field(description="The name of the header to use for the API key", alias="headerName")
+    api_key: StrictStr = Field(description="The API key to use for authentication", alias="apiKey")
     __properties: ClassVar[List[str]] = ["headerName", "apiKey"]
 
     model_config = ConfigDict(
@@ -41,6 +36,7 @@ class V1WebhookAPIKeyAuth(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -66,7 +62,8 @@ class V1WebhookAPIKeyAuth(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -84,7 +81,10 @@ class V1WebhookAPIKeyAuth(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {"headerName": obj.get("headerName"), "apiKey": obj.get("apiKey")}
-        )
+        _obj = cls.model_validate({
+            "headerName": obj.get("headerName"),
+            "apiKey": obj.get("apiKey")
+        })
         return _obj
+
+

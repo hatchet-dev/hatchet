@@ -28,8 +28,7 @@ from hatchet_sdk.clients.rest.models.task_status_stat import TaskStatusStat
 class TaskStat(BaseModel):
     """
     TaskStat
-    """  # noqa: E501
-
+    """ # noqa: E501
     queued: Optional[TaskStatusStat] = None
     running: Optional[TaskStatusStat] = None
     __properties: ClassVar[List[str]] = ["queued", "running"]
@@ -39,6 +38,7 @@ class TaskStat(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,7 +64,8 @@ class TaskStat(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -73,10 +74,10 @@ class TaskStat(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of queued
         if self.queued:
-            _dict["queued"] = self.queued.to_dict()
+            _dict['queued'] = self.queued.to_dict()
         # override the default output from pydantic by calling `to_dict()` of running
         if self.running:
-            _dict["running"] = self.running.to_dict()
+            _dict['running'] = self.running.to_dict()
         return _dict
 
     @classmethod
@@ -88,18 +89,10 @@ class TaskStat(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "queued": (
-                    TaskStatusStat.from_dict(obj["queued"])
-                    if obj.get("queued") is not None
-                    else None
-                ),
-                "running": (
-                    TaskStatusStat.from_dict(obj["running"])
-                    if obj.get("running") is not None
-                    else None
-                ),
-            }
-        )
+        _obj = cls.model_validate({
+            "queued": TaskStatusStat.from_dict(obj["queued"]) if obj.get("queued") is not None else None,
+            "running": TaskStatusStat.from_dict(obj["running"]) if obj.get("running") is not None else None
+        })
         return _obj
+
+

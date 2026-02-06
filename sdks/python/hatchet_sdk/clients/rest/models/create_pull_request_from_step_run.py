@@ -26,8 +26,7 @@ from typing_extensions import Self
 class CreatePullRequestFromStepRun(BaseModel):
     """
     CreatePullRequestFromStepRun
-    """  # noqa: E501
-
+    """ # noqa: E501
     branch_name: StrictStr = Field(alias="branchName")
     __properties: ClassVar[List[str]] = ["branchName"]
 
@@ -36,6 +35,7 @@ class CreatePullRequestFromStepRun(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,7 +61,8 @@ class CreatePullRequestFromStepRun(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,5 +80,9 @@ class CreatePullRequestFromStepRun(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"branchName": obj.get("branchName")})
+        _obj = cls.model_validate({
+            "branchName": obj.get("branchName")
+        })
         return _obj
+
+

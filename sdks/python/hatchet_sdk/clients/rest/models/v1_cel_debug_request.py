@@ -26,34 +26,19 @@ from typing_extensions import Self
 class V1CELDebugRequest(BaseModel):
     """
     V1CELDebugRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     expression: StrictStr = Field(description="The CEL expression to evaluate")
-    input: Dict[str, Any] = Field(
-        description="The input, which simulates the workflow run input"
-    )
-    filter_payload: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="The filter payload, which simulates a payload set on a previous-created filter",
-        alias="filterPayload",
-    )
-    additional_metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional metadata, which simulates metadata that could be sent with an event or a workflow run",
-        alias="additionalMetadata",
-    )
-    __properties: ClassVar[List[str]] = [
-        "expression",
-        "input",
-        "filterPayload",
-        "additionalMetadata",
-    ]
+    input: Dict[str, Any] = Field(description="The input, which simulates the workflow run input")
+    filter_payload: Optional[Dict[str, Any]] = Field(default=None, description="The filter payload, which simulates a payload set on a previous-created filter", alias="filterPayload")
+    additional_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata, which simulates metadata that could be sent with an event or a workflow run", alias="additionalMetadata")
+    __properties: ClassVar[List[str]] = ["expression", "input", "filterPayload", "additionalMetadata"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -79,7 +64,8 @@ class V1CELDebugRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -97,12 +83,12 @@ class V1CELDebugRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "expression": obj.get("expression"),
-                "input": obj.get("input"),
-                "filterPayload": obj.get("filterPayload"),
-                "additionalMetadata": obj.get("additionalMetadata"),
-            }
-        )
+        _obj = cls.model_validate({
+            "expression": obj.get("expression"),
+            "input": obj.get("input"),
+            "filterPayload": obj.get("filterPayload"),
+            "additionalMetadata": obj.get("additionalMetadata")
+        })
         return _obj
+
+

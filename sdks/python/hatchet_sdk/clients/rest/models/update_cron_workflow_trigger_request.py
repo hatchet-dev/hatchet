@@ -26,8 +26,7 @@ from typing_extensions import Self
 class UpdateCronWorkflowTriggerRequest(BaseModel):
     """
     UpdateCronWorkflowTriggerRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     enabled: Optional[StrictBool] = None
     __properties: ClassVar[List[str]] = ["enabled"]
 
@@ -36,6 +35,7 @@ class UpdateCronWorkflowTriggerRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,7 +61,8 @@ class UpdateCronWorkflowTriggerRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,5 +80,9 @@ class UpdateCronWorkflowTriggerRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"enabled": obj.get("enabled")})
+        _obj = cls.model_validate({
+            "enabled": obj.get("enabled")
+        })
         return _obj
+
+

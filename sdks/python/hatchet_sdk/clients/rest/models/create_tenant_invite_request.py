@@ -28,8 +28,7 @@ from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
 class CreateTenantInviteRequest(BaseModel):
     """
     CreateTenantInviteRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     email: StrictStr = Field(description="The email of the user to invite.")
     role: TenantMemberRole = Field(description="The role of the user in the tenant.")
     __properties: ClassVar[List[str]] = ["email", "role"]
@@ -39,6 +38,7 @@ class CreateTenantInviteRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,7 +64,8 @@ class CreateTenantInviteRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,5 +83,10 @@ class CreateTenantInviteRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"email": obj.get("email"), "role": obj.get("role")})
+        _obj = cls.model_validate({
+            "email": obj.get("email"),
+            "role": obj.get("role")
+        })
         return _obj
+
+

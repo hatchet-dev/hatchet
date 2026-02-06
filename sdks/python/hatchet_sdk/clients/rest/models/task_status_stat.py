@@ -29,8 +29,7 @@ from hatchet_sdk.clients.rest.models.concurrency_stat import ConcurrencyStat
 class TaskStatusStat(BaseModel):
     """
     TaskStatusStat
-    """  # noqa: E501
-
+    """ # noqa: E501
     total: Optional[StrictInt] = None
     queues: Optional[Dict[str, StrictInt]] = None
     concurrency: Optional[List[ConcurrencyStat]] = None
@@ -42,6 +41,7 @@ class TaskStatusStat(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -67,7 +67,8 @@ class TaskStatusStat(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,7 +81,7 @@ class TaskStatusStat(BaseModel):
             for _item_concurrency in self.concurrency:
                 if _item_concurrency:
                     _items.append(_item_concurrency.to_dict())
-            _dict["concurrency"] = _items
+            _dict['concurrency'] = _items
         return _dict
 
     @classmethod
@@ -92,16 +93,12 @@ class TaskStatusStat(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "total": obj.get("total"),
-                "queues": obj.get("queues"),
-                "concurrency": (
-                    [ConcurrencyStat.from_dict(_item) for _item in obj["concurrency"]]
-                    if obj.get("concurrency") is not None
-                    else None
-                ),
-                "oldest": obj.get("oldest"),
-            }
-        )
+        _obj = cls.model_validate({
+            "total": obj.get("total"),
+            "queues": obj.get("queues"),
+            "concurrency": [ConcurrencyStat.from_dict(_item) for _item in obj["concurrency"]] if obj.get("concurrency") is not None else None,
+            "oldest": obj.get("oldest")
+        })
         return _obj
+
+

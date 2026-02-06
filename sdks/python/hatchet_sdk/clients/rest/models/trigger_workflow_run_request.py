@@ -26,12 +26,9 @@ from typing_extensions import Self
 class TriggerWorkflowRunRequest(BaseModel):
     """
     TriggerWorkflowRunRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     input: Dict[str, Any]
-    additional_metadata: Optional[Dict[str, Any]] = Field(
-        default=None, alias="additionalMetadata"
-    )
+    additional_metadata: Optional[Dict[str, Any]] = Field(default=None, alias="additionalMetadata")
     __properties: ClassVar[List[str]] = ["input", "additionalMetadata"]
 
     model_config = ConfigDict(
@@ -39,6 +36,7 @@ class TriggerWorkflowRunRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,7 +62,8 @@ class TriggerWorkflowRunRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,10 +81,10 @@ class TriggerWorkflowRunRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "input": obj.get("input"),
-                "additionalMetadata": obj.get("additionalMetadata"),
-            }
-        )
+        _obj = cls.model_validate({
+            "input": obj.get("input"),
+            "additionalMetadata": obj.get("additionalMetadata")
+        })
         return _obj
+
+

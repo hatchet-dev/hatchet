@@ -26,8 +26,7 @@ from typing_extensions import Self
 class ConcurrencyStat(BaseModel):
     """
     ConcurrencyStat
-    """  # noqa: E501
-
+    """ # noqa: E501
     expression: Optional[StrictStr] = None
     type: Optional[StrictStr] = None
     keys: Optional[Dict[str, StrictInt]] = None
@@ -38,6 +37,7 @@ class ConcurrencyStat(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,7 +63,8 @@ class ConcurrencyStat(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,11 +82,11 @@ class ConcurrencyStat(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "expression": obj.get("expression"),
-                "type": obj.get("type"),
-                "keys": obj.get("keys"),
-            }
-        )
+        _obj = cls.model_validate({
+            "expression": obj.get("expression"),
+            "type": obj.get("type"),
+            "keys": obj.get("keys")
+        })
         return _obj
+
+

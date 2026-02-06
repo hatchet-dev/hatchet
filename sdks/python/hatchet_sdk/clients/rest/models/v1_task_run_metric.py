@@ -28,8 +28,7 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 class V1TaskRunMetric(BaseModel):
     """
     V1TaskRunMetric
-    """  # noqa: E501
-
+    """ # noqa: E501
     status: V1TaskStatus
     count: StrictInt
     __properties: ClassVar[List[str]] = ["status", "count"]
@@ -39,6 +38,7 @@ class V1TaskRunMetric(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,7 +64,8 @@ class V1TaskRunMetric(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,7 +83,10 @@ class V1TaskRunMetric(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {"status": obj.get("status"), "count": obj.get("count")}
-        )
+        _obj = cls.model_validate({
+            "status": obj.get("status"),
+            "count": obj.get("count")
+        })
         return _obj
+
+

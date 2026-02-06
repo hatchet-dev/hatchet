@@ -28,10 +28,12 @@ class WorkflowRunOrderByDirection(str, Enum):
     """
     allowed enum values
     """
-    ASC = "ASC"
-    DESC = "DESC"
+    ASC = 'ASC'
+    DESC = 'DESC'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of WorkflowRunOrderByDirection from a JSON string"""
         return cls(json.loads(json_str))
+
+
