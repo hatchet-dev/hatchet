@@ -1,0 +1,12 @@
+dev:
+  preCmds: ["poetry install"]
+  runCmd: "poetry run python src/worker.py"
+  files:
+    - "**/*.py"
+    - "!**/__pycache__/**"
+    - "!.venv/**"
+  reload: true
+triggers:
+  - name: "simple"
+    command: "poetry run python src/run.py"
+    description: "Trigger a simple workflow"
