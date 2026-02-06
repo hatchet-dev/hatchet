@@ -318,3 +318,10 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 		l.Error().Msg("timed out waiting for wait group")
 	}
 }
+
+func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
+	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	return nil
+}
