@@ -49,9 +49,8 @@ type CreateEventLogCallbackOpts struct {
 type DurableEventsRepository interface {
 	CreateEventLogFiles(ctx context.Context, opts []CreateEventLogFileOpts) ([]*sqlcv1.V1DurableEventLogFile, error)
 	GetOrCreateEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
-	UpdateLatestNodeId(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, latestNodeId int64) (*sqlcv1.V1DurableEventLogFile, error)
 
-	CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.V1DurableEventLogEntry, error)
+	CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.CreateDurableEventLogEntriesRow, error)
 	GetEventLogEntry(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*sqlcv1.V1DurableEventLogEntry, error)
 	ListEventLogEntries(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogEntry, error)
 
@@ -142,31 +141,7 @@ func (r *durableEventsRepository) GetOrCreateEventLogFileForTask(ctx context.Con
 	return lf, nil
 }
 
-func (r *durableEventsRepository) UpdateLatestNodeId(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, latestNodeId int64) (*sqlcv1.V1DurableEventLogFile, error) {
-	// note: might need to pass a tx in here instead
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-	if err != nil {
-		return nil, err
-	}
-	defer rollback()
-
-	lf, err := r.queries.UpdateLatestNodeId(ctx, tx, sqlcv1.UpdateLatestNodeIdParams{
-		Durabletaskid:         durableTaskId,
-		Durabletaskinsertedat: durableTaskInsertedAt,
-		Latestnodeid:          latestNodeId,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
-	return lf, nil
-}
-
-func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.V1DurableEventLogEntry, error) {
+func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.CreateDurableEventLogEntriesRow, error) {
 	// note: might need to pass a tx in here instead
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {

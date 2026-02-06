@@ -59,40 +59,57 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@dataHashes::BYTEA[]) AS data_hash,
         UNNEST(@dataHashAlgs::TEXT[]) AS data_hash_alg
+), latest_node_ids AS (
+    SELECT
+        durable_task_id,
+        durable_task_inserted_at,
+        MAX(node_id) AS latest_node_id
+    FROM inputs
+    GROUP BY durable_task_id, durable_task_inserted_at
+), inserts AS (
+    INSERT INTO v1_durable_event_log_entry (
+        external_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        inserted_at,
+        kind,
+        node_id,
+        parent_node_id,
+        branch_id,
+        data_hash,
+        data_hash_alg
+    )
+    SELECT
+        i.external_id,
+        i.durable_task_id,
+        i.durable_task_inserted_at,
+        i.inserted_at,
+        i.kind,
+        i.node_id,
+        -- todo: check on if 0 is a safe sentinel value here or if we're zero-indexing the node id
+        NULLIF(i.parent_node_id, 0),
+        i.branch_id,
+        i.data_hash,
+        i.data_hash_alg
+    FROM
+        inputs i
+    ORDER BY
+        i.durable_task_id,
+        i.durable_task_inserted_at,
+        i.node_id
+    -- todo: conflict resolution here
+    RETURNING *
+), node_id_update AS (
+    UPDATE v1_durable_event_log_file AS f
+    SET latest_node_id = GREATEST(f.latest_node_id, l.latest_node_id)
+    FROM latest_node_ids l
+    WHERE
+        f.durable_task_id = l.durable_task_id
+        AND f.durable_task_inserted_at = l.durable_task_inserted_at
 )
 
-INSERT INTO v1_durable_event_log_entry (
-    external_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    inserted_at,
-    kind,
-    node_id,
-    parent_node_id,
-    branch_id,
-    data_hash,
-    data_hash_alg
-)
-SELECT
-    i.external_id,
-    i.durable_task_id,
-    i.durable_task_inserted_at,
-    i.inserted_at,
-    i.kind,
-    i.node_id,
-    -- todo: check on if 0 is a safe sentinel value here or if we're zero-indexing the node id
-    NULLIF(i.parent_node_id, 0),
-    i.branch_id,
-    i.data_hash,
-    i.data_hash_alg
-FROM
-    inputs i
-ORDER BY
-    i.durable_task_id,
-    i.durable_task_inserted_at,
-    i.node_id
--- todo: conflict resolution here
-RETURNING *
+SELECT *
+FROM inserts
 ;
 
 -- name: ListDurableEventLogEntries :many

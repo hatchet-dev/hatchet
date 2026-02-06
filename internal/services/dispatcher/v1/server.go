@@ -464,11 +464,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to create event log entry: %v", err)
 	}
 
-	_, err = d.repo.DurableEvents().UpdateLatestNodeId(ctx, task.ID, task.InsertedAt, nodeId)
-	if err != nil {
-		return status.Errorf(codes.Internal, "failed to update latest node id: %v", err)
-	}
-
 	return invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_TriggerAck{
 			TriggerAck: &contracts.DurableTaskEventAckResponse{
