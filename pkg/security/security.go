@@ -15,11 +15,11 @@ type SecurityCheck interface {
 }
 
 type DefaultSecurityCheck struct {
-	Enabled  bool
-	Endpoint string
-	Logger   *zerolog.Logger
-	Version  string
 	Repo     v1.SecurityCheckRepository
+	Logger   *zerolog.Logger
+	Endpoint string
+	Version  string
+	Enabled  bool
 }
 
 func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepository) SecurityCheck {

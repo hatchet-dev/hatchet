@@ -20,10 +20,10 @@ type TenantLimitConfig struct {
 }
 
 type Limit struct {
+	Window           *time.Duration
 	Resource         sqlcv1.LimitResource
 	Limit            int32
 	Alarm            int32
-	Window           *time.Duration
 	CustomValueMeter bool
 }
 

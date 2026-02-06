@@ -20,8 +20,8 @@ import (
 type TenantAlertManager struct {
 	repo      v1.Repository
 	enc       encryption.EncryptionService
-	serverURL string
 	email     email.EmailService
+	serverURL string
 }
 
 func New(repo v1.Repository, e encryption.EncryptionService, serverURL string, email email.EmailService) *TenantAlertManager {

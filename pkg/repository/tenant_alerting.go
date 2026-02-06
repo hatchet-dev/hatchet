@@ -34,18 +34,15 @@ type UpdateTenantAlertGroupOpts struct {
 }
 
 type TenantAlertEmailGroupForSend struct {
-	TenantId uuid.UUID `json:"tenantId"`
 	Emails   []string  `validate:"required,dive,email,max=255"`
+	TenantId uuid.UUID `json:"tenantId"`
 }
 
 type GetTenantAlertingSettingsResponse struct {
-	Settings *sqlcv1.TenantAlertingSettings
-
+	Settings      *sqlcv1.TenantAlertingSettings
+	Tenant        *sqlcv1.Tenant
 	SlackWebhooks []*sqlcv1.SlackAppWebhook
-
-	EmailGroups []*TenantAlertEmailGroupForSend
-
-	Tenant *sqlcv1.Tenant
+	EmailGroups   []*TenantAlertEmailGroupForSend
 }
 
 type TenantAlertingRepository interface {

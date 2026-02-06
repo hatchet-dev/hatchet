@@ -9,8 +9,8 @@ import (
 type MiddlewareFunc func(ctx HatchetContext, next func(HatchetContext) error) error
 
 type middlewares struct {
-	mu          sync.Mutex
 	middlewares []MiddlewareFunc
+	mu          sync.Mutex
 }
 
 func newMiddlewares() *middlewares {

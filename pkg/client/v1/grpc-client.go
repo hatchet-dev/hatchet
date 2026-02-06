@@ -27,9 +27,9 @@ type GRPCClient struct {
 
 type clientOpts struct {
 	l                      *zerolog.Logger
+	tls                    *tls.Config
 	hostPort               string
 	token                  string
-	tls                    *tls.Config
 	disableGzipCompression bool
 }
 

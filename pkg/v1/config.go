@@ -9,17 +9,17 @@ import (
 )
 
 type Config struct {
-	TenantId           uuid.UUID
+	TLS                *TLSConfig
+	Logger             *zerolog.Logger
 	Token              string
 	HostPort           string
 	ServerURL          string
 	Namespace          string
-	NoGrpcRetry        bool
 	CloudRegisterID    string
-	RawRunnableActions []string
 	AutoscalingTarget  string
-	TLS                *TLSConfig
-	Logger             *zerolog.Logger
+	RawRunnableActions []string
+	TenantId           uuid.UUID
+	NoGrpcRetry        bool
 }
 
 type TLSConfig struct {

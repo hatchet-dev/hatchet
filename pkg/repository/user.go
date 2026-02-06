@@ -14,21 +14,19 @@ import (
 )
 
 type CreateUserOpts struct {
-	Email         string `validate:"required,email"`
 	EmailVerified *bool
 	Name          *string
-
-	// auth options
-	Password *string    `validate:"omitempty,excluded_with=OAuth"`
-	OAuth    *OAuthOpts `validate:"omitempty,excluded_with=Password"`
+	Password      *string    `validate:"omitempty,excluded_with=OAuth"`
+	OAuth         *OAuthOpts `validate:"omitempty,excluded_with=Password"`
+	Email         string     `validate:"required,email"`
 }
 
 type OAuthOpts struct {
-	Provider       string     `validate:"required,oneof=google github"`
-	ProviderUserId string     `validate:"required,min=1"`
-	AccessToken    []byte     `validate:"required,min=1"`
-	RefreshToken   []byte     // optional
-	ExpiresAt      *time.Time // optional
+	ExpiresAt      *time.Time
+	Provider       string `validate:"required,oneof=google github"`
+	ProviderUserId string `validate:"required,min=1"`
+	AccessToken    []byte `validate:"required,min=1"`
+	RefreshToken   []byte
 }
 
 type UpdateUserOpts struct {

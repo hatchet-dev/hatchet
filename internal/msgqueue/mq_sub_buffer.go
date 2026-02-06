@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
@@ -242,22 +243,15 @@ func getKey(tenantId uuid.UUID, msgId string) string {
 }
 
 type msgIdBuffer struct {
-	tenantId uuid.UUID
-	msgId    string
-
-	msgIdBufferCh chan *msgWithResultCh
-	notifier      chan struct{}
-
-	// "Immediate flush" means that if we haven't flushed yet, we can flush immediately without
-	// waiting on the timer.
+	msgIdBufferCh         chan *msgWithResultCh
+	notifier              chan struct{}
+	semaphore             chan struct{}
+	semaphoreRelease      chan time.Duration
+	dst                   DstFunc
+	msgId                 string
+	flushInterval         time.Duration
+	tenantId              uuid.UUID
 	disableImmediateFlush bool
-
-	semaphore        chan struct{}
-	semaphoreRelease chan time.Duration
-
-	dst DstFunc
-
-	flushInterval time.Duration
 }
 
 func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {

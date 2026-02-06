@@ -32,89 +32,64 @@ import (
 const NUM_PARTITIONS = 4
 
 type ListTaskRunOpts struct {
-	CreatedAfter time.Time
-
-	Statuses []sqlcv1.V1ReadableStatusOlap
-
-	WorkflowIds []uuid.UUID
-
-	WorkerId *uuid.UUID
-
-	StartedAfter time.Time
-
-	FinishedBefore *time.Time
-
-	AdditionalMetadata map[string]interface{}
-
+	CreatedAfter              time.Time
+	StartedAfter              time.Time
+	WorkerId                  *uuid.UUID
+	FinishedBefore            *time.Time
+	AdditionalMetadata        map[string]interface{}
 	TriggeringEventExternalId *uuid.UUID
-
-	Limit int64
-
-	Offset int64
-
-	IncludePayloads bool
+	Statuses                  []sqlcv1.V1ReadableStatusOlap
+	WorkflowIds               []uuid.UUID
+	Limit                     int64
+	Offset                    int64
+	IncludePayloads           bool
 }
 
 type ListWorkflowRunOpts struct {
-	CreatedAfter time.Time
-
-	Statuses []sqlcv1.V1ReadableStatusOlap
-
-	WorkflowIds []uuid.UUID
-
-	StartedAfter time.Time
-
-	FinishedBefore *time.Time
-
-	AdditionalMetadata map[string]interface{}
-
-	Limit int64
-
-	Offset int64
-
-	ParentTaskExternalId *uuid.UUID
-
+	CreatedAfter              time.Time
+	StartedAfter              time.Time
+	FinishedBefore            *time.Time
+	AdditionalMetadata        map[string]interface{}
+	ParentTaskExternalId      *uuid.UUID
 	TriggeringEventExternalId *uuid.UUID
-
-	IncludePayloads bool
+	Statuses                  []sqlcv1.V1ReadableStatusOlap
+	WorkflowIds               []uuid.UUID
+	Limit                     int64
+	Offset                    int64
+	IncludePayloads           bool
 }
 
 type ReadTaskRunMetricsOpts struct {
-	CreatedAfter time.Time
-
-	CreatedBefore *time.Time
-
-	WorkflowIds []uuid.UUID
-
-	ParentTaskExternalID *uuid.UUID
-
+	CreatedAfter              time.Time
+	CreatedBefore             *time.Time
+	ParentTaskExternalID      *uuid.UUID
 	TriggeringEventExternalId *uuid.UUID
-
-	AdditionalMetadata map[string]interface{}
+	AdditionalMetadata        map[string]interface{}
+	WorkflowIds               []uuid.UUID
 }
 
 type WorkflowRunData struct {
-	AdditionalMetadata   []byte                      `json:"additional_metadata"`
-	CreatedAt            pgtype.Timestamptz          `json:"created_at"`
-	DisplayName          string                      `json:"display_name"`
-	ErrorMessage         string                      `json:"error_message"`
-	ExternalID           uuid.UUID                   `json:"external_id"`
-	FinishedAt           pgtype.Timestamptz          `json:"finished_at"`
-	Input                []byte                      `json:"input"`
-	InsertedAt           pgtype.Timestamptz          `json:"inserted_at"`
-	Kind                 sqlcv1.V1RunKind            `json:"kind"`
-	Output               []byte                      `json:"output,omitempty"`
-	ParentTaskExternalId *uuid.UUID                  `json:"parent_task_external_id,omitempty"`
-	ReadableStatus       sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
-	StepId               *uuid.UUID                  `json:"step_id,omitempty"`
-	StartedAt            pgtype.Timestamptz          `json:"started_at"`
-	TaskExternalId       *uuid.UUID                  `json:"task_external_id,omitempty"`
 	TaskId               *int64                      `json:"task_id,omitempty"`
+	RetryCount           *int                        `json:"retry_count,omitempty"`
 	TaskInsertedAt       *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
+	TaskExternalId       *uuid.UUID                  `json:"task_external_id,omitempty"`
+	ParentTaskExternalId *uuid.UUID                  `json:"parent_task_external_id,omitempty"`
+	StepId               *uuid.UUID                  `json:"step_id,omitempty"`
+	CreatedAt            pgtype.Timestamptz          `json:"created_at"`
+	FinishedAt           pgtype.Timestamptz          `json:"finished_at"`
+	StartedAt            pgtype.Timestamptz          `json:"started_at"`
+	InsertedAt           pgtype.Timestamptz          `json:"inserted_at"`
+	ReadableStatus       sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	Kind                 sqlcv1.V1RunKind            `json:"kind"`
+	ErrorMessage         string                      `json:"error_message"`
+	DisplayName          string                      `json:"display_name"`
+	Output               []byte                      `json:"output,omitempty"`
+	Input                []byte                      `json:"input"`
+	AdditionalMetadata   []byte                      `json:"additional_metadata"`
+	ExternalID           uuid.UUID                   `json:"external_id"`
 	TenantID             uuid.UUID                   `json:"tenant_id"`
 	WorkflowID           uuid.UUID                   `json:"workflow_id"`
 	WorkflowVersionId    uuid.UUID                   `json:"workflow_version_id"`
-	RetryCount           *int                        `json:"retry_count,omitempty"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -186,10 +161,10 @@ func (s ReadableTaskStatus) EnumValue() int {
 }
 
 type UpdateTaskStatusRow struct {
-	TenantId       uuid.UUID
-	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
+	TaskId         int64
+	TenantId       uuid.UUID
 	ExternalId     uuid.UUID
 	LatestWorkerId uuid.UUID
 	WorkflowId     uuid.UUID
@@ -197,10 +172,10 @@ type UpdateTaskStatusRow struct {
 }
 
 type UpdateDAGStatusRow struct {
-	TenantId       uuid.UUID
-	DagId          int64
 	DagInsertedAt  pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
+	DagId          int64
+	TenantId       uuid.UUID
 	ExternalId     uuid.UUID
 	WorkflowId     uuid.UUID
 }
@@ -493,8 +468,8 @@ func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uui
 }
 
 type TaskMetadata struct {
-	TaskID         int64     `json:"task_id"`
 	TaskInsertedAt time.Time `json:"task_inserted_at"`
+	TaskID         int64     `json:"task_id"`
 }
 
 func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
@@ -690,9 +665,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, id)
-		}
+		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
 
 		params.WorkflowIds = workflowIdParams
 		countParams.WorkflowIds = workflowIdParams
@@ -1006,9 +979,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, id)
-		}
+		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
 
 		params.WorkflowIds = workflowIdParams
 		countParams.WorkflowIds = workflowIdParams
@@ -1282,9 +1253,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, id)
-		}
+		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
 
 		params.WorkflowIds = workflowIdParams
 	}
@@ -1382,9 +1351,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 	if len(opts.WorkflowIds) > 0 {
 		workflowIds = make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIds = append(workflowIds, id)
-		}
+		workflowIds = append(workflowIds, opts.WorkflowIds...)
 	}
 
 	var additionalMetaKeys []string
@@ -1920,9 +1887,7 @@ func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUI
 func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
 	externalUUIDs := make([]uuid.UUID, 0)
 
-	for _, id := range externalIds {
-		externalUUIDs = append(externalUUIDs, id)
-	}
+	externalUUIDs = append(externalUUIDs, externalIds...)
 
 	return r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
 		Tenantid:    tenantId,
@@ -2028,10 +1993,10 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.U
 }
 
 type EventTriggersFromExternalId struct {
-	RunID           int64              `json:"run_id"`
 	RunInsertedAt   pgtype.Timestamptz `json:"run_inserted_at"`
-	EventExternalId uuid.UUID          `json:"event_external_id"`
 	EventSeenAt     pgtype.Timestamptz `json:"event_seen_at"`
+	RunID           int64              `json:"run_id"`
+	EventExternalId uuid.UUID          `json:"event_external_id"`
 	FilterId        uuid.UUID          `json:"filter_id"`
 }
 
@@ -2212,21 +2177,21 @@ func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId
 }
 
 type ListEventsRow struct {
-	TenantID                uuid.UUID          `json:"tenant_id"`
-	EventID                 int64              `json:"event_id"`
-	EventExternalID         uuid.UUID          `json:"event_external_id"`
+	TriggeringWebhookName   *string            `json:"triggering_webhook_name,omitempty"`
 	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
 	EventKey                string             `json:"event_key"`
-	EventPayload            []byte             `json:"event_payload"`
-	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
 	EventScope              string             `json:"event_scope"`
+	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
+	EventPayload            []byte             `json:"event_payload"`
+	TriggeredRuns           []byte             `json:"triggered_runs"`
 	QueuedCount             int64              `json:"queued_count"`
 	RunningCount            int64              `json:"running_count"`
 	CompletedCount          int64              `json:"completed_count"`
 	CancelledCount          int64              `json:"cancelled_count"`
 	FailedCount             int64              `json:"failed_count"`
-	TriggeredRuns           []byte             `json:"triggered_runs"`
-	TriggeringWebhookName   *string            `json:"triggering_webhook_name,omitempty"`
+	EventID                 int64              `json:"event_id"`
+	TenantID                uuid.UUID          `json:"tenant_id"`
+	EventExternalID         uuid.UUID          `json:"event_external_id"`
 }
 
 type EventWithPayload struct {
@@ -2455,8 +2420,8 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 }
 
 type OffloadPayloadOpts struct {
-	ExternalId          uuid.UUID
 	ExternalLocationKey string
+	ExternalId          uuid.UUID
 }
 
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error) {
@@ -2714,8 +2679,8 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 }
 
 type IdInsertedAt struct {
-	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	ID         int64              `json:"id"`
 }
 
 func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, opts []IdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
@@ -2801,29 +2766,29 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 }
 
 type BulkCutOverOLAPPayload struct {
-	TenantID            uuid.UUID
 	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
 	ExternalLocationKey ExternalPayloadLocationKey
+	TenantID            uuid.UUID
+	ExternalId          uuid.UUID
 }
 
 type OLAPPaginationParams struct {
-	LastTenantId   uuid.UUID
 	LastInsertedAt pgtype.Timestamptz
-	LastExternalId uuid.UUID
 	Limit          int32
+	LastTenantId   uuid.UUID
+	LastExternalId uuid.UUID
 }
 
 type OLAPCutoverJobRunMetadata struct {
-	ShouldRun      bool
-	Pagination     OLAPPaginationParams
 	PartitionDate  PartitionDate
+	Pagination     OLAPPaginationParams
 	LeaseProcessId uuid.UUID
+	ShouldRun      bool
 }
 
 type OLAPCutoverBatchOutcome struct {
-	ShouldContinue bool
 	NextPagination OLAPPaginationParams
+	ShouldContinue bool
 }
 
 func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination OLAPPaginationParams) (*int32, error) {

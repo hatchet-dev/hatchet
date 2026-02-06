@@ -36,26 +36,26 @@ type OLAPController interface {
 }
 
 type OLAPControllerImpl struct {
-	mq                           msgqueue.MessageQueue
-	l                            *zerolog.Logger
+	s                            gocron.Scheduler
+	dagPrometheusWorkerCtx       context.Context
 	repo                         v1.Repository
 	dv                           datautils.DataDecoderValidator
-	a                            *hatcheterrors.Wrapped
-	p                            *partition.Partition
-	s                            gocron.Scheduler
-	ta                           *alerting.TenantAlertManager
+	taskPrometheusWorkerCtx      context.Context
+	mq                           msgqueue.MessageQueue
+	olapConfig                   *server.ConfigFileOperations
+	taskPrometheusUpdateCh       chan taskPrometheusUpdate
 	processTenantAlertOperations *queueutils.OperationPool
 	samplingHashThreshold        *int64
-	olapConfig                   *server.ConfigFileOperations
-	prometheusMetricsEnabled     bool
-	analyzeCronInterval          time.Duration
-	taskPrometheusUpdateCh       chan taskPrometheusUpdate
-	taskPrometheusWorkerCtx      context.Context
+	p                            *partition.Partition
+	dagPrometheusWorkerCancel    context.CancelFunc
+	l                            *zerolog.Logger
+	ta                           *alerting.TenantAlertManager
+	a                            *hatcheterrors.Wrapped
 	taskPrometheusWorkerCancel   context.CancelFunc
 	dagPrometheusUpdateCh        chan dagPrometheusUpdate
-	dagPrometheusWorkerCtx       context.Context
-	dagPrometheusWorkerCancel    context.CancelFunc
+	analyzeCronInterval          time.Duration
 	statusUpdateBatchSizeLimits  v1.StatusUpdateBatchSizeLimits
+	prometheusMetricsEnabled     bool
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)

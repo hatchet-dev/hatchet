@@ -21,29 +21,21 @@ func StickyStrategyPtr(v StickyStrategy) *StickyStrategy {
 }
 
 type Concurrency struct {
-	Expression    string                            `yaml:"expression,omitempty"`
 	MaxRuns       *int32                            `yaml:"maxRuns,omitempty"`
 	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
+	Expression    string                            `yaml:"expression,omitempty"`
 }
 
 type Workflow struct {
-	Name string `yaml:"name,omitempty"`
-
-	ScheduleTimeout string `yaml:"scheduleTimeout,omitempty"`
-
-	Concurrency *WorkflowConcurrency `yaml:"concurrency,omitempty"`
-
-	Version string `yaml:"version,omitempty"`
-
-	Description string `yaml:"description,omitempty"`
-
-	Triggers WorkflowTriggers `yaml:"triggers"`
-
-	Jobs map[string]WorkflowJob `yaml:"jobs"`
-
-	OnFailureJob *WorkflowJob `yaml:"onFailureJob,omitempty"`
-
-	StickyStrategy *StickyStrategy `yaml:"sticky,omitempty"`
+	Concurrency     *WorkflowConcurrency   `yaml:"concurrency,omitempty"`
+	Jobs            map[string]WorkflowJob `yaml:"jobs"`
+	OnFailureJob    *WorkflowJob           `yaml:"onFailureJob,omitempty"`
+	StickyStrategy  *StickyStrategy        `yaml:"sticky,omitempty"`
+	Name            string                 `yaml:"name,omitempty"`
+	ScheduleTimeout string                 `yaml:"scheduleTimeout,omitempty"`
+	Version         string                 `yaml:"version,omitempty"`
+	Description     string                 `yaml:"description,omitempty"`
+	Triggers        WorkflowTriggers       `yaml:"triggers"`
 }
 
 type WorkflowConcurrencyLimitStrategy string
@@ -57,13 +49,10 @@ const (
 )
 
 type WorkflowConcurrency struct {
-	Expression *string `yaml:"expression,omitempty"`
-
-	MaxRuns int32 `yaml:"maxRuns,omitempty"`
-
+	Expression    *string                          `yaml:"expression,omitempty"`
+	ActionID      *string                          `yaml:"action,omitempty"`
 	LimitStrategy WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
-
-	ActionID *string `yaml:"action,omitempty"`
+	MaxRuns       int32                            `yaml:"maxRuns,omitempty"`
 }
 
 type WorkflowTriggers struct {
@@ -111,42 +100,39 @@ func ComparatorPtr(v WorkerLabelComparator) *WorkerLabelComparator {
 
 type DesiredWorkerLabel struct {
 	Value      any                    `yaml:"value,omitempty"`
-	Required   bool                   `yaml:"required,omitempty"`
-	Weight     int32                  `yaml:"weight,omitempty"`
 	Comparator *WorkerLabelComparator `yaml:"comparator,omitempty"`
+	Weight     int32                  `yaml:"weight,omitempty"`
+	Required   bool                   `yaml:"required,omitempty"`
 }
 
 type WorkflowStep struct {
-	Name     string `yaml:"name,omitempty"`
-	ID       string `yaml:"id,omitempty"`
-	ActionID string `yaml:"action"`
-	Timeout  string `yaml:"timeout,omitempty"`
-
-	// Deprecated: this field has no effect and will be removed in a future release.
-	With map[string]interface{} `yaml:"with,omitempty"`
-
+	With                   map[string]interface{}         `yaml:"with,omitempty"`
 	UserData               map[string]interface{}         `yaml:"userData,omitempty"`
-	Parents                []string                       `yaml:"parents,omitempty"`
-	Retries                int                            `yaml:"retries"`
-	RateLimits             []RateLimit                    `yaml:"rateLimits,omitempty"`
 	DesiredLabels          map[string]*DesiredWorkerLabel `yaml:"desiredLabels,omitempty"`
 	RetryBackoffFactor     *float32                       `yaml:"retryBackoffFactor,omitempty"`
 	RetryMaxBackoffSeconds *int32                         `yaml:"retryMaxBackoffSeconds,omitempty"`
+	Name                   string                         `yaml:"name,omitempty"`
+	ID                     string                         `yaml:"id,omitempty"`
+	ActionID               string                         `yaml:"action"`
+	Timeout                string                         `yaml:"timeout,omitempty"`
+	Parents                []string                       `yaml:"parents,omitempty"`
+	RateLimits             []RateLimit                    `yaml:"rateLimits,omitempty"`
+	Retries                int                            `yaml:"retries"`
 }
 
 type DefaultFilter struct {
+	Payload    map[string]interface{} `json:"payload,omitempty"`
 	Expression string                 `json:"expression"`
 	Scope      string                 `json:"scope"`
-	Payload    map[string]interface{} `json:"payload,omitempty"`
 }
 
 type RateLimit struct {
-	Key            string             `yaml:"key,omitempty"`
 	KeyExpr        *string            `yaml:"keyExpr,omitempty"`
 	Units          *int               `yaml:"units,omitempty"`
 	UnitsExpr      *string            `yaml:"unitsExpr,omitempty"`
 	LimitValueExpr *string            `yaml:"limitValueExpr,omitempty"`
 	Duration       *RateLimitDuration `yaml:"duration,omitempty"`
+	Key            string             `yaml:"key,omitempty"`
 }
 
 func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {

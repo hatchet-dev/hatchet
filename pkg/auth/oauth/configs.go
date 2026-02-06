@@ -7,8 +7,8 @@ import (
 type Config struct {
 	ClientID     string
 	ClientSecret string
-	Scopes       []string
 	BaseURL      string
+	Scopes       []string
 }
 
 const (

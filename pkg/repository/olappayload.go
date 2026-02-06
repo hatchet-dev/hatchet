@@ -2,12 +2,13 @@ package repository
 
 import (
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
 type OLAPPayloadToOffload struct {
-	ExternalId          uuid.UUID
 	ExternalLocationKey string
+	ExternalId          uuid.UUID
 }
 
 type OLAPPayloadsToOffload struct {

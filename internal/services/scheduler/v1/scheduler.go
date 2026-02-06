@@ -655,11 +655,11 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 
 		msg, err := tasktypes.CancelledTaskMessage(
 			tenantId,
-			cancelled.TaskIdInsertedAtRetryCount.Id,
-			cancelled.TaskIdInsertedAtRetryCount.InsertedAt,
+			cancelled.Id,
+			cancelled.InsertedAt,
 			cancelled.TaskExternalId,
 			cancelled.WorkflowRunId,
-			cancelled.TaskIdInsertedAtRetryCount.RetryCount,
+			cancelled.RetryCount,
 			eventType,
 			eventMessage,
 			shouldNotify,

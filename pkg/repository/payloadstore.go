@@ -23,31 +23,31 @@ import (
 )
 
 type StorePayloadOpts struct {
-	Id         int64
 	InsertedAt pgtype.Timestamptz
-	ExternalId uuid.UUID
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
+	Id         int64
+	ExternalId uuid.UUID
 	TenantId   uuid.UUID
 }
 
 type StoreOLAPPayloadOpts struct {
-	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
+	ExternalId uuid.UUID
 }
 
 type OffloadToExternalStoreOpts struct {
-	TenantId   uuid.UUID
-	ExternalID uuid.UUID
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
+	TenantId   uuid.UUID
+	ExternalID uuid.UUID
 }
 
 type RetrievePayloadOpts struct {
-	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
+	Id         int64
 	TenantId   uuid.UUID
 }
 
@@ -79,31 +79,31 @@ type PayloadStoreRepository interface {
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                                 *pgxpool.Pool
+	externalStore                        ExternalStore
 	l                                    *zerolog.Logger
 	queries                              *sqlcv1.Queries
-	externalStoreEnabled                 bool
 	inlineStoreTTL                       *time.Duration
-	externalStore                        ExternalStore
-	enablePayloadDualWrites              bool
-	enableTaskEventPayloadDualWrites     bool
-	enableDagDataPayloadDualWrites       bool
-	enableOLAPPayloadDualWrites          bool
+	pool                                 *pgxpool.Pool
 	externalCutoverProcessInterval       time.Duration
-	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
+	externalCutoverBatchSize             int32
+	enablePayloadDualWrites              bool
+	enableOLAPPayloadDualWrites          bool
+	enableDagDataPayloadDualWrites       bool
+	enableTaskEventPayloadDualWrites     bool
+	externalStoreEnabled                 bool
 	enableImmediateOffloads              bool
 }
 
 type PayloadStoreRepositoryOpts struct {
+	InlineStoreTTL                       *time.Duration
+	ExternalCutoverProcessInterval       time.Duration
+	ExternalCutoverBatchSize             int32
+	ExternalCutoverNumConcurrentOffloads int32
 	EnablePayloadDualWrites              bool
 	EnableTaskEventPayloadDualWrites     bool
 	EnableDagDataPayloadDualWrites       bool
 	EnableOLAPPayloadDualWrites          bool
-	ExternalCutoverProcessInterval       time.Duration
-	ExternalCutoverBatchSize             int32
-	ExternalCutoverNumConcurrentOffloads int32
-	InlineStoreTTL                       *time.Duration
 	EnableImmediateOffloads              bool
 }
 
@@ -133,10 +133,10 @@ func NewPayloadStoreRepository(
 }
 
 type PayloadUniqueKey struct {
-	ID         int64
 	InsertedAt pgtype.Timestamptz
-	TenantId   uuid.UUID
 	Type       sqlcv1.V1PayloadType
+	ID         int64
+	TenantId   uuid.UUID
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
@@ -410,24 +410,24 @@ func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 }
 
 type BulkCutOverPayload struct {
-	TenantID            uuid.UUID
-	Id                  int64
 	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
 	Type                sqlcv1.V1PayloadType
 	ExternalLocationKey ExternalPayloadLocationKey
+	Id                  int64
+	TenantID            uuid.UUID
+	ExternalId          uuid.UUID
 }
 
 type PaginationParams struct {
-	LastTenantID   uuid.UUID
 	LastInsertedAt pgtype.Timestamptz
-	LastID         int64
 	LastType       sqlcv1.V1PayloadType
+	LastID         int64
+	LastTenantID   uuid.UUID
 }
 
 type CutoverBatchOutcome struct {
-	ShouldContinue bool
 	NextPagination PaginationParams
+	ShouldContinue bool
 }
 
 type PartitionDate pgtype.Date
@@ -669,10 +669,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 }
 
 type CutoverJobRunMetadata struct {
-	ShouldRun      bool
 	Pagination     PaginationParams
 	PartitionDate  PartitionDate
 	LeaseProcessId uuid.UUID
+	ShouldRun      bool
 }
 
 func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId uuid.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverJobRunMetadata, error) {

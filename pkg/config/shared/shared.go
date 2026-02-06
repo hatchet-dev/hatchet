@@ -20,30 +20,19 @@ type LoggerConfigFile struct {
 }
 
 type OpenTelemetryConfigFile struct {
-	CollectorURL  string `mapstructure:"collectorURL" json:"collectorURL,omitempty"`
-	ServiceName   string `mapstructure:"serviceName" json:"serviceName,omitempty" default:"server"`
-	TraceIdRatio  string `mapstructure:"traceIdRatio" json:"traceIdRatio,omitempty" default:"1"`
-	Insecure      bool   `mapstructure:"insecure" json:"insecure,omitempty" default:"false"`
-	CollectorAuth string `mapstructure:"collectorAuth" json:"collectorAuth,omitempty"`
-	MetricsEnabled bool  `mapstructure:"metricsEnabled" json:"metricsEnabled,omitempty" default:"false"`
+	CollectorURL   string `mapstructure:"collectorURL" json:"collectorURL,omitempty"`
+	ServiceName    string `mapstructure:"serviceName" json:"serviceName,omitempty" default:"server"`
+	TraceIdRatio   string `mapstructure:"traceIdRatio" json:"traceIdRatio,omitempty" default:"1"`
+	CollectorAuth  string `mapstructure:"collectorAuth" json:"collectorAuth,omitempty"`
+	Insecure       bool   `mapstructure:"insecure" json:"insecure,omitempty" default:"false"`
+	MetricsEnabled bool   `mapstructure:"metricsEnabled" json:"metricsEnabled,omitempty" default:"false"`
 }
 
 type PrometheusConfigFile struct {
-	// PrometheusServerURL is the URL of the prometheus server
-	PrometheusServerURL string `mapstructure:"prometheusServerURL" json:"prometheusServerURL,omitempty" default:""`
-
-	// PrometheusServerUsername is the username for the prometheus server that supports basic auth
+	PrometheusServerURL      string `mapstructure:"prometheusServerURL" json:"prometheusServerURL,omitempty" default:""`
 	PrometheusServerUsername string `mapstructure:"prometheusServerUsername" json:"prometheusServerUsername,omitempty" default:""`
-
-	// PrometheusServerPassword is the password for the prometheus server that supports basic auth
 	PrometheusServerPassword string `mapstructure:"prometheusServerPassword" json:"prometheusServerPassword,omitempty" default:""`
-
-	// Address is the metrics endpoint address
-	Address string `mapstructure:"address" json:"address,omitempty" default:":9090"`
-
-	// Enabled is a boolean that enables or disables the prometheus server
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
-
-	// Path is the path to bind the prometheus server to
-	Path string `mapstructure:"path" json:"path,omitempty" default:"/metrics"`
+	Address                  string `mapstructure:"address" json:"address,omitempty" default:":9090"`
+	Path                     string `mapstructure:"path" json:"path,omitempty" default:"/metrics"`
+	Enabled                  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }

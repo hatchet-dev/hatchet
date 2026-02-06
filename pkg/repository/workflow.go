@@ -108,55 +108,33 @@ type CreateStepOpts struct {
 }
 
 type CreateStepMatchConditionOpt struct {
-	SleepDuration      *string   `validate:"omitempty,duration"`
-	EventKey           *string   `validate:"omitempty"`
-	ParentReadableId   *string   `validate:"omitempty"`
-	MatchConditionKind string    `validate:"required,oneof=PARENT_OVERRIDE USER_EVENT SLEEP"`
-	ReadableDataKey    string    `validate:"required"`
-	Action             string    `validate:"required,oneof=QUEUE CANCEL SKIP"`
-	OrGroupId          uuid.UUID `json:"-" validate:"required"`
-	Expression         string    `validate:"omitempty"`
+	SleepDuration      *string `validate:"omitempty,duration"`
+	EventKey           *string `validate:"omitempty"`
+	ParentReadableId   *string `validate:"omitempty"`
+	MatchConditionKind string  `validate:"required,oneof=PARENT_OVERRIDE USER_EVENT SLEEP"`
+	ReadableDataKey    string  `validate:"required"`
+	Action             string  `validate:"required,oneof=QUEUE CANCEL SKIP"`
+	Expression         string  `validate:"omitempty"`
 	OrGroupIdIndex     int32
+	OrGroupId          uuid.UUID `json:"-" validate:"required"`
 }
 
 type DesiredWorkerLabelOpts struct {
-	// (required) the label key
-	Key string `validate:"required"`
-
-	// (required if StringValue is nil) the label integer value
-	IntValue *int32 `validate:"omitnil,required_without=StrValue"`
-
-	// (required if StrValue is nil) the label string value
-	StrValue *string `validate:"omitnil,required_without=IntValue"`
-
-	// (optional) if the label is required
-	Required *bool `validate:"omitempty"`
-
-	// (optional) the weight of the label for scheduling (default: 100)
-	Weight *int32 `validate:"omitempty"`
-
-	// (optional) the label comparator for scheduling (default: EQUAL)
+	IntValue   *int32  `validate:"omitnil,required_without=StrValue"`
+	StrValue   *string `validate:"omitnil,required_without=IntValue"`
+	Required   *bool   `validate:"omitempty"`
+	Weight     *int32  `validate:"omitempty"`
 	Comparator *string `validate:"omitempty,oneof=EQUAL NOT_EQUAL GREATER_THAN LESS_THAN GREATER_THAN_OR_EQUAL LESS_THAN_OR_EQUAL"`
+	Key        string  `validate:"required"`
 }
 
 type CreateWorkflowStepRateLimitOpts struct {
-	// (required) the rate limit key
-	Key string `validate:"required"`
-
-	// (optional) a CEL expression for the rate limit key
-	KeyExpr *string `validate:"omitnil,celsteprunstr,required_without=Key"`
-
-	// (optional) the rate limit units to consume
-	Units *int `validate:"omitnil,required_without=UnitsExpr"`
-
-	// (optional) a CEL expression for the rate limit units
+	KeyExpr   *string `validate:"omitnil,celsteprunstr,required_without=Key"`
+	Units     *int    `validate:"omitnil,required_without=UnitsExpr"`
 	UnitsExpr *string `validate:"omitnil,celsteprunstr,required_without=Units"`
-
-	// (optional) a CEL expression for a dynamic limit value for the rate limit
 	LimitExpr *string `validate:"omitnil,celsteprunstr"`
-
-	// (optional) the rate limit duration, defaults to MINUTE
-	Duration *string `validate:"omitnil"`
+	Duration  *string `validate:"omitnil"`
+	Key       string  `validate:"required"`
 }
 
 var allowedRateLimitDurations = []string{

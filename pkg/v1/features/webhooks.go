@@ -78,10 +78,10 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 }
 
 type CreateWebhookOpts struct {
+	Auth               WebhookAuth
 	Name               string
 	SourceName         rest.V1WebhookSourceName
 	EventKeyExpression string
-	Auth               WebhookAuth
 }
 
 type UpdateWebhookOpts struct {

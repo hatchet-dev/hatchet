@@ -30,19 +30,14 @@ type sharedConfig struct {
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
 type SchedulingPool struct {
-	Extensions *Extensions
-
-	tenants syncx.Map[uuid.UUID, *tenantManager]
-	setMu   mutex
-
-	cf *sharedConfig
-
-	resultsCh chan *QueueResults
-
-	concurrencyResultsCh chan *ConcurrencyResults
-
-	optimisticSchedulingEnabled bool
+	setMu                       mutex
+	Extensions                  *Extensions
+	cf                          *sharedConfig
+	resultsCh                   chan *QueueResults
+	concurrencyResultsCh        chan *ConcurrencyResults
 	optimisticSemaphore         chan struct{}
+	tenants                     syncx.Map[uuid.UUID, *tenantManager]
+	optimisticSchedulingEnabled bool
 }
 
 func NewSchedulingPool(

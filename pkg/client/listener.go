@@ -94,18 +94,13 @@ type StreamHandler func(event StreamEvent) error
 type WorkflowRunEventHandler func(event WorkflowRunEvent) error
 
 type WorkflowRunsListener struct {
-	constructor func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
-
-	client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
-	clientMu   sync.Mutex
-	generation uint64
-
+	client         dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
 	reconnectGroup singleflight.Group
-
-	l *zerolog.Logger
-
-	// map of workflow run ids to a list of handlers
-	handlers sync.Map
+	constructor    func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
+	l              *zerolog.Logger
+	handlers       sync.Map
+	generation     uint64
+	clientMu       sync.Mutex
 }
 
 func (r *subscribeClientImpl) getWorkflowRunsListener(
@@ -422,21 +417,15 @@ type ClientEventListener interface {
 }
 
 type subscribeClientImpl struct {
-	client dispatchercontracts.DispatcherClient
-
-	clientv1 sharedcontracts.V1DispatcherClient
-
-	l *zerolog.Logger
-
-	v validator.Validator
-
-	ctx *contextLoader
-
-	workflowRunListenerMu sync.Mutex
-	workflowRunListener   *WorkflowRunsListener
-
-	durableEventsListenerMu sync.Mutex
+	client                  dispatchercontracts.DispatcherClient
+	clientv1                sharedcontracts.V1DispatcherClient
+	v                       validator.Validator
+	l                       *zerolog.Logger
+	ctx                     *contextLoader
+	workflowRunListener     *WorkflowRunsListener
 	durableEventsListener   *DurableEventsListener
+	workflowRunListenerMu   sync.Mutex
+	durableEventsListenerMu sync.Mutex
 }
 
 func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient {

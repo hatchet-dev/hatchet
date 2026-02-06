@@ -9,14 +9,14 @@ import (
 )
 
 type MonitoringService struct {
-	enabled          bool
-	permittedTenants []string
-	eventName        string
-	workflowName     string
-	probeTimeout     time.Duration
 	config           *server.ServerConfig
 	l                *zerolog.Logger
+	eventName        string
+	workflowName     string
 	tlsRootCAFile    string
+	permittedTenants []string
+	probeTimeout     time.Duration
+	enabled          bool
 }
 
 func NewMonitoringService(config *server.ServerConfig) *MonitoringService {

@@ -19,9 +19,9 @@ func (i item[V]) isExpired() bool {
 // TTLCache is a generic cache implementation with support for time-to-live
 // (TTL) expiration.
 type TTLCache[K comparable, V any] struct {
-	items map[K]item[V]    // The map storing cache items.
-	mu    sync.Mutex       // Mutex for controlling concurrent access to the cache.
-	stop  chan interface{} // Channel to stop the goroutine that removes expired items.
+	items map[K]item[V]
+	stop  chan interface{}
+	mu    sync.Mutex
 }
 
 // NewTTL creates a new TTLCache instance and starts a goroutine to periodically

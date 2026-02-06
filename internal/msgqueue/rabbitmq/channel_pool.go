@@ -14,12 +14,9 @@ import (
 
 type channelPool struct {
 	*puddle.Pool[*amqp.Channel]
-
-	l *zerolog.Logger
-
-	url string
-
+	l      *zerolog.Logger
 	conn   *amqp.Connection
+	url    string
 	connMu sync.Mutex
 }
 

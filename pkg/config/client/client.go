@@ -11,29 +11,17 @@ import (
 )
 
 type ClientConfigFile struct {
-	TenantId string `mapstructure:"tenantId" json:"tenantId,omitempty"`
-
-	Token string `mapstructure:"token" json:"token,omitempty"`
-
-	HostPort string `mapstructure:"hostPort" json:"hostPort,omitempty"`
-
-	// ServerURL is the URL of the Hatchet API server, not to be confused with HostPort, which is the host and port
-	// corresponding to the gRPC engine service.
-	ServerURL string `mapstructure:"serverURL" json:"serverURL,omitempty"`
-
-	TLS ClientTLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
-
-	Namespace string `mapstructure:"namespace" json:"namespace,omitempty"`
-
-	NoGrpcRetry bool `mapstructure:"noGrpcRetry" json:"noGrpcRetry,omitempty"`
-
-	CloudRegisterID *string `mapstructure:"cloudRegisterID" json:"cloudRegisterID,omitempty"`
-
-	RawRunnableActions []string `mapstructure:"runnableActions" json:"runnableActions,omitempty"`
-
-	AutoscalingTarget string `mapstructure:"autoscalingTarget" json:"autoscalingTarget,omitempty"`
-
-	DisableGzipCompression bool `mapstructure:"disableGzipCompression" json:"disableGzipCompression,omitempty"`
+	CloudRegisterID        *string             `mapstructure:"cloudRegisterID" json:"cloudRegisterID,omitempty"`
+	TLS                    ClientTLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
+	TenantId               string              `mapstructure:"tenantId" json:"tenantId,omitempty"`
+	Token                  string              `mapstructure:"token" json:"token,omitempty"`
+	HostPort               string              `mapstructure:"hostPort" json:"hostPort,omitempty"`
+	ServerURL              string              `mapstructure:"serverURL" json:"serverURL,omitempty"`
+	Namespace              string              `mapstructure:"namespace" json:"namespace,omitempty"`
+	AutoscalingTarget      string              `mapstructure:"autoscalingTarget" json:"autoscalingTarget,omitempty"`
+	RawRunnableActions     []string            `mapstructure:"runnableActions" json:"runnableActions,omitempty"`
+	NoGrpcRetry            bool                `mapstructure:"noGrpcRetry" json:"noGrpcRetry,omitempty"`
+	DisableGzipCompression bool                `mapstructure:"disableGzipCompression" json:"disableGzipCompression,omitempty"`
 }
 
 type ClientTLSConfigFile struct {
@@ -43,23 +31,16 @@ type ClientTLSConfigFile struct {
 }
 
 type ClientConfig struct {
-	TenantId    string
-	Token       string
-	NoGrpcRetry bool
-
-	ServerURL            string
-	GRPCBroadcastAddress string
-
-	// TLSConfig will be nil if the strategy is "none"
-	TLSConfig *tls.Config
-
-	Namespace string
-
-	CloudRegisterID *string
-	RunnableActions []string
-
-	PresetWorkerLabels map[string]string
-
+	TLSConfig              *tls.Config
+	CloudRegisterID        *string
+	PresetWorkerLabels     map[string]string
+	TenantId               string
+	Token                  string
+	ServerURL              string
+	GRPCBroadcastAddress   string
+	Namespace              string
+	RunnableActions        []string
+	NoGrpcRetry            bool
 	DisableGzipCompression bool
 }
 

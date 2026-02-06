@@ -24,21 +24,19 @@ type sessionDataJSON struct {
 }
 
 type UserSessionStore struct {
-	codecs     []securecookie.Codec
-	options    *sessions.Options
 	repo       v1.UserSessionRepository
+	options    *sessions.Options
 	cookieName string
+	codecs     []securecookie.Codec
 }
 
 type UserSessionStoreOpts struct {
-	// The max age of the cookie, in seconds.
-	maxAge int
-
 	repo          v1.UserSessionRepository
-	cookieSecrets []string
-	isInsecure    bool
 	cookieDomain  string
 	cookieName    string
+	cookieSecrets []string
+	maxAge        int
+	isInsecure    bool
 }
 
 type UserSessionStoreOpt func(*UserSessionStoreOpts)

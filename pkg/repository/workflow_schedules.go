@@ -47,15 +47,15 @@ type ListScheduledWorkflowsOpts struct {
 
 type CreateScheduledWorkflowRunForWorkflowOpts struct {
 	ScheduledTrigger   time.Time
-	Priority           *int32    `validate:"omitempty,min=1,max=3"`
-	WorkflowId         uuid.UUID `validate:"required"`
+	Priority           *int32 `validate:"omitempty,min=1,max=3"`
 	Input              []byte
 	AdditionalMetadata []byte
+	WorkflowId         uuid.UUID `validate:"required"`
 }
 
 type ScheduledWorkflowMeta struct {
-	Id              uuid.UUID
 	Method          sqlcv1.WorkflowTriggerScheduledRefMethods
+	Id              uuid.UUID
 	HasTriggeredRun bool
 }
 
@@ -99,9 +99,9 @@ type CreateCronWorkflowTriggerOpts struct {
 	Input              map[string]interface{}
 	AdditionalMetadata map[string]interface{}
 	Priority           *int32    `validate:"omitempty,min=1,max=3"`
-	WorkflowId         uuid.UUID `validate:"required"`
 	Name               string    `validate:"required"`
 	Cron               string    `validate:"required,cron"`
+	WorkflowId         uuid.UUID `validate:"required"`
 }
 
 type WorkflowScheduleRepository interface {

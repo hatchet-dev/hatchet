@@ -13,6 +13,6 @@ const (
 )
 
 type RateLimitOpts struct {
-	Max      int
 	Duration RateLimitDuration
+	Max      int
 }

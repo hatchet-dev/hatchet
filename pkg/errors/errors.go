@@ -5,20 +5,10 @@ import (
 )
 
 type DetailedError struct {
-	// a custom Hatchet error code
-	// example: 1400
-	Code uint `json:"code"`
-
-	// a reason for this error
-	Reason string `json:"reason"`
-
-	// a description for this error
-	// example: A descriptive error message
+	Reason      string `json:"reason"`
 	Description string `json:"description"`
-
-	// a link to the documentation for this error, if it exists
-	// example: github.com/hatchet-dev/hatchet
-	DocsLink string `json:"docs_link"`
+	DocsLink    string `json:"docs_link"`
+	Code        uint   `json:"code"`
 }
 
 func (e DetailedError) Error() string {

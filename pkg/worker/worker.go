@@ -44,13 +44,12 @@ type Action interface {
 }
 
 type actionImpl struct {
-	name                 string
+	method               any
 	run                  actionFunc
 	runConcurrencyAction GetWorkflowConcurrencyGroupFn
-	method               any
+	compute              *compute.Compute
+	name                 string
 	service              string
-
-	compute *compute.Compute
 }
 
 func (j *actionImpl) Name() string {
@@ -80,51 +79,34 @@ func (j *actionImpl) Compute() *compute.Compute {
 type ActionRegistry map[string]Action
 
 type Worker struct {
-	client client.Client
-
-	name string
-
-	actions ActionRegistry
-
+	alerter              errors.Alerter
+	client               client.Client
+	middlewares          *middlewares
 	registered_workflows map[string]bool
-
-	l *zerolog.Logger
-
-	cancelMap sync.Map
-
+	l                    *zerolog.Logger
+	actions              ActionRegistry
+	slots                *int
+	labels               map[string]interface{}
+	id                   *string
+	panicHandler         func(ctx HatchetContext, recovered any)
+	cancelMap            sync.Map
 	cancelConcurrencyMap sync.Map
-
-	services sync.Map
-
-	alerter errors.Alerter
-
-	middlewares *middlewares
-
-	slots *int
-
-	initActionNames []string
-
-	labels map[string]interface{}
-
-	id *string
-
-	panicHandler func(ctx HatchetContext, recovered any)
+	services             sync.Map
+	name                 string
+	initActionNames      []string
 }
 
 type WorkerOpt func(*WorkerOpts)
 
 type WorkerOpts struct {
-	client client.Client
-	name   string
-	l      *zerolog.Logger
-
-	integrations []integrations.Integration
+	client       client.Client
 	alerter      errors.Alerter
+	l            *zerolog.Logger
 	slots        *int
-
-	actions []string
-
-	labels map[string]interface{}
+	labels       map[string]interface{}
+	name         string
+	integrations []integrations.Integration
+	actions      []string
 }
 
 func defaultWorkerOpts() *WorkerOpts {

@@ -4,27 +4,20 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
 type subscribedWorker struct {
-	// stream is the server side of the RPC stream
-	stream contracts.Dispatcher_ListenServer
-
-	// finished is used to signal closure of a client subscribing goroutine
-	finished chan<- bool
-
-	sendMu sync.Mutex
-
-	workerId uuid.UUID
-
-	backlogSize   int64
-	backlogSizeMu sync.Mutex
-
+	stream         contracts.Dispatcher_ListenServer
+	finished       chan<- bool
+	pubBuffer      *msgqueue.MQPubBuffer
+	backlogSize    int64
 	maxBacklogSize int64
-
-	pubBuffer *msgqueue.MQPubBuffer
+	sendMu         sync.Mutex
+	backlogSizeMu  sync.Mutex
+	workerId       uuid.UUID
 }
 
 func newSubscribedWorker(

@@ -19,20 +19,17 @@ const (
 )
 
 type Partition struct {
+	controllerCron        gocron.Scheduler
+	workerCron            gocron.Scheduler
+	schedulerCron         gocron.Scheduler
+	repo                  v1.TenantRepository
+	l                     *zerolog.Logger
 	controllerPartitionId string
 	workerPartitionId     string
 	schedulerPartitionId  string
-
-	controllerCron gocron.Scheduler
-	workerCron     gocron.Scheduler
-	schedulerCron  gocron.Scheduler
-
-	repo v1.TenantRepository
-	l    *zerolog.Logger
-
-	controllerMu sync.Mutex
-	workerMu     sync.Mutex
-	schedulerMu  sync.Mutex
+	controllerMu          sync.Mutex
+	workerMu              sync.Mutex
+	schedulerMu           sync.Mutex
 }
 
 func NewPartition(l *zerolog.Logger, repo v1.TenantRepository) (*Partition, error) {

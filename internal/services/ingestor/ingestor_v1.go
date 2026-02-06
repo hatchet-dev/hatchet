@@ -23,11 +23,11 @@ import (
 )
 
 type EventResult struct {
-	TenantId           uuid.UUID
 	EventId            string
 	EventKey           string
 	Data               string
 	AdditionalMetadata string
+	TenantId           uuid.UUID
 }
 
 func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error) {

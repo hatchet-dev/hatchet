@@ -12,52 +12,25 @@ import (
 )
 
 type ListLogsOpts struct {
-	// (optional) number of logs to skip
-	Offset *int
-
-	// (optional) number of logs to return
-	Limit *int `validate:"omitnil,min=1,max=10000"`
-
-	// (optional) a list of log levels to filter by
-	Levels []string `validate:"omitnil,dive,oneof=INFO ERROR WARN DEBUG"`
-
-	// (optional) a search query
-	Search *string
-
-	// (optional) the start time to get logs for
-	Since *time.Time
-
-	// (optional) the end time to get logs for
-	Until *time.Time
-
-	// (optional) the attempt number to filter for
-	Attempt *int32
-
-	// (optional) Order by direction
-	OrderByDirection *string `validate:"omitempty,oneof=ASC DESC"`
+	Offset           *int
+	Limit            *int `validate:"omitnil,min=1,max=10000"`
+	Search           *string
+	Since            *time.Time
+	Until            *time.Time
+	Attempt          *int32
+	OrderByDirection *string  `validate:"omitempty,oneof=ASC DESC"`
+	Levels           []string `validate:"omitnil,dive,oneof=INFO ERROR WARN DEBUG"`
 }
 
 type CreateLogLineOpts struct {
-	TaskExternalId uuid.UUID `validate:"required"`
-
-	TaskId int64
-
+	CreatedAt      *time.Time
+	Level          *string `validate:"omitnil,oneof=INFO ERROR WARN DEBUG"`
 	TaskInsertedAt pgtype.Timestamptz
-
-	// (optional) The time when the log line was created.
-	CreatedAt *time.Time
-
-	// (required) The message of the log line.
-	Message string `validate:"required,min=1,max=10000"`
-
-	// (optional) The level of the log line.
-	Level *string `validate:"omitnil,oneof=INFO ERROR WARN DEBUG"`
-
-	// (optional) The metadata of the log line.
-	Metadata []byte
-
-	// The retry count of the log line.
-	RetryCount int
+	Message        string `validate:"required,min=1,max=10000"`
+	Metadata       []byte
+	TaskId         int64
+	RetryCount     int
+	TaskExternalId uuid.UUID `validate:"required"`
 }
 
 type LogLineRepository interface {

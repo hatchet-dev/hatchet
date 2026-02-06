@@ -13,19 +13,19 @@ import (
 )
 
 type taskPrometheusUpdate struct {
-	tenantId       uuid.UUID
-	taskId         int64
 	taskInsertedAt pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
+	taskId         int64
+	tenantId       uuid.UUID
 	workflowId     uuid.UUID
 	isDAGTask      bool
 }
 
 type dagPrometheusUpdate struct {
-	tenantId       uuid.UUID
-	dagExternalId  uuid.UUID
 	dagInsertedAt  pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
+	tenantId       uuid.UUID
+	dagExternalId  uuid.UUID
 	workflowId     uuid.UUID
 }
 

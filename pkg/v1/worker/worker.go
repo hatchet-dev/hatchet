@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
+
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 )
 
 // Worker defines the interface for interacting with a hatchet worker.
@@ -43,62 +44,28 @@ type WorkerLabels map[string]interface{}
 
 // CreateOpts defines the options for creating a new worker.
 type WorkerOpts struct {
-	// (required) the friendly name of the worker
-	Name string
-
-	// (optional) a list of workflows to register on the worker. If not provided, the worker will not run any workflows.
-	Workflows []workflow.WorkflowBase
-
-	// (optional) maximum number of concurrent runs on this worker, defaults to 100
-	Slots int
-
-	// (optional) labels to set on the worker
-	Labels WorkerLabels
-
-	// (optional) logger to use for the worker
-	Logger *zerolog.Logger
-
-	// (optional) log level
-	LogLevel string
-
-	// (optional) maximum number of concurrent runs for durable tasks, defaults to 1000
+	Labels       WorkerLabels
+	Logger       *zerolog.Logger
+	Name         string
+	LogLevel     string
+	Workflows    []workflow.WorkflowBase
+	Slots        int
 	DurableSlots int
 }
 
 // WorkerImpl is the concrete implementation of the Worker interface.
 type WorkerImpl struct {
-	// v0 is the client used to communicate with the hatchet API.
-	v0 v0Client.Client
-
-	// v1 workers client
-	workers features.WorkersClient
-
-	// nonDurableWorker is the underlying non-durable worker implementation. (default)
+	v0               v0Client.Client
+	workers          features.WorkersClient
 	nonDurableWorker *worker.Worker
-
-	// durableWorker is the underlying worker implementation for durable tasks.
-	durableWorker *worker.Worker
-
-	// name is the friendly name of the worker.
-	name string
-
-	// workflows is a slice of workflows registered with this worker.
-	workflows []workflow.WorkflowBase
-
-	// slots is the maximum number of concurrent runs allowed on this worker.
-	slots int
-
-	// durableSlots is the maximum number of concurrent durable tasks allowed.
-	durableSlots int
-
-	// logLevel is the log level for this worker
-	logLevel string
-
-	// logger is the logger used for this worker
-	logger *zerolog.Logger
-
-	// labels are the labels assigned to this worker
-	labels WorkerLabels
+	durableWorker    *worker.Worker
+	logger           *zerolog.Logger
+	labels           WorkerLabels
+	name             string
+	logLevel         string
+	workflows        []workflow.WorkflowBase
+	slots            int
+	durableSlots     int
 }
 
 // NewWorker creates and configures a new Worker with the provided client and options.
@@ -140,8 +107,8 @@ func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts Wo
 
 // NamedFunction represents a function with its associated action ID
 type NamedFunction struct {
-	ActionID string
 	Fn       workflow.WrappedTaskFn
+	ActionID string
 }
 
 // RegisterWorkflows registers one or more workflows with the worker.

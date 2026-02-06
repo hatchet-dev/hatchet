@@ -5,19 +5,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CreateSessionOpts struct {
-	ID uuid.UUID `validate:"required"`
-
-	ExpiresAt time.Time `validate:"required"`
-
-	// (optional) the user id, can be nil if session is unauthenticated
-	UserId *uuid.UUID `validate:"omitempty"`
-
-	Data []byte
+	ExpiresAt time.Time  `validate:"required"`
+	UserId    *uuid.UUID `validate:"omitempty"`
+	Data      []byte
+	ID        uuid.UUID `validate:"required"`
 }
 
 type UpdateSessionOpts struct {

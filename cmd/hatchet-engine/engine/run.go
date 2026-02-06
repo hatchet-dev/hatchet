@@ -38,8 +38,8 @@ import (
 )
 
 type Teardown struct {
-	Name string
 	Fn   func() error
+	Name string
 }
 
 func init() {

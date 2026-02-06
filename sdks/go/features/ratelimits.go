@@ -14,12 +14,9 @@ import (
 
 // CreateRatelimitOpts contains options for creating or updating a rate limit.
 type CreateRatelimitOpts struct {
-	// key is the unique identifier for the rate limit
-	Key string
-	// limit is the maximum number of requests allowed within the duration
-	Limit int
-	// duration specifies the time period for the rate limit
+	Key      string
 	Duration types.RateLimitDuration
+	Limit    int
 }
 
 // RateLimitsClient provides methods for interacting with rate limits

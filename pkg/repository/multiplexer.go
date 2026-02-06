@@ -20,18 +20,14 @@ const multiplexChannel = "hatchet_listener"
 // multiplexedListener listens for messages on a single Postgres channel and
 // dispatches them to the appropriate handlers based on the queue name.
 type multiplexedListener struct {
-	isListening   bool
-	isListeningMu sync.Mutex
-
-	pool *pgxpool.Pool
-
-	l *zerolog.Logger
-
+	listenerCtx   context.Context
+	pool          *pgxpool.Pool
+	l             *zerolog.Logger
 	subscribers   map[string][]chan *PubSubMessage
+	cancel        context.CancelFunc
 	subscribersMu sync.RWMutex
-
-	listenerCtx context.Context
-	cancel      context.CancelFunc
+	isListeningMu sync.Mutex
+	isListening   bool
 }
 
 func newMultiplexedListener(l *zerolog.Logger, pool *pgxpool.Pool) *multiplexedListener {

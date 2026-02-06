@@ -24,14 +24,9 @@ func getChildSignalEventKey(parentExternalId uuid.UUID, stepIndex, childIndex in
 
 type WorkflowNameTriggerOpts struct {
 	*TriggerTaskData
-
-	ExternalId uuid.UUID
-
-	// (optional) The idempotency key to use for debouncing this task
 	IdempotencyKey *IdempotencyKey
-
-	// Whether to skip the creation of the child workflow
-	ShouldSkip bool
+	ExternalId     uuid.UUID
+	ShouldSkip     bool
 }
 
 func (g *WorkflowNameTriggerOpts) childSpawnKey() string {
@@ -43,17 +38,10 @@ func (g *WorkflowNameTriggerOpts) childSpawnKey() string {
 }
 
 type ChildWorkflowSignalCreatedData struct {
-	// The external id of the target child task
-	ChildExternalId uuid.UUID `json:"external_id"`
-
-	// The external id of the parent task
+	ChildKey         *string   `json:"child_key"`
+	ChildIndex       int64     `json:"child_index"`
+	ChildExternalId  uuid.UUID `json:"external_id"`
 	ParentExternalId uuid.UUID `json:"parent_external_id"`
-
-	// The index of the child task
-	ChildIndex int64 `json:"child_index"`
-
-	// The key of the child task
-	ChildKey *string `json:"child_key"`
 }
 
 func newChildWorkflowSignalCreatedData(childExternalId uuid.UUID, opt *WorkflowNameTriggerOpts) *ChildWorkflowSignalCreatedData {

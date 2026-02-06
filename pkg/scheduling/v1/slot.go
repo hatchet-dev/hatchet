@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -14,19 +15,14 @@ import (
 const defaultSlotExpiry = 1500 * time.Millisecond
 
 type slot struct {
-	worker  *worker
-	actions []string
-
-	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
-	expiresAt *time.Time
-	used      bool
-
-	ackd bool
-
+	worker          *worker
+	expiresAt       *time.Time
+	actions         []string
 	additionalAcks  []func()
 	additionalNacks []func()
-
-	mu sync.RWMutex
+	mu              sync.RWMutex
+	used            bool
+	ackd            bool
 }
 
 func newSlot(worker *worker, actions []string) *slot {

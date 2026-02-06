@@ -41,28 +41,28 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                    msgqueue.MessageQueue
-	pubBuffer                             *msgqueue.MQPubBuffer
-	l                                     *zerolog.Logger
-	queueLogger                           *zerolog.Logger
-	pgxStatsLogger                        *zerolog.Logger
 	repov1                                v1.Repository
-	dv                                    datautils.DataDecoderValidator
+	mq                                    msgqueue.MessageQueue
 	s                                     gocron.Scheduler
+	dv                                    datautils.DataDecoderValidator
+	celParser                             *cel.CELParser
+	timeoutTaskOperations                 *operation.TenantOperationPool
+	queueLogger                           *zerolog.Logger
+	l                                     *zerolog.Logger
 	a                                     *hatcheterrors.Wrapped
 	p                                     *partition.Partition
-	celParser                             *cel.CELParser
-	opsPoolPollInterval                   time.Duration
-	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *operation.TenantOperationPool
+	pubBuffer                             *msgqueue.MQPubBuffer
+	tw                                    *trigger.TriggerWriter
+	signaler                              *signal.OLAPSignaler
+	pgxStatsLogger                        *zerolog.Logger
 	reassignTaskOperations                *operation.TenantOperationPool
 	retryTaskOperations                   *operation.TenantOperationPool
 	emitSleepOperations                   *operation.TenantOperationPool
 	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
-	replayEnabled                         bool
 	analyzeCronInterval                   time.Duration
-	signaler                              *signal.OLAPSignaler
-	tw                                    *trigger.TriggerWriter
+	opsPoolJitter                         time.Duration
+	opsPoolPollInterval                   time.Duration
+	replayEnabled                         bool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)

@@ -47,10 +47,10 @@ type HMACAuthCredentials struct {
 }
 
 type AuthConfig struct {
-	Type       sqlcv1.V1IncomingWebhookAuthType `json:"type" validate:"required"`
 	BasicAuth  *BasicAuthCredentials            `json:"basic_auth,omitempty"`
 	APIKeyAuth *APIKeyAuthCredentials           `json:"api_key_auth,omitempty"`
 	HMACAuth   *HMACAuthCredentials             `json:"hmac_auth,omitempty"`
+	Type       sqlcv1.V1IncomingWebhookAuthType `json:"type" validate:"required"`
 }
 
 func (ac *AuthConfig) Validate() error {
@@ -91,13 +91,13 @@ func (ac *AuthConfig) Validate() error {
 }
 
 type CreateWebhookOpts struct {
-	Tenantid           uuid.UUID                          `json:"tenantid"`
+	AuthConfig         AuthConfig                         `json:"auth_config,omitempty"`
+	ScopeExpression    *string                            `json:"scope_expression,omitempty"`
 	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
 	Name               string                             `json:"name" validate:"required"`
 	Eventkeyexpression string                             `json:"eventkeyexpression"`
-	ScopeExpression    *string                            `json:"scope_expression,omitempty"`
 	StaticPayload      []byte                             `json:"static_payload,omitempty"`
-	AuthConfig         AuthConfig                         `json:"auth_config,omitempty"`
+	Tenantid           uuid.UUID                          `json:"tenantid"`
 }
 
 func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUID, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
@@ -164,10 +164,10 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 }
 
 type ListWebhooksOpts struct {
-	WebhookNames       []string                             `json:"webhook_names"`
-	WebhookSourceNames []sqlcv1.V1IncomingWebhookSourceName `json:"webhook_source_names"`
 	Limit              *int64                               `json:"limit" validate:"omitnil,min=1"`
 	Offset             *int64                               `json:"offset" validate:"omitnil,min=0"`
+	WebhookNames       []string                             `json:"webhook_names"`
+	WebhookSourceNames []sqlcv1.V1IncomingWebhookSourceName `json:"webhook_source_names"`
 }
 
 func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId uuid.UUID, opts ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error) {

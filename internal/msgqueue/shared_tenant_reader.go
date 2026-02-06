@@ -13,10 +13,10 @@ import (
 
 type sharedTenantSub struct {
 	fs        *syncx.Map[int, AckHook]
-	counter   int
-	isRunning bool
-	mu        sync.Mutex
 	cleanup   func() error
+	counter   int
+	mu        sync.Mutex
+	isRunning bool
 }
 
 type SharedTenantReader struct {

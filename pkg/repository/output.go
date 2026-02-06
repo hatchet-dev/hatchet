@@ -4,27 +4,20 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type TaskOutputEvent struct {
-	IsFailure bool `json:"is_failure"`
-
-	EventType sqlcv1.V1TaskEventType `json:"event_type"`
-
-	TaskExternalId uuid.UUID `json:"task_external_id"`
-
-	TaskId int64 `json:"task_id"`
-
-	RetryCount int32 `json:"retry_count"`
-
-	WorkerId *uuid.UUID `json:"worker_id"`
-
-	Output []byte `json:"output"`
-
-	ErrorMessage string `json:"error_message"`
-
-	StepReadableID string `json:"step_readable_id"`
+	WorkerId       *uuid.UUID             `json:"worker_id"`
+	EventType      sqlcv1.V1TaskEventType `json:"event_type"`
+	ErrorMessage   string                 `json:"error_message"`
+	StepReadableID string                 `json:"step_readable_id"`
+	Output         []byte                 `json:"output"`
+	TaskId         int64                  `json:"task_id"`
+	RetryCount     int32                  `json:"retry_count"`
+	TaskExternalId uuid.UUID              `json:"task_external_id"`
+	IsFailure      bool                   `json:"is_failure"`
 }
 
 func (e *TaskOutputEvent) IsCompleted() bool {

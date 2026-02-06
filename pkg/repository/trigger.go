@@ -19,76 +19,37 @@ import (
 )
 
 type EventTriggerOpts struct {
-	ExternalId uuid.UUID
-
-	Key string
-
-	Data []byte
-
-	AdditionalMetadata []byte
-
-	Priority *int32
-
-	Scope *string
-
+	Priority              *int32
+	Scope                 *string
 	TriggeringWebhookName *string
+	Key                   string
+	Data                  []byte
+	AdditionalMetadata    []byte
+	ExternalId            uuid.UUID
 }
 
 type TriggerTaskData struct {
-	// (required) the workflow name
-	WorkflowName string `json:"workflow_name" validate:"required"`
-
-	// (optional) the workflow run data
-	Data []byte `json:"data"`
-
-	// (optional) the workflow run metadata
-	AdditionalMetadata []byte `json:"additional_metadata"`
-
-	// (optional) the desired worker id
-	DesiredWorkerId *uuid.UUID `json:"desired_worker_id"`
-
-	// (optional) the parent external id
-	ParentExternalId *uuid.UUID `json:"parent_external_id"`
-
-	// (optional) the parent task id
-	ParentTaskId *int64 `json:"parent_task_id"`
-
-	// (optional) the parent inserted_at
+	DesiredWorkerId      *uuid.UUID `json:"desired_worker_id"`
+	ParentExternalId     *uuid.UUID `json:"parent_external_id"`
+	ParentTaskId         *int64     `json:"parent_task_id"`
 	ParentTaskInsertedAt *time.Time `json:"parent_task_inserted_at"`
-
-	// (optional) the child index
-	ChildIndex *int64 `json:"child_index"`
-
-	// (optional) the child key
-	ChildKey *string `json:"child_key"`
-
-	// (optional) the priority of the task
-	Priority *int32 `json:"priority"`
+	ChildIndex           *int64     `json:"child_index"`
+	ChildKey             *string    `json:"child_key"`
+	Priority             *int32     `json:"priority"`
+	WorkflowName         string     `json:"workflow_name" validate:"required"`
+	Data                 []byte     `json:"data"`
+	AdditionalMetadata   []byte     `json:"additional_metadata"`
 }
 
 type createDAGOpts struct {
-	// (required) the external id
-	ExternalId uuid.UUID `validate:"required"`
-
-	// (required) the input bytes to the DAG
-	Input []byte
-
-	// (required) a list of task external ids that are part of this DAG
-	TaskIds []uuid.UUID
-
-	// (required) the workflow id for this DAG
-	WorkflowId uuid.UUID
-
-	// (required) the workflow version id for this DAG
-	WorkflowVersionId uuid.UUID
-
-	// (required) the name of the workflow
-	WorkflowName string
-
-	// (optional) the additional metadata for the DAG
-	AdditionalMetadata []byte
-
 	ParentTaskExternalID *uuid.UUID
+	WorkflowName         string
+	Input                []byte
+	TaskIds              []uuid.UUID
+	AdditionalMetadata   []byte
+	ExternalId           uuid.UUID `validate:"required"`
+	WorkflowId           uuid.UUID
+	WorkflowVersionId    uuid.UUID
 }
 
 type TriggerRepository interface {
@@ -115,9 +76,9 @@ func newTriggerRepository(s *sharedRepository, enableDurableUserEventLog bool) T
 }
 
 type Run struct {
-	Id         int64
 	InsertedAt time.Time
 	FilterId   *uuid.UUID
+	Id         int64
 }
 
 type TriggerFromEventsResult struct {
@@ -128,9 +89,9 @@ type TriggerFromEventsResult struct {
 }
 
 type TriggerDecision struct {
-	ShouldTrigger bool
-	FilterPayload []byte
 	FilterId      *uuid.UUID
+	FilterPayload []byte
+	ShouldTrigger bool
 }
 
 func (r *sharedRepository) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
@@ -215,8 +176,8 @@ func (r *sharedRepository) makeTriggerDecisions(ctx context.Context, filters []*
 }
 
 type EventExternalIdFilterId struct {
-	ExternalId uuid.UUID
 	FilterId   *uuid.UUID
+	ExternalId uuid.UUID
 }
 
 type EventIds struct {
@@ -225,8 +186,8 @@ type EventIds struct {
 }
 
 type WorkflowAndScope struct {
-	WorkflowId uuid.UUID
 	Scope      string
+	WorkflowId uuid.UUID
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
@@ -390,8 +351,8 @@ type TriggeredBy interface {
 
 type TriggeredByEvent struct {
 	l        *zerolog.Logger
-	eventID  uuid.UUID
 	eventKey string
+	eventID  uuid.UUID
 }
 
 func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
@@ -433,20 +394,20 @@ func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
 }
 
 type triggerTuple struct {
-	desiredWorkerId      *uuid.UUID
+	priority             *int32
 	childKey             *string
 	childIndex           *int64
 	parentTaskInsertedAt *time.Time
 	parentTaskId         *int64
 	parentExternalId     *uuid.UUID
-	priority             *int32
-	externalId           uuid.UUID
-	workflowVersionId    uuid.UUID
+	desiredWorkerId      *uuid.UUID
 	workflowName         string
-	workflowId           uuid.UUID
-	additionalMetadata   []byte
 	filterPayload        []byte
+	additionalMetadata   []byte
 	input                []byte
+	workflowVersionId    uuid.UUID
+	workflowId           uuid.UUID
+	externalId           uuid.UUID
 }
 
 type createCoreUserEventOpts struct {
@@ -1181,14 +1142,10 @@ func (r *sharedRepository) triggerWorkflows(
 
 type DAGWithData struct {
 	*sqlcv1.V1Dag
-
-	Input []byte
-
-	AdditionalMetadata []byte
-
 	ParentTaskExternalID *uuid.UUID
-
-	TotalTasks int
+	Input                []byte
+	AdditionalMetadata   []byte
+	TotalTasks           int
 }
 
 type V1TaskWithPayload struct {

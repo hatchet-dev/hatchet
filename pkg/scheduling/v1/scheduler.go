@@ -21,28 +21,20 @@ const rateLimitedRequeueAfterThreshold = 2 * time.Second
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
 // This is tenant-scoped, so each tenant will have its own scheduler.
 type Scheduler struct {
-	repo     v1.AssignmentRepository
-	tenantId uuid.UUID
-
-	l *zerolog.Logger
-
-	actions     map[string]*action
-	actionsMu   rwMutex
-	replenishMu mutex
-
-	workersMu mutex
-	workers   map[uuid.UUID]*worker
-
-	assignedCount   int
 	assignedCountMu mutex
-
-	// unackedSlots are slots which have been assigned to a worker, but have not been flushed
-	// to the database yet. They negatively count towards a worker's available slot count.
-	unackedSlots map[int]*slot
-	unackedMu    mutex
-
-	rl   *rateLimiter
-	exts *Extensions
+	workersMu       mutex
+	unackedMu       mutex
+	repo            v1.AssignmentRepository
+	actionsMu       rwMutex
+	replenishMu     mutex
+	rl              *rateLimiter
+	actions         map[string]*action
+	unackedSlots    map[int]*slot
+	l               *zerolog.Logger
+	workers         map[uuid.UUID]*worker
+	exts            *Extensions
+	assignedCount   int
+	tenantId        uuid.UUID
 }
 
 func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
@@ -442,15 +434,12 @@ func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 }
 
 type assignSingleResult struct {
-	qi *sqlcv1.V1QueueItem
-
-	workerId uuid.UUID
-	ackId    int
-
-	noSlots   bool
-	succeeded bool
-
+	qi              *sqlcv1.V1QueueItem
 	rateLimitResult *scheduleRateLimitResult
+	ackId           int
+	workerId        uuid.UUID
+	noSlots         bool
+	succeeded       bool
 }
 
 func (s *Scheduler) tryAssignBatch(
@@ -677,10 +666,9 @@ func (s *Scheduler) tryAssignSingleton(
 }
 
 type assignedQueueItem struct {
-	AckId    int
-	WorkerId uuid.UUID
-
 	QueueItem *sqlcv1.V1QueueItem
+	AckId     int
+	WorkerId  uuid.UUID
 }
 
 type assignResults struct {

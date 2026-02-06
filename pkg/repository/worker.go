@@ -24,40 +24,20 @@ type RuntimeInfo struct {
 }
 
 type CreateWorkerOpts struct {
-	// The id of the dispatcher
-	DispatcherId uuid.UUID `validate:"required"`
-
-	// The maximum number of runs this worker can run at a time
-	MaxRuns *int `validate:"omitempty,gte=1"`
-
-	// The name of the worker
-	Name string `validate:"required,hatchetName"`
-
-	// The name of the service
-	Services []string `validate:"dive,hatchetName"`
-
-	// A list of actions this worker can run
-	Actions []string `validate:"dive,actionId"`
-
-	// (optional) Runtime info for the worker
-	RuntimeInfo *RuntimeInfo `validate:"omitempty"`
+	MaxRuns      *int         `validate:"omitempty,gte=1"`
+	RuntimeInfo  *RuntimeInfo `validate:"omitempty"`
+	Name         string       `validate:"required,hatchetName"`
+	Services     []string     `validate:"dive,hatchetName"`
+	Actions      []string     `validate:"dive,actionId"`
+	DispatcherId uuid.UUID    `validate:"required"`
 }
 
 type UpdateWorkerOpts struct {
-	// The id of the dispatcher
-	DispatcherId *uuid.UUID `validate:"omitempty"`
-
-	// When the last worker heartbeat was
+	DispatcherId    *uuid.UUID `validate:"omitempty"`
 	LastHeartbeatAt *time.Time
-
-	// If the worker is active and accepting new runs
-	IsActive *bool
-
-	// A list of actions this worker can run
-	Actions []string `validate:"dive,actionId"`
-
-	// If the worker is paused
-	IsPaused *bool
+	IsActive        *bool
+	IsPaused        *bool
+	Actions         []string `validate:"dive,actionId"`
 }
 
 type ListWorkersOpts struct {
@@ -69,9 +49,9 @@ type ListWorkersOpts struct {
 }
 
 type UpsertWorkerLabelOpts struct {
-	Key      string
 	IntValue *int32
 	StrValue *string
+	Key      string
 }
 
 type WorkerRepository interface {
@@ -207,8 +187,8 @@ type SDK struct {
 }
 
 type TenantIdSDKTuple struct {
-	TenantId uuid.UUID
 	SDK      SDK
+	TenantId uuid.UUID
 }
 
 func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error) {

@@ -106,26 +106,26 @@ type RunChildGroupRoundRobinParams struct {
 }
 
 type RunChildGroupRoundRobinRow struct {
-	SortID                pgtype.Int8        `json:"sort_id"`
-	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            uuid.UUID          `json:"external_id"`
-	TenantID              uuid.UUID          `json:"tenant_id"`
-	WorkflowID            uuid.UUID          `json:"workflow_id"`
-	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
-	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
-	StrategyID            int64              `json:"strategy_id"`
-	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
-	Priority              int32              `json:"priority"`
-	Key                   string             `json:"key"`
-	IsFilled              bool               `json:"is_filled"`
-	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
-	NextStrategyIds       []int64            `json:"next_strategy_ids"`
-	NextKeys              []string           `json:"next_keys"`
-	QueueToNotify         string             `json:"queue_to_notify"`
 	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
+	Key                   string             `json:"key"`
 	Operation             string             `json:"operation"`
+	QueueToNotify         string             `json:"queue_to_notify"`
+	NextKeys              []string           `json:"next_keys"`
+	NextStrategyIds       []int64            `json:"next_strategy_ids"`
+	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
+	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
+	SortID                pgtype.Int8        `json:"sort_id"`
+	StrategyID            int64              `json:"strategy_id"`
+	TaskID                int64              `json:"task_id"`
+	Priority              int32              `json:"priority"`
+	TaskRetryCount        int32              `json:"task_retry_count"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	IsFilled              bool               `json:"is_filled"`
 }
 
 // Used for round-robin scheduling when a strategy has a parent strategy. It inherits the concurrency
@@ -360,26 +360,26 @@ type RunChildCancelInProgressParams struct {
 }
 
 type RunChildCancelInProgressRow struct {
-	SortID                pgtype.Int8        `json:"sort_id"`
-	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            uuid.UUID          `json:"external_id"`
-	TenantID              uuid.UUID          `json:"tenant_id"`
-	WorkflowID            uuid.UUID          `json:"workflow_id"`
-	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
-	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
-	StrategyID            int64              `json:"strategy_id"`
-	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
-	Priority              int32              `json:"priority"`
-	Key                   string             `json:"key"`
-	IsFilled              bool               `json:"is_filled"`
-	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
-	NextStrategyIds       []int64            `json:"next_strategy_ids"`
-	NextKeys              []string           `json:"next_keys"`
-	QueueToNotify         string             `json:"queue_to_notify"`
 	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
+	Key                   string             `json:"key"`
 	Operation             string             `json:"operation"`
+	QueueToNotify         string             `json:"queue_to_notify"`
+	NextKeys              []string           `json:"next_keys"`
+	NextStrategyIds       []int64            `json:"next_strategy_ids"`
+	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
+	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
+	SortID                pgtype.Int8        `json:"sort_id"`
+	StrategyID            int64              `json:"strategy_id"`
+	TaskID                int64              `json:"task_id"`
+	Priority              int32              `json:"priority"`
+	TaskRetryCount        int32              `json:"task_retry_count"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	IsFilled              bool               `json:"is_filled"`
 }
 
 func (q *Queries) RunChildCancelInProgress(ctx context.Context, db DBTX, arg RunChildCancelInProgressParams) ([]*RunChildCancelInProgressRow, error) {
@@ -613,26 +613,26 @@ type RunChildCancelNewestParams struct {
 }
 
 type RunChildCancelNewestRow struct {
-	SortID                pgtype.Int8        `json:"sort_id"`
-	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            uuid.UUID          `json:"external_id"`
-	TenantID              uuid.UUID          `json:"tenant_id"`
-	WorkflowID            uuid.UUID          `json:"workflow_id"`
-	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
-	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
-	StrategyID            int64              `json:"strategy_id"`
-	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
-	Priority              int32              `json:"priority"`
-	Key                   string             `json:"key"`
-	IsFilled              bool               `json:"is_filled"`
-	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
-	NextStrategyIds       []int64            `json:"next_strategy_ids"`
-	NextKeys              []string           `json:"next_keys"`
-	QueueToNotify         string             `json:"queue_to_notify"`
 	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
+	Key                   string             `json:"key"`
 	Operation             string             `json:"operation"`
+	QueueToNotify         string             `json:"queue_to_notify"`
+	NextKeys              []string           `json:"next_keys"`
+	NextStrategyIds       []int64            `json:"next_strategy_ids"`
+	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
+	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
+	SortID                pgtype.Int8        `json:"sort_id"`
+	StrategyID            int64              `json:"strategy_id"`
+	TaskID                int64              `json:"task_id"`
+	Priority              int32              `json:"priority"`
+	TaskRetryCount        int32              `json:"task_retry_count"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	IsFilled              bool               `json:"is_filled"`
 }
 
 func (q *Queries) RunChildCancelNewest(ctx context.Context, db DBTX, arg RunChildCancelNewestParams) ([]*RunChildCancelNewestRow, error) {

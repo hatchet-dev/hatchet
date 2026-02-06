@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
@@ -23,8 +24,8 @@ type MetricsClient interface {
 // metricsClientImpl implements the MetricsClient interface.
 type metricsClientImpl struct {
 	api       *rest.ClientWithResponses
-	tenantId  uuid.UUID
 	workflows *WorkflowsClient
+	tenantId  uuid.UUID
 }
 
 // NewMetricsClient creates a new client for interacting with metrics.

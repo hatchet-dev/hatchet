@@ -10,9 +10,9 @@ import (
 )
 
 type EventInput struct {
+	Payload any    `json:"payload"`
 	UserID  string `json:"user_id"`
 	Action  string `json:"action"`
-	Payload any    `json:"payload"`
 }
 
 type ProcessOutput struct {

@@ -15,35 +15,23 @@ import (
 // tenantManager manages the scheduler and queuers for a tenant and multiplexes
 // messages to the relevant queuer.
 type tenantManager struct {
-	cf       *sharedConfig
-	tenantId uuid.UUID
-
-	scheduler *Scheduler
-	rl        *rateLimiter
-
-	queuers   []*Queuer
-	queuersMu sync.RWMutex
-
-	concurrencyStrategies []*ConcurrencyManager
-
-	// maintain a mapping of strategy ids to parent ids, because we'd like to signal all
-	// child strategy ids when a parent strategy id is updated
-	strategyIdsToParentIds *lru.Cache[int64, int64]
+	queuesCh               <-chan []string
 	parentIdsToStrategyIds *lru.Cache[int64, []int64]
-
-	concurrencyMu sync.RWMutex
-
-	leaseManager *LeaseManager
-
-	workersCh     <-chan []*v1.ListActiveWorkersResult
-	queuesCh      <-chan []string
-	concurrencyCh <-chan []*sqlcv1.V1StepConcurrency
-
-	concurrencyResultsCh chan *ConcurrencyResults
-
-	resultsCh chan *QueueResults
-
-	cleanup func()
+	scheduler              *Scheduler
+	rl                     *rateLimiter
+	concurrencyCh          <-chan []*sqlcv1.V1StepConcurrency
+	leaseManager           *LeaseManager
+	cf                     *sharedConfig
+	strategyIdsToParentIds *lru.Cache[int64, int64]
+	cleanup                func()
+	resultsCh              chan *QueueResults
+	concurrencyResultsCh   chan *ConcurrencyResults
+	workersCh              <-chan []*v1.ListActiveWorkersResult
+	concurrencyStrategies  []*ConcurrencyManager
+	queuers                []*Queuer
+	queuersMu              sync.RWMutex
+	concurrencyMu          sync.RWMutex
+	tenantId               uuid.UUID
 }
 
 func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, exts *Extensions) *tenantManager {

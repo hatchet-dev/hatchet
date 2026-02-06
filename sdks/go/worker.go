@@ -11,12 +11,12 @@ import (
 type WorkerOption func(*workerConfig)
 
 type workerConfig struct {
-	workflows    []WorkflowBase
-	slots        int
-	durableSlots int
 	labels       map[string]any
 	logger       *zerolog.Logger
 	panicHandler func(ctx Context, recovered any)
+	workflows    []WorkflowBase
+	slots        int
+	durableSlots int
 }
 
 type WorkflowBase interface {

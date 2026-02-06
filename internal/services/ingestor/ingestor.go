@@ -33,17 +33,15 @@ type Ingestor interface {
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	mqv1                  msgqueue.MessageQueue
-	repov1                v1.Repository
-	isLogIngestionEnabled bool
-
+	mqv1                        msgqueue.MessageQueue
+	repov1                      v1.Repository
 	localScheduler              *scheduler.Scheduler
 	localDispatcher             *dispatcher.DispatcherImpl
-	optimisticSchedulingEnabled bool
 	l                           *zerolog.Logger
-
-	grpcTriggersEnabled bool
-	grpcTriggerSlots    int
+	grpcTriggerSlots            int
+	isLogIngestionEnabled       bool
+	optimisticSchedulingEnabled bool
+	grpcTriggersEnabled         bool
 }
 
 func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
@@ -111,21 +109,16 @@ func WithLogger(l *zerolog.Logger) IngestorOptFunc {
 
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
-
+	mqv1                     msgqueue.MessageQueue
+	v                        validator.Validator
+	repov1                   v1.Repository
 	steprunTenantLookupCache *lru.Cache[string, string]
-
-	mqv1   msgqueue.MessageQueue
-	v      validator.Validator
-	repov1 v1.Repository
-
-	isLogIngestionEnabled bool
-
-	localScheduler  *scheduler.Scheduler
-	localDispatcher *dispatcher.DispatcherImpl
-	l               *zerolog.Logger
-
-	tw        *trigger.TriggerWriter
-	pubBuffer *msgqueue.MQPubBuffer
+	localScheduler           *scheduler.Scheduler
+	localDispatcher          *dispatcher.DispatcherImpl
+	l                        *zerolog.Logger
+	tw                       *trigger.TriggerWriter
+	pubBuffer                *msgqueue.MQPubBuffer
+	isLogIngestionEnabled    bool
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {

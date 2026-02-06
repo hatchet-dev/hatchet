@@ -23,8 +23,8 @@ type ConditionMulti struct {
 
 type baseCondition struct {
 	readableDataKey string
-	orGroupID       uuid.UUID
 	expression      string
+	orGroupID       uuid.UUID
 }
 
 func (b *baseCondition) baseCondition(action contracts.Action) *contracts.BaseMatchCondition {
@@ -151,8 +151,8 @@ func (p *parentCondition) ToPB(action contracts.Action) *ConditionMulti {
 }
 
 type orGroup struct {
-	orGroupID  uuid.UUID
 	conditions []Condition
+	orGroupID  uuid.UUID
 }
 
 // Or creates a new condition that is satisfied if any of the conditions in the group are satisfied.

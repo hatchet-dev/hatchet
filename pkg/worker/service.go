@@ -8,11 +8,9 @@ import (
 )
 
 type Service struct {
-	Name string
-
-	mws *middlewares
-
+	mws    *middlewares
 	worker *Worker
+	Name   string
 }
 
 func (s *Service) Use(mws ...MiddlewareFunc) {
@@ -68,8 +66,8 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 }
 
 type registerActionOpts struct {
-	name    string
 	compute *compute.Compute
+	name    string
 }
 
 type RegisterActionOpt func(*registerActionOpts)

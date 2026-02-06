@@ -18,26 +18,13 @@ import (
 )
 
 type CreateTenantOpts struct {
-	// (required) the tenant name
-	Name string `validate:"required"`
-
-	// (required) the tenant slug
-	Slug string `validate:"required,hatchetName"`
-
-	// (optional) the tenant ID
-	ID *uuid.UUID `validate:"omitempty"`
-
-	// (optional) the tenant data retention period
-	DataRetentionPeriod *string `validate:"omitempty,duration"`
-
-	// (optional) the tenant engine version
-	EngineVersion *sqlcv1.TenantMajorEngineVersion `validate:"omitempty"`
-
-	// (optional) the tenant environment type
-	Environment *string `validate:"omitempty,oneof=local development production"`
-
-	// (optional) additional onboarding data
-	OnboardingData map[string]interface{}
+	ID                  *uuid.UUID                       `validate:"omitempty"`
+	DataRetentionPeriod *string                          `validate:"omitempty,duration"`
+	EngineVersion       *sqlcv1.TenantMajorEngineVersion `validate:"omitempty"`
+	Environment         *string                          `validate:"omitempty,oneof=local development production"`
+	OnboardingData      map[string]interface{}
+	Name                string `validate:"required"`
+	Slug                string `validate:"required,hatchetName"`
 }
 
 type UpdateTenantOpts struct {
@@ -60,11 +47,8 @@ type UpdateTenantMemberOpts struct {
 }
 
 type GetQueueMetricsOpts struct {
-	// (optional) a list of workflow ids to filter by
-	WorkflowIds []uuid.UUID `validate:"omitempty"`
-
-	// (optional) exact metadata to filter by
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+	WorkflowIds        []uuid.UUID            `validate:"omitempty"`
 }
 
 type QueueMetric struct {
@@ -79,9 +63,8 @@ type QueueMetric struct {
 }
 
 type GetQueueMetricsResponse struct {
-	Total QueueMetric `json:"total"`
-
 	ByWorkflowId map[string]QueueMetric `json:"by_workflow"`
+	Total        QueueMetric            `json:"total"`
 }
 
 type TenantRepository interface {

@@ -21,13 +21,11 @@ import (
 )
 
 type PostgresMessageQueue struct {
-	repo v1.MessageQueueRepository
-	l    *zerolog.Logger
-	qos  int
-
+	repo     v1.MessageQueueRepository
+	l        *zerolog.Logger
 	ttlCache *cache.TTLCache[string, bool]
-
 	configFs []MessageQueueImplOpt
+	qos      int
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)

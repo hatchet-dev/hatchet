@@ -34,29 +34,21 @@ const RETRY_RESET_INTERVAL = 30 * time.Second
 
 // MessageQueueImpl implements MessageQueue interface using AMQP.
 type MessageQueueImpl struct {
-	ctx      context.Context
-	identity string
-	configFs []MessageQueueImplOpt
-
-	qos int
-
-	l *zerolog.Logger
-
+	ctx                       context.Context
+	pubChannels               *channelPool
+	l                         *zerolog.Logger
+	subChannels               *channelPool
+	tenantIdCache             *lru.Cache[uuid.UUID, bool]
+	identity                  string
+	configFs                  []MessageQueueImplOpt
+	qos                       int
+	deadLetterBackoff         time.Duration
+	maxPayloadSize            int
+	compressionThreshold      int
+	maxDeathCount             int
 	disableTenantExchangePubs bool
-
-	// lru cache for tenant ids
-	tenantIdCache *lru.Cache[uuid.UUID, bool]
-
-	pubChannels *channelPool
-	subChannels *channelPool
-
-	deadLetterBackoff time.Duration
-
-	maxPayloadSize         int
-	compressionEnabled     bool
-	compressionThreshold   int
-	enableMessageRejection bool
-	maxDeathCount          int
+	compressionEnabled        bool
+	enableMessageRejection    bool
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
@@ -69,14 +61,14 @@ type MessageQueueImplOpts struct {
 	l                         *zerolog.Logger
 	url                       string
 	qos                       int
-	disableTenantExchangePubs bool
 	deadLetterBackoff         time.Duration
+	compressionThreshold      int
+	maxDeathCount             int
 	maxPubChannels            int32
 	maxSubChannels            int32
+	disableTenantExchangePubs bool
 	compressionEnabled        bool
-	compressionThreshold      int
 	enableMessageRejection    bool
-	maxDeathCount             int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {

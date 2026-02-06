@@ -54,9 +54,9 @@ func ToWorkflowVersionMeta(version *sqlcv1.WorkflowVersion, workflow *sqlcv1.Wor
 }
 
 type WorkflowConcurrency struct {
-	MaxRuns       pgtype.Int4
-	LimitStrategy sqlcv1.NullV1ConcurrencyStrategy
 	Expression    string
+	LimitStrategy sqlcv1.NullV1ConcurrencyStrategy
+	MaxRuns       pgtype.Int4
 }
 
 func ToWorkflowVersion(

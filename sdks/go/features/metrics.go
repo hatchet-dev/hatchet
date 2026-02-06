@@ -12,8 +12,8 @@ import (
 // MetricsClient provides methods for retrieving metrics for workflows, tasks, and tenant queue
 type MetricsClient struct {
 	api       *rest.ClientWithResponses
-	tenantId  uuid.UUID
 	workflows *WorkflowsClient
+	tenantId  uuid.UUID
 }
 
 // NewMetricsClient creates a new MetricsClient

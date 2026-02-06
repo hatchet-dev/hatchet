@@ -37,11 +37,8 @@ type ListRateLimitsResult struct {
 }
 
 type UpsertRateLimitOpts struct {
-	// The rate limit max value
-	Limit int
-
-	// The rate limit duration
 	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
+	Limit    int
 }
 
 type RateLimitRepository interface {

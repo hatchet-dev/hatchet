@@ -6,14 +6,11 @@ import (
 )
 
 type action struct {
-	mu       sync.RWMutex
-	actionId string
-
+	actionId                   string
+	slots                      []*slot
 	lastReplenishedSlotCount   int
 	lastReplenishedWorkerCount int
-
-	// note that slots can be used across multiple actions, hence the pointer
-	slots []*slot
+	mu                         sync.RWMutex
 }
 
 func (a *action) activeCount() int {

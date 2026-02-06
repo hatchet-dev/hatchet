@@ -47,9 +47,9 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APIT
 }
 
 type Token struct {
-	TokenId   uuid.UUID
 	ExpiresAt time.Time
 	Token     string
+	TokenId   uuid.UUID
 }
 
 func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, name string, id *uuid.UUID, expires *time.Time) (*Token, error) {

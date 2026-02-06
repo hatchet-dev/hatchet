@@ -17,13 +17,11 @@ import (
 type Debugger struct {
 	callerCounts map[string]int
 	activeConns  map[*pgx.Conn]string
+	lastPrint    *time.Time
+	l            *zerolog.Logger
+	pool         *pgxpool.Pool
 	callerMu     sync.Mutex
-
-	lastPrint *time.Time
-
-	l      *zerolog.Logger
-	pool   *pgxpool.Pool
-	poolMu sync.Mutex
+	poolMu       sync.Mutex
 }
 
 func NewDebugger(l *zerolog.Logger) *Debugger {

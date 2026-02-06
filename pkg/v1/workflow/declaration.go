@@ -34,8 +34,8 @@ type DurableWrappedTaskFn func(ctx worker.DurableHatchetContext) (interface{}, e
 
 // NamedFunction represents a function with its associated action ID
 type NamedFunction struct {
-	ActionID string
 	Fn       WrappedTaskFn
+	ActionID string
 }
 
 // WorkflowBase defines the common interface for all workflow types.
@@ -112,8 +112,8 @@ type WorkflowDeclaration[I, O any] interface {
 
 // Define a TaskDeclaration with specific output type
 type TaskWithSpecificOutput[I any, T any] struct {
-	Name string
 	Fn   func(ctx worker.HatchetContext, input I) (*T, error)
+	Name string
 }
 
 // workflowDeclarationImpl is the concrete implementation of WorkflowDeclaration.

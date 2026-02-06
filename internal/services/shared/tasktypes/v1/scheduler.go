@@ -2,15 +2,16 @@ package v1
 
 import (
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CheckTenantQueuesPayload struct {
-	SlotsReleased bool     `json:"slots_released"`
 	QueueNames    []string `json:"queue_name"`
 	StrategyIds   []int64  `json:"strategy_ids"`
+	SlotsReleased bool     `json:"slots_released"`
 }
 
 func NotifyTaskReleased(tenantId uuid.UUID, tasks []*sqlcv1.ReleaseTasksRow) (*msgqueue.Message, error) {

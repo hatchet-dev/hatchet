@@ -13,10 +13,10 @@ import (
 )
 
 type ListActiveWorkersResult struct {
-	ID      uuid.UUID
-	MaxRuns int
 	Name    string
 	Labels  []*sqlcv1.ListManyWorkerLabelsRow
+	MaxRuns int
+	ID      uuid.UUID
 }
 
 type leaseRepository struct {

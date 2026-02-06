@@ -4,13 +4,14 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type PrometheusExtension struct {
-	mu      sync.RWMutex
 	tenants map[string]*sqlcv1.Tenant
+	mu      sync.RWMutex
 }
 
 func NewPrometheusExtension() *PrometheusExtension {
@@ -29,8 +30,8 @@ func (p *PrometheusExtension) SetTenants(tenants []*sqlcv1.Tenant) {
 }
 
 type WorkerPromLabels struct {
-	ID   uuid.UUID
 	Name string
+	ID   uuid.UUID
 }
 
 func (p *PrometheusExtension) ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput) {

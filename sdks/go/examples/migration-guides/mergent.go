@@ -29,8 +29,8 @@ type MergentRequest struct {
 }
 
 type MergentResponse struct {
-	Success      bool   `json:"success"`
 	ProcessedURL string `json:"processed_url"`
+	Success      bool   `json:"success"`
 }
 
 func ProcessImageMergent(req MergentRequest) (*MergentResponse, error) {
@@ -56,9 +56,9 @@ type ImageProcessInput struct {
 type ImageProcessOutput struct {
 	ProcessedURL string `json:"processed_url"`
 	Metadata     struct {
-		Size           int      `json:"size"`
 		Format         string   `json:"format"`
 		AppliedFilters []string `json:"applied_filters"`
+		Size           int      `json:"size"`
 	} `json:"metadata"`
 }
 
@@ -77,9 +77,9 @@ func ImageProcessor(client *hatchet.Client) *hatchet.StandaloneTask {
 			output := &ImageProcessOutput{
 				ProcessedURL: result["url"].(string),
 				Metadata: struct {
-					Size           int      `json:"size"`
 					Format         string   `json:"format"`
 					AppliedFilters []string `json:"applied_filters"`
+					Size           int      `json:"size"`
 				}{
 					Size:           result["size"].(int),
 					Format:         result["format"].(string),
@@ -137,17 +137,17 @@ func RunningTasks(client *hatchet.Client) error {
 	// > Running a task (Mergent)
 	task := struct {
 		Request struct {
+			Headers map[string]string `json:"headers"`
 			URL     string            `json:"url"`
 			Body    string            `json:"body"`
-			Headers map[string]string `json:"headers"`
 		} `json:"request"`
 		Name  string `json:"name"`
 		Queue string `json:"queue"`
 	}{
 		Request: struct {
+			Headers map[string]string `json:"headers"`
 			URL     string            `json:"url"`
 			Body    string            `json:"body"`
-			Headers map[string]string `json:"headers"`
 		}{
 			URL: "https://example.com",
 			Headers: map[string]string{

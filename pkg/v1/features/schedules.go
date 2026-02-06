@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 )
@@ -42,8 +43,8 @@ type CreateScheduledRunTrigger struct {
 // schedulesClientImpl implements the SchedulesClient interface.
 type schedulesClientImpl struct {
 	api       *rest.ClientWithResponses
-	tenantId  uuid.UUID
 	namespace *string
+	tenantId  uuid.UUID
 }
 
 // NewSchedulesClient creates a new client for interacting with workflow schedules.

@@ -12,8 +12,8 @@ import (
 
 type FailureInput struct {
 	Message     string `json:"message"`
-	ShouldFail  bool   `json:"should_fail"`
 	FailureType string `json:"failure_type"`
+	ShouldFail  bool   `json:"should_fail"`
 }
 
 type TaskOutput struct {
@@ -22,9 +22,9 @@ type TaskOutput struct {
 }
 
 type FailureHandlerOutput struct {
-	FailureHandled bool   `json:"failure_handled"`
 	ErrorDetails   string `json:"error_details"`
 	OriginalInput  string `json:"original_input"`
+	FailureHandled bool   `json:"failure_handled"`
 }
 
 func main() {

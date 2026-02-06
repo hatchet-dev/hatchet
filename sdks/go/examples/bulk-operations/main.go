@@ -11,13 +11,13 @@ import (
 )
 
 type ProcessInput struct {
-	ID      int    `json:"id"`
 	Message string `json:"message"`
+	ID      int    `json:"id"`
 }
 
 type ProcessOutput struct {
-	ID     int    `json:"id"`
 	Result string `json:"result"`
+	ID     int    `json:"id"`
 }
 
 func main() {

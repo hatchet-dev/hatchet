@@ -17,13 +17,13 @@ type WorkflowInput struct {
 
 type StepOutput struct {
 	StepName     string `json:"step_name"`
-	RandomNumber int    `json:"random_number"`
 	ProcessedAt  string `json:"processed_at"`
+	RandomNumber int    `json:"random_number"`
 }
 
 type SumOutput struct {
-	Total   int    `json:"total"`
 	Summary string `json:"summary"`
+	Total   int    `json:"total"`
 }
 
 func main() {

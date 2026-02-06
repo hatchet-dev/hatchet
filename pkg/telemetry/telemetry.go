@@ -25,9 +25,9 @@ import (
 type TracerOpts struct {
 	ServiceName   string
 	CollectorURL  string
-	Insecure      bool
 	TraceIdRatio  string
 	CollectorAuth string
+	Insecure      bool
 }
 
 func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
@@ -220,8 +220,8 @@ type AttributeKey string
 
 // AttributeKV is a wrapper for otel attributes KV
 type AttributeKV struct {
-	Key   AttributeKey
 	Value any
+	Key   AttributeKey
 }
 
 func WithAttributes(span trace.Span, attrs ...AttributeKV) {

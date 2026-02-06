@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
@@ -52,13 +53,10 @@ type PubFunc func(m *Message) error
 // MQPubBuffer buffers messages coming out of the task queue, groups them by tenantId and msgId, and then flushes them
 // to the task handler as necessary.
 type MQPubBuffer struct {
-	mq MessageQueue
-
-	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
+	mq      MessageQueue
+	ctx     context.Context
+	cancel  context.CancelFunc
 	buffers syncx.Map[string, *msgIdPubBuffer]
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 func NewMQPubBuffer(mq MessageQueue) *MQPubBuffer {
@@ -122,18 +120,14 @@ func getPubKey(q Queue, tenantId uuid.UUID, msgId string) string {
 }
 
 type msgIdPubBuffer struct {
-	tenantId uuid.UUID
-	msgId    string
-
 	msgIdPubBufferCh chan *msgWithErrCh
 	notifier         chan struct{}
-
-	pub PubFunc
-
+	pub              PubFunc
 	semaphore        chan struct{}
 	semaphoreRelease chan time.Duration
-
-	serialize func(t any) ([]byte, error)
+	serialize        func(t any) ([]byte, error)
+	msgId            string
+	tenantId         uuid.UUID
 }
 
 func newMsgIDPubBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, pub PubFunc) *msgIdPubBuffer {

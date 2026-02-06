@@ -27,8 +27,8 @@ type SpanData struct {
 }
 
 type CreateSpansOpts struct {
-	TenantID uuid.UUID `validate:"required"`
 	Spans    []*SpanData
+	TenantID uuid.UUID `validate:"required"`
 }
 
 type OTelCollectorRepository interface {

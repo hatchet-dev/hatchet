@@ -14,12 +14,11 @@ import (
 )
 
 type PostmarkClient struct {
+	httpClient   *http.Client
 	serverKey    string
 	fromEmail    string
 	fromName     string
 	supportEmail string
-
-	httpClient *http.Client
 }
 
 // NewPostmarkClient creates a new client which sends emails through Postmark

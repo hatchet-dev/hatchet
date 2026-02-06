@@ -142,20 +142,13 @@ func (r *sharedRepository) V1StepRunDataFromBytes(b []byte) (*V1StepRunData, err
 }
 
 type V1StepRunData struct {
-	Input       map[string]interface{}            `json:"input"`
-	TriggeredBy string                            `json:"triggered_by"`
-	Parents     map[string]map[string]interface{} `json:"parents"`
-
-	Triggers map[string]map[string]interface{} `json:"triggers"`
-
-	// custom-set user data for the step
-	UserData map[string]interface{} `json:"user_data"`
-
-	// overrides set from the playground
-	Overrides map[string]interface{} `json:"overrides"`
-
-	// errors in upstream steps (only used in on-failure step)
-	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
+	Input         map[string]interface{}            `json:"input"`
+	Parents       map[string]map[string]interface{} `json:"parents"`
+	Triggers      map[string]map[string]interface{} `json:"triggers"`
+	UserData      map[string]interface{}            `json:"user_data"`
+	Overrides     map[string]interface{}            `json:"overrides"`
+	StepRunErrors map[string]string                 `json:"step_run_errors,omitempty"`
+	TriggeredBy   string                            `json:"triggered_by"`
 }
 
 func (v1 *V1StepRunData) Bytes() []byte {

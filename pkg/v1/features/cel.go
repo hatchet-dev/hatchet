@@ -32,9 +32,9 @@ func NewCELClient(
 }
 
 type CELEvaluationResult struct {
-	status gen.V1CELDebugResponseStatus
 	output *bool
 	err    *string
+	status gen.V1CELDebugResponseStatus
 }
 
 // Debug a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production.

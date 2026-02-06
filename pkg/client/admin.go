@@ -23,13 +23,13 @@ import (
 )
 
 type ChildWorkflowOpts struct {
-	ParentId           string
-	ParentTaskRunId    string
-	ChildIndex         int
 	ChildKey           *string
 	DesiredWorkerId    *string
 	AdditionalMetadata *map[string]string
 	Priority           *int32
+	ParentId           string
+	ParentTaskRunId    string
+	ChildIndex         int
 }
 
 type WorkflowRun struct {
@@ -64,23 +64,16 @@ func (d *DedupeViolationErr) Error() string {
 }
 
 type adminClientImpl struct {
-	client   admincontracts.WorkflowServiceClient
-	v1Client v1contracts.AdminServiceClient
-
-	l *zerolog.Logger
-
-	v validator.Validator
-
-	ctx *contextLoader
-
-	namespace string
-
+	client     admincontracts.WorkflowServiceClient
+	v1Client   v1contracts.AdminServiceClient
+	v          validator.Validator
 	subscriber SubscribeClient
-
+	l          *zerolog.Logger
+	ctx        *contextLoader
 	sharedMeta map[string]string
-
-	listenerMu sync.Mutex
 	listener   *WorkflowRunsListener
+	namespace  string
+	listenerMu sync.Mutex
 }
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
@@ -144,9 +137,9 @@ func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVers
 }
 
 type scheduleOpts struct {
-	schedules []time.Time
 	input     any
 	priority  *int32
+	schedules []time.Time
 }
 
 type ScheduleOptFunc func(*scheduleOpts)
@@ -368,9 +361,9 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 }
 
 type RunChildWorkflowsOpts struct {
-	WorkflowName string
 	Input        interface{}
 	Opts         *ChildWorkflowOpts
+	WorkflowName string
 }
 
 func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error) {

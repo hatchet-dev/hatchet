@@ -26,22 +26,22 @@ import (
 )
 
 type timeoutEvent struct {
-	events    []*contracts.WorkflowEvent
 	timeoutAt time.Time
+	events    []*contracts.WorkflowEvent
 }
 
 type StreamEventBuffer struct {
+	ctx                       context.Context
 	stepRunIdToWorkflowEvents map[uuid.UUID][]*contracts.WorkflowEvent
 	stepRunIdToExpectedIndex  map[uuid.UUID]int64
 	stepRunIdToLastSeenTime   map[uuid.UUID]time.Time
 	stepRunIdToCompletionTime map[uuid.UUID]time.Time
-	mu                        sync.Mutex
-	timeoutDuration           time.Duration
-	gracePeriod               time.Duration
 	eventsChan                chan *contracts.WorkflowEvent
 	timedOutEventProducer     chan timeoutEvent
-	ctx                       context.Context
 	cancel                    context.CancelFunc
+	timeoutDuration           time.Duration
+	gracePeriod               time.Duration
+	mu                        sync.Mutex
 }
 
 func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
@@ -1157,9 +1157,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 }
 
 type listWorkflowRunsResult struct {
-	WorkflowRunId uuid.UUID
-
 	AdditionalMetadata map[string]interface{}
+	WorkflowRunId      uuid.UUID
 }
 
 func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUID, workflowRunIds []uuid.UUID) ([]*listWorkflowRunsResult, error) {

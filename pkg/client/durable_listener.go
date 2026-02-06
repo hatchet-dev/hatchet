@@ -22,15 +22,11 @@ type DurableEvent *contracts.DurableEvent
 type DurableEventHandler func(e DurableEvent) error
 
 type DurableEventsListener struct {
+	client      contracts.V1Dispatcher_ListenForDurableEventClient
 	constructor func(context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error)
-
-	client   contracts.V1Dispatcher_ListenForDurableEventClient
-	clientMu sync.RWMutex
-
-	l *zerolog.Logger
-
-	// map of workflow run ids to a list of handlers
-	handlers sync.Map
+	l           *zerolog.Logger
+	handlers    sync.Map
+	clientMu    sync.RWMutex
 }
 
 type listenTuple struct {

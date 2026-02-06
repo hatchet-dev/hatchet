@@ -50,40 +50,38 @@ type Server struct {
 	v1contracts.UnimplementedAdminServiceServer
 	v1contracts.UnimplementedV1DispatcherServer
 	collectortracev1.UnimplementedTraceServiceServer
-
-	l           *zerolog.Logger
-	a           errors.Alerter
-	analytics   analytics.Analytics
-	port        int
-	bindAddress string
-
-	config        *server.ServerConfig
-	ingestor      ingestor.Ingestor
-	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
+	analytics     analytics.Analytics
 	otelCollector otelcol.OTelCollector
+	a             errors.Alerter
+	dispatcherv1  dispatcherv1.DispatcherService
+	ingestor      ingestor.Ingestor
+	dispatcher    dispatcher.Dispatcher
+	config        *server.ServerConfig
+	l             *zerolog.Logger
 	tls           *tls.Config
+	bindAddress   string
+	port          int
 	insecure      bool
 }
 
 type ServerOpt func(*ServerOpts)
 
 type ServerOpts struct {
-	config        *server.ServerConfig
-	l             *zerolog.Logger
+	ingestor      ingestor.Ingestor
+	admin         admin.AdminService
 	a             errors.Alerter
 	analytics     analytics.Analytics
-	port          int
-	bindAddress   string
-	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
-	admin         admin.AdminService
-	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
+	dispatcherv1  dispatcherv1.DispatcherService
+	adminv1       adminv1.AdminService
 	tls           *tls.Config
+	l             *zerolog.Logger
+	config        *server.ServerConfig
+	bindAddress   string
+	port          int
 	insecure      bool
 }
 

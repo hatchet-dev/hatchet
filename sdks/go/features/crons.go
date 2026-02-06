@@ -24,20 +24,11 @@ const (
 
 // CreateCronTrigger contains the configuration for creating a cron trigger.
 type CreateCronTrigger struct {
-	// Name is the unique identifier for the cron trigger.
-	Name string `json:"name"`
-
-	// Expression is the cron expression that defines the schedule.
-	Expression string `json:"expression"`
-
-	// (optional) Input is the input data for the workflow.
-	Input map[string]interface{} `json:"input,omitempty"`
-
-	// (optional) AdditionalMetadata is metadata to associate with the cron trigger.
+	Input              map[string]interface{} `json:"input,omitempty"`
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
-
-	// (optional) Priority is the priority of the run triggered by the cron.
-	Priority *RunPriority `json:"priority,omitempty"`
+	Priority           *RunPriority           `json:"priority,omitempty"`
+	Name               string                 `json:"name"`
+	Expression         string                 `json:"expression"`
 }
 
 // CronsClient provides methods for interacting with cron workflow triggers

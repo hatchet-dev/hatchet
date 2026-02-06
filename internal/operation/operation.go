@@ -32,21 +32,19 @@ type OpMethod func(ctx context.Context, id string) (shouldContinue bool, err err
 // The jitter is disabled by default (maxJitter=0). The jitter is applied to the interval after any backoff is applied.
 // This is designed to help prevent the "thundering herd" problem when many operations might start at the same time.
 type SerialOperation struct {
-	mu             sync.RWMutex
-	shouldContinue bool
-	isRunning      bool
-	id             string
 	lastRun        time.Time
-	operationId    string
-	description    string
-	timeout        time.Duration
+	runningCtx     context.Context
 	method         OpMethod
+	interval       *Interval
+	cancel         context.CancelFunc
 	l              *zerolog.Logger
-
-	runningCtx context.Context
-	cancel     context.CancelFunc
-
-	interval *Interval
+	id             string
+	description    string
+	operationId    string
+	timeout        time.Duration
+	mu             sync.RWMutex
+	isRunning      bool
+	shouldContinue bool
 }
 
 func WithDescription(description string) func(*SerialOperation) {

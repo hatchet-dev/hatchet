@@ -38,21 +38,21 @@ WHERE
 `
 
 type ListMatchConditionsForEventWithHintParams struct {
-	Tenantid           uuid.UUID   `json:"tenantid"`
 	Eventtype          V1EventType `json:"eventtype"`
 	Eventkeys          []string    `json:"eventkeys"`
 	Eventresourcehints []string    `json:"eventresourcehints"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
 }
 
 type ListMatchConditionsForEventRow struct {
-	V1MatchID         int64              `json:"v1_match_id"`
-	ID                int64              `json:"id"`
 	RegisteredAt      pgtype.Timestamptz `json:"registered_at"`
 	EventType         V1EventType        `json:"event_type"`
 	EventKey          string             `json:"event_key"`
-	EventResourceHint pgtype.Text        `json:"event_resource_hint"`
 	ReadableDataKey   string             `json:"readable_data_key"`
+	EventResourceHint pgtype.Text        `json:"event_resource_hint"`
 	Expression        pgtype.Text        `json:"expression"`
+	V1MatchID         int64              `json:"v1_match_id"`
+	ID                int64              `json:"id"`
 }
 
 func (q *Queries) ListMatchConditionsForEventWithHint(ctx context.Context, db DBTX, arg ListMatchConditionsForEventWithHintParams) ([]*ListMatchConditionsForEventRow, error) {
@@ -119,9 +119,9 @@ WHERE
 `
 
 type ListMatchConditionsForEventWithoutHintParams struct {
-	Tenantid  uuid.UUID   `json:"tenantid"`
 	Eventtype V1EventType `json:"eventtype"`
 	Eventkeys []string    `json:"eventkeys"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
 }
 
 func (q *Queries) ListMatchConditionsForEventWithoutHint(ctx context.Context, db DBTX, arg ListMatchConditionsForEventWithoutHintParams) ([]*ListMatchConditionsForEventRow, error) {

@@ -20,23 +20,12 @@ func TriggerTaskMessage(tenantId uuid.UUID, payloads ...*v1.WorkflowNameTriggerO
 }
 
 type CompletedTaskPayload struct {
-	// (required) the task id
-	TaskId int64 `validate:"required"`
-
-	// (required) the task inserted at
-	InsertedAt pgtype.Timestamptz
-
-	// (required) the task external id
-	ExternalId uuid.UUID
-
-	// (required) the workflow run id
+	InsertedAt    pgtype.Timestamptz
+	Output        []byte
+	TaskId        int64 `validate:"required"`
+	RetryCount    int32
+	ExternalId    uuid.UUID
 	WorkflowRunId uuid.UUID
-
-	// (required) the retry count
-	RetryCount int32
-
-	// (optional) the output data
-	Output []byte
 }
 
 func CompletedTaskMessage(
@@ -65,28 +54,13 @@ func CompletedTaskMessage(
 }
 
 type FailedTaskPayload struct {
-	// (required) the task id
-	TaskId int64 `validate:"required"`
-
-	// (required) the task inserted at
-	InsertedAt pgtype.Timestamptz
-
-	// (required) the task external id
-	ExternalId uuid.UUID
-
-	// (required) the workflow run id
-	WorkflowRunId uuid.UUID
-
-	// (required) the retry count
-	RetryCount int32
-
-	// (required) whether this is an application-level error or an internal error on the Hatchet side
-	IsAppError bool
-
-	// (optional) the error message
-	ErrorMsg string
-
-	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
+	InsertedAt     pgtype.Timestamptz
+	ErrorMsg       string
+	TaskId         int64 `validate:"required"`
+	RetryCount     int32
+	ExternalId     uuid.UUID
+	WorkflowRunId  uuid.UUID
+	IsAppError     bool
 	IsNonRetryable bool `json:"is_non_retryable"`
 }
 
@@ -120,29 +94,14 @@ func FailedTaskMessage(
 }
 
 type CancelledTaskPayload struct {
-	// (required) the task id
-	TaskId int64 `validate:"required"`
-
-	// (required) the task inserted at
-	InsertedAt pgtype.Timestamptz
-
-	// (required) the task external id
-	ExternalId uuid.UUID
-
-	// (required) the workflow run id
+	InsertedAt    pgtype.Timestamptz
+	EventMessage  string
+	EventType     sqlcv1.V1EventTypeOlap
+	TaskId        int64 `validate:"required"`
+	RetryCount    int32
+	ExternalId    uuid.UUID
 	WorkflowRunId uuid.UUID
-
-	// (required) the retry count
-	RetryCount int32
-
-	// (optional) the event message
-	EventMessage string
-
-	// (required) the reason for cancellation
-	EventType sqlcv1.V1EventTypeOlap
-
-	// (optional) whether the task should notify the worker
-	ShouldNotify bool
+	ShouldNotify  bool
 }
 
 func CancelledTaskMessage(
@@ -175,17 +134,10 @@ func CancelledTaskMessage(
 }
 
 type SignalTaskCancelledPayload struct {
-	// (required) the worker id
-	WorkerId uuid.UUID `validate:"required"`
-
-	// (required) the task id
-	TaskId int64 `validate:"required"`
-
-	// (required) the task inserted at
 	InsertedAt pgtype.Timestamptz
-
-	// (required) the retry count
+	TaskId     int64 `validate:"required"`
 	RetryCount int32
+	WorkerId   uuid.UUID `validate:"required"`
 }
 
 type CancelTasksPayload struct {
@@ -203,11 +155,8 @@ type ReplayTasksPayload struct {
 }
 
 type NotifyFinalizedPayload struct {
-	// (required) the external id (can either be a workflow run id or single task)
+	Status     sqlcv1.V1ReadableStatusOlap
 	ExternalId uuid.UUID `validate:"required"`
-
-	// (required) the status of the task
-	Status sqlcv1.V1ReadableStatusOlap
 }
 
 type CandidateFinalizedPayload struct {

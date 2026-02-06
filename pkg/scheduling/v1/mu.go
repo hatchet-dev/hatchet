@@ -40,7 +40,7 @@ func newMu(l *zerolog.Logger) mutex {
 }
 
 func (m mutex) Lock() {
-	defer m.debugMu.print(time.Now())
+	defer m.print(time.Now())
 	m.Mutex.Lock()
 }
 
@@ -57,11 +57,11 @@ func newRWMu(l *zerolog.Logger) rwMutex {
 }
 
 func (m rwMutex) Lock() {
-	defer m.debugMu.print(time.Now())
+	defer m.print(time.Now())
 	m.RWMutex.Lock()
 }
 
 func (m rwMutex) RLock() {
-	defer m.debugMu.print(time.Now())
+	defer m.print(time.Now())
 	m.RWMutex.RLock()
 }

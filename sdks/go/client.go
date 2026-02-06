@@ -391,8 +391,8 @@ func (st *StandaloneTask) OnFailure(fn any) {
 
 // WorkflowRunRef is a type that represents a reference to a workflow run.
 type WorkflowRunRef struct {
-	RunId      string
 	v0Workflow *v0Client.Workflow
+	RunId      string
 }
 
 // V0Workflow returns the underlying v0Client.Workflow.
@@ -412,14 +412,14 @@ func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
 
 // WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
 type WorkflowResult struct {
-	RunId  string
 	result any
+	RunId  string
 }
 
 // TaskResult wraps a single task's output and provides type-safe conversion methods.
 type TaskResult struct {
-	RunId  string
 	result any
+	RunId  string
 }
 
 // TaskOutput extracts the output of a specific task from the workflow result.

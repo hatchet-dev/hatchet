@@ -16,36 +16,24 @@ import (
 )
 
 type Queuer struct {
-	repo       v1.QueueRepository
-	optimistic v1.OptimisticSchedulingRepository
-	tenantId   uuid.UUID
-	queueName  string
-
-	l *zerolog.Logger
-
-	s *Scheduler
-
+	repo            v1.QueueRepository
+	optimistic      v1.OptimisticSchedulingRepository
+	unassignedMu    mutex
+	unackedMu       rwMutex
+	queueMu         mutex
+	resultsCh       chan<- *QueueResults
 	lastReplenished *time.Time
-
-	limit int
-
-	resultsCh chan<- *QueueResults
-
-	notifyQueueCh chan map[string]string
-
-	queueMu mutex
-
-	cleanup func()
-
-	isCleanedUp bool
-
-	unackedMu rwMutex
-	unacked   map[int64]struct{}
-
-	unassigned   map[int64]*sqlcv1.V1QueueItem
-	unassignedMu mutex
-
-	hasRateLimits bool
+	s               *Scheduler
+	notifyQueueCh   chan map[string]string
+	l               *zerolog.Logger
+	cleanup         func()
+	unacked         map[int64]struct{}
+	unassigned      map[int64]*sqlcv1.V1QueueItem
+	queueName       string
+	limit           int
+	tenantId        uuid.UUID
+	isCleanedUp     bool
+	hasRateLimits   bool
 }
 
 func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
@@ -381,12 +369,11 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 }
 
 type QueueResults struct {
-	TenantId uuid.UUID
-	Assigned []*v1.AssignedItem
-
+	Assigned           []*v1.AssignedItem
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
 	RateLimited        []*v1.RateLimitResult
+	TenantId           uuid.UUID
 }
 
 func (q *Queuer) ack(r *assignResults) {

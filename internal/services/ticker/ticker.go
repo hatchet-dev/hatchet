@@ -23,38 +23,28 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mqv1 msgqueue.MessageQueue
-	l    *zerolog.Logger
-
-	repov1 v1.Repository
-	s      gocron.Scheduler
-	ta     *alerting.TenantAlertManager
-
-	scheduledWorkflows syncx.Map[string, context.CancelFunc]
-
-	dv datautils.DataDecoderValidator
-
-	tickerId uuid.UUID
-
-	userCronScheduler     gocron.Scheduler
-	userCronSchedulerLock sync.Mutex
-
-	// maps a unique key for the cron schedule to a UUID, because the gocron library depends on uuids
-	// as unique identifiers for scheduled jobs
+	mqv1                   msgqueue.MessageQueue
+	repov1                 v1.Repository
+	s                      gocron.Scheduler
+	dv                     datautils.DataDecoderValidator
+	userCronScheduler      gocron.Scheduler
+	l                      *zerolog.Logger
+	ta                     *alerting.TenantAlertManager
 	userCronSchedulesToIds map[string]string
+	scheduledWorkflows     syncx.Map[string, context.CancelFunc]
+	userCronSchedulerLock  sync.Mutex
+	tickerId               uuid.UUID
 }
 
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mqv1 msgqueue.MessageQueue
-	l    *zerolog.Logger
-
+	mqv1     msgqueue.MessageQueue
 	repov1   v1.Repository
-	tickerId uuid.UUID
+	dv       datautils.DataDecoderValidator
+	l        *zerolog.Logger
 	ta       *alerting.TenantAlertManager
-
-	dv datautils.DataDecoderValidator
+	tickerId uuid.UUID
 }
 
 func defaultTickerOpts() *TickerOpts {

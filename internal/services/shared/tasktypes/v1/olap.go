@@ -61,16 +61,16 @@ func CreatedDAGMessage(tenantId uuid.UUID, dag *v1.DAGWithData) (*msgqueue.Messa
 }
 
 type CreatedEventTriggerPayloadSingleton struct {
+	EventSeenAt             time.Time  `json:"event_seen_at"`
 	MaybeRunId              *int64     `json:"run_id"`
 	MaybeRunInsertedAt      *time.Time `json:"run_inserted_at"`
-	EventSeenAt             time.Time  `json:"event_seen_at"`
-	EventKey                string     `json:"event_key"`
-	EventExternalId         uuid.UUID  `json:"event_id"`
-	EventPayload            []byte     `json:"event_payload"`
-	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
 	FilterId                *uuid.UUID `json:"filter_id,omitempty"`
 	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
+	EventKey                string     `json:"event_key"`
+	EventPayload            []byte     `json:"event_payload"`
+	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
+	EventExternalId         uuid.UUID  `json:"event_id"`
 }
 
 type CreatedEventTriggerPayload struct {
@@ -88,17 +88,13 @@ func CreatedEventTriggerMessage(tenantId uuid.UUID, eventTriggers CreatedEventTr
 }
 
 type CreateMonitoringEventPayload struct {
-	TaskId int64 `json:"task_id"`
-
-	RetryCount int32 `json:"retry_count"`
-
-	WorkerId *uuid.UUID `json:"worker_id,omitempty"`
-
-	EventType sqlcv1.V1EventTypeOlap `json:"event_type"`
-
-	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
-	EventPayload   string    `json:"event_payload" validate:"required"`
-	EventMessage   string    `json:"event_message,omitempty"`
+	EventTimestamp time.Time              `json:"event_timestamp" validate:"required"`
+	WorkerId       *uuid.UUID             `json:"worker_id,omitempty"`
+	EventType      sqlcv1.V1EventTypeOlap `json:"event_type"`
+	EventPayload   string                 `json:"event_payload" validate:"required"`
+	EventMessage   string                 `json:"event_message,omitempty"`
+	TaskId         int64                  `json:"task_id"`
+	RetryCount     int32                  `json:"retry_count"`
 }
 
 func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {

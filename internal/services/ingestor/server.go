@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
@@ -215,8 +216,8 @@ func toEvent(e *sqlcv1.Event) (*contracts.Event, error) {
 }
 
 type BulkCreateEventOpts struct {
-	TenantId uuid.UUID `validate:"required"`
 	Events   []*CreateEventOpts
+	TenantId uuid.UUID `validate:"required"`
 }
 
 type CreateEventOpts struct {
@@ -224,8 +225,8 @@ type CreateEventOpts struct {
 	Priority              *int32     `validate:"omitempty,min=1,max=3"`
 	Scope                 *string    `validate:"omitempty"`
 	TriggeringWebhookName *string    `validate:"omitempty"`
-	TenantId              uuid.UUID  `validate:"required"`
 	Key                   string     `validate:"required"`
 	Data                  []byte
 	AdditionalMetadata    []byte
+	TenantId              uuid.UUID `validate:"required"`
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -12,12 +13,9 @@ import (
 
 // createRatelimitOpts contains options for creating or updating a rate limit.
 type CreateRatelimitOpts struct {
-	// key is the unique identifier for the rate limit
-	Key string
-	// limit is the maximum number of requests allowed within the duration
-	Limit int
-	// duration specifies the time period for the rate limit
+	Key      string
 	Duration types.RateLimitDuration
+	Limit    int
 }
 
 // rateLimitsClient provides an interface for managing rate limits.

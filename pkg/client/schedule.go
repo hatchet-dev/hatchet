@@ -40,15 +40,11 @@ type ScheduleClient interface {
 }
 
 type scheduleClientImpl struct {
+	v          validator.Validator
 	restClient *rest.ClientWithResponses
-
-	l *zerolog.Logger
-
-	v validator.Validator
-
-	tenantId uuid.UUID
-
-	namespace string
+	l          *zerolog.Logger
+	namespace  string
+	tenantId   uuid.UUID
 }
 
 func NewScheduleClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId, namespace string) (ScheduleClient, error) {

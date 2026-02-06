@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -16,23 +17,17 @@ import (
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
 type LeaseManager struct {
-	lr v1.LeaseRepository
-
-	conf *sharedConfig
-
-	tenantId uuid.UUID
-
-	workerLeases []*sqlcv1.Lease
-	workersCh    chan<- []*v1.ListActiveWorkersResult
-
-	queueLeases []*sqlcv1.Lease
-	queuesCh    chan<- []string
-
-	concurrencyLeases   []*sqlcv1.Lease
+	lr                  v1.LeaseRepository
+	conf                *sharedConfig
+	workersCh           chan<- []*v1.ListActiveWorkersResult
+	queuesCh            chan<- []string
 	concurrencyLeasesCh chan<- []*sqlcv1.V1StepConcurrency
-
-	cleanedUp bool
-	processMu sync.Mutex
+	workerLeases        []*sqlcv1.Lease
+	queueLeases         []*sqlcv1.Lease
+	concurrencyLeases   []*sqlcv1.Lease
+	processMu           sync.Mutex
+	tenantId            uuid.UUID
+	cleanedUp           bool
 }
 
 func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency) {

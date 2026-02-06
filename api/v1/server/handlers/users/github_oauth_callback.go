@@ -137,9 +137,9 @@ var ErrGithubNoEmail = fmt.Errorf("Github user must have an email")
 
 type githubInfo struct {
 	Email         string
-	EmailVerified bool
 	Name          string
 	ID            string
+	EmailVerified bool
 }
 
 func (u *UserService) getGithubEmailFromToken(tok *oauth2.Token) (*githubInfo, error) {

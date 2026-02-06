@@ -28,8 +28,8 @@ type CreateScheduledRunTrigger struct {
 // SchedulesClient provides methods for interacting with workflow schedules
 type SchedulesClient struct {
 	api       *rest.ClientWithResponses
-	tenantId  uuid.UUID
 	namespace *string
+	tenantId  uuid.UUID
 }
 
 // NewSchedulesClient creates a new SchedulesClient

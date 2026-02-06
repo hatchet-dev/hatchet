@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type FilterRepository interface {
@@ -27,10 +28,10 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 }
 
 type CreateFilterOpts struct {
-	Workflowid    uuid.UUID `json:"workflowid" validate:"required"`
 	Scope         string    `json:"scope" validate:"required"`
 	Expression    string    `json:"expression" validate:"required"`
 	Payload       []byte    `json:"payload"`
+	Workflowid    uuid.UUID `json:"workflowid" validate:"required"`
 	IsDeclarative bool      `json:"is_declarative"`
 }
 

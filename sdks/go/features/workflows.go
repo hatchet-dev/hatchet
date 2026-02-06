@@ -15,8 +15,8 @@ import (
 // WorkflowsClient provides methods for interacting with workflows
 type WorkflowsClient struct {
 	api      *rest.ClientWithResponses
-	tenantId uuid.UUID
 	cache    *cache.Cache
+	tenantId uuid.UUID
 }
 
 // NewWorkflowsClient creates a new WorkflowsClient

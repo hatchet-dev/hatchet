@@ -12,21 +12,15 @@ const (
 
 type JobRunLookupData struct {
 	Input       map[string]interface{}            `json:"input"`
-	TriggeredBy TriggeredBy                       `json:"triggered_by"`
 	Steps       map[string]map[string]interface{} `json:"steps,omitempty"`
+	TriggeredBy TriggeredBy                       `json:"triggered_by"`
 }
 
 type StepRunData struct {
-	Input       map[string]interface{}            `json:"input"`
-	TriggeredBy TriggeredBy                       `json:"triggered_by"`
-	Parents     map[string]map[string]interface{} `json:"parents"`
-
-	// custom-set user data for the step
-	UserData map[string]interface{} `json:"user_data"`
-
-	// overrides set from the playground
-	Overrides map[string]interface{} `json:"overrides"`
-
-	// errors in upstream steps (only used in on-failure step)
-	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
+	Input         map[string]interface{}            `json:"input"`
+	Parents       map[string]map[string]interface{} `json:"parents"`
+	UserData      map[string]interface{}            `json:"user_data"`
+	Overrides     map[string]interface{}            `json:"overrides"`
+	StepRunErrors map[string]string                 `json:"step_run_errors,omitempty"`
+	TriggeredBy   TriggeredBy                       `json:"triggered_by"`
 }

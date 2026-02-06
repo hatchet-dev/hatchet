@@ -5,34 +5,19 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 )
 
 type Message struct {
-	// ID is the ID of the task.
-	ID string `json:"id"`
-
-	// Payloads is the list of payloads.
-	Payloads [][]byte `json:"messages"`
-
-	// TenantID is the tenant ID.
-	TenantID uuid.UUID `json:"tenant_id"`
-
-	// Whether the message should immediately expire if it reaches the queue without an active consumer.
-	ImmediatelyExpire bool `json:"immediately_expire"`
-
-	// Whether the message should be persisted to disk
-	Persistent bool `json:"persistent"`
-
-	// OtelCarrier is the OpenTelemetry carrier for the task.
-	OtelCarrier map[string]string `json:"otel_carrier"`
-
-	// Retries is the number of retries for the task.
-	// Deprecated: retries are set globally at the moment.
-	Retries int `json:"retries"`
-
-	// Compressed indicates whether the payloads are gzip compressed
-	Compressed bool `json:"compressed,omitempty"`
+	OtelCarrier       map[string]string `json:"otel_carrier"`
+	ID                string            `json:"id"`
+	Payloads          [][]byte          `json:"messages"`
+	Retries           int               `json:"retries"`
+	TenantID          uuid.UUID         `json:"tenant_id"`
+	ImmediatelyExpire bool              `json:"immediately_expire"`
+	Persistent        bool              `json:"persistent"`
+	Compressed        bool              `json:"compressed,omitempty"`
 }
 
 func NewTenantMessage[T any](tenantId uuid.UUID, id string, immediatelyExpire, persistent bool, payloads ...T) (*Message, error) {

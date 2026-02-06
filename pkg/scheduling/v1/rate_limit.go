@@ -14,34 +14,26 @@ import (
 const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 500 * time.Millisecond // avoid boundary conditions on 1 second polls
 
 type rateLimit struct {
+	nextRefillAt *time.Time
 	key          string
 	val          int
-	nextRefillAt *time.Time
 }
 
 type rateLimitSet map[string]*rateLimit
 
 type rateLimiter struct {
-	rateLimitRepo v1.RateLimitRepository
-
-	tenantId uuid.UUID
-
+	rateLimitRepo  v1.RateLimitRepository
 	nextRefillAt   *time.Time
-	nextRefillAtMu sync.RWMutex
-
-	l *zerolog.Logger
-
-	// unacked is a map of taskId to rateLimitSet
-	unacked   map[int64]rateLimitSet
-	unackedMu sync.RWMutex
-
-	unflushedMu sync.RWMutex
-	unflushed   rateLimitSet
-
-	dbRateLimitsMu sync.RWMutex
+	l              *zerolog.Logger
+	unacked        map[int64]rateLimitSet
+	unflushed      rateLimitSet
 	dbRateLimits   rateLimitSet
-
-	cleanup func()
+	cleanup        func()
+	nextRefillAtMu sync.RWMutex
+	unackedMu      sync.RWMutex
+	unflushedMu    sync.RWMutex
+	dbRateLimitsMu sync.RWMutex
+	tenantId       uuid.UUID
 }
 
 func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
@@ -84,16 +76,14 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 }
 
 type rateLimitResult struct {
-	succeeded bool
-	taskId    int64
-
-	ack  func()
-	nack func()
-
+	ack           func()
+	nack          func()
+	nextRefillAt  *time.Time
 	exceededKey   string
+	taskId        int64
 	exceededUnits int32
 	exceededVal   int32
-	nextRefillAt  *time.Time
+	succeeded     bool
 }
 
 // use returns true if the rate limits are not exceeded, false otherwise

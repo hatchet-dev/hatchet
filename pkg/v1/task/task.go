@@ -20,90 +20,43 @@ type TaskBase interface {
 }
 
 type TaskShared struct {
-	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
-	ExecutionTimeout *time.Duration
-
-	// ScheduleTimeout specifies the maximum time a task can wait to be scheduled
-	ScheduleTimeout *time.Duration
-
-	// Retries defines the number of times to retry a failed task
-	Retries *int32
-
-	// RetryBackoffFactor is the multiplier for increasing backoff between retries
-	RetryBackoffFactor *float32
-
-	// RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
+	Fn                     interface{}
+	ExecutionTimeout       *time.Duration
+	ScheduleTimeout        *time.Duration
+	Retries                *int32
+	RetryBackoffFactor     *float32
 	RetryMaxBackoffSeconds *int32
-
-	// RateLimits define constraints on how frequently the task can be executed
-	RateLimits []*types.RateLimit
-
-	// WorkerLabels specify requirements for workers that can execute this task
-	WorkerLabels map[string]*types.DesiredWorkerLabel
-
-	// Concurrency defines constraints on how many instances of this task can run simultaneously
-	Concurrency []*types.Concurrency
-
-	// The function to execute when the task runs
-	// must be a function that takes an input and a Hatchet context and returns an output and an error
-	Fn interface{}
+	WorkerLabels           map[string]*types.DesiredWorkerLabel
+	RateLimits             []*types.RateLimit
+	Concurrency            []*types.Concurrency
 }
 
 // TaskDeclaration represents a standard (non-durable) task configuration that can be added to a workflow.
 type TaskDeclaration[I any] struct {
-	TaskBase
-	NamedTaskImpl
 	TaskShared
-
-	// The friendly name of the task
-	Name string
-
-	// The tasks that must successfully complete before this task can start
-	Parents []string
-
-	// WaitFor represents a set of conditions which must be satisfied before the task can run.
-	WaitFor condition.Condition
-
-	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
-	SkipIf condition.Condition
-
-	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
+	TaskBase
+	WaitFor  condition.Condition
+	SkipIf   condition.Condition
 	CancelIf condition.Condition
-
-	// The function to execute when the task runs
-	// must be a function that takes an input and a Hatchet context and returns an output and an error
-	Fn interface{}
+	Fn       interface{}
+	NamedTaskImpl
+	Name    string
+	Parents []string
 }
 
 // DurableTaskDeclaration represents a durable task configuration that can be added to a workflow.
 // Durable tasks can use the DurableHatchetContext for operations that persist across worker restarts.
 type DurableTaskDeclaration[I any] struct {
-	TaskBase
-	NamedTaskImpl
 	TaskShared
-
-	// The friendly name of the task
-	Name string
-
-	// The tasks that must successfully complete before this task can start
-	Parents []string
-
-	// Concurrency defines constraints on how many instances of this task can run simultaneously
-	// and group key expression to evaluate when determining if a task can run
-	Concurrency []*types.Concurrency
-
-	// WaitFor represents a set of conditions which must be satisfied before the task can run.
-	WaitFor condition.Condition
-
-	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
-	SkipIf condition.Condition
-
-	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
+	TaskBase
+	WaitFor  condition.Condition
+	SkipIf   condition.Condition
 	CancelIf condition.Condition
-
-	// The function to execute when the task runs
-	// must be a function that takes an input and a DurableHatchetContext and returns an output and an error
-	Fn interface{}
+	Fn       interface{}
+	NamedTaskImpl
+	Name        string
+	Parents     []string
+	Concurrency []*types.Concurrency
 }
 
 // OnFailureTaskDeclaration represents a task that will be executed if

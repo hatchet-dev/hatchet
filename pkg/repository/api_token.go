@@ -5,25 +5,18 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CreateAPITokenOpts struct {
-	// The id of the token
-	ID uuid.UUID `validate:"required"`
-
-	// When the token expires
 	ExpiresAt time.Time
-
-	// (optional) A tenant ID for this API token
-	TenantId *uuid.UUID `validate:"omitempty"`
-
-	// (optional) A name for this API token
-	Name *string `validate:"omitempty,max=255"`
-
-	Internal bool
+	TenantId  *uuid.UUID `validate:"omitempty"`
+	Name      *string    `validate:"omitempty,max=255"`
+	ID        uuid.UUID  `validate:"required"`
+	Internal  bool
 }
 
 type APITokenGenerator func(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (string, error)

@@ -23,11 +23,11 @@ type HatchetApiTokenRateLimiter struct {
 }
 
 type HatchetRateLimiter struct {
-	mu           sync.Mutex
 	rateLimiters map[string]*HatchetApiTokenRateLimiter
+	l            *zerolog.Logger
 	rate         rate.Limit
 	burst        int
-	l            *zerolog.Logger
+	mu           sync.Mutex
 }
 
 func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string) *HatchetApiTokenRateLimiter {

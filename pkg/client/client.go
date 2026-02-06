@@ -45,28 +45,21 @@ type Client interface {
 }
 
 type clientImpl struct {
-	conn *grpc.ClientConn
-
-	admin      AdminClient
-	cron       CronClient
-	schedule   ScheduleClient
-	dispatcher DispatcherClient
-	event      EventClient
-	subscribe  SubscribeClient
-	rest       *rest.ClientWithResponses
-	cloudrest  *cloudrest.ClientWithResponses
-
-	// the tenant id
-	tenantId string
-
-	namespace string
-
+	subscribe       SubscribeClient
+	v               validator.Validator
+	cron            CronClient
+	schedule        ScheduleClient
+	dispatcher      DispatcherClient
+	event           EventClient
+	admin           AdminClient
+	rest            *rest.ClientWithResponses
+	conn            *grpc.ClientConn
+	cloudrest       *cloudrest.ClientWithResponses
 	cloudRegisterID *string
+	l               *zerolog.Logger
+	tenantId        string
+	namespace       string
 	runnableActions []string
-
-	l *zerolog.Logger
-
-	v validator.Validator
 }
 
 type ClientOpt func(*ClientOpts)
@@ -74,24 +67,21 @@ type ClientOpt func(*ClientOpts)
 type filesLoaderFunc func() []*types.Workflow
 
 type ClientOpts struct {
-	tenantId    string
-	l           *zerolog.Logger
-	v           validator.Validator
-	tls         *tls.Config
-	hostPort    string
-	serverURL   string
-	token       string
-	namespace   string
-	noGrpcRetry bool
-	sharedMeta  map[string]string
-
-	cloudRegisterID *string
-	runnableActions []string
-
-	filesLoader        filesLoaderFunc
-	initWorkflows      bool
-	presetWorkerLabels map[string]string
-
+	v                      validator.Validator
+	sharedMeta             map[string]string
+	l                      *zerolog.Logger
+	tls                    *tls.Config
+	presetWorkerLabels     map[string]string
+	filesLoader            filesLoaderFunc
+	cloudRegisterID        *string
+	hostPort               string
+	namespace              string
+	token                  string
+	serverURL              string
+	tenantId               string
+	runnableActions        []string
+	noGrpcRetry            bool
+	initWorkflows          bool
 	disableGzipCompression bool
 }
 
@@ -205,12 +195,12 @@ func InitWorkflows() ClientOpt {
 }
 
 type sharedClientOpts struct {
-	tenantId   string
-	namespace  string
-	l          *zerolog.Logger
 	v          validator.Validator
+	l          *zerolog.Logger
 	ctxLoader  *contextLoader
 	sharedMeta map[string]string
+	tenantId   string
+	namespace  string
 }
 
 // New creates a new client instance.

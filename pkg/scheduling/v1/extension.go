@@ -6,6 +6,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -24,10 +25,10 @@ type SlotUtilization struct {
 }
 
 type WorkerCp struct {
-	WorkerId uuid.UUID
-	MaxRuns  int
-	Labels   []*sqlcv1.ListManyWorkerLabelsRow
 	Name     string
+	Labels   []*sqlcv1.ListManyWorkerLabelsRow
+	MaxRuns  int
+	WorkerId uuid.UUID
 }
 
 type SlotCp struct {
@@ -43,8 +44,8 @@ type SchedulerExtension interface {
 }
 
 type Extensions struct {
-	mu   sync.RWMutex
 	exts []SchedulerExtension
+	mu   sync.RWMutex
 }
 
 func (e *Extensions) Add(ext SchedulerExtension) {

@@ -12,12 +12,12 @@ import (
 )
 
 type ManagedCompute struct {
-	ActionRegistry  *ActionRegistry
 	Client          client.Client
-	MaxRuns         int
-	RuntimeConfigs  []rest.CreateManagedWorkerRuntimeConfigRequest
+	ActionRegistry  *ActionRegistry
 	CloudRegisterID *string
 	Logger          *zerolog.Logger
+	RuntimeConfigs  []rest.CreateManagedWorkerRuntimeConfigRequest
+	MaxRuns         int
 }
 
 func NewManagedCompute(actionRegistry *ActionRegistry, client client.Client, maxRuns int) *ManagedCompute {

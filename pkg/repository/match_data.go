@@ -9,12 +9,9 @@ import (
 
 // parses match aggregated data
 type MatchData struct {
-	action sqlcv1.V1MatchConditionAction
-
-	// maps readable data keys to a list of data values
-	dataKeys map[string][]interface{}
-
+	dataKeys        map[string][]interface{}
 	triggerDataKeys map[string][]interface{}
+	action          sqlcv1.V1MatchConditionAction
 }
 
 func (m *MatchData) Action() sqlcv1.V1MatchConditionAction {

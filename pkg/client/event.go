@@ -49,25 +49,19 @@ type EventClient interface {
 type EventWithAdditionalMetadata struct {
 	Event              interface{}       `json:"event"`
 	AdditionalMetadata map[string]string `json:"metadata"`
-	Key                string            `json:"key"`
 	Priority           *int32            `json:"priority"`
 	Scope              *string           `json:"scope"`
+	Key                string            `json:"key"`
 }
 
 type eventClientImpl struct {
-	client eventcontracts.EventsServiceClient
-
-	tenantId string
-
-	namespace string
-
-	l *zerolog.Logger
-
-	v validator.Validator
-
-	ctx *contextLoader
-
+	client     eventcontracts.EventsServiceClient
+	v          validator.Validator
+	l          *zerolog.Logger
+	ctx        *contextLoader
 	sharedMeta map[string]string
+	tenantId   string
+	namespace  string
 }
 
 func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {

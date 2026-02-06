@@ -42,12 +42,12 @@ const (
 )
 
 type GetActionListenerRequest struct {
-	WorkerName string
-	Services   []string
-	Actions    []string
 	Slots      *int
 	Labels     map[string]interface{}
 	WebhookId  *string
+	WorkerName string
+	Services   []string
+	Actions    []string
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -62,65 +62,27 @@ const (
 )
 
 type Action struct {
-	// the worker id
-	WorkerId string `json:"workerId"`
-
-	// the tenant id
-	TenantId string `json:"tenantId"`
-
-	// the workflow run id
-	WorkflowRunId string `json:"workflowRunId"`
-
-	// the get group key run id
-	GetGroupKeyRunId string `json:"getGroupKeyRunId"`
-
-	// the job id
-	JobId string `json:"jobId"`
-
-	// the job name
-	JobName string `json:"jobName"`
-
-	// the job run id
-	JobRunId string `json:"jobRunId"`
-
-	// the step id
-	StepId string `json:"stepId"`
-
-	// the step name
-	StepName string `json:"stepName"`
-
-	// the step run id
-	StepRunId string `json:"stepRunId"`
-
-	// the action id
-	ActionId string `json:"actionId"`
-
-	// the action payload
-	ActionPayload []byte `json:"actionPayload"`
-
-	// the action type
-	ActionType ActionType `json:"actionType"`
-
-	// the count of the retry attempt
-	RetryCount int32 `json:"retryCount"`
-
-	// the additional metadata for the workflow run
-	AdditionalMetadata map[string]string
-
-	// the child index for the workflow run
-	ChildIndex *int32
-
-	// the child key for the workflow run
-	ChildKey *string
-
-	// the parent workflow run id
+	AdditionalMetadata  map[string]string
+	WorkflowVersionId   *string `json:"workflowVersionId,omitempty"`
+	WorkflowId          *string `json:"workflowId,omitempty"`
 	ParentWorkflowRunId *string
-
-	Priority int32 `json:"priority,omitempty"`
-
-	WorkflowId *string `json:"workflowId,omitempty"`
-
-	WorkflowVersionId *string `json:"workflowVersionId,omitempty"`
+	ChildKey            *string
+	ChildIndex          *int32
+	JobName             string     `json:"jobName"`
+	JobId               string     `json:"jobId"`
+	StepName            string     `json:"stepName"`
+	StepRunId           string     `json:"stepRunId"`
+	ActionId            string     `json:"actionId"`
+	TenantId            string     `json:"tenantId"`
+	ActionType          ActionType `json:"actionType"`
+	WorkflowRunId       string     `json:"workflowRunId"`
+	JobRunId            string     `json:"jobRunId"`
+	WorkerId            string     `json:"workerId"`
+	StepId              string     `json:"stepId"`
+	GetGroupKeyRunId    string     `json:"getGroupKeyRunId"`
+	ActionPayload       []byte     `json:"actionPayload"`
+	Priority            int32      `json:"priority,omitempty"`
+	RetryCount          int32      `json:"retryCount"`
 }
 
 type WorkerActionListener interface {
@@ -139,19 +101,11 @@ const (
 )
 
 type ActionEvent struct {
-	*Action
-
-	// the event timestamp
-	EventTimestamp *time.Time
-
-	// the step event type
-	EventType ActionEventType
-
-	// The event payload. This must be JSON-compatible as it gets marshalled to a JSON string.
 	EventPayload interface{}
-
-	// If this is an error, whether to retry on failure
+	*Action
+	EventTimestamp *time.Time
 	ShouldNotRetry *bool
+	EventType      ActionEventType
 }
 
 type ActionEventResponse struct {
@@ -163,18 +117,13 @@ type ActionEventResponse struct {
 }
 
 type dispatcherClientImpl struct {
-	client   dispatchercontracts.DispatcherClient
-	clientv1 sharedcontracts.V1DispatcherClient
-
-	tenantId string
-
-	l *zerolog.Logger
-
-	v validator.Validator
-
-	ctx *contextLoader
-
+	client             dispatchercontracts.DispatcherClient
+	clientv1           sharedcontracts.V1DispatcherClient
+	v                  validator.Validator
+	l                  *zerolog.Logger
+	ctx                *contextLoader
 	presetWorkerLabels map[string]string
+	tenantId           string
 }
 
 func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) DispatcherClient {
@@ -477,11 +426,12 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 		var err error
 		var listenClient dispatchercontracts.Dispatcher_ListenClient
 
-		if a.listenerStrategy == ListenerStrategyV1 {
+		switch a.listenerStrategy {
+		case ListenerStrategyV1:
 			listenClient, err = a.client.Listen(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 				WorkerId: a.workerId,
 			})
-		} else if a.listenerStrategy == ListenerStrategyV2 {
+		case ListenerStrategyV2:
 			listenClient, err = a.client.ListenV2(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 				WorkerId: a.workerId,
 			})

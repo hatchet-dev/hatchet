@@ -22,28 +22,18 @@ type ConcurrencyResults struct {
 }
 
 type ConcurrencyManager struct {
-	l *zerolog.Logger
-
-	strategy *sqlcv1.V1StepConcurrency
-
-	tenantId uuid.UUID
-
-	repo v1.ConcurrencyRepository
-
-	notifyConcurrencyCh chan map[string]string
+	repo                v1.ConcurrencyRepository
 	notifyMu            mutex
-
-	resultsCh chan<- *ConcurrencyResults
-
-	cleanup func()
-
-	isCleanedUp bool
-
-	rateLimiter *rate.Limiter
-
-	minPollingInterval time.Duration
-
-	maxPollingInterval time.Duration
+	l                   *zerolog.Logger
+	strategy            *sqlcv1.V1StepConcurrency
+	notifyConcurrencyCh chan map[string]string
+	resultsCh           chan<- *ConcurrencyResults
+	cleanup             func()
+	rateLimiter         *rate.Limiter
+	minPollingInterval  time.Duration
+	maxPollingInterval  time.Duration
+	tenantId            uuid.UUID
+	isCleanedUp         bool
 }
 
 func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {

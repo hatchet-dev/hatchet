@@ -18,32 +18,19 @@ import (
 )
 
 type CandidateEventMatch struct {
-	// A UUID for the event
-	ID uuid.UUID
-
-	// A timestamp for the event
 	EventTimestamp time.Time
-
-	// Key for the event
-	Key string
-
-	// Resource hint for the event
-	ResourceHint *string
-
-	// Data for the event
-	Data []byte
+	ResourceHint   *string
+	Key            string
+	Data           []byte
+	ID             uuid.UUID
 }
 
 type ExternalCreateSignalMatchOpts struct {
-	Conditions []CreateExternalSignalConditionOpt `validate:"required,min=1,dive"`
-
-	SignalTaskId int64 `validate:"required,gt=0"`
-
 	SignalTaskInsertedAt pgtype.Timestamptz
-
-	SignalExternalId uuid.UUID `validate:"required"`
-
-	SignalKey string `validate:"required"`
+	SignalKey            string                             `validate:"required"`
+	Conditions           []CreateExternalSignalConditionOpt `validate:"required,min=1,dive"`
+	SignalTaskId         int64                              `validate:"required,gt=0"`
+	SignalExternalId     uuid.UUID                          `validate:"required"`
 }
 
 type CreateExternalSignalConditionKind string
@@ -54,61 +41,36 @@ const (
 )
 
 type CreateExternalSignalConditionOpt struct {
-	Kind CreateExternalSignalConditionKind `validate:"required, oneof=SLEEP USER_EVENT"`
-
-	ReadableDataKey string `validate:"required"`
-
-	OrGroupId uuid.UUID `validate:"required"`
-
-	UserEventKey *string
-
-	SleepFor *string `validate:"omitempty,duration"`
-
-	Expression string
+	UserEventKey    *string
+	SleepFor        *string                           `validate:"omitempty,duration"`
+	Kind            CreateExternalSignalConditionKind `validate:"required, oneof=SLEEP USER_EVENT"`
+	ReadableDataKey string                            `validate:"required"`
+	Expression      string
+	OrGroupId       uuid.UUID `validate:"required"`
 }
 
 type CreateMatchOpts struct {
-	Kind sqlcv1.V1MatchKind
-
-	ExistingMatchData []byte
-
-	Conditions []GroupMatchCondition
-
-	TriggerDAGId *int64
-
-	TriggerDAGInsertedAt pgtype.Timestamptz
-
-	TriggerExternalId *uuid.UUID
-
-	TriggerWorkflowRunId *uuid.UUID
-
-	TriggerStepId *uuid.UUID
-
-	TriggerStepIndex pgtype.Int8
-
-	TriggerExistingTaskId *int64
-
+	TriggerExistingTaskId         *int64
+	SignalKey                     *string
+	SignalExternalId              *uuid.UUID
+	TriggerDAGId                  *int64
+	SignalTaskId                  *int64
+	TriggerExternalId             *uuid.UUID
+	TriggerWorkflowRunId          *uuid.UUID
+	TriggerStepId                 *uuid.UUID
+	TriggerParentTaskExternalId   *uuid.UUID
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz
-
-	TriggerParentTaskExternalId *uuid.UUID
-
-	TriggerParentTaskId pgtype.Int8
-
-	TriggerParentTaskInsertedAt pgtype.Timestamptz
-
-	TriggerChildIndex pgtype.Int8
-
-	TriggerChildKey pgtype.Text
-
-	TriggerPriority pgtype.Int4
-
-	SignalTaskId *int64
-
-	SignalTaskInsertedAt pgtype.Timestamptz
-
-	SignalExternalId *uuid.UUID
-
-	SignalKey *string
+	TriggerParentTaskInsertedAt   pgtype.Timestamptz
+	TriggerDAGInsertedAt          pgtype.Timestamptz
+	SignalTaskInsertedAt          pgtype.Timestamptz
+	Kind                          sqlcv1.V1MatchKind
+	TriggerChildKey               pgtype.Text
+	Conditions                    []GroupMatchCondition
+	ExistingMatchData             []byte
+	TriggerStepIndex              pgtype.Int8
+	TriggerParentTaskId           pgtype.Int8
+	TriggerChildIndex             pgtype.Int8
+	TriggerPriority               pgtype.Int4
 }
 
 type EventMatchResults struct {
@@ -120,24 +82,14 @@ type EventMatchResults struct {
 }
 
 type GroupMatchCondition struct {
-	GroupId uuid.UUID `validate:"required"`
-
-	EventType sqlcv1.V1EventType
-
-	EventKey string
-
-	// (optional) a hint for querying the event data
 	EventResourceHint *string
-
-	// the data key which gets inserted into the returned data from a satisfied match condition
-	ReadableDataKey string
-
-	Expression string
-
-	Action sqlcv1.V1MatchConditionAction
-
-	// (optional) the data which was used to satisfy the condition (relevant for replays)
-	Data []byte
+	EventType         sqlcv1.V1EventType
+	EventKey          string
+	ReadableDataKey   string
+	Expression        string
+	Action            sqlcv1.V1MatchConditionAction
+	Data              []byte
+	GroupId           uuid.UUID `validate:"required"`
 }
 
 type MatchRepository interface {

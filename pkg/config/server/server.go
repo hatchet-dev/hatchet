@@ -30,60 +30,33 @@ import (
 )
 
 type ServerConfigFile struct {
-	Auth ConfigFileAuth `mapstructure:"auth" json:"auth,omitempty"`
-
-	Alerting AlertingConfigFile `mapstructure:"alerting" json:"alerting,omitempty"`
-
-	Analytics AnalyticsConfigFile `mapstructure:"analytics" json:"analytics,omitempty"`
-
-	Pylon PylonConfig `mapstructure:"pylon" json:"pylon,omitempty"`
-
-	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
-
-	Runtime ConfigFileRuntime `mapstructure:"runtime" json:"runtime,omitempty"`
-
-	MessageQueue MessageQueueConfigFile `mapstructure:"msgQueue" json:"msgQueue,omitempty"`
-
-	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"all\"]"`
-
-	// Used to bind the environment variable, since the array is not well supported
-	ServicesString string `mapstructure:"servicesString" json:"servicesString,omitempty"`
-
-	PausedControllers string `mapstructure:"pausedControllers" json:"pausedControllers,omitempty"`
-
-	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
-
-	EnableWorkerRetention bool `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
-
-	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
-
-	InternalClient InternalClientTLSConfigFile `mapstructure:"internalClient" json:"internalClient,omitempty"`
-
-	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
-
-	AdditionalLoggers ConfigFileAdditionalLoggers `mapstructure:"additionalLoggers" json:"additionalLoggers,omitempty"`
-
-	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
-
-	Prometheus shared.PrometheusConfigFile `mapstructure:"prometheus" json:"prometheus,omitempty"`
-
-	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
-
-	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
-
-	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
-
-	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
-
-	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
-
-	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
-
-	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
-
-	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
-
-	OLAPStatusUpdates OLAPStatusUpdateConfigFile `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
+	InternalClient        InternalClientTLSConfigFile    `mapstructure:"internalClient" json:"internalClient,omitempty"`
+	Encryption            EncryptionConfigFile           `mapstructure:"encryption" json:"encryption,omitempty"`
+	TLS                   shared.TLSConfigFile           `mapstructure:"tls" json:"tls,omitempty"`
+	Prometheus            shared.PrometheusConfigFile    `mapstructure:"prometheus" json:"prometheus,omitempty"`
+	Analytics             AnalyticsConfigFile            `mapstructure:"analytics" json:"analytics,omitempty"`
+	AdditionalLoggers     ConfigFileAdditionalLoggers    `mapstructure:"additionalLoggers" json:"additionalLoggers,omitempty"`
+	Monitoring            ConfigFileMonitoring           `mapstructure:"monitoring" json:"monitoring,omitempty"`
+	Pylon                 PylonConfig                    `mapstructure:"pylon" json:"pylon,omitempty"`
+	Logger                shared.LoggerConfigFile        `mapstructure:"logger" json:"logger,omitempty"`
+	SecurityCheck         SecurityCheckConfigFile        `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
+	PausedControllers     string                         `mapstructure:"pausedControllers" json:"pausedControllers,omitempty"`
+	ServicesString        string                         `mapstructure:"servicesString" json:"servicesString,omitempty"`
+	Auth                  ConfigFileAuth                 `mapstructure:"auth" json:"auth,omitempty"`
+	Email                 ConfigFileEmail                `mapstructure:"email" json:"email,omitempty"`
+	OpenTelemetry         shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
+	TenantAlerting        ConfigFileTenantAlerting       `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
+	Alerting              AlertingConfigFile             `mapstructure:"alerting" json:"alerting,omitempty"`
+	Services              []string                       `mapstructure:"services" json:"services,omitempty" default:"[\"all\"]"`
+	MessageQueue          MessageQueueConfigFile         `mapstructure:"msgQueue" json:"msgQueue,omitempty"`
+	Runtime               ConfigFileRuntime              `mapstructure:"runtime" json:"runtime,omitempty"`
+	CronOperations        CronOperationsConfigFile       `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
+	PayloadStore          PayloadStoreConfig             `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
+	Sampling              ConfigFileSampling             `mapstructure:"sampling" json:"sampling,omitempty"`
+	OLAP                  ConfigFileOperations           `mapstructure:"olap" json:"olap,omitempty"`
+	OLAPStatusUpdates     OLAPStatusUpdateConfigFile     `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
+	EnableDataRetention   bool                           `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
+	EnableWorkerRetention bool                           `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -159,173 +132,66 @@ type OLAPStatusUpdateConfigFile struct {
 
 // General server runtime options
 type ConfigFileRuntime struct {
-	// Port is the port that the core server listens on
-	Port int `mapstructure:"port" json:"port,omitempty" default:"8080"`
-
-	// ServerURL is the full server URL of the instance, including protocol.
-	ServerURL string `mapstructure:"url" json:"url,omitempty" default:"http://localhost:8080"`
-
-	// Healthcheck controls whether the server has a healthcheck endpoint
-	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
-
-	// HealthcheckPort is the port that the healthcheck server listens on
-	HealthcheckPort int `mapstructure:"healthcheckPort" json:"healthcheckPort,omitempty" default:"8733"`
-
-	// GRPCPort is the port that the grpc service listens on
-	GRPCPort int `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
-
-	// GRPCBindAddress is the address that the grpc server binds to. Should set to 0.0.0.0 if binding in docker container.
-	GRPCBindAddress string `mapstructure:"grpcBindAddress" json:"grpcBindAddress,omitempty" default:"127.0.0.1"`
-
-	// GRPCBroadcastAddress is the address that the grpc server broadcasts to, which is what clients should use when connecting.
-	GRPCBroadcastAddress string `mapstructure:"grpcBroadcastAddress" json:"grpcBroadcastAddress,omitempty" default:"127.0.0.1:7070"`
-
-	// GRPCInsecure controls whether the grpc server is insecure or uses certs
-	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
-
-	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
-	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
-
-	// GRPCWorkerStreamMaxBacklogSize is the maximum number of messages that can be queued for a worker before we start rejecting new
-	// messages. Default is 20.
-	GRPCWorkerStreamMaxBacklogSize int `mapstructure:"grpcWorkerStreamMaxBacklogSize" json:"grpcWorkerStreamMaxBacklogSize,omitempty" default:"20"`
-
-	// GRPCStaticStreamWindowSize sets the static stream window size for the grpc server. This can help with performance
-	// with overloaded workers and large messages. Default is 10MB.
-	GRPCStaticStreamWindowSize int32 `mapstructure:"grpcStaticStreamWindowSize" json:"grpcStaticStreamWindowSize,omitempty" default:"10485760"`
-
-	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
-	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
-
-	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
-	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
-
-	// EnforceLimits controls whether the server enforces tenant limits
-	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
-
-	// EnforceLimitsFunc is a function that returns whether the server should enforce limits for a tenant
-	// This will take precedence over EnforceLimits if set.
-	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error) `json:"-"`
-
-	// Default limit values
-	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
-
-	// RequeueLimit is the number of times a message will be requeued in each attempt
-	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
-
-	// QueueLimit is the limit of items to return from a single queue at a time
-	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
-
-	// Whether optimistic scheduling is enabled
-	OptimisticSchedulingEnabled bool `mapstructure:"optimisticSchedulingEnabled" json:"optimisticSchedulingEnabled,omitempty" default:"true"`
-
-	// How many slots to allocate for optimistic scheduling
-	OptimisticSchedulingSlots int `mapstructure:"optimisticSchedulingSlots" json:"optimisticSchedulingSlots,omitempty" default:"5"`
-
-	// Whether we can perform writes from the gRPC API and fall back to sending messages through RabbitMQ if we exhaust slots
-	GRPCTriggerWritesEnabled bool `mapstructure:"grpcTriggerWritesEnabled" json:"grpcTriggerWritesEnabled,omitempty" default:"true"`
-
-	// The number of slots for gRPC writes
-	GRPCTriggerWriteSlots int `mapstructure:"grpcTriggerWriteSlots" json:"grpcTriggerWriteSlots,omitempty" default:"5"`
-
-	// How many buckets to hash into for parallelizing updates
-	UpdateHashFactor int `mapstructure:"updateHashFactor" json:"updateHashFactor,omitempty" default:"100"`
-
-	// How many concurrent updates to allow
-	UpdateConcurrentFactor int `mapstructure:"updateConcurrentFactor" json:"updateConcurrentFactor,omitempty" default:"10"`
-
-	// Allow new tenants to be created
-	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
-
-	// Allow new invites to be created
-	AllowInvites bool `mapstructure:"allowInvites" json:"allowInvites,omitempty" default:"true"`
-
-	// Maximum number of pending invites an inviter can have
-	MaxPendingInvites int `mapstructure:"maxPendingInvites" json:"maxPendingInvites,omitempty" default:"100"`
-
-	// Allow new tenants to be created
-	AllowCreateTenant bool `mapstructure:"allowCreateTenant" json:"allowCreateTenant,omitempty" default:"true"`
-
-	// Allow passwords to be changed
-	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
-
-	// Rate limiting configuration for API operations by IP
-	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
-	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
-
-	// DisableTenantPubs controls whether tenant pubsub is disabled
-	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
-
-	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 10)
-	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"10"`
-
-	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
-	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
-
-	// MaxConcurrent is the maximum number of concurrent flushes
-	MaxConcurrent int `mapstructure:"maxConcurrent" json:"maxConcurrent,omitempty" default:"50"`
-
-	// FlushPeriodMilliseconds is the default number of milliseconds before flush
-	FlushPeriodMilliseconds int `mapstructure:"flushPeriodMilliseconds" json:"flushPeriodMilliseconds,omitempty" default:"10"`
-
-	// FlushItemsThreshold is the default number of items to hold in memory until flushing to the database
-	FlushItemsThreshold int `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
-
-	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
-
-	// PreventTenantVersionUpgrade controls whether the server prevents tenant version upgrades
-	PreventTenantVersionUpgrade bool `mapstructure:"preventTenantVersionUpgrade" json:"preventTenantVersionUpgrade,omitempty" default:"false"`
-
-	// DefaultEngineVersion is the default engine version to use for new tenants
-	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V1"`
-
-	// ReplayEnabled controls whether the server enables replay for tasks
-	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
-
-	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
-	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
-
-	// SchedulerConcurrencyPollingMinInterval is the minimum interval for concurrency polling
-	SchedulerConcurrencyPollingMinInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMinInterval" json:"schedulerConcurrencyPollingMinInterval,omitempty" default:"500ms"`
-
-	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
-	SchedulerConcurrencyPollingMaxInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
-
-	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
-	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
-
-	// TaskOperationLimits controls the limits for various task operations
-	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
-
-	// EnableDurableUserEventLog controls whether we enable the durable event log for user events. By default, we don't persist user events
-	// to the core database, we only use them to trigger workflows. Enabling this will persist them to the core database.
-	EnableDurableUserEventLog bool `mapstructure:"enableDurableUserEventLog" json:"enableDurableUserEventLog,omitempty" default:"false"`
-
-	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
-	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
+	EnforceLimitsFunc                      func(ctx context.Context, tenantId string) (bool, error) `json:"-"`
+	Monitoring                             ConfigFileMonitoring                                     `mapstructure:"monitoring" json:"monitoring,omitempty"`
+	ServerURL                              string                                                   `mapstructure:"url" json:"url,omitempty" default:"http://localhost:8080"`
+	DefaultEngineVersion                   string                                                   `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V1"`
+	GRPCBindAddress                        string                                                   `mapstructure:"grpcBindAddress" json:"grpcBindAddress,omitempty" default:"127.0.0.1"`
+	GRPCBroadcastAddress                   string                                                   `mapstructure:"grpcBroadcastAddress" json:"grpcBroadcastAddress,omitempty" default:"127.0.0.1:7070"`
+	Limits                                 limits.LimitConfigFile                                   `mapstructure:"limits" json:"limits,omitempty"`
+	TaskOperationLimits                    TaskOperationLimitsConfigFile                            `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
+	FlushItemsThreshold                    int                                                      `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
+	GRPCTriggerWriteSlots                  int                                                      `mapstructure:"grpcTriggerWriteSlots" json:"grpcTriggerWriteSlots,omitempty" default:"5"`
+	WaitForFlush                           time.Duration                                            `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
+	GRPCRateLimit                          float64                                                  `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
+	ShutdownWait                           time.Duration                                            `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
+	WorkflowRunBufferSize                  int                                                      `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
+	GRPCMaxMsgSize                         int                                                      `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
+	SchedulerConcurrencyPollingMaxInterval time.Duration                                            `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
+	RequeueLimit                           int                                                      `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
+	SingleQueueLimit                       int                                                      `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
+	GRPCWorkerStreamMaxBacklogSize         int                                                      `mapstructure:"grpcWorkerStreamMaxBacklogSize" json:"grpcWorkerStreamMaxBacklogSize,omitempty" default:"20"`
+	OptimisticSchedulingSlots              int                                                      `mapstructure:"optimisticSchedulingSlots" json:"optimisticSchedulingSlots,omitempty" default:"5"`
+	SchedulerConcurrencyPollingMinInterval time.Duration                                            `mapstructure:"schedulerConcurrencyPollingMinInterval" json:"schedulerConcurrencyPollingMinInterval,omitempty" default:"500ms"`
+	MaxConcurrent                          int                                                      `mapstructure:"maxConcurrent" json:"maxConcurrent,omitempty" default:"50"`
+	UpdateHashFactor                       int                                                      `mapstructure:"updateHashFactor" json:"updateHashFactor,omitempty" default:"100"`
+	UpdateConcurrentFactor                 int                                                      `mapstructure:"updateConcurrentFactor" json:"updateConcurrentFactor,omitempty" default:"10"`
+	SchedulerConcurrencyRateLimit          int                                                      `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
+	HealthcheckPort                        int                                                      `mapstructure:"healthcheckPort" json:"healthcheckPort,omitempty" default:"8733"`
+	MaxPendingInvites                      int                                                      `mapstructure:"maxPendingInvites" json:"maxPendingInvites,omitempty" default:"100"`
+	GRPCPort                               int                                                      `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
+	Port                                   int                                                      `mapstructure:"port" json:"port,omitempty" default:"8080"`
+	APIRateLimit                           int                                                      `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
+	APIRateLimitWindow                     time.Duration                                            `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
+	FlushPeriodMilliseconds                int                                                      `mapstructure:"flushPeriodMilliseconds" json:"flushPeriodMilliseconds,omitempty" default:"10"`
+	MaxInternalRetryCount                  int32                                                    `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"10"`
+	GRPCStaticStreamWindowSize             int32                                                    `mapstructure:"grpcStaticStreamWindowSize" json:"grpcStaticStreamWindowSize,omitempty" default:"10485760"`
+	OptimisticSchedulingEnabled            bool                                                     `mapstructure:"optimisticSchedulingEnabled" json:"optimisticSchedulingEnabled,omitempty" default:"true"`
+	DisableTenantPubs                      bool                                                     `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
+	AllowChangePassword                    bool                                                     `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
+	AllowCreateTenant                      bool                                                     `mapstructure:"allowCreateTenant" json:"allowCreateTenant,omitempty" default:"true"`
+	PreventTenantVersionUpgrade            bool                                                     `mapstructure:"preventTenantVersionUpgrade" json:"preventTenantVersionUpgrade,omitempty" default:"false"`
+	AllowInvites                           bool                                                     `mapstructure:"allowInvites" json:"allowInvites,omitempty" default:"true"`
+	ReplayEnabled                          bool                                                     `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
+	AllowSignup                            bool                                                     `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
+	GRPCTriggerWritesEnabled               bool                                                     `mapstructure:"grpcTriggerWritesEnabled" json:"grpcTriggerWritesEnabled,omitempty" default:"true"`
+	GRPCInsecure                           bool                                                     `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
+	LogIngestionEnabled                    bool                                                     `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
+	Healthcheck                            bool                                                     `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
+	EnableDurableUserEventLog              bool                                                     `mapstructure:"enableDurableUserEventLog" json:"enableDurableUserEventLog,omitempty" default:"false"`
+	EnforceLimits                          bool                                                     `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 }
 
 type InternalClientTLSConfigFile struct {
-	// InheritBase controls whether the internal client should inherit the base TLS config from the
-	// server config. This will work if there's no gRPC proxy in between the externally-facing grpc server
-	// and the API server. If there is a proxy, you should set this to false and configure the base TLS
-	// config for the internal client.
-	InheritBase bool `mapstructure:"inheritBase" json:"inheritBase,omitempty" default:"true"`
-
-	// InternalGRPCBroadcastAddress is the address that the API endpoints can use to proxy to the gRPC server. If this
-	// is not set, it defaults to the GRPC_BROADCAST_ADDRESS
-	InternalGRPCBroadcastAddress string `mapstructure:"internalGRPCBroadcastAddress" json:"internalGRPCBroadcastAddress,omitempty"`
-
-	// TLSServerName is the server name to use to verify the TLS connection. If this is not set, it defaults
-	// to the host of the GRPC_BROADCAST_ADDRESS
-	TLSServerName string `mapstructure:"tlsServerName" json:"tlsServerName,omitempty"`
-
-	Base shared.TLSConfigFile `mapstructure:"base" json:"base,omitempty"`
+	Base                         shared.TLSConfigFile `mapstructure:"base" json:"base,omitempty"`
+	InternalGRPCBroadcastAddress string               `mapstructure:"internalGRPCBroadcastAddress" json:"internalGRPCBroadcastAddress,omitempty"`
+	TLSServerName                string               `mapstructure:"tlsServerName" json:"tlsServerName,omitempty"`
+	InheritBase                  bool                 `mapstructure:"inheritBase" json:"inheritBase,omitempty" default:"true"`
 }
 
 type SecurityCheckConfigFile struct {
-	Enabled  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
+	Enabled  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 }
 
 // Alerting options
@@ -334,17 +200,10 @@ type AlertingConfigFile struct {
 }
 
 type SentryConfigFile struct {
-	// Enabled controls whether the Sentry service is enabled for this Hatchet instance.
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
-
-	// DSN is the Data Source Name for the Sentry instance
-	DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
-
-	// Environment is the environment that the instance is running in
-	Environment string `mapstructure:"environment" json:"environment,omitempty" default:"development"`
-
-	// Sample rate is the rate at which to sample events. Default is 1.0 to sample all events.
-	SampleRate float64 `mapstructure:"sampleRate" json:"sampleRate,omitempty" default:"1.0"`
+	DSN         string  `mapstructure:"dsn" json:"dsn,omitempty"`
+	Environment string  `mapstructure:"environment" json:"environment,omitempty" default:"development"`
+	SampleRate  float64 `mapstructure:"sampleRate" json:"sampleRate,omitempty" default:"1.0"`
+	Enabled     bool    `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 type AnalyticsConfigFile struct {
@@ -352,20 +211,11 @@ type AnalyticsConfigFile struct {
 }
 
 type PosthogConfigFile struct {
-	// Enabled controls whether the Posthog service is enabled for this Hatchet instance.
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
-
-	// APIKey is the API key for the Posthog instance
-	ApiKey string `mapstructure:"apiKey" json:"apiKey,omitempty"`
-
-	// Endpoint is the endpoint for the Posthog instance
-	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty"`
-
-	// FeApiKey is the frontend API key for the Posthog instance
-	FeApiKey string `mapstructure:"feApiKey" json:"feApiKey,omitempty"`
-
-	// FeApiHost is the frontend API host for the Posthog instance
+	ApiKey    string `mapstructure:"apiKey" json:"apiKey,omitempty"`
+	Endpoint  string `mapstructure:"endpoint" json:"endpoint,omitempty"`
+	FeApiKey  string `mapstructure:"feApiKey" json:"feApiKey,omitempty"`
 	FeApiHost string `mapstructure:"feApiHost" json:"feApiHost,omitempty"`
+	Enabled   bool   `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 // Encryption options
@@ -400,35 +250,18 @@ type EncryptionConfigFileJWT struct {
 }
 
 type EncryptionConfigFileCloudKMS struct {
-	// Enabled controls whether the Cloud KMS service is enabled for this Hatchet instance.
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
-
-	// KeyURI is the URI of the key in Google Cloud KMS. This should be in the format of
-	// gcp-kms://...
-	KeyURI string `mapstructure:"keyURI" json:"keyURI,omitempty"`
-
-	// CredentialsJSON is the JSON credentials for the Google Cloud KMS service account.
+	KeyURI          string `mapstructure:"keyURI" json:"keyURI,omitempty"`
 	CredentialsJSON string `mapstructure:"credentialsJSON" json:"credentialsJSON,omitempty"`
+	Enabled         bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
 type ConfigFileAuth struct {
-	// RestrictedEmailDomains sets the restricted email domains for the instance.
-	// NOTE: do not use this on the server from the config file.
-	RestrictedEmailDomains string `mapstructure:"restrictedEmailDomains" json:"restrictedEmailDomains,omitempty"`
-
-	// BasedAuthEnabled controls whether email and password-based login is enabled for this
-	// Hatchet instance
-	BasicAuthEnabled bool `mapstructure:"basicAuthEnabled" json:"basicAuthEnabled,omitempty" default:"true"`
-
-	// SetEmailVerified controls whether the user's email is automatically set to verified
-	SetEmailVerified bool `mapstructure:"setEmailVerified" json:"setEmailVerified,omitempty" default:"false"`
-
-	// Configuration options for the cookie
-	Cookie ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
-
-	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
-
-	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
+	RestrictedEmailDomains string               `mapstructure:"restrictedEmailDomains" json:"restrictedEmailDomains,omitempty"`
+	Google                 ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
+	Github                 ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
+	Cookie                 ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
+	BasicAuthEnabled       bool                 `mapstructure:"basicAuthEnabled" json:"basicAuthEnabled,omitempty" default:"true"`
+	SetEmailVerified       bool                 `mapstructure:"setEmailVerified" json:"setEmailVerified,omitempty" default:"false"`
 }
 
 type ConfigFileTenantAlerting struct {
@@ -436,27 +269,24 @@ type ConfigFileTenantAlerting struct {
 }
 
 type ConfigFileSlack struct {
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
-
 	SlackAppClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	SlackAppClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	SlackAppScopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"incoming-webhook\"]"`
+	Enabled              bool     `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 type ConfigFileAuthGoogle struct {
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
-
 	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
+	Enabled      bool     `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
 type ConfigFileAuthGithub struct {
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
-
 	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"read:user\", \"user:email\"]"`
+	Enabled      bool     `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
 type ConfigFileAuthCookie struct {
@@ -467,13 +297,10 @@ type ConfigFileAuthCookie struct {
 }
 
 type MessageQueueConfigFile struct {
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
-
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required,oneof=rabbitmq postgres" default:"rabbitmq"`
-
+	Kind     string               `mapstructure:"kind" json:"kind,omitempty" validate:"required,oneof=rabbitmq postgres" default:"rabbitmq"`
+	RabbitMQ RabbitMQConfigFile   `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
 	Postgres PostgresMQConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
-
-	RabbitMQ RabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
+	Enabled  bool                 `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 }
 
 type PostgresMQConfigFile struct {
@@ -483,12 +310,12 @@ type PostgresMQConfigFile struct {
 type RabbitMQConfigFile struct {
 	URL                    string `mapstructure:"url" json:"url,omitempty" validate:"required"`
 	Qos                    int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+	CompressionThreshold   int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
+	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"5"`
 	MaxPubChans            int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
 	MaxSubChans            int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
 	CompressionEnabled     bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
-	CompressionThreshold   int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
 	EnableMessageRejection bool   `mapstructure:"enableMessageRejection" json:"enableMessageRejection,omitempty" default:"false"`
-	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"5"`
 }
 
 type ConfigFileEmail struct {
@@ -500,26 +327,18 @@ type ConfigFileEmail struct {
 }
 
 type ConfigFileMonitoring struct {
-	// Enabled controls whether the monitoring service is enabled for this Hatchet instance.
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
-
-	// PermittedTenants is a list of tenant IDs that are allowed to use the monitoring service.
-	PermittedTenants []string `mapstructure:"permittedTenants" json:"permittedTenants"`
-
-	// ProbeTimeout is the time to wait for the probe to complete
-	ProbeTimeout time.Duration `mapstructure:"probeTimeout" json:"probeTimeout,omitempty" default:"30s"`
-
-	// TLSRootCAFile is the path to the root CA file for the monitoring service
-	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
+	TLSRootCAFile    string        `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
+	PermittedTenants []string      `mapstructure:"permittedTenants" json:"permittedTenants"`
+	ProbeTimeout     time.Duration `mapstructure:"probeTimeout" json:"probeTimeout,omitempty" default:"30s"`
+	Enabled          bool          `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 }
 
 type PostmarkConfigFile struct {
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
-
 	ServerKey    string `mapstructure:"serverKey" json:"serverKey,omitempty"`
 	FromEmail    string `mapstructure:"fromEmail" json:"fromEmail,omitempty"`
 	FromName     string `mapstructure:"fromName" json:"fromName,omitempty" default:"Hatchet Support"`
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
+	Enabled      bool   `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 type SMTPEmailConfig struct {
@@ -546,23 +365,18 @@ type CustomAuthenticator interface {
 }
 
 type AuthConfig struct {
+	JWTManager             token.JWTManager
+	CustomAuthenticator    CustomAuthenticator
+	GoogleOAuthConfig      *oauth2.Config
+	GithubOAuthConfig      *oauth2.Config
+	ConfigFile             ConfigFileAuth
 	RestrictedEmailDomains []string
-
-	ConfigFile ConfigFileAuth
-
-	GoogleOAuthConfig *oauth2.Config
-
-	GithubOAuthConfig *oauth2.Config
-
-	JWTManager token.JWTManager
-
-	CustomAuthenticator CustomAuthenticator
 }
 
 type PylonConfig struct {
-	Enabled bool   `mapstructure:"enabled" json:"enabled,omitempty"`
 	AppID   string `mapstructure:"appID" json:"appID,omitempty"`
 	Secret  string `mapstructure:"secret" json:"secret,omitempty"`
+	Enabled bool   `mapstructure:"enabled" json:"enabled,omitempty"`
 }
 
 type FePosthogConfig struct {
@@ -571,71 +385,39 @@ type FePosthogConfig struct {
 }
 
 type ServerConfig struct {
-	*database.Layer
-
-	Auth AuthConfig
-
-	Alerter errors.Alerter
-
-	Analytics analytics.Analytics
-
-	Pylon *PylonConfig
-
-	FePosthog *FePosthogConfig
-
-	Encryption encryption.EncryptionService
-
-	Runtime ConfigFileRuntime
-
-	Services []string
-
-	PausedControllers map[string]bool
-
-	EnableDataRetention bool
-
-	EnableWorkerRetention bool
-
-	Namespaces []string
-
-	MessageQueueV1 msgqueue.MessageQueue
-
-	Logger *zerolog.Logger
-
-	AdditionalLoggers ConfigFileAdditionalLoggers
-
-	TLSConfig *tls.Config
-
-	InternalClientFactory *client.GRPCClientFactory
-
-	SessionStore *cookie.UserSessionStore
-
-	Validator validator.Validator
-
-	Ingestor ingestor.Ingestor
-
-	OpenTelemetry shared.OpenTelemetryConfigFile
-
-	Prometheus shared.PrometheusConfigFile
-
-	Email email.EmailService
-
-	TenantAlerter *alerting.TenantAlertManager
-
+	Auth                   AuthConfig
+	MessageQueueV1         msgqueue.MessageQueue
+	Alerter                errors.Alerter
+	Analytics              analytics.Analytics
+	Email                  email.EmailService
+	Ingestor               ingestor.Ingestor
+	Encryption             encryption.EncryptionService
+	Validator              validator.Validator
+	TenantAlerter          *alerting.TenantAlertManager
+	SessionStore           *cookie.UserSessionStore
+	PausedControllers      map[string]bool
+	SchedulingPoolV1       *v1.SchedulingPool
 	AdditionalOAuthConfigs map[string]*oauth2.Config
-
-	SchedulingPoolV1 *v1.SchedulingPool
-
-	Sampling ConfigFileSampling
-
-	Operations ConfigFileOperations
-
-	GRPCInterceptors []grpc.UnaryServerInterceptor
-
-	Version string
-
-	CronOperations CronOperationsConfigFile
-
-	OLAPStatusUpdates OLAPStatusUpdateConfigFile
+	*database.Layer
+	Logger                *zerolog.Logger
+	FePosthog             *FePosthogConfig
+	TLSConfig             *tls.Config
+	InternalClientFactory *client.GRPCClientFactory
+	Pylon                 *PylonConfig
+	Prometheus            shared.PrometheusConfigFile
+	AdditionalLoggers     ConfigFileAdditionalLoggers
+	Version               string
+	OpenTelemetry         shared.OpenTelemetryConfigFile
+	Services              []string
+	Namespaces            []string
+	GRPCInterceptors      []grpc.UnaryServerInterceptor
+	Runtime               ConfigFileRuntime
+	CronOperations        CronOperationsConfigFile
+	Sampling              ConfigFileSampling
+	Operations            ConfigFileOperations
+	OLAPStatusUpdates     OLAPStatusUpdateConfigFile
+	EnableWorkerRetention bool
+	EnableDataRetention   bool
 }
 
 type PayloadStoreConfig struct {

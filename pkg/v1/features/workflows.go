@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 )
@@ -38,8 +39,8 @@ type WorkflowsClient interface {
 // workflowsClientImpl implements the WorkflowsClient interface.
 type workflowsClientImpl struct {
 	api      *rest.ClientWithResponses
-	tenantId uuid.UUID
 	cache    *cache.Cache
+	tenantId uuid.UUID
 }
 
 // NewWorkflowsClient creates a new client for interacting with workflows.

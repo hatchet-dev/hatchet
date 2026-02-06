@@ -25,109 +25,51 @@ import (
 )
 
 type CreateTaskOpts struct {
-	// (required) the external id
-	ExternalId uuid.UUID `validate:"required"`
-
-	// (required) the workflow run id. note this may be the same as the external id if this is a
-	// single-task workflow, otherwise it represents the external id of the DAG.
-	WorkflowRunId uuid.UUID `validate:"required"`
-
-	// (required) the step id
-	StepId uuid.UUID `validate:"required"`
-
-	// (required) the input bytes to the task
-	Input *TaskInput
-
-	FilterPayload []byte
-
-	// (required) the step index for the task
-	StepIndex int
-
-	// (optional) the additional metadata for the task
-	AdditionalMetadata []byte
-
-	// (optional) the desired worker id
-	DesiredWorkerId *uuid.UUID
-
-	// (optional) the DAG id for the task
-	DagId *int64
-
-	// (optional) the DAG inserted at for the task
-	DagInsertedAt pgtype.Timestamptz
-
-	// (required) the initial state for the task
-	InitialState sqlcv1.V1TaskInitialState
-
-	// (optional) the parent task external id
-	ParentTaskExternalId *uuid.UUID
-
-	// (optional) the parent task id
-	ParentTaskId *int64
-
-	// (optional) the parent task inserted at
+	ParentTaskId         *int64
+	DagId                *int64
+	ChildKey             *string
+	Input                *TaskInput
+	ChildIndex           *int64
+	Priority             *int32
 	ParentTaskInsertedAt *time.Time
-
-	// (optional) The priority of a task, between 1 and 3
-	Priority *int32
-
-	// (optional) the child index for the task
-	ChildIndex *int64
-
-	// (optional) the child key for the task
-	ChildKey *string
+	DesiredWorkerId      *uuid.UUID
+	ParentTaskExternalId *uuid.UUID
+	DagInsertedAt        pgtype.Timestamptz
+	InitialState         sqlcv1.V1TaskInitialState
+	AdditionalMetadata   []byte
+	FilterPayload        []byte
+	StepIndex            int
+	WorkflowRunId        uuid.UUID `validate:"required"`
+	ExternalId           uuid.UUID `validate:"required"`
+	StepId               uuid.UUID `validate:"required"`
 }
 
 type ReplayTasksResult struct {
-	ReplayedTasks []TaskIdInsertedAtRetryCount
-
-	UpsertedTasks []*V1TaskWithPayload
-
 	InternalEventResults *EventMatchResults
+	ReplayedTasks        []TaskIdInsertedAtRetryCount
+	UpsertedTasks        []*V1TaskWithPayload
 }
 
 type ReplayTaskOpts struct {
-	// (required) the task id
-	TaskId int64
-
-	// (required) the inserted at time
-	InsertedAt pgtype.Timestamptz
-
-	// (required) the external id
-	ExternalId uuid.UUID
-
-	// (required) the step id
-	StepId uuid.UUID
-
-	// (optional) the input bytes to the task, uses the existing input if not set
-	Input *TaskInput
-
-	// (required) the initial state for the task
-	InitialState sqlcv1.V1TaskInitialState
-
-	// (optional) the additional metadata for the task
+	Input              *TaskInput
+	InsertedAt         pgtype.Timestamptz
+	InitialState       sqlcv1.V1TaskInitialState
 	AdditionalMetadata []byte
+	TaskId             int64
+	ExternalId         uuid.UUID
+	StepId             uuid.UUID
 }
 
 type TaskIdInsertedAtRetryCount struct {
-	// (required) the external id
-	Id int64 `validate:"required"`
-
-	// (required) the inserted at time
 	InsertedAt pgtype.Timestamptz
-
-	// (required) the retry count
+	Id         int64 `validate:"required"`
 	RetryCount int32
 }
 
 type TaskIdInsertedAtSignalKey struct {
-	// (required) the external id
-	Id int64 `validate:"required"`
-
-	// (required) the inserted at time
 	InsertedAt pgtype.Timestamptz
-
-	// (required) the signal key for the event
-	SignalKey string
+	SignalKey  string
+	Id         int64 `validate:"required"`
 }
 
 type CompleteTaskOpts struct {
@@ -139,33 +81,26 @@ type CompleteTaskOpts struct {
 
 type FailTaskOpts struct {
 	*TaskIdInsertedAtRetryCount
-
-	// (required) whether this is an application-level error or an internal error on the Hatchet side
-	IsAppError bool
-
-	// (optional) the error message for the task
-	ErrorMessage string
-
-	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
+	ErrorMessage   string
+	IsAppError     bool
 	IsNonRetryable bool
 }
 
 type TaskIdEventKeyTuple struct {
-	Id int64 `validate:"required"`
-
 	EventKey string `validate:"required"`
+	Id       int64  `validate:"required"`
 }
 
 // InternalTaskEvent resembles sqlcv1.V1TaskEvent, but doesn't include the id field as we
 // use COPY FROM to write the events to the database.
 type InternalTaskEvent struct {
-	TenantID       uuid.UUID              `json:"tenant_id"`
-	TaskID         int64                  `json:"task_id"`
-	TaskExternalID uuid.UUID              `json:"task_external_id"`
-	RetryCount     int32                  `json:"retry_count"`
 	EventType      sqlcv1.V1TaskEventType `json:"event_type"`
 	EventKey       string                 `json:"event_key"`
 	Data           []byte                 `json:"data"`
+	TaskID         int64                  `json:"task_id"`
+	RetryCount     int32                  `json:"retry_count"`
+	TenantID       uuid.UUID              `json:"tenant_id"`
+	TaskExternalID uuid.UUID              `json:"task_external_id"`
 }
 
 type FinalizedTaskResponse struct {
@@ -199,15 +134,13 @@ type TimeoutTasksResponse struct {
 }
 
 type ListFinalizedWorkflowRunsResponse struct {
+	OutputEvents  []*TaskOutputEvent
 	WorkflowRunId uuid.UUID
-
-	OutputEvents []*TaskOutputEvent
 }
 
 type RefreshTimeoutBy struct {
-	TaskExternalId uuid.UUID `validate:"required"`
-
-	IncrementTimeoutBy string `validate:"required,duration"`
+	IncrementTimeoutBy string    `validate:"required,duration"`
+	TaskExternalId     uuid.UUID `validate:"required"`
 }
 
 type TaskRepository interface {
@@ -3199,8 +3132,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		for _, task := range tasks {
 			taskExternalId := task.ExternalID
 			stepId := task.StepID
-			switch {
-			case task.JobKind == sqlcv1.JobKindONFAILURE:
+			switch task.JobKind {
+			case sqlcv1.JobKindONFAILURE:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
@@ -3890,17 +3823,17 @@ type TaskStat struct {
 
 // TaskStatusStat represents statistics for a specific task status (queued or running)
 type TaskStatusStat struct {
-	Total       int64             `json:"total"`
 	Oldest      *time.Time        `json:"oldest,omitempty"`
 	Queues      map[string]int64  `json:"queues,omitempty"`
 	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
+	Total       int64             `json:"total"`
 }
 
 // ConcurrencyStat represents concurrency information for a task
 type ConcurrencyStat struct {
+	Keys       map[string]int64 `json:"keys"`
 	Expression string           `json:"expression"`
 	Type       string           `json:"type"`
-	Keys       map[string]int64 `json:"keys"`
 }
 
 func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error) {
@@ -4024,8 +3957,8 @@ func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*tim
 type TaskRunDetails struct {
 	Error         *string
 	Status        statusutils.V1RunStatus
-	ExternalId    uuid.UUID
 	OutputPayload []byte
+	ExternalId    uuid.UUID
 }
 
 type StepReadableId string

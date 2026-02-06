@@ -16,12 +16,11 @@ import (
 )
 
 type Health struct {
-	shuttingDown bool
+	repository   v1.HealthRepository
+	queue        msgqueue.MessageQueue
+	l            *zerolog.Logger
 	version      string
-
-	repository v1.HealthRepository
-	queue      msgqueue.MessageQueue
-	l          *zerolog.Logger
+	shuttingDown bool
 }
 
 func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {

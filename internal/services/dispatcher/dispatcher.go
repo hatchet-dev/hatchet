@@ -30,24 +30,22 @@ type Dispatcher interface {
 
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
-
+	dv                          datautils.DataDecoderValidator
 	s                           gocron.Scheduler
 	mqv1                        msgqueue.MessageQueue
-	pubBuffer                   *msgqueue.MQPubBuffer
-	sharedNonBufferedReaderv1   *msgqueue.SharedTenantReader
-	sharedBufferedReaderv1      *msgqueue.SharedBufferedTenantReader
-	l                           *zerolog.Logger
-	dv                          datautils.DataDecoderValidator
-	v                           validator.Validator
-	repov1                      v1.Repository
 	cache                       cache.Cacheable
+	repov1                      v1.Repository
+	v                           validator.Validator
+	sharedNonBufferedReaderv1   *msgqueue.SharedTenantReader
+	l                           *zerolog.Logger
+	sharedBufferedReaderv1      *msgqueue.SharedBufferedTenantReader
+	pubBuffer                   *msgqueue.MQPubBuffer
+	workers                     *workers
+	a                           *hatcheterrors.Wrapped
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
-
-	dispatcherId uuid.UUID
-	workers      *workers
-	a            *hatcheterrors.Wrapped
+	dispatcherId                uuid.UUID
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -115,15 +113,15 @@ type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
 	mqv1                        msgqueue.MessageQueue
-	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	repov1                      v1.Repository
-	dispatcherId                uuid.UUID
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
+	l                           *zerolog.Logger
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	dispatcherId                uuid.UUID
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {

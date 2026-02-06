@@ -14,20 +14,11 @@ import (
 )
 
 type CronOpts struct {
-	// Name is the user-friendly name for the cron trigger
-	Name string
-
-	// Expression is the cron expression for the trigger
-	Expression string
-
-	// Input is the input to the workflow
-	Input map[string]interface{}
-
-	// AdditionalMetadata is additional metadata to be stored with the cron trigger
+	Input              map[string]interface{}
 	AdditionalMetadata map[string]string
-
-	// Priority is the priority of the run triggered by the cron
-	Priority *int32
+	Priority           *int32
+	Name               string
+	Expression         string
 }
 
 type CronClient interface {
@@ -42,15 +33,11 @@ type CronClient interface {
 }
 
 type cronClientImpl struct {
+	v          validator.Validator
 	restClient *rest.ClientWithResponses
-
-	l *zerolog.Logger
-
-	v validator.Validator
-
-	tenantId uuid.UUID
-
-	namespace string
+	l          *zerolog.Logger
+	namespace  string
+	tenantId   uuid.UUID
 }
 
 func NewCronClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId, namespace string) (CronClient, error) {

@@ -40,10 +40,10 @@ type RunsClient interface {
 
 // runsClientImpl implements the RunsClient interface.
 type runsClientImpl struct {
-	api      *rest.ClientWithResponses
-	tenantId uuid.UUID
 	v0Client client.Client
+	api      *rest.ClientWithResponses
 	l        *zerolog.Logger
+	tenantId uuid.UUID
 }
 
 // NewRunsClient creates a new client for interacting with workflow runs.

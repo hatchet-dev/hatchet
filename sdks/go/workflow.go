@@ -109,15 +109,15 @@ func (w *Workflow) GetName() string {
 type WorkflowOption func(*workflowConfig)
 
 type workflowConfig struct {
-	onCron          []string
-	onEvents        []string
-	concurrency     []types.Concurrency
-	version         string
-	description     string
 	taskDefaults    *create.TaskDefaults
 	defaultPriority *RunPriority
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
+	version         string
+	description     string
+	onCron          []string
+	onEvents        []string
+	concurrency     []types.Concurrency
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -237,21 +237,21 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 type TaskOption func(*taskConfig)
 
 type taskConfig struct {
-	retries                int32
-	retryBackoffFactor     float32
-	retryMaxBackoffSeconds int32
-	executionTimeout       time.Duration
-	scheduleTimeout        time.Duration
+	waitFor                condition.Condition
+	skipIf                 condition.Condition
+	description            string
+	rateLimits             []*types.RateLimit
 	onCron                 []string
 	onEvents               []string
 	defaultFilters         []types.DefaultFilter
 	concurrency            []*types.Concurrency
-	rateLimits             []*types.RateLimit
-	isDurable              bool
 	parents                []create.NamedTask
-	waitFor                condition.Condition
-	skipIf                 condition.Condition
-	description            string
+	scheduleTimeout        time.Duration
+	executionTimeout       time.Duration
+	retries                int32
+	retryMaxBackoffSeconds int32
+	retryBackoffFactor     float32
+	isDurable              bool
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.

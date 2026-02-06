@@ -61,15 +61,15 @@ FROM filtered
 `
 
 type CountTasksParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Since                     pgtype.Timestamptz `json:"since"`
-	Statuses                  []string           `json:"statuses"`
-	Until                     pgtype.Timestamptz `json:"until"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
 	WorkerId                  *uuid.UUID         `json:"workerId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -141,15 +141,15 @@ FROM filtered
 `
 
 type CountWorkflowRunsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Statuses                  []string           `json:"statuses"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	Since                     pgtype.Timestamptz `json:"since"`
-	Until                     pgtype.Timestamptz `json:"until"`
-	Keys                      []string           `json:"keys"`
-	Values                    []string           `json:"values"`
 	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
 	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -217,23 +217,23 @@ OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Statuses                  []string           `json:"statuses"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
+	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
 	Since                     pgtype.Timestamptz `json:"since"`
 	Until                     pgtype.Timestamptz `json:"until"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
 	Listworkflowrunsoffset    int32              `json:"listworkflowrunsoffset"`
 	Listworkflowrunslimit     int32              `json:"listworkflowrunslimit"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 }
 
 type FetchWorkflowRunIdsRow struct {
-	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	Kind       V1RunKind          `json:"kind"`
+	ID         int64              `json:"id"`
 	ExternalID uuid.UUID          `json:"external_id"`
 }
 
@@ -325,22 +325,22 @@ OFFSET $9::integer
 `
 
 type ListTasksOlapParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Since                     pgtype.Timestamptz `json:"since"`
-	Statuses                  []string           `json:"statuses"`
-	Until                     pgtype.Timestamptz `json:"until"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
 	WorkerId                  *uuid.UUID         `json:"workerId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
 	Taskoffset                int32              `json:"taskoffset"`
 	Tasklimit                 int32              `json:"tasklimit"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Tenantid                  uuid.UUID          `json:"tenantid"`
 }
 
 type ListTasksOlapRow struct {
-	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	ID         int64              `json:"id"`
 }
 
 func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapParams) ([]*ListTasksOlapRow, error) {
@@ -456,18 +456,18 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 }
 
 type CutoverOLAPPayloadToInsert struct {
-	TenantID            uuid.UUID
 	InsertedAt          pgtype.Timestamptz
-	ExternalID          uuid.UUID
 	ExternalLocationKey string
-	InlineContent       []byte
 	Location            V1PayloadLocationOlap
+	InlineContent       []byte
+	TenantID            uuid.UUID
+	ExternalID          uuid.UUID
 }
 
 type InsertCutOverOLAPPayloadsIntoTempTableRow struct {
+	InsertedAt pgtype.Timestamptz
 	TenantId   uuid.UUID
 	ExternalId uuid.UUID
-	InsertedAt pgtype.Timestamptz
 }
 
 func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverOLAPPayloadToInsert) (*InsertCutOverOLAPPayloadsIntoTempTableRow, error) {

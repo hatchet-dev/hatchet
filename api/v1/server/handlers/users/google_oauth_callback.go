@@ -127,10 +127,10 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 
 type googleUserInfo struct {
 	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
 	HD            string `json:"hd"`
 	Sub           string `json:"sub"`
 	Name          string `json:"name"`
+	EmailVerified bool   `json:"email_verified"`
 }
 
 func getGoogleUserInfoFromToken(tok *oauth2.Token) (*googleUserInfo, error) {

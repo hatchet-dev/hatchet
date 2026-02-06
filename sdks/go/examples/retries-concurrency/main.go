@@ -21,9 +21,9 @@ type TaskInput struct {
 
 type TaskOutput struct {
 	ID          string `json:"id"`
-	Attempt     int    `json:"attempt"`
 	ProcessedAt string `json:"processed_at"`
 	Result      string `json:"result"`
+	Attempt     int    `json:"attempt"`
 }
 
 func main() {

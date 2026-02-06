@@ -365,8 +365,8 @@ const (
 )
 
 type ValidationError struct {
-	Code      HttpResponseCode
 	ErrorText string
+	Code      HttpResponseCode
 }
 
 func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, error) {

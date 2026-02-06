@@ -11,36 +11,25 @@ import (
 )
 
 type ConfigFile struct {
-	PostgresHost     string `mapstructure:"host" json:"host,omitempty" default:"127.0.0.1"`
-	PostgresPort     int    `mapstructure:"port" json:"port,omitempty" default:"5431"`
-	PostgresUsername string `mapstructure:"username" json:"username,omitempty" default:"hatchet"`
-	PostgresPassword string `mapstructure:"password" json:"password,omitempty" default:"hatchet"`
-	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
-	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
-
-	ReadReplicaEnabled     bool   `mapstructure:"readReplicaEnabled" json:"readReplicaEnabled,omitempty" default:"false"`
-	ReadReplicaDatabaseURL string `mapstructure:"readReplicaDatabaseUrl" json:"readReplicaDatabaseUrl,omitempty" default:""`
-	ReadReplicaMaxConns    int    `mapstructure:"readReplicaMaxConns" json:"readReplicaMaxConns,omitempty" default:"50"`
-	ReadReplicaMinConns    int    `mapstructure:"readReplicaMinConns" json:"readReplicaMinConns,omitempty" default:"10"`
-
-	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
-	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
-
-	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
-	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
-
-	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
-
-	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
-
-	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
-
-	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"5s"`
-
-	// EnforceUTCTimezone enforces that the database instance timezone is set to UTC.
-	// If enabled and the database timezone is not UTC, the server will panic on startup.
-	// To disable this check, set DATABASE_ENFORCE_UTC_TIMEZONE=false
-	EnforceUTCTimezone bool `mapstructure:"enforceUtcTimezone" json:"enforceUtcTimezone,omitempty" default:"true"`
+	Logger                 shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
+	PostgresHost           string                  `mapstructure:"host" json:"host,omitempty" default:"127.0.0.1"`
+	PostgresUsername       string                  `mapstructure:"username" json:"username,omitempty" default:"hatchet"`
+	PostgresPassword       string                  `mapstructure:"password" json:"password,omitempty" default:"hatchet"`
+	PostgresDbName         string                  `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
+	PostgresSSLMode        string                  `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
+	ReadReplicaDatabaseURL string                  `mapstructure:"readReplicaDatabaseUrl" json:"readReplicaDatabaseUrl,omitempty" default:""`
+	Seed                   SeedConfigFile          `mapstructure:"seed" json:"seed,omitempty"`
+	ReadReplicaMaxConns    int                     `mapstructure:"readReplicaMaxConns" json:"readReplicaMaxConns,omitempty" default:"50"`
+	ReadReplicaMinConns    int                     `mapstructure:"readReplicaMinConns" json:"readReplicaMinConns,omitempty" default:"10"`
+	MaxConns               int                     `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
+	MinConns               int                     `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
+	MaxQueueConns          int                     `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
+	MinQueueConns          int                     `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
+	PostgresPort           int                     `mapstructure:"port" json:"port,omitempty" default:"5431"`
+	CacheDuration          time.Duration           `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"5s"`
+	ReadReplicaEnabled     bool                    `mapstructure:"readReplicaEnabled" json:"readReplicaEnabled,omitempty" default:"false"`
+	LogQueries             bool                    `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
+	EnforceUTCTimezone     bool                    `mapstructure:"enforceUtcTimezone" json:"enforceUtcTimezone,omitempty" default:"true"`
 }
 
 type SeedConfigFile struct {

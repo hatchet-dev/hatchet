@@ -21,11 +21,11 @@ type TenantInviteEmailData struct {
 }
 
 type WorkflowRunsFailedEmailData struct {
-	Items        []alerttypes.WorkflowRunFailedItem `json:"items"`
 	Subject      string                             `json:"subject"`
 	Summary      string                             `json:"summary"`
 	TenantName   string                             `json:"tenant_name"`
 	SettingsLink string                             `json:"settings_link"`
+	Items        []alerttypes.WorkflowRunFailedItem `json:"items"`
 }
 
 type ExpiringTokenEmailData struct {
@@ -46,10 +46,10 @@ type ResourceLimitAlertData struct {
 	Link         string `json:"link"`
 	Resource     string `json:"resource"`
 	AlertType    string `json:"alert_type"`
+	SettingsLink string `json:"settings_link"`
 	CurrentValue int    `json:"current_value"`
 	LimitValue   int    `json:"limit_value"`
 	Percentage   int    `json:"percentage"`
-	SettingsLink string `json:"settings_link"`
 }
 
 type SendEmailFromTemplateRequest struct {

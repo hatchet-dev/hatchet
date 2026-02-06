@@ -19,22 +19,22 @@ var l zerolog.Logger
 
 // LoadTestConfig holds all configuration for the load test
 type LoadTestConfig struct {
+	PayloadSize              string
+	RlDurationUnit           string
 	Namespace                string
-	Events                   int
-	Concurrency              int
-	Duration                 time.Duration
+	RlKeys                   int
 	Wait                     time.Duration
 	Delay                    time.Duration
 	WorkerDelay              time.Duration
 	Slots                    int
-	FailureRate              float32
-	PayloadSize              string
+	Duration                 time.Duration
 	EventFanout              int
 	DagSteps                 int
-	RlKeys                   int
+	Concurrency              int
 	RlLimit                  int
-	RlDurationUnit           string
+	Events                   int
 	AverageDurationThreshold time.Duration
+	FailureRate              float32
 }
 
 func main() {

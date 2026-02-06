@@ -14,9 +14,9 @@ import (
 )
 
 type Event struct {
-	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Payload   string    `json:"payload"`
+	ID        int64     `json:"id"`
 }
 
 func parseSize(s string) int {

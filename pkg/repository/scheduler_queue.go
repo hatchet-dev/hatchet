@@ -18,25 +18,20 @@ import (
 
 type RateLimitResult struct {
 	*sqlcv1.V1QueueItem
-
+	NextRefillAt   *time.Time
+	TaskInsertedAt pgtype.Timestamptz
 	ExceededKey    string
+	TaskId         int64
 	ExceededUnits  int32
 	ExceededVal    int32
-	NextRefillAt   *time.Time
-	TaskId         int64
-	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
 }
 
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
-	WorkerId uuid.UUID
-
-	QueueItem *sqlcv1.V1QueueItem
-
-	// IsAssignedLocally refers to whether the item has been assigned to a worker registered in the same
-	// process as the scheduler process.
+	QueueItem         *sqlcv1.V1QueueItem
+	WorkerId          uuid.UUID
 	IsAssignedLocally bool
 }
 
@@ -64,16 +59,12 @@ func (q *queueFactoryRepository) NewQueue(tenantId uuid.UUID, queueName string) 
 
 type queueRepository struct {
 	*sharedRepository
-
-	tenantId  uuid.UUID
-	queueName string
-
-	gtId   pgtype.Int8
-	gtIdMu sync.RWMutex
-
-	updateMinIdMu sync.Mutex
-
 	cachedStepIdHasRateLimit *cache.Cache
+	queueName                string
+	gtId                     pgtype.Int8
+	gtIdMu                   sync.RWMutex
+	updateMinIdMu            sync.Mutex
+	tenantId                 uuid.UUID
 }
 
 func newQueueRepository(shared *sharedRepository, tenantId uuid.UUID, queueName string) *queueRepository {

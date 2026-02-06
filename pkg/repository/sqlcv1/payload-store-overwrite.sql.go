@@ -9,21 +9,21 @@ import (
 )
 
 type CutoverPayloadToInsert struct {
-	TenantID            uuid.UUID
-	ID                  int64
 	InsertedAt          pgtype.Timestamptz
-	ExternalID          uuid.UUID
 	Type                V1PayloadType
 	ExternalLocationKey string
-	InlineContent       []byte
 	Location            V1PayloadLocation
+	InlineContent       []byte
+	ID                  int64
+	TenantID            uuid.UUID
+	ExternalID          uuid.UUID
 }
 
 type InsertCutOverPayloadsIntoTempTableRow struct {
-	TenantId   uuid.UUID
-	ID         int64
 	InsertedAt pgtype.Timestamptz
 	Type       V1PayloadType
+	ID         int64
+	TenantId   uuid.UUID
 }
 
 func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (*InsertCutOverPayloadsIntoTempTableRow, error) {

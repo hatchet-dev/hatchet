@@ -109,38 +109,34 @@ const (
 
 type JobRunLookupData struct {
 	Input       map[string]interface{} `json:"input"`
-	TriggeredBy TriggeredBy            `json:"triggered_by"`
 	Steps       map[string]StepData    `json:"steps,omitempty"`
+	TriggeredBy TriggeredBy            `json:"triggered_by"`
 }
 
 type StepRunData struct {
 	Input              map[string]interface{}            `json:"input"`
-	TriggeredBy        TriggeredBy                       `json:"triggered_by"`
 	Parents            map[string]StepData               `json:"parents"`
 	Triggers           map[string]map[string]interface{} `json:"triggers,omitempty"`
 	AdditionalMetadata map[string]string                 `json:"additional_metadata"`
 	UserData           map[string]interface{}            `json:"user_data"`
 	StepRunErrors      map[string]string                 `json:"step_run_errors,omitempty"`
+	TriggeredBy        TriggeredBy                       `json:"triggered_by"`
 }
 
 type StepData map[string]interface{}
 
 type hatchetContext struct {
 	context.Context
-
-	w *hatchetWorkerContext
-
-	a        *client.Action
-	stepData *StepRunData
-	c        client.Client
-	l        *zerolog.Logger
-
-	i          int
-	indexMu    sync.Mutex
-	listener   *client.WorkflowRunsListener
-	listenerMu sync.Mutex
-
+	c                  client.Client
+	w                  *hatchetWorkerContext
+	a                  *client.Action
+	stepData           *StepRunData
+	l                  *zerolog.Logger
+	listener           *client.WorkflowRunsListener
+	i                  int
 	streamEventIndex   int64
+	indexMu            sync.Mutex
+	listenerMu         sync.Mutex
 	streamEventIndexMu sync.Mutex
 }
 
@@ -424,11 +420,11 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 }
 
 type SpawnWorkflowsOpts struct {
-	WorkflowName       string
 	Input              any
 	Key                *string
 	Sticky             *bool
 	AdditionalMetadata *map[string]string
+	WorkflowName       string
 }
 
 func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error) {
@@ -716,11 +712,9 @@ type DurableHatchetContext interface {
 // durableHatchetContext implements the DurableHatchetContext interface.
 type durableHatchetContext struct {
 	*hatchetContext
-
-	waitKeyCounterMu sync.Mutex
-	waitKeyCounter   int
-
 	durableEventListener *client.DurableEventsListener
+	waitKeyCounter       int
+	waitKeyCounterMu     sync.Mutex
 	durableListenerMu    sync.Mutex
 }
 

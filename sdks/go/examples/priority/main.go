@@ -18,10 +18,10 @@ type PriorityInput struct {
 }
 
 type PriorityOutput struct {
-	ProcessedMessage string    `json:"processed_message"`
-	Priority         int32     `json:"priority"`
 	ProcessedAt      time.Time `json:"processed_at"`
+	ProcessedMessage string    `json:"processed_message"`
 	UserID           string    `json:"user_id"`
+	Priority         int32     `json:"priority"`
 }
 
 func main() {

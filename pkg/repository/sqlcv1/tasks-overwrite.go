@@ -333,7 +333,6 @@ RETURNING
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
@@ -341,6 +340,7 @@ type CreateTaskEventsParams struct {
 	Eventkeys       []pgtype.Text        `json:"eventkeys"`
 	Datas           [][]byte             `json:"datas"`
 	Externalids     []uuid.UUID          `json:"externalids"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
@@ -763,16 +763,16 @@ type ReleaseTasksParams struct {
 }
 
 type ReleaseTasksRow struct {
-	Queue                  string             `json:"queue"`
-	ID                     int64              `json:"id"`
 	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID             uuid.UUID          `json:"external_id"`
+	Queue                  string             `json:"queue"`
 	StepReadableID         string             `json:"step_readable_id"`
+	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
+	ID                     int64              `json:"id"`
+	RetryCount             int32              `json:"retry_count"`
+	ExternalID             uuid.UUID          `json:"external_id"`
 	WorkflowRunID          uuid.UUID          `json:"workflow_run_id"`
 	WorkerID               uuid.UUID          `json:"worker_id"`
-	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
-	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {

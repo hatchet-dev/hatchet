@@ -164,23 +164,11 @@ func NewErrFailedRequestValidation(valErrors ...string) error {
 // validator `FieldError` type, but can be used generically for any request validation
 // issues that occur downstream.
 type ValidationErrObject struct {
-	// Field is the request field that has a validation error.
-	Field string
-
-	// Namespace contains a path to the field which has a validation error
-	Namespace string
-
-	// Condition is the condition that was not satisfied, resulting in the validation
-	// error
-	Condition string
-
-	// Param is an optional field that shows a parameter that was not satisfied. For example,
-	// the field value was not found in the set [ "value1", "value2" ], so "value1", "value2"
-	// is the parameter in this case.
-	Param string
-
-	// ActualValue is the actual value of the field that failed validation.
 	ActualValue interface{}
+	Field       string
+	Namespace   string
+	Condition   string
+	Param       string
 }
 
 // NewValidationErrObject simply returns a ValidationErrObject from a go-playground v10

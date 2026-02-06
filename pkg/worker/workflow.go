@@ -138,23 +138,14 @@ type Workflow struct {
 type GetWorkflowConcurrencyGroupFn func(ctx HatchetContext) (string, error)
 
 type WorkflowJob struct {
-	// The name of the job
-	Name string
-
-	Description string
-
-	On triggerConverter
-
-	Concurrency *WorkflowConcurrency
-
-	// The steps that are run in the job
-	Steps []*WorkflowStep
-
-	OnFailure *WorkflowJob
-
+	On              triggerConverter
+	Concurrency     *WorkflowConcurrency
+	OnFailure       *WorkflowJob
+	StickyStrategy  *types.StickyStrategy
+	Name            string
+	Description     string
 	ScheduleTimeout string
-
-	StickyStrategy *types.StickyStrategy
+	Steps           []*WorkflowStep
 }
 
 type WorkflowConcurrency struct {
@@ -304,43 +295,25 @@ func (j *WorkflowJob) ToActionMap(svcName string) ActionMap {
 }
 
 type WorkflowStep struct {
-	// The step timeout
-	Timeout string
-
-	// The executed function
-	Function any
-
-	// The step id/name. If not set, one will be generated from the function name
-	Name string
-
-	// The ids of the parents
-	Parents []string
-
-	Retries int
-
-	RetryBackoffFactor *float32
-
+	Function               any
+	RetryBackoffFactor     *float32
 	RetryMaxBackoffSeconds *int32
-
-	RateLimit []RateLimit
-
-	DesiredLabels map[string]*types.DesiredWorkerLabel
-
-	Compute *compute.Compute
+	DesiredLabels          map[string]*types.DesiredWorkerLabel
+	Compute                *compute.Compute
+	Timeout                string
+	Name                   string
+	Parents                []string
+	RateLimit              []RateLimit
+	Retries                int
 }
 
 type RateLimit struct {
-	// Key is the rate limit key
-	Key     string  `yaml:"key,omitempty"`
-	KeyExpr *string `yaml:"keyExpr,omitempty"`
-
-	// Units is the amount of units this step consumes
-	Units          *int    `yaml:"units,omitempty"`
-	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
-	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
-
-	// Duration is the duration of the rate limit
-	Duration *types.RateLimitDuration `yaml:"duration,omitempty"`
+	KeyExpr        *string                  `yaml:"keyExpr,omitempty"`
+	Units          *int                     `yaml:"units,omitempty"`
+	UnitsExpr      *string                  `yaml:"unitsExpr,omitempty"`
+	LimitValueExpr *string                  `yaml:"limitValueExpr,omitempty"`
+	Duration       *types.RateLimitDuration `yaml:"duration,omitempty"`
+	Key            string                   `yaml:"key,omitempty"`
 }
 
 func Fn(f any) *WorkflowStep {
@@ -428,15 +401,10 @@ func (w *WorkflowStep) ToActionMap(svcName string) ActionMap {
 }
 
 type Step struct {
-	Id string
-
-	// non-ctx input is not optional
-	NonCtxInput reflect.Type
-
-	// non-err output is optional
+	APIStep      types.WorkflowStep
+	NonCtxInput  reflect.Type
 	NonErrOutput *reflect.Type
-
-	APIStep types.WorkflowStep
+	Id           string
 }
 
 func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace string) (*Step, error) {
