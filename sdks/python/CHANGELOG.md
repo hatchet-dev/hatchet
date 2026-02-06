@@ -11,14 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated gRPC/REST contract field names to snake_case for consistency across SDKs.
 
-
 ## [1.22.16] - 2026-02-05
 
 ### Changed
 
 - Changes the python SDK to use `inspect.iscoroutinefunction` instead of `asyncio.iscoroutinefunction` which is deprecated.
 - Improves error diagnostics for transport-level failures in the REST client, such as SSL, connection, and timeout errors, by surfacing additional context.
-
 ## [1.22.15] - 2026-02-02
 
 ### Added

@@ -11,14 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated gRPC/REST contract field names to lowerCamelCase for consistency across SDKs.
 
-
-## [1.11.0] - 2026-02-04
-
 ### Changed
 
 - Updated the metrics client for the latest server metrics APIs (including adding `getTaskStatusMetrics` for tenant task/run status counts).
 - Removes deprecated metrics methods.
-
 ## [1.10.8] - 2026-02-02
 
 ### Changed
