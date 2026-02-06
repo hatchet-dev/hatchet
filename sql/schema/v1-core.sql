@@ -2249,11 +2249,13 @@ CREATE TABLE v1_durable_event_log_entry (
     -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
-    durable_task_id BIGINT NOT NULL,
-    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     -- The inserted_at time of this event from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
     inserted_at TIMESTAMPTZ NOT NULL,
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    durable_task_id BIGINT NOT NULL,
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     kind v1_durable_event_log_entry_kind,
     -- The node number in the durable event log. This represents a monotonically increasing
     -- sequence value generated from v1_durable_event_log_file.latest_node_id
@@ -2296,11 +2298,14 @@ CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
 --    and direct queries from the engine side to mark a callback as satisfied when we've satisfied a v1_match. Because
 --    of this, we likely need to add a `callback_key` field to the v1_match table.
 CREATE TABLE v1_durable_event_log_callback (
-    durable_task_id BIGINT NOT NULL,
-    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
+    external_id UUID NOT NULL,
     -- The inserted_at time of this callback from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
     inserted_at TIMESTAMPTZ NOT NULL,
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    durable_task_id BIGINT NOT NULL,
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     kind v1_durable_event_log_callback_kind,
     -- A unique, generated key for this callback. This key will change dependent on the callback kind.
     -- Important: this key should be easily queryable directly from the durable log writers but also the controllers
