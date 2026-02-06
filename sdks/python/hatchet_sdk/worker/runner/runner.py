@@ -520,13 +520,13 @@ class Runner:
             warning_threshold = (
                 self.config.cancellation_warning_threshold.total_seconds()
             )
-            grace_period_ms = int(round(grace_period * 1000))
-            warning_threshold_ms = int(round(warning_threshold * 1000))
+            grace_period_ms = round(grace_period * 1000)
+            warning_threshold_ms = round(warning_threshold * 1000)
 
             # Wait until warning threshold
             await asyncio.sleep(warning_threshold)
             elapsed = time.monotonic() - start_time
-            elapsed_ms = int(round(elapsed * 1000))
+            elapsed_ms = round(elapsed * 1000)
 
             # Check if task is still running after warning threshold
             task_was_running = key in self.tasks and not self.tasks[key].done()
@@ -572,7 +572,7 @@ class Runner:
 
                 # Log final status for slow cancellation
                 total_elapsed = time.monotonic() - start_time
-                total_elapsed_ms = int(round(total_elapsed * 1000))
+                total_elapsed_ms = round(total_elapsed * 1000)
                 if total_elapsed > grace_period:
                     logger.warning(
                         f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
