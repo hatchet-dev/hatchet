@@ -123,6 +123,7 @@ class CancellationToken:
         This will block until cancel() is called.
         """
         await self._get_async_event().wait()
+
         logger.debug(
             f"CancellationToken: async wait completed (cancelled), "
             f"reason={self._reason.value if self._reason else 'none'}"

@@ -114,7 +114,6 @@ async def await_with_cancellation(
         result = await await_with_cancellation(
             long_running_task(),
             token,
-            cancel_callback=cleanup,
         )
         ```
     """
@@ -139,6 +138,7 @@ async def await_with_cancellation(
         result = await race_against_token(main_task, token)
         logger.debug("await_with_cancellation: completed successfully")
         return result
+
 
     except asyncio.CancelledError:
         logger.debug("await_with_cancellation: cancelled")
