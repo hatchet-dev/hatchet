@@ -422,7 +422,6 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	req *contracts.DurableTaskRequestRegisterWorker,
 ) error {
 	invocation.workerId = req.WorkerId
-	d.l.Debug().Str("worker_id", req.WorkerId).Msg("registered durable task worker")
 
 	return invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_RegisterWorker{
@@ -715,11 +714,6 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
-	d.l.Debug().
-		Int64("invocation_count", req.InvocationCount).
-		Str("durable_task_external_id", req.DurableTaskExternalId).
-		Msg("evicting durable task invocation")
-
 	// TODO: Clean up any state associated with this invocation
 
 	return nil
