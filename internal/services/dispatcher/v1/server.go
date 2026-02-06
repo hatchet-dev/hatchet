@@ -411,6 +411,10 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	})
 }
 
+func getDurableTaskSignalKey(taskExternalId string, invocationCount, nodeId int64) string {
+	return fmt.Sprintf("durable:%s:%d:%d", taskExternalId, invocationCount, nodeId)
+}
+
 func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
@@ -462,6 +466,59 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create event log entry: %v", err)
+	}
+
+	if req.Kind == contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR && req.WaitForConditions != nil {
+		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.InvocationCount, nodeId)
+
+		createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
+
+		for _, condition := range req.WaitForConditions.SleepConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+				return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+			}
+
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindSLEEP,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				SleepFor:        &condition.SleepFor,
+			})
+		}
+
+		for _, condition := range req.WaitForConditions.UserEventConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+				return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+			}
+
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				UserEventKey:    &condition.UserEventKey,
+				Expression:      condition.Base.Expression,
+			})
+		}
+
+		if len(createConditionOpts) > 0 {
+			createMatchOpts := []v1.ExternalCreateSignalMatchOpts{{
+				Conditions:           createConditionOpts,
+				SignalTaskId:         task.ID,
+				SignalTaskInsertedAt: task.InsertedAt,
+				SignalExternalId:     task.ExternalID,
+				SignalKey:            signalKey,
+			}}
+
+			err = d.repo.Matches().RegisterSignalMatchConditions(ctx, invocation.tenantId, createMatchOpts)
+			if err != nil {
+				d.l.Error().Err(err).Msg("failed to register signal match conditions")
+				return status.Errorf(codes.Internal, "failed to register signal match conditions: %v", err)
+			}
+		}
 	}
 
 	return invocation.send(&contracts.DurableTaskResponse{
@@ -522,32 +579,63 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 		return err
 	}
 
+	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.InvocationCount, req.NodeId)
+
 	go func() {
-		time.Sleep(3 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
 
-		sendErr := invocation.send(&contracts.DurableTaskResponse{
-			Message: &contracts.DurableTaskResponse_CallbackCompleted{
-				CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
-					InvocationCount:       req.InvocationCount,
-					DurableTaskExternalId: req.DurableTaskExternalId,
-					NodeId:                req.NodeId,
-					Payload:               []byte(`{"completed": true, "reason": "sleep_elapsed"}`),
-				},
-			},
-		})
-		if sendErr != nil {
-			d.l.Error().Err(sendErr).Msg("failed to send callback_completed")
-		}
+		pollCtx := context.Background()
 
-		_, updateErr := d.repo.DurableEvents().UpdateEventLogCallbackSatisfied(
-			context.Background(),
-			task.ID,
-			task.InsertedAt,
-			callbackKey,
-			true,
-		)
-		if updateErr != nil {
-			d.l.Error().Err(updateErr).Msg("failed to update callback as satisfied")
+		for {
+			select {
+			case <-ticker.C:
+				signalEvents := []v1.TaskIdInsertedAtSignalKey{{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					SignalKey:  signalKey,
+				}}
+
+				completedEvents, err := d.repo.Tasks().ListSignalCompletedEvents(pollCtx, invocation.tenantId, signalEvents)
+				if err != nil {
+					d.l.Error().Err(err).Msg("failed to list signal completed events")
+					continue
+				}
+
+				for _, event := range completedEvents {
+					if event.EventKey.String == signalKey {
+						sendErr := invocation.send(&contracts.DurableTaskResponse{
+							Message: &contracts.DurableTaskResponse_CallbackCompleted{
+								CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+									InvocationCount:       req.InvocationCount,
+									DurableTaskExternalId: req.DurableTaskExternalId,
+									NodeId:                req.NodeId,
+									Payload:               event.Payload,
+								},
+							},
+						})
+						if sendErr != nil {
+							d.l.Error().Err(sendErr).Msg("failed to send callback_completed")
+						}
+
+						_, updateErr := d.repo.DurableEvents().UpdateEventLogCallbackSatisfied(
+							pollCtx,
+							task.ID,
+							task.InsertedAt,
+							callbackKey,
+							true,
+						)
+						if updateErr != nil {
+							d.l.Error().Err(updateErr).Msg("failed to update callback as satisfied")
+						}
+
+						return
+					}
+				}
+			case <-invocation.server.Context().Done():
+				d.l.Debug().Msg("stream closed, stopping callback polling")
+				return
+			}
 		}
 	}()
 
