@@ -290,17 +290,6 @@ export function useLogs({
     }
   }, [getLogsQuery]);
 
-  const hasActiveFilters = !!(
-    parsedQuery.search ||
-    parsedQuery.level ||
-    parsedQuery.attempt
-  );
-
-  const taskStatus =
-    hasActiveFilters && logs.length === 0 && !getLogsQuery.isLoading
-      ? V1TaskStatus.NOTFOUND
-      : taskRun?.status;
-
   return {
     logs,
     isLoading: getLogsQuery.isLoading,
@@ -310,7 +299,7 @@ export function useLogs({
     parsedQuery,
     fetchOlderLogs,
     setPollingEnabled,
-    taskStatus,
+    taskStatus: taskRun?.status,
     availableAttempts,
   };
 }
