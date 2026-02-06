@@ -433,8 +433,8 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	})
 }
 
-func getDurableTaskSignalKey(taskExternalId string, invocationCount, nodeId int64) string {
-	return fmt.Sprintf("durable:%s:%d:%d", taskExternalId, invocationCount, nodeId)
+func getDurableTaskSignalKey(taskExternalId string, nodeId int64) string {
+	return fmt.Sprintf("durable:%s:%d", taskExternalId, nodeId)
 }
 
 func (d *DispatcherServiceImpl) handleDurableTaskEvent(
@@ -504,7 +504,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	}
 
 	if req.Kind == contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR && req.WaitForConditions != nil {
-		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.InvocationCount, nodeId)
+		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
 
 		createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
@@ -583,8 +583,8 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	tenantId := invocation.tenantId
-	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.InvocationCount, req.NodeId)
-	callbackKey := fmt.Sprintf("%s:%d:%d", req.DurableTaskExternalId, req.InvocationCount, req.NodeId)
+	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.NodeId)
+	callbackKey := fmt.Sprintf("%s:%d", req.DurableTaskExternalId, req.NodeId)
 
 	existingCallback, err := d.repo.DurableEvents().GetEventLogCallback(ctx, tenantId, task.ID, task.InsertedAt, callbackKey)
 
