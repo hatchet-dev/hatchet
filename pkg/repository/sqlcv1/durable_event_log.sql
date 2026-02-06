@@ -28,6 +28,15 @@ FROM
 RETURNING *
 ;
 
+-- name: UpdateLatestNodeId :one
+UPDATE v1_durable_event_log_file
+SET latest_node_id = @latestNodeId::BIGINT
+WHERE
+    durable_task_id = @durableTaskId
+    AND durable_task_inserted_at = @durableTaskInsertedAt
+RETURNING *
+;
+
 -- name: GetDurableEventLogFileForTask :one
 SELECT *
 FROM v1_durable_event_log_file

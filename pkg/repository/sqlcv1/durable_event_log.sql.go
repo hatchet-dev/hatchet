@@ -477,3 +477,32 @@ func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db
 	)
 	return &i, err
 }
+
+const updateLatestNodeId = `-- name: UpdateLatestNodeId :one
+UPDATE v1_durable_event_log_file
+SET latest_node_id = $1::BIGINT
+WHERE
+    durable_task_id = $2
+    AND durable_task_inserted_at = $3
+RETURNING durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+`
+
+type UpdateLatestNodeIdParams struct {
+	Latestnodeid          int64              `json:"latestnodeid"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+}
+
+func (q *Queries) UpdateLatestNodeId(ctx context.Context, db DBTX, arg UpdateLatestNodeIdParams) (*V1DurableEventLogFile, error) {
+	row := db.QueryRow(ctx, updateLatestNodeId, arg.Latestnodeid, arg.Durabletaskid, arg.Durabletaskinsertedat)
+	var i V1DurableEventLogFile
+	err := row.Scan(
+		&i.DurableTaskID,
+		&i.DurableTaskInsertedAt,
+		&i.LatestInsertedAt,
+		&i.LatestNodeID,
+		&i.LatestBranchID,
+		&i.LatestBranchFirstParentNodeID,
+	)
+	return &i, err
+}
