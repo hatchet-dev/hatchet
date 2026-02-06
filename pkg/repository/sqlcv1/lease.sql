@@ -54,7 +54,7 @@ SELECT
     w."name"
 FROM
     "Worker" w
-JOIN 
+JOIN
     v1_worker_slot_config wsc ON w."id" = wsc."worker_id"
 WHERE
     w."tenantId" = @tenantId::uuid
