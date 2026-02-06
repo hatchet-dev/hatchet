@@ -67,7 +67,7 @@ message DurableTaskCallbackCompletedResponse {
     bytes payload = 4;
 }
 
-message DurableTaskEvictSessionRequest {
+message DurableTaskEvictInvocationRequest {
     int64 invocation_count = 1;
     string durable_task_external_id = 2;
 }
@@ -77,7 +77,7 @@ message DurableTaskRequest {
         DurableTaskRequestRegisterWorker register_worker = 1;
         DurableTaskEventRequest event = 2;
         DurableTaskRegisterCallbackRequest register_callback = 3;
-        DurableTaskEvictSessionRequest evict_session = 4;
+        DurableTaskEvictInvocationRequest evict_invocation = 4;
     }
 }
 
