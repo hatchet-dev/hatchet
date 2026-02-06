@@ -319,9 +319,156 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	}
 }
 
+type durableTaskInvocation struct {
+	server   contracts.V1Dispatcher_DurableTaskServer
+	tenantId uuid.UUID
+	workerId string
+	l        *zerolog.Logger
+
+	sendMu sync.Mutex
+}
+
+func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	return s.server.Send(resp)
+}
+
 func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+
+	ctx, cancel := context.WithCancel(server.Context())
+	defer cancel()
+
+	invocation := &durableTaskInvocation{
+		server:   server,
+		tenantId: tenantId,
+		l:        d.l,
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		req, err := server.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+				return nil
+			}
+			d.l.Error().Err(err).Msg("error receiving durable task request")
+			return err
+		}
+
+		if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+			d.l.Error().Err(err).Msg("error handling durable task request")
+			// Continue processing other requests rather than closing the stream
+		}
+	}
+}
+
+func (d *DispatcherServiceImpl) handleDurableTaskRequest(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskRequest,
+) error {
+	switch msg := req.GetMessage().(type) {
+	case *contracts.DurableTaskRequest_RegisterWorker:
+		return d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker)
+
+	case *contracts.DurableTaskRequest_Event:
+		return d.handleDurableTaskEvent(ctx, invocation, msg.Event)
+
+	case *contracts.DurableTaskRequest_RegisterCallback:
+		return d.handleRegisterCallback(ctx, invocation, msg.RegisterCallback)
+
+	case *contracts.DurableTaskRequest_EvictInvocation:
+		return d.handleEvictInvocation(ctx, invocation, msg.EvictInvocation)
+
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown message type: %T", msg)
+	}
+}
+
+func (d *DispatcherServiceImpl) handleRegisterWorker(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskRequestRegisterWorker,
+) error {
+	invocation.workerId = req.WorkerId
+	d.l.Debug().Str("worker_id", req.WorkerId).Msg("registered durable task worker")
+
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_RegisterWorker{
+			RegisterWorker: &contracts.DurableTaskResponseRegisterWorker{
+				WorkerId: req.WorkerId,
+			},
+		},
+	})
+}
+
+func (d *DispatcherServiceImpl) handleDurableTaskEvent(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskEventRequest,
+) error {
+	d.l.Debug().
+		Int64("invocation_count", req.InvocationCount).
+		Str("durable_task_external_id", req.DurableTaskExternalId).
+		Int32("kind", int32(req.Kind)).
+		Msg("received durable task event")
+
+	// TODO: Process the event based on kind (RUN, WAIT_FOR, MEMO)
+
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_TriggerAck{
+			TriggerAck: &contracts.DurableTaskEventAckResponse{
+				InvocationCount:       req.InvocationCount,
+				DurableTaskExternalId: req.DurableTaskExternalId,
+				NodeId:                0, // TODO: assign node ID
+			},
+		},
+	})
+}
+
+func (d *DispatcherServiceImpl) handleRegisterCallback(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskRegisterCallbackRequest,
+) error {
+	d.l.Debug().
+		Int64("invocation_count", req.InvocationCount).
+		Str("durable_task_external_id", req.DurableTaskExternalId).
+		Int64("node_id", req.NodeId).
+		Msg("registering callback for durable task")
+
+	// TODO: Register the callback for later completion notification
+
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_RegisterCallbackAck{
+			RegisterCallbackAck: &contracts.DurableTaskRegisterCallbackAckResponse{
+				InvocationCount:       req.InvocationCount,
+				DurableTaskExternalId: req.DurableTaskExternalId,
+				NodeId:                req.NodeId,
+			},
+		},
+	})
+}
+
+func (d *DispatcherServiceImpl) handleEvictInvocation(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskEvictInvocationRequest,
+) error {
+	d.l.Debug().
+		Int64("invocation_count", req.InvocationCount).
+		Str("durable_task_external_id", req.DurableTaskExternalId).
+		Msg("evicting durable task invocation")
+
+	// TODO: Clean up any state associated with this invocation
 
 	return nil
 }
