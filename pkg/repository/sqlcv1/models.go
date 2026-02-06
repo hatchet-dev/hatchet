@@ -1053,6 +1053,11 @@ const (
 	V1EventTypeOlapRATELIMITERROR       V1EventTypeOlap = "RATE_LIMIT_ERROR"
 	V1EventTypeOlapSKIPPED              V1EventTypeOlap = "SKIPPED"
 	V1EventTypeOlapCOULDNOTSENDTOWORKER V1EventTypeOlap = "COULD_NOT_SEND_TO_WORKER"
+	V1EventTypeOlapCANCELLING           V1EventTypeOlap = "CANCELLING"
+	V1EventTypeOlapCANCELLEDCONFIRMED   V1EventTypeOlap = "CANCELLED_CONFIRMED"
+	V1EventTypeOlapCANCELLATIONFAILED   V1EventTypeOlap = "CANCELLATION_FAILED"
+	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
+	V1EventTypeOlapDURABLERESUMING      V1EventTypeOlap = "DURABLE_RESUMING"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {

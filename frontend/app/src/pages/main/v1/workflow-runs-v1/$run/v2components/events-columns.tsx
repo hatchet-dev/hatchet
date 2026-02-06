@@ -7,34 +7,43 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { V1TaskEventType, V1TaskEvent } from '@/lib/api';
 import { cn, emptyGolangUUID } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
   ArrowLeftEndOnRectangleIcon,
+  ArrowTopRightOnSquareIcon,
   ServerStackIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { Link } from '@tanstack/react-router';
 
-function eventTypeToSeverity(
+type EventIndicatorVariant = 'INFO' | 'WARNING' | 'CRITICAL' | 'CANCELLED';
+
+function eventTypeToIndicatorVariant(
   eventType: V1TaskEventType | undefined,
-): StepRunEventSeverity {
+): EventIndicatorVariant {
   switch (eventType) {
     case V1TaskEventType.FAILED:
     case V1TaskEventType.RATE_LIMIT_ERROR:
     case V1TaskEventType.SCHEDULING_TIMED_OUT:
     case V1TaskEventType.TIMED_OUT:
+    case V1TaskEventType.CANCELLATION_FAILED:
+      return 'CRITICAL';
     case V1TaskEventType.CANCELLED:
-      return StepRunEventSeverity.CRITICAL;
+    case V1TaskEventType.CANCELLED_CONFIRMED:
+      return 'CANCELLED';
+    case V1TaskEventType.CANCELLING:
+    case V1TaskEventType.DURABLE_EVICTED:
+    case V1TaskEventType.DURABLE_RESUMING:
     case V1TaskEventType.REASSIGNED:
     case V1TaskEventType.REQUEUED_NO_WORKER:
     case V1TaskEventType.REQUEUED_RATE_LIMIT:
     case V1TaskEventType.RETRIED_BY_USER:
     case V1TaskEventType.RETRYING:
-      return StepRunEventSeverity.WARNING;
+      return 'WARNING';
     default:
-      return StepRunEventSeverity.INFO;
+      return 'INFO';
   }
 }
 
@@ -72,11 +81,11 @@ export function TimestampCell({ event }: { event: EventWithMetadata }) {
 }
 
 export function EventTypeCell({ event }: { event: EventWithMetadata }) {
-  const severity = eventTypeToSeverity(event.eventType);
+  const variant = eventTypeToIndicatorVariant(event.eventType);
 
   return (
     <div className="flex flex-row items-center gap-2">
-      <EventIndicator severity={severity} />
+      <EventIndicator variant={variant} />
       <div className="flex flex-row gap-4 text-sm tracking-wide">
         {mapEventTypeToTitle(event.eventType)}
       </div>
@@ -95,6 +104,27 @@ export function DescriptionCell({
 
   if (event.eventType === V1TaskEventType.FAILED) {
     items.push(<ErrorWithHoverCard key="error" event={event} />);
+  }
+
+  if (event.eventType === V1TaskEventType.CANCELLATION_FAILED) {
+    items.push(
+      <Button
+        asChild
+        variant="link"
+        size="xs"
+        leftIcon={<ArrowTopRightOnSquareIcon className="size-4" />}
+        key="cancellation-docs"
+      >
+        {/* TODO-DURABLE: Doc component */}
+        <a
+          href="https://docs.hatchet.run/home/cancellation"
+          target="_blank"
+          rel="noreferrer"
+        >
+          View cancellation docs
+        </a>
+      </Button>,
+    );
   }
 
   if (event.workerId && event.workerId !== emptyGolangUUID) {
@@ -144,6 +174,16 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
       return 'Failed';
     case V1TaskEventType.CANCELLED:
       return 'Cancelled';
+    case V1TaskEventType.CANCELLING:
+      return 'Cancelling';
+    case V1TaskEventType.CANCELLED_CONFIRMED:
+      return 'Cancelled';
+    case V1TaskEventType.CANCELLATION_FAILED:
+      return 'Cancellation failed';
+    case V1TaskEventType.DURABLE_EVICTED:
+      return 'Durable evicted';
+    case V1TaskEventType.DURABLE_RESUMING:
+      return 'Durable resuming';
     case V1TaskEventType.RETRYING:
       return 'Retrying';
     case V1TaskEventType.REQUEUED_NO_WORKER:
@@ -184,17 +224,19 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
   }
 }
 
-const RUN_STATUS_VARIANTS: Record<StepRunEventSeverity, string> = {
+const RUN_STATUS_VARIANTS: Record<EventIndicatorVariant, string> = {
   INFO: 'border-transparent rounded-full bg-green-500',
   CRITICAL: 'border-transparent rounded-full bg-red-500',
   WARNING: 'border-transparent rounded-full bg-yellow-500',
+  // Match task cancelled indicator color in `V1RunIndicator`
+  CANCELLED: 'border-transparent rounded-full bg-orange-500',
 };
 
-function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
+function EventIndicator({ variant }: { variant: EventIndicatorVariant }) {
   return (
     <div
       className={cn(
-        RUN_STATUS_VARIANTS[severity],
+        RUN_STATUS_VARIANTS[variant],
         'h-[6px] w-[6px] rounded-full',
       )}
     />

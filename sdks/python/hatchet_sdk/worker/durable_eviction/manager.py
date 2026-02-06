@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,6 +13,7 @@ from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.cache import (
     DurableEvictionCache,
+    DurableRunRecord,
     InMemoryDurableEvictionCache,
 )
 
@@ -38,11 +39,17 @@ class DurableEvictionManager:
         *,
         durable_slots: int,
         cancel_remote: Callable[[str], Awaitable[None]],
+        on_eviction_selected: Callable[[ActionKey, DurableRunRecord], Awaitable[None]]
+        | None = None,
+        on_eviction_cancelled: Callable[[ActionKey, DurableRunRecord], Awaitable[None]]
+        | None = None,
         config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
         cache: DurableEvictionCache | None = None,
     ) -> None:
         self._durable_slots = durable_slots
         self._cancel_remote = cancel_remote
+        self._on_eviction_selected = on_eviction_selected
+        self._on_eviction_cancelled = on_eviction_cancelled
         self._config = config
         self._cache: DurableEvictionCache = cache or InMemoryDurableEvictionCache()
 
@@ -148,12 +155,32 @@ class DurableEvictionManager:
                     f"capacity_allowed={rec.eviction.allow_capacity_eviction}"
                 )
 
-                # Ensure engine sees it as cancelled (best-effort).
-                # TODO: eviction ack
-                await self._cancel_remote(rec.step_run_id)
+                # Observability hook: emitted when selected from eviction cache.
+                # Best-effort; eviction should proceed even if this fails.
+                if self._on_eviction_selected is not None:
+                    try:
+                        await self._on_eviction_selected(key, rec)
+                    except Exception:
+                        logger.exception(
+                            "DurableEvictionManager: error emitting eviction event"
+                        )
 
-                # Unwind locally ASAP (causes waits to raise).
+                # TODO-DURABLE: the eviction event is not optional, and we need to ack it before unwinding locally.
+
+                # Unwind locally ASAP (causes waits to raise). Do this *before* the remote
+                # cancel so the CancellationToken reason remains `evicted` even if the
+                # engine cancel action arrives quickly.
                 rec.token.cancel(CancellationReason.EVICTED)
+
+                # Observability hook: emitted when we actually cancel locally.
+                # Best-effort; eviction should proceed even if this fails.
+                if self._on_eviction_cancelled is not None:
+                    try:
+                        await self._on_eviction_cancelled(key, rec)
+                    except Exception:
+                        logger.exception(
+                            "DurableEvictionManager: error emitting eviction cancellation event"
+                        )
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)

@@ -3,16 +3,16 @@ from hatchet_sdk.worker.durable_eviction.cache import (
     InMemoryDurableEvictionCache,
 )
 from hatchet_sdk.worker.durable_eviction.manager import (
+    DEFAULT_DURABLE_EVICTION_CONFIG,
     DurableEvictionConfig,
     DurableEvictionManager,
-    DEFAULT_DURABLE_EVICTION_CONFIG,
 )
 
 __all__ = [
+    "DEFAULT_DURABLE_EVICTION_CONFIG",
     "DurableEvictionCache",
-    "InMemoryDurableEvictionCache",
     "DurableEvictionConfig",
     "DurableEvictionManager",
-    "DEFAULT_DURABLE_EVICTION_CONFIG",
+    "InMemoryDurableEvictionCache",
 ]
 

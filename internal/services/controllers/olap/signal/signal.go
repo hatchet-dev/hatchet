@@ -342,7 +342,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
 			TaskId:         task.ID,
 			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapCANCELLED,
+			EventType:      sqlcv1.V1EventTypeOlapCANCELLING,
 			EventTimestamp: time.Now(),
 		})
 

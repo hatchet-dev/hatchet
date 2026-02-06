@@ -1,10 +1,11 @@
 # > Simple
+import asyncio
 import time
+from datetime import timedelta
 
 from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
-from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionConfig
-from datetime import timedelta
 from hatchet_sdk.runnables.eviction import EvictionPolicy
+from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionConfig
 
 hatchet = Hatchet(debug=True)
 
@@ -22,8 +23,13 @@ def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
     ),
 )
 async def simple_durable(input: EmptyModel, ctx: DurableContext) -> dict[str, str]:
-    res = await simple.aio_run(input)
-    print(res)
+    try:    
+        res = await simple.aio_run(input)
+    except BaseException as e:
+        print(f"Error: {e}")
+        await asyncio.sleep(10)
+        # raise e
+    print("hello world")
     return {"result": "Hello, world!"}
 
 

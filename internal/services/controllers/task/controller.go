@@ -749,7 +749,8 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 				TaskId:       task.Id,
 				InsertedAt:   task.InsertedAt,
 				RetryCount:   task.RetryCount,
-				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
+				EventType:    sqlcv1.V1EventTypeOlapCANCELLING,
+				EventMessage: "workflow_cancelled",
 				ShouldNotify: true,
 			})
 		}

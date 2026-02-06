@@ -43,6 +43,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     DesiredWorkerLabels,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
+from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     R,
@@ -54,7 +55,6 @@ from hatchet_sdk.runnables.types import (
     is_sync_fn,
     normalize_validator,
 )
-from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (

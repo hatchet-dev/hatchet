@@ -37,6 +37,7 @@ class StepActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     STEP_EVENT_TYPE_COMPLETED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_FAILED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_ACKNOWLEDGED: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_CANCELLING: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_CANCELLED_CONFIRMED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_CANCELLATION_FAILED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_DURABLE_EVICTED: _ClassVar[StepActionEventType]
@@ -77,6 +78,7 @@ STEP_EVENT_TYPE_STARTED: StepActionEventType
 STEP_EVENT_TYPE_COMPLETED: StepActionEventType
 STEP_EVENT_TYPE_FAILED: StepActionEventType
 STEP_EVENT_TYPE_ACKNOWLEDGED: StepActionEventType
+STEP_EVENT_TYPE_CANCELLING: StepActionEventType
 STEP_EVENT_TYPE_CANCELLED_CONFIRMED: StepActionEventType
 STEP_EVENT_TYPE_CANCELLATION_FAILED: StepActionEventType
 STEP_EVENT_TYPE_DURABLE_EVICTED: StepActionEventType
