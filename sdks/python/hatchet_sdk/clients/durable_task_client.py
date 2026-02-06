@@ -64,18 +64,13 @@ class DurableTaskClient:
             grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse] | None
         ) = None
 
-        # Queue for outgoing requests
         self._request_queue: asyncio.Queue[DurableTaskRequest] | None = None
-
-        # Futures for pending requests waiting for acks
         self._pending_event_acks: dict[
             tuple[str, int], asyncio.Future[DurableTaskEventAck]
         ] = {}
         self._pending_callback_acks: dict[
             tuple[str, int, int], asyncio.Future[None]
         ] = {}
-
-        # Callbacks waiting for completion
         self._pending_callbacks: dict[
             tuple[str, int, int], asyncio.Future[DurableTaskCallbackResult]
         ] = {}
@@ -175,12 +170,10 @@ class DurableTaskClient:
             logger.exception(f"Unexpected error in receive loop: {e}")
 
     async def _handle_response(self, response: DurableTaskResponse) -> None:
-        # Use HasField for type-safe field checking instead of string matching
         if response.HasField("register_worker"):
             logger.info(
                 f"Registered durable task worker: {response.register_worker.worker_id}"
             )
-
         elif response.HasField("trigger_ack"):
             trigger_ack = response.trigger_ack
             event_key = (
@@ -196,7 +189,6 @@ class DurableTaskClient:
                     )
                 )
                 del self._pending_event_acks[event_key]
-
         elif response.HasField("register_callback_ack"):
             callback_ack = response.register_callback_ack
             callback_ack_key = (
@@ -207,7 +199,6 @@ class DurableTaskClient:
             if callback_ack_key in self._pending_callback_acks:
                 self._pending_callback_acks[callback_ack_key].set_result(None)
                 del self._pending_callback_acks[callback_ack_key]
-
         elif response.HasField("callback_completed"):
             completed = response.callback_completed
             completed_key = (
