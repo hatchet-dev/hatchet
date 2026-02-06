@@ -143,6 +143,7 @@ func WithBinaryVersion(version string) LocalOpt {
 	}
 }
 
+
 // NewLocalDriver creates a new local driver
 func NewLocalDriver() *LocalDriver {
 	homeDir, _ := os.UserHomeDir()
@@ -223,7 +224,7 @@ func (d *LocalDriver) Run(ctx context.Context, opts ...LocalOpt) (*RunResult, er
 		return nil, fmt.Errorf("binary version is required")
 	}
 
-	// Download required binaries
+	// Ensure required binaries (uses cache - populated by download or 'hatchet server build')
 	fmt.Println(styles.InfoMessage(fmt.Sprintf("Ensuring binaries are available for version %s...", version)))
 
 	migrateBinary, err := downloader.EnsureBinary(ctx, "hatchet-migrate", version)
@@ -680,7 +681,7 @@ func (d *LocalDriver) StartServer(ctx context.Context, interruptCh <-chan interf
 		return fmt.Errorf("binary version is required")
 	}
 
-	// Download/ensure binaries are available (api and engine)
+	// Ensure binaries are available (uses cache - populated by download or 'hatchet server build')
 	apiBinaryPath, err := d.binaryDownloader.EnsureBinary(ctx, "hatchet-api", version)
 	if err != nil {
 		return fmt.Errorf("failed to ensure hatchet-api binary: %w", err)

@@ -137,6 +137,55 @@ was started with Docker or --local mode and stops it appropriately.`,
 	},
 }
 
+var buildCmd = &cobra.Command{
+	Use:   "build",
+	Short: "Build hatchet binaries from local source for use with --local",
+	Long: `Build hatchet-api, hatchet-engine, hatchet-migrate, and hatchet-admin from
+local source code. The built binaries are placed into the same cache that
+'hatchet server start --local' uses, so after building you can start the
+server without needing a GitHub release.
+
+Must be run from within the hatchet repository (or use --repo-root).`,
+	Example: `  # Build from within the hatchet repo
+  cd /path/to/hatchet
+  hatchet server build
+
+  # Build with explicit repo root
+  hatchet server build --repo-root /path/to/hatchet
+
+  # Then start normally
+  hatchet server start --local`,
+	Run: func(cmd *cobra.Command, args []string) {
+		repoRoot, _ := cmd.Flags().GetString("repo-root")
+
+		if repoRoot == "" {
+			var err error
+			repoRoot, err = local.DetectRepoRoot()
+			if err != nil {
+				cli.Logger.Fatalf("Could not detect hatchet repo root: %v\nUse --repo-root to specify the path.", err)
+			}
+		}
+
+		// Use CLI version as the cache key
+		version := Version
+		if version == "" {
+			version = "dev"
+		}
+
+		fmt.Println(styles.InfoMessage(fmt.Sprintf("Building binaries from %s (version: %s)...", repoRoot, version)))
+
+		if err := local.BuildAllBinaries(cmd.Context(), repoRoot, version); err != nil {
+			cli.Logger.Fatalf("Build failed: %v", err)
+		}
+
+		fmt.Println(styles.SuccessBox.Render(
+			styles.SuccessMessage("Binaries built!") + "\n\n" +
+				styles.Muted.Render("You can now run:") + "\n" +
+				"  hatchet server start --local",
+		))
+	},
+}
+
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Clean up orphan processes from a local Hatchet server",
@@ -382,6 +431,7 @@ func init() {
 
 	serverCmd.AddCommand(startCmd)
 	serverCmd.AddCommand(stopCmd)
+	serverCmd.AddCommand(buildCmd)
 	serverCmd.AddCommand(cleanupCmd)
 
 	// Flags for start command
@@ -409,6 +459,9 @@ func init() {
 	// Flags for stop command
 	stopCmd.Flags().BoolP("local", "l", false, "Explicitly stop a local (non-Docker) server")
 	stopCmd.Flags().StringP("project-name", "p", "", "Docker project name for containers (default: hatchet-cli)")
+
+	// Flags for build command
+	buildCmd.Flags().String("repo-root", "", "Path to hatchet repo root (auto-detected if inside repo)")
 
 	// Flags for cleanup command
 	cleanupCmd.Flags().Int("postgres-port", 0, "Port for embedded PostgreSQL to clean up (default: 5433)")
