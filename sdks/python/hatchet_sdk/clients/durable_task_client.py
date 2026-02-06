@@ -1,0 +1,285 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import suppress
+
+import grpc.aio
+from pydantic import BaseModel
+
+from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.connection import new_conn
+from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    DurableTaskEventKind,
+    DurableTaskEventRequest,
+    DurableTaskRegisterCallbackRequest,
+    DurableTaskRequest,
+    DurableTaskRequestRegisterWorker,
+    DurableTaskResponse,
+)
+from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
+from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
+from hatchet_sdk.logger import logger
+from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+
+class DurableTaskEventAck(BaseModel):
+    invocation_count: int
+    durable_task_external_id: str
+    node_id: int
+
+
+class DurableTaskCallbackResult(BaseModel):
+    invocation_count: int
+    durable_task_external_id: str
+    node_id: int
+    payload: JSONSerializableMapping | None
+
+
+class DurableTaskClient:
+    def __init__(self, config: ClientConfig):
+        self.config = config
+        self.token = config.token
+
+        self._worker_id: str | None = None
+
+        self._conn: grpc.aio.Channel | None = None
+        self._stub: V1DispatcherStub | None = None
+        self._stream: (
+            grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse] | None
+        ) = None
+
+        # Queue for outgoing requests
+        self._request_queue: asyncio.Queue[DurableTaskRequest] | None = None
+
+        # Futures for pending requests waiting for acks
+        self._pending_event_acks: dict[
+            tuple[str, int], asyncio.Future[DurableTaskEventAck]
+        ] = {}
+        self._pending_callback_acks: dict[
+            tuple[str, int, int], asyncio.Future[None]
+        ] = {}
+
+        # Callbacks waiting for completion
+        self._pending_callbacks: dict[
+            tuple[str, int, int], asyncio.Future[DurableTaskCallbackResult]
+        ] = {}
+
+        self._receive_task: asyncio.Task[None] | None = None
+        self._send_task: asyncio.Task[None] | None = None
+        self._running = False
+        self._start_lock = asyncio.Lock()
+
+    @property
+    def worker_id(self) -> str | None:
+        return self._worker_id
+
+    async def start(self, worker_id: str) -> None:
+        async with self._start_lock:
+            if self._running:
+                logger.info("DurableTaskClient already running")
+                return
+
+            logger.info(f"Starting DurableTaskClient for worker_id: {worker_id}")
+
+            self._worker_id = worker_id
+            self._running = True
+            self._request_queue = asyncio.Queue()
+
+            self._conn = new_conn(self.config, aio=True)
+            self._stub = V1DispatcherStub(self._conn)
+
+            logger.info("Creating DurableTask stream...")
+            self._stream = self._stub.DurableTask(
+                self._request_iterator(),
+                metadata=get_metadata(self.token),
+            )
+
+            self._receive_task = asyncio.create_task(self._receive_loop())
+            self._send_task = asyncio.create_task(self._send_loop())
+
+            logger.info("Registering worker with server...")
+            await self._register_worker()
+            logger.info("DurableTaskClient started successfully")
+
+    async def ensure_started(self, worker_id: str) -> None:
+        if not self._running:
+            await self.start(worker_id)
+
+    async def stop(self) -> None:
+        self._running = False
+
+        if self._receive_task:
+            self._receive_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._receive_task
+
+        if self._send_task:
+            self._send_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._send_task
+
+        if self._conn:
+            await self._conn.close()
+
+    async def _request_iterator(self) -> AsyncIterator[DurableTaskRequest]:
+        while self._running:
+            with suppress(asyncio.TimeoutError):
+                yield await asyncio.wait_for(self._request_queue.get(), timeout=1.0)
+
+    async def _send_loop(self) -> None:
+        # The actual sending happens in _request_iterator
+        # This task just keeps the stream alive
+        while self._running:  # noqa: ASYNC110
+            await asyncio.sleep(1)
+
+    async def _receive_loop(self) -> None:
+        if not self._stream:
+            logger.error("_receive_loop called but stream is None")
+            return
+
+        logger.info("Starting receive loop...")
+        try:
+            async for response in self._stream:
+                logger.info(f"Received response: {response.WhichOneof('message')}")
+                await self._handle_response(response)
+        except grpc.aio.AioRpcError as e:
+            if e.code() != grpc.StatusCode.CANCELLED:
+                logger.error(
+                    f"DurableTask stream error: code={e.code()}, details={e.details()}"
+                )
+        except asyncio.CancelledError:
+            logger.debug("Receive loop cancelled")
+        except Exception as e:
+            logger.exception(f"Unexpected error in receive loop: {e}")
+
+    async def _handle_response(self, response: DurableTaskResponse) -> None:
+        # Use HasField for type-safe field checking instead of string matching
+        if response.HasField("register_worker"):
+            logger.info(
+                f"Registered durable task worker: {response.register_worker.worker_id}"
+            )
+
+        elif response.HasField("trigger_ack"):
+            ack = response.trigger_ack
+            key = (ack.durable_task_external_id, ack.invocation_count)
+            if key in self._pending_event_acks:
+                self._pending_event_acks[key].set_result(
+                    DurableTaskEventAck(
+                        invocation_count=ack.invocation_count,
+                        durable_task_external_id=ack.durable_task_external_id,
+                        node_id=ack.node_id,
+                    )
+                )
+                del self._pending_event_acks[key]
+
+        elif response.HasField("register_callback_ack"):
+            ack = response.register_callback_ack
+            key = (ack.durable_task_external_id, ack.invocation_count, ack.node_id)
+            if key in self._pending_callback_acks:
+                self._pending_callback_acks[key].set_result(None)
+                del self._pending_callback_acks[key]
+
+        elif response.HasField("callback_completed"):
+            completed = response.callback_completed
+            key = (
+                completed.durable_task_external_id,
+                completed.invocation_count,
+                completed.node_id,
+            )
+            if key in self._pending_callbacks:
+                self._pending_callbacks[key].set_result(
+                    DurableTaskCallbackResult(
+                        invocation_count=completed.invocation_count,
+                        durable_task_external_id=completed.durable_task_external_id,
+                        node_id=completed.node_id,
+                        payload=completed.payload,
+                    )
+                )
+                del self._pending_callbacks[key]
+
+    async def _register_worker(self) -> None:
+        if self._request_queue is None or self._worker_id is None:
+            raise RuntimeError("Client not started")
+
+        logger.debug(f"Sending register_worker request for {self._worker_id}")
+        request = DurableTaskRequest(
+            register_worker=DurableTaskRequestRegisterWorker(worker_id=self._worker_id)
+        )
+        await self._request_queue.put(request)
+        logger.debug("register_worker request queued")
+
+    async def send_event(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+        kind: DurableTaskEventKind.ValueType,
+        payload: bytes | None = None,
+        wait_for_conditions: DurableEventListenerConditions | None = None,
+    ) -> DurableTaskEventAck:
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        logger.debug(
+            f"Sending event: task_id={durable_task_external_id}, "
+            f"invocation={invocation_count}, kind={kind}"
+        )
+
+        key = (durable_task_external_id, invocation_count)
+        future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
+        self._pending_event_acks[key] = future
+
+        event_request = DurableTaskEventRequest(
+            durable_task_external_id=durable_task_external_id,
+            invocation_count=invocation_count,
+            kind=kind,
+        )
+
+        if payload is not None:
+            event_request.payload = payload
+
+        if wait_for_conditions is not None:
+            event_request.wait_for_conditions.CopyFrom(wait_for_conditions)
+
+        request = DurableTaskRequest(event=event_request)
+        await self._request_queue.put(request)
+        logger.debug("Event request queued, waiting for ack...")
+
+        return await future
+
+    async def register_callback(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+        node_id: int,
+    ) -> None:
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        key = (durable_task_external_id, invocation_count, node_id)
+        future: asyncio.Future[None] = asyncio.Future()
+        self._pending_callback_acks[key] = future
+
+        request = DurableTaskRequest(
+            register_callback=DurableTaskRegisterCallbackRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                node_id=node_id,
+            )
+        )
+        await self._request_queue.put(request)
+
+        await future
+
+    async def wait_for_callback(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+        node_id: int,
+    ) -> DurableTaskCallbackResult:
+        key = (durable_task_external_id, invocation_count, node_id)
+
+        if key not in self._pending_callbacks:
+            future: asyncio.Future[DurableTaskCallbackResult] = asyncio.Future()
+            self._pending_callbacks[key] = future
+
+        return await self._pending_callbacks[key]
