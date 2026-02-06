@@ -9,18 +9,20 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
     Action,
     DispatcherClient,
 )
+from hatchet_sdk.clients.durable_task_client import DurableTaskClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
-    RegisterDurableEventRequest,
 )
 from hatchet_sdk.conditions import (
     OrGroup,
     SleepCondition,
     UserEventCondition,
+    build_conditions_proto,
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
@@ -31,6 +33,7 @@ from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogReco
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.types import R, TWorkflowInput
+    from hatchet_sdk.runnables.workflow import BaseWorkflow
 
 
 class Context:
@@ -41,6 +44,7 @@ class Context:
         admin_client: AdminClient,
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
+        durable_task_client: DurableTaskClient | None,
         worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
@@ -62,6 +66,7 @@ class Context:
         self.event_client = event_client
         self.runs_client = runs_client
         self.durable_event_listener = durable_event_listener
+        self.durable_task_client = durable_task_client
 
         self.input = self.data.input
         self.filter_payload = self.data.filter_payload
@@ -439,6 +444,7 @@ class DurableContext(Context):
         admin_client: AdminClient,
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
+        durable_task_client: DurableTaskClient | None,
         worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
@@ -453,6 +459,7 @@ class DurableContext(Context):
             admin_client,
             event_client,
             durable_event_listener,
+            durable_task_client,
             worker,
             runs_client,
             lifespan_context,
@@ -486,26 +493,44 @@ class DurableContext(Context):
         :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
-        :raises ValueError: If the durable event listener is not available.
+        :raises ValueError: If the durable task client is not available.
         """
-        if self.durable_event_listener is None:
-            raise ValueError("Durable event listener is not available")
+        if self.durable_task_client is None:
+            raise ValueError("Durable task client is not available")
 
-        task_id = self.step_run_id
+        from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 
-        request = RegisterDurableEventRequest(
-            task_id=task_id,
-            signal_key=signal_key,
-            conditions=flatten_conditions(list(conditions)),
-            config=self.runs_client.client_config,
+        await self._ensure_stream_started()
+
+        flat_conditions = flatten_conditions(list(conditions))
+        conditions_proto = build_conditions_proto(
+            flat_conditions, self.runs_client.client_config
+        )
+        invocation_count = self.attempt_number
+
+        ack = await self.durable_task_client.send_event(
+            durable_task_external_id=self.step_run_id,
+            ## todo: figure out how to store this invocation count properly
+            invocation_count=invocation_count,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
+            payload=None,
+            wait_for_conditions=conditions_proto,
+        )
+        node_id = ack.node_id
+
+        await self.durable_task_client.register_callback(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=invocation_count,
+            node_id=node_id,
         )
 
-        self.durable_event_listener.register_durable_event(request)
-
-        return await self.durable_event_listener.result(
-            task_id,
-            signal_key,
+        result = await self.durable_task_client.wait_for_callback(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=invocation_count,
+            node_id=node_id,
         )
+
+        return result.payload
 
     async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
         """
@@ -520,3 +545,57 @@ class DurableContext(Context):
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
+
+    async def spawn_child(
+        self,
+        workflow: "BaseWorkflow[TWorkflowInput]",
+        input: "TWorkflowInput | None" = None,
+        key: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Spawn a child workflow and durably wait for it to complete.
+
+        This method triggers a child workflow run and waits for it to complete
+        using the durable task stream for reliable delivery.
+
+        :param workflow: The workflow to spawn as a child.
+        :param input: The input data for the child workflow.
+        :param key: Optional key to identify this child workflow spawn.
+
+        :return: The result of the child workflow execution.
+        """
+        if self.durable_task_client is None:
+            raise ValueError("Durable task client is not available")
+
+        await self._ensure_stream_started()
+        invocation_count = self.attempt_number
+
+        ack = await self.durable_task_client.send_event(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=self.retry_count + 1,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
+            payload=json.dumps(workflow._serialize_input(input)).encode(),
+        )
+
+        node_id = ack.node_id
+        await self.durable_task_client.register_callback(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=invocation_count,
+            node_id=node_id,
+        )
+
+        result = await self.durable_task_client.wait_for_callback(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=invocation_count,
+            node_id=node_id,
+        )
+
+        return result.payload
+
+    async def _ensure_stream_started(self) -> None:
+        logger.info(f"_ensure_stream_started called, client={self.durable_task_client}")
+        if self.durable_task_client is None:
+            raise ValueError("Durable task client is not available")
+
+        logger.info(f"Ensuring stream started for worker_id={self.action.worker_id}")
+        await self.durable_task_client.ensure_started(self.action.worker_id)
