@@ -34,6 +34,11 @@ class V1DispatcherStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.DurableTask = channel.stream_stream(
+                '/v1.V1Dispatcher/DurableTask',
+                request_serializer=v1_dot_dispatcher__pb2.DurableTaskRequest.SerializeToString,
+                response_deserializer=v1_dot_dispatcher__pb2.DurableTaskResponse.FromString,
+                _registered_method=True)
         self.RegisterDurableEvent = channel.unary_unary(
                 '/v1.V1Dispatcher/RegisterDurableEvent',
                 request_serializer=v1_dot_dispatcher__pb2.RegisterDurableEventRequest.SerializeToString,
@@ -49,8 +54,15 @@ class V1DispatcherStub(object):
 class V1DispatcherServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def RegisterDurableEvent(self, request, context):
+    def DurableTask(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RegisterDurableEvent(self, request, context):
+        """NOTE: deprecated after DurableEventLog is implemented
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -64,6 +76,11 @@ class V1DispatcherServicer(object):
 
 def add_V1DispatcherServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'DurableTask': grpc.stream_stream_rpc_method_handler(
+                    servicer.DurableTask,
+                    request_deserializer=v1_dot_dispatcher__pb2.DurableTaskRequest.FromString,
+                    response_serializer=v1_dot_dispatcher__pb2.DurableTaskResponse.SerializeToString,
+            ),
             'RegisterDurableEvent': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterDurableEvent,
                     request_deserializer=v1_dot_dispatcher__pb2.RegisterDurableEventRequest.FromString,
@@ -84,6 +101,33 @@ def add_V1DispatcherServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class V1Dispatcher(object):
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def DurableTask(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_stream(
+            request_iterator,
+            target,
+            '/v1.V1Dispatcher/DurableTask',
+            v1_dot_dispatcher__pb2.DurableTaskRequest.SerializeToString,
+            v1_dot_dispatcher__pb2.DurableTaskResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def RegisterDurableEvent(request,
