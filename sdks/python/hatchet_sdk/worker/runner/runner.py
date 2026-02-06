@@ -113,6 +113,13 @@ class Runner:
         # Persist cancellation reasons beyond context cleanup, so cancellation actions which
         # arrive after local cancellation (e.g. durable eviction) can still emit correct reasons.
         self.cancellation_reasons = BoundedDict[str, str](maxsize=1000)
+        # Per-run background cancellation supervision (warning/grace/force-cancel).
+        # This is triggered by the CancellationToken itself, so it applies uniformly to:
+        # - engine CANCEL_STEP_RUN actions
+        # - durable eviction local cancellations
+        # - user-requested cancellations
+        self._cancellation_supervisors: dict[ActionKey, asyncio.Task[None]] = {}
+        self._cancellation_started_at: dict[ActionKey, float] = {}
         self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
@@ -207,53 +214,25 @@ class Runner:
             )
 
             # Keep cleanup semantics consistent with prior behavior: clean up immediately,
-            # but only after we’ve captured any useful context (like token reason).
+            # but only after we've captured any useful context (like token reason).
             self.cleanup_run_id(key)
 
             was_cancelled = self.cancellations.pop(key, False)
             task_cancelled = task.cancelled()
 
-            if was_cancelled and task_cancelled:
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
-                        payload=json.dumps({"reason": reason}),
-                        should_not_retry=False,
-                    )
-                )
-                return
-
             if was_cancelled or task_cancelled:
-                # If a cancellation was requested but the task still finished normally (returned or errored),
-                # emit a monitoring event so OLAP can represent this as a cancellation failure.
-                if was_cancelled and not task_cancelled:
-                    payload: dict[str, Any] = {"reason": reason}
-                    try:
-                        exc = task.exception()
-                    except BaseException as e:
-                        # Extremely defensive: retrieving exception should be safe here, but avoid
-                        # breaking the callback if it isn't.
-                        payload["completion"] = "errored"
-                        payload["error_type"] = e.__class__.__name__
-                        payload["error"] = str(e)
-                    else:
-                        if exc is None:
-                            payload["completion"] = "returned"
-                        else:
-                            payload["completion"] = "errored"
-                            payload["error_type"] = exc.__class__.__name__
-                            payload["error"] = str(exc)
-
+                # Confirm cancellation once the step has unwound locally. This intentionally
+                # does not depend on asyncio Task.cancelled(), because well-behaved code may
+                # observe the token and exit by returning.
+                if was_cancelled:
                     self.event_queue.put(
                         ActionEvent(
                             action=action,
-                            type=STEP_EVENT_TYPE_CANCELLATION_FAILED,
-                            payload=json.dumps(payload),
+                            type=STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+                            payload=json.dumps({"reason": reason}),
                             should_not_retry=False,
                         )
                     )
-                    return
                 return
 
             try:
@@ -464,6 +443,11 @@ class Runner:
         # Ensure we don't leak eviction records.
         self.durable_eviction_manager.unregister_run(key)
 
+        supervisor = self._cancellation_supervisors.pop(key, None)
+        if supervisor is not None and not supervisor.done():
+            supervisor.cancel()
+        self._cancellation_started_at.pop(key, None)
+
         if key in self.tasks:
             del self.tasks[key]
 
@@ -475,6 +459,158 @@ class Runner:
                 self.cancellations[key] = True
 
             del self.contexts[key]
+
+    def _ensure_cancellation_supervision(self, action: Action) -> None:
+        """
+        Ensure a single cancellation supervision task exists for this run.
+
+        The supervision task waits for the run's cancellation token to be cancelled and then
+        performs time-based checks (warning threshold + grace period) and best-effort force
+        cancellation of the underlying asyncio task / sync thread.
+        """
+        key = action.key
+        existing = self._cancellation_supervisors.get(key)
+        if existing is not None and not existing.done():
+            return
+
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(self._supervise_cancellation(action))
+        self._cancellation_supervisors[key] = task
+
+        # Avoid leaking completed supervisor tasks for late-arriving cancel actions
+        # (e.g. engine cancel arrives after cleanup, so ctx is already gone).
+        def _cleanup_done(_t: asyncio.Task[None]) -> None:
+            if self._cancellation_supervisors.get(key) is _t:
+                self._cancellation_supervisors.pop(key, None)
+
+        task.add_done_callback(_cleanup_done)
+
+    async def _supervise_cancellation(self, action: Action) -> None:
+        """
+        Wait for token cancellation, then enforce warning/grace checks.
+
+        This is intentionally decoupled from the engine CANCEL_STEP_RUN action handler so
+        SDK-local cancellations (e.g. durable eviction) follow the same behavior.
+        """
+        key = action.key
+        ctx = self.contexts.get(key)
+        if ctx is None:
+            return
+
+        token = ctx.cancellation_token
+
+        try:
+            await token.aio_wait()
+        except asyncio.CancelledError:
+            return
+
+        cancel_started_at = time.monotonic()
+        self._cancellation_started_at[key] = cancel_started_at
+
+        reason = (
+            token.reason.value
+            if token.reason is not None
+            else self.cancellation_reasons.get(
+                key, CancellationReason.WORKFLOW_CANCELLED.value
+            )
+        )
+        # Persist the reason so later engine cancel actions can still find it after cleanup.
+        self.cancellation_reasons[key] = reason
+
+        grace_period = self.config.cancellation_grace_period.total_seconds()
+        warning_threshold = self.config.cancellation_warning_threshold.total_seconds()
+        grace_period_ms = int(round(grace_period * 1000))
+        warning_threshold_ms = int(round(warning_threshold * 1000))
+
+        # Wait until warning threshold
+        await asyncio.sleep(warning_threshold)
+        elapsed = time.monotonic() - cancel_started_at
+        elapsed_ms = int(round(elapsed * 1000))
+
+        task_running = key in self.tasks and not self.tasks[key].done()
+        if not task_running:
+            return
+
+        logger.warning(
+            f"Cancellation: task {action.action_id} has not cancelled after "
+            f"{elapsed_ms}ms (warning threshold {warning_threshold_ms}ms). "
+            f"Consider checking for blocking operations. "
+            f"See https://docs.hatchet.run/home/cancellation"
+        )
+
+        # Continue waiting until grace period only if task is still running
+        remaining = grace_period - elapsed
+        if remaining > 0:
+            await asyncio.sleep(remaining)
+
+        sent_cancellation_failed = False
+
+        # Force cancel if still running after grace period
+        if key in self.tasks and not self.tasks[key].done():
+            logger.debug(
+                f"Cancellation: force-cancelling task {action.action_id} "
+                f"after grace period ({grace_period_ms}ms)"
+            )
+            self.tasks[key].cancel()
+
+        # Check if thread is still running
+        thread = self.threads.get(key)
+        if thread is not None:
+            if self.config.enable_force_kill_sync_threads:
+                logger.debug(
+                    f"Cancellation: force-killing thread for {action.action_id}"
+                )
+                self.force_kill_thread(thread)
+                await asyncio.sleep(1)
+
+            if thread.is_alive():
+                logger.warning(
+                    f"Cancellation: thread {thread.ident} with key {key} is still running "
+                    f"after cancellation. This could cause the thread pool to get blocked "
+                    f"and prevent new tasks from running."
+                )
+
+                total_elapsed_ms = int(
+                    round((time.monotonic() - cancel_started_at) * 1000)
+                )
+                await self.dispatcher_client.send_step_action_event(
+                    action,
+                    STEP_EVENT_TYPE_CANCELLATION_FAILED,
+                    json.dumps(
+                        {
+                            "reason": reason,
+                            "elapsed_ms": total_elapsed_ms,
+                            "phase": "thread_still_alive",
+                        }
+                    ),
+                    should_not_retry=False,
+                )
+                sent_cancellation_failed = True
+
+        # Emit a failure monitoring event for grace-period exceedance. This covers async tasks
+        # that ignore cancellation, and also provides a consistent signal even when we can't
+        # conclusively determine liveness (e.g. no thread key).
+        total_elapsed = time.monotonic() - cancel_started_at
+        total_elapsed_ms = int(round(total_elapsed * 1000))
+        if total_elapsed > grace_period:
+            logger.warning(
+                f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
+                f"(exceeded grace period of {grace_period_ms}ms)"
+            )
+
+            if not sent_cancellation_failed:
+                await self.dispatcher_client.send_step_action_event(
+                    action,
+                    STEP_EVENT_TYPE_CANCELLATION_FAILED,
+                    json.dumps(
+                        {
+                            "reason": reason,
+                            "elapsed_ms": total_elapsed_ms,
+                            "phase": "grace_period_exceeded",
+                        }
+                    ),
+                    should_not_retry=False,
+                )
 
     @overload
     def create_context(
@@ -524,6 +660,9 @@ class Runner:
             )
 
             self.contexts[action.key] = context
+            # Start cancellation supervision early so warning/grace checks are consistent
+            # for both engine cancellations and SDK-local cancellations (e.g. durable eviction).
+            self._ensure_cancellation_supervision(action)
             if action_func.is_durable:
                 self.durable_eviction_manager.register_run(
                     action.key,
@@ -598,7 +737,6 @@ class Runner:
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_cancel_action(self, action: Action) -> None:
         key = action.key
-        start_time = time.monotonic()
 
         # Prefer the SDK-local cancellation token reason if it was already set
         # (e.g. durable eviction cancels the local token before the engine cancel arrives).
@@ -619,144 +757,32 @@ class Runner:
             f"reason={reason}"
         )
 
-        try:
-            # Trigger the cancellation token to signal the context to stop
-            if key in self.contexts:
-                ctx = self.contexts[key]
-                child_count = len(ctx.cancellation_token.get_child_run_ids())
-                logger.debug(
-                    f"Cancellation: triggering token for {action.action_id}, "
-                    f"reason={reason}, "
-                    f"{child_count} children registered"
-                )
-                cancel_reason = CancellationReason.WORKFLOW_CANCELLED
-                try:
-                    cancel_reason = CancellationReason(reason)
-                except Exception:
-                    # Be defensive: if we receive an unknown reason string from the engine,
-                    # still cancel the token with a sensible default.
-                    cancel_reason = CancellationReason.WORKFLOW_CANCELLED
-
-                ctx._set_cancellation_flag(cancel_reason)
-                self.cancellations[key] = True
-                # Note: Child workflows are not cancelled here - they run independently
-                # and are managed by Hatchet's normal cancellation mechanisms
-            else:
-                logger.debug(f"Cancellation: no context found for {action.action_id}")
-
-            # Wait with supervision (using timedelta configs)
-            grace_period = self.config.cancellation_grace_period.total_seconds()
-            warning_threshold = (
-                self.config.cancellation_warning_threshold.total_seconds()
+        # Trigger the cancellation token to signal the context to stop
+        if key in self.contexts:
+            ctx = self.contexts[key]
+            child_count = len(ctx.cancellation_token.get_child_run_ids())
+            logger.debug(
+                f"Cancellation: triggering token for {action.action_id}, "
+                f"reason={reason}, "
+                f"{child_count} children registered"
             )
-            grace_period_ms = int(round(grace_period * 1000))
-            warning_threshold_ms = int(round(warning_threshold * 1000))
+            cancel_reason = CancellationReason.WORKFLOW_CANCELLED
+            try:
+                cancel_reason = CancellationReason(reason)
+            except Exception:
+                # Be defensive: if we receive an unknown reason string from the engine,
+                # still cancel the token with a sensible default.
+                cancel_reason = CancellationReason.WORKFLOW_CANCELLED
 
-            # Wait until warning threshold
-            await asyncio.sleep(warning_threshold)
-            elapsed = time.monotonic() - start_time
-            elapsed_ms = int(round(elapsed * 1000))
+            ctx._set_cancellation_flag(cancel_reason)
+            self.cancellations[key] = True
+        else:
+            logger.debug(f"Cancellation: no context found for {action.action_id}")
 
-            # Check if task is still running after warning threshold
-            task_was_running = key in self.tasks and not self.tasks[key].done()
-
-            if task_was_running:
-                logger.warning(
-                    f"Cancellation: task {action.action_id} has not cancelled after "
-                    f"{elapsed_ms}ms (warning threshold {warning_threshold_ms}ms). "
-                    f"Consider checking for blocking operations. "
-                    f"See https://docs.hatchet.run/home/cancellation"
-                )
-
-                # Continue waiting until grace period only if task is still running
-                remaining = grace_period - elapsed
-                if remaining > 0:
-                    await asyncio.sleep(remaining)
-
-                # Force cancel if still running after grace period
-                if key in self.tasks and not self.tasks[key].done():
-                    logger.debug(
-                        f"Cancellation: force-cancelling task {action.action_id} "
-                        f"after grace period ({grace_period_ms}ms)"
-                    )
-                    self.tasks[key].cancel()
-
-                # Check if thread is still running
-                if key in self.threads:
-                    thread = self.threads[key]
-
-                    if self.config.enable_force_kill_sync_threads:
-                        logger.debug(
-                            f"Cancellation: force-killing thread for {action.action_id}"
-                        )
-                        self.force_kill_thread(thread)
-                        await asyncio.sleep(1)
-
-                    if thread.is_alive():
-                        logger.warning(
-                            f"Cancellation: thread {thread.ident} with key {key} is still running "
-                            f"after cancellation. This could cause the thread pool to get blocked "
-                            f"and prevent new tasks from running."
-                        )
-
-                        total_elapsed_ms = int(
-                            round((time.monotonic() - start_time) * 1000)
-                        )
-                        await self.dispatcher_client.send_step_action_event(
-                            action,
-                            STEP_EVENT_TYPE_CANCELLATION_FAILED,
-                            json.dumps(
-                                {
-                                    "reason": reason,
-                                    "elapsed_ms": total_elapsed_ms,
-                                    "phase": "thread_still_alive",
-                                }
-                            ),
-                            should_not_retry=False,
-                        )
-
-                # Log final status for slow cancellation
-                total_elapsed = time.monotonic() - start_time
-                total_elapsed_ms = int(round(total_elapsed * 1000))
-                if total_elapsed > grace_period:
-                    logger.warning(
-                        f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
-                        f"(exceeded grace period of {grace_period_ms}ms)"
-                    )
-
-                    # Emit a failure monitoring event for grace-period exceedance. This covers
-                    # async tasks that ignore cancellation, and also provides a consistent signal
-                    # even when we can't conclusively determine liveness (e.g. no thread key).
-                    if not sent_cancellation_failed:
-                        await self.dispatcher_client.send_step_action_event(
-                            action,
-                            STEP_EVENT_TYPE_CANCELLATION_FAILED,
-                            json.dumps(
-                                {
-                                    "reason": reason,
-                                    "elapsed_ms": total_elapsed_ms,
-                                    "phase": "grace_period_exceeded",
-                                }
-                            ),
-                            should_not_retry=False,
-                        )
-                        sent_cancellation_failed = True
-                else:
-                    logger.debug(
-                        f"Cancellation: task {action.action_id} eventually completed in {total_elapsed_ms}ms"
-                    )
-
-                task_done = key not in self.tasks or self.tasks[key].done()
-                if task_done:
-                    # Do not emit CANCELLED_CONFIRMED here, it is emitted via await_with_cancellation's cancel_callback,
-                    # which runs immediately after `CancellationToken.aio_wait()` completes.
-                    pass
-            else:
-                # Task completed quickly - log success and exit
-                logger.info(f"Cancellation: task {action.action_id} completed")
-                # Do not emit CANCELLED_CONFIRMED here (see note above).
-        finally:
-            self.cleanup_run_id(key)
+        # Ensure our uniform warning/grace/force-cancel supervision exists. This is
+        # triggered by the cancellation token itself, so it also covers SDK-local
+        # cancellations (e.g. durable eviction) even if an engine cancel arrives late.
+        self._ensure_cancellation_supervision(action)
 
     async def _emit_durable_evicted(
         self, key: ActionKey, rec: DurableRunRecord

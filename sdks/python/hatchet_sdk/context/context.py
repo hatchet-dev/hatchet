@@ -559,7 +559,6 @@ class DurableContext(Context):
         async with aio_durable_eviction_wait(
             "durable_event", f"{task_id}:{signal_key}"
         ):
-            # Use await_with_cancellation to respect the cancellation token
             return await await_with_cancellation(
                 self.durable_event_listener.result(task_id, signal_key),
                 self.cancellation_token,
