@@ -82,6 +82,8 @@ function getEmptyStateMessage(taskStatus?: V1TaskStatus): string {
     case V1TaskStatus.RUNNING:
     case V1TaskStatus.QUEUED:
       return 'Waiting for logs...';
+    case V1TaskStatus.NOTFOUND:
+      return 'No logs found matching your search.';
     default:
       return 'No logs available.';
   }
