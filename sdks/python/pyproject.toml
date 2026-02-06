@@ -42,7 +42,7 @@ types-psutil = "^6.1.0.20241221"
 ruff = "==0.15.0"
 types-requests = "^2.32.0.20241016"
 psutil = "^6.0.0"
-grpc-stubs = "^1.53.0.5"
+types-grpcio = "^1.0.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.5"

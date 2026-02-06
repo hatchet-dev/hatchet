@@ -764,27 +764,12 @@ colorama = ">=0.4"
 pypi = ["pip (>=24.0)", "platformdirs (>=4.2)", "wheel (>=0.42)"]
 
 [[package]]
-name = "grpc-stubs"
-version = "1.53.0.6"
-description = "Mypy stubs for gRPC"
-optional = false
-python-versions = ">=3.6"
-groups = ["lint"]
-files = [
-    {file = "grpc_stubs-1.53.0.6-py3-none-any.whl", hash = "sha256:3ffc5a6b5bd84ac46f3d84e2434e97936c1262b47b71b462bdedc43caaf227e1"},
-    {file = "grpc_stubs-1.53.0.6.tar.gz", hash = "sha256:70a0840747bd73c2c82fe819699bbf4fcf6d59bd0ed27a4713a240e0c697e1ff"},
-]
-
-[package.dependencies]
-grpcio = "*"
-
-[[package]]
 name = "grpcio"
 version = "1.76.0"
 description = "HTTP/2-based RPC framework"
 optional = false
 python-versions = ">=3.9"
-groups = ["main", "lint"]
+groups = ["main"]
 files = [
     {file = "grpcio-1.76.0-cp310-cp310-linux_armv7l.whl", hash = "sha256:65a20de41e85648e00305c1bb09a3598f840422e522277641145a32d42dcefcc"},
     {file = "grpcio-1.76.0-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:40ad3afe81676fd9ec6d9d406eda00933f218038433980aa19d401490e46ecde"},
@@ -3022,6 +3007,18 @@ files = [
 types-html5lib = "*"
 
 [[package]]
+name = "types-grpcio"
+version = "1.0.0.20251009"
+description = "Typing stubs for grpcio"
+optional = false
+python-versions = ">=3.9"
+groups = ["lint"]
+files = [
+    {file = "types_grpcio-1.0.0.20251009-py3-none-any.whl", hash = "sha256:112ac4312a5b0a273a4c414f7f2c7668f342990d9c6ab0f647391c36331f95ed"},
+    {file = "types_grpcio-1.0.0.20251009.tar.gz", hash = "sha256:a8f615ea7a47b31f10da028ab5258d4f1611fbd70719ca450fc0ab3fb9c62b63"},
+]
+
+[[package]]
 name = "types-html5lib"
 version = "1.1.11.20251117"
 description = "Typing stubs for html5lib"
@@ -3473,4 +3470,4 @@ v0-sdk = []
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "3e7be3de974413d37017723d169ab05549fa0d6142ecb5774e8fba3635e05317"
+content-hash = "258e0c23b44c9d791c366483aa941e1ffda6ae89af9f18e35b1adb8c70f139ff"
