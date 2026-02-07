@@ -95,14 +95,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 }
 
 const createWorkerSlotConfigs = `-- name: CreateWorkerSlotConfigs :exec
-WITH input AS (
-    SELECT
-        st.slot_type,
-        mu.max_units
-    FROM unnest($3::text[]) WITH ORDINALITY AS st(slot_type, ord)
-    JOIN unnest($4::integer[]) WITH ORDINALITY AS mu(max_units, ord)
-        USING (ord)
-)
 INSERT INTO v1_worker_slot_config (
     tenant_id,
     worker_id,
@@ -114,11 +106,10 @@ INSERT INTO v1_worker_slot_config (
 SELECT
     $1::uuid,
     $2::uuid,
-    i.slot_type,
-    i.max_units,
+    unnest($3::text[]),
+    unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-FROM input i
 `
 
 type CreateWorkerSlotConfigsParams struct {

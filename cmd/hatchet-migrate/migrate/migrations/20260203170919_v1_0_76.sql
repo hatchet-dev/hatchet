@@ -57,16 +57,6 @@ FROM "Worker"
 WHERE "maxRuns" IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO v1_worker_slot_config (tenant_id, worker_id, slot_type, max_units)
-SELECT
-    "tenantId",
-    "id",
-    'durable'::text,
-    "durableMaxRuns"
-FROM "Worker"
-WHERE "durableMaxRuns" IS NOT NULL AND "durableMaxRuns" > 0
-ON CONFLICT DO NOTHING;
-
 INSERT INTO v1_step_slot_request (tenant_id, step_id, slot_type, units)
 SELECT
     "tenantId",
@@ -91,18 +81,14 @@ SELECT
     task_inserted_at,
     retry_count,
     worker_id,
-    CASE
-        WHEN slot_group = 'DURABLE_SLOTS'::v1_worker_slot_group THEN 'durable'::text
-        ELSE 'default'::text
-    END,
+    'default'::text,
     1
 FROM v1_task_runtime
 WHERE worker_id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
 ALTER TABLE "Worker"
-    DROP COLUMN IF EXISTS "maxRuns",
-    DROP COLUMN IF EXISTS "durableMaxRuns";
+    DROP COLUMN IF EXISTS "maxRuns";
 
 -- +goose StatementEnd
 
@@ -116,15 +102,9 @@ DROP TABLE IF EXISTS v1_worker_slot_config;
 
 DROP INDEX IF EXISTS v1_task_runtime_tenantId_workerId_slotGroup_idx;
 
-ALTER TABLE v1_task_runtime
-    DROP COLUMN IF EXISTS slot_group;
-
 ALTER TABLE "Step"
     DROP COLUMN IF EXISTS "isDurable";
 
 ALTER TABLE "Worker"
-    ADD COLUMN IF NOT EXISTS "maxRuns" INTEGER NOT NULL DEFAULT 100,
-    ADD COLUMN IF NOT EXISTS "durableMaxRuns" INTEGER NOT NULL DEFAULT 0;
-
-DROP TYPE IF EXISTS v1_worker_slot_group;
+    ADD COLUMN IF NOT EXISTS "maxRuns" INTEGER NOT NULL DEFAULT 100;
 -- +goose StatementEnd
