@@ -31,7 +31,7 @@ type RateLimitResult struct {
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
-	WorkerId  uuid.UUID
+	WorkerId uuid.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
 
@@ -616,7 +616,10 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		queryTx = d.pool
 	}
 
-	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, stepIdsToLookup)
+	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, sqlcv1.GetDesiredLabelsParams{
+		Column1:  stepIdsToLookup,
+		Tenantid: d.tenantId,
+	})
 
 	if err != nil {
 		return nil, err
@@ -668,7 +671,10 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 		queryTx = d.pool
 	}
 
-	rows, err := d.queries.GetStepSlotRequests(ctx, queryTx, stepIdsToLookup)
+	rows, err := d.queries.GetStepSlotRequests(ctx, queryTx, sqlcv1.GetStepSlotRequestsParams{
+		Stepids:  stepIdsToLookup,
+		Tenantid: d.tenantId,
+	})
 	if err != nil {
 		return nil, err
 	}

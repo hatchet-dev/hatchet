@@ -178,7 +178,13 @@ FROM
     "StepDesiredWorkerLabel"
 WHERE
     "stepId" = ANY($1::uuid[])
+    AND "tenantId" = $2::uuid
 `
+
+type GetDesiredLabelsParams struct {
+	Column1  []uuid.UUID `json:"column_1"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+}
 
 type GetDesiredLabelsRow struct {
 	Key        string                `json:"key"`
@@ -190,8 +196,8 @@ type GetDesiredLabelsRow struct {
 	StepId     uuid.UUID             `json:"stepId"`
 }
 
-func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetDesiredLabelsRow, error) {
-	rows, err := db.Query(ctx, getDesiredLabels, stepids)
+func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, arg GetDesiredLabelsParams) ([]*GetDesiredLabelsRow, error) {
+	rows, err := db.Query(ctx, getDesiredLabels, arg.Column1, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +348,13 @@ FROM
     v1_step_slot_request
 WHERE
     step_id = ANY($1::uuid[])
+    AND tenant_id = $2::uuid
 `
+
+type GetStepSlotRequestsParams struct {
+	Stepids  []uuid.UUID `json:"stepids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+}
 
 type GetStepSlotRequestsRow struct {
 	StepID   uuid.UUID `json:"step_id"`
@@ -350,8 +362,8 @@ type GetStepSlotRequestsRow struct {
 	Units    int32     `json:"units"`
 }
 
-func (q *Queries) GetStepSlotRequests(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetStepSlotRequestsRow, error) {
-	rows, err := db.Query(ctx, getStepSlotRequests, stepids)
+func (q *Queries) GetStepSlotRequests(ctx context.Context, db DBTX, arg GetStepSlotRequestsParams) ([]*GetStepSlotRequestsRow, error) {
+	rows, err := db.Query(ctx, getStepSlotRequests, arg.Stepids, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
