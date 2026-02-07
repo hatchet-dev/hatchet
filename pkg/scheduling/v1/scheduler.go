@@ -636,17 +636,35 @@ func (s *Scheduler) tryAssignBatch(
 	// NOTE: if we change the position of this lock, make sure that we are still acquiring locks in the same
 	// order as the replenish() function, otherwise we may deadlock.
 	s.actionsMu.RLock()
-
 	action, ok := s.actions[actionId]
+	s.actionsMu.RUnlock()
+
+	if !ok || action == nil {
+		s.l.Debug().Msgf("no action %s", actionId)
+
+		// Treat missing action as "no slots" for any non-rate-limited queue item.
+		for i := range res {
+			if res[i].rateLimitResult != nil {
+				continue
+			}
+			res[i].noSlots = true
+			rlNacks[i]()
+		}
+
+		return res, newRingOffset, nil
+	}
 
 	action.mu.RLock()
-	if !ok || len(action.slots) == 0 {
+	if len(action.slots) == 0 {
 		action.mu.RUnlock()
 
 		s.l.Debug().Msgf("no slots for action %s", actionId)
 
 		// if the action is not in the map, then we have no slots to assign to
 		for i := range res {
+			if res[i].rateLimitResult != nil {
+				continue
+			}
 			res[i].noSlots = true
 			rlNacks[i]()
 		}
@@ -678,12 +696,18 @@ func (s *Scheduler) tryAssignBatch(
 
 		qi := qis[i]
 
-		if len(stepIdsToRequests[qi.StepID]) == 0 {
-			res[i].noSlots = true
-			rlNacks[i]()
+		labels := []*sqlcv1.GetDesiredLabelsRow(nil)
+		if stepIdsToLabels != nil {
+			labels = stepIdsToLabels[qi.StepID]
+		}
 
-			s.l.Error().Msgf("step id %s queue item %d has no slot requests, skipping assignment", qi.StepID.String(), qi.ID)
-			continue
+		// Backwards-compatible default: if no slot requests are provided for a step,
+		// assume it needs 1 default slot.
+		requests := map[string]int32{v1.SlotTypeDefault: 1}
+		if stepIdsToRequests != nil {
+			if r, ok := stepIdsToRequests[qi.StepID]; ok && len(r) > 0 {
+				requests = r
+			}
 		}
 
 		singleRes, err := s.tryAssignSingleton(
@@ -692,8 +716,8 @@ func (s *Scheduler) tryAssignBatch(
 			action,
 			candidateSlots,
 			childRingOffset,
-			stepIdsToLabels[qi.StepID],
-			stepIdsToRequests[qi.StepID],
+			labels,
+			requests,
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -780,7 +804,16 @@ func findAssignableSlots(
 }
 
 func selectSlotsForWorker(workerSlots map[string][]*slot, requests map[string]int32) ([]*slot, bool) {
-	selected := make([]*slot, 0)
+	// Pre-size the selection slice to the total number of requested units.
+	// This avoids per-slot-type temporary slices/allocations while selecting.
+	totalNeeded := 0
+	for _, units := range requests {
+		if units > 0 {
+			totalNeeded += int(units)
+		}
+	}
+
+	selected := make([]*slot, 0, totalNeeded)
 
 	for slotType, units := range requests {
 		if units <= 0 {
@@ -793,23 +826,22 @@ func selectSlotsForWorker(workerSlots map[string][]*slot, requests map[string]in
 		}
 
 		needed := int(units)
-		activeSlots := make([]*slot, 0, needed)
+		found := 0
 
 		for _, slotItem := range slots {
 			if !slotItem.active() {
 				continue
 			}
-			activeSlots = append(activeSlots, slotItem)
-			if len(activeSlots) >= needed {
+			selected = append(selected, slotItem)
+			found++
+			if found >= needed {
 				break
 			}
 		}
 
-		if len(activeSlots) < needed {
+		if found < needed {
 			return nil, false
 		}
-
-		selected = append(selected, activeSlots...)
 	}
 
 	return selected, true
