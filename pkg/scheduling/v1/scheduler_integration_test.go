@@ -95,7 +95,6 @@ func createTenantDispatcherWorker(
 
 	worker, err := r.Workers().CreateNewWorker(ctx, tenantId, &repo.CreateWorkerOpts{
 		DispatcherId: dispatcherId,
-		Slots:        &maxRuns,
 		Name:         "worker-it",
 		Services:     []string{},
 		Actions:      actions,
