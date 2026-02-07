@@ -385,12 +385,27 @@ jobs:
           # Replace ONLY the stdlib "sync" import with an alias that preserves `sync.X` call sites.
           # - `import "sync"` -> `import sync "github.com/sasha-s/go-deadlock"`
           # - within import blocks: `"sync"` -> `sync "github.com/sasha-s/go-deadlock"`
-          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 sed -i -E \
+          # NOTE: use `-i''` (no backup) for portability across GNU/BSD sed.
+          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 sed -i'' -E \
             -e 's/^([[:space:]]*)import[[:space:]]+"sync"[[:space:]]*$/\1import sync "github.com\/sasha-s\/go-deadlock"/' \
             -e 's/^([[:space:]]*)"sync"[[:space:]]*$/\1sync "github.com\/sasha-s\/go-deadlock"/'
 
           # Keep formatting/import grouping consistent after rewriting.
           find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 gofmt -w
+
+          # Evidence in CI logs that rewriting happened (or not).
+          echo "Changed Go files (after patch):"
+          git diff --name-only -- '*.go' || true
+          example="$(git diff --name-only -- '*.go' | head -n 1 || true)"
+          if [[ -n "${example}" ]]; then
+            echo ""
+            echo "First changed file (top 120 lines): ${example}"
+            echo "----"
+            sed -n '1,120p' "${example}"
+            echo "----"
+          else
+            echo "No Go files were modified by the sync import patch."
+          fi
 
       - name: Test (deadlock-instrumented)
         run: |
