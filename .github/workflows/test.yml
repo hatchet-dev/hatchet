@@ -409,6 +409,10 @@ jobs:
           # Compression adds overhead without benefit for 0kb payloads
           HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
         env:
+          # This job adds go-deadlock + -race overhead; relax perf threshold to avoid flakes.
+          HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD: 1s
+          # Give the engine a bit more time to come up under instrumentation.
+          HATCHET_LOADTEST_STARTUP_SLEEP: 30s
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}

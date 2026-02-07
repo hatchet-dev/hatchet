@@ -4,6 +4,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"testing"
 	"time"
 
@@ -28,6 +29,24 @@ func TestLoadCLI(t *testing.T) {
 		"loadtest",
 	)
 
+	avgThreshold := 300 * time.Millisecond
+	if v := os.Getenv("HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD"); v != "" {
+		if parsed, err := time.ParseDuration(v); err == nil {
+			avgThreshold = parsed
+		} else {
+			t.Fatalf("invalid HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD=%q: %v", v, err)
+		}
+	}
+
+	startupSleep := 15 * time.Second
+	if v := os.Getenv("HATCHET_LOADTEST_STARTUP_SLEEP"); v != "" {
+		if parsed, err := time.ParseDuration(v); err == nil {
+			startupSleep = parsed
+		} else {
+			t.Fatalf("invalid HATCHET_LOADTEST_STARTUP_SLEEP=%q: %v", v, err)
+		}
+	}
+
 	tests := []struct {
 		name    string
 		config  LoadTestConfig
@@ -49,7 +68,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   0,
 				RlLimit:                  0,
 				RlDurationUnit:           "",
-				AverageDurationThreshold: 300 * time.Millisecond,
+				AverageDurationThreshold: avgThreshold,
 			},
 		},
 		{
@@ -68,7 +87,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   0,
 				RlLimit:                  0,
 				RlDurationUnit:           "",
-				AverageDurationThreshold: 300 * time.Millisecond,
+				AverageDurationThreshold: avgThreshold,
 			},
 		},
 		{
@@ -87,7 +106,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   0,
 				RlLimit:                  0,
 				RlDurationUnit:           "",
-				AverageDurationThreshold: 300 * time.Millisecond,
+				AverageDurationThreshold: avgThreshold,
 			},
 		},
 		{
@@ -106,7 +125,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   0,
 				RlLimit:                  0,
 				RlDurationUnit:           "",
-				AverageDurationThreshold: 300 * time.Millisecond,
+				AverageDurationThreshold: avgThreshold,
 			},
 		},
 		{
@@ -126,7 +145,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   0,
 				RlLimit:                  0,
 				RlDurationUnit:           "",
-				AverageDurationThreshold: 300 * time.Millisecond,
+				AverageDurationThreshold: avgThreshold,
 			},
 		},
 		{
@@ -145,13 +164,13 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   10,
 				RlLimit:                  100,
 				RlDurationUnit:           "second",
-				AverageDurationThreshold: 300 * time.Millisecond,
+				AverageDurationThreshold: avgThreshold,
 			},
 		},
 	}
 
 	// TODO instead of waiting, figure out when the engine setup is complete
-	time.Sleep(15 * time.Second)
+	time.Sleep(startupSleep)
 
 	for _, tt := range tests {
 		tt := tt // pin the loop variable
