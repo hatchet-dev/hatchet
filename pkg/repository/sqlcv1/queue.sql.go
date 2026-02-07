@@ -178,13 +178,7 @@ FROM
     "StepDesiredWorkerLabel"
 WHERE
     "stepId" = ANY($1::uuid[])
-    AND "tenantId" = $2::uuid
 `
-
-type GetDesiredLabelsParams struct {
-	Column1  []uuid.UUID `json:"column_1"`
-	Tenantid uuid.UUID   `json:"tenantid"`
-}
 
 type GetDesiredLabelsRow struct {
 	Key        string                `json:"key"`
@@ -196,8 +190,8 @@ type GetDesiredLabelsRow struct {
 	StepId     uuid.UUID             `json:"stepId"`
 }
 
-func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, arg GetDesiredLabelsParams) ([]*GetDesiredLabelsRow, error) {
-	rows, err := db.Query(ctx, getDesiredLabels, arg.Column1, arg.Tenantid)
+func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, dollar_1 []uuid.UUID) ([]*GetDesiredLabelsRow, error) {
+	rows, err := db.Query(ctx, getDesiredLabels, dollar_1)
 	if err != nil {
 		return nil, err
 	}

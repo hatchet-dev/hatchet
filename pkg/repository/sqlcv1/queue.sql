@@ -352,8 +352,7 @@ SELECT
 FROM
     "StepDesiredWorkerLabel"
 WHERE
-    "stepId" = ANY($1::uuid[])
-    AND "tenantId" = @tenantId::uuid;
+    "stepId" = ANY($1::uuid[]);
 
 -- name: GetStepSlotRequests :many
 SELECT

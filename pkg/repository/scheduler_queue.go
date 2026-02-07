@@ -616,10 +616,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		queryTx = d.pool
 	}
 
-	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, sqlcv1.GetDesiredLabelsParams{
-		Column1:  stepIdsToLookup,
-		Tenantid: d.tenantId,
-	})
+	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, stepIdsToLookup)
 
 	if err != nil {
 		return nil, err
