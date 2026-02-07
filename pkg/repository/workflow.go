@@ -733,10 +733,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Readableid:     stepOpts.ReadableId,
 			CustomUserData: customUserData,
 			Retries:        retries,
-			IsDurable: pgtype.Bool{
-				Bool:  stepOpts.IsDurable,
-				Valid: true,
-			},
+			IsDurable:      sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
 		}
 
 		if stepOpts.ScheduleTimeout != nil {
