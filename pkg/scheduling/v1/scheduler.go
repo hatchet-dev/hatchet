@@ -29,8 +29,6 @@ type Scheduler struct {
 	actions     map[string]*action
 	actionsMu   rwMutex
 	replenishMu mutex
-	// replenishSignal is poked to trigger an immediate replenish. It's buffered to drain signal bursts while we're already awake.
-	replenishSignal chan struct{}
 
 	workersMu mutex
 	workers   map[uuid.UUID]*worker
@@ -59,7 +57,6 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 		rl:              rl,
 		actionsMu:       newRWMu(cf.l),
 		replenishMu:     newMu(cf.l),
-		replenishSignal: make(chan struct{}, 1),
 		workersMu:       newMu(cf.l),
 		assignedCountMu: newMu(cf.l),
 		unackedMu:       newMu(cf.l),
@@ -111,30 +108,6 @@ func (s *Scheduler) getWorkers() map[uuid.UUID]*worker {
 	defer s.workersMu.Unlock()
 
 	return s.workers
-}
-
-func (s *Scheduler) ensureAction(actionId string) *action {
-	s.actionsMu.Lock()
-	defer s.actionsMu.Unlock()
-
-	if existing, ok := s.actions[actionId]; ok {
-		return existing
-	}
-
-	newAction := &action{
-		actionId:      actionId,
-		slotsByWorker: make(map[uuid.UUID]map[string][]*slot),
-	}
-
-	s.actions[actionId] = newAction
-
-	// Signal the replenisher so this new action gets slots ASAP.
-	select {
-	case s.replenishSignal <- struct{}{}:
-	default:
-	}
-
-	return newAction
 }
 
 // replenish loads new slots from the database.
@@ -506,25 +479,15 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-		case <-s.replenishSignal:
-			// drain signal bursts while we're already awake.
-			for {
-				select {
-				case <-s.replenishSignal:
-					continue
-				default:
-				}
-				break
+			innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			err := s.replenish(innerCtx, true)
+
+			if err != nil {
+				s.l.Error().Err(err).Msg("error replenishing slots")
 			}
+			cancel()
 		}
 
-		innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		err := s.replenish(innerCtx, true)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("error replenishing slots")
-		}
-		cancel()
 	}
 }
 
@@ -628,12 +591,6 @@ func (s *Scheduler) tryAssignBatch(
 		}
 	}
 
-	// Get or create the action and try to assign the batch of queue items.
-	// NOTE: if we change the position of these locks, make sure that we are still acquiring locks in the same
-	// order as the replenish() function, otherwise we may deadlock. The order is:
-	// actionsMu -> action.mu -> unackedMu
-	action := s.ensureAction(actionId)
-
 	rlAcks := make([]func(), len(qis))
 	rlNacks := make([]func(), len(qis))
 
@@ -675,8 +632,15 @@ func (s *Scheduler) tryAssignBatch(
 		rlNacks[i] = rateLimitNack
 	}
 
+	// lock the actions map and try to assign the batch of queue items.
+	// NOTE: if we change the position of this lock, make sure that we are still acquiring locks in the same
+	// order as the replenish() function, otherwise we may deadlock.
+	s.actionsMu.RLock()
+
+	action, ok := s.actions[actionId]
+
 	action.mu.RLock()
-	if len(action.slots) == 0 {
+	if !ok || len(action.slots) == 0 {
 		action.mu.RUnlock()
 
 		s.l.Debug().Msgf("no slots for action %s", actionId)
@@ -714,7 +678,13 @@ func (s *Scheduler) tryAssignBatch(
 
 		qi := qis[i]
 
-		requests := normalizeSlotRequests(stepIdsToRequests[qi.StepID])
+		if len(stepIdsToRequests[qi.StepID]) == 0 {
+			res[i].noSlots = true
+			rlNacks[i]()
+
+			s.l.Error().Msgf("step id %s queue item %d has no slot requests, skipping assignment", qi.StepID.String(), qi.ID)
+			continue
+		}
 
 		singleRes, err := s.tryAssignSingleton(
 			ctx,
@@ -723,7 +693,7 @@ func (s *Scheduler) tryAssignBatch(
 			candidateSlots,
 			childRingOffset,
 			stepIdsToLabels[qi.StepID],
-			requests,
+			stepIdsToRequests[qi.StepID],
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -845,26 +815,6 @@ func selectSlotsForWorker(workerSlots map[string][]*slot, requests map[string]in
 	return selected, true
 }
 
-func normalizeSlotRequests(requests map[string]int32) map[string]int32 {
-	if len(requests) == 0 {
-		return map[string]int32{v1.SlotTypeDefault: 1}
-	}
-
-	normalized := make(map[string]int32, len(requests))
-	for slotType, units := range requests {
-		if units <= 0 {
-			continue
-		}
-		normalized[slotType] = units
-	}
-
-	if len(normalized) == 0 {
-		return map[string]int32{v1.SlotTypeDefault: 1}
-	}
-
-	return normalized
-}
-
 // tryAssignSingleton attempts to assign a singleton step to a worker.
 func (s *Scheduler) tryAssignSingleton(
 	ctx context.Context,
@@ -916,6 +866,12 @@ func (s *Scheduler) tryAssignSingleton(
 	s.unackedMu.Unlock()
 
 	res.workerId = assignedSlot.workerId()
+	if res.workerId == uuid.Nil {
+		s.l.Error().Msgf("assigned slot %d has no worker id, skipping assignment", res.ackId)
+		res.noSlots = true
+		return res, nil
+	}
+
 	res.succeeded = true
 
 	return res, nil

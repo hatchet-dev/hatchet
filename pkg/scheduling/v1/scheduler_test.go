@@ -239,45 +239,6 @@ func TestScheduler_SetWorkers_GetWorkers(t *testing.T) {
 	require.Equal(t, w2.ID, got[w2.ID].ID)
 }
 
-func TestScheduler_EnsureAction_TriggersImmediateReplenish(t *testing.T) {
-	tenantId := uuid.New()
-
-	ar := &mockAssignmentRepo{
-		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
-			// No workers required to validate the wakeup behavior.
-			return nil, nil
-		},
-	}
-
-	s := newTestScheduler(t, tenantId, ar)
-
-	replenishStarted := make(chan struct{})
-
-	testHookBeforeReplenishUnackedLock = func() {
-		select {
-		case <-replenishStarted:
-			// already closed
-		default:
-			close(replenishStarted)
-		}
-	}
-	defer func() { testHookBeforeReplenishUnackedLock = nil }()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go s.loopReplenish(ctx)
-
-	// Creating a new action should wake loopReplenish without waiting for the 1s ticker.
-	s.ensureAction("A")
-
-	select {
-	case <-replenishStarted:
-		// ok
-	case <-time.After(300 * time.Millisecond):
-		t.Fatalf("timed out waiting for replenish after observing a new action")
-	}
-}
-
 func TestScheduleRateLimitResult_ShouldRemoveFromQueue(t *testing.T) {
 	// nil underlying result -> false
 	r := &scheduleRateLimitResult{}
@@ -335,7 +296,7 @@ func TestScheduler_TryAssignSingleton_RingWraparound(t *testing.T) {
 	s2 := newSlot(w2, []string{"A"}, repo.SlotTypeDefault)
 
 	a := actionWithSlots("A", s1, s2)
-	req := normalizeSlotRequests(nil)
+	req := map[string]int32{repo.SlotTypeDefault: 1}
 
 	qi := testQI(tenantId, "A", 1)
 	res, err := s.tryAssignSingleton(context.Background(), qi, a, []*slot{s1, s2}, 1, nil, req, func() {}, func() {})
@@ -362,7 +323,7 @@ func TestScheduler_TryAssignSingleton_NoSlots(t *testing.T) {
 	require.True(t, s1.use(nil, nil))
 
 	a := actionWithSlots("A", s1)
-	req := normalizeSlotRequests(nil)
+	req := map[string]int32{repo.SlotTypeDefault: 1}
 
 	qi := testQI(tenantId, "A", 1)
 	res, err := s.tryAssignSingleton(context.Background(), qi, a, []*slot{s1}, 0, nil, req, func() {}, func() {})
@@ -386,7 +347,7 @@ func TestScheduler_TryAssignSingleton_StickyHardForcesRanking(t *testing.T) {
 	desiredSlot := newSlot(wDesired, []string{"A"}, repo.SlotTypeDefault)
 
 	a := actionWithSlots("A", otherSlot, desiredSlot)
-	req := normalizeSlotRequests(nil)
+	req := map[string]int32{repo.SlotTypeDefault: 1}
 
 	qi := testQI(tenantId, "A", 1)
 	qi.Sticky = sqlcv1.V1StickyStrategyHARD
@@ -407,7 +368,7 @@ func TestScheduler_TryAssignSingleton_RateLimitAckIsWiredIntoSlotAck(t *testing.
 
 	sl := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
 	a := actionWithSlots("A", sl)
-	req := normalizeSlotRequests(nil)
+	req := map[string]int32{repo.SlotTypeDefault: 1}
 	qi := testQI(tenantId, "A", 1)
 
 	ackCount := 0
@@ -865,17 +826,6 @@ func TestScheduler_Start_Smoke(t *testing.T) {
 
 	// should not block or panic even if canceled
 	s.start(ctx)
-}
-
-func TestNormalizeSlotRequests_DefaultsAndFilters(t *testing.T) {
-	require.Equal(t, map[string]int32{repo.SlotTypeDefault: 1}, normalizeSlotRequests(nil))
-	require.Equal(t, map[string]int32{repo.SlotTypeDefault: 1}, normalizeSlotRequests(map[string]int32{}))
-	require.Equal(t, map[string]int32{repo.SlotTypeDefault: 1}, normalizeSlotRequests(map[string]int32{repo.SlotTypeDefault: 0}))
-	require.Equal(t, map[string]int32{repo.SlotTypeDefault: 1}, normalizeSlotRequests(map[string]int32{repo.SlotTypeDefault: -1}))
-
-	out := normalizeSlotRequests(map[string]int32{repo.SlotTypeDefault: 2, repo.SlotTypeDurable: 1})
-	require.Equal(t, int32(2), out[repo.SlotTypeDefault])
-	require.Equal(t, int32(1), out[repo.SlotTypeDurable])
 }
 
 func TestSelectSlotsForWorker_MissingTypeOrInsufficientUnitsFails(t *testing.T) {
