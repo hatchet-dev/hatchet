@@ -25,6 +25,11 @@ import (
 
 type actionFunc func(args ...any) []any
 
+const (
+	slotTypeDefault = "default"
+	slotTypeDurable = "durable"
+)
+
 // Action is an individual action that can be run by the worker.
 type Action interface {
 	// Name returns the name of the action
@@ -256,6 +261,29 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	if opts.slotConfig != nil && (opts.slots != nil || opts.durableSlots != nil) {
 		return nil, fmt.Errorf("cannot set both slot config and slots/durable slots")
+	}
+
+	// Backwards compatibility:
+	// If callers used the older slots/durableSlots options, map them to a slot config so that
+	// worker registration continues to work with multiple slot types.
+	if opts.slotConfig == nil {
+		legacySlotConfig := map[string]int32{}
+
+		if opts.slots != nil {
+			legacySlotConfig[slotTypeDefault] = int32(*opts.slots) // nolint:gosec
+		}
+
+		if opts.durableSlots != nil {
+			legacySlotConfig[slotTypeDurable] = int32(*opts.durableSlots) // nolint:gosec
+		}
+
+		if len(legacySlotConfig) > 0 {
+			opts.slotConfig = legacySlotConfig
+		}
+	}
+
+	if opts.slotConfig == nil {
+		opts.slotConfig = map[string]int32{slotTypeDefault: 100}
 	}
 
 	w := &Worker{
