@@ -396,16 +396,12 @@ jobs:
           # Evidence in CI logs that rewriting happened (or not).
           echo "Changed Go files (after patch):"
           git diff --name-only -- '*.go' || true
-          example="$(git diff --name-only -- '*.go' | head -n 1 || true)"
-          if [[ -n "${example}" ]]; then
-            echo ""
-            echo "First changed file (top 120 lines): ${example}"
-            echo "----"
-            sed -n '1,120p' "${example}"
-            echo "----"
-          else
-            echo "No Go files were modified by the sync import patch."
-          fi
+
+          echo ""
+          echo "Contents of pkg/scheduling/v1/scheduler.go after patch:"
+          echo "----"
+          cat pkg/scheduling/v1/scheduler.go
+          echo "----"
 
       - name: Test (deadlock-instrumented)
         run: |
