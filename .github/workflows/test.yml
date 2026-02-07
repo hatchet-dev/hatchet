@@ -342,6 +342,67 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
+  load-deadlock:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        migrate-strategy: ["latest"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["17-alpine"]
+        optimistic-scheduling: ["true", "false"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
+          run_install: false
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Add go-deadlock dependency
+        run: go get github.com/sasha-s/go-deadlock@v0.3.6
+
+      - name: Patch sync imports to use go-deadlock (sed)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Replace ONLY the stdlib "sync" import with an alias that preserves `sync.X` call sites.
+          # - `import "sync"` -> `import sync "github.com/sasha-s/go-deadlock"`
+          # - within import blocks: `"sync"` -> `sync "github.com/sasha-s/go-deadlock"`
+          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 sed -i -E \
+            -e 's/^([[:space:]]*)import[[:space:]]+"sync"[[:space:]]*$/\1import sync "github.com\/sasha-s\/go-deadlock"/' \
+            -e 's/^([[:space:]]*)"sync"[[:space:]]*$/\1sync "github.com\/sasha-s\/go-deadlock"/'
+
+          # Keep formatting/import grouping consistent after rewriting.
+          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 gofmt -w
+
+      - name: Test (deadlock-instrumented)
+        run: |
+          # Disable gzip compression for load tests to reduce CPU overhead
+          # Compression adds overhead without benefit for 0kb payloads
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+        env:
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
+
   rampup:
     runs-on: ubicloud-standard-4
     timeout-minutes: 30
