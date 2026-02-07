@@ -46,7 +46,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
 	)
 
-	workers, err := t.config.V1.Workers().ListWorkers(tenantId, opts)
+	workers, err := t.config.V1.Workers().ListWorkers(reqCtx, tenantId, opts)
 
 	if err != nil {
 		listSpan.RecordError(err)
@@ -99,7 +99,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
 	)
 
-	workers, err := t.config.V1.Workers().ListWorkers(tenantId, opts)
+	workers, err := t.config.V1.Workers().ListWorkers(listCtx, tenantId, opts)
 
 	if err != nil {
 		listSpan.RecordError(err)
@@ -129,6 +129,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	)
 
 	workerIdToActionIds, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
+		listCtx,
 		tenant.ID,
 		workerIds,
 	)

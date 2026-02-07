@@ -458,7 +458,7 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 		mc.l.Debug().Msg("collecting worker metrics")
 
 		// Count active slots per tenant (total)
-		activeSlotsTotal, err := mc.repo.Workers().ListTotalActiveSlotsPerTenant()
+		activeSlotsTotal, err := mc.repo.Workers().ListTotalActiveSlotsPerTenant(ctx)
 		switch {
 		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to list total active slots per tenant")
@@ -473,7 +473,7 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 		}
 
 		// Count active slots per tenant and slot key
-		activeSlotsByKey, err := mc.repo.Workers().ListActiveSlotsPerTenantAndSlotType()
+		activeSlotsByKey, err := mc.repo.Workers().ListActiveSlotsPerTenantAndSlotType(ctx)
 		switch {
 		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to list active slots per tenant and slot key")
@@ -492,7 +492,7 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 		}
 
 		// Count active workers per tenant
-		activeWorkers, err := mc.repo.Workers().CountActiveWorkersPerTenant()
+		activeWorkers, err := mc.repo.Workers().CountActiveWorkersPerTenant(ctx)
 		switch {
 		case err != nil:
 			mc.l.Error().Err(err).Msg("failed to count active workers per tenant")
@@ -507,7 +507,7 @@ func (mc *MetricsCollectorImpl) collectWorkerMetrics(ctx context.Context) func()
 		}
 
 		// Count active SDKs per tenant
-		activeSDKs, err := mc.repo.Workers().ListActiveSDKsPerTenant()
+		activeSDKs, err := mc.repo.Workers().ListActiveSDKsPerTenant(ctx)
 
 		switch {
 		case err != nil:

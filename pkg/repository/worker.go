@@ -75,24 +75,24 @@ type UpsertWorkerLabelOpts struct {
 }
 
 type WorkerRepository interface {
-	ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
-	GetWorkerById(workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
-	ListTotalActiveSlotsPerTenant() (map[uuid.UUID]int64, error)
-	ListActiveSlotsPerTenantAndSlotType() (map[TenantIdSlotTypeTuple]int64, error)
-	CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error)
-	ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error)
+	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
+	GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
+	ListTotalActiveSlotsPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
+	ListActiveSlotsPerTenantAndSlotType(ctx context.Context) (map[TenantIdSlotTypeTuple]int64, error)
+	CountActiveWorkersPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
+	ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
-	GetWorkerActionsByWorkerId(tenantId uuid.UUID, workerId []uuid.UUID) (map[string][]string, error)
+	GetWorkerActionsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId []uuid.UUID) (map[string][]string, error)
 
 	// GetWorkerWorkflowsByWorkerId returns a list of workflows for a worker
-	GetWorkerWorkflowsByWorkerId(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error)
+	GetWorkerWorkflowsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
-	ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error)
+	ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error)
 
 	// ListWorkerSlotConfigs returns slot config for workers.
-	ListWorkerSlotConfigs(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
+	ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
 
 	// ListAvailableSlotsForWorkers returns available slot units by worker for a slot type.
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error)
@@ -131,7 +131,7 @@ func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 	}
 }
 
-func (w *workerRepository) ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
+func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (w *workerRepository) ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts
 		}
 	}
 
-	workers, err := w.queries.ListWorkersWithSlotCount(context.Background(), w.pool, queryParams)
+	workers, err := w.queries.ListWorkersWithSlotCount(ctx, w.pool, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -168,8 +168,8 @@ func (w *workerRepository) ListWorkers(tenantId uuid.UUID, opts *ListWorkersOpts
 	return workers, nil
 }
 
-func (w *workerRepository) GetWorkerById(workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
-	return w.queries.GetWorkerById(context.Background(), w.pool, workerId)
+func (w *workerRepository) GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(ctx, w.pool, workerId)
 }
 
 type SDK struct {
@@ -189,8 +189,8 @@ type TenantIdSlotTypeTuple struct {
 	SlotType string
 }
 
-func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64, error) {
-	sdks, err := w.queries.ListActiveSDKsPerTenant(context.Background(), w.pool)
+func (w *workerRepository) ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error) {
+	sdks, err := w.queries.ListActiveSDKsPerTenant(ctx, w.pool)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active sdks per tenant: %w", err)
@@ -216,8 +216,8 @@ func (w *workerRepository) ListActiveSDKsPerTenant() (map[TenantIdSDKTuple]int64
 	return tenantIdSDKTupleToCount, nil
 }
 
-func (w *workerRepository) ListTotalActiveSlotsPerTenant() (map[uuid.UUID]int64, error) {
-	rows, err := w.queries.ListTotalActiveSlotsPerTenant(context.Background(), w.pool)
+func (w *workerRepository) ListTotalActiveSlotsPerTenant(ctx context.Context) (map[uuid.UUID]int64, error) {
+	rows, err := w.queries.ListTotalActiveSlotsPerTenant(ctx, w.pool)
 	if err != nil {
 		return nil, fmt.Errorf("could not list total active slots per tenant: %w", err)
 	}
@@ -230,8 +230,8 @@ func (w *workerRepository) ListTotalActiveSlotsPerTenant() (map[uuid.UUID]int64,
 	return tenantToSlots, nil
 }
 
-func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType() (map[TenantIdSlotTypeTuple]int64, error) {
-	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(context.Background(), w.pool)
+func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType(ctx context.Context) (map[TenantIdSlotTypeTuple]int64, error) {
+	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(ctx, w.pool)
 	if err != nil {
 		return nil, fmt.Errorf("could not list active slots per tenant and slot type: %w", err)
 	}
@@ -247,8 +247,8 @@ func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType() (map[TenantIdSl
 	return res, nil
 }
 
-func (w *workerRepository) CountActiveWorkersPerTenant() (map[uuid.UUID]int64, error) {
-	workers, err := w.queries.ListActiveWorkersPerTenant(context.Background(), w.pool)
+func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map[uuid.UUID]int64, error) {
+	workers, err := w.queries.ListActiveWorkersPerTenant(ctx, w.pool)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
@@ -263,8 +263,8 @@ func (w *workerRepository) CountActiveWorkersPerTenant() (map[uuid.UUID]int64, e
 	return tenantToWorkers, nil
 }
 
-func (w *workerRepository) GetWorkerActionsByWorkerId(tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error) {
-	records, err := w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
+func (w *workerRepository) GetWorkerActionsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error) {
+	records, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
 		Workerids: workerIds,
 		Tenantid:  tenantId,
 	})
@@ -289,19 +289,19 @@ func (w *workerRepository) GetWorkerActionsByWorkerId(tenantId uuid.UUID, worker
 	return workerIdToActionIds, nil
 }
 
-func (w *workerRepository) GetWorkerWorkflowsByWorkerId(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error) {
-	return w.queries.GetWorkerWorkflowsByWorkerId(context.Background(), w.pool, sqlcv1.GetWorkerWorkflowsByWorkerIdParams{
+func (w *workerRepository) GetWorkerWorkflowsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error) {
+	return w.queries.GetWorkerWorkflowsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerWorkflowsByWorkerIdParams{
 		Workerid: workerId,
 		Tenantid: tenantId,
 	})
 }
 
-func (w *workerRepository) ListWorkerLabels(tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error) {
-	return w.queries.ListWorkerLabels(context.Background(), w.pool, workerId)
+func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error) {
+	return w.queries.ListWorkerLabels(ctx, w.pool, workerId)
 }
 
-func (w *workerRepository) ListWorkerSlotConfigs(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
-	rows, err := w.queries.ListWorkerSlotConfigs(context.Background(), w.pool, sqlcv1.ListWorkerSlotConfigsParams{
+func (w *workerRepository) ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
+	rows, err := w.queries.ListWorkerSlotConfigs(ctx, w.pool, sqlcv1.ListWorkerSlotConfigsParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 	})
@@ -391,8 +391,6 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Valid:      true,
 	}
 
-	var worker *sqlcv1.Worker
-
 	if opts.RuntimeInfo != nil {
 		if opts.RuntimeInfo.SdkVersion != nil {
 			createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
@@ -429,7 +427,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		}
 	}
 
-	worker, err = w.queries.CreateWorker(ctx, tx, createParams)
+	worker, err := w.queries.CreateWorker(ctx, tx, createParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create worker: %w", err)

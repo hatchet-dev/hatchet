@@ -10,7 +10,7 @@ import (
 )
 
 type slotAvailabilityRepository interface {
-	ListWorkerSlotConfigs(tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
+	ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error)
 }
 
@@ -19,7 +19,7 @@ func buildWorkerSlotConfig(ctx context.Context, repo slotAvailabilityRepository,
 		return map[uuid.UUID]map[string]gen.WorkerSlotConfig{}, nil
 	}
 
-	slotConfigByWorker, err := repo.ListWorkerSlotConfigs(tenantId, workerIds)
+	slotConfigByWorker, err := repo.ListWorkerSlotConfigs(ctx, tenantId, workerIds)
 	if err != nil {
 		return nil, fmt.Errorf("could not list worker slot config: %w", err)
 	}
