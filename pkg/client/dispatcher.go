@@ -42,14 +42,12 @@ const (
 )
 
 type GetActionListenerRequest struct {
-	WorkerName     string
-	Services       []string
-	Actions        []string
-	Slots          *int
-	DurableSlots   *int
+	WorkerName string
+	Services   []string
+	Actions    []string
 	SlotConfig map[string]int32
-	Labels         map[string]interface{}
-	WebhookId      *string
+	Labels     map[string]interface{}
+	WebhookId  *string
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -270,27 +268,10 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.Slots != nil {
-		mr := int32(*req.Slots) // nolint: gosec
-		registerReq.Slots = &mr
-	}
-
-	if req.DurableSlots != nil {
-		dr := int32(*req.DurableSlots) // nolint: gosec
-		registerReq.DurableSlots = &dr
-	}
-
-	if req.SlotConfig != nil {
+	if len(req.SlotConfig) > 0 {
 		registerReq.SlotConfig = req.SlotConfig
-	} else if req.Slots != nil || req.DurableSlots != nil {
-		slotConfig := map[string]int32{}
-		if req.Slots != nil {
-			slotConfig["default"] = int32(*req.Slots) // nolint: gosec
-		}
-		if req.DurableSlots != nil {
-			slotConfig["durable"] = int32(*req.DurableSlots) // nolint: gosec
-		}
-		registerReq.SlotConfig = slotConfig
+	} else {
+		return nil, nil, fmt.Errorf("slot config is required for worker registration")
 	}
 
 	// register the worker

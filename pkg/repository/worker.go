@@ -27,12 +27,6 @@ type CreateWorkerOpts struct {
 	// The id of the dispatcher
 	DispatcherId uuid.UUID `validate:"required"`
 
-	// The maximum number of runs this worker can run at a time
-	Slots *int `validate:"omitempty,gte=1"`
-
-	// The maximum number of durable runs this worker can run at a time
-	DurableSlots *int `validate:"omitempty,gte=0"`
-
 	// Slot config for this worker (slot_type -> max units)
 	SlotConfig map[string]int32 `validate:"omitempty"`
 
@@ -363,21 +357,8 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	slotConfig := opts.SlotConfig
 	slots := int32(0)
 
-	if len(slotConfig) == 0 {
-		slots = 100
-		if opts.Slots != nil {
-			slots = int32(*opts.Slots) // nolint: gosec
-		}
-
-		if opts.DurableSlots != nil && *opts.DurableSlots > 0 {
-			slots += int32(*opts.DurableSlots) // nolint: gosec
-		}
-	} else {
-		for _, units := range slotConfig {
-			if units > 0 {
-				slots += units
-			}
-		}
+	for _, units := range slotConfig {
+		slots += units
 	}
 
 	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
@@ -457,25 +438,9 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	slotTypes := make([]string, 0)
 	maxUnits := make([]int32, 0)
 
-	if len(slotConfig) > 0 {
-		for slotType, units := range slotConfig {
-			slotTypes = append(slotTypes, slotType)
-			maxUnits = append(maxUnits, units)
-		}
-	} else {
-		defaultUnits := int32(100)
-
-		if opts.Slots != nil {
-			defaultUnits = int32(*opts.Slots) // nolint: gosec
-		}
-
-		slotTypes = append(slotTypes, SlotTypeDefault)
-		maxUnits = append(maxUnits, defaultUnits)
-
-		if opts.DurableSlots != nil && *opts.DurableSlots > 0 {
-			slotTypes = append(slotTypes, SlotTypeDurable)
-			maxUnits = append(maxUnits, int32(*opts.DurableSlots)) // nolint: gosec
-		}
+	for slotType, units := range slotConfig {
+		slotTypes = append(slotTypes, slotType)
+		maxUnits = append(maxUnits, units)
 	}
 
 	if len(slotTypes) > 0 {
