@@ -12,6 +12,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+type notifierMsg[T any] struct {
+	items []T
+
+	// isIncremental refers to whether the resource should be added to the current set, or
+	// should replace the current set
+	isIncremental bool
+}
+
+type notifierCh[T any] chan notifierMsg[T]
+
 // tenantManager manages the scheduler and queuers for a tenant and multiplexes
 // messages to the relevant queuer.
 type tenantManager struct {
@@ -35,9 +45,9 @@ type tenantManager struct {
 
 	leaseManager *LeaseManager
 
-	workersCh     <-chan []*v1.ListActiveWorkersResult
-	queuesCh      <-chan []string
-	concurrencyCh <-chan []*sqlcv1.V1StepConcurrency
+	workersCh     notifierCh[*v1.ListActiveWorkersResult]
+	queuesCh      notifierCh[string]
+	concurrencyCh notifierCh[*sqlcv1.V1StepConcurrency]
 
 	concurrencyResultsCh chan *ConcurrencyResults
 
@@ -110,8 +120,14 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case workerIds := <-t.workersCh:
-			t.scheduler.setWorkers(workerIds)
+		case msg := <-t.workersCh:
+			if msg.isIncremental {
+				for _, worker := range msg.items {
+					t.scheduler.addWorker(worker)
+				}
+			} else {
+				t.scheduler.setWorkers(msg.items)
+			}
 		}
 	}
 }
@@ -121,8 +137,14 @@ func (t *tenantManager) listenForQueueLeases(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case queueNames := <-t.queuesCh:
-			t.setQueuers(queueNames)
+		case msg := <-t.queuesCh:
+			if msg.isIncremental {
+				for _, queueName := range msg.items {
+					t.addQueuer(queueName)
+				}
+			} else {
+				t.setQueuers(msg.items)
+			}
 		}
 	}
 }
@@ -132,8 +154,14 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case strategies := <-t.concurrencyCh:
-			t.setConcurrencyStrategies(strategies)
+		case msg := <-t.concurrencyCh:
+			if msg.isIncremental {
+				for _, strategy := range msg.items {
+					t.addConcurrencyStrategy(strategy)
+				}
+			} else {
+				t.setConcurrencyStrategies(msg.items)
+			}
 		}
 	}
 }
@@ -169,6 +197,25 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 	t.queuers = newQueueArr
 }
 
+func (t *tenantManager) addQueuer(queueName string) {
+	t.queuersMu.Lock()
+
+	for _, q := range t.queuers {
+		if q.queueName == queueName {
+			t.queuersMu.Unlock()
+			return
+		}
+	}
+
+	q := newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh)
+
+	t.queuers = append(t.queuers, q)
+
+	t.queuersMu.Unlock()
+
+	t.queue(context.Background(), []string{queueName}) // TODO: verify not deadlock
+}
+
 func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
@@ -198,6 +245,19 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	t.concurrencyStrategies = newArr
+}
+
+func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrency) {
+	t.concurrencyMu.Lock()
+	defer t.concurrencyMu.Unlock()
+
+	for _, c := range t.concurrencyStrategies {
+		if c.strategy.ID == strategy.ID {
+			return
+		}
+	}
+
+	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh))
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
@@ -272,6 +332,44 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 	}
 
 	t.concurrencyMu.RUnlock()
+}
+
+func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID) {
+	err := t.leaseManager.notifyNewWorker(ctx, workerId)
+
+	if err != nil {
+		t.cf.l.Error().Err(err).Msg("error notifying new worker")
+		return
+	}
+
+	t.replenish(ctx)
+
+	// notify all queues to check if the new worker can take any tasks
+	t.queuersMu.RLock()
+
+	for _, q := range t.queuers {
+		q.queue(ctx)
+	}
+
+	t.queuersMu.RUnlock()
+}
+
+func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {
+	err := t.leaseManager.notifyNewQueue(ctx, queueName)
+
+	if err != nil {
+		t.cf.l.Error().Err(err).Msg("error notifying new queue")
+		return
+	}
+}
+
+func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) {
+	err := t.leaseManager.notifyNewConcurrencyStrategy(ctx, strategyId)
+
+	if err != nil {
+		t.cf.l.Error().Err(err).Msg("error notifying new concurrency strategy")
+		return
+	}
 }
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {

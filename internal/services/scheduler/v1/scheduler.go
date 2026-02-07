@@ -312,8 +312,15 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		}
 	}()
 
-	if task.ID == msgqueue.MsgIDCheckTenantQueue {
+	switch task.ID {
+	case msgqueue.MsgIDCheckTenantQueue:
 		return s.handleCheckQueue(ctx, task)
+	case msgqueue.MsgIDNewWorker:
+		return s.handleNewWorker(ctx, task)
+	case msgqueue.MsgIDNewQueue:
+		return s.handleNewQueue(ctx, task)
+	case msgqueue.MsgIDNewConcurrencyStrategy:
+		return s.handleNewConcurrencyStrategy(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -337,6 +344,45 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message)
 		if payload.SlotsReleased {
 			s.pool.Replenish(ctx, msg.TenantID)
 		}
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewWorkerPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewWorker(ctx, msg.TenantID, payload.WorkerId)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewQueuePayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewQueue(ctx, msg.TenantID, payload.QueueName)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewConcurrencyStrategyPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewConcurrencyStrategy(ctx, msg.TenantID, payload.StrategyId)
 	}
 
 	return nil

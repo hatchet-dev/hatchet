@@ -284,6 +284,7 @@ SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
     w."dispatcherId" AS "dispatcherId",
+    w."lastHeartbeatAt" AS "lastHeartbeatAt",
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
     w."lastListenerEstablished" AS "lastListenerEstablished"
@@ -305,6 +306,7 @@ type GetWorkerForEngineRow struct {
 	ID                        uuid.UUID        `json:"id"`
 	TenantId                  uuid.UUID        `json:"tenantId"`
 	DispatcherId              *uuid.UUID       `json:"dispatcherId"`
+	LastHeartbeatAt           pgtype.Timestamp `json:"lastHeartbeatAt"`
 	DispatcherLastHeartbeatAt pgtype.Timestamp `json:"dispatcherLastHeartbeatAt"`
 	IsActive                  bool             `json:"isActive"`
 	LastListenerEstablished   pgtype.Timestamp `json:"lastListenerEstablished"`
@@ -317,6 +319,7 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 		&i.ID,
 		&i.TenantId,
 		&i.DispatcherId,
+		&i.LastHeartbeatAt,
 		&i.DispatcherLastHeartbeatAt,
 		&i.IsActive,
 		&i.LastListenerEstablished,

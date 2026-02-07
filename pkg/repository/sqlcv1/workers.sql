@@ -158,6 +158,7 @@ SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
     w."dispatcherId" AS "dispatcherId",
+    w."lastHeartbeatAt" AS "lastHeartbeatAt",
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
     w."lastListenerEstablished" AS "lastListenerEstablished"

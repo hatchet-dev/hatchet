@@ -103,6 +103,15 @@ func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 	s.workers = newWorkers
 }
 
+func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
+	s.workersMu.Lock()
+	defer s.workersMu.Unlock()
+
+	s.workers[newWorker.ID] = &worker{
+		ListActiveWorkersResult: newWorker,
+	}
+}
+
 func (s *Scheduler) getWorkers() map[uuid.UUID]*worker {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()

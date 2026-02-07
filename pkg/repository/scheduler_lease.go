@@ -162,9 +162,59 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 	return res, nil
 }
 
+func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*ListActiveWorkersResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-active-worker")
+	defer span.End()
+
+	worker, err := d.queries.GetWorkerById(ctx, d.pool, workerId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if worker.Worker.TenantId != tenantId {
+		return nil, pgx.ErrNoRows
+	}
+
+	labels, err := d.queries.ListManyWorkerLabels(ctx, d.pool, []uuid.UUID{workerId})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+
+	workerIdsToLabels := make(map[string][]*sqlcv1.ListManyWorkerLabelsRow, len(labels))
+
+	for _, label := range labels {
+		wId := label.WorkerId.String()
+
+		if _, ok := workerIdsToLabels[wId]; !ok {
+			workerIdsToLabels[wId] = make([]*sqlcv1.ListManyWorkerLabelsRow, 0)
+		}
+
+		workerIdsToLabels[wId] = append(workerIdsToLabels[wId], label)
+	}
+
+	return &ListActiveWorkersResult{
+		ID:      worker.Worker.ID,
+		MaxRuns: int(worker.Worker.MaxRuns),
+		Labels:  workerIdsToLabels[worker.Worker.ID.String()],
+		Name:    worker.Worker.Name,
+	}, nil
+}
+
 func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
-	ctx, span := telemetry.NewSpan(ctx, "list-queues")
+	ctx, span := telemetry.NewSpan(ctx, "list-concurrency-strategies")
 	defer span.End()
 
 	return d.queries.ListActiveConcurrencyStrategies(ctx, d.pool, tenantId)
+}
+
+func (d *leaseRepository) GetConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, id int64) (*sqlcv1.V1StepConcurrency, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-concurrency-strategy")
+	defer span.End()
+
+	return d.queries.GetConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetConcurrencyStrategyByIdParams{
+		ID:       id,
+		Tenantid: tenantId,
+	})
 }
