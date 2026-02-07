@@ -104,7 +104,7 @@ type CreateStepOpts struct {
 	IsDurable bool
 
 	// (optional) slot requests for this step (slot_type -> units)
-	SlotRequests map[string]int32 `validate:"omitempty"`
+	SlotRequests map[string]int32 `validate:"omitempty,dive,keys,required,endkeys,gt=0"`
 
 	// (optional) a list of additional trigger conditions
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
