@@ -444,14 +444,14 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	}
 
 	if len(slotTypes) > 0 {
-		err = w.queries.UpsertWorkerSlotConfigs(ctx, tx, sqlcv1.UpsertWorkerSlotConfigsParams{
+		err = w.queries.CreateWorkerSlotConfigs(ctx, tx, sqlcv1.CreateWorkerSlotConfigsParams{
 			Tenantid:  tenantId,
 			Workerid:  worker.ID,
 			Slottypes: slotTypes,
 			Maxunits:  maxUnits,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("could not upsert worker slot config: %w", err)
+			return nil, fmt.Errorf("could not create worker slot config: %w", err)
 		}
 	}
 

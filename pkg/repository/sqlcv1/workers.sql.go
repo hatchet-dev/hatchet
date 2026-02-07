@@ -94,6 +94,50 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 	return &i, err
 }
 
+const createWorkerSlotConfigs = `-- name: CreateWorkerSlotConfigs :exec
+WITH input AS (
+    SELECT
+        st.slot_type,
+        mu.max_units
+    FROM unnest($3::text[]) WITH ORDINALITY AS st(slot_type, ord)
+    JOIN unnest($4::integer[]) WITH ORDINALITY AS mu(max_units, ord)
+        USING (ord)
+)
+INSERT INTO v1_worker_slot_config (
+    tenant_id,
+    worker_id,
+    slot_type,
+    max_units,
+    created_at,
+    updated_at
+)
+SELECT
+    $1::uuid,
+    $2::uuid,
+    i.slot_type,
+    i.max_units,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+FROM input i
+`
+
+type CreateWorkerSlotConfigsParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Workerid  uuid.UUID `json:"workerid"`
+	Slottypes []string  `json:"slottypes"`
+	Maxunits  []int32   `json:"maxunits"`
+}
+
+func (q *Queries) CreateWorkerSlotConfigs(ctx context.Context, db DBTX, arg CreateWorkerSlotConfigsParams) error {
+	_, err := db.Exec(ctx, createWorkerSlotConfigs,
+		arg.Tenantid,
+		arg.Workerid,
+		arg.Slottypes,
+		arg.Maxunits,
+	)
+	return err
+}
+
 const deleteOldWorkers = `-- name: DeleteOldWorkers :one
 WITH for_delete AS (
     SELECT
@@ -1287,43 +1331,4 @@ func (q *Queries) UpsertWorkerLabel(ctx context.Context, db DBTX, arg UpsertWork
 		&i.IntValue,
 	)
 	return &i, err
-}
-
-const upsertWorkerSlotConfigs = `-- name: UpsertWorkerSlotConfigs :exec
-INSERT INTO v1_worker_slot_config (
-    tenant_id,
-    worker_id,
-    slot_type,
-    max_units,
-    created_at,
-    updated_at
-)
-SELECT
-    $1::uuid,
-    $2::uuid,
-    unnest($3::text[]),
-    unnest($4::integer[]),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-ON CONFLICT (tenant_id, worker_id, slot_type) DO UPDATE
-SET
-    max_units = EXCLUDED.max_units,
-    updated_at = CURRENT_TIMESTAMP
-`
-
-type UpsertWorkerSlotConfigsParams struct {
-	Tenantid  uuid.UUID `json:"tenantid"`
-	Workerid  uuid.UUID `json:"workerid"`
-	Slottypes []string  `json:"slottypes"`
-	Maxunits  []int32   `json:"maxunits"`
-}
-
-func (q *Queries) UpsertWorkerSlotConfigs(ctx context.Context, db DBTX, arg UpsertWorkerSlotConfigsParams) error {
-	_, err := db.Exec(ctx, upsertWorkerSlotConfigs,
-		arg.Tenantid,
-		arg.Workerid,
-		arg.Slottypes,
-		arg.Maxunits,
-	)
-	return err
 }

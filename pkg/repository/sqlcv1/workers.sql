@@ -21,7 +21,7 @@ WHERE
     tenant_id = @tenantId::uuid
     AND worker_id = ANY(@workerIds::uuid[]);
 
--- name: UpsertWorkerSlotConfigs :exec
+-- name: CreateWorkerSlotConfigs :exec
 INSERT INTO v1_worker_slot_config (
     tenant_id,
     worker_id,
@@ -36,11 +36,7 @@ SELECT
     unnest(@slotTypes::text[]),
     unnest(@maxUnits::integer[]),
     CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-ON CONFLICT (tenant_id, worker_id, slot_type) DO UPDATE
-SET
-    max_units = EXCLUDED.max_units,
-    updated_at = CURRENT_TIMESTAMP;
+    CURRENT_TIMESTAMP;
 
 -- name: ListWorkersWithSlotCount :many
 SELECT
