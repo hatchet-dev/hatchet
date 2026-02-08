@@ -40,6 +40,11 @@ message DurableTaskEventRequest {
     DurableTaskEventKind kind = 3;
     optional bytes payload = 4;
     optional DurableEventListenerConditions wait_for_conditions = 5;
+
+    // Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows)
+    optional string run_workflow_name = 6;
+    optional string run_child_key = 7;
+    optional bytes run_additional_metadata = 8;
 }
 
 message DurableTaskEventAckResponse {
