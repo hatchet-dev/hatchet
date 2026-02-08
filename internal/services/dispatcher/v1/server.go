@@ -502,56 +502,65 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to create event log entry: %v", err)
 	}
 
-	if req.Kind == contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR && req.WaitForConditions != nil {
-		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
+	switch req.Kind {
+	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
+		if req.WaitForConditions != nil {
+			signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
 
-		createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
+			createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
-		for _, condition := range req.WaitForConditions.SleepConditions {
-			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-			if err != nil {
-				d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
-				return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+			for _, condition := range req.WaitForConditions.SleepConditions {
+				orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+				if err != nil {
+					d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+					return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+				}
+
+				createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+					Kind:            v1.CreateExternalSignalConditionKindSLEEP,
+					ReadableDataKey: condition.Base.ReadableDataKey,
+					OrGroupId:       orGroupId,
+					SleepFor:        &condition.SleepFor,
+				})
 			}
 
-			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
-				Kind:            v1.CreateExternalSignalConditionKindSLEEP,
-				ReadableDataKey: condition.Base.ReadableDataKey,
-				OrGroupId:       orGroupId,
-				SleepFor:        &condition.SleepFor,
-			})
+			for _, condition := range req.WaitForConditions.UserEventConditions {
+				orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+				if err != nil {
+					d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+					return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+				}
+
+				createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+					Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
+					ReadableDataKey: condition.Base.ReadableDataKey,
+					OrGroupId:       orGroupId,
+					UserEventKey:    &condition.UserEventKey,
+					Expression:      condition.Base.Expression,
+				})
+			}
+
+			if len(createConditionOpts) > 0 {
+				createMatchOpts := []v1.ExternalCreateSignalMatchOpts{{
+					Conditions:           createConditionOpts,
+					SignalTaskId:         task.ID,
+					SignalTaskInsertedAt: task.InsertedAt,
+					SignalExternalId:     task.ExternalID,
+					SignalKey:            signalKey,
+				}}
+
+				err = d.repo.Matches().RegisterSignalMatchConditions(ctx, invocation.tenantId, createMatchOpts)
+				if err != nil {
+					d.l.Error().Err(err).Msg("failed to register signal match conditions")
+					return status.Errorf(codes.Internal, "failed to register signal match conditions: %v", err)
+				}
+			}
 		}
 
-		for _, condition := range req.WaitForConditions.UserEventConditions {
-			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-			if err != nil {
-				d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
-				return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
-			}
-
-			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
-				Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
-				ReadableDataKey: condition.Base.ReadableDataKey,
-				OrGroupId:       orGroupId,
-				UserEventKey:    &condition.UserEventKey,
-				Expression:      condition.Base.Expression,
-			})
-		}
-
-		if len(createConditionOpts) > 0 {
-			createMatchOpts := []v1.ExternalCreateSignalMatchOpts{{
-				Conditions:           createConditionOpts,
-				SignalTaskId:         task.ID,
-				SignalTaskInsertedAt: task.InsertedAt,
-				SignalExternalId:     task.ExternalID,
-				SignalKey:            signalKey,
-			}}
-
-			err = d.repo.Matches().RegisterSignalMatchConditions(ctx, invocation.tenantId, createMatchOpts)
-			if err != nil {
-				d.l.Error().Err(err).Msg("failed to register signal match conditions")
-				return status.Errorf(codes.Internal, "failed to register signal match conditions: %v", err)
-			}
+	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_RUN:
+		if err := d.spawnChildWorkflow(ctx, invocation.tenantId, task, nodeId, req); err != nil {
+			d.l.Error().Err(err).Msg("failed to spawn child workflow")
+			return status.Errorf(codes.Internal, "failed to spawn child workflow: %v", err)
 		}
 	}
 
@@ -564,6 +573,57 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			},
 		},
 	})
+}
+
+func (d *DispatcherServiceImpl) spawnChildWorkflow(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	parentTask *sqlcv1.FlattenExternalIdsRow,
+	nodeId int64,
+	req *contracts.DurableTaskEventRequest,
+) error {
+	workflowName := req.GetRunWorkflowName()
+	if workflowName == "" {
+		return fmt.Errorf("workflow name is required for spawning child workflows")
+	}
+
+	parentInsertedAt := parentTask.InsertedAt.Time
+
+	triggerOpt := &v1.WorkflowNameTriggerOpts{
+		TriggerTaskData: &v1.TriggerTaskData{
+			WorkflowName:         workflowName,
+			Data:                 req.Payload,
+			AdditionalMetadata:   req.RunAdditionalMetadata,
+			ParentExternalId:     &parentTask.ExternalID,
+			ParentTaskId:         &parentTask.ID,
+			ParentTaskInsertedAt: &parentInsertedAt,
+			ChildIndex:           &nodeId,
+		},
+	}
+
+	if req.RunChildKey != nil {
+		triggerOpt.ChildKey = req.RunChildKey
+	}
+
+	err := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{triggerOpt})
+	if err != nil {
+		return fmt.Errorf("failed to populate external ids: %w", err)
+	}
+
+	if triggerOpt.ShouldSkip {
+		return nil
+	}
+
+	_, _, err = d.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{triggerOpt})
+	if err != nil {
+		if errors.Is(err, v1.ErrResourceExhausted) {
+			return fmt.Errorf("resource exhausted: %w", err)
+		}
+
+		return fmt.Errorf("failed to trigger child workflow: %w", err)
+	}
+
+	return nil
 }
 
 func (d *DispatcherServiceImpl) handleRegisterCallback(
