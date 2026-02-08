@@ -734,15 +734,11 @@ WITH input AS (
         v1_task_runtime_slot
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    -- return a constant for ordering
-    RETURNING 1 AS cte_order
 ), deleted_runtimes AS (
     DELETE FROM
         v1_task_runtime
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM runtimes_to_delete)
-    -- return a constant for ordering
-    RETURNING 1 AS cte_order
 )
 SELECT
     t.queue,
