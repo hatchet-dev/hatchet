@@ -7,6 +7,7 @@ from typing import Self, cast
 import grpc.aio
 from pydantic import BaseModel
 
+from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
@@ -52,9 +53,10 @@ class DurableTaskCallbackResult(BaseModel):
 
 
 class DurableTaskClient:
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig, admin_client: AdminClient):
         self.config = config
         self.token = config.token
+        self.admin_client = admin_client
 
         self._worker_id: str | None = None
 
@@ -230,6 +232,9 @@ class DurableTaskClient:
         kind: DurableTaskEventKind,
         payload: JSONSerializableMapping | None = None,
         wait_for_conditions: DurableEventListenerConditions | None = None,
+        # todo: combine these? or separate methods? or overload?
+        workflow_name: str | None = None,
+        trigger_workflow_opts: TriggerWorkflowOptions | None = None,
     ) -> DurableTaskEventAck:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
@@ -243,10 +248,21 @@ class DurableTaskClient:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
+        _trigger_opts = (
+            self.admin_client._create_workflow_run_request(
+                workflow_name=workflow_name,
+                input=payload or {},
+                options=trigger_workflow_opts,
+            )
+            if workflow_name and trigger_workflow_opts
+            else None
+        )
+
         event_request = DurableTaskEventRequest(
             durable_task_external_id=durable_task_external_id,
             invocation_count=invocation_count,
             kind=kind,
+            trigger_opts=_trigger_opts,
         )
 
         if payload is not None:

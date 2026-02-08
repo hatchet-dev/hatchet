@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from hatchet_sdk.clients.admin import AdminClient
+from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
@@ -26,13 +26,13 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.runnables.types import R, TWorkflowInput
     from hatchet_sdk.runnables.workflow import BaseWorkflow
 
 
@@ -481,6 +481,7 @@ class DurableContext(Context):
 
         return index
 
+    ## todo: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -546,11 +547,12 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
+    ## todo: instrumentor for this
     async def spawn_child(
         self,
         workflow: "BaseWorkflow[TWorkflowInput]",
-        input: "TWorkflowInput | None" = None,
-        key: str | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: "TriggerWorkflowOptions" | None = None,
     ) -> dict[str, Any]:
         """
         Spawn a child workflow and durably wait for it to complete.
@@ -558,9 +560,9 @@ class DurableContext(Context):
         This method triggers a child workflow run and waits for it to complete
         using the durable task stream for reliable delivery.
 
-        :param workflow: The workflow to spawn as a child.
+        :param workflow: The workflow to spawn as a child (can be either a `Workflow` or a `Standalone` task).
         :param input: The input data for the child workflow.
-        :param key: Optional key to identify this child workflow spawn.
+        :param options: Optional options to configure the child workflow run.
 
         :return: The result of the child workflow execution.
         """
@@ -575,6 +577,7 @@ class DurableContext(Context):
             invocation_count=self.retry_count + 1,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
+            trigger_workflow_opts=options,
         )
 
         node_id = ack.node_id

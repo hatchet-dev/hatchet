@@ -120,7 +120,9 @@ class Runner:
         )
         self.event_client = EventClient(self.config)
         self.durable_event_listener = DurableEventListener(self.config)
-        self.durable_task_client = DurableTaskClient(self.config)
+        self.durable_task_client = DurableTaskClient(
+            self.config, admin_client=self.admin_client
+        )
 
         self.worker_context = WorkerContext(
             labels=labels or {}, client=Client(config=config).dispatcher
