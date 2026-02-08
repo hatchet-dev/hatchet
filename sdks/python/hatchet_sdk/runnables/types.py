@@ -3,11 +3,18 @@ import inspect
 import json
 from collections.abc import Callable, Mapping
 from enum import Enum
-from typing import Any, ParamSpec, TypeAlias, TypeGuard, TypeVar, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ParamSpec,
+    TypeAlias,
+    TypeGuard,
+    TypeVar,
+    overload,
+)
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
 from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -16,6 +23,10 @@ from hatchet_sdk.utils.typing import (
     DataclassInstance,
     JSONSerializableMapping,
 )
+
+if TYPE_CHECKING:
+    from hatchet_sdk.context.context import Context, DurableContext
+
 
 ValidTaskReturnType = BaseModel | Mapping[str, Any] | DataclassInstance | None
 
@@ -140,8 +151,8 @@ class StepType(str, Enum):
     ON_SUCCESS = "on_success"
 
 
-AsyncFunc = Callable[[TWorkflowInput, Context], AwaitableLike[R]]
-SyncFunc = Callable[[TWorkflowInput, Context], R]
+AsyncFunc = Callable[[TWorkflowInput, "Context"], AwaitableLike[R]]
+SyncFunc = Callable[[TWorkflowInput, "Context"], R]
 TaskFunc = AsyncFunc[TWorkflowInput, R] | SyncFunc[TWorkflowInput, R]
 
 
@@ -157,8 +168,8 @@ def is_sync_fn(
     return not inspect.iscoroutinefunction(fn)
 
 
-DurableAsyncFunc = Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]]
-DurableSyncFunc = Callable[[TWorkflowInput, DurableContext], R]
+DurableAsyncFunc = Callable[[TWorkflowInput, "DurableContext"], AwaitableLike[R]]
+DurableSyncFunc = Callable[[TWorkflowInput, "DurableContext"], R]
 DurableTaskFunc = (
     DurableAsyncFunc[TWorkflowInput, R] | DurableSyncFunc[TWorkflowInput, R]
 )

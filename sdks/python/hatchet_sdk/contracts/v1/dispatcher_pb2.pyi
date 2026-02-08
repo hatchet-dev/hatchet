@@ -1,4 +1,5 @@
 from hatchet_sdk.contracts.v1.shared import condition_pb2 as _condition_pb2
+from workflows import workflows_pb2 as _workflows_pb2
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -31,18 +32,20 @@ class DurableTaskResponseRegisterWorker(_message.Message):
     def __init__(self, worker_id: _Optional[str] = ...) -> None: ...
 
 class DurableTaskEventRequest(_message.Message):
-    __slots__ = ("invocation_count", "durable_task_external_id", "kind", "payload", "wait_for_conditions")
+    __slots__ = ("invocation_count", "durable_task_external_id", "kind", "payload", "wait_for_conditions", "trigger_opts")
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     WAIT_FOR_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
+    TRIGGER_OPTS_FIELD_NUMBER: _ClassVar[int]
     invocation_count: int
     durable_task_external_id: str
     kind: DurableTaskEventKind
     payload: bytes
     wait_for_conditions: _condition_pb2.DurableEventListenerConditions
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ...) -> None: ...
+    trigger_opts: _workflows_pb2.TriggerWorkflowRequest
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[_workflows_pb2.TriggerWorkflowRequest, _Mapping]] = ...) -> None: ...
 
 class DurableTaskEventAckResponse(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id", "node_id")
