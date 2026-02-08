@@ -29,7 +29,7 @@ type CreateEventLogEntryOpts struct {
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
 	InsertedAt            pgtype.Timestamptz
-	Kind                  string
+	Kind                  sqlcv1.V1DurableEventLogEntryKind
 	NodeId                int64
 	ParentNodeId          int64
 	BranchId              int64
@@ -41,7 +41,7 @@ type CreateEventLogCallbackOpts struct {
 	DurableTaskInsertedAt pgtype.Timestamptz
 	InsertedAt            pgtype.Timestamptz
 	ExternalId            uuid.UUID
-	Kind                  string
+	Kind                  sqlcv1.V1DurableEventLogCallbackKind
 	Key                   string
 	NodeId                int64
 	IsSatisfied           bool
@@ -172,7 +172,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 		durableTaskIds[i] = opt.DurableTaskId
 		durableTaskInsertedAts[i] = opt.DurableTaskInsertedAt
 		insertedAts[i] = opt.InsertedAt
-		kinds[i] = opt.Kind
+		kinds[i] = string(opt.Kind)
 		nodeIds[i] = opt.NodeId
 		parentNodeIds[i] = opt.ParentNodeId
 		branchIds[i] = opt.BranchId
@@ -269,7 +269,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		durableTaskIds[i] = opt.DurableTaskId
 		durableTaskInsertedAts[i] = opt.DurableTaskInsertedAt
 		insertedAts[i] = opt.InsertedAt
-		kinds[i] = opt.Kind
+		kinds[i] = string(opt.Kind)
 		keys[i] = opt.Key
 		nodeIds[i] = opt.NodeId
 		isSatisfieds[i] = opt.IsSatisfied

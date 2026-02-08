@@ -471,14 +471,14 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to get or create event log file: %v", err)
 	}
 
-	var entryKind string
+	var entryKind sqlcv1.V1DurableEventLogEntryKind
 	switch req.Kind {
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
-		entryKind = string(sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED)
+		entryKind = sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_RUN:
-		entryKind = string(sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED)
+		entryKind = sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO:
-		entryKind = string(sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED)
+		entryKind = sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED
 	default:
 		return status.Errorf(codes.InvalidArgument, "unsupported event kind: %v", req.Kind)
 	}
@@ -619,7 +619,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 		DurableTaskId:         task.ID,
 		DurableTaskInsertedAt: task.InsertedAt,
 		InsertedAt:            now,
-		Kind:                  string(sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED),
+		Kind:                  sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED,
 		Key:                   callbackKey,
 		NodeId:                req.NodeId,
 		IsSatisfied:           false,
