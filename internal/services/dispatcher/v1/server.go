@@ -641,12 +641,8 @@ func (d *DispatcherServiceImpl) spawnChildWorkflow(
 		}, nil
 	}
 
-	_, _, err = d.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{triggerOpt})
+	err = d.triggerWriter.TriggerFromWorkflowNames(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{triggerOpt})
 	if err != nil {
-		if errors.Is(err, v1.ErrResourceExhausted) {
-			return nil, fmt.Errorf("resource exhausted: %w", err)
-		}
-
 		return nil, fmt.Errorf("failed to trigger child workflow: %w", err)
 	}
 

@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -19,10 +20,11 @@ type DispatcherService interface {
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
 
-	repo v1.Repository
-	mq   msgqueue.MessageQueue
-	v    validator.Validator
-	l    *zerolog.Logger
+	repo          v1.Repository
+	mq            msgqueue.MessageQueue
+	v             validator.Validator
+	l             *zerolog.Logger
+	triggerWriter *trigger.TriggerWriter
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)
@@ -83,10 +85,14 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error)
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, 0)
+
 	return &DispatcherServiceImpl{
-		repo: opts.repo,
-		mq:   opts.mq,
-		v:    opts.v,
-		l:    opts.l,
+		repo:          opts.repo,
+		mq:            opts.mq,
+		v:             opts.v,
+		l:             opts.l,
+		triggerWriter: tw,
 	}, nil
 }
