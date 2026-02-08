@@ -23,7 +23,12 @@ enum ListenStrategy {
   LISTEN_STRATEGY_V2 = 2,
 }
 
-export interface Action extends AssignedAction {}
+export type Action = AssignedAction & {
+  /** @deprecated use taskRunId */
+  stepRunId?: string;
+  /** @deprecated use taskId */
+  stepId?: string;
+};
 
 export type ActionKey = string;
 
@@ -34,7 +39,7 @@ export function createActionKey(action: Action): ActionKey {
     case ActionType.CANCEL_STEP_RUN:
     case ActionType.START_STEP_RUN:
     case ActionType.UNRECOGNIZED:
-      return `${action.stepRunId}/${action.retryCount}`;
+      return `${action.taskRunExternalId}/${action.retryCount}`;
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustivenessCheck: never = action.actionType;
@@ -84,6 +89,8 @@ export class ActionListener {
           for await (const assignedAction of listenClient) {
             const action: Action = {
               ...assignedAction,
+              stepRunId: assignedAction.taskRunExternalId,
+              stepId: assignedAction.taskId,
             };
 
             yield action;

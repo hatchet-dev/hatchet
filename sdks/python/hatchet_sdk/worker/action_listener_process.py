@@ -55,7 +55,7 @@ class HealthStatus(str, Enum):
 class ActionEvent:
     action: Action
     type: Any  # TODO type
-    payload: str
+    payload: str | None
     should_not_retry: bool
 
 
@@ -450,7 +450,7 @@ class WorkerActionListenerProcess:
                             ActionEvent(
                                 action=action,
                                 type=STEP_EVENT_TYPE_STARTED,  # TODO ack type
-                                payload="",
+                                payload=None,
                                 should_not_retry=False,
                             )
                         )

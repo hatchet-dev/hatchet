@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -64,40 +65,40 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 		return status.Errorf(codes.Internal, "no server in context")
 	}
 
-	rateLimitToken := ctx.Value("rate_limit_token").(string)
+	rateLimitToken := ctx.Value("rate_limit_token").(uuid.UUID)
 
-	if rateLimitToken == "" {
+	if rateLimitToken == uuid.Nil {
 		return status.Errorf(codes.Unauthenticated, "no rate limit token found")
 	}
 
 	switch matchServiceName(serviceName) {
 	case "dispatcher":
 
-		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).dispatcherLimiter.Allow() {
-			r.l.Info().Msgf("dispatcher rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).dispatcherLimiter.Limit())
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).dispatcherLimiter.Allow() {
+			r.l.Info().Msgf("dispatcher rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).dispatcherLimiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "dispatcher rate limit exceeded")
 		}
 
 	case "events":
-		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).eventsLimiter.Allow() {
-			r.l.Info().Msgf("ingest rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).eventsLimiter.Limit())
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).eventsLimiter.Allow() {
+			r.l.Info().Msgf("ingest rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).eventsLimiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "ingest rate limit exceeded")
 		}
 
 	case "workflow":
-		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).workflowLimiter.Allow() {
-			r.l.Info().Msgf("workflow rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).workflowLimiter.Limit())
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).workflowLimiter.Allow() {
+			r.l.Info().Msgf("workflow rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).workflowLimiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
 		}
 	case "admin":
-		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).adminV1Limiter.Allow() {
-			r.l.Info().Msgf("admin rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).adminV1Limiter.Limit())
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).adminV1Limiter.Allow() {
+			r.l.Info().Msgf("admin rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).adminV1Limiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
 		}
 
 	case "otelcol":
-		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).otelColLimiter.Allow() {
-			r.l.Info().Msgf("otel collector rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).otelColLimiter.Limit())
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).otelColLimiter.Allow() {
+			r.l.Info().Msgf("otel collector rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).otelColLimiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "otel collector rate limit exceeded")
 		}
 

@@ -2,33 +2,34 @@ package operation
 
 import (
 	"context"
-	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/rs/zerolog"
 )
 
-type OperationPool struct {
-	ops         sync.Map
-	timeout     time.Duration
-	description string
-	method      OpMethod
-	ql          *zerolog.Logger
-	operationId string
-	cancel      context.CancelFunc
-
-	hasInterval             bool
+// TenantOperationPool manages operations across multiple tenants.
+type TenantOperationPool struct {
 	intervalRepo            v1.IntervalSettingsRepository
+	cancel                  context.CancelFunc
+	method                  OpMethod
+	ql                      *zerolog.Logger
+	intervalGauge           IntervalGauge
+	ops                     syncx.Map[uuid.UUID, *SerialOperation]
+	description             string
+	operationId             string
+	timeout                 time.Duration
 	intervalMaxJitter       time.Duration
 	intervalStartInterval   time.Duration
 	intervalMaxInterval     time.Duration
 	intervalIncBackoffCount int
-	intervalGauge           IntervalGauge
+	hasInterval             bool
 }
 
 func WithPoolInterval(
@@ -36,8 +37,8 @@ func WithPoolInterval(
 	maxJitter, startInterval, maxInterval time.Duration,
 	incBackoffCount int,
 	gauge IntervalGauge,
-) func(*OperationPool) {
-	return func(p *OperationPool) {
+) func(*TenantOperationPool) {
+	return func(p *TenantOperationPool) {
 		p.hasInterval = true
 		p.intervalRepo = repo
 		p.intervalMaxJitter = maxJitter
@@ -48,8 +49,8 @@ func WithPoolInterval(
 	}
 }
 
-func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*OperationPool)) *OperationPool {
-	pool := &OperationPool{
+func NewTenantOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*TenantOperationPool)) *TenantOperationPool {
+	pool := &TenantOperationPool{
 		operationId: operationId,
 		timeout:     timeout,
 		description: description,
@@ -97,24 +98,22 @@ func NewOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId st
 	return pool
 }
 
-func (p *OperationPool) Cleanup() {
+func (p *TenantOperationPool) Cleanup() {
 	p.cancel()
 
 	// stop all operations
-	p.ops.Range(func(key, value any) bool {
-		if op, ok := value.(*SerialOperation); ok {
-			op.Stop()
-		}
+	p.ops.Range(func(key uuid.UUID, op *SerialOperation) bool {
+		op.Stop()
 		p.ops.Delete(key)
 		return true
 	})
 }
 
-func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
-	tenantMap := make(map[string]bool)
+func (p *TenantOperationPool) setTenants(tenants []*sqlcv1.Tenant) {
+	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
-		tenantMap[sqlchelpers.UUIDToStr(t.ID)] = true
+		tenantMap[t.ID] = true
 	}
 
 	// init ops for new tenants
@@ -123,11 +122,9 @@ func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	}
 
 	// delete tenants that are not in the list
-	p.ops.Range(func(key, value any) bool {
-		if _, ok := tenantMap[key.(string)]; !ok {
-			if op, ok := value.(*SerialOperation); ok {
-				op.Stop()
-			}
+	p.ops.Range(func(key uuid.UUID, op *SerialOperation) bool {
+		if _, ok := tenantMap[key]; !ok {
+			op.Stop()
 			p.ops.Delete(key)
 		}
 
@@ -135,11 +132,11 @@ func (p *OperationPool) setTenants(tenants []*sqlcv1.Tenant) {
 	})
 }
 
-func (p *OperationPool) RunOrContinue(id string) {
+func (p *TenantOperationPool) RunOrContinue(id uuid.UUID) {
 	p.getOperation(id).RunOrContinue(p.ql)
 }
 
-func (p *OperationPool) getOperation(id string) *SerialOperation {
+func (p *TenantOperationPool) getOperation(id uuid.UUID) *SerialOperation {
 	op, ok := p.ops.Load(id)
 
 	if !ok {
@@ -162,7 +159,7 @@ func (p *OperationPool) getOperation(id string) *SerialOperation {
 
 		op = NewSerialOperation(
 			p.ql,
-			id,
+			id.String(),
 			p.operationId,
 			p.method,
 			fs...,
@@ -171,5 +168,5 @@ func (p *OperationPool) getOperation(id string) *SerialOperation {
 		p.ops.Store(id, op)
 	}
 
-	return op.(*SerialOperation)
+	return op
 }

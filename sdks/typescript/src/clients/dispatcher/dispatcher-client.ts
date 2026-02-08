@@ -28,6 +28,13 @@ interface GetActionListenerOptions {
   labels: Record<string, string | number | undefined>;
 }
 
+type StepActionEventInput = StepActionEvent & {
+  /** @deprecated use taskId */
+  stepId?: string;
+  /** @deprecated use taskRunId */
+  stepRunId?: string;
+};
+
 export class DispatcherClient {
   config: ClientConfig;
   client: PbDispatcherClient;
@@ -50,8 +57,10 @@ export class DispatcherClient {
 
   async getActionListener(options: GetActionListenerOptions) {
     // Register the worker
+    const { maxRuns, ...rest } = options;
     const registration = await this.client.register({
-      ...options,
+      ...rest,
+      slots: maxRuns,
       labels: options.labels ? mapLabels(options.labels) : undefined,
       runtimeInfo: this.getRuntimeInfo(),
     });
@@ -59,9 +68,16 @@ export class DispatcherClient {
     return new ActionListener(this, registration.workerId);
   }
 
-  async sendStepActionEvent(in_: StepActionEvent) {
+  async sendStepActionEvent(in_: StepActionEventInput) {
+    const { taskId, taskRunExternalId, ...rest } = in_;
+    const event: StepActionEvent = {
+      ...rest,
+      taskId: taskId ?? '',
+      taskRunExternalId: taskRunExternalId ?? '',
+    };
+
     try {
-      return await retrier(async () => this.client.sendStepActionEvent(in_), this.logger);
+      return await retrier(async () => this.client.sendStepActionEvent(event), this.logger);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
@@ -81,10 +97,10 @@ export class DispatcherClient {
     });
   }
 
-  async refreshTimeout(incrementTimeoutBy: string, stepRunId: string) {
+  async refreshTimeout(incrementTimeoutBy: string, taskRunExternalId: string) {
     try {
       return this.client.refreshTimeout({
-        stepRunId,
+        taskRunExternalId,
         incrementTimeoutBy,
       });
     } catch (e: any) {

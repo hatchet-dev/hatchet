@@ -17,7 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -99,7 +98,7 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 
 	switch err {
 	case nil:
-		user, err = u.config.V1.User().UpdateUser(ctx, sqlchelpers.UUIDToStr(user.ID), &v1.UpdateUserOpts{
+		user, err = u.config.V1.User().UpdateUser(ctx, user.ID, &v1.UpdateUserOpts{
 			EmailVerified: v1.BoolPtr(gInfo.EmailVerified),
 			Name:          v1.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,

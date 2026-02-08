@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
@@ -43,9 +43,6 @@ jobs:
       - name: Run Black
         run: poetry run black . --check --verbose --diff --color
 
-      - name: Run Isort
-        run: poetry run isort . --check-only --diff
-
       - name: Run MyPy
         run: poetry run mypy --config-file=pyproject.toml
 
@@ -59,10 +56,11 @@ jobs:
         run: pip install -e .
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.14"]') || fromJSON('["3.10", "3.11", "3.12", "3.13", "3.14"]') }}
+        optimistic-scheduling: ["true", "false"]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -104,6 +102,7 @@ jobs:
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_DEFAULT_ENGINE_VERSION=V1
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+          export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -152,18 +151,18 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: $HATCHET_CLIENT_NAMESPACE-engine-logs
-          path: $HATCHET_CLIENT_NAMESPACE-engine.log
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-engine-logs
+          path: engine.log
 
       - name: Upload API logs
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: $HATCHET_CLIENT_NAMESPACE-api-logs
-          path: $HATCHET_CLIENT_NAMESPACE-api.log
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-api-logs
+          path: api.log
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     needs: [lint, test]
     if: github.ref == 'refs/heads/main'
     steps:

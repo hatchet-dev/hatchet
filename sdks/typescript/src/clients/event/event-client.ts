@@ -116,7 +116,7 @@ export class EventClient {
   }
 
   async putLog(
-    stepRunId: string,
+    taskRunExternalId: string,
     log: string,
     level?: LogLevel,
     taskRetryCount?: number,
@@ -132,7 +132,7 @@ export class EventClient {
     //  fire and forget the log
     await this.client
       .putLog({
-        stepRunId,
+        taskRunExternalId,
         createdAt,
         message: log,
         level: level || LogLevel.INFO,
@@ -145,7 +145,7 @@ export class EventClient {
       });
   }
 
-  async putStream(stepRunId: string, data: string | Uint8Array, index: number | undefined) {
+  async putStream(taskRunExternalId: string, data: string | Uint8Array, index: number | undefined) {
     const createdAt = new Date();
 
     let dataBytes: Uint8Array;
@@ -160,7 +160,7 @@ export class EventClient {
     retrier(
       async () =>
         this.client.putStreamEvent({
-          stepRunId,
+          taskRunExternalId,
           createdAt,
           message: dataBytes,
           eventIndex: index,

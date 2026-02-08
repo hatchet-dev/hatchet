@@ -100,7 +100,7 @@ type Worker struct {
 
 	middlewares *middlewares
 
-	maxRuns *int
+	slots *int
 
 	initActionNames []string
 
@@ -120,7 +120,7 @@ type WorkerOpts struct {
 
 	integrations []integrations.Integration
 	alerter      errors.Alerter
-	maxRuns      *int
+	slots        *int
 
 	actions []string
 
@@ -166,9 +166,15 @@ func WithErrorAlerter(alerter errors.Alerter) WorkerOpt {
 	}
 }
 
+// Deprecated: use WithSlots instead.
 func WithMaxRuns(maxRuns int) WorkerOpt {
+	return WithSlots(maxRuns)
+}
+
+// WithSlots sets the number of concurrent slots this worker can handle.
+func WithSlots(slots int) WorkerOpt {
 	return func(opts *WorkerOpts) {
-		opts.maxRuns = &maxRuns
+		opts.slots = &slots
 	}
 }
 
@@ -239,7 +245,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		actions:              ActionRegistry{},
 		alerter:              opts.alerter,
 		middlewares:          mws,
-		maxRuns:              opts.maxRuns,
+		slots:                opts.slots,
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
@@ -456,7 +462,7 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,
 		Actions:    actionNames,
-		MaxRuns:    w.maxRuns,
+		Slots:      w.slots,
 		Labels:     w.labels,
 	})
 

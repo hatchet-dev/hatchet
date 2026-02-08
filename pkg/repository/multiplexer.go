@@ -179,21 +179,29 @@ func (m *multiplexedListener) listen(ctx context.Context, name string, f func(ct
 	}
 }
 
-// notify sends a notification through the Postgres channel.
-func (m *multiplexedListener) notify(ctx context.Context, name string, payload string) error {
+// wrapMessage wraps a payload in a PubSubMessage and marshals it.
+// Returns the marshaled bytes or an error.
+func (m *multiplexedListener) wrapMessage(name string, payload string) ([]byte, error) {
+	var jsonPayload json.RawMessage
+
+	// Handle empty payload - use null as valid JSON
+	if payload == "" {
+		jsonPayload = json.RawMessage("null")
+	} else {
+		jsonPayload = json.RawMessage(payload)
+	}
+
 	pubSubMsg := &PubSubMessage{
 		QueueName: name,
-		Payload:   []byte(payload),
+		Payload:   jsonPayload,
 	}
 
-	payloadBytes, err := json.Marshal(pubSubMsg)
+	return json.Marshal(pubSubMsg)
+}
 
-	if err != nil {
-		m.l.Error().Err(err).Msg("error marshalling notification payload")
-		return err
-	}
-
-	_, err = m.pool.Exec(ctx, "select pg_notify($1,$2)", multiplexChannel, string(payloadBytes))
-
+// notify sends a notification through the Postgres channel.
+// wrappedPayload should be the already-marshaled PubSubMessage.
+func (m *multiplexedListener) notify(ctx context.Context, wrappedPayload []byte) error {
+	_, err := m.pool.Exec(ctx, "select pg_notify($1,$2)", multiplexChannel, string(wrappedPayload))
 	return err
 }

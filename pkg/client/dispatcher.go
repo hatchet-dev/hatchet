@@ -45,7 +45,7 @@ type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
 	Actions    []string
-	MaxRuns    *int
+	Slots      *int
 	Labels     map[string]interface{}
 	WebhookId  *string
 }
@@ -268,9 +268,9 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.MaxRuns != nil {
-		mr := int32(*req.MaxRuns) // nolint: gosec
-		registerReq.MaxRuns = &mr
+	if req.Slots != nil {
+		mr := int32(*req.Slots) // nolint: gosec
+		registerReq.Slots = &mr
 	}
 
 	// register the worker
@@ -436,9 +436,9 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				JobId:               assignedAction.JobId,
 				JobName:             assignedAction.JobName,
 				JobRunId:            assignedAction.JobRunId,
-				StepId:              assignedAction.StepId,
-				StepName:            assignedAction.StepName,
-				StepRunId:           assignedAction.StepRunId,
+				StepId:              assignedAction.TaskId,
+				StepName:            assignedAction.TaskName,
+				StepRunId:           assignedAction.TaskRunExternalId,
 				ActionId:            assignedAction.ActionId,
 				ActionType:          actionType,
 				ActionPayload:       []byte(unquoted),
@@ -546,17 +546,17 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 	}
 
 	resp, err := d.client.SendStepActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.StepActionEvent{
-		WorkerId:       in.WorkerId,
-		JobId:          in.JobId,
-		JobRunId:       in.JobRunId,
-		StepId:         in.StepId,
-		StepRunId:      in.StepRunId,
-		ActionId:       in.ActionId,
-		EventTimestamp: timestamppb.New(*in.EventTimestamp),
-		EventType:      actionEventType,
-		EventPayload:   string(payloadBytes),
-		RetryCount:     &in.RetryCount,
-		ShouldNotRetry: in.ShouldNotRetry,
+		WorkerId:          in.WorkerId,
+		JobId:             in.JobId,
+		JobRunId:          in.JobRunId,
+		TaskId:            in.StepId,
+		TaskRunExternalId: in.StepRunId,
+		ActionId:          in.ActionId,
+		EventTimestamp:    timestamppb.New(*in.EventTimestamp),
+		EventType:         actionEventType,
+		EventPayload:      string(payloadBytes),
+		RetryCount:        &in.RetryCount,
+		ShouldNotRetry:    in.ShouldNotRetry,
 	})
 
 	if err != nil {
@@ -616,7 +616,7 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 
 func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
-		StepRunId: stepRunId,
+		TaskRunExternalId: stepRunId,
 	})
 
 	if err != nil {
@@ -628,7 +628,7 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 
 func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
 	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
-		StepRunId:          stepRunId,
+		TaskRunExternalId:  stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,
 	})
 

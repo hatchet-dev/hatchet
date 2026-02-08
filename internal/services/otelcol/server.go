@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -35,7 +34,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	otelColRepo := oc.repo.OTelCollector()
 	if otelColRepo == nil {
@@ -64,12 +63,12 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		}, nil
 	}
 
-	oc.l.Debug().Int("span_count", len(spans)).Str("tenant_id", tenantId).Msg("stored spans")
+	oc.l.Debug().Int("span_count", len(spans)).Str("tenant_id", tenantId.String()).Msg("stored spans")
 
 	return &collectortracev1.ExportTraceServiceResponse{}, nil
 }
 
-func (oc *otelCollectorImpl) convertOTLPToSpanData(resourceSpans []*tracev1.ResourceSpans, tenantID pgtype.UUID) []*repository.SpanData {
+func (oc *otelCollectorImpl) convertOTLPToSpanData(resourceSpans []*tracev1.ResourceSpans, tenantID uuid.UUID) []*repository.SpanData {
 	var spans []*repository.SpanData
 
 	for _, rs := range resourceSpans {
@@ -112,12 +111,12 @@ func (oc *otelCollectorImpl) extractHatchetCorrelation(attrs []*commonv1.KeyValu
 		switch attr.GetKey() {
 		case AttrHatchetTaskRunID:
 			if strVal := attr.GetValue().GetStringValue(); strVal != "" {
-				uuid := sqlchelpers.UUIDFromStr(strVal)
+				uuid := uuid.MustParse(strVal)
 				spanData.TaskRunExternalID = &uuid
 			}
 		case AttrHatchetWorkflowRunID:
 			if strVal := attr.GetValue().GetStringValue(); strVal != "" {
-				uuid := sqlchelpers.UUIDFromStr(strVal)
+				uuid := uuid.MustParse(strVal)
 				spanData.WorkflowRunID = &uuid
 			}
 		}
