@@ -52,12 +52,17 @@ type EventLogCallbackWithPayload struct {
 	Result   []byte
 }
 
+type EventLogEntryWithData struct {
+	Entry *sqlcv1.V1DurableEventLogEntry
+	Data  []byte
+}
+
 type DurableEventsRepository interface {
 	CreateEventLogFiles(ctx context.Context, opts []CreateEventLogFileOpts) ([]*sqlcv1.V1DurableEventLogFile, error)
 	GetOrCreateEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
 
 	CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.CreateDurableEventLogEntriesRow, error)
-	GetEventLogEntry(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*sqlcv1.V1DurableEventLogEntry, error)
+	GetEventLogEntry(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*EventLogEntryWithData, error)
 	ListEventLogEntries(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogEntry, error)
 
 	CreateEventLogCallbacks(ctx context.Context, opts []CreateEventLogCallbackOpts) ([]*sqlcv1.V1DurableEventLogCallback, error)
@@ -233,12 +238,30 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 	return entries, nil
 }
 
-func (r *durableEventsRepository) GetEventLogEntry(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*sqlcv1.V1DurableEventLogEntry, error) {
-	return r.queries.GetDurableEventLogEntry(ctx, r.pool, sqlcv1.GetDurableEventLogEntryParams{
+func (r *durableEventsRepository) GetEventLogEntry(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*EventLogEntryWithData, error) {
+	entry, err := r.queries.GetDurableEventLogEntry(ctx, r.pool, sqlcv1.GetDurableEventLogEntryParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Nodeid:                nodeId,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
+		Id:         entry.ID,
+		InsertedAt: entry.InsertedAt,
+		Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+		TenantId:   tenantId,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &EventLogEntryWithData{
+		Entry: entry,
+		Data:  data,
+	}, nil
 }
 
 func (r *durableEventsRepository) ListEventLogEntries(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogEntry, error) {

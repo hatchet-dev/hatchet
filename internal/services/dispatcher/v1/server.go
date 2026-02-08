@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -436,6 +437,11 @@ func getDurableTaskSignalKey(taskExternalId string, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId, nodeId)
 }
 
+type durableEventLogEntryData struct {
+	ChildExternalId *uuid.UUID      `json:"child_external_id,omitempty"`
+	Input           json.RawMessage `json:"input,omitempty"`
+}
+
 func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
@@ -452,7 +458,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	}
 
 	nodeId := invocation.getNextNodeId(req.DurableTaskExternalId, req.InvocationCount)
-	existingEntry, err := d.repo.DurableEvents().GetEventLogEntry(ctx, task.ID, task.InsertedAt, nodeId)
+	existingEntry, err := d.repo.DurableEvents().GetEventLogEntry(ctx, invocation.tenantId, task.ID, task.InsertedAt, nodeId)
 
 	if err == nil && existingEntry != nil {
 		return invocation.send(&contracts.DurableTaskResponse{
@@ -472,13 +478,35 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	}
 
 	var entryKind sqlcv1.V1DurableEventLogEntryKind
+	var entryData []byte
+
 	switch req.Kind {
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED
+		entryData = req.Payload
+
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_RUN:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED
+
+		spawnResult, err := d.spawnChildWorkflow(ctx, invocation.tenantId, task, nodeId, req)
+		if err != nil {
+			d.l.Error().Err(err).Msg("failed to spawn child workflow")
+			return status.Errorf(codes.Internal, "failed to spawn child workflow: %v", err)
+		}
+
+		data := durableEventLogEntryData{
+			ChildExternalId: &spawnResult.ChildExternalId,
+			Input:           req.Payload,
+		}
+		entryData, err = json.Marshal(data)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to marshal entry data: %v", err)
+		}
+
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED
+		entryData = req.Payload
+
 	default:
 		return status.Errorf(codes.InvalidArgument, "unsupported event kind: %v", req.Kind)
 	}
@@ -495,72 +523,63 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		NodeId:                nodeId,
 		ParentNodeId:          logFile.LatestNodeID,
 		BranchId:              logFile.LatestBranchID,
-		Data:                  req.Payload,
+		Data:                  entryData,
 	}})
 
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create event log entry: %v", err)
 	}
 
-	switch req.Kind {
-	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
-		if req.WaitForConditions != nil {
-			signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
+	if req.Kind == contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR && req.WaitForConditions != nil {
+		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
 
-			createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
+		createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
-			for _, condition := range req.WaitForConditions.SleepConditions {
-				orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-				if err != nil {
-					d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
-					return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
-				}
-
-				createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
-					Kind:            v1.CreateExternalSignalConditionKindSLEEP,
-					ReadableDataKey: condition.Base.ReadableDataKey,
-					OrGroupId:       orGroupId,
-					SleepFor:        &condition.SleepFor,
-				})
+		for _, condition := range req.WaitForConditions.SleepConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+				return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
 			}
 
-			for _, condition := range req.WaitForConditions.UserEventConditions {
-				orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-				if err != nil {
-					d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
-					return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
-				}
-
-				createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
-					Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
-					ReadableDataKey: condition.Base.ReadableDataKey,
-					OrGroupId:       orGroupId,
-					UserEventKey:    &condition.UserEventKey,
-					Expression:      condition.Base.Expression,
-				})
-			}
-
-			if len(createConditionOpts) > 0 {
-				createMatchOpts := []v1.ExternalCreateSignalMatchOpts{{
-					Conditions:           createConditionOpts,
-					SignalTaskId:         task.ID,
-					SignalTaskInsertedAt: task.InsertedAt,
-					SignalExternalId:     task.ExternalID,
-					SignalKey:            signalKey,
-				}}
-
-				err = d.repo.Matches().RegisterSignalMatchConditions(ctx, invocation.tenantId, createMatchOpts)
-				if err != nil {
-					d.l.Error().Err(err).Msg("failed to register signal match conditions")
-					return status.Errorf(codes.Internal, "failed to register signal match conditions: %v", err)
-				}
-			}
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindSLEEP,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				SleepFor:        &condition.SleepFor,
+			})
 		}
 
-	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_RUN:
-		if err := d.spawnChildWorkflow(ctx, invocation.tenantId, task, nodeId, req); err != nil {
-			d.l.Error().Err(err).Msg("failed to spawn child workflow")
-			return status.Errorf(codes.Internal, "failed to spawn child workflow: %v", err)
+		for _, condition := range req.WaitForConditions.UserEventConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+				return status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+			}
+
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				UserEventKey:    &condition.UserEventKey,
+				Expression:      condition.Base.Expression,
+			})
+		}
+
+		if len(createConditionOpts) > 0 {
+			createMatchOpts := []v1.ExternalCreateSignalMatchOpts{{
+				Conditions:           createConditionOpts,
+				SignalTaskId:         task.ID,
+				SignalTaskInsertedAt: task.InsertedAt,
+				SignalExternalId:     task.ExternalID,
+				SignalKey:            signalKey,
+			}}
+
+			err = d.repo.Matches().RegisterSignalMatchConditions(ctx, invocation.tenantId, createMatchOpts)
+			if err != nil {
+				d.l.Error().Err(err).Msg("failed to register signal match conditions")
+				return status.Errorf(codes.Internal, "failed to register signal match conditions: %v", err)
+			}
 		}
 	}
 
@@ -575,16 +594,21 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	})
 }
 
+type spawnChildWorkflowResult struct {
+	ChildExternalId uuid.UUID
+	WasSkipped      bool
+}
+
 func (d *DispatcherServiceImpl) spawnChildWorkflow(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	parentTask *sqlcv1.FlattenExternalIdsRow,
 	nodeId int64,
 	req *contracts.DurableTaskEventRequest,
-) error {
+) (*spawnChildWorkflowResult, error) {
 	workflowName := req.GetRunWorkflowName()
 	if workflowName == "" {
-		return fmt.Errorf("workflow name is required for spawning child workflows")
+		return nil, fmt.Errorf("workflow name is required for spawning child workflows")
 	}
 
 	parentInsertedAt := parentTask.InsertedAt.Time
@@ -607,23 +631,29 @@ func (d *DispatcherServiceImpl) spawnChildWorkflow(
 
 	err := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{triggerOpt})
 	if err != nil {
-		return fmt.Errorf("failed to populate external ids: %w", err)
+		return nil, fmt.Errorf("failed to populate external ids: %w", err)
 	}
 
 	if triggerOpt.ShouldSkip {
-		return nil
+		return &spawnChildWorkflowResult{
+			ChildExternalId: triggerOpt.ExternalId,
+			WasSkipped:      true,
+		}, nil
 	}
 
 	_, _, err = d.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{triggerOpt})
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
-			return fmt.Errorf("resource exhausted: %w", err)
+			return nil, fmt.Errorf("resource exhausted: %w", err)
 		}
 
-		return fmt.Errorf("failed to trigger child workflow: %w", err)
+		return nil, fmt.Errorf("failed to trigger child workflow: %w", err)
 	}
 
-	return nil
+	return &spawnChildWorkflowResult{
+		ChildExternalId: triggerOpt.ExternalId,
+		WasSkipped:      false,
+	}, nil
 }
 
 func (d *DispatcherServiceImpl) handleRegisterCallback(
@@ -642,7 +672,6 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	tenantId := invocation.tenantId
-	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.NodeId)
 	callbackKey := fmt.Sprintf("%s:%d", req.DurableTaskExternalId, req.NodeId)
 
 	existingCallback, err := d.repo.DurableEvents().GetEventLogCallback(ctx, tenantId, task.ID, task.InsertedAt, callbackKey)
@@ -672,14 +701,28 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 		})
 	}
 
+	entryWithData, err := d.repo.DurableEvents().GetEventLogEntry(ctx, tenantId, task.ID, task.InsertedAt, req.NodeId)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "event log entry not found for node_id %d: %v", req.NodeId, err)
+	}
+	entry := entryWithData.Entry
+
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 	externalId := uuid.New()
+
+	var callbackKind sqlcv1.V1DurableEventLogCallbackKind
+	switch entry.Kind.V1DurableEventLogEntryKind {
+	case sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED:
+		callbackKind = sqlcv1.V1DurableEventLogCallbackKindRUNCOMPLETED
+	default:
+		callbackKind = sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED
+	}
 
 	_, err = d.repo.DurableEvents().CreateEventLogCallbacks(ctx, []v1.CreateEventLogCallbackOpts{{
 		DurableTaskId:         task.ID,
 		DurableTaskInsertedAt: task.InsertedAt,
 		InsertedAt:            now,
-		Kind:                  sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED,
+		Kind:                  callbackKind,
 		Key:                   callbackKey,
 		NodeId:                req.NodeId,
 		IsSatisfied:           false,
@@ -704,69 +747,128 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 		return err
 	}
 
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
+	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.NodeId)
 
-		pollCtx := context.Background()
+	var childExternalId *uuid.UUID
+	if entry.Kind.V1DurableEventLogEntryKind == sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED {
+		var data durableEventLogEntryData
+		if err := json.Unmarshal(entryWithData.Data, &data); err != nil {
+			return status.Errorf(codes.Internal, "failed to parse entry data: %v", err)
+		}
+		childExternalId = data.ChildExternalId
+	}
 
-		for {
-			select {
-			case <-ticker.C:
-				signalEvents := []v1.TaskIdInsertedAtSignalKey{{
-					Id:         task.ID,
-					InsertedAt: task.InsertedAt,
-					SignalKey:  signalKey,
-				}}
+	go d.pollForCompletion(invocation, task, signalKey, childExternalId, req, callbackKey)
 
-				completedEvents, err := d.repo.Tasks().ListSignalCompletedEvents(pollCtx, invocation.tenantId, signalEvents)
+	return nil
+}
+
+func (d *DispatcherServiceImpl) pollForCompletion(
+	invocation *durableTaskInvocation,
+	task *sqlcv1.FlattenExternalIdsRow,
+	signalKey string,
+	childExternalId *uuid.UUID,
+	req *contracts.DurableTaskRegisterCallbackRequest,
+	callbackKey string,
+) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	pollCtx := context.Background()
+
+	for {
+		select {
+		case <-ticker.C:
+			signalEvents := []v1.TaskIdInsertedAtSignalKey{{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				SignalKey:  signalKey,
+			}}
+
+			completedEvents, err := d.repo.Tasks().ListSignalCompletedEvents(pollCtx, invocation.tenantId, signalEvents)
+			if err != nil {
+				d.l.Error().Err(err).Msg("failed to list signal completed events")
+				continue
+			}
+
+			for _, event := range completedEvents {
+				if event.EventKey.String == signalKey {
+					d.sendCallbackCompleted(invocation, task, req, callbackKey, event.Payload, event.TenantID)
+					return
+				}
+			}
+
+			if childExternalId != nil {
+				finalized, err := d.repo.Tasks().ListFinalizedWorkflowRuns(pollCtx, invocation.tenantId, []uuid.UUID{*childExternalId})
 				if err != nil {
-					d.l.Error().Err(err).Msg("failed to list signal completed events")
+					d.l.Error().Err(err).Msg("failed to list finalized workflow runs")
 					continue
 				}
 
-				for _, event := range completedEvents {
-					if event.EventKey.String == signalKey {
-						sendErr := invocation.send(&contracts.DurableTaskResponse{
-							Message: &contracts.DurableTaskResponse_CallbackCompleted{
-								CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
-									InvocationCount:       req.InvocationCount,
-									DurableTaskExternalId: req.DurableTaskExternalId,
-									NodeId:                req.NodeId,
-									Payload:               event.Payload,
-								},
-							},
-						})
+				if len(finalized) > 0 && finalized[0] != nil {
+					result := finalized[0]
 
-						if sendErr != nil {
-							d.l.Error().Err(sendErr).Msg("failed to send callback_completed")
+					var resultPayload []byte
+					if len(result.OutputEvents) == 1 {
+						resultPayload = result.OutputEvents[0].Output
+					} else if len(result.OutputEvents) > 1 {
+						outputs := make(map[string]json.RawMessage)
+						for _, event := range result.OutputEvents {
+							if event.Output != nil {
+								outputs[event.StepReadableID] = event.Output
+							}
 						}
-
-						_, updateErr := d.repo.DurableEvents().UpdateEventLogCallbackSatisfied(
-							pollCtx,
-							event.TenantID,
-							task.ID,
-							task.InsertedAt,
-							callbackKey,
-							true,
-							event.Payload,
-						)
-
-						if updateErr != nil {
-							d.l.Error().Err(updateErr).Msg("failed to update callback as satisfied")
-						}
-
-						return
+						resultPayload, _ = json.Marshal(outputs)
 					}
-				}
-			case <-invocation.server.Context().Done():
-				d.l.Debug().Msg("stream closed, stopping callback polling")
-				return
-			}
-		}
-	}()
 
-	return nil
+					d.sendCallbackCompleted(invocation, task, req, callbackKey, resultPayload, invocation.tenantId)
+					return
+				}
+			}
+		case <-invocation.server.Context().Done():
+			d.l.Debug().Msg("stream closed, stopping completion polling")
+			return
+		}
+	}
+}
+
+func (d *DispatcherServiceImpl) sendCallbackCompleted(
+	invocation *durableTaskInvocation,
+	task *sqlcv1.FlattenExternalIdsRow,
+	req *contracts.DurableTaskRegisterCallbackRequest,
+	callbackKey string,
+	payload []byte,
+	tenantId uuid.UUID,
+) {
+	sendErr := invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_CallbackCompleted{
+			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+				InvocationCount:       req.InvocationCount,
+				DurableTaskExternalId: req.DurableTaskExternalId,
+				NodeId:                req.NodeId,
+				Payload:               payload,
+			},
+		},
+	})
+
+	if sendErr != nil {
+		d.l.Error().Err(sendErr).Msg("failed to send callback_completed")
+	}
+
+	pollCtx := context.Background()
+	_, updateErr := d.repo.DurableEvents().UpdateEventLogCallbackSatisfied(
+		pollCtx,
+		tenantId,
+		task.ID,
+		task.InsertedAt,
+		callbackKey,
+		true,
+		payload,
+	)
+
+	if updateErr != nil {
+		d.l.Error().Err(updateErr).Msg("failed to update callback as satisfied")
+	}
 }
 
 func (d *DispatcherServiceImpl) handleEvictInvocation(
