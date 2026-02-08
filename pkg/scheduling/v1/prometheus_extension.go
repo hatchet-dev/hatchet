@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"

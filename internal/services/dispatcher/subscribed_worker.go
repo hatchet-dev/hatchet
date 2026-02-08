@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )

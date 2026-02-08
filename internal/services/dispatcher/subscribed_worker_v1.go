@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"

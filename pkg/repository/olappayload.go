@@ -2,7 +2,6 @@ package repository
 
 import (
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
