@@ -38,48 +38,15 @@ SELECT
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP;
 
--- name: ListWorkersWithSlotCount :many
+-- name: ListWorkers :many
 SELECT
     sqlc.embed(workers),
     ww."url" AS "webhookUrl",
-    ww."id" AS "webhookId",
-    -- TODO do we still need this?
-    COALESCE((
-        SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_config cap
-        WHERE
-            cap.tenant_id = workers."tenantId"
-            AND cap.worker_id = workers."id"
-            AND cap.slot_type = 'default'::text
-    ) - (
-        SELECT COALESCE(SUM(runtime.units), 0)
-        FROM v1_task_runtime_slot runtime
-        WHERE
-            runtime.tenant_id = workers."tenantId" AND
-            runtime.worker_id = workers."id" AND
-            runtime.slot_type = 'default'::text
-    ), 0)::int AS "remainingSlots"
-    ,
-    COALESCE((
-        (
-            SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_config cap
-            WHERE
-                cap.tenant_id = workers."tenantId"
-                AND cap.worker_id = workers."id"
-                AND cap.slot_type = 'durable'::text
-        ) - (
-            SELECT COALESCE(SUM(runtime.units), 0)
-            FROM v1_task_runtime_slot runtime
-            WHERE
-                runtime.tenant_id = workers."tenantId" AND
-                runtime.worker_id = workers."id" AND
-                runtime.slot_type = 'durable'::text
-        )
-    ), 0)::int AS "remainingDurableSlots"
+    ww."id" AS "webhookId"
 FROM
     "Worker" workers
 LEFT JOIN
+    -- FIXME: remove this in a future release
     "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
     workers."tenantId" = @tenantId
@@ -114,43 +81,11 @@ GROUP BY
 -- name: GetWorkerById :one
 SELECT
     sqlc.embed(w),
-    ww."url" AS "webhookUrl",
-    COALESCE((
-        SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_config cap
-        WHERE
-            cap.tenant_id = w."tenantId"
-            AND cap.worker_id = w."id"
-            AND cap.slot_type = 'default'::text
-    ) - (
-        SELECT COALESCE(SUM(runtime.units), 0)
-        FROM v1_task_runtime_slot runtime
-        WHERE
-            runtime.tenant_id = w."tenantId" AND
-            runtime.worker_id = w."id" AND
-            runtime.slot_type = 'default'::text
-    ), 0)::int AS "remainingSlots"
-    ,
-    COALESCE((
-        (
-            SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_config cap
-            WHERE
-                cap.tenant_id = w."tenantId"
-                AND cap.worker_id = w."id"
-                AND cap.slot_type = 'durable'::text
-        ) - (
-            SELECT COALESCE(SUM(runtime.units), 0)
-            FROM v1_task_runtime_slot runtime
-            WHERE
-                runtime.tenant_id = w."tenantId" AND
-                runtime.worker_id = w."id" AND
-                runtime.slot_type = 'durable'::text
-        )
-    ), 0)::int AS "remainingDurableSlots"
+    ww."url" AS "webhookUrl"
 FROM
     "Worker" w
 LEFT JOIN
+    -- FIXME: remove this in a future release
     "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
     w."id" = @id::uuid;

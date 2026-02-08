@@ -12,6 +12,7 @@ import (
 type slotAvailabilityRepository interface {
 	ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error)
+	ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotTypes []string) (map[uuid.UUID]map[string]int32, error)
 }
 
 func buildWorkerSlotConfig(ctx context.Context, repo slotAvailabilityRepository, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]gen.WorkerSlotConfig, error) {
@@ -31,13 +32,14 @@ func buildWorkerSlotConfig(ctx context.Context, repo slotAvailabilityRepository,
 		}
 	}
 
-	availableBySlotType := make(map[string]map[uuid.UUID]int32, len(slotTypes))
+	slotTypesArr := make([]string, 0, len(slotTypes))
 	for slotType := range slotTypes {
-		available, err := repo.ListAvailableSlotsForWorkers(ctx, tenantId, workerIds, slotType)
-		if err != nil {
-			return nil, fmt.Errorf("could not list available slots for slot type %s: %w", slotType, err)
-		}
-		availableBySlotType[slotType] = available
+		slotTypesArr = append(slotTypesArr, slotType)
+	}
+
+	availableByWorker, err := repo.ListAvailableSlotsForWorkersAndTypes(ctx, tenantId, workerIds, slotTypesArr)
+	if err != nil {
+		return nil, fmt.Errorf("could not list available slots for workers and types: %w", err)
 	}
 
 	result := make(map[uuid.UUID]map[string]gen.WorkerSlotConfig, len(slotConfigByWorker))
@@ -45,8 +47,8 @@ func buildWorkerSlotConfig(ctx context.Context, repo slotAvailabilityRepository,
 		workerSlots := make(map[string]gen.WorkerSlotConfig, len(config))
 		for slotType, limit := range config {
 			available := 0
-			if slotAvailability, ok := availableBySlotType[slotType]; ok {
-				if value, ok := slotAvailability[workerId]; ok {
+			if workerAvailability, ok := availableByWorker[workerId]; ok {
+				if value, ok := workerAvailability[slotType]; ok {
 					available = int(value)
 				}
 			}

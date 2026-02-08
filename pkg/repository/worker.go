@@ -75,7 +75,7 @@ type UpsertWorkerLabelOpts struct {
 }
 
 type WorkerRepository interface {
-	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error)
+	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, error)
 	GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
 	ListTotalActiveSlotsPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListActiveSlotsPerTenantAndSlotType(ctx context.Context) (map[TenantIdSlotTypeTuple]int64, error)
@@ -96,6 +96,9 @@ type WorkerRepository interface {
 
 	// ListAvailableSlotsForWorkers returns available slot units by worker for a slot type.
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error)
+
+	// ListAvailableSlotsForWorkersAndTypes returns available slot units by worker for a set of slot types.
+	ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotTypes []string) (map[uuid.UUID]map[string]int32, error)
 
 	// CreateNewWorker creates a new worker for a given tenant.
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
@@ -131,12 +134,12 @@ func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 	}
 }
 
-func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersWithSlotCountRow, error) {
+func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	queryParams := sqlcv1.ListWorkersWithSlotCountParams{
+	queryParams := sqlcv1.ListWorkersParams{
 		Tenantid: tenantId,
 	}
 
@@ -155,11 +158,11 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 		}
 	}
 
-	workers, err := w.queries.ListWorkersWithSlotCount(ctx, w.pool, queryParams)
+	workers, err := w.queries.ListWorkers(ctx, w.pool, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			workers = make([]*sqlcv1.ListWorkersWithSlotCountRow, 0)
+			workers = make([]*sqlcv1.ListWorkersRow, 0)
 		} else {
 			return nil, fmt.Errorf("could not list workers: %w", err)
 		}
@@ -335,6 +338,28 @@ func (w *workerRepository) ListAvailableSlotsForWorkers(ctx context.Context, ten
 	res := make(map[uuid.UUID]int32, len(rows))
 	for _, row := range rows {
 		res[row.ID] = row.AvailableSlots
+	}
+
+	return res, nil
+}
+
+func (w *workerRepository) ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotTypes []string) (map[uuid.UUID]map[string]int32, error) {
+	rows, err := w.queries.ListAvailableSlotsForWorkersAndTypes(ctx, w.pool, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams{
+		Tenantid:  tenantId,
+		Workerids: workerIds,
+		Slottypes: slotTypes,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list available slots for workers and types: %w", err)
+	}
+
+	res := make(map[uuid.UUID]map[string]int32)
+	for _, row := range rows {
+		if _, ok := res[row.ID]; !ok {
+			res[row.ID] = make(map[string]int32)
+		}
+		res[row.ID][row.SlotType] = row.AvailableSlots
 	}
 
 	return res, nil

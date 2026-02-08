@@ -257,40 +257,7 @@ func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg G
 const getWorkerById = `-- name: GetWorkerById :one
 SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
-    ww."url" AS "webhookUrl",
-    COALESCE((
-        SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_config cap
-        WHERE
-            cap.tenant_id = w."tenantId"
-            AND cap.worker_id = w."id"
-            AND cap.slot_type = 'default'::text
-    ) - (
-        SELECT COALESCE(SUM(runtime.units), 0)
-        FROM v1_task_runtime_slot runtime
-        WHERE
-            runtime.tenant_id = w."tenantId" AND
-            runtime.worker_id = w."id" AND
-            runtime.slot_type = 'default'::text
-    ), 0)::int AS "remainingSlots"
-    ,
-    COALESCE((
-        (
-            SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_config cap
-            WHERE
-                cap.tenant_id = w."tenantId"
-                AND cap.worker_id = w."id"
-                AND cap.slot_type = 'durable'::text
-        ) - (
-            SELECT COALESCE(SUM(runtime.units), 0)
-            FROM v1_task_runtime_slot runtime
-            WHERE
-                runtime.tenant_id = w."tenantId" AND
-                runtime.worker_id = w."id" AND
-                runtime.slot_type = 'durable'::text
-        )
-    ), 0)::int AS "remainingDurableSlots"
+    ww."url" AS "webhookUrl"
 FROM
     "Worker" w
 LEFT JOIN
@@ -300,10 +267,8 @@ WHERE
 `
 
 type GetWorkerByIdRow struct {
-	Worker                Worker      `json:"worker"`
-	WebhookUrl            pgtype.Text `json:"webhookUrl"`
-	RemainingSlots        int32       `json:"remainingSlots"`
-	RemainingDurableSlots int32       `json:"remainingDurableSlots"`
+	Worker     Worker      `json:"worker"`
+	WebhookUrl pgtype.Text `json:"webhookUrl"`
 }
 
 func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkerByIdRow, error) {
@@ -329,8 +294,6 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*Ge
 		&i.Worker.RuntimeExtra,
 		&i.Worker.SdkVersion,
 		&i.WebhookUrl,
-		&i.RemainingSlots,
-		&i.RemainingDurableSlots,
 	)
 	return &i, err
 }
@@ -952,45 +915,11 @@ func (q *Queries) ListWorkerSlotConfigs(ctx context.Context, db DBTX, arg ListWo
 	return items, nil
 }
 
-const listWorkersWithSlotCount = `-- name: ListWorkersWithSlotCount :many
+const listWorkers = `-- name: ListWorkers :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion",
     ww."url" AS "webhookUrl",
-    ww."id" AS "webhookId",
-    -- TODO do we still need this?
-    COALESCE((
-        SELECT COALESCE(cap.max_units, 0)
-        FROM v1_worker_slot_config cap
-        WHERE
-            cap.tenant_id = workers."tenantId"
-            AND cap.worker_id = workers."id"
-            AND cap.slot_type = 'default'::text
-    ) - (
-        SELECT COALESCE(SUM(runtime.units), 0)
-        FROM v1_task_runtime_slot runtime
-        WHERE
-            runtime.tenant_id = workers."tenantId" AND
-            runtime.worker_id = workers."id" AND
-            runtime.slot_type = 'default'::text
-    ), 0)::int AS "remainingSlots"
-    ,
-    COALESCE((
-        (
-            SELECT COALESCE(cap.max_units, 0)
-            FROM v1_worker_slot_config cap
-            WHERE
-                cap.tenant_id = workers."tenantId"
-                AND cap.worker_id = workers."id"
-                AND cap.slot_type = 'durable'::text
-        ) - (
-            SELECT COALESCE(SUM(runtime.units), 0)
-            FROM v1_task_runtime_slot runtime
-            WHERE
-                runtime.tenant_id = workers."tenantId" AND
-                runtime.worker_id = workers."id" AND
-                runtime.slot_type = 'durable'::text
-        )
-    ), 0)::int AS "remainingDurableSlots"
+    ww."id" AS "webhookId"
 FROM
     "Worker" workers
 LEFT JOIN
@@ -1026,23 +955,21 @@ GROUP BY
     workers."id", ww."url", ww."id"
 `
 
-type ListWorkersWithSlotCountParams struct {
+type ListWorkersParams struct {
 	Tenantid           uuid.UUID        `json:"tenantid"`
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
 }
 
-type ListWorkersWithSlotCountRow struct {
-	Worker                Worker      `json:"worker"`
-	WebhookUrl            pgtype.Text `json:"webhookUrl"`
-	WebhookId             *uuid.UUID  `json:"webhookId"`
-	RemainingSlots        int32       `json:"remainingSlots"`
-	RemainingDurableSlots int32       `json:"remainingDurableSlots"`
+type ListWorkersRow struct {
+	Worker     Worker      `json:"worker"`
+	WebhookUrl pgtype.Text `json:"webhookUrl"`
+	WebhookId  *uuid.UUID  `json:"webhookId"`
 }
 
-func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg ListWorkersWithSlotCountParams) ([]*ListWorkersWithSlotCountRow, error) {
-	rows, err := db.Query(ctx, listWorkersWithSlotCount,
+func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParams) ([]*ListWorkersRow, error) {
+	rows, err := db.Query(ctx, listWorkers,
 		arg.Tenantid,
 		arg.ActionId,
 		arg.LastHeartbeatAfter,
@@ -1052,9 +979,9 @@ func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg Lis
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListWorkersWithSlotCountRow
+	var items []*ListWorkersRow
 	for rows.Next() {
-		var i ListWorkersWithSlotCountRow
+		var i ListWorkersRow
 		if err := rows.Scan(
 			&i.Worker.ID,
 			&i.Worker.CreatedAt,
@@ -1076,8 +1003,6 @@ func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.SdkVersion,
 			&i.WebhookUrl,
 			&i.WebhookId,
-			&i.RemainingSlots,
-			&i.RemainingDurableSlots,
 		); err != nil {
 			return nil, err
 		}
