@@ -5,6 +5,7 @@ option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/pro
 package v1;
 
 import "v1/shared/condition.proto";
+import "workflows/workflows.proto";
 
 service V1Dispatcher {
     rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse) {}
@@ -42,9 +43,7 @@ message DurableTaskEventRequest {
     optional DurableEventListenerConditions wait_for_conditions = 5;
 
     // Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows)
-    optional string run_workflow_name = 6;
-    optional string run_child_key = 7;
-    optional bytes run_additional_metadata = 8;
+    optional TriggerWorkflowRequest trigger_opts  = 6;
 }
 
 message DurableTaskEventAckResponse {
