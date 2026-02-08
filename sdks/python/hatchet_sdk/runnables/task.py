@@ -381,27 +381,29 @@ class Task(Generic[TWorkflowInput, R]):
         else:
             concurrency = self.concurrency
 
-        opts: dict[str, Any] = {
-            "readable_id": self.name,
-            "action": service_name + ":" + self.name,
-            "timeout": timedelta_to_expr(self.execution_timeout),
-            "inputs": "{}",
-            "parents": [p.name for p in self.parents],
-            "retries": self.retries,
-            "rate_limits": self.rate_limits,
-            "worker_labels": self.desired_worker_labels,
-            "backoff_factor": self.backoff_factor,
-            "backoff_max_seconds": self.backoff_max_seconds,
-            "concurrency": [t.to_proto() for t in concurrency],
-            "conditions": self._conditions_to_proto(),
-            "schedule_timeout": timedelta_to_expr(self.schedule_timeout),
-        }
-        if "is_durable" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
-            opts["is_durable"] = self.is_durable
-        if "slot_requests" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
-            opts["slot_requests"] = self.slot_requests
+        proto = CreateTaskOpts(
+            readable_id=self.name,
+            action=service_name + ":" + self.name,
+            timeout=timedelta_to_expr(self.execution_timeout),
+            inputs="{}",
+            parents=[p.name for p in self.parents],
+            retries=self.retries,
+            rate_limits=self.rate_limits,
+            worker_labels=self.desired_worker_labels,
+            backoff_factor=self.backoff_factor,
+            backoff_max_seconds=self.backoff_max_seconds,
+            concurrency=[t.to_proto() for t in concurrency],
+            conditions=self._conditions_to_proto(),
+            schedule_timeout=timedelta_to_expr(self.schedule_timeout),
+        )
 
-        return CreateTaskOpts(**opts)
+        # Backwards/forwards compatibility across protobuf schema versions.
+        if "is_durable" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
+            proto.is_durable = self.is_durable
+        if "slot_requests" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
+            proto.slot_requests.update(self.slot_requests)
+
+        return proto
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
         condition.base.action = action

@@ -108,7 +108,7 @@ class ActionListener:
             try:
                 logger.debug("sending heartbeat")
                 # fixme: figure out how to get typing right here
-                await self.aio_client.Heartbeat(  # type: ignore[misc]
+                await self.aio_client.Heartbeat(
                     HeartbeatRequest(
                         worker_id=self.worker_id,
                         heartbeat_at=proto_timestamp_now(),
