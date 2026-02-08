@@ -14,21 +14,29 @@ import (
 // time for unacked slots to get written back to the database.
 const defaultSlotExpiry = 1500 * time.Millisecond
 
-type slot struct {
-	worker   *worker
-	actions  []string
+// slotMeta is shared across many slots to avoid duplicating
+// metadata that is identical for a worker/type.
+type slotMeta struct {
 	slotType string
+	actions  []string
+}
 
-	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
-	expiresAt *time.Time
-	used      bool
+func newSlotMeta(actions []string, slotType string) *slotMeta {
+	return &slotMeta{
+		actions:  actions,
+		slotType: slotType,
+	}
+}
 
-	ackd bool
-
+type slot struct {
+	worker          *worker
+	meta            *slotMeta
+	expiresAt       *time.Time
 	additionalAcks  []func()
 	additionalNacks []func()
-
-	mu sync.RWMutex
+	mu              sync.RWMutex
+	used            bool
+	ackd            bool
 }
 
 type assignedSlots struct {
@@ -71,13 +79,12 @@ func (a *assignedSlots) nack() {
 	}
 }
 
-func newSlot(worker *worker, actions []string, slotType string) *slot {
+func newSlot(worker *worker, meta *slotMeta) *slot {
 	expires := time.Now().Add(defaultSlotExpiry)
 
 	return &slot{
 		worker:    worker,
-		actions:   actions,
-		slotType:  slotType,
+		meta:      meta,
 		expiresAt: &expires,
 	}
 }
@@ -87,7 +94,11 @@ func (s *slot) getWorkerId() uuid.UUID {
 }
 
 func (s *slot) getSlotType() string {
-	return s.slotType
+	if s.meta == nil {
+		return ""
+	}
+
+	return s.meta.slotType
 }
 
 func (s *slot) extendExpiry() {

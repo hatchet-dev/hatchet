@@ -15,8 +15,14 @@ type action struct {
 	lastReplenishedWorkerCount int
 
 	// note that slots can be used across multiple actions, hence the pointer
-	slots         []*slot
-	slotsByWorker map[uuid.UUID]map[string][]*slot
+	slots []*slot
+
+	// slotsByTypeAndWorkerId indexes slots by slotType -> workerId -> slots.
+	//
+	// NOTE: this index contains pointers to the same slot objects as slots.
+	// It is built/replaced during replenish under a.mu and read during assignment
+	// under a.mu (RLock or Lock).
+	slotsByTypeAndWorkerId map[string]map[uuid.UUID][]*slot
 }
 
 func (a *action) activeCount() int {

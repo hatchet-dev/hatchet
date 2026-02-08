@@ -3,6 +3,8 @@ package v1
 import (
 	"context"
 	"math/rand"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -185,8 +187,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		// if the action is not in the map, it should be replenished
 		if _, ok := s.actions[actionId]; !ok {
 			newAction := &action{
-				actionId:      actionId,
-				slotsByWorker: make(map[uuid.UUID]map[string][]*slot),
+				actionId:               actionId,
+				slotsByTypeAndWorkerId: make(map[string]map[uuid.UUID][]*slot),
 			}
 
 			actionsToReplenish[actionId] = newAction
@@ -351,8 +353,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// FUNCTION 4: write the new slots to the scheduler and clean up expired slots
 	actionsToNewSlots := make(map[string][]*slot)
 	actionsToTotalSlots := make(map[string]int)
+	actionsToSlotsByType := make(map[string]map[string]map[uuid.UUID][]*slot)
 
-	actionsToSlotsByWorker := make(map[string]map[uuid.UUID]map[string][]*slot)
+	// metaCache interns slotMeta so slots with identical metadata share the same pointer.
+	// Key format: slotType + "\x00" + strings.Join(sortedUniqueActions, "\x00")
+	metaCache := make(map[string]*slotMeta)
 
 	for slotType, availableSlotsByWorker := range availableSlotsByType {
 		for workerId, availableSlots := range availableSlotsByWorker {
@@ -366,8 +371,26 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 				availableCount = 0
 			}
 
+			// Canonicalize actions to increase cache hits across workers.
+			// Order doesn't matter for correctness anywhere in scheduling.
+			if len(actions) > 1 {
+				slices.Sort(actions)
+				actions = slices.Compact(actions)
+			}
+
+			metaKey := slotType
+			if len(actions) > 0 {
+				metaKey = slotType + "\x00" + strings.Join(actions, "\x00")
+			}
+
+			meta := metaCache[metaKey]
+			if meta == nil {
+				meta = newSlotMeta(actions, slotType)
+				metaCache[metaKey] = meta
+			}
+
 			for i := 0; i < availableCount; i++ {
-				slots = append(slots, newSlot(workers[workerId], actions, slotType))
+				slots = append(slots, newSlot(workers[workerId], meta))
 			}
 
 			// extend expiry of all unacked slots
@@ -387,15 +410,14 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 				actionsToNewSlots[actionId] = append(actionsToNewSlots[actionId], slots...)
 				actionsToTotalSlots[actionId] += len(slots)
 
-				if _, ok := actionsToSlotsByWorker[actionId]; !ok {
-					actionsToSlotsByWorker[actionId] = make(map[uuid.UUID]map[string][]*slot)
+				if _, ok := actionsToSlotsByType[actionId]; !ok {
+					actionsToSlotsByType[actionId] = make(map[string]map[uuid.UUID][]*slot)
 				}
-
-				if _, ok := actionsToSlotsByWorker[actionId][workerId]; !ok {
-					actionsToSlotsByWorker[actionId][workerId] = make(map[string][]*slot)
+				if _, ok := actionsToSlotsByType[actionId][slotType]; !ok {
+					actionsToSlotsByType[actionId][slotType] = make(map[uuid.UUID][]*slot)
 				}
-
-				actionsToSlotsByWorker[actionId][workerId][slotType] = slots
+				// Reuse the per-worker/per-type slice for each action on that worker.
+				actionsToSlotsByType[actionId][slotType][workerId] = slots
 			}
 		}
 	}
@@ -417,7 +439,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		// we overwrite the slots for the action. we know that the action is in the map because we checked
 		// for it in the first pass.
 		storedAction.slots = newSlots
-		storedAction.slotsByWorker = actionsToSlotsByWorker[actionId]
+		storedAction.slotsByTypeAndWorkerId = actionsToSlotsByType[actionId]
 		storedAction.lastReplenishedSlotCount = actionsToTotalSlots[actionId]
 		storedAction.lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
 
@@ -437,17 +459,17 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		storedAction.slots = newSlots
-		storedAction.slotsByWorker = make(map[uuid.UUID]map[string][]*slot)
+		storedAction.slotsByTypeAndWorkerId = make(map[string]map[uuid.UUID][]*slot)
 
 		for _, slotItem := range newSlots {
-			workerId := slotItem.getWorkerId()
 			slotType := slotItem.getSlotType()
+			workerId := slotItem.getWorkerId()
 
-			if _, ok := storedAction.slotsByWorker[workerId]; !ok {
-				storedAction.slotsByWorker[workerId] = make(map[string][]*slot)
+			if _, ok := storedAction.slotsByTypeAndWorkerId[slotType]; !ok {
+				storedAction.slotsByTypeAndWorkerId[slotType] = make(map[uuid.UUID][]*slot)
 			}
 
-			storedAction.slotsByWorker[workerId][slotType] = append(storedAction.slotsByWorker[workerId][slotType], slotItem)
+			storedAction.slotsByTypeAndWorkerId[slotType][workerId] = append(storedAction.slotsByTypeAndWorkerId[slotType][workerId], slotItem)
 		}
 
 		s.l.Debug().Msgf("after cleanup, action %s has %d slots", storedAction.actionId, len(newSlots))
@@ -747,8 +769,9 @@ func findAssignableSlots(
 	rateLimitNack func(),
 ) *assignedSlots {
 	// NOTE: the caller must hold action.mu (RLock or Lock) while calling this
-	// function. We read from action.slotsByWorker, which is rebuilt during
-	// replenish under action.mu.
+	// function. We read from action.slots, which is replaced during replenish
+	// under action.mu.
+	seenWorkers := make(map[uuid.UUID]struct{})
 
 	for _, candidateSlot := range candidateSlots {
 		if !candidateSlot.active() {
@@ -756,12 +779,12 @@ func findAssignableSlots(
 		}
 
 		workerId := candidateSlot.getWorkerId()
-		workerSlots := action.slotsByWorker[workerId]
-		if len(workerSlots) == 0 {
+		if _, seen := seenWorkers[workerId]; seen {
 			continue
 		}
+		seenWorkers[workerId] = struct{}{}
 
-		selected, ok := selectSlotsForWorker(workerSlots, requests)
+		selected, ok := selectSlotsForWorker(action.slotsByTypeAndWorkerId, workerId, requests)
 		if !ok {
 			continue
 		}
@@ -803,9 +826,12 @@ func findAssignableSlots(
 	return nil
 }
 
-func selectSlotsForWorker(workerSlots map[string][]*slot, requests map[string]int32) ([]*slot, bool) {
+func selectSlotsForWorker(
+	slotsByType map[string]map[uuid.UUID][]*slot,
+	workerId uuid.UUID,
+	requests map[string]int32,
+) ([]*slot, bool) {
 	// Pre-size the selection slice to the total number of requested units.
-	// This avoids per-slot-type temporary slices/allocations while selecting.
 	totalNeeded := 0
 	for _, units := range requests {
 		if units > 0 {
@@ -820,8 +846,13 @@ func selectSlotsForWorker(workerSlots map[string][]*slot, requests map[string]in
 			continue
 		}
 
-		slots, ok := workerSlots[slotType]
+		byWorker, ok := slotsByType[slotType]
 		if !ok {
+			return nil, false
+		}
+
+		slots := byWorker[workerId]
+		if len(slots) == 0 {
 			return nil, false
 		}
 
@@ -862,8 +893,8 @@ func (s *Scheduler) tryAssignSingleton(
 	res assignSingleResult, err error,
 ) {
 	// NOTE: the caller must hold action.mu (RLock or Lock) while calling this
-	// function. We read from action.slotsByWorker, which is rebuilt during
-	// replenish under action.mu.
+	// function. We read from action.slots, which is replaced during replenish
+	// under action.mu.
 
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()

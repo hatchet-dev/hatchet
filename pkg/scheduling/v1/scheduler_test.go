@@ -147,18 +147,20 @@ func testWorker(id uuid.UUID) *repo.ListActiveWorkersResult {
 
 func actionWithSlots(actionId string, slots ...*slot) *action {
 	a := &action{
-		actionId:      actionId,
-		slots:         slots,
-		slotsByWorker: make(map[uuid.UUID]map[string][]*slot),
+		actionId: actionId,
+		slots:    slots,
+		// populate index for tests; production code builds it in replenish.
+		slotsByTypeAndWorkerId: make(map[string]map[uuid.UUID][]*slot),
 	}
 
 	for _, sl := range slots {
-		workerId := sl.getWorkerId()
 		slotType := sl.getSlotType()
-		if _, ok := a.slotsByWorker[workerId]; !ok {
-			a.slotsByWorker[workerId] = make(map[string][]*slot)
+		workerId := sl.getWorkerId()
+
+		if _, ok := a.slotsByTypeAndWorkerId[slotType]; !ok {
+			a.slotsByTypeAndWorkerId[slotType] = make(map[uuid.UUID][]*slot)
 		}
-		a.slotsByWorker[workerId][slotType] = append(a.slotsByWorker[workerId][slotType], sl)
+		a.slotsByTypeAndWorkerId[slotType][workerId] = append(a.slotsByTypeAndWorkerId[slotType][workerId], sl)
 	}
 
 	return a
@@ -200,7 +202,7 @@ func TestScheduler_AckNack(t *testing.T) {
 	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	sl := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	sl := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, sl.use(nil, nil))
 
 	s.unackedSlots[123] = &assignedSlots{slots: []*slot{sl}}
@@ -212,7 +214,7 @@ func TestScheduler_AckNack(t *testing.T) {
 	require.Empty(t, s.unackedSlots)
 
 	// nack should reset used=false and remove from unacked
-	sl2 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	sl2 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, sl2.use(nil, nil))
 	s.unackedSlots[777] = &assignedSlots{slots: []*slot{sl2}}
 
@@ -259,20 +261,25 @@ func TestSelectSlotsForWorker_SkipsInactive(t *testing.T) {
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	s1 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	s1 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, s1.use(nil, nil)) // used => inactive
 
-	s2 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	s2 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	// expire s2
 	past := time.Now().Add(-1 * time.Second)
 	s2.mu.Lock()
 	s2.expiresAt = &past
 	s2.mu.Unlock()
 
-	s3 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	s3 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+
+	slotsByTypeAndWorkerId := map[string]map[uuid.UUID][]*slot{
+		repo.SlotTypeDefault: {workerId: {s1, s2, s3}},
+	}
 
 	selected, ok := selectSlotsForWorker(
-		map[string][]*slot{repo.SlotTypeDefault: {s1, s2, s3}},
+		slotsByTypeAndWorkerId,
+		workerId,
 		map[string]int32{repo.SlotTypeDefault: 1},
 	)
 	require.True(t, ok)
@@ -291,9 +298,9 @@ func TestScheduler_TryAssignSingleton_RingWraparound(t *testing.T) {
 	w2 := &worker{ListActiveWorkersResult: testWorker(workerId2)}
 
 	// s1 is used/inactive, s2 is active
-	s1 := newSlot(w1, []string{"A"}, repo.SlotTypeDefault)
+	s1 := newSlot(w1, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, s1.use(nil, nil))
-	s2 := newSlot(w2, []string{"A"}, repo.SlotTypeDefault)
+	s2 := newSlot(w2, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 
 	a := actionWithSlots("A", s1, s2)
 	req := map[string]int32{repo.SlotTypeDefault: 1}
@@ -319,7 +326,7 @@ func TestScheduler_TryAssignSingleton_NoSlots(t *testing.T) {
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	s1 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	s1 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, s1.use(nil, nil))
 
 	a := actionWithSlots("A", s1)
@@ -343,8 +350,8 @@ func TestScheduler_TryAssignSingleton_StickyHardForcesRanking(t *testing.T) {
 	wOther := &worker{ListActiveWorkersResult: testWorker(otherWorkerId)}
 
 	// Put desired slot second; with HARD sticky it should still be selected.
-	otherSlot := newSlot(wOther, []string{"A"}, repo.SlotTypeDefault)
-	desiredSlot := newSlot(wDesired, []string{"A"}, repo.SlotTypeDefault)
+	otherSlot := newSlot(wOther, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	desiredSlot := newSlot(wDesired, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 
 	a := actionWithSlots("A", otherSlot, desiredSlot)
 	req := map[string]int32{repo.SlotTypeDefault: 1}
@@ -366,7 +373,7 @@ func TestScheduler_TryAssignSingleton_RateLimitAckIsWiredIntoSlotAck(t *testing.
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	sl := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	sl := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	a := actionWithSlots("A", sl)
 	req := map[string]int32{repo.SlotTypeDefault: 1}
 	qi := testQI(tenantId, "A", 1)
@@ -489,7 +496,7 @@ func TestScheduler_ReplenishAndTryAssignBatch_NoDeadlock_LockOrder(t *testing.T)
 
 	// Pre-create an action with a slot so tryAssignBatch will enter the critical section.
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	sl := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	sl := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	s.actions["A"] = actionWithSlots("A", sl)
 
 	reachedHook := make(chan struct{})
@@ -600,8 +607,8 @@ func TestScheduler_TryAssignBatch_AssignsUntilExhausted(t *testing.T) {
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
 	// two total slots
-	sl1 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
-	sl2 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	sl1 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	sl2 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 
 	s.actions["A"] = actionWithSlots("A", sl1, sl2)
 
@@ -644,7 +651,7 @@ func TestScheduler_TryAssignBatch_RateLimitedSkipsAssignment(t *testing.T) {
 	}
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	sl := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	sl := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	s.actions["A"] = actionWithSlots("A", sl)
 
 	qi := testQI(tenantId, "A", 100)
@@ -670,8 +677,8 @@ func TestScheduler_TryAssign_GroupsAndFiltersTimedOut(t *testing.T) {
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
 	// A has 1 slot, B has 1 slot
-	s.actions["A"] = actionWithSlots("A", newSlot(w, []string{"A"}, repo.SlotTypeDefault))
-	s.actions["B"] = actionWithSlots("B", newSlot(w, []string{"B"}, repo.SlotTypeDefault))
+	s.actions["A"] = actionWithSlots("A", newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault)))
+	s.actions["B"] = actionWithSlots("B", newSlot(w, newSlotMeta([]string{"B"}, repo.SlotTypeDefault)))
 
 	timeoutQI := testQI(tenantId, "A", 1)
 	timeoutQI.ScheduleTimeoutAt = ts(time.Now().UTC().Add(-1 * time.Second))
@@ -752,9 +759,9 @@ func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
 	s.setWorkers([]*repo.ListActiveWorkersResult{{ID: workerId, Name: "w1", Labels: nil}})
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	sharedSlot := newSlot(w, []string{"A", "B"}, repo.SlotTypeDefault)
+	sharedSlot := newSlot(w, newSlotMeta([]string{"A", "B"}, repo.SlotTypeDefault))
 	require.True(t, sharedSlot.use(nil, nil)) // used
-	unusedSlot := newSlot(w, []string{"A", "B"}, repo.SlotTypeDefault)
+	unusedSlot := newSlot(w, newSlotMeta([]string{"A", "B"}, repo.SlotTypeDefault))
 
 	s.actions["A"] = actionWithSlots("A", sharedSlot, unusedSlot)
 	s.actions["B"] = actionWithSlots("B", sharedSlot, unusedSlot) // duplicate pointers
@@ -832,12 +839,16 @@ func TestSelectSlotsForWorker_MissingTypeOrInsufficientUnitsFails(t *testing.T) 
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	one := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	one := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 
-	_, ok := selectSlotsForWorker(map[string][]*slot{repo.SlotTypeDefault: {one}}, map[string]int32{repo.SlotTypeDurable: 1})
+	slotsByTypeAndWorkerId := map[string]map[uuid.UUID][]*slot{
+		repo.SlotTypeDefault: {workerId: {one}},
+	}
+
+	_, ok := selectSlotsForWorker(slotsByTypeAndWorkerId, workerId, map[string]int32{repo.SlotTypeDurable: 1})
 	require.False(t, ok)
 
-	_, ok = selectSlotsForWorker(map[string][]*slot{repo.SlotTypeDefault: {one}}, map[string]int32{repo.SlotTypeDefault: 2})
+	_, ok = selectSlotsForWorker(slotsByTypeAndWorkerId, workerId, map[string]int32{repo.SlotTypeDefault: 2})
 	require.False(t, ok)
 }
 
@@ -845,9 +856,9 @@ func TestFindAssignableSlots_MultiUnitSameType(t *testing.T) {
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	s1 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
-	s2 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
-	s3 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	s1 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	s2 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	s3 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, s3.use(nil, nil)) // used; ensure not selected
 
 	a := actionWithSlots("A", s1, s2, s3)
@@ -867,8 +878,8 @@ func TestFindAssignableSlots_MultiType(t *testing.T) {
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	def := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
-	dur := newSlot(w, []string{"A"}, repo.SlotTypeDurable)
+	def := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	dur := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDurable))
 
 	a := actionWithSlots("A", def, dur)
 
@@ -890,8 +901,8 @@ func TestFindAssignableSlots_PartialAllocationRollback(t *testing.T) {
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	s1 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
-	s2 := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	s1 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	s2 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	a := actionWithSlots("A", s1, s2)
 
 	// Force the second slot to be taken after selection but before use(),
@@ -917,7 +928,7 @@ func TestScheduler_Nack_CallsRateLimitNackOnce(t *testing.T) {
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	sl := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	sl := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, sl.use(nil, nil))
 
 	nackCount := 0
@@ -977,17 +988,15 @@ func TestScheduler_Replenish_MultipleSlotTypes_CallsRepoPerTypeAndPopulatesSlots
 	require.NotNil(t, a)
 	require.Len(t, a.slots, 4)
 
-	byWorker := a.slotsByWorker[workerId]
-	require.NotNil(t, byWorker)
-	require.Len(t, byWorker[repo.SlotTypeDefault], 2)
-	require.Len(t, byWorker[repo.SlotTypeDurable], 2)
-
-	for _, sl := range byWorker[repo.SlotTypeDefault] {
-		require.Equal(t, repo.SlotTypeDefault, sl.getSlotType())
+	countByType := map[string]int{}
+	for _, sl := range a.slots {
+		if sl.getWorkerId() != workerId {
+			continue
+		}
+		countByType[sl.getSlotType()]++
 	}
-	for _, sl := range byWorker[repo.SlotTypeDurable] {
-		require.Equal(t, repo.SlotTypeDurable, sl.getSlotType())
-	}
+	require.Equal(t, 2, countByType[repo.SlotTypeDefault])
+	require.Equal(t, 2, countByType[repo.SlotTypeDurable])
 }
 
 func TestScheduler_Replenish_UnackedCountsPerSlotType(t *testing.T) {
@@ -1023,7 +1032,7 @@ func TestScheduler_Replenish_UnackedCountsPerSlotType(t *testing.T) {
 
 	// Seed one unacked durable slot; should only reduce *durable* new-slot count.
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	unackedDurable := newSlot(w, []string{"A"}, repo.SlotTypeDurable)
+	unackedDurable := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDurable))
 	require.True(t, unackedDurable.use(nil, nil))
 	s.unackedSlots[1] = &assignedSlots{slots: []*slot{unackedDurable}}
 
@@ -1032,20 +1041,28 @@ func TestScheduler_Replenish_UnackedCountsPerSlotType(t *testing.T) {
 
 	a := s.actions["A"]
 	require.NotNil(t, a)
-	byWorker := a.slotsByWorker[workerId]
-	require.NotNil(t, byWorker)
-
-	// default should be unaffected: 2 fresh default slots
-	require.Len(t, byWorker[repo.SlotTypeDefault], 2)
-	// durable should still total to 2, but include the unacked durable slot
-	require.Len(t, byWorker[repo.SlotTypeDurable], 2)
-
+	countDefault := 0
+	countDurable := 0
 	foundUnacked := false
-	for _, sl := range byWorker[repo.SlotTypeDurable] {
-		if sl == unackedDurable {
-			foundUnacked = true
+	for _, sl := range a.slots {
+		if sl.getWorkerId() != workerId {
+			continue
+		}
+		switch sl.getSlotType() {
+		case repo.SlotTypeDefault:
+			countDefault++
+		case repo.SlotTypeDurable:
+			countDurable++
+			if sl == unackedDurable {
+				foundUnacked = true
+			}
 		}
 	}
+
+	// default should be unaffected: 2 fresh default slots
+	require.Equal(t, 2, countDefault)
+	// durable should still total to 2, but include the unacked durable slot
+	require.Equal(t, 2, countDurable)
 	require.True(t, foundUnacked, "expected unacked durable slot to be carried forward into replenished slots")
 }
 
@@ -1161,13 +1178,13 @@ func TestScheduler_Replenish_CleansExpiredSlotsWhenNoNewSlotsLoaded(t *testing.T
 	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	expired := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	expired := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	past := time.Now().Add(-1 * time.Second)
 	expired.mu.Lock()
 	expired.expiresAt = &past
 	expired.mu.Unlock()
 
-	used := newSlot(w, []string{"A"}, repo.SlotTypeDefault)
+	used := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	require.True(t, used.use(nil, nil))
 
 	s.actions["A"] = actionWithSlots("A", expired, used)
@@ -1206,14 +1223,14 @@ func TestScheduler_Replenish_UpdatesAllWorkerActionsForLockSafety(t *testing.T) 
 
 	// Seed actions so FUNCTION 1 decision logic runs.
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-	usedSlot := newSlot(w, []string{"A", "B"}, repo.SlotTypeDefault)
+	usedSlot := newSlot(w, newSlotMeta([]string{"A", "B"}, repo.SlotTypeDefault))
 	require.True(t, usedSlot.use(nil, nil))
 
 	s.actions["A"] = actionWithSlots("A", usedSlot)
 	s.actions["A"].lastReplenishedSlotCount = 2
 	s.actions["A"].lastReplenishedWorkerCount = 1
 
-	s.actions["B"] = actionWithSlots("B", newSlot(w, []string{"A", "B"}, repo.SlotTypeDefault))
+	s.actions["B"] = actionWithSlots("B", newSlot(w, newSlotMeta([]string{"A", "B"}, repo.SlotTypeDefault)))
 	s.actions["B"].lastReplenishedSlotCount = 100
 	s.actions["B"].lastReplenishedWorkerCount = 1
 
