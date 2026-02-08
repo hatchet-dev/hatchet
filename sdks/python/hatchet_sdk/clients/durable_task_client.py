@@ -89,10 +89,7 @@ class DurableTaskClient:
     async def start(self, worker_id: str) -> None:
         async with self._start_lock:
             if self._running:
-                logger.info("DurableTaskClient already running")
                 return
-
-            logger.info(f"Starting DurableTaskClient for worker_id: {worker_id}")
 
             self._worker_id = worker_id
             self._running = True
@@ -101,7 +98,6 @@ class DurableTaskClient:
             self._conn = new_conn(self.config, aio=True)
             self._stub = V1DispatcherStub(self._conn)
 
-            logger.info("Creating DurableTask stream...")
             self._stream = cast(
                 grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
                 self._stub.DurableTask(
@@ -113,9 +109,7 @@ class DurableTaskClient:
             self._receive_task = asyncio.create_task(self._receive_loop())
             self._send_task = asyncio.create_task(self._send_loop())
 
-            logger.info("Registering worker with server...")
             await self._register_worker()
-            logger.info("DurableTaskClient started successfully")
 
     async def ensure_started(self, worker_id: str) -> None:
         if not self._running:
@@ -153,13 +147,10 @@ class DurableTaskClient:
 
     async def _receive_loop(self) -> None:
         if not self._stream:
-            logger.error("_receive_loop called but stream is None")
             return
 
-        logger.info("Starting receive loop...")
         try:
             async for response in self._stream:
-                logger.info(f"Received response: {response.WhichOneof('message')}")
                 await self._handle_response(response)
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
@@ -218,12 +209,10 @@ class DurableTaskClient:
         if self._request_queue is None or self._worker_id is None:
             raise RuntimeError("Client not started")
 
-        logger.debug(f"Sending register_worker request for {self._worker_id}")
         request = DurableTaskRequest(
             register_worker=DurableTaskRequestRegisterWorker(worker_id=self._worker_id)
         )
         await self._request_queue.put(request)
-        logger.debug("register_worker request queued")
 
     async def send_event(
         self,
@@ -238,11 +227,6 @@ class DurableTaskClient:
     ) -> DurableTaskEventAck:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
-
-        logger.debug(
-            f"Sending event: task_id={durable_task_external_id}, "
-            f"invocation={invocation_count}, kind={kind}"
-        )
 
         key = (durable_task_external_id, invocation_count)
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
@@ -273,7 +257,6 @@ class DurableTaskClient:
 
         request = DurableTaskRequest(event=event_request)
         await self._request_queue.put(request)
-        logger.debug("Event request queued, waiting for ack...")
 
         return await future
 

@@ -596,9 +596,7 @@ class DurableContext(Context):
         return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:
-        logger.info(f"_ensure_stream_started called, client={self.durable_task_client}")
         if self.durable_task_client is None:
             raise ValueError("Durable task client is not available")
 
-        logger.info(f"Ensuring stream started for worker_id={self.action.worker_id}")
         await self.durable_task_client.ensure_started(self.action.worker_id)
