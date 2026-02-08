@@ -11,11 +11,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type EventTriggerOpts struct {
@@ -99,6 +104,8 @@ type TriggerRepository interface {
 	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
+
+	NewTriggerOpt(ctx context.Context, tenantId uuid.UUID, req *contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*WorkflowNameTriggerOpts, error)
 }
 
 type TriggerRepositoryImpl struct {
@@ -2165,4 +2172,65 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	}
 
 	return triggerOpts, nil
+}
+
+func (r *sharedRepository) NewTriggerOpt(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	req *contracts.TriggerWorkflowRequest,
+	parentTask *sqlcv1.FlattenExternalIdsRow,
+) (*WorkflowNameTriggerOpts, error) {
+	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
+		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
+		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
+	)
+
+	additionalMeta := ""
+
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+
+	var desiredWorkerId *uuid.UUID
+	if req.DesiredWorkerId != nil {
+		workerId, err := uuid.Parse(*req.DesiredWorkerId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
+		}
+		desiredWorkerId = &workerId
+	}
+
+	t := &TriggerTaskData{
+		WorkflowName:       req.Name,
+		Data:               []byte(req.Input),
+		AdditionalMetadata: []byte(additionalMeta),
+		DesiredWorkerId:    desiredWorkerId,
+		Priority:           req.Priority,
+	}
+
+	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 3 {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		}
+		t.Priority = req.Priority
+	}
+
+	if parentTask != nil {
+		parentExternalId := parentTask.ExternalID
+		childIndex := int64(*req.ChildIndex)
+
+		t.ParentExternalId = &parentExternalId
+		t.ParentTaskId = &parentTask.ID
+		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
+		t.ChildIndex = &childIndex
+		t.ChildKey = req.ChildKey
+	}
+
+	return &WorkflowNameTriggerOpts{
+		TriggerTaskData: t,
+	}, nil
 }

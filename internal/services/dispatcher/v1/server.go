@@ -606,32 +606,10 @@ func (d *DispatcherServiceImpl) spawnChildWorkflow(
 	nodeId int64,
 	req *contracts.DurableTaskEventRequest,
 ) (*spawnChildWorkflowResult, error) {
-	workflowName := req.GetRunWorkflowName()
-	if workflowName == "" {
-		return nil, fmt.Errorf("workflow name is required for spawning child workflows")
-	}
+	triggerOpt, err := d.repo.Triggers().NewTriggerOpt(ctx, tenantId, req.TriggerOpts, nil)
 
-	parentInsertedAt := parentTask.InsertedAt.Time
-
-	triggerOpt := &v1.WorkflowNameTriggerOpts{
-		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:         workflowName,
-			Data:                 req.Payload,
-			AdditionalMetadata:   req.RunAdditionalMetadata,
-			ParentExternalId:     &parentTask.ExternalID,
-			ParentTaskId:         &parentTask.ID,
-			ParentTaskInsertedAt: &parentInsertedAt,
-			ChildIndex:           &nodeId,
-		},
-	}
-
-	if req.RunChildKey != nil {
-		triggerOpt.ChildKey = req.RunChildKey
-	}
-
-	err := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{triggerOpt})
 	if err != nil {
-		return nil, fmt.Errorf("failed to populate external ids: %w", err)
+		return nil, fmt.Errorf("failed to create trigger options: %w", err)
 	}
 
 	if triggerOpt.ShouldSkip {

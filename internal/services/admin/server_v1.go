@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
@@ -174,41 +173,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
-		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
-		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
-	)
-
-	additionalMeta := ""
-
-	if req.AdditionalMetadata != nil {
-		additionalMeta = *req.AdditionalMetadata
-	}
-
-	var desiredWorkerId *uuid.UUID
-	if req.DesiredWorkerId != nil {
-		workerId, err := uuid.Parse(*req.DesiredWorkerId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
-		}
-		desiredWorkerId = &workerId
-	}
-
-	t := &v1.TriggerTaskData{
-		WorkflowName:       req.Name,
-		Data:               []byte(req.Input),
-		AdditionalMetadata: []byte(additionalMeta),
-		DesiredWorkerId:    desiredWorkerId,
-		Priority:           req.Priority,
-	}
-
-	if req.Priority != nil {
-		if *req.Priority < 1 || *req.Priority > 3 {
-			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
-		}
-		t.Priority = req.Priority
-	}
+	var parentTask *sqlcv1.FlattenExternalIdsRow
 
 	if req.ParentTaskRunExternalId != nil {
 		parentTaskExternalId, err := uuid.Parse(*req.ParentTaskRunExternalId)
@@ -217,8 +182,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			return nil, status.Errorf(codes.InvalidArgument, "parentStepRunId must be a valid UUID: %s", err)
 		}
 
-		// lookup the parent external id
-		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
+		maybeParentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
 			parentTaskExternalId,
@@ -229,18 +193,17 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
 
-		parentExternalId := parentTask.ExternalID
-		childIndex := int64(*req.ChildIndex)
+		parentTask = maybeParentTask
+	}
 
-		t.ParentExternalId = &parentExternalId
-		t.ParentTaskId = &parentTask.ID
-		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
-		t.ChildIndex = &childIndex
-		t.ChildKey = req.ChildKey
+	t, err := i.repov1.Triggers().NewTriggerOpt(ctx, tenantId, req, parentTask)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create trigger task data: %w", err)
 	}
 
 	return &v1.WorkflowNameTriggerOpts{
-		TriggerTaskData: t,
+		TriggerTaskData: t.TriggerTaskData,
 	}, nil
 }
 
