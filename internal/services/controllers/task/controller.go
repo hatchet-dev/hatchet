@@ -801,13 +801,13 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 			})
 		}
 
-		tasks, err := tc.repov1.Tasks().FilterValidTasks(ctx, tenantId, opts)
+		validTasks, err := tc.repov1.Tasks().FilterValidTasks(ctx, tenantId, opts)
 		if err != nil {
 			return fmt.Errorf("failed to list valid tasks by external ids: %w", err)
 		}
 
 		for _, task := range msg.Tasks {
-			if _, ok := tasks[task.Id]; !ok {
+			if _, ok := validTasks[task.Id]; !ok {
 				continue
 			}
 
