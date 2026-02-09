@@ -43,13 +43,11 @@ func down20260203170921(ctx context.Context, db *sql.DB) error {
 }
 
 func backfillWorkerSlotConfigs(ctx context.Context, db *sql.DB) error {
-	lastTenantID := zeroUUID
 	lastWorkerID := zeroUUID
 
 	for {
 		var (
 			n            int
-			nextTenantID uuid.NullUUID
 			nextWorkerID uuid.NullUUID
 		)
 
@@ -61,9 +59,9 @@ WITH batch AS (
 		"maxRuns" AS max_units
 	FROM "Worker"
 	WHERE "maxRuns" IS NOT NULL
-	  AND ("tenantId", "id") > ($1::uuid, $2::uuid)
-	ORDER BY "tenantId", "id"
-	LIMIT $3
+	  AND "id" > $1::uuid
+	ORDER BY "id"
+	LIMIT $2
 ),
 ins AS (
 	INSERT INTO v1_worker_slot_config (tenant_id, worker_id, slot_type, max_units)
@@ -77,9 +75,8 @@ ins AS (
 )
 SELECT
 	(SELECT COUNT(*) FROM batch) AS n,
-	(SELECT tenant_id FROM batch ORDER BY tenant_id DESC, worker_id DESC LIMIT 1) AS last_tenant_id,
-	(SELECT worker_id FROM batch ORDER BY tenant_id DESC, worker_id DESC LIMIT 1) AS last_worker_id;
-`, lastTenantID, lastWorkerID, backfillSlotsBatchSize).Scan(&n, &nextTenantID, &nextWorkerID)
+	(SELECT worker_id FROM batch ORDER BY worker_id DESC LIMIT 1) AS last_worker_id;
+`, lastWorkerID, backfillSlotsBatchSize).Scan(&n, &nextWorkerID)
 		if err != nil {
 			return fmt.Errorf("backfill v1_worker_slot_config: %w", err)
 		}
@@ -88,24 +85,21 @@ SELECT
 			return nil
 		}
 
-		if !nextTenantID.Valid || !nextWorkerID.Valid {
+		if !nextWorkerID.Valid {
 			return fmt.Errorf("backfill v1_worker_slot_config: expected last keys for non-empty batch")
 		}
 
-		lastTenantID = nextTenantID.UUID
 		lastWorkerID = nextWorkerID.UUID
 	}
 }
 
 func backfillStepSlotRequests(ctx context.Context, db *sql.DB) error {
-	lastTenantID := zeroUUID
 	lastStepID := zeroUUID
 
 	for {
 		var (
-			n          int
-			nextTenant uuid.NullUUID
-			nextStep   uuid.NullUUID
+			n        int
+			nextStep uuid.NullUUID
 		)
 
 		err := db.QueryRowContext(ctx, `
@@ -115,9 +109,9 @@ WITH batch AS (
 		"id" AS step_id,
 		"isDurable" AS is_durable
 	FROM "Step"
-	WHERE ("tenantId", "id") > ($1::uuid, $2::uuid)
-	ORDER BY "tenantId", "id"
-	LIMIT $3
+	WHERE "id" > $1::uuid
+	ORDER BY "id"
+	LIMIT $2
 ),
 ins AS (
 	INSERT INTO v1_step_slot_request (tenant_id, step_id, slot_type, units)
@@ -131,9 +125,8 @@ ins AS (
 )
 SELECT
 	(SELECT COUNT(*) FROM batch) AS n,
-	(SELECT tenant_id FROM batch ORDER BY tenant_id DESC, step_id DESC LIMIT 1) AS last_tenant_id,
-	(SELECT step_id FROM batch ORDER BY tenant_id DESC, step_id DESC LIMIT 1) AS last_step_id;
-`, lastTenantID, lastStepID, backfillSlotsBatchSize).Scan(&n, &nextTenant, &nextStep)
+	(SELECT step_id FROM batch ORDER BY step_id DESC LIMIT 1) AS last_step_id;
+`, lastStepID, backfillSlotsBatchSize).Scan(&n, &nextStep)
 		if err != nil {
 			return fmt.Errorf("backfill v1_step_slot_request: %w", err)
 		}
@@ -142,11 +135,10 @@ SELECT
 			return nil
 		}
 
-		if !nextTenant.Valid || !nextStep.Valid {
+		if !nextStep.Valid {
 			return fmt.Errorf("backfill v1_step_slot_request: expected last keys for non-empty batch")
 		}
 
-		lastTenantID = nextTenant.UUID
 		lastStepID = nextStep.UUID
 	}
 }
