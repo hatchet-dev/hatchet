@@ -3280,29 +3280,32 @@ type V1LookupTableOlap struct {
 }
 
 type V1Match struct {
-	ID                            int64              `json:"id"`
-	TenantID                      uuid.UUID          `json:"tenant_id"`
-	Kind                          V1MatchKind        `json:"kind"`
-	IsSatisfied                   bool               `json:"is_satisfied"`
-	ExistingData                  []byte             `json:"existing_data"`
-	SignalTaskID                  pgtype.Int8        `json:"signal_task_id"`
-	SignalTaskInsertedAt          pgtype.Timestamptz `json:"signal_task_inserted_at"`
-	SignalExternalID              *uuid.UUID         `json:"signal_external_id"`
-	SignalKey                     pgtype.Text        `json:"signal_key"`
-	TriggerDagID                  pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt          pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID                 *uuid.UUID         `json:"trigger_step_id"`
-	TriggerStepIndex              pgtype.Int8        `json:"trigger_step_index"`
-	TriggerExternalID             *uuid.UUID         `json:"trigger_external_id"`
-	TriggerWorkflowRunID          *uuid.UUID         `json:"trigger_workflow_run_id"`
-	TriggerParentTaskExternalID   *uuid.UUID         `json:"trigger_parent_task_external_id"`
-	TriggerParentTaskID           pgtype.Int8        `json:"trigger_parent_task_id"`
-	TriggerParentTaskInsertedAt   pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
-	TriggerChildIndex             pgtype.Int8        `json:"trigger_child_index"`
-	TriggerChildKey               pgtype.Text        `json:"trigger_child_key"`
-	TriggerExistingTaskID         pgtype.Int8        `json:"trigger_existing_task_id"`
-	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
-	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
+	ID                                           int64              `json:"id"`
+	TenantID                                     uuid.UUID          `json:"tenant_id"`
+	Kind                                         V1MatchKind        `json:"kind"`
+	IsSatisfied                                  bool               `json:"is_satisfied"`
+	ExistingData                                 []byte             `json:"existing_data"`
+	SignalTaskID                                 pgtype.Int8        `json:"signal_task_id"`
+	SignalTaskInsertedAt                         pgtype.Timestamptz `json:"signal_task_inserted_at"`
+	SignalExternalID                             *uuid.UUID         `json:"signal_external_id"`
+	SignalKey                                    pgtype.Text        `json:"signal_key"`
+	TriggerDagID                                 pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt                         pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID                                *uuid.UUID         `json:"trigger_step_id"`
+	TriggerStepIndex                             pgtype.Int8        `json:"trigger_step_index"`
+	TriggerExternalID                            *uuid.UUID         `json:"trigger_external_id"`
+	TriggerWorkflowRunID                         *uuid.UUID         `json:"trigger_workflow_run_id"`
+	TriggerParentTaskExternalID                  *uuid.UUID         `json:"trigger_parent_task_external_id"`
+	TriggerParentTaskID                          pgtype.Int8        `json:"trigger_parent_task_id"`
+	TriggerParentTaskInsertedAt                  pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
+	TriggerChildIndex                            pgtype.Int8        `json:"trigger_child_index"`
+	TriggerChildKey                              pgtype.Text        `json:"trigger_child_key"`
+	TriggerExistingTaskID                        pgtype.Int8        `json:"trigger_existing_task_id"`
+	TriggerExistingTaskInsertedAt                pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
+	TriggerPriority                              pgtype.Int4        `json:"trigger_priority"`
+	DurableEventLogCallbackDurableTaskID         pgtype.Int8        `json:"durable_event_log_callback_durable_task_id"`
+	DurableEventLogCallbackDurableTaskInsertedAt pgtype.Timestamptz `json:"durable_event_log_callback_durable_task_inserted_at"`
+	DurableEventLogCallbackKey                   pgtype.Text        `json:"durable_event_log_callback_key"`
 }
 
 type V1MatchCondition struct {

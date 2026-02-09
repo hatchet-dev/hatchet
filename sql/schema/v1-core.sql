@@ -504,6 +504,9 @@ CREATE TABLE v1_match (
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
+    durable_event_log_callback_durable_task_id bigint,
+    durable_event_log_callback_durable_task_inserted_at timestamptz,
+    durable_event_log_callback_key text,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
