@@ -101,10 +101,10 @@ type CreateStepOpts struct {
 	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 
 	// (optional) whether this step is durable
-	IsDurable bool
+	IsDurable bool `json:"isDurable,omitempty"`
 
 	// (optional) slot requests for this step (slot_type -> units)
-	SlotRequests map[string]int32 `validate:"omitempty,dive,keys,required,endkeys,gt=0"`
+	SlotRequests map[string]int32 `json:"slotRequests,omitempty" validate:"omitempty,dive,keys,required,endkeys,gt=0"`
 
 	// (optional) a list of additional trigger conditions
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
@@ -1264,6 +1264,18 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 			// set the index for the or group id
 			condition.OrGroupIdIndex = orGroupIdsToIndex[condition.OrGroupId]
 			opts.Tasks[i].TriggerConditions[j] = condition
+		}
+	}
+
+	// Normalize fields for backwards-compatible checksums:
+	// default values that didn't exist before this feature should not change the hash.
+	for i := range opts.Tasks {
+		// SlotRequests={"default": 1}is the new default; strip it so it doesn't affect the hash.
+		sr := opts.Tasks[i].SlotRequests
+		if len(sr) == 1 {
+			if units, ok := sr[SlotTypeDefault]; ok && units == 1 {
+				opts.Tasks[i].SlotRequests = nil
+			}
 		}
 	}
 
