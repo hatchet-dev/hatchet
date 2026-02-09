@@ -151,7 +151,7 @@ WITH inputs AS (
         i.durable_task_inserted_at,
         i.node_id
     -- todo: conflict resolution here
-    RETURNING external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
+    RETURNING external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, triggered_run_external_id
 ), node_id_update AS (
     -- todo: might need to explicitly lock here before the initial select / inserts
     UPDATE v1_durable_event_log_file AS f
@@ -162,7 +162,7 @@ WITH inputs AS (
         AND f.durable_task_inserted_at = l.durable_task_inserted_at
 )
 
-SELECT external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
+SELECT external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, triggered_run_external_id
 FROM inserts
 `
 
@@ -180,17 +180,18 @@ type CreateDurableEventLogEntriesParams struct {
 }
 
 type CreateDurableEventLogEntriesRow struct {
-	ExternalID            uuid.UUID                      `json:"external_id"`
-	InsertedAt            pgtype.Timestamptz             `json:"inserted_at"`
-	ID                    int64                          `json:"id"`
-	DurableTaskID         int64                          `json:"durable_task_id"`
-	DurableTaskInsertedAt pgtype.Timestamptz             `json:"durable_task_inserted_at"`
-	Kind                  NullV1DurableEventLogEntryKind `json:"kind"`
-	NodeID                int64                          `json:"node_id"`
-	ParentNodeID          pgtype.Int8                    `json:"parent_node_id"`
-	BranchID              int64                          `json:"branch_id"`
-	DataHash              []byte                         `json:"data_hash"`
-	DataHashAlg           pgtype.Text                    `json:"data_hash_alg"`
+	ExternalID             uuid.UUID                      `json:"external_id"`
+	InsertedAt             pgtype.Timestamptz             `json:"inserted_at"`
+	ID                     int64                          `json:"id"`
+	DurableTaskID          int64                          `json:"durable_task_id"`
+	DurableTaskInsertedAt  pgtype.Timestamptz             `json:"durable_task_inserted_at"`
+	Kind                   NullV1DurableEventLogEntryKind `json:"kind"`
+	NodeID                 int64                          `json:"node_id"`
+	ParentNodeID           pgtype.Int8                    `json:"parent_node_id"`
+	BranchID               int64                          `json:"branch_id"`
+	DataHash               []byte                         `json:"data_hash"`
+	DataHashAlg            pgtype.Text                    `json:"data_hash_alg"`
+	TriggeredRunExternalID *uuid.UUID                     `json:"triggered_run_external_id"`
 }
 
 // todo: implement UpdateLatestNodeId
@@ -226,6 +227,7 @@ func (q *Queries) CreateDurableEventLogEntries(ctx context.Context, db DBTX, arg
 			&i.BranchID,
 			&i.DataHash,
 			&i.DataHashAlg,
+			&i.TriggeredRunExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +344,7 @@ func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg G
 }
 
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
-SELECT external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
+SELECT external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, triggered_run_external_id
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1
   AND durable_task_inserted_at = $2
@@ -370,6 +372,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 		&i.BranchID,
 		&i.DataHash,
 		&i.DataHashAlg,
+		&i.TriggeredRunExternalID,
 	)
 	return &i, err
 }
@@ -444,7 +447,7 @@ func (q *Queries) ListDurableEventLogCallbacks(ctx context.Context, db DBTX, arg
 }
 
 const listDurableEventLogEntries = `-- name: ListDurableEventLogEntries :many
-SELECT external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
+SELECT external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, triggered_run_external_id
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1
   AND durable_task_inserted_at = $2
@@ -477,6 +480,7 @@ func (q *Queries) ListDurableEventLogEntries(ctx context.Context, db DBTX, arg L
 			&i.BranchID,
 			&i.DataHash,
 			&i.DataHashAlg,
+			&i.TriggeredRunExternalID,
 		); err != nil {
 			return nil, err
 		}
