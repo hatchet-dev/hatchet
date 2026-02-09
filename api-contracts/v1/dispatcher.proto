@@ -5,7 +5,6 @@ option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/pro
 package v1;
 
 import "v1/shared/condition.proto";
-import "workflows/workflows.proto";
 
 service V1Dispatcher {
     rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse) {}

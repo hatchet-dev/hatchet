@@ -60,7 +60,7 @@ WITH inputs AS (
         UNNEST(@dataHashes::BYTEA[]) AS data_hash,
         UNNEST(@dataHashAlgs::TEXT[]) AS data_hash_alg,
         -- todo: probably need an override here since this can be null
-        UNNEST(@childRunExternalIds::UUID[]) AS child_run_external_id
+        UNNEST(@childRunExternalIds::UUID[]) AS triggered_run_external_id
 ), latest_node_ids AS (
     SELECT
         durable_task_id,
@@ -80,7 +80,7 @@ WITH inputs AS (
         branch_id,
         data_hash,
         data_hash_alg,
-        child_run_external_id
+        triggered_run_external_id
     )
     SELECT
         i.external_id,
@@ -94,7 +94,7 @@ WITH inputs AS (
         i.branch_id,
         i.data_hash,
         i.data_hash_alg,
-        i.child_run_external_id
+        i.triggered_run_external_id
     FROM
         inputs i
     ORDER BY
