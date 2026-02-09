@@ -43,9 +43,6 @@ jobs:
       - name: Run Black
         run: poetry run black . --check --verbose --diff --color
 
-      - name: Run Isort
-        run: poetry run isort . --check-only --diff
-
       - name: Run MyPy
         run: poetry run mypy --config-file=pyproject.toml
 

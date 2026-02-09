@@ -929,7 +929,13 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						continue
 					}
 
-					orGroupId, err := uuid.Parse(userEventCondition.Base.OrGroupId)
+					orGroupIdStr := userEventCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
 					if err != nil {
 						return nil, fmt.Errorf("invalid OrGroupId in UserEventCondition for step %s: %w", stepCp.ReadableId, err)
 					}
@@ -956,7 +962,14 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					duration := sleepCondition.SleepFor
-					orGroupId, err := uuid.Parse(sleepCondition.Base.OrGroupId)
+
+					orGroupIdStr := sleepCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
 					if err != nil {
 						return nil, fmt.Errorf("invalid OrGroupId in SleepCondition for step %s: %w", stepCp.ReadableId, err)
 					}
@@ -980,7 +993,14 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					parentReadableId := parentOverrideCondition.ParentReadableId
-					orGroupId, err := uuid.Parse(parentOverrideCondition.Base.OrGroupId)
+
+					orGroupIdStr := parentOverrideCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
 
 					if err != nil {
 						return nil, fmt.Errorf("invalid OrGroupId in ParentOverrideCondition for step %s: %w", stepCp.ReadableId, err)
