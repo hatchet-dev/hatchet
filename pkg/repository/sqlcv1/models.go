@@ -3103,6 +3103,7 @@ type V1DagsOlap struct {
 }
 
 type V1DurableEventLogCallback struct {
+	TenantID              uuid.UUID                         `json:"tenant_id"`
 	ExternalID            uuid.UUID                         `json:"external_id"`
 	InsertedAt            pgtype.Timestamptz                `json:"inserted_at"`
 	ID                    int64                             `json:"id"`
@@ -3115,6 +3116,7 @@ type V1DurableEventLogCallback struct {
 }
 
 type V1DurableEventLogEntry struct {
+	TenantID               uuid.UUID                      `json:"tenant_id"`
 	ExternalID             uuid.UUID                      `json:"external_id"`
 	InsertedAt             pgtype.Timestamptz             `json:"inserted_at"`
 	ID                     int64                          `json:"id"`
@@ -3130,6 +3132,7 @@ type V1DurableEventLogEntry struct {
 }
 
 type V1DurableEventLogFile struct {
+	TenantID                      uuid.UUID          `json:"tenant_id"`
 	DurableTaskID                 int64              `json:"durable_task_id"`
 	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
 	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`

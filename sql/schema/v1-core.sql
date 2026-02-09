@@ -2225,6 +2225,8 @@ CREATE TABLE v1_event_to_run (
 --
 -- Important: writers to v1_durable_event_log_entry should lock this row to increment the sequence value.
 CREATE TABLE v1_durable_event_log_file (
+    tenant_id UUID NOT NULL,
+
     -- The id and inserted_at of the durable task which created this entry
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
@@ -2246,6 +2248,8 @@ CREATE TYPE v1_durable_event_log_entry_kind AS ENUM (
 );
 
 CREATE TABLE v1_durable_event_log_entry (
+    tenant_id UUID NOT NULL,
+
     -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
@@ -2302,6 +2306,8 @@ CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
 --    and direct queries from the engine side to mark a callback as satisfied when we've satisfied a v1_match. Because
 --    of this, we likely need to add a `callback_key` field to the v1_match table.
 CREATE TABLE v1_durable_event_log_callback (
+    tenant_id UUID NOT NULL,
+
     external_id UUID NOT NULL,
     -- The inserted_at time of this callback from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
