@@ -111,7 +111,9 @@ WITH inputs AS (
         UNNEST($7::BIGINT[]) AS parent_node_id,
         UNNEST($8::BIGINT[]) AS branch_id,
         UNNEST($9::BYTEA[]) AS data_hash,
-        UNNEST($10::TEXT[]) AS data_hash_alg
+        UNNEST($10::TEXT[]) AS data_hash_alg,
+        -- todo: probably need an override here since this can be null
+        UNNEST($11::UUID[]) AS child_run_external_id
 ), latest_node_ids AS (
     SELECT
         durable_task_id,
@@ -130,7 +132,8 @@ WITH inputs AS (
         parent_node_id,
         branch_id,
         data_hash,
-        data_hash_alg
+        data_hash_alg,
+        child_run_external_id
     )
     SELECT
         i.external_id,
@@ -143,7 +146,8 @@ WITH inputs AS (
         NULLIF(i.parent_node_id, 0),
         i.branch_id,
         i.data_hash,
-        i.data_hash_alg
+        i.data_hash_alg,
+        i.child_run_external_id
     FROM
         inputs i
     ORDER BY
@@ -177,6 +181,7 @@ type CreateDurableEventLogEntriesParams struct {
 	Branchids              []int64              `json:"branchids"`
 	Datahashes             [][]byte             `json:"datahashes"`
 	Datahashalgs           []string             `json:"datahashalgs"`
+	Childrunexternalids    []uuid.UUID          `json:"childrunexternalids"`
 }
 
 type CreateDurableEventLogEntriesRow struct {
@@ -207,6 +212,7 @@ func (q *Queries) CreateDurableEventLogEntries(ctx context.Context, db DBTX, arg
 		arg.Branchids,
 		arg.Datahashes,
 		arg.Datahashalgs,
+		arg.Childrunexternalids,
 	)
 	if err != nil {
 		return nil, err

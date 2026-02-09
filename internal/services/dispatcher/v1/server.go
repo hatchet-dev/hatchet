@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -437,11 +438,6 @@ func getDurableTaskSignalKey(taskExternalId string, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId, nodeId)
 }
 
-type durableEventLogEntryData struct {
-	ChildExternalId *uuid.UUID      `json:"child_external_id,omitempty"`
-	Input           json.RawMessage `json:"input,omitempty"`
-}
-
 func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
@@ -461,6 +457,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	existingEntry, err := d.repo.DurableEvents().GetEventLogEntry(ctx, invocation.tenantId, task.ID, task.InsertedAt, nodeId)
 
 	if err == nil && existingEntry != nil {
+
 		return invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_TriggerAck{
 				TriggerAck: &contracts.DurableTaskEventAckResponse{
@@ -478,35 +475,29 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	}
 
 	var entryKind sqlcv1.V1DurableEventLogEntryKind
-	var entryData []byte
+	var triggeredRunExternalId *uuid.UUID
+	entryData := req.Payload
 
 	switch req.Kind {
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED
-		entryData = req.Payload
-
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_RUN:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED
 
-		spawnResult, err := d.spawnChildWorkflow(ctx, invocation.tenantId, task, nodeId, req)
+		spawnedChild, err := d.spawnChildWorkflow(ctx, invocation.tenantId, task, nodeId, req)
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to spawn child: %v", err)
+		}
+
+		triggeredRunExternalId = &spawnedChild.ChildExternalId
+
 		if err != nil {
 			d.l.Error().Err(err).Msg("failed to spawn child workflow")
 			return status.Errorf(codes.Internal, "failed to spawn child workflow: %v", err)
 		}
-
-		data := durableEventLogEntryData{
-			ChildExternalId: &spawnResult.ChildExternalId,
-			Input:           req.Payload,
-		}
-		entryData, err = json.Marshal(data)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to marshal entry data: %v", err)
-		}
-
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED
-		entryData = req.Payload
-
 	default:
 		return status.Errorf(codes.InvalidArgument, "unsupported event kind: %v", req.Kind)
 	}
@@ -514,16 +505,17 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 	externalId := uuid.New()
 	_, err = d.repo.DurableEvents().CreateEventLogEntries(ctx, []v1.CreateEventLogEntryOpts{{
-		TenantId:              invocation.tenantId,
-		ExternalId:            externalId,
-		DurableTaskId:         task.ID,
-		DurableTaskInsertedAt: task.InsertedAt,
-		InsertedAt:            now,
-		Kind:                  entryKind,
-		NodeId:                nodeId,
-		ParentNodeId:          logFile.LatestNodeID,
-		BranchId:              logFile.LatestBranchID,
-		Data:                  entryData,
+		TenantId:               invocation.tenantId,
+		ExternalId:             externalId,
+		DurableTaskId:          task.ID,
+		DurableTaskInsertedAt:  task.InsertedAt,
+		InsertedAt:             now,
+		Kind:                   entryKind,
+		NodeId:                 nodeId,
+		ParentNodeId:           logFile.LatestNodeID,
+		BranchId:               logFile.LatestBranchID,
+		Data:                   entryData,
+		TriggeredRunExternalId: triggeredRunExternalId,
 	}})
 
 	if err != nil {
@@ -606,7 +598,19 @@ func (d *DispatcherServiceImpl) spawnChildWorkflow(
 	nodeId int64,
 	req *contracts.DurableTaskEventRequest,
 ) (*spawnChildWorkflowResult, error) {
-	triggerOpt, err := d.repo.Triggers().NewTriggerOpt(ctx, tenantId, req.TriggerOpts, nil)
+	// todo: shared type
+	x := admincontracts.TriggerWorkflowRequest{
+		Name:                    req.TriggerOpts.Name,
+		Input:                   req.TriggerOpts.Input,
+		ParentId:                req.TriggerOpts.ParentId,
+		ParentTaskRunExternalId: req.TriggerOpts.ParentTaskRunExternalId,
+		ChildIndex:              req.TriggerOpts.ChildIndex,
+		ChildKey:                req.TriggerOpts.ChildKey,
+		AdditionalMetadata:      req.TriggerOpts.AdditionalMetadata,
+		DesiredWorkerId:         req.TriggerOpts.DesiredWorkerId,
+		Priority:                req.TriggerOpts.Priority,
+	}
+	triggerOpt, err := d.repo.Triggers().NewTriggerOpt(ctx, tenantId, &x, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trigger options: %w", err)
@@ -722,15 +726,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.NodeId)
-
-	var childExternalId *uuid.UUID
-	if entry.Kind.V1DurableEventLogEntryKind == sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED {
-		var data durableEventLogEntryData
-		if err := json.Unmarshal(entryWithData.Data, &data); err != nil {
-			return status.Errorf(codes.Internal, "failed to parse entry data: %v", err)
-		}
-		childExternalId = data.ChildExternalId
-	}
+	childExternalId := entryWithData.Entry.TriggeredRunExternalID
 
 	go d.pollForCompletion(invocation, task, signalKey, childExternalId, req, callbackKey)
 

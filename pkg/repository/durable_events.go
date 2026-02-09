@@ -24,16 +24,17 @@ type CreateEventLogFileOpts struct {
 }
 
 type CreateEventLogEntryOpts struct {
-	TenantId              uuid.UUID
-	ExternalId            uuid.UUID
-	DurableTaskId         int64
-	DurableTaskInsertedAt pgtype.Timestamptz
-	InsertedAt            pgtype.Timestamptz
-	Kind                  sqlcv1.V1DurableEventLogEntryKind
-	NodeId                int64
-	ParentNodeId          int64
-	BranchId              int64
-	Data                  []byte
+	TenantId               uuid.UUID
+	ExternalId             uuid.UUID
+	DurableTaskId          int64
+	DurableTaskInsertedAt  pgtype.Timestamptz
+	InsertedAt             pgtype.Timestamptz
+	Kind                   sqlcv1.V1DurableEventLogEntryKind
+	NodeId                 int64
+	ParentNodeId           int64
+	BranchId               int64
+	Data                   []byte
+	TriggeredRunExternalId *uuid.UUID
 }
 
 type CreateEventLogCallbackOpts struct {
@@ -171,6 +172,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 	dataHashes := make([][]byte, len(opts))
 	dataHashAlgs := make([]string, len(opts))
 	externalIdToOpts := make(map[uuid.UUID]CreateEventLogEntryOpts, len(opts))
+	childRunExternalIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
 		externalIds[i] = opt.ExternalId
@@ -182,6 +184,15 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 		parentNodeIds[i] = opt.ParentNodeId
 		branchIds[i] = opt.BranchId
 		externalIdToOpts[opt.ExternalId] = opt
+
+		// todo: fix this with override in query
+		childExtId := uuid.Nil
+		if opt.TriggeredRunExternalId != nil {
+			childExtId = *opt.TriggeredRunExternalId
+		}
+
+		childRunExternalIds[i] = childExtId
+
 	}
 
 	entries, err := r.queries.CreateDurableEventLogEntries(ctx, tx, sqlcv1.CreateDurableEventLogEntriesParams{
@@ -195,6 +206,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 		Branchids:              branchIds,
 		Datahashes:             dataHashes,
 		Datahashalgs:           dataHashAlgs,
+		Childrunexternalids:    childRunExternalIds,
 	})
 
 	if err != nil {
