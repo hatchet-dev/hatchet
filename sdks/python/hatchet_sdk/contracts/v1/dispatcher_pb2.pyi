@@ -44,8 +44,30 @@ class DurableTaskEventRequest(_message.Message):
     kind: DurableTaskEventKind
     payload: bytes
     wait_for_conditions: _condition_pb2.DurableEventListenerConditions
-    trigger_opts: _workflows_pb2.TriggerWorkflowRequest
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[_workflows_pb2.TriggerWorkflowRequest, _Mapping]] = ...) -> None: ...
+    trigger_opts: TriggerWorkflowRequest
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[TriggerWorkflowRequest, _Mapping]] = ...) -> None: ...
+
+class TriggerWorkflowRequest(_message.Message):
+    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    PARENT_ID_FIELD_NUMBER: _ClassVar[int]
+    PARENT_TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
+    CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
+    DESIRED_WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    input: str
+    parent_id: str
+    parent_task_run_external_id: str
+    child_index: int
+    child_key: str
+    additional_metadata: str
+    desired_worker_id: str
+    priority: int
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEventAckResponse(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id", "node_id")
