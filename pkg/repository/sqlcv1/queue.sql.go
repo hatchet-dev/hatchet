@@ -190,8 +190,8 @@ type GetDesiredLabelsRow struct {
 	StepId     uuid.UUID             `json:"stepId"`
 }
 
-func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, dollar_1 []uuid.UUID) ([]*GetDesiredLabelsRow, error) {
-	rows, err := db.Query(ctx, getDesiredLabels, dollar_1)
+func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetDesiredLabelsRow, error) {
+	rows, err := db.Query(ctx, getDesiredLabels, stepids)
 	if err != nil {
 		return nil, err
 	}

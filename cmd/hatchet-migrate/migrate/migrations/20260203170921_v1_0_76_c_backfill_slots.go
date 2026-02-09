@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
 )
 
@@ -13,10 +14,9 @@ func init() {
 	goose.AddMigrationNoTxContext(up20260203170921, down20260203170921)
 }
 
-const (
-	backfillSlotsBatchSize = 10_000
-	zeroUUID               = "00000000-0000-0000-0000-000000000000"
-)
+const backfillSlotsBatchSize = 10_000
+
+var zeroUUID = uuid.Nil
 
 func up20260203170921(ctx context.Context, db *sql.DB) error {
 	if err := backfillWorkerSlotConfigs(ctx, db); err != nil {
@@ -49,8 +49,8 @@ func backfillWorkerSlotConfigs(ctx context.Context, db *sql.DB) error {
 	for {
 		var (
 			n            int
-			nextTenantID sql.NullString
-			nextWorkerID sql.NullString
+			nextTenantID uuid.NullUUID
+			nextWorkerID uuid.NullUUID
 		)
 
 		err := db.QueryRowContext(ctx, `
@@ -77,8 +77,8 @@ ins AS (
 )
 SELECT
 	(SELECT COUNT(*) FROM batch) AS n,
-	(SELECT tenant_id::text FROM batch ORDER BY tenant_id DESC, worker_id DESC LIMIT 1) AS last_tenant_id,
-	(SELECT worker_id::text FROM batch ORDER BY tenant_id DESC, worker_id DESC LIMIT 1) AS last_worker_id;
+	(SELECT tenant_id FROM batch ORDER BY tenant_id DESC, worker_id DESC LIMIT 1) AS last_tenant_id,
+	(SELECT worker_id FROM batch ORDER BY tenant_id DESC, worker_id DESC LIMIT 1) AS last_worker_id;
 `, lastTenantID, lastWorkerID, backfillSlotsBatchSize).Scan(&n, &nextTenantID, &nextWorkerID)
 		if err != nil {
 			return fmt.Errorf("backfill v1_worker_slot_config: %w", err)
@@ -92,8 +92,8 @@ SELECT
 			return fmt.Errorf("backfill v1_worker_slot_config: expected last keys for non-empty batch")
 		}
 
-		lastTenantID = nextTenantID.String
-		lastWorkerID = nextWorkerID.String
+		lastTenantID = nextTenantID.UUID
+		lastWorkerID = nextWorkerID.UUID
 	}
 }
 
@@ -104,8 +104,8 @@ func backfillStepSlotRequests(ctx context.Context, db *sql.DB) error {
 	for {
 		var (
 			n          int
-			nextTenant sql.NullString
-			nextStep   sql.NullString
+			nextTenant uuid.NullUUID
+			nextStep   uuid.NullUUID
 		)
 
 		err := db.QueryRowContext(ctx, `
@@ -131,8 +131,8 @@ ins AS (
 )
 SELECT
 	(SELECT COUNT(*) FROM batch) AS n,
-	(SELECT tenant_id::text FROM batch ORDER BY tenant_id DESC, step_id DESC LIMIT 1) AS last_tenant_id,
-	(SELECT step_id::text FROM batch ORDER BY tenant_id DESC, step_id DESC LIMIT 1) AS last_step_id;
+	(SELECT tenant_id FROM batch ORDER BY tenant_id DESC, step_id DESC LIMIT 1) AS last_tenant_id,
+	(SELECT step_id FROM batch ORDER BY tenant_id DESC, step_id DESC LIMIT 1) AS last_step_id;
 `, lastTenantID, lastStepID, backfillSlotsBatchSize).Scan(&n, &nextTenant, &nextStep)
 		if err != nil {
 			return fmt.Errorf("backfill v1_step_slot_request: %w", err)
@@ -146,8 +146,8 @@ SELECT
 			return fmt.Errorf("backfill v1_step_slot_request: expected last keys for non-empty batch")
 		}
 
-		lastTenantID = nextTenant.String
-		lastStepID = nextStep.String
+		lastTenantID = nextTenant.UUID
+		lastStepID = nextStep.UUID
 	}
 }
 

@@ -7,11 +7,10 @@ from hatchet_sdk.worker.slot_types import SlotType
 def normalize_slot_config(
     slot_config: dict[SlotType | str, int],
 ) -> dict[str, int]:
-    normalized: dict[str, int] = {}
-    for key, value in slot_config.items():
-        normalized_key = key.value if isinstance(key, SlotType) else key
-        normalized[normalized_key] = value
-    return normalized
+    return {
+        (key.value if isinstance(key, SlotType) else key): value
+        for key, value in slot_config.items()
+    }
 
 
 def has_slot_config(

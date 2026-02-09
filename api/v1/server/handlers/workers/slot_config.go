@@ -26,15 +26,16 @@ func buildWorkerSlotConfig(ctx context.Context, repo slotAvailabilityRepository,
 	}
 
 	slotTypes := make(map[string]struct{})
+	slotTypesArr := make([]string, 0)
 	for _, config := range slotConfigByWorker {
 		for slotType := range config {
-			slotTypes[slotType] = struct{}{}
-		}
-	}
+			if _, ok := slotTypes[slotType]; ok {
+				continue
+			}
 
-	slotTypesArr := make([]string, 0, len(slotTypes))
-	for slotType := range slotTypes {
-		slotTypesArr = append(slotTypesArr, slotType)
+			slotTypes[slotType] = struct{}{}
+			slotTypesArr = append(slotTypesArr, slotType)
+		}
 	}
 
 	availableByWorker, err := repo.ListAvailableSlotsForWorkersAndTypes(ctx, tenantId, workerIds, slotTypesArr)

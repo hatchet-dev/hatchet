@@ -464,10 +464,6 @@ SELECT
     unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-ON CONFLICT (tenant_id, step_id, slot_type) DO UPDATE
-SET
-    units = EXCLUDED.units,
-    updated_at = CURRENT_TIMESTAMP
 `
 
 type CreateStepSlotRequestsParams struct {
