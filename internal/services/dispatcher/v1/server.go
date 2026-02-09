@@ -477,7 +477,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	existingEntry, err := d.repo.DurableEvents().GetEventLogEntry(ctx, invocation.tenantId, task.ID, task.InsertedAt, nodeId)
 
 	if err == nil && existingEntry != nil {
-
 		return invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_TriggerAck{
 				TriggerAck: &contracts.DurableTaskEventAckResponse{
@@ -541,7 +540,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	if req.Kind == contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR && req.WaitForConditions != nil {
 		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
-		callbackKey := fmt.Sprintf("%s:%d:%d", req.DurableTaskExternalId, nodeId, req.InvocationCount)
+		callbackKey := fmt.Sprintf("%s:%d", req.DurableTaskExternalId, nodeId)
 
 		callbackExternalId := uuid.New()
 		_, err = d.repo.DurableEvents().CreateEventLogCallbacks(ctx, []v1.CreateEventLogCallbackOpts{{
@@ -680,7 +679,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	tenantId := invocation.tenantId
-	callbackKey := fmt.Sprintf("%s:%d:%d", req.DurableTaskExternalId, req.NodeId, req.InvocationCount)
+	callbackKey := fmt.Sprintf("%s:%d", req.DurableTaskExternalId, req.NodeId)
 
 	existingCallback, err := d.repo.DurableEvents().GetEventLogCallback(ctx, tenantId, task.ID, task.InsertedAt, callbackKey)
 

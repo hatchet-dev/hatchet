@@ -28,7 +28,7 @@ func (tc *TasksControllerImpl) processSingleSatisfiedCallback(ctx context.Contex
 
 	dispatcherId := *cb.DispatcherId
 
-	taskExternalId, nodeId, invocationCount, err := parseCallbackKey(cb.CallbackKey)
+	taskExternalId, nodeId, err := parseCallbackKey(cb.CallbackKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse callback key %s: %w", cb.CallbackKey, err)
 	}
@@ -37,7 +37,7 @@ func (tc *TasksControllerImpl) processSingleSatisfiedCallback(ctx context.Contex
 		tenantId,
 		taskExternalId,
 		nodeId,
-		invocationCount,
+		1,
 		cb.Data,
 	)
 	if err != nil {
@@ -47,8 +47,8 @@ func (tc *TasksControllerImpl) processSingleSatisfiedCallback(ctx context.Contex
 	return tc.mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherId), msg)
 }
 
-func parseCallbackKey(key string) (string, int64, int64, error) {
-	var nodeId, invocationCount int64
+func parseCallbackKey(key string) (string, int64, error) {
+	var nodeId int64
 	parts := make([]string, 0)
 	current := ""
 	for _, c := range key {
@@ -61,19 +61,14 @@ func parseCallbackKey(key string) (string, int64, int64, error) {
 	}
 	parts = append(parts, current)
 
-	if len(parts) != 3 {
-		return "", 0, 0, fmt.Errorf("invalid callback key format: %s (expected taskExternalId:nodeId:invocationCount)", key)
+	if len(parts) != 2 {
+		return "", 0, fmt.Errorf("invalid callback key format: %s", key)
 	}
 
 	_, err := fmt.Sscanf(parts[1], "%d", &nodeId)
 	if err != nil {
-		return "", 0, 0, fmt.Errorf("invalid node id in callback key: %w", err)
+		return "", 0, fmt.Errorf("invalid node id in callback key: %w", err)
 	}
 
-	_, err = fmt.Sscanf(parts[2], "%d", &invocationCount)
-	if err != nil {
-		return "", 0, 0, fmt.Errorf("invalid invocation count in callback key: %w", err)
-	}
-
-	return parts[0], nodeId, invocationCount, nil
+	return parts[0], nodeId, nil
 }
