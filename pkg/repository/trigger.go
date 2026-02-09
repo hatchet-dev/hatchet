@@ -2197,11 +2197,13 @@ func (r *sharedRepository) NewTriggerOpt(
 
 	var desiredWorkerId *uuid.UUID
 	if req.DesiredWorkerId != nil {
-		workerId, err := uuid.Parse(*req.DesiredWorkerId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
+		if *req.DesiredWorkerId != "" {
+			workerId, err := uuid.Parse(*req.DesiredWorkerId)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
+			}
+			desiredWorkerId = &workerId
 		}
-		desiredWorkerId = &workerId
 	}
 
 	t := &TriggerTaskData{
