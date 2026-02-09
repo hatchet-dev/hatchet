@@ -577,6 +577,7 @@ class DurableContext(Context):
             invocation_count=self.retry_count + 1,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
+            workflow_name=workflow.config.name,
             trigger_workflow_opts=options,
         )
 

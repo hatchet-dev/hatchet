@@ -236,9 +236,9 @@ class DurableTaskClient:
             self.admin_client._create_workflow_run_request(
                 workflow_name=workflow_name,
                 input=payload or {},
-                options=trigger_workflow_opts,
+                options=trigger_workflow_opts or TriggerWorkflowOptions(),
             )
-            if workflow_name and trigger_workflow_opts
+            if workflow_name
             else None
         )
 

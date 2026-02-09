@@ -598,6 +598,10 @@ func (d *DispatcherServiceImpl) spawnChildWorkflow(
 	nodeId int64,
 	req *contracts.DurableTaskEventRequest,
 ) (*spawnChildWorkflowResult, error) {
+	if req.TriggerOpts == nil {
+		return nil, fmt.Errorf("trigger options are required for spawning a child workflow")
+	}
+
 	// todo: shared type
 	x := admincontracts.TriggerWorkflowRequest{
 		Name:                    req.TriggerOpts.Name,
