@@ -37,11 +37,25 @@ WHERE
 RETURNING *
 ;
 
--- name: GetDurableEventLogFileForTask :one
-SELECT *
-FROM v1_durable_event_log_file
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
+-- name: GetOrCreateEventLogFileForTask :one
+INSERT INTO v1_durable_event_log_file (
+    durable_task_id,
+    durable_task_inserted_at,
+    latest_inserted_at,
+    latest_node_id,
+    latest_branch_id,
+    latest_branch_first_parent_node_id
+)
+VALUES (
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    @latestInsertedAt::TIMESTAMPTZ,
+    @latestNodeId::BIGINT,
+    @latestBranchId::BIGINT,
+    @latestBranchFirstParentNodeId::BIGINT
+)
+ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
+RETURNING *
 ;
 
 -- todo: implement UpdateLatestNodeId
