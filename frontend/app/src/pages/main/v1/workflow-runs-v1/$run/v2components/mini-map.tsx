@@ -184,11 +184,11 @@ export const TaskRunMiniMap = ({
   onClick,
   taskRunId,
 }: JobMiniMapProps & UseTaskRunProps) => {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
   const { taskRun, isLoading, isError } = useTaskRun({ taskRunId });
 
   const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenantId, { limit: 50, offset: 0 }, taskRunId),
+    ...queries.v1TaskEvents.list(tenant, { limit: 50, offset: 0 }, taskRunId),
   });
 
   const isSkipped = eventsQuery.data?.rows?.some(

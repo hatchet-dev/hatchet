@@ -63,13 +63,13 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
   if (showViewTaskRunButton) {
     return (
       <Link
         to={appRoutes.tenantRunRoute.to}
-        params={{ tenant: tenantId, run: taskRun.metadata.id }}
+        params={{ tenant: tenant, run: taskRun.metadata.id }}
       >
         <Button
           size={'sm'}
@@ -88,7 +88,7 @@ const TaskRunPermalinkOrBacklink = ({
     return (
       <Link
         to={appRoutes.tenantRunRoute.to}
-        params={{ tenant: tenantId, run: taskRun.workflowRunExternalId }}
+        params={{ tenant: tenant, run: taskRun.workflowRunExternalId }}
       >
         <Button
           size={'sm'}
@@ -124,7 +124,7 @@ export const TaskRunDetail = ({
     },
     [open],
   );
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -139,7 +139,7 @@ export const TaskRunDetail = ({
   });
 
   const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenantId, { limit: 50, offset: 0 }, taskRunId),
+    ...queries.v1TaskEvents.list(tenant, { limit: 50, offset: 0 }, taskRunId),
   });
 
   const taskRun = taskRunQuery.data;
@@ -177,7 +177,7 @@ export const TaskRunDetail = ({
 
       {taskRun.parentTaskExternalId && (
         <TriggeringParentWorkflowRunSection
-          tenantId={taskRun.tenantId}
+          tenant={taskRun.tenantId}
           parentTaskExternalId={taskRun.parentTaskExternalId}
         />
       )}
@@ -341,13 +341,13 @@ export const TaskRunDetail = ({
 };
 
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
   });
 
   const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenantId, { limit: 50, offset: 0 }, taskRunId),
+    ...queries.v1TaskEvents.list(tenant, { limit: 50, offset: 0 }, taskRunId),
   });
 
   const timings = [];
@@ -417,10 +417,10 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
 };
 
 function TriggeringParentWorkflowRunSection({
-  tenantId,
+  tenant,
   parentTaskExternalId,
 }: {
-  tenantId: string;
+  tenant: string;
   parentTaskExternalId: string;
 }) {
   // Get the parent task to find the parent workflow run
@@ -452,7 +452,7 @@ function TriggeringParentWorkflowRunSection({
       <Link
         to={appRoutes.tenantRunRoute.to}
         params={{
-          tenant: tenantId,
+          tenant: tenant,
           run: parentWorkflowRun.workflowRunExternalId,
         }}
         className="font-semibold text-indigo-500 hover:underline dark:text-indigo-200"
