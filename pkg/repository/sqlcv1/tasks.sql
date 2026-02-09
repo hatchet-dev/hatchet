@@ -1228,9 +1228,9 @@ RETURNING
 -- name: FilterValidTasks :many
 WITH inputs AS (
     SELECT
-        UNNEST(@taskIds) AS task_ids,
-        UNNEST(@taskInsertedAts) AS task_inserted_ats,
-        UNNEST(@taskRetryCounts) AS task_retry_counts
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS task_retry_count
 )
 SELECT
     t.id
@@ -1239,7 +1239,7 @@ FROM
 JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
 WHERE
     (t.id, t.inserted_at, t.retry_count) IN (
-        SELECT task_ids, task_inserted_ats, task_retry_counts
+        SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
 ;

@@ -553,9 +553,9 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 const filterValidTasks = `-- name: FilterValidTasks :many
 WITH inputs AS (
     SELECT
-        UNNEST($1) AS task_ids,
-        UNNEST($2) AS task_inserted_ats,
-        UNNEST($3) AS task_retry_counts
+        UNNEST($1::bigint[]) AS task_id,
+        UNNEST($2::timestamptz[]) AS task_inserted_at,
+        UNNEST($3::integer[]) AS task_retry_count
 )
 SELECT
     t.id
@@ -564,15 +564,15 @@ FROM
 JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
 WHERE
     (t.id, t.inserted_at, t.retry_count) IN (
-        SELECT task_ids, task_inserted_ats, task_retry_counts
+        SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
 `
 
 type FilterValidTasksParams struct {
-	Taskids         interface{} `json:"taskids"`
-	Taskinsertedats interface{} `json:"taskinsertedats"`
-	Taskretrycounts interface{} `json:"taskretrycounts"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
 }
 
 func (q *Queries) FilterValidTasks(ctx context.Context, db DBTX, arg FilterValidTasksParams) ([]int64, error) {
