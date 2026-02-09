@@ -1225,12 +1225,21 @@ FROM
 RETURNING
     *;
 
--- name: FilterValidTasksByExternalIds :many
+-- name: FilterValidTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@taskIds) AS task_ids,
+        UNNEST(@taskInsertedAts) AS task_inserted_ats,
+        UNNEST(@taskRetryCounts) AS task_retry_counts
+)
 SELECT
     t.id
 FROM
     v1_task t
-JOIN v1_lookup_table lt ON lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
 WHERE
-    lt.external_id = ANY(@externalIds::uuid[]);
+    (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_ids, task_inserted_ats, task_retry_counts
+        FROM inputs
+    )
+;

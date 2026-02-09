@@ -550,19 +550,33 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
-const filterValidTasksByExternalIds = `-- name: FilterValidTasksByExternalIds :many
+const filterValidTasks = `-- name: FilterValidTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1) AS task_ids,
+        UNNEST($2) AS task_inserted_ats,
+        UNNEST($3) AS task_retry_counts
+)
 SELECT
     t.id
 FROM
     v1_task t
-JOIN v1_lookup_table lt ON lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
 WHERE
-    lt.external_id = ANY($1::uuid[])
+    (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_ids, task_inserted_ats, task_retry_counts
+        FROM inputs
+    )
 `
 
-func (q *Queries) FilterValidTasksByExternalIds(ctx context.Context, db DBTX, externalids []uuid.UUID) ([]int64, error) {
-	rows, err := db.Query(ctx, filterValidTasksByExternalIds, externalids)
+type FilterValidTasksParams struct {
+	Taskids         interface{} `json:"taskids"`
+	Taskinsertedats interface{} `json:"taskinsertedats"`
+	Taskretrycounts interface{} `json:"taskretrycounts"`
+}
+
+func (q *Queries) FilterValidTasks(ctx context.Context, db DBTX, arg FilterValidTasksParams) ([]int64, error) {
+	rows, err := db.Query(ctx, filterValidTasks, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
 	if err != nil {
 		return nil, err
 	}

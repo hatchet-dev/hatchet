@@ -10,6 +10,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
@@ -791,13 +792,17 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
 
 	for _, msg := range msgs {
-		externalIds := make([]uuid.UUID, 0)
+		taskIds := make([]int64, 0)
+		taskInsertedAts := make([]pgtype.Timestamptz, 0)
+		taskRetryCounts := make([]int32, 0)
 
 		for _, task := range msg.Tasks {
-			externalIds = append(externalIds, task.TaskExternalId)
+			taskIds = append(taskIds, task.Id)
+			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+			taskRetryCounts = append(taskRetryCounts, task.RetryCount)
 		}
 
-		tasks, err := tc.repov1.Tasks().FilterValidTasksByExternalIds(ctx, externalIds)
+		tasks, err := tc.repov1.Tasks().FilterValidTasks(ctx, taskIds, taskInsertedAts, taskRetryCounts)
 		if err != nil {
 			return fmt.Errorf("failed to list valid tasks by external ids: %w", err)
 		}
