@@ -192,9 +192,9 @@ func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID
 	}
 }
 
-func (p *SchedulingPool) NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueNames string) {
+func (p *SchedulingPool) NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
-		tm.notifyNewQueue(ctx, queueNames)
+		tm.notifyNewQueue(ctx, queueName)
 	}
 }
 

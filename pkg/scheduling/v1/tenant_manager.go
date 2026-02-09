@@ -124,6 +124,17 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 			if msg.isIncremental {
 				for _, worker := range msg.items {
 					t.scheduler.addWorker(worker)
+
+					t.replenish(ctx)
+
+					// notify all queues to check if the new worker can take any tasks
+					t.queuersMu.RLock()
+
+					for _, q := range t.queuers {
+						q.queue(ctx)
+					}
+
+					t.queuersMu.RUnlock()
 				}
 			} else {
 				t.scheduler.setWorkers(msg.items)
@@ -213,7 +224,7 @@ func (t *tenantManager) addQueuer(queueName string) {
 
 	t.queuersMu.Unlock()
 
-	t.queue(context.Background(), []string{queueName}) // TODO: verify not deadlock
+	t.queue(context.Background(), []string{queueName})
 }
 
 func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConcurrency) {
@@ -341,17 +352,6 @@ func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID)
 		t.cf.l.Error().Err(err).Msg("error notifying new worker")
 		return
 	}
-
-	t.replenish(ctx)
-
-	// notify all queues to check if the new worker can take any tasks
-	t.queuersMu.RLock()
-
-	for _, q := range t.queuers {
-		q.queue(ctx)
-	}
-
-	t.queuersMu.RUnlock()
 }
 
 func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {

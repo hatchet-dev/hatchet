@@ -129,7 +129,7 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 	go leaseManager.sendWorkerIds(mockWorkers, false)
 
 	result := <-workersCh
-	assert.Equal(t, mockWorkers, result)
+	assert.Equal(t, mockWorkers, result.items)
 }
 
 func TestLeaseManager_SendQueues(t *testing.T) {
@@ -145,7 +145,7 @@ func TestLeaseManager_SendQueues(t *testing.T) {
 	go leaseManager.sendQueues(mockQueues, false)
 
 	result := <-queuesCh
-	assert.Equal(t, mockQueues, result)
+	assert.Equal(t, mockQueues, result.items)
 }
 
 func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {

@@ -672,7 +672,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 				msg, err := tasktypes.NotifyNewQueue(tenantId, action)
 
 				if err != nil {
-					a.l.Err(err).Msg("could not create message for notifying new worker")
+					a.l.Err(err).Msg("could not create message for notifying new queue")
 				} else {
 					err = a.mq.SendMessage(
 						notifyCtx,

@@ -179,6 +179,64 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Wor
 	return &i, err
 }
 
+const getActiveWorkerById = `-- name: GetActiveWorkerById :one
+SELECT
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
+    ww."url" AS "webhookUrl",
+    w."maxRuns" - (
+        SELECT COUNT(*)
+        FROM v1_task_runtime runtime
+        WHERE
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
+    ) AS "remainingSlots"
+FROM
+    "Worker" w
+LEFT JOIN
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
+WHERE
+    w."id" = $1::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+`
+
+type GetActiveWorkerByIdRow struct {
+	Worker         Worker      `json:"worker"`
+	WebhookUrl     pgtype.Text `json:"webhookUrl"`
+	RemainingSlots int32       `json:"remainingSlots"`
+}
+
+func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetActiveWorkerByIdRow, error) {
+	row := db.QueryRow(ctx, getActiveWorkerById, id)
+	var i GetActiveWorkerByIdRow
+	err := row.Scan(
+		&i.Worker.ID,
+		&i.Worker.CreatedAt,
+		&i.Worker.UpdatedAt,
+		&i.Worker.DeletedAt,
+		&i.Worker.TenantId,
+		&i.Worker.LastHeartbeatAt,
+		&i.Worker.Name,
+		&i.Worker.DispatcherId,
+		&i.Worker.MaxRuns,
+		&i.Worker.IsActive,
+		&i.Worker.LastListenerEstablished,
+		&i.Worker.IsPaused,
+		&i.Worker.Type,
+		&i.Worker.WebhookId,
+		&i.Worker.Language,
+		&i.Worker.LanguageVersion,
+		&i.Worker.Os,
+		&i.Worker.RuntimeExtra,
+		&i.Worker.SdkVersion,
+		&i.WebhookUrl,
+		&i.RemainingSlots,
+	)
+	return &i, err
+}
+
 const getWorkerActionsByWorkerId = `-- name: GetWorkerActionsByWorkerId :many
 WITH inputs AS (
     SELECT UNNEST($2::UUID[]) AS "workerId"

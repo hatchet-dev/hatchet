@@ -71,6 +71,28 @@ LEFT JOIN
 WHERE
     w."id" = @id::uuid;
 
+-- name: GetActiveWorkerById :one
+SELECT
+    sqlc.embed(w),
+    ww."url" AS "webhookUrl",
+    w."maxRuns" - (
+        SELECT COUNT(*)
+        FROM v1_task_runtime runtime
+        WHERE
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
+    ) AS "remainingSlots"
+FROM
+    "Worker" w
+LEFT JOIN
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
+WHERE
+    w."id" = @id::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false;
+
 -- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
     *

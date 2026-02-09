@@ -350,7 +350,7 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message)
 }
 
 func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-worker", msg.OtelCarrier)
 	defer span.End()
 
 	payloads := msgqueue.JSONConvert[tasktypes.NewWorkerPayload](msg.Payloads)
@@ -363,7 +363,7 @@ func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) 
 }
 
 func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-queue", msg.OtelCarrier)
 	defer span.End()
 
 	payloads := msgqueue.JSONConvert[tasktypes.NewQueuePayload](msg.Payloads)
@@ -376,7 +376,7 @@ func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) e
 }
 
 func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-concurrency-strategy", msg.OtelCarrier)
 	defer span.End()
 
 	payloads := msgqueue.JSONConvert[tasktypes.NewConcurrencyStrategyPayload](msg.Payloads)
