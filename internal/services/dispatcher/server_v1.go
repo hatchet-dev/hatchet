@@ -597,8 +597,8 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskFailed(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED:
 		return s.handleTaskDurableEvicted(ctx, task, retryCount, request)
-	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESUMING:
-		return s.handleTaskDurableResuming(ctx, task, retryCount, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESTORING:
+		return s.handleTaskDurableRestoring(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED:
@@ -667,11 +667,11 @@ func (s *DispatcherImpl) handleTaskDurableEvicted(inputCtx context.Context, task
 	}, nil
 }
 
-func (s *DispatcherImpl) handleTaskDurableResuming(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskDurableRestoring(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	// DURABLE_RESUMING should actually "restore" the task: remove from evicted + requeue with highest priority.
+	// DURABLE_RESTORING should actually "restore" the task: remove from evicted + requeue with highest priority.
 	// This keeps behavior consistent with the TEMP restore endpoint.
 	_, err := s.repov1.Tasks().RestoreEvictedTask(inputCtx, tenantId, v1.TaskIdInsertedAtRetryCount{
 		Id:         task.ID,
@@ -945,7 +945,7 @@ func (d *DispatcherImpl) restoreEvictedTaskV1(ctx context.Context, tenant *sqlcv
 		return nil, err
 	}
 
-	// Emit DURABLE_RESUMING for observability / UI inference.
+	// Emit DURABLE_RESTORING for observability / UI inference.
 	if requeued {
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
@@ -953,7 +953,7 @@ func (d *DispatcherImpl) restoreEvictedTaskV1(ctx context.Context, tenant *sqlcv
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
 				EventTimestamp: time.Now(),
-				EventType:      sqlcv1.V1EventTypeOlapDURABLERESUMING,
+				EventType:      sqlcv1.V1EventTypeOlapDURABLERESTORING,
 				EventMessage:   "Woken by user",
 			},
 		)

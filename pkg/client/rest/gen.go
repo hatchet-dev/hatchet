@@ -244,7 +244,7 @@ const (
 	V1TaskEventTypeCOULDNOTSENDTOWORKER V1TaskEventType = "COULD_NOT_SEND_TO_WORKER"
 	V1TaskEventTypeCREATED              V1TaskEventType = "CREATED"
 	V1TaskEventTypeDURABLEEVICTED       V1TaskEventType = "DURABLE_EVICTED"
-	V1TaskEventTypeDURABLERESUMING      V1TaskEventType = "DURABLE_RESUMING"
+	V1TaskEventTypeDURABLERESTORING     V1TaskEventType = "DURABLE_RESTORING"
 	V1TaskEventTypeFAILED               V1TaskEventType = "FAILED"
 	V1TaskEventTypeFINISHED             V1TaskEventType = "FINISHED"
 	V1TaskEventTypeQUEUED               V1TaskEventType = "QUEUED"

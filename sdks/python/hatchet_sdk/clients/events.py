@@ -19,14 +19,14 @@ from hatchet_sdk.clients.v1.api_client import (
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
+from hatchet_sdk.contracts.events_pb2 import BulkPushEventRequest
+from hatchet_sdk.contracts.events_pb2 import Event as EventProto
+from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2 import (
-    BulkPushEventRequest,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
 )
-from hatchet_sdk.contracts.events_pb2 import Event as EventProto
-from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata

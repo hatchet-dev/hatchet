@@ -176,7 +176,7 @@ export const TaskRunDetail = ({
     for (const e of sorted) {
       if (e.eventType === V1TaskEventType.DURABLE_EVICTED) {
         evicted = true;
-      } else if (e.eventType === V1TaskEventType.DURABLE_RESUMING) {
+      } else if (e.eventType === V1TaskEventType.DURABLE_RESTORING) {
         evicted = false;
       }
     }

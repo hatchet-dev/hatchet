@@ -139,7 +139,6 @@ async def await_with_cancellation(
         logger.debug("await_with_cancellation: completed successfully")
         return result
 
-
     except asyncio.CancelledError:
         logger.debug("await_with_cancellation: cancelled")
         if cancel_callback:

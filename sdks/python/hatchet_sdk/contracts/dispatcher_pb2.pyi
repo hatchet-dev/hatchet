@@ -42,7 +42,7 @@ class StepActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     STEP_EVENT_TYPE_CANCELLED_CONFIRMED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_CANCELLATION_FAILED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_DURABLE_EVICTED: _ClassVar[StepActionEventType]
-    STEP_EVENT_TYPE_DURABLE_RESUMING: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_DURABLE_RESTORING: _ClassVar[StepActionEventType]
 
 class ResourceType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -84,7 +84,7 @@ STEP_EVENT_TYPE_CANCELLING: StepActionEventType
 STEP_EVENT_TYPE_CANCELLED_CONFIRMED: StepActionEventType
 STEP_EVENT_TYPE_CANCELLATION_FAILED: StepActionEventType
 STEP_EVENT_TYPE_DURABLE_EVICTED: StepActionEventType
-STEP_EVENT_TYPE_DURABLE_RESUMING: StepActionEventType
+STEP_EVENT_TYPE_DURABLE_RESTORING: StepActionEventType
 RESOURCE_TYPE_UNKNOWN: ResourceType
 RESOURCE_TYPE_STEP_RUN: ResourceType
 RESOURCE_TYPE_WORKFLOW_RUN: ResourceType
@@ -420,12 +420,14 @@ class ReleaseSlotResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class GetVersionRequest(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+class RestoreEvictedTaskRequest(_message.Message):
+    __slots__ = ("task_run_external_id",)
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    task_run_external_id: str
+    def __init__(self, task_run_external_id: _Optional[str] = ...) -> None: ...
 
-class GetVersionResponse(_message.Message):
-    __slots__ = ("version",)
-    VERSION_FIELD_NUMBER: _ClassVar[int]
-    version: str
-    def __init__(self, version: _Optional[str] = ...) -> None: ...
+class RestoreEvictedTaskResponse(_message.Message):
+    __slots__ = ("requeued",)
+    REQUEUED_FIELD_NUMBER: _ClassVar[int]
+    requeued: bool
+    def __init__(self, requeued: bool = ...) -> None: ...
