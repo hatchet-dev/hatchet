@@ -792,9 +792,9 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
 
 	for _, msg := range msgs {
-		taskIds := make([]int64, 0)
-		taskInsertedAts := make([]pgtype.Timestamptz, 0)
-		taskRetryCounts := make([]int32, 0)
+		taskIds := make([]int64, len(msg.Tasks))
+		taskInsertedAts := make([]pgtype.Timestamptz, len(msg.Tasks))
+		taskRetryCounts := make([]int32, len(msg.Tasks))
 
 		for _, task := range msg.Tasks {
 			taskIds = append(taskIds, task.Id)
