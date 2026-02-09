@@ -519,7 +519,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid worker id")
 		}
 
-		worker, err := config.V1.Workers().GetWorkerById(ctx, idUuid)
+		parentIdUuid, err := uuid.Parse(parentId)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
+		worker, err := config.V1.Workers().GetWorkerById(ctx, parentIdUuid, idUuid)
 
 		if err != nil {
 			return nil, "", err

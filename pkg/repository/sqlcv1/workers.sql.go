@@ -256,15 +256,21 @@ SELECT
 FROM
     "Worker" w
 WHERE
-    w."id" = $1::uuid
+    w."tenantId" = $1::uuid
+    AND w."id" = $2::uuid
 `
+
+type GetWorkerByIdParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
+}
 
 type GetWorkerByIdRow struct {
 	Worker Worker `json:"worker"`
 }
 
-func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkerByIdRow, error) {
-	row := db.QueryRow(ctx, getWorkerById, id)
+func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, arg GetWorkerByIdParams) (*GetWorkerByIdRow, error) {
+	row := db.QueryRow(ctx, getWorkerById, arg.Tenantid, arg.ID)
 	var i GetWorkerByIdRow
 	err := row.Scan(
 		&i.Worker.ID,
