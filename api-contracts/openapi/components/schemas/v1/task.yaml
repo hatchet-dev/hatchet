@@ -295,7 +295,7 @@ V1TaskEventType:
     - SKIPPED
     - COULD_NOT_SEND_TO_WORKER
     - DURABLE_EVICTED
-    - DURABLE_RESUMING
+    - DURABLE_RESTORING
 
 V1TaskRunMetrics:
   type: array

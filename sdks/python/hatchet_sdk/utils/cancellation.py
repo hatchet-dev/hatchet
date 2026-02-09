@@ -91,7 +91,6 @@ async def await_with_cancellation(
         logger.debug("await_with_cancellation: completed successfully")
         return main_task.result()
 
-
     except asyncio.CancelledError:
         logger.debug("await_with_cancellation: externally cancelled")
         main_task.cancel()

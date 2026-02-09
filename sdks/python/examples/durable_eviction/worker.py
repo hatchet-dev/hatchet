@@ -3,13 +3,7 @@ import time
 from datetime import timedelta
 from uuid import uuid4
 
-from hatchet_sdk import (
-    Context,
-    DurableContext,
-    EmptyModel,
-    Hatchet,
-    UserEventCondition,
-)
+from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventCondition
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionConfig
 
@@ -25,6 +19,7 @@ SLEEP_TIME = 10
 async def ephemeral_task(input: EmptyModel, ctx: Context) -> None:
     print("Running non-durable task")
     await asyncio.sleep(SLEEP_TIME)
+
 
 @hatchet.task()
 async def emit_event_task(input: EmptyModel, ctx: Context) -> None:

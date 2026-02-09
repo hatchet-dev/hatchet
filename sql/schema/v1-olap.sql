@@ -277,7 +277,7 @@ CREATE TYPE v1_event_type_olap AS ENUM (
     'CANCELLED_CONFIRMED',
     'CANCELLATION_FAILED',
     'DURABLE_EVICTED',
-    'DURABLE_RESUMING'
+    'DURABLE_RESTORING'
 );
 
 -- this is a hash-partitioned table on the task_id, so that we can process batches of events in parallel

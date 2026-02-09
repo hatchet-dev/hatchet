@@ -719,7 +719,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
 			// TODO-DURABLE: i'm not sure what we want to do here for status...
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapDURABLERESUMING:
+		case sqlcv1.V1EventTypeOlapDURABLERESTORING:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
 		case sqlcv1.V1EventTypeOlapTIMEDOUT:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
@@ -777,7 +777,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 						event.AdditionalEventMessage = sqlchelpers.TextFromStr(msg)
 					}
 				}
-			case sqlcv1.V1EventTypeOlapDURABLEEVICTED, sqlcv1.V1EventTypeOlapDURABLERESUMING:
+			case sqlcv1.V1EventTypeOlapDURABLEEVICTED, sqlcv1.V1EventTypeOlapDURABLERESTORING:
 				var payload struct {
 					Reason     string  `json:"reason"`
 					WaitKind   *string `json:"wait_kind"`
@@ -811,7 +811,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			sqlcv1.V1EventTypeOlapCANCELLEDCONFIRMED,
 			sqlcv1.V1EventTypeOlapCANCELLATIONFAILED,
 			sqlcv1.V1EventTypeOlapDURABLEEVICTED,
-			sqlcv1.V1EventTypeOlapDURABLERESUMING:
+			sqlcv1.V1EventTypeOlapDURABLERESTORING:
 			// Keep message in `additional__event_message`, and store structured details in `additional__event_data`.
 			if eventPayloads[i] != "" {
 				event.AdditionalEventData = sqlchelpers.TextFromStr(eventPayloads[i])

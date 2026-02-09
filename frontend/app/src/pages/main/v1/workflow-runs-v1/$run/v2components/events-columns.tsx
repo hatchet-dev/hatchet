@@ -36,7 +36,7 @@ function eventTypeToIndicatorVariant(
       return 'CANCELLED';
     case V1TaskEventType.CANCELLING:
     case V1TaskEventType.DURABLE_EVICTED:
-    case V1TaskEventType.DURABLE_RESUMING:
+    case V1TaskEventType.DURABLE_RESTORING:
     case V1TaskEventType.REASSIGNED:
     case V1TaskEventType.REQUEUED_NO_WORKER:
     case V1TaskEventType.REQUEUED_RATE_LIMIT:
@@ -171,9 +171,9 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
     case V1TaskEventType.CANCELLATION_FAILED:
       return 'Cancellation failed';
     case V1TaskEventType.DURABLE_EVICTED:
-      return 'Durable evicted';
-    case V1TaskEventType.DURABLE_RESUMING:
-      return 'Durable resuming';
+      return 'Durable task evicted';
+    case V1TaskEventType.DURABLE_RESTORING:
+      return 'Durable task restoring';
     case V1TaskEventType.RETRYING:
       return 'Retrying';
     case V1TaskEventType.REQUEUED_NO_WORKER:

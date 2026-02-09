@@ -26,9 +26,9 @@ async def simple_durable(input: EmptyModel, ctx: DurableContext) -> dict[str, st
     # try:
     res = await simple.aio_run(input)
     # except BaseException as e:
-        # print(f"Error: {e}")
-        # await asyncio.sleep(10)
-        # raise e
+    # print(f"Error: {e}")
+    # await asyncio.sleep(10)
+    # raise e
     # print("hello world")
     return {"result": "Hello, world!"}
 

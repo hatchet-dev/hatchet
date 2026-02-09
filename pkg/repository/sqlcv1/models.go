@@ -1057,7 +1057,7 @@ const (
 	V1EventTypeOlapCANCELLEDCONFIRMED   V1EventTypeOlap = "CANCELLED_CONFIRMED"
 	V1EventTypeOlapCANCELLATIONFAILED   V1EventTypeOlap = "CANCELLATION_FAILED"
 	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
-	V1EventTypeOlapDURABLERESUMING      V1EventTypeOlap = "DURABLE_RESUMING"
+	V1EventTypeOlapDURABLERESTORING     V1EventTypeOlap = "DURABLE_RESTORING"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {
