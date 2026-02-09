@@ -10,8 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	contracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
@@ -25,7 +26,7 @@ import (
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
-func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -168,7 +169,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 func (i *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
 	tenantId uuid.UUID,
-	req *contracts.TriggerWorkflowRequest,
+	req *v1contracts.TriggerWorkflowRequest,
 ) (*v1.WorkflowNameTriggerOpts, error) {
 	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
 	defer span.End()

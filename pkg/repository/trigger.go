@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -105,7 +105,7 @@ type TriggerRepository interface {
 
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
-	NewTriggerOpt(ctx context.Context, tenantId uuid.UUID, req *contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*WorkflowNameTriggerOpts, error)
+	NewTriggerOpt(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*WorkflowNameTriggerOpts, error)
 }
 
 type TriggerRepositoryImpl struct {
@@ -2177,7 +2177,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 func (r *sharedRepository) NewTriggerOpt(
 	ctx context.Context,
 	tenantId uuid.UUID,
-	req *contracts.TriggerWorkflowRequest,
+	req *v1contracts.TriggerWorkflowRequest,
 	parentTask *sqlcv1.FlattenExternalIdsRow,
 ) (*WorkflowNameTriggerOpts, error) {
 	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")

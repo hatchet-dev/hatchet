@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -602,19 +601,7 @@ func (d *DispatcherServiceImpl) spawnChildWorkflow(
 		return nil, fmt.Errorf("trigger options are required for spawning a child workflow")
 	}
 
-	// todo: shared type
-	x := admincontracts.TriggerWorkflowRequest{
-		Name:                    req.TriggerOpts.Name,
-		Input:                   req.TriggerOpts.Input,
-		ParentId:                req.TriggerOpts.ParentId,
-		ParentTaskRunExternalId: req.TriggerOpts.ParentTaskRunExternalId,
-		ChildIndex:              req.TriggerOpts.ChildIndex,
-		ChildKey:                req.TriggerOpts.ChildKey,
-		AdditionalMetadata:      req.TriggerOpts.AdditionalMetadata,
-		DesiredWorkerId:         req.TriggerOpts.DesiredWorkerId,
-		Priority:                req.TriggerOpts.Priority,
-	}
-	triggerOpt, err := d.repo.Triggers().NewTriggerOpt(ctx, tenantId, &x, nil)
+	triggerOpt, err := d.repo.Triggers().NewTriggerOpt(ctx, tenantId, req.TriggerOpts, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trigger options: %w", err)
