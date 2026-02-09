@@ -171,12 +171,12 @@ func newMatchRepository(s *sharedRepository) MatchRepository {
 
 func (m *MatchRepositoryImpl) LinkCallbackToMatch(ctx context.Context, tenantId uuid.UUID, signalTaskId int64, signalTaskInsertedAt pgtype.Timestamptz, signalKey string, callbackTaskId int64, callbackTaskInsertedAt pgtype.Timestamptz, callbackKey string) error {
 	return m.queries.UpdateMatchCallbackLink(ctx, m.pool, sqlcv1.UpdateMatchCallbackLinkParams{
-		Durabletaskid:         pgtype.Int8{Int64: callbackTaskId, Valid: true},
+		Durabletaskid:         callbackTaskId,
 		Durabletaskinsertedat: callbackTaskInsertedAt,
-		Callbackkey:           pgtype.Text{String: callbackKey, Valid: true},
-		Signaltaskid:          pgtype.Int8{Int64: signalTaskId, Valid: true},
+		Callbackkey:           callbackKey,
+		Signaltaskid:          signalTaskId,
 		Signaltaskinsertedat:  signalTaskInsertedAt,
-		Signalkey:             pgtype.Text{String: signalKey, Valid: true},
+		Signalkey:             signalKey,
 	})
 }
 
