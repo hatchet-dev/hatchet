@@ -60,7 +60,7 @@ type EventLogEntryWithData struct {
 
 type DurableEventsRepository interface {
 	CreateEventLogFiles(ctx context.Context, opts []CreateEventLogFileOpts) ([]*sqlcv1.V1DurableEventLogFile, error)
-	GetOrCreateEventLogFileForTask(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
+	GetOrCreateEventLogFileForTask(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.GetOrCreateEventLogFileForTaskRow, error)
 
 	CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.CreateDurableEventLogEntriesRow, error)
 	GetEventLogEntry(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*EventLogEntryWithData, error)
@@ -128,7 +128,7 @@ func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts 
 	return files, nil
 }
 
-func (r *durableEventsRepository) GetOrCreateEventLogFileForTask(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+func (r *durableEventsRepository) GetOrCreateEventLogFileForTask(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.GetOrCreateEventLogFileForTaskRow, error) {
 	return r.queries.GetOrCreateEventLogFileForTask(ctx, r.pool, sqlcv1.GetOrCreateEventLogFileForTaskParams{
 		Tenantid:                      tenantId,
 		Durabletaskid:                 durableTaskId,
