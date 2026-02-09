@@ -212,6 +212,28 @@ export class Api<
       ...params,
     });
   /**
+   * @description TEMP. Restores an evicted durable task by requeueing it at highest priority.
+   *
+   * @tags Task
+   * @name V1TaskRestore
+   * @summary Restore a task
+   * @request POST:/api/v1/stable/tasks/{task}/restore
+   * @secure
+   */
+  v1TaskRestore = (task: string, params: RequestParams = {}) =>
+    this.request<
+      {
+        requeued: boolean;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/stable/tasks/${task}/restore`,
+      method: "POST",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Lists log lines for a task
    *
    * @tags Log

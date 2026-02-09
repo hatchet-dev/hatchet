@@ -595,12 +595,13 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskCompleted(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleTaskFailed(ctx, task, retryCount, request)
-	// TODO-DURABLE: handle StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED as its own case
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED:
+		return s.handleTaskDurableEvicted(ctx, task, retryCount, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESUMING:
+		return s.handleTaskDurableResuming(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING,
-		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED,
-		contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED,
-		contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESUMING:
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED:
 		// Monitoring-only events: publish to OLAP, but do not affect task execution status.
 		return s.handleTaskMonitoringOnly(ctx, task, retryCount, request)
 	}
@@ -619,6 +620,74 @@ func (s *DispatcherImpl) handleTaskMonitoringOnly(inputCtx context.Context, task
 		request,
 	)
 
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleTaskDurableEvicted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	_, err := s.repov1.Tasks().EvictTaskRuntimeToEvicted(inputCtx, tenantId, v1.TaskIdInsertedAtRetryCount{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		RetryCount: retryCount,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+		tenantId,
+		task.ID,
+		retryCount,
+		request,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleTaskDurableResuming(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	// DURABLE_RESUMING should actually "restore" the task: remove from evicted + requeue with highest priority.
+	// This keeps behavior consistent with the TEMP restore endpoint.
+	_, err := s.repov1.Tasks().RestoreEvictedTask(inputCtx, tenantId, v1.TaskIdInsertedAtRetryCount{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		RetryCount: retryCount,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+		tenantId,
+		task.ID,
+		retryCount,
+		request,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -849,6 +918,57 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 	}
 
 	return &contracts.ReleaseSlotResponse{}, nil
+}
+
+func (d *DispatcherImpl) restoreEvictedTaskV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+	}
+
+	// waking is a user-driven action, so we can safely skip the cache
+	task, err := d.getSingleTask(ctx, tenantId, taskExternalId, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Restore should behave like replay (reset task attempt) but without touching replay's preflight rules.
+	// We keep holding concurrency slots, so restore uses a dedicated path in the durable-eviction repo methods.
+	requeued, err := d.repov1.Tasks().RestoreEvictedTask(ctx, tenantId, v1.TaskIdInsertedAtRetryCount{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		RetryCount: task.RetryCount,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Emit DURABLE_RESUMING for observability / UI inference.
+	if requeued {
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         task.ID,
+				RetryCount:     task.RetryCount,
+				EventTimestamp: time.Now(),
+				EventType:      sqlcv1.V1EventTypeOlapDURABLERESUMING,
+				EventMessage:   "Woken by user",
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			return nil, err
+		}
+	}
+
+	return &contracts.RestoreEvictedTaskResponse{
+		Requeued: requeued,
+	}, nil
 }
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {

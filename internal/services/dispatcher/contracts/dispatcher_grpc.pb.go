@@ -37,6 +37,8 @@ type DispatcherClient interface {
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
 	RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error)
 	ReleaseSlot(ctx context.Context, in *ReleaseSlotRequest, opts ...grpc.CallOption) (*ReleaseSlotResponse, error)
+	// TEMP: restores an evicted durable task by requeueing it at highest priority.
+	RestoreEvictedTask(ctx context.Context, in *RestoreEvictedTaskRequest, opts ...grpc.CallOption) (*RestoreEvictedTaskResponse, error)
 	UpsertWorkerLabels(ctx context.Context, in *UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*UpsertWorkerLabelsResponse, error)
 }
 
@@ -247,6 +249,15 @@ func (c *dispatcherClient) ReleaseSlot(ctx context.Context, in *ReleaseSlotReque
 	return out, nil
 }
 
+func (c *dispatcherClient) RestoreEvictedTask(ctx context.Context, in *RestoreEvictedTaskRequest, opts ...grpc.CallOption) (*RestoreEvictedTaskResponse, error) {
+	out := new(RestoreEvictedTaskResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/RestoreEvictedTask", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dispatcherClient) UpsertWorkerLabels(ctx context.Context, in *UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*UpsertWorkerLabelsResponse, error) {
 	out := new(UpsertWorkerLabelsResponse)
 	err := c.cc.Invoke(ctx, "/Dispatcher/UpsertWorkerLabels", in, out, opts...)
@@ -275,6 +286,8 @@ type DispatcherServer interface {
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
 	RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error)
 	ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error)
+	// TEMP: restores an evicted durable task by requeueing it at highest priority.
+	RestoreEvictedTask(context.Context, *RestoreEvictedTaskRequest) (*RestoreEvictedTaskResponse, error)
 	UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error)
 	mustEmbedUnimplementedDispatcherServer()
 }
@@ -318,6 +331,9 @@ func (UnimplementedDispatcherServer) RefreshTimeout(context.Context, *RefreshTim
 }
 func (UnimplementedDispatcherServer) ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseSlot not implemented")
+}
+func (UnimplementedDispatcherServer) RestoreEvictedTask(context.Context, *RestoreEvictedTaskRequest) (*RestoreEvictedTaskResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RestoreEvictedTask not implemented")
 }
 func (UnimplementedDispatcherServer) UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertWorkerLabels not implemented")
@@ -568,6 +584,24 @@ func _Dispatcher_ReleaseSlot_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dispatcher_RestoreEvictedTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestoreEvictedTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).RestoreEvictedTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Dispatcher/RestoreEvictedTask",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).RestoreEvictedTask(ctx, req.(*RestoreEvictedTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Dispatcher_UpsertWorkerLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertWorkerLabelsRequest)
 	if err := dec(in); err != nil {
@@ -624,6 +658,10 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReleaseSlot",
 			Handler:    _Dispatcher_ReleaseSlot_Handler,
+		},
+		{
+			MethodName: "RestoreEvictedTask",
+			Handler:    _Dispatcher_RestoreEvictedTask_Handler,
 		},
 		{
 			MethodName: "UpsertWorkerLabels",

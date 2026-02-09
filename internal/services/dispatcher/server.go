@@ -602,6 +602,12 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 	return d.refreshTimeoutV1(ctx, tenant, request)
 }
 
+func (d *DispatcherImpl) RestoreEvictedTask(ctx context.Context, request *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+
+	return d.restoreEvictedTaskV1(ctx, tenant, request)
+}
+
 func UnmarshalPayload[T any](payload interface{}) (T, error) {
 	var result T
 

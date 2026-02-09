@@ -3221,6 +3221,9 @@ type ClientInterface interface {
 	// V1LogLineList request
 	V1LogLineList(ctx context.Context, task openapi_types.UUID, params *V1LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1TaskRestore request
+	V1TaskRestore(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskEventList request
 	V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3855,6 +3858,18 @@ func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, params 
 
 func (c *Client) V1LogLineList(ctx context.Context, task openapi_types.UUID, params *V1LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1LogLineListRequest(c.Server, task, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskRestore(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskRestoreRequest(c.Server, task)
 	if err != nil {
 		return nil, err
 	}
@@ -6444,6 +6459,40 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1L
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1TaskRestoreRequest generates requests for V1TaskRestore
+func NewV1TaskRestoreRequest(server string, task openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "task", runtime.ParamLocationPath, task)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tasks/%s/restore", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -13223,6 +13272,9 @@ type ClientWithResponsesInterface interface {
 	// V1LogLineListWithResponse request
 	V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1LogLineListParams, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error)
 
+	// V1TaskRestoreWithResponse request
+	V1TaskRestoreWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskRestoreResponse, error)
+
 	// V1TaskEventListWithResponse request
 	V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error)
 
@@ -14045,6 +14097,34 @@ func (r V1LogLineListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1LogLineListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskRestoreResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Requeued bool `json:"requeued"`
+	}
+	JSON400 *APIErrors
+	JSON403 *APIErrors
+	JSON404 *APIErrors
+	JSON501 *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskRestoreResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskRestoreResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17065,6 +17145,15 @@ func (c *ClientWithResponses) V1LogLineListWithResponse(ctx context.Context, tas
 	return ParseV1LogLineListResponse(rsp)
 }
 
+// V1TaskRestoreWithResponse request returning *V1TaskRestoreResponse
+func (c *ClientWithResponses) V1TaskRestoreWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskRestoreResponse, error) {
+	rsp, err := c.V1TaskRestore(ctx, task, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskRestoreResponse(rsp)
+}
+
 // V1TaskEventListWithResponse request returning *V1TaskEventListResponse
 func (c *ClientWithResponses) V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error) {
 	rsp, err := c.V1TaskEventList(ctx, task, params, reqEditors...)
@@ -19040,6 +19129,62 @@ func ParseV1LogLineListResponse(rsp *http.Response) (*V1LogLineListResponse, err
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskRestoreResponse parses an HTTP response from a V1TaskRestoreWithResponse call
+func ParseV1TaskRestoreResponse(rsp *http.Response) (*V1TaskRestoreResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskRestoreResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Requeued bool `json:"requeued"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 

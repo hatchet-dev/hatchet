@@ -32,6 +32,9 @@ service Dispatcher {
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 
+    // TEMP: restores an evicted durable task by requeueing it at highest priority.
+    rpc RestoreEvictedTask(RestoreEvictedTaskRequest) returns (RestoreEvictedTaskResponse) {}
+
     rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
 }
 
@@ -414,3 +417,13 @@ message ReleaseSlotRequest {
 }
 
 message ReleaseSlotResponse {}
+
+message RestoreEvictedTaskRequest {
+    // the id of the task run to restore
+    string task_run_external_id = 1;
+}
+
+message RestoreEvictedTaskResponse {
+    // whether the task was requeued (false if it was not evicted or already queued)
+    bool requeued = 1;
+}
