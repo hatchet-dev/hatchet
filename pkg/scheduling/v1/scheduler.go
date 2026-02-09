@@ -283,10 +283,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	unlock := orderedUnlock(actionsToLock)
 	defer unlock()
 
-	if testHookBeforeReplenishUnackedLock != nil {
-		testHookBeforeReplenishUnackedLock()
-	}
-
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
@@ -789,27 +785,8 @@ func findAssignableSlots(
 			continue
 		}
 
-		// test hook to deterministically exercise rollback paths
-		if testHookBeforeUsingSelectedSlots != nil {
-			testHookBeforeUsingSelectedSlots(selected)
-		}
-
-		usedSlots := make([]*slot, 0, len(selected))
-		success := true
-
-		for _, selectedSlot := range selected {
-			if !selectedSlot.use(nil, nil) {
-				success = false
-				break
-			}
-			usedSlots = append(usedSlots, selectedSlot)
-		}
-
-		if !success {
-			// Release partially allocated slots
-			for _, usedSlot := range usedSlots {
-				usedSlot.nack()
-			}
+		usedSlots, ok := useSelectedSlots(selected)
+		if !ok {
 			continue
 		}
 
@@ -824,6 +801,24 @@ func findAssignableSlots(
 	}
 
 	return nil
+}
+
+// useSelectedSlots attempts to reserve each slot in order. If any slot cannot be
+// reserved, it rolls back by nacking any slots already reserved in this call.
+func useSelectedSlots(selected []*slot) ([]*slot, bool) {
+	usedSlots := make([]*slot, 0, len(selected))
+
+	for _, sl := range selected {
+		if !sl.use(nil, nil) {
+			for _, used := range usedSlots {
+				used.nack()
+			}
+			return nil, false
+		}
+		usedSlots = append(usedSlots, sl)
+	}
+
+	return usedSlots, true
 }
 
 func selectSlotsForWorker(

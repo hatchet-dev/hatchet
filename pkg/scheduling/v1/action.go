@@ -40,17 +40,9 @@ func (a *action) activeCount() int {
 	return count
 }
 
-// testHookBeforeOrderedLock exists to make lock-order assertions deterministic in
-// unit tests. It is nil in production.
-var testHookBeforeOrderedLock func(actions []*action)
-
 // orderedLock acquires the locks in a stable order to prevent deadlocks
 func orderedLock(actionsMap map[string]*action) {
 	actions := sortActions(actionsMap)
-
-	if testHookBeforeOrderedLock != nil {
-		testHookBeforeOrderedLock(actions)
-	}
 
 	for _, action := range actions {
 		action.mu.Lock()

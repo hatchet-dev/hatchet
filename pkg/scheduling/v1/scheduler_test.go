@@ -446,9 +446,11 @@ func TestScheduler_Replenish_SkipsIfCannotAcquireActionsLock(t *testing.T) {
 	require.NoError(t, s.replenish(context.Background(), false))
 }
 
-func TestScheduler_ReplenishAndTryAssignBatch_NoDeadlock_LockOrder(t *testing.T) {
+func TestScheduler_Replenish_DoesNotLockUnackedMuBeforeActionLocks(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
+
+	workerSlotConfigsCalled := make(chan struct{})
 
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, gotTenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
@@ -467,6 +469,13 @@ func TestScheduler_ReplenishAndTryAssignBatch_NoDeadlock_LockOrder(t *testing.T)
 			require.Equal(t, tenantId, gotTenantId)
 			require.Len(t, workerIds, 1)
 			require.Equal(t, workerId, workerIds[0])
+
+			select {
+			case <-workerSlotConfigsCalled:
+				// already closed
+			default:
+				close(workerSlotConfigsCalled)
+			}
 
 			return []*sqlcv1.ListWorkerSlotConfigsRow{
 				{
@@ -494,68 +503,13 @@ func TestScheduler_ReplenishAndTryAssignBatch_NoDeadlock_LockOrder(t *testing.T)
 	s := newTestScheduler(t, tenantId, ar)
 	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
 
-	// Pre-create an action with a slot so tryAssignBatch will enter the critical section.
+	// Pre-create an action so replenish includes it in orderedLock(actionsToLock).
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 	sl := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	s.actions["A"] = actionWithSlots("A", sl)
 
-	reachedHook := make(chan struct{})
-	releaseHook := make(chan struct{})
-
-	orderedLockReached := make(chan struct{})
-	replenishUnackedLockReached := make(chan struct{})
-
-	// Force a specific interleaving:
-	// - tryAssignBatch holds action.mu (write) and pauses
-	// - replenish starts and (correctly) must attempt action.mu before unackedMu
-	// If replenish ever acquires unackedMu before locking action.mu, this test will deadlock.
-	testHookBeforeUsingSelectedSlots = func(selected []*slot) {
-		select {
-		case <-reachedHook:
-			// already closed
-		default:
-			close(reachedHook)
-		}
-
-		<-releaseHook
-	}
-	defer func() { testHookBeforeUsingSelectedSlots = nil }()
-
-	testHookBeforeOrderedLock = func(actions []*action) {
-		select {
-		case <-orderedLockReached:
-		default:
-			close(orderedLockReached)
-		}
-	}
-	defer func() { testHookBeforeOrderedLock = nil }()
-
-	testHookBeforeReplenishUnackedLock = func() {
-		select {
-		case <-replenishUnackedLockReached:
-		default:
-			close(replenishUnackedLockReached)
-		}
-	}
-	defer func() { testHookBeforeReplenishUnackedLock = nil }()
-
-	assignDone := make(chan error, 1)
-	go func() {
-		qis := []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1)}
-		res, _, err := s.tryAssignBatch(context.Background(), "A", qis, 0, nil, nil, nil)
-		if err == nil {
-			if len(res) != 1 || !res[0].succeeded {
-				err = fmt.Errorf("expected 1 successful assignment, got %+v", res)
-			}
-		}
-		assignDone <- err
-	}()
-
-	select {
-	case <-reachedHook:
-	case <-time.After(2 * time.Second):
-		t.Fatalf("timed out waiting for tryAssignBatch to reach hook")
-	}
+	a := s.actions["A"]
+	a.mu.Lock()
 
 	replenishDone := make(chan error, 1)
 	go func() {
@@ -564,32 +518,27 @@ func TestScheduler_ReplenishAndTryAssignBatch_NoDeadlock_LockOrder(t *testing.T)
 		replenishDone <- s.replenish(ctx, true)
 	}()
 
-	// replenish should reach the action-locking stage, but must not reach unackedMu lock
-	// while tryAssignBatch still holds action.mu.
 	select {
-	case <-orderedLockReached:
-	case <-replenishUnackedLockReached:
-		t.Fatalf("replenish reached unackedMu lock before ordered action locks (lock order violation)")
+	case <-workerSlotConfigsCalled:
 	case <-time.After(2 * time.Second):
-		t.Fatalf("timed out waiting for replenish to reach ordered action locks")
+		a.mu.Unlock()
+		t.Fatalf("timed out waiting for replenish to call ListWorkerSlotConfigs")
 	}
 
-	select {
-	case <-replenishUnackedLockReached:
-		t.Fatalf("replenish reached unackedMu lock while tryAssignBatch still holds action.mu (lock order violation)")
-	case <-time.After(100 * time.Millisecond):
-		// ok: replenish should be blocked trying to lock action.mu
+	// While replenish is blocked trying to acquire action locks, it must not hold unackedMu.
+	// If lock order ever regresses (unackedMu before action.mu), this will fail.
+	deadline := time.Now().Add(50 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if ok := s.unackedMu.TryLock(); ok {
+			s.unackedMu.Unlock()
+		} else {
+			a.mu.Unlock()
+			t.Fatalf("replenish acquired unackedMu while action.mu was held (lock order violation)")
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
 
-	// Let tryAssignBatch proceed and attempt to lock unackedMu.
-	close(releaseHook)
-
-	select {
-	case err := <-assignDone:
-		require.NoError(t, err)
-	case <-time.After(2 * time.Second):
-		t.Fatalf("timed out waiting for tryAssignBatch to complete (possible deadlock)")
-	}
+	a.mu.Unlock()
 
 	select {
 	case err := <-replenishDone:
@@ -895,30 +844,23 @@ func TestFindAssignableSlots_MultiType(t *testing.T) {
 	require.True(t, gotTypes[repo.SlotTypeDurable])
 }
 
-func TestFindAssignableSlots_PartialAllocationRollback(t *testing.T) {
-	defer func(prev func([]*slot)) { testHookBeforeUsingSelectedSlots = prev }(testHookBeforeUsingSelectedSlots)
-
+func TestUseSelectedSlots_PartialAllocationRollback(t *testing.T) {
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
 	s1 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
 	s2 := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
-	a := actionWithSlots("A", s1, s2)
 
-	// Force the second slot to be taken after selection but before use(),
-	// causing partial allocation and triggering rollback of s1.
-	testHookBeforeUsingSelectedSlots = func(selected []*slot) {
-		if len(selected) >= 2 {
-			_ = selected[1].use(nil, nil)
-		}
-	}
+	// Simulate a concurrent take of the second slot after selection but before useSelectedSlots.
+	require.True(t, s2.use(nil, nil))
 
-	assigned := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 2}, nil, nil)
-	require.Nil(t, assigned)
+	used, ok := useSelectedSlots([]*slot{s1, s2})
+	require.False(t, ok)
+	require.Nil(t, used)
 
 	// rollback should have nacked s1 (used=false)
 	require.False(t, s1.isUsed())
-	// s2 was taken by the hook
+	// s2 was taken by the simulated concurrent use
 	require.True(t, s2.isUsed())
 }
 

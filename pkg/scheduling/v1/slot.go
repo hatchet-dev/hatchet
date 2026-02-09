@@ -45,14 +45,6 @@ type assignedSlots struct {
 	rateLimitNack func()
 }
 
-// testHookBeforeUsingSelectedSlots exists to make certain concurrent/rollback
-// branches deterministic in unit tests. It is nil in production.
-var testHookBeforeUsingSelectedSlots func(selected []*slot)
-
-// testHookBeforeReplenishUnackedLock exists to make lock-order assertions
-// deterministic in unit tests. It is nil in production.
-var testHookBeforeReplenishUnackedLock func()
-
 func (a *assignedSlots) workerId() uuid.UUID {
 	if len(a.slots) == 0 {
 		return uuid.Nil
