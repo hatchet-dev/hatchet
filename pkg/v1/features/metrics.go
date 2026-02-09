@@ -7,6 +7,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: MetricsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // MetricsClient provides methods for retrieving metrics data
 // in the Hatchet platform.
 type MetricsClient interface {
@@ -27,6 +30,9 @@ type metricsClientImpl struct {
 	workflows *WorkflowsClient
 }
 
+// Deprecated: NewMetricsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // NewMetricsClient creates a new client for interacting with metrics.
 func NewMetricsClient(
 	api *rest.ClientWithResponses,

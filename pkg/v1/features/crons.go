@@ -9,6 +9,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: CronsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // CronsClient provides methods for interacting with cron workflow triggers
 // in the Hatchet platform.
 type CronsClient interface {
@@ -25,6 +28,9 @@ type CronsClient interface {
 	Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error)
 }
 
+// Deprecated: CreateCronTrigger is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // CreateCronTrigger contains the configuration for creating a cron trigger.
 type CreateCronTrigger struct {
 	// Name is the unique identifier for the cron trigger.
@@ -48,6 +54,9 @@ type cronsClientImpl struct {
 	tenantId uuid.UUID
 }
 
+// Deprecated: NewCronsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // NewCronsClient creates a new client for interacting with cron workflow triggers.
 func NewCronsClient(
 	api *rest.ClientWithResponses,
@@ -61,6 +70,9 @@ func NewCronsClient(
 	}
 }
 
+// Deprecated: ValidateCronExpression is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // ValidateCronExpression validates that a string is a valid cron expression.
 func ValidateCronExpression(expression string) bool {
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
@@ -155,6 +167,9 @@ func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWor
 	return resp.JSON200, nil
 }
 
+// Deprecated: InvalidCronExpressionError is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // InvalidCronExpressionError represents an error when an invalid cron expression is provided.
 type InvalidCronExpressionError struct {
 	Expression string
