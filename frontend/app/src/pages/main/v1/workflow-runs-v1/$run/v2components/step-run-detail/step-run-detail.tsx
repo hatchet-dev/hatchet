@@ -1,6 +1,7 @@
 import { V1RunIndicator } from '../../../components/run-statuses';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
+import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
@@ -20,12 +21,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import {
-  V1TaskEventType,
-  V1TaskStatus,
-  V1TaskSummary,
-  queries,
-} from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
@@ -124,7 +120,6 @@ export const TaskRunDetail = ({
     },
     [open],
   );
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -138,10 +133,7 @@ export const TaskRunDetail = ({
     },
   });
 
-  const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenant, { limit: 50, offset: 0 }, taskRunId),
-  });
-
+  const { isSkipped } = useIsTaskRunSkipped({ taskRunId });
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -151,10 +143,6 @@ export const TaskRunDetail = ({
   if (!taskRun) {
     return <div>No events found</div>;
   }
-
-  const isSkipped = eventsQuery.data?.rows?.some(
-    (event) => event.eventType === V1TaskEventType.SKIPPED,
-  );
 
   const isStandaloneTaskRun =
     taskRun.workflowRunExternalId === emptyGolangUUID ||
@@ -341,26 +329,17 @@ export const TaskRunDetail = ({
 };
 
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
   });
-
-  const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenant, { limit: 50, offset: 0 }, taskRunId),
-  });
+  const { isSkipped: hasSkippedEvent } = useIsTaskRunSkipped({ taskRunId });
 
   const timings = [];
-
   const data = taskRunQuery.data;
 
   if (taskRunQuery.isLoading || !data) {
     return <Loading />;
   }
-
-  const hasSkippedEvent = eventsQuery.data?.rows?.some(
-    (event) => event.eventType === V1TaskEventType.SKIPPED,
-  );
 
   if (data.startedAt) {
     timings.push(

@@ -1,3 +1,4 @@
+import { useIsTaskRunSkipped } from '../../hooks/use-is-task-run-skipped';
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
@@ -7,9 +8,7 @@ import {
   V1TaskEventType,
   WorkflowRunShapeItemForWorkflowRunDetails,
 } from '@/lib/api';
-import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 interface JobMiniMapProps {
@@ -184,16 +183,8 @@ export const TaskRunMiniMap = ({
   onClick,
   taskRunId,
 }: JobMiniMapProps & UseTaskRunProps) => {
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
   const { taskRun, isLoading, isError } = useTaskRun({ taskRunId });
-
-  const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenant, { limit: 50, offset: 0 }, taskRunId),
-  });
-
-  const isSkipped = eventsQuery.data?.rows?.some(
-    (event) => event.eventType === V1TaskEventType.SKIPPED,
-  );
+  const { isSkipped } = useIsTaskRunSkipped({ taskRunId, limit: 1 });
 
   if (isLoading || isError || !taskRun) {
     return null;
