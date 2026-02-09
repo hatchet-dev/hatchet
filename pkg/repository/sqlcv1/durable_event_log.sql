@@ -41,26 +41,39 @@ RETURNING *
 ;
 
 -- name: GetOrCreateEventLogFileForTask :one
-INSERT INTO v1_durable_event_log_file (
-    tenant_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    latest_inserted_at,
-    latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
+WITH to_insert AS (
+    SELECT
+        @tenantId::UUID AS tenant_id,
+        @durableTaskId::BIGINT AS durable_task_id,
+        @durableTaskInsertedAt::TIMESTAMPTZ AS durable_task_inserted_at,
+        @latestInsertedAt::TIMESTAMPTZ AS latest_inserted_at,
+        @latestNodeId::BIGINT AS latest_node_id,
+        @latestBranchId::BIGINT AS latest_branch_id,
+        @latestBranchFirstParentNodeId::BIGINT AS latest_branch_first_parent_node_id
+), ins AS (
+    INSERT INTO v1_durable_event_log_file (
+        tenant_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        latest_inserted_at,
+        latest_node_id,
+        latest_branch_id,
+        latest_branch_first_parent_node_id
+    )
+    SELECT
+        tenant_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        latest_inserted_at,
+        latest_node_id,
+        latest_branch_id,
+        latest_branch_first_parent_node_id
+    FROM to_insert
+    ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
 )
-VALUES (
-    @tenantId::UUID,
-    @durableTaskId::BIGINT,
-    @durableTaskInsertedAt::TIMESTAMPTZ,
-    @latestInsertedAt::TIMESTAMPTZ,
-    @latestNodeId::BIGINT,
-    @latestBranchId::BIGINT,
-    @latestBranchFirstParentNodeId::BIGINT
-)
-ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
-RETURNING *
+
+SELECT *
+FROM to_insert
 ;
 
 -- todo: implement UpdateLatestNodeId

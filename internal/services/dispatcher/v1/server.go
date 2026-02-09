@@ -469,6 +469,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	}
 
 	logFile, err := d.repo.DurableEvents().GetOrCreateEventLogFileForTask(ctx, invocation.tenantId, task.ID, task.InsertedAt)
+
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get or create event log file: %v", err)
 	}

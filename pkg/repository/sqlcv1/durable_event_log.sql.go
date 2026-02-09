@@ -405,26 +405,39 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 }
 
 const getOrCreateEventLogFileForTask = `-- name: GetOrCreateEventLogFileForTask :one
-INSERT INTO v1_durable_event_log_file (
-    tenant_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    latest_inserted_at,
-    latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
+WITH to_insert AS (
+    SELECT
+        $1::UUID AS tenant_id,
+        $2::BIGINT AS durable_task_id,
+        $3::TIMESTAMPTZ AS durable_task_inserted_at,
+        $4::TIMESTAMPTZ AS latest_inserted_at,
+        $5::BIGINT AS latest_node_id,
+        $6::BIGINT AS latest_branch_id,
+        $7::BIGINT AS latest_branch_first_parent_node_id
+), ins AS (
+    INSERT INTO v1_durable_event_log_file (
+        tenant_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        latest_inserted_at,
+        latest_node_id,
+        latest_branch_id,
+        latest_branch_first_parent_node_id
+    )
+    SELECT
+        tenant_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        latest_inserted_at,
+        latest_node_id,
+        latest_branch_id,
+        latest_branch_first_parent_node_id
+    FROM to_insert
+    ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
 )
-VALUES (
-    $1::UUID,
-    $2::BIGINT,
-    $3::TIMESTAMPTZ,
-    $4::TIMESTAMPTZ,
-    $5::BIGINT,
-    $6::BIGINT,
-    $7::BIGINT
-)
-ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
-RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+FROM to_insert
 `
 
 type GetOrCreateEventLogFileForTaskParams struct {
@@ -437,7 +450,17 @@ type GetOrCreateEventLogFileForTaskParams struct {
 	Latestbranchfirstparentnodeid int64              `json:"latestbranchfirstparentnodeid"`
 }
 
-func (q *Queries) GetOrCreateEventLogFileForTask(ctx context.Context, db DBTX, arg GetOrCreateEventLogFileForTaskParams) (*V1DurableEventLogFile, error) {
+type GetOrCreateEventLogFileForTaskRow struct {
+	TenantID                      uuid.UUID          `json:"tenant_id"`
+	DurableTaskID                 int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
+	LatestNodeID                  int64              `json:"latest_node_id"`
+	LatestBranchID                int64              `json:"latest_branch_id"`
+	LatestBranchFirstParentNodeID int64              `json:"latest_branch_first_parent_node_id"`
+}
+
+func (q *Queries) GetOrCreateEventLogFileForTask(ctx context.Context, db DBTX, arg GetOrCreateEventLogFileForTaskParams) (*GetOrCreateEventLogFileForTaskRow, error) {
 	row := db.QueryRow(ctx, getOrCreateEventLogFileForTask,
 		arg.Tenantid,
 		arg.Durabletaskid,
@@ -447,7 +470,7 @@ func (q *Queries) GetOrCreateEventLogFileForTask(ctx context.Context, db DBTX, a
 		arg.Latestbranchid,
 		arg.Latestbranchfirstparentnodeid,
 	)
-	var i V1DurableEventLogFile
+	var i GetOrCreateEventLogFileForTaskRow
 	err := row.Scan(
 		&i.TenantID,
 		&i.DurableTaskID,
