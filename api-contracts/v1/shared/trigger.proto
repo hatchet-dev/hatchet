@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1";
+
+package v1;
+
+message TriggerWorkflowRequest {
+    string name = 1;
+
+    // (optional) the input data for the workflow
+    string input = 2;
+
+    // (optional) the parent workflow run id
+    optional string parent_id = 3;
+
+    // (optional) the parent task external run id
+    optional string parent_task_run_external_id = 4;
+
+    // (optional) the index of the child workflow. if this is set, matches on the index or the
+    // child key will return an existing workflow run if the parent id, parent task run id, and
+    // child index/key match an existing workflow run.
+    optional int32 child_index = 5;
+
+    // (optional) the key for the child. if this is set, matches on the index or the
+    // child key will return an existing workflow run if the parent id, parent task run id, and
+    // child index/key match an existing workflow run.
+    optional string child_key = 6;
+
+    // (optional) additional metadata for the workflow
+    optional string additional_metadata = 7;
+
+    // (optional) desired worker id for the workflow run,
+    // requires the workflow definition to have a sticky strategy
+    optional string desired_worker_id = 8;
+
+    // (optional) override for the priority of the workflow tasks, will set all tasks to this priority
+    optional int32 priority = 9;
+}

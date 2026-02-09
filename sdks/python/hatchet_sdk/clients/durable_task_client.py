@@ -20,7 +20,6 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskResponse,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
-from hatchet_sdk.contracts.v1.dispatcher_pb2 import TriggerWorkflowRequest
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
@@ -240,22 +239,6 @@ class DurableTaskClient:
                 options=trigger_workflow_opts or TriggerWorkflowOptions(),
             )
             if workflow_name
-            else None
-        )
-
-        _trigger_opts = (
-            TriggerWorkflowRequest(
-                name=_trigger_opts.name,
-                input=_trigger_opts.input,
-                parent_id=_trigger_opts.parent_id,
-                parent_task_run_external_id=_trigger_opts.parent_task_run_external_id,
-                child_index=_trigger_opts.child_index,
-                child_key=_trigger_opts.child_key,
-                additional_metadata=_trigger_opts.additional_metadata,
-                desired_worker_id=_trigger_opts.desired_worker_id,
-                priority=_trigger_opts.priority,
-            )
-            if _trigger_opts
             else None
         )
 

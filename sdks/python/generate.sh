@@ -60,11 +60,13 @@ MIN_GRPCIO_VERSION=$(grep '^grpcio = ' pyproject.toml | cut -d'"' -f2 | tr -d '^
 
 poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
 
+
 proto_paths=(
   "../../api-contracts/dispatcher dispatcher.proto"
   "../../api-contracts/events events.proto"
-  "../../api-contracts/workflows workflows.proto"
+  "../../api-contracts workflows/workflows.proto"
   "../../api-contracts v1/shared/condition.proto"
+  "../../api-contracts v1/shared/trigger.proto"
   "../../api-contracts v1/dispatcher.proto"
   "../../api-contracts v1/workflows.proto"
 )

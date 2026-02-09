@@ -3,7 +3,8 @@
 import grpc
 import warnings
 
-from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as v1_dot_shared_dot_trigger__pb2
+from hatchet_sdk.contracts.workflows import workflows_pb2 as workflows_dot_workflows__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +19,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in workflows_pb2_grpc.py depends on'
+        + ' but the generated code in workflows/workflows_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -37,28 +38,28 @@ class WorkflowServiceStub(object):
         """
         self.PutWorkflow = channel.unary_unary(
                 '/WorkflowService/PutWorkflow',
-                request_serializer=workflows__pb2.PutWorkflowRequest.SerializeToString,
-                response_deserializer=workflows__pb2.WorkflowVersion.FromString,
+                request_serializer=workflows_dot_workflows__pb2.PutWorkflowRequest.SerializeToString,
+                response_deserializer=workflows_dot_workflows__pb2.WorkflowVersion.FromString,
                 _registered_method=True)
         self.ScheduleWorkflow = channel.unary_unary(
                 '/WorkflowService/ScheduleWorkflow',
-                request_serializer=workflows__pb2.ScheduleWorkflowRequest.SerializeToString,
-                response_deserializer=workflows__pb2.WorkflowVersion.FromString,
+                request_serializer=workflows_dot_workflows__pb2.ScheduleWorkflowRequest.SerializeToString,
+                response_deserializer=workflows_dot_workflows__pb2.WorkflowVersion.FromString,
                 _registered_method=True)
         self.TriggerWorkflow = channel.unary_unary(
                 '/WorkflowService/TriggerWorkflow',
-                request_serializer=workflows__pb2.TriggerWorkflowRequest.SerializeToString,
-                response_deserializer=workflows__pb2.TriggerWorkflowResponse.FromString,
+                request_serializer=v1_dot_shared_dot_trigger__pb2.TriggerWorkflowRequest.SerializeToString,
+                response_deserializer=workflows_dot_workflows__pb2.TriggerWorkflowResponse.FromString,
                 _registered_method=True)
         self.BulkTriggerWorkflow = channel.unary_unary(
                 '/WorkflowService/BulkTriggerWorkflow',
-                request_serializer=workflows__pb2.BulkTriggerWorkflowRequest.SerializeToString,
-                response_deserializer=workflows__pb2.BulkTriggerWorkflowResponse.FromString,
+                request_serializer=workflows_dot_workflows__pb2.BulkTriggerWorkflowRequest.SerializeToString,
+                response_deserializer=workflows_dot_workflows__pb2.BulkTriggerWorkflowResponse.FromString,
                 _registered_method=True)
         self.PutRateLimit = channel.unary_unary(
                 '/WorkflowService/PutRateLimit',
-                request_serializer=workflows__pb2.PutRateLimitRequest.SerializeToString,
-                response_deserializer=workflows__pb2.PutRateLimitResponse.FromString,
+                request_serializer=workflows_dot_workflows__pb2.PutRateLimitRequest.SerializeToString,
+                response_deserializer=workflows_dot_workflows__pb2.PutRateLimitResponse.FromString,
                 _registered_method=True)
 
 
@@ -101,28 +102,28 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'PutWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.PutWorkflow,
-                    request_deserializer=workflows__pb2.PutWorkflowRequest.FromString,
-                    response_serializer=workflows__pb2.WorkflowVersion.SerializeToString,
+                    request_deserializer=workflows_dot_workflows__pb2.PutWorkflowRequest.FromString,
+                    response_serializer=workflows_dot_workflows__pb2.WorkflowVersion.SerializeToString,
             ),
             'ScheduleWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.ScheduleWorkflow,
-                    request_deserializer=workflows__pb2.ScheduleWorkflowRequest.FromString,
-                    response_serializer=workflows__pb2.WorkflowVersion.SerializeToString,
+                    request_deserializer=workflows_dot_workflows__pb2.ScheduleWorkflowRequest.FromString,
+                    response_serializer=workflows_dot_workflows__pb2.WorkflowVersion.SerializeToString,
             ),
             'TriggerWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.TriggerWorkflow,
-                    request_deserializer=workflows__pb2.TriggerWorkflowRequest.FromString,
-                    response_serializer=workflows__pb2.TriggerWorkflowResponse.SerializeToString,
+                    request_deserializer=v1_dot_shared_dot_trigger__pb2.TriggerWorkflowRequest.FromString,
+                    response_serializer=workflows_dot_workflows__pb2.TriggerWorkflowResponse.SerializeToString,
             ),
             'BulkTriggerWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.BulkTriggerWorkflow,
-                    request_deserializer=workflows__pb2.BulkTriggerWorkflowRequest.FromString,
-                    response_serializer=workflows__pb2.BulkTriggerWorkflowResponse.SerializeToString,
+                    request_deserializer=workflows_dot_workflows__pb2.BulkTriggerWorkflowRequest.FromString,
+                    response_serializer=workflows_dot_workflows__pb2.BulkTriggerWorkflowResponse.SerializeToString,
             ),
             'PutRateLimit': grpc.unary_unary_rpc_method_handler(
                     servicer.PutRateLimit,
-                    request_deserializer=workflows__pb2.PutRateLimitRequest.FromString,
-                    response_serializer=workflows__pb2.PutRateLimitResponse.SerializeToString,
+                    request_deserializer=workflows_dot_workflows__pb2.PutRateLimitRequest.FromString,
+                    response_serializer=workflows_dot_workflows__pb2.PutRateLimitResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -151,8 +152,8 @@ class WorkflowService(object):
             request,
             target,
             '/WorkflowService/PutWorkflow',
-            workflows__pb2.PutWorkflowRequest.SerializeToString,
-            workflows__pb2.WorkflowVersion.FromString,
+            workflows_dot_workflows__pb2.PutWorkflowRequest.SerializeToString,
+            workflows_dot_workflows__pb2.WorkflowVersion.FromString,
             options,
             channel_credentials,
             insecure,
@@ -178,8 +179,8 @@ class WorkflowService(object):
             request,
             target,
             '/WorkflowService/ScheduleWorkflow',
-            workflows__pb2.ScheduleWorkflowRequest.SerializeToString,
-            workflows__pb2.WorkflowVersion.FromString,
+            workflows_dot_workflows__pb2.ScheduleWorkflowRequest.SerializeToString,
+            workflows_dot_workflows__pb2.WorkflowVersion.FromString,
             options,
             channel_credentials,
             insecure,
@@ -205,8 +206,8 @@ class WorkflowService(object):
             request,
             target,
             '/WorkflowService/TriggerWorkflow',
-            workflows__pb2.TriggerWorkflowRequest.SerializeToString,
-            workflows__pb2.TriggerWorkflowResponse.FromString,
+            v1_dot_shared_dot_trigger__pb2.TriggerWorkflowRequest.SerializeToString,
+            workflows_dot_workflows__pb2.TriggerWorkflowResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -232,8 +233,8 @@ class WorkflowService(object):
             request,
             target,
             '/WorkflowService/BulkTriggerWorkflow',
-            workflows__pb2.BulkTriggerWorkflowRequest.SerializeToString,
-            workflows__pb2.BulkTriggerWorkflowResponse.FromString,
+            workflows_dot_workflows__pb2.BulkTriggerWorkflowRequest.SerializeToString,
+            workflows_dot_workflows__pb2.BulkTriggerWorkflowResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -259,8 +260,8 @@ class WorkflowService(object):
             request,
             target,
             '/WorkflowService/PutRateLimit',
-            workflows__pb2.PutRateLimitRequest.SerializeToString,
-            workflows__pb2.PutRateLimitResponse.FromString,
+            workflows_dot_workflows__pb2.PutRateLimitRequest.SerializeToString,
+            workflows_dot_workflows__pb2.PutRateLimitResponse.FromString,
             options,
             channel_credentials,
             insecure,

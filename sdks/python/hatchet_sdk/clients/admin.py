@@ -15,10 +15,11 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
+from hatchet_sdk.contracts.workflows import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
-from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.contracts.workflows.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
@@ -186,7 +187,7 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> v0_workflow_protos.TriggerWorkflowRequest:
+    ) -> trigger_protos.TriggerWorkflowRequest:
         try:
             payload_data = json.dumps(input)
         except json.JSONDecodeError as e:
@@ -194,7 +195,7 @@ class AdminClient:
 
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
-        return v0_workflow_protos.TriggerWorkflowRequest(
+        return trigger_protos.TriggerWorkflowRequest(
             name=workflow_name,
             input=payload_data,
             parent_id=_options.parent_id,
@@ -342,7 +343,7 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> v0_workflow_protos.TriggerWorkflowRequest:
+    ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
