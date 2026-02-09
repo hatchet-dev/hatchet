@@ -15,9 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -543,6 +541,24 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	if req.Kind == contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR && req.WaitForConditions != nil {
 		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
+		callbackKey := fmt.Sprintf("%s:%d:%d", req.DurableTaskExternalId, nodeId, req.InvocationCount)
+
+		callbackExternalId := uuid.New()
+		_, err = d.repo.DurableEvents().CreateEventLogCallbacks(ctx, []v1.CreateEventLogCallbackOpts{{
+			TenantId:              invocation.tenantId,
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
+			InsertedAt:            now,
+			Kind:                  sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED,
+			Key:                   callbackKey,
+			NodeId:                nodeId,
+			IsSatisfied:           false,
+			ExternalId:            callbackExternalId,
+			DispatcherId:          d.dispatcherId,
+		}})
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to create callback entry: %v", err)
+		}
 
 		createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
@@ -579,11 +595,14 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 		if len(createConditionOpts) > 0 {
 			createMatchOpts := []v1.ExternalCreateSignalMatchOpts{{
-				Conditions:           createConditionOpts,
-				SignalTaskId:         task.ID,
-				SignalTaskInsertedAt: task.InsertedAt,
-				SignalExternalId:     task.ExternalID,
-				SignalKey:            signalKey,
+				Conditions:                    createConditionOpts,
+				SignalTaskId:                  task.ID,
+				SignalTaskInsertedAt:          task.InsertedAt,
+				SignalExternalId:              task.ExternalID,
+				SignalKey:                     signalKey,
+				DurableCallbackTaskId:         &task.ID,
+				DurableCallbackTaskInsertedAt: task.InsertedAt,
+				DurableCallbackKey:            &callbackKey,
 			}}
 
 			err = d.repo.Matches().RegisterSignalMatchConditions(ctx, invocation.tenantId, createMatchOpts)
@@ -661,7 +680,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	tenantId := invocation.tenantId
-	callbackKey := fmt.Sprintf("%s:%d", req.DurableTaskExternalId, req.NodeId)
+	callbackKey := fmt.Sprintf("%s:%d:%d", req.DurableTaskExternalId, req.NodeId, req.InvocationCount)
 
 	existingCallback, err := d.repo.DurableEvents().GetEventLogCallback(ctx, tenantId, task.ID, task.InsertedAt, callbackKey)
 
@@ -707,24 +726,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	if callbackKind == sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED {
 		d.durableInvocations.Store(req.DurableTaskExternalId, invocation)
 
-		msg, err := tasktypes.RegisterDurableCallbackMessage(
-			tenantId,
-			req.DurableTaskExternalId,
-			req.NodeId,
-			req.InvocationCount,
-			d.dispatcherId,
-		)
-
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to create register callback message: %v", err)
-		}
-
-		err = d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to send register callback message: %v", err)
-		}
-
+		// Callback was already created in handleDurableTaskEvent, just send ack
 		return invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_RegisterCallbackAck{
 				RegisterCallbackAck: &contracts.DurableTaskRegisterCallbackAckResponse{

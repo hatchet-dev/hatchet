@@ -52,7 +52,7 @@ type CreateMatchConditionsParams struct {
 const createMatchesForSignalTriggers = `-- name: CreateMatchesForSignalTriggers :many
 WITH input AS (
     SELECT
-        tenant_id, kind, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key
+        tenant_id, kind, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, callback_durable_task_id, callback_durable_task_inserted_at, callback_key
     FROM
         (
             SELECT
@@ -61,7 +61,10 @@ WITH input AS (
                 unnest($3::bigint[]) AS signal_task_id,
                 unnest($4::timestamptz[]) AS signal_task_inserted_at,
                 unnest($5::uuid[]) AS signal_external_id,
-                unnest($6::text[]) AS signal_key
+                unnest($6::text[]) AS signal_key,
+                unnest($7::bigint[]) AS callback_durable_task_id,
+                unnest($8::timestamptz[]) AS callback_durable_task_inserted_at,
+                unnest($9::text[]) AS callback_key
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -70,7 +73,10 @@ INSERT INTO v1_match (
     signal_task_id,
     signal_task_inserted_at,
     signal_external_id,
-    signal_key
+    signal_key,
+    durable_event_log_callback_durable_task_id,
+    durable_event_log_callback_durable_task_inserted_at,
+    durable_event_log_callback_key
 )
 SELECT
     i.tenant_id,
@@ -78,7 +84,10 @@ SELECT
     i.signal_task_id,
     i.signal_task_inserted_at,
     i.signal_external_id,
-    i.signal_key
+    i.signal_key,
+    i.callback_durable_task_id,
+    i.callback_durable_task_inserted_at,
+    i.callback_key
 FROM
     input i
 RETURNING
@@ -86,12 +95,15 @@ RETURNING
 `
 
 type CreateMatchesForSignalTriggersParams struct {
-	Tenantids             []uuid.UUID          `json:"tenantids"`
-	Kinds                 []string             `json:"kinds"`
-	Signaltaskids         []int64              `json:"signaltaskids"`
-	Signaltaskinsertedats []pgtype.Timestamptz `json:"signaltaskinsertedats"`
-	Signalexternalids     []uuid.UUID          `json:"signalexternalids"`
-	Signalkeys            []string             `json:"signalkeys"`
+	Tenantids                      []uuid.UUID          `json:"tenantids"`
+	Kinds                          []string             `json:"kinds"`
+	Signaltaskids                  []int64              `json:"signaltaskids"`
+	Signaltaskinsertedats          []pgtype.Timestamptz `json:"signaltaskinsertedats"`
+	Signalexternalids              []uuid.UUID          `json:"signalexternalids"`
+	Signalkeys                     []string             `json:"signalkeys"`
+	Callbackdurabletaskids         []int64              `json:"callbackdurabletaskids"`
+	Callbackdurabletaskinsertedats []pgtype.Timestamptz `json:"callbackdurabletaskinsertedats"`
+	Callbackkeys                   []string             `json:"callbackkeys"`
 }
 
 func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V1Match, error) {
@@ -102,6 +114,9 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 		arg.Signaltaskinsertedats,
 		arg.Signalexternalids,
 		arg.Signalkeys,
+		arg.Callbackdurabletaskids,
+		arg.Callbackdurabletaskinsertedats,
+		arg.Callbackkeys,
 	)
 	if err != nil {
 		return nil, err
@@ -482,36 +497,4 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateMatchCallbackLink = `-- name: UpdateMatchCallbackLink :exec
-UPDATE v1_match
-SET durable_event_log_callback_durable_task_id = $1::BIGINT,
-    durable_event_log_callback_durable_task_inserted_at = $2::TIMESTAMPTZ,
-    durable_event_log_callback_key = $3::TEXT
-WHERE signal_task_id = $4::BIGINT
-  AND signal_task_inserted_at = $5::TIMESTAMPTZ
-  AND signal_key = $6::TEXT
-  AND is_satisfied = false
-`
-
-type UpdateMatchCallbackLinkParams struct {
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Callbackkey           string             `json:"callbackkey"`
-	Signaltaskid          int64              `json:"signaltaskid"`
-	Signaltaskinsertedat  pgtype.Timestamptz `json:"signaltaskinsertedat"`
-	Signalkey             string             `json:"signalkey"`
-}
-
-func (q *Queries) UpdateMatchCallbackLink(ctx context.Context, db DBTX, arg UpdateMatchCallbackLinkParams) error {
-	_, err := db.Exec(ctx, updateMatchCallbackLink,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
-		arg.Callbackkey,
-		arg.Signaltaskid,
-		arg.Signaltaskinsertedat,
-		arg.Signalkey,
-	)
-	return err
 }

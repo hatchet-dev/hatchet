@@ -10,7 +10,10 @@ WITH input AS (
                 unnest(@signalTaskIds::bigint[]) AS signal_task_id,
                 unnest(@signalTaskInsertedAts::timestamptz[]) AS signal_task_inserted_at,
                 unnest(@signalExternalIds::uuid[]) AS signal_external_id,
-                unnest(@signalKeys::text[]) AS signal_key
+                unnest(@signalKeys::text[]) AS signal_key,
+                unnest(@callbackDurableTaskIds::bigint[]) AS callback_durable_task_id,
+                unnest(@callbackDurableTaskInsertedAts::timestamptz[]) AS callback_durable_task_inserted_at,
+                unnest(@callbackKeys::text[]) AS callback_key
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -19,7 +22,10 @@ INSERT INTO v1_match (
     signal_task_id,
     signal_task_inserted_at,
     signal_external_id,
-    signal_key
+    signal_key,
+    durable_event_log_callback_durable_task_id,
+    durable_event_log_callback_durable_task_inserted_at,
+    durable_event_log_callback_key
 )
 SELECT
     i.tenant_id,
@@ -27,7 +33,10 @@ SELECT
     i.signal_task_id,
     i.signal_task_inserted_at,
     i.signal_external_id,
-    i.signal_key
+    i.signal_key,
+    i.callback_durable_task_id,
+    i.callback_durable_task_inserted_at,
+    i.callback_key
 FROM
     input i
 RETURNING
@@ -260,16 +269,6 @@ JOIN
 ORDER BY
     m.id
 FOR UPDATE;
-
--- name: UpdateMatchCallbackLink :exec
-UPDATE v1_match
-SET durable_event_log_callback_durable_task_id = @durableTaskId::BIGINT,
-    durable_event_log_callback_durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ,
-    durable_event_log_callback_key = @callbackKey::TEXT
-WHERE signal_task_id = @signalTaskId::BIGINT
-  AND signal_task_inserted_at = @signalTaskInsertedAt::TIMESTAMPTZ
-  AND signal_key = @signalKey::TEXT
-  AND is_satisfied = false;
 
 -- name: CleanupMatchWithMatchConditions :exec
 WITH deleted_match_ids AS (

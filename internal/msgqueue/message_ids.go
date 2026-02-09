@@ -13,7 +13,6 @@ const (
 	MsgIDFailedWebhookValidation      = "failed-webhook-validation"
 	MsgIDInternalEvent                = "internal-event"
 	MsgIDOffloadPayload               = "offload-payload"
-	MsgIDRegisterDurableCallback      = "register-durable-callback"
 	MsgIDReplayTasks                  = "replay-tasks"
 	MsgIDTaskAssignedBulk             = "task-assigned-bulk"
 	MsgIDTaskCancelled                = "task-cancelled"

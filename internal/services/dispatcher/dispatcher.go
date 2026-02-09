@@ -46,10 +46,10 @@ type DispatcherImpl struct {
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
 
-	dispatcherId            uuid.UUID
-	workers                 *workers
-	a                       *hatcheterrors.Wrapped
-	durableCallbackHandler  DurableCallbackHandler
+	dispatcherId           uuid.UUID
+	workers                *workers
+	a                      *hatcheterrors.Wrapped
+	durableCallbackHandler DurableCallbackHandler
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
