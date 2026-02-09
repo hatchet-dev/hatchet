@@ -397,12 +397,6 @@ class Task(Generic[TWorkflowInput, R]):
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
         )
 
-        # Backwards/forwards compatibility across protobuf schema versions.
-        if "is_durable" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
-            proto.is_durable = self.is_durable
-        if "slot_requests" in CreateTaskOpts.DESCRIPTOR.fields_by_name:
-            proto.slot_requests.update(self.slot_requests)
-
         return proto
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
