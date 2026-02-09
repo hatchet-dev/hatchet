@@ -9,8 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 )
@@ -42,7 +41,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// determine if the user exists before attempting to write the user
-	_, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
+	_, err := u.config.V1.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		u.config.Logger.Err(err).Msg("failed to get user by email")
@@ -58,7 +57,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		), nil
 	}
 
-	hashedPw, err := repository.HashPassword(request.Body.Password)
+	hashedPw, err := v1.HashPassword(request.Body.Password)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to hash password")
@@ -74,15 +73,15 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		), nil
 	}
 
-	createOpts := &repository.CreateUserOpts{
+	createOpts := &v1.CreateUserOpts{
 		Email:         string(request.Body.Email),
-		EmailVerified: repository.BoolPtr(u.config.Auth.ConfigFile.SetEmailVerified),
-		Name:          repository.StringPtr(request.Body.Name),
+		EmailVerified: v1.BoolPtr(u.config.Auth.ConfigFile.SetEmailVerified),
+		Name:          v1.StringPtr(request.Body.Name),
 		Password:      hashedPw,
 	}
 
 	// write the user to the db
-	user, err := u.config.APIRepository.User().CreateUser(ctx.Request().Context(), createOpts)
+	user, err := u.config.V1.User().CreateUser(ctx.Request().Context(), createOpts)
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to create user")
 		return gen.UserCreate400JSONResponse(
@@ -98,17 +97,6 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 			apierrors.NewAPIErrors(ErrRegistrationFailed),
 		), nil
 	}
-
-	u.config.Analytics.Enqueue(
-		"user:create",
-		sqlchelpers.UUIDToStr(user.ID),
-		nil,
-		map[string]interface{}{
-			"email": request.Body.Email,
-			"name":  request.Body.Name,
-		},
-		nil,
-	)
 
 	return gen.UserCreate200JSONResponse(
 		*transformers.ToUser(user, false, nil),

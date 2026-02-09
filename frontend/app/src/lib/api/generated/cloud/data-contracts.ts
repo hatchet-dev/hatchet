@@ -18,9 +18,9 @@ export enum OrganizationInviteStatus {
 }
 
 export enum ManagementTokenDuration {
-  Value30D = "30d",
-  Value60D = "60d",
-  Value90D = "90d",
+  Value30D = "30D",
+  Value60D = "60D",
+  Value90D = "90D",
 }
 
 export enum TenantStatusType {
@@ -46,13 +46,6 @@ export enum AutoscalingTargetKind {
 export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
-}
-
-export enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
 }
 
 export enum ManagedWorkerRegion {
@@ -343,44 +336,14 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
 }
 
 export interface TenantBillingState {
-  paymentMethods?: TenantPaymentMethod[];
   /** The subscription associated with this policy. */
-  subscription: TenantSubscription;
+  currentSubscription: TenantSubscription;
+  /** The upcoming subscription associated with this policy. */
+  upcomingSubscription?: TenantSubscription;
   /** A list of plans available for the tenant. */
-  plans?: SubscriptionPlan[];
+  plans: SubscriptionPlan[];
   /** A list of coupons applied to the tenant. */
   coupons?: Coupon[];
-}
-
-export interface SubscriptionPlan {
-  /** The code of the plan. */
-  plan_code: string;
-  /** The name of the plan. */
-  name: string;
-  /** The description of the plan. */
-  description: string;
-  /** The price of the plan. */
-  amount_cents: number;
-  /** The period of the plan. */
-  period?: string;
-}
-
-export interface UpdateTenantSubscription {
-  /** The code of the plan. */
-  plan?: string;
-  /** The period of the plan. */
-  period?: string;
-}
-
-export interface TenantSubscription {
-  /** The plan code associated with the tenant subscription. */
-  plan?: string;
-  /** The period associated with the tenant subscription. */
-  period?: string;
-  /** The status of the tenant subscription. */
-  status?: TenantSubscriptionStatus;
-  /** A note associated with the tenant subscription. */
-  note?: string;
 }
 
 export interface TenantPaymentMethod {
@@ -392,6 +355,57 @@ export interface TenantPaymentMethod {
   expiration?: string;
   /** The description of the payment method. */
   description?: string;
+}
+
+export type TenantPaymentMethodList = TenantPaymentMethod[];
+
+export interface SubscriptionPlan {
+  /** The code of the plan. */
+  planCode: string;
+  /** The name of the plan. */
+  name: string;
+  /** The description of the plan. */
+  description: string;
+  /** The price of the plan. */
+  amountCents: number;
+  /** The period of the plan. */
+  period?: string;
+}
+
+export interface UpdateTenantSubscriptionRequest {
+  /** The code of the plan. */
+  plan: string;
+  /** The period of the plan. */
+  period?: string;
+}
+
+export type UpdateTenantSubscriptionResponse =
+  | CheckoutURLResponse
+  | {
+      currentSubscription: TenantSubscription;
+      upcomingSubscription?: TenantSubscription;
+    };
+
+export interface CheckoutURLResponse {
+  /** The URL to the checkout page. */
+  checkoutUrl: string;
+}
+
+export interface TenantSubscription {
+  /** The plan code associated with the tenant subscription. */
+  plan: string;
+  /** The period associated with the tenant subscription. */
+  period?: string;
+  /**
+   * The start date of the tenant subscription.
+   * @format date-time
+   */
+  startedAt: string;
+  /**
+   * The end date of the tenant subscription.
+   * @format date-time
+   */
+  endsAt?: string;
 }
 
 export interface Coupon {
@@ -695,6 +709,11 @@ export interface CreateNewTenantForOrganizationRequest {
   slug: string;
 }
 
+export interface UpdateOrganizationTenantRequest {
+  /** The name of the tenant. */
+  name: string;
+}
+
 export type APIToken = any;
 
 export type APITokenList = any;
@@ -706,7 +725,7 @@ export type CreateTenantAPITokenResponse = any;
 export interface CreateManagementTokenRequest {
   /** The name of the management token. */
   name: string;
-  /** @default "30d" */
+  /** @default "30D" */
   duration?: ManagementTokenDuration;
 }
 
@@ -727,7 +746,7 @@ export interface ManagementToken {
    * The timestamp at which the management token expires
    * @format date-time
    */
-  expiresAt: string;
+  expiresAt?: string;
 }
 
 export interface ManagementTokenList {
@@ -789,5 +808,31 @@ export interface RejectOrganizationInviteRequest {
    * The ID of the organization invite
    * @format uuid
    */
+  id: string;
+}
+
+export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
+
+export interface AutumnCustomerProductsUpdatedEvent {
+  data: AutumnCustomerProductsUpdatedEventData;
+  type: string;
+}
+
+export interface AutumnCustomerProductsUpdatedEventData {
+  customer: AutumnCustomer;
+  entity: {
+    id: string;
+    customer_id: string;
+    products: AutumnCustomerProduct[];
+  };
+}
+
+export interface AutumnCustomer {
+  id: string;
+  metadata: object;
+  name: string;
+}
+
+export interface AutumnCustomerProduct {
   id: string;
 }

@@ -5,6 +5,196 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.0] - 2026-02-05
+
+### Internal Only
+
+- Updated gRPC/REST contract field names to snake_case for consistency across SDKs.
+
+
+## [1.22.16] - 2026-02-05
+
+### Changed
+
+- Changes the python SDK to use `inspect.iscoroutinefunction` instead of `asyncio.iscoroutinefunction` which is deprecated.
+- Improves error diagnostics for transport-level failures in the REST client, such as SSL, connection, and timeout errors, by surfacing additional context.
+
+## [1.22.15] - 2026-02-02
+
+### Added
+
+- Adds `task_name` and `workflow_name` properties to the `Context` and `DurableContext` classes to allow tasks and lifespans to access their own names.
+
+### Changed
+
+- Fixes a bug to allow `ContextVars` to be used in lifespans
+- Improves worker shutdown + cleanup logic to avoid leaking semaphores in the action listener process.
+
+## [1.22.14] - 2026-01-31
+
+### Changed
+
+- Allows `None` to be sent from `send_step_action_event` to help limit an internal error on the engine.
+
+## [1.22.13] - 2026-01-29
+
+### Added
+
+- Sends the `task_retry_count` when sending logs to the engine to enable filtering on the frontend.
+
+## [1.22.12] - 2026-01-28
+
+### Added
+
+- Adds a `default_additional_metadata` to the `hatchet.workflow`, `hatchet.task`, and `hatchet.durable_task` methods, which allows you to declaratively provide additional metadata that will be attached to each run of the workflow or task by default.
+
+### Internal Only
+
+- Sends a JSON schema to the engine on workflow registration in order to power autocomplete for triggering workflows from the dashboard.
+
+## [1.22.11] - 2026-01-27
+
+### Changed
+
+- Improves handling of cancellations for tasks to limit how often tasks receive a cancellation but then are marked as succeeded anyways.
+
+## [1.22.10] - 2026-01-26
+
+### Added
+
+- `HATCHET_CLIENT_WORKER_HEALTHCHECK_BIND_ADDRESS` now allows configuring the bind address for the worker healthcheck server (default: `0.0.0.0`)
+
+## [1.22.9] - 2026-01-26
+
+### Added
+
+- Adds missing `unwrap` for `schedule_workflow` in OpenTelemetry instrumentor.
+
+## [1.22.8] - 2026-01-20
+
+### Added
+
+- Adds `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` to configure when the worker healthcheck becomes unhealthy if the listener process event loop is blocked / task runs are not starting promptly.
+
+### Removed
+
+- Removes a bunch of Poetry scripts that were mostly used for local development and are not necessary for end users of the SDK.
+
+### Changed
+
+- The worker healthcheck server (`/health`, `/metrics`) now runs in the spawned action-listener process (non-durable preferred; durable fallback), instead of the main worker process.
+- The worker `/health` endpoint now checks for listener connection status and aio event loop health.
+- The worker `/metrics` endpoint now exposes listener-focused metrics like `hatchet_worker_listener_health_<worker_name>` and `hatchet_worker_event_loop_lag_seconds_<worker_name>`.
+
+## [1.22.7] - 2026-01-19
+
+### Added
+
+- Adds `is_in_hatchet_serialization_context` function which can be used on a Pydantic `ValidationInfo.context` to determine if the validation/serialization is occurring as a part of Hatchet deserializing task input or serializing task outputs.
+
+## [1.22.6] - 2026-01-14
+
+### Added
+
+- Adds `max_attempts: int` (retries + 1) to the Context
+
+## [1.22.5] - 2026-01-09
+
+### Added
+
+- Adds an `additional_metadata` field to the `get_details` response.
+
+## [1.22.4] - 2026-01-08
+
+### Added
+
+- Adds a `get_details` method to the runs client
+
+## [1.22.3] - 2026-01-07
+
+### Changed
+
+- Fixes an issue with the type signature for chained dependencies
+- Truncates log messages to 10,000 characters to avoid issues with overly large logs.
+
+## [1.22.2] - 2025-12-31
+
+### Added
+
+- Crons can now be provided by alias, e.g. `@daily`
+
+### Changed
+
+- Failed workflow logs are only reported at the `exception` level either on the last retry attempt or if the task is marked as `non_retryable`, to avoid spamming e.g. Sentry with exceptions.
+
+## [1.22.1] - 2025-12-30
+
+### Changed
+
+- Regenerates some API signatures after deprecating many v0 routes.
+
+## [1.22.0] - 2025-12-26
+
+### Added
+
+- Dependencies are now chainable, so one dependency can rely on an upstream one, similar to in FastAPI.
+- Dependencies can now be both functions (sync and async) and context managers (sync and async) to allow for cleaning up things like database connections, etc.
+- The `ClientConfig` has a new `Tenacity` object, which allows for specifying retry config.
+- Concurrency limits can now be specified as integers, which will provide behavior equivalent to setting a constant key with a `GROUP_ROUND_ROBIN` strategy.
+
+### Changed
+
+- Improves the errors raised out of the sync `result` method on the `WorkflowRunRef` to be more in line with the async version, raising a `FailedTaskRunExceptionGroup` that contains all of the task run errors instead of just the first one.
+
+### Internal
+
+- Replaces manual validation logic with Pydantic's `TypeAdapter` for improved correctness and flexibility.
+
+## [1.21.8] - 2025-12-26
+
+### Changed
+
+- Fixes a bug where static rate limits reset their own values to zero on task registration.
+
+## [1.21.7] - 2025-12-15
+
+### Added
+
+- Adds a `get` method to the event client
+
+## [1.21.6] - 2025-12-11
+
+### Added
+
+- Adds `get_task_stats` and `aio_get_task_stats` methods to the `metrics` feature client.
+
+### Changed
+
+- Regenerates the REST and gRPC clients to pick up latest API changes.
+
+## [1.21.5] - 2025-12-06
+
+### Changed
+
+- Task outputs that fail to serialize to JSON will now raise an `IllegalTaskOutputError` instead of being stringified. This pulls errors from the engine upstream to the SDK, and will allow users to catch and handle these errors more easily.
+
+## [1.21.4] - 2025-12-05
+
+### Added
+
+- Adds support for dynamic rate limits using CEL expressions (strings) for the `limit` parameter.
+
+### Changed
+
+- Fixes a serialization error caused by Pydantic sometimes being unable to encode bytes, reported here: https://github.com/hatchet-dev/hatchet/issues/2601
+- Fixes a bug where string-based CEL expressions for `limit` were rejected due to the validation logic.
+
+## [1.21.3] - 2025-11-26
+
+### Added
+
+- Adds GZIP compression for gRPC communication between the SDK and the Hatchet engine to reduce bandwidth usage.
+
 ## [1.21.2] - 2025-11-13
 
 ### Added

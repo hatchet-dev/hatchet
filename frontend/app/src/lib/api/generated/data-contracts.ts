@@ -117,6 +117,11 @@ export enum StepRunStatus {
   BACKOFF = "BACKOFF",
 }
 
+export enum ConcurrencyScope {
+  WORKFLOW = "WORKFLOW",
+  TASK = "TASK",
+}
+
 export enum ConcurrencyLimitStrategy {
   CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS",
   DROP_NEWEST = "DROP_NEWEST",
@@ -199,7 +204,6 @@ export enum TenantResource {
   WORKER = "WORKER",
   WORKER_SLOT = "WORKER_SLOT",
   EVENT = "EVENT",
-  WORKFLOW_RUN = "WORKFLOW_RUN",
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
@@ -245,14 +249,14 @@ export enum TenantEnvironment {
   Production = "production",
 }
 
-export enum TenantUIVersion {
+export enum TenantVersion {
   V0 = "V0",
   V1 = "V1",
 }
 
-export enum TenantVersion {
-  V0 = "V0",
-  V1 = "V1",
+export enum V1LogLineOrderByDirection {
+  ASC = "ASC",
+  DESC = "DESC",
 }
 
 export enum V1LogLineLevel {
@@ -283,6 +287,7 @@ export enum V1TaskEventType {
   CREATED = "CREATED",
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
+  COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
 }
 
 export enum V1WorkflowType {
@@ -759,8 +764,6 @@ export interface Tenant {
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
   version: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
 }
@@ -906,6 +909,10 @@ export interface V1Webhook {
   sourceName: V1WebhookSourceName;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
   /** The type of authentication to use for the webhook */
   authType: V1WebhookAuthType;
 }
@@ -922,6 +929,10 @@ export interface V1CreateWebhookRequestBase {
   name: string;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
 }
 
 export interface V1WebhookBasicAuth {
@@ -975,6 +986,10 @@ export type V1CreateWebhookRequest =
 export interface V1UpdateWebhookRequest {
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
 }
 
 export interface V1CELDebugRequest {
@@ -1266,8 +1281,6 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
-  /** The UI version of the tenant. Defaults to V0. */
-  uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
   /** The environment type of the tenant. */
@@ -1293,8 +1306,6 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
 }
 
 export interface TenantAlertingSettings {
@@ -1627,6 +1638,85 @@ export interface ScheduledWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export interface UpdateScheduledWorkflowRunRequest {
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface ScheduledWorkflowsBulkDeleteFilter {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentWorkflowRunId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentStepRunId?: string;
+  /**
+   * A list of metadata key value pairs to filter by
+   * @example ["key1:value1","key2:value2"]
+   */
+  additionalMetadata?: string[];
+}
+
+export interface ScheduledWorkflowsBulkDeleteRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  scheduledWorkflowRunIds?: string[];
+  filter?: ScheduledWorkflowsBulkDeleteFilter;
+}
+
+export interface ScheduledWorkflowsBulkError {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  id?: string;
+  error: string;
+}
+
+export interface ScheduledWorkflowsBulkDeleteResponse {
+  deletedIds: string[];
+  errors: ScheduledWorkflowsBulkError[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateItem {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  id: string;
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface ScheduledWorkflowsBulkUpdateRequest {
+  /**
+   * @maxItems 500
+   * @minItems 1
+   */
+  updates: ScheduledWorkflowsBulkUpdateItem[];
+}
+
+export interface ScheduledWorkflowsBulkUpdateResponse {
+  updatedIds: string[];
+  errors: ScheduledWorkflowsBulkError[];
+}
+
 export interface CreateCronWorkflowTriggerRequest {
   input: object;
   additionalMetadata: object;
@@ -1708,6 +1798,22 @@ export interface WorkflowTriggers {
   crons?: WorkflowTriggerCronRef[];
 }
 
+export interface ConcurrencySetting {
+  /**
+   * The maximum number of concurrent workflow runs.
+   * @format int32
+   */
+  maxRuns: number;
+  /** The strategy to use when the concurrency limit is reached. */
+  limitStrategy: ConcurrencyLimitStrategy;
+  /** The concurrency expression, used to generate a key from task inputs, metadata, etc. */
+  expression: string;
+  /** The readable id of the step to which this concurrency setting applies. */
+  stepReadableId?: string;
+  /** The scope of the concurrency setting. */
+  scope: ConcurrencyScope;
+}
+
 export interface WorkflowVersion {
   metadata: APIResourceMeta;
   /** The version of the workflow. */
@@ -1728,6 +1834,9 @@ export interface WorkflowVersion {
   scheduleTimeout?: string;
   jobs?: Job[];
   workflowConfig?: object;
+  v1Concurrency?: ConcurrencySetting[];
+  /** The JSON schema for the workflow input. */
+  inputJsonSchema?: object;
 }
 
 export interface TriggerWorkflowRunRequest {
@@ -2177,6 +2286,8 @@ export interface TaskStatusStat {
   total?: number;
   queues?: Record<string, number>;
   concurrency?: ConcurrencyStat[];
+  /** @format date-time */
+  oldest?: string;
 }
 
 export interface TaskStat {

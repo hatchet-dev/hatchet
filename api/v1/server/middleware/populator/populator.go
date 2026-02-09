@@ -7,9 +7,13 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry/servertel"
 )
 
 type ResourceGetterFunc func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error)
@@ -100,6 +104,17 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 
 		currResource = currResource.Children[0]
+	}
+
+	// If we populated a tenant (or have the tenant id in the route params), attach it to the active trace
+	// span so downstream traces are tenant-attributable.
+	ctx := c.Request().Context()
+	span := trace.SpanFromContext(ctx)
+
+	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok && tenant != nil {
+		telemetry.WithAttributes(span, servertel.TenantId(tenant.ID))
+	} else if tenantId := c.Param("tenant"); tenantId != "" {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 	}
 
 	return nil

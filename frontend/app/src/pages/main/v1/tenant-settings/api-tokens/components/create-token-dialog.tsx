@@ -1,16 +1,13 @@
+import { Button } from '@/components/v1/ui/button';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
-import { z } from 'zod';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
 import { Input } from '@/components/v1/ui/input';
-import { cn } from '@/lib/utils';
+import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import { SecretCopier } from '@/components/v1/ui/secret-copier';
 import {
   Select,
   SelectContent,
@@ -18,9 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { SecretCopier } from '@/components/v1/ui/secret-copier';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
-export const EXPIRES_IN_OPTS = {
+const EXPIRES_IN_OPTS = {
   '3 months': `${3 * 30 * 24 * 60 * 60}s`,
   '1 year': `${365 * 24 * 60 * 60}s`,
   '100 years': `${100 * 365 * 24 * 60 * 60}s`,
@@ -76,7 +76,7 @@ export function CreateTokenDialog({
   }
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Create a new API token</DialogTitle>
       </DialogHeader>

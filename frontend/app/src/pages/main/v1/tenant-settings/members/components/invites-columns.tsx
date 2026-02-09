@@ -1,75 +1,28 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { TenantInvite } from '@/lib/api';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { capitalize } from '@/lib/utils';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
-export const columns = ({
+export function InviteActions({
+  invite,
   onEditClick,
   onDeleteClick,
 }: {
-  onEditClick: (row: TenantInvite) => void;
-  onDeleteClick: (row: TenantInvite) => void;
-}): ColumnDef<TenantInvite>[] => {
-  return [
-    {
-      accessorKey: 'email',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Email" />
-      ),
-      cell: ({ row }) => <div>{row.getValue('email')}</div>,
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'role',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Role" />
-      ),
-      cell: ({ row }) => <div>{capitalize(row.getValue('role'))}</div>,
-    },
-    {
-      accessorKey: 'created',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Created" />
-      ),
-      cell: ({ row }) => (
-        <div>
-          <RelativeDate date={row.original.metadata.createdAt} />
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'Expires',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Expires" />
-      ),
-      cell: ({ row }) => {
-        return (
-          <div>
-            <RelativeDate date={row.original.expires} />
-          </div>
-        );
-      },
-    },
-    {
-      id: 'actions',
-      cell: ({ row }) => (
-        <DataTableRowActions
-          row={row}
-          actions={[
-            {
-              label: 'Edit role',
-              onClick: () => onEditClick(row.original),
-            },
-            {
-              label: 'Delete',
-              onClick: () => onDeleteClick(row.original),
-            },
-          ]}
-        />
-      ),
-    },
-  ];
-};
+  invite: TenantInvite;
+  onEditClick: (invite: TenantInvite) => void;
+  onDeleteClick: (invite: TenantInvite) => void;
+}) {
+  return (
+    <TableRowActions
+      row={invite}
+      actions={[
+        {
+          label: 'Edit role',
+          onClick: () => onEditClick(invite),
+        },
+        {
+          label: 'Delete',
+          onClick: () => onDeleteClick(invite),
+        },
+      ]}
+    />
+  );
+}

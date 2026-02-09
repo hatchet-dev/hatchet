@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	tokenTenantId string
+	tokenTenantId uuid.UUID
 	tokenName     string
 	expiresIn     time.Duration
 )
@@ -40,16 +41,14 @@ var tokenCreateAPICmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tokenCmd)
 	tokenCmd.AddCommand(tokenCreateAPICmd)
+	tenantId := tokenTenantId.String()
 
 	tokenCreateAPICmd.PersistentFlags().StringVar(
-		&tokenTenantId,
+		&tenantId,
 		"tenant-id",
 		"",
 		"the tenant ID to associate with the token",
 	)
-
-	// require the tenant ID
-	tokenCreateAPICmd.MarkPersistentFlagRequired("tenant-id") // nolint: errcheck
 
 	tokenCreateAPICmd.PersistentFlags().StringVar(
 		&tokenName,
@@ -92,8 +91,8 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	tenantId := tokenTenantId
 
-	if tenantId == "" {
-		tenantId = server.Seed.DefaultTenantID
+	if tenantId == uuid.Nil {
+		tenantId = uuid.MustParse(server.Seed.DefaultTenantID)
 	}
 
 	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)

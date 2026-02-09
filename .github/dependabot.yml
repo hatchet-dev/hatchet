@@ -10,6 +10,51 @@ updates:
     schedule:
       interval: "daily"
 
+  - package-ecosystem: "pip"
+    directory: "/sdks/python"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/sdks/python/examples/quickstart"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/cmd/hatchet-cli/cli/templates/python/poetry"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend/app"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend/docs"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/sdks/typescript"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "rubygems"
+    directory: "/sdks/ruby/src"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "rubygems"
+    directory: "/sdks/ruby/examples"
+    schedule:
+      interval: "daily"
+
 
   # // We need to update the quickstart examples for typescript, go, and python
   - package-ecosystem: "npm"

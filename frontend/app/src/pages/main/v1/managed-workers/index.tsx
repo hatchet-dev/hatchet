@@ -1,18 +1,20 @@
-import { Separator } from '@/components/ui/separator';
-import { Link } from 'react-router-dom';
+import { BillingRequired } from './components/billing-required';
 import { ManagedWorkersTable } from './components/managed-workers-table';
-import { Button } from '@/components/ui/button';
+import { MonthlyUsageCard } from './components/monthly-usage-card';
+import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
-import { useApiError } from '@/lib/hooks';
-import { useEffect, useState } from 'react';
+import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
-import { BillingRequired } from './components/billing-required';
-import { queries } from '@/lib/api/queries';
-import { useQuery } from '@tanstack/react-query';
+import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
-import { MonthlyUsageCard } from './components/monthly-usage-card';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 
 export default function ManagedWorkers() {
   const { tenant, billing, can } = useTenantDetails();
@@ -66,6 +68,16 @@ export default function ManagedWorkers() {
   const hasExistingWorkers =
     (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
+  // Show loader while billing data is loading
+  if (billing?.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Spinner />
+      </div>
+    );
+  }
+
+  // Don't show billing required page while billing data is still loading
   if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
     return (
       <BillingRequired
@@ -110,9 +122,9 @@ export default function ManagedWorkers() {
 
     return (
       // TODO use correct modal component
-      <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
-        <div className="bg-background border border-border rounded-lg shadow-lg max-w-md w-full p-6">
-          <h3 className="text-lg font-medium mb-4 text-foreground">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
+        <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
+          <h3 className="mb-4 text-lg font-medium text-foreground">
             Plan Upgrade Required
           </h3>
           <p className="mb-4 text-muted-foreground">
@@ -128,10 +140,10 @@ export default function ManagedWorkers() {
               Cancel
             </Button>
             <Link
-              to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
+              to={appRoutes.tenantSettingsBillingRoute.to}
+              params={{ tenant: tenantId }}
             >
-              <Button>
-                <ArrowUpIcon className="h-4 w-4 mr-2" />
+              <Button leftIcon={<ArrowUpIcon className="size-4" />}>
                 Upgrade Plan
               </Button>
             </Link>
@@ -142,22 +154,26 @@ export default function ManagedWorkers() {
   };
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-row items-center justify-between">
           <h2 className="text-2xl font-bold leading-tight text-foreground">
             Managed Compute
           </h2>
           {canCreateMoreWorkerPools ? (
-            <Link to={`/tenants/${tenantId}/managed-workers/create`}>
-              <Button>
-                <PlusIcon className="w-4 h-4 mr-2" />
+            <Link
+              to={appRoutes.tenantManagedWorkersCreateRoute.to}
+              params={{ tenant: tenantId }}
+            >
+              <Button leftIcon={<PlusIcon className="size-4" />}>
                 Add Service
               </Button>
             </Link>
           ) : (
-            <Button onClick={handleAddWorkerPool}>
-              <PlusIcon className="w-4 h-4 mr-2" />
+            <Button
+              onClick={handleAddWorkerPool}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
               Add Service ({workerPoolCount}/{getWorkerPoolLimit()})
             </Button>
           )}
@@ -168,7 +184,7 @@ export default function ManagedWorkers() {
         ) : (
           <ManagedWorkersTable />
         )}
-        <div className="mt-6 mb-6">
+        <div className="mb-6 mt-6">
           <MonthlyUsageCard
             computeCost={computeCostQuery.data}
             isLoading={computeCostQuery.isLoading}

@@ -6,15 +6,15 @@ import {
   workflowIdKey,
 } from './components/filter-columns';
 import { FilterCreateButton } from './components/filter-create-form';
-import { useState } from 'react';
-import { VisibilityState } from '@tanstack/react-table';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
-import { V1Filter } from '@/lib/api';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export default function Filters() {
   const sidePanel = useSidePanel();
@@ -93,14 +93,12 @@ export default function Filters() {
       pageCount={numFilters}
       getRowId={(row) => row.metadata.id}
       emptyState={
-        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
           <p className="text-lg font-semibold">No filters found</p>
           <div className="w-fit">
             <DocsButton
               doc={docsPages.home['run-on-event']}
               scrollTo="event-filtering"
-              size="full"
-              variant="outline"
               label="Learn about event filters"
             />
           </div>

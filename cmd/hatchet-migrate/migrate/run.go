@@ -17,6 +17,8 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 	"github.com/sethvargo/go-retry"
+
+	_ "github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate/migrations" // register go migrations
 )
 
 //go:embed migrations/*.sql
@@ -325,4 +327,110 @@ func listMigrations() (goose.Migrations, error) {
 	)
 
 	return goose.CollectMigrations(".", minVersion, maxVersion)
+}
+
+// RunDownMigration runs down migrations to a specific version.
+func RunDownMigration(ctx context.Context, targetVersion string) {
+	if err := runDownMigrationImpl(ctx, targetVersion); err != nil {
+		log.Fatalf("goose: %v", err)
+	}
+}
+
+func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
+	var db *sql.DB
+	var conn *sql.Conn
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+
+	err := retry.Do(retryCtx, retry.NewConstant(1*time.Second), func(ctx context.Context) error {
+		var err error
+		if db == nil {
+			db, err = goose.OpenDBWithDriver("postgres", os.Getenv("DATABASE_URL"))
+
+			if err != nil {
+				return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
+			}
+		}
+
+		conn, err = db.Conn(ctx)
+
+		if err != nil {
+			return retry.RetryableError(fmt.Errorf("failed to open DB connection: %w", err))
+		}
+
+		return nil
+	})
+
+	cancel()
+
+	if err != nil {
+		return fmt.Errorf("failed to open DB: %w", err)
+	}
+
+	defer func() {
+		if conn != nil {
+			if err := conn.Close(); err != nil {
+				log.Printf("goose: failed to close DB connection: %v", err)
+			}
+		}
+
+		if db != nil {
+			if err := db.Close(); err != nil {
+				log.Printf("goose: failed to close DB: %v", err)
+			}
+		}
+	}()
+
+	locker, err := lock.NewPostgresSessionLocker()
+
+	if err != nil {
+		return fmt.Errorf("failed to create locker: %w", err)
+	}
+
+	err = locker.SessionLock(ctx, conn)
+
+	if err != nil {
+		return fmt.Errorf("failed to lock session: %w", err)
+	}
+
+	defer func() {
+		if err := locker.SessionUnlock(ctx, conn); err != nil {
+			log.Printf("goose: failed to unlock session: %v", err)
+		}
+	}()
+
+	fsys, err := fs.Sub(embedMigrations, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to create sub filesystem: %w", err)
+	}
+	goose.SetBaseFS(fsys)
+
+	targetVersionInt, err := strconv.ParseInt(targetVersion, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid target version %s: %w", targetVersion, err)
+	}
+
+	currentVersion, err := goose.GetDBVersion(db)
+	if err != nil {
+		return fmt.Errorf("failed to get current database version: %w", err)
+	}
+
+	if currentVersion < targetVersionInt {
+		return fmt.Errorf("target version %d is higher than current version %d. Use standard migration (without --down flag) to upgrade", targetVersionInt, currentVersion)
+	}
+
+	if currentVersion == targetVersionInt {
+		fmt.Printf("Database is already at version %d. No migration needed.\n", targetVersionInt)
+		return nil
+	}
+
+	fmt.Printf("Migrating down from version %d to version %d\n", currentVersion, targetVersionInt)
+
+	err = goose.DownTo(db, ".", targetVersionInt)
+	if err != nil {
+		return fmt.Errorf("failed to migrate down to version %d: %w", targetVersionInt, err)
+	}
+
+	fmt.Printf("Successfully migrated down to version %d\n", targetVersionInt)
+	return nil
 }

@@ -33,7 +33,7 @@ func (c *ConfigLoader) LoadClientConfig(token *string) (res *client.ClientConfig
 		cf.Token = *token
 	}
 
-	return GetClientConfigFromConfigFile(cf)
+	return GetClientConfigFromConfigFile(token, cf)
 }
 
 // LoadClientConfigFile loads the worker config file via viper
@@ -46,13 +46,17 @@ func LoadClientConfigFile(files ...[]byte) (*client.ClientConfigFile, error) {
 	return configFile, err
 }
 
-func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.ClientConfig, err error) {
+func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfigFile) (res *client.ClientConfig, err error) {
 	f := client.BindAllEnv
 
 	_, err = loaderutils.LoadConfigFromViper(f, cf)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not load config from viper: %w", err)
+	}
+
+	if tokenOverride != nil {
+		cf.Token = *tokenOverride
 	}
 
 	// if token is empty, throw an error
@@ -63,18 +67,18 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	grpcBroadcastAddress := cf.HostPort
 	serverURL := cf.ServerURL
 
-	tokenConf, err := getConfFromJWT(cf.Token)
+	tokenConf, err := loaderutils.GetConfFromJWT(cf.Token)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if grpcBroadcastAddress == "" && tokenConf.grpcBroadcastAddress != "" {
-		grpcBroadcastAddress = tokenConf.grpcBroadcastAddress
+	if grpcBroadcastAddress == "" && tokenConf.GrpcBroadcastAddress != "" {
+		grpcBroadcastAddress = tokenConf.GrpcBroadcastAddress
 	}
 
-	if serverURL == "" && tokenConf.serverURL != "" {
-		serverURL = tokenConf.serverURL
+	if serverURL == "" && tokenConf.ServerURL != "" {
+		serverURL = tokenConf.ServerURL
 	}
 
 	// if there's no broadcast address at this point, throw an error
@@ -88,7 +92,7 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	}
 
 	if cf.TenantId == "" {
-		cf.TenantId = tokenConf.tenantId
+		cf.TenantId = tokenConf.TenantId
 	}
 
 	tlsServerName := cf.TLS.TLSServerName
@@ -133,16 +137,17 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	}
 
 	return &client.ClientConfig{
-		TenantId:             cf.TenantId,
-		TLSConfig:            tlsConf,
-		Token:                cf.Token,
-		ServerURL:            serverURL,
-		GRPCBroadcastAddress: grpcBroadcastAddress,
-		Namespace:            namespace,
-		CloudRegisterID:      cf.CloudRegisterID,
-		RunnableActions:      rawRunnableActions,
-		NoGrpcRetry:          cf.NoGrpcRetry,
-		PresetWorkerLabels:   presetLabels,
+		TenantId:               cf.TenantId,
+		TLSConfig:              tlsConf,
+		Token:                  cf.Token,
+		ServerURL:              serverURL,
+		GRPCBroadcastAddress:   grpcBroadcastAddress,
+		Namespace:              namespace,
+		CloudRegisterID:        cf.CloudRegisterID,
+		RunnableActions:        rawRunnableActions,
+		NoGrpcRetry:            cf.NoGrpcRetry,
+		PresetWorkerLabels:     presetLabels,
+		DisableGzipCompression: cf.DisableGzipCompression,
 	}, nil
 }
 

@@ -3,6 +3,9 @@ package msgqueue
 import (
 	"context"
 	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
 type Queue interface {
@@ -25,16 +28,27 @@ type Queue interface {
 	// exchange, and a new random queue is generated for each connection when connections are retried.
 	FanoutExchangeKey() string
 
-	// DLX returns the dead letter exchange for the queue, if it exists.
-	DLX() string
+	// DLQ returns the queue's dead letter queue, if it exists.
+	DLQ() Queue
+
+	// IsDLQ returns true if the queue is a dead letter queue.
+	IsDLQ() bool
+
+	// We distinguish between a static DLQ or an automatic DLQ. An automatic DLQ will automatically retry messages
+	// in a loop with a 5-second backoff, and each subscription to the regular Queue will include a subscription
+	// to the DLQ.
+	IsAutoDLQ() bool
+
+	// IsExpirable refers to whether the queue itself is expirable
+	IsExpirable() bool
 }
 
 type staticQueue string
 
 const (
-	EVENT_PROCESSING_QUEUE    staticQueue = "event_processing_queue_v2"
-	JOB_PROCESSING_QUEUE      staticQueue = "job_processing_queue_v2"
-	WORKFLOW_PROCESSING_QUEUE staticQueue = "workflow_processing_queue_v2"
+	TASK_PROCESSING_QUEUE        staticQueue = "task_processing_queue_v2"
+	OLAP_QUEUE                   staticQueue = "olap_queue_v2"
+	DISPATCHER_DEAD_LETTER_QUEUE staticQueue = "dispatcher_dlq_v2"
 )
 
 func (s staticQueue) Name() string {
@@ -57,8 +71,97 @@ func (s staticQueue) FanoutExchangeKey() string {
 	return ""
 }
 
-func (s staticQueue) DLX() string {
-	return fmt.Sprintf("%s_dlx_v2", s.Name())
+func (s staticQueue) DLQ() Queue {
+	name := fmt.Sprintf("%s_dlq", s)
+
+	return dlq{
+		staticQueue: staticQueue(name),
+		isAutoDLQ:   true,
+	}
+}
+
+func (s staticQueue) IsDLQ() bool {
+	return false
+}
+
+func (s staticQueue) IsAutoDLQ() bool {
+	return false
+}
+
+func (s staticQueue) IsExpirable() bool {
+	return false
+}
+
+type dlq struct {
+	staticQueue
+
+	isAutoDLQ bool
+}
+
+func (d dlq) IsDLQ() bool {
+	return true
+}
+
+func (d dlq) IsAutoDLQ() bool {
+	return d.isAutoDLQ
+}
+
+func (d dlq) DLQ() Queue {
+	return nil
+}
+
+func NewRandomStaticQueue() staticQueue {
+	randBytes, _ := random.Generate(8)
+	return staticQueue(fmt.Sprintf("random_static_queue_v2_%s", randBytes))
+}
+
+// dispatcherQueue is a type of queue which is durable and exclusive, but utilizes a per-queue TTL
+// and per-message TTL + DLX to handle messages which are not consumed within a certain time period,
+// for example if the dispatcher goes down.
+type dispatcherQueue string
+
+func (d dispatcherQueue) Name() string {
+	return string(d)
+}
+
+func (d dispatcherQueue) Durable() bool {
+	return true
+}
+
+func (d dispatcherQueue) AutoDeleted() bool {
+	return false
+}
+
+func (d dispatcherQueue) Exclusive() bool {
+	return true
+}
+
+func (d dispatcherQueue) FanoutExchangeKey() string {
+	return ""
+}
+
+func (d dispatcherQueue) DLQ() Queue {
+	return dlq{
+		staticQueue: DISPATCHER_DEAD_LETTER_QUEUE,
+		// we maintain a completely separate DLQ for dispatcher queues
+		isAutoDLQ: false,
+	}
+}
+
+func (d dispatcherQueue) IsDLQ() bool {
+	return false
+}
+
+func (d dispatcherQueue) IsAutoDLQ() bool {
+	return false
+}
+
+func (d dispatcherQueue) IsExpirable() bool {
+	return true
+}
+
+func QueueTypeFromDispatcherID(d uuid.UUID) dispatcherQueue {
+	return dispatcherQueue(d.String() + "_dispatcher_v1")
 }
 
 type consumerQueue string
@@ -83,26 +186,29 @@ func (n consumerQueue) FanoutExchangeKey() string {
 	return ""
 }
 
-func (n consumerQueue) DLX() string {
-	return ""
+func (n consumerQueue) DLQ() Queue {
+	return nil
 }
 
-func QueueTypeFromDispatcherID(d string) consumerQueue {
-	return consumerQueue(d)
+func (n consumerQueue) IsDLQ() bool {
+	return false
 }
 
-func QueueTypeFromTickerID(t string) consumerQueue {
-	return consumerQueue(t)
+func (n consumerQueue) IsAutoDLQ() bool {
+	return false
+}
+
+func (n consumerQueue) IsExpirable() bool {
+	// since exclusive and auto-deleted, it's not expirable
+	return false
 }
 
 const (
-	JobController      = "job"
-	WorkflowController = "workflow"
-	Scheduler          = "scheduler"
+	Scheduler = "scheduler"
 )
 
 func QueueTypeFromPartitionIDAndController(p, controller string) consumerQueue {
-	return consumerQueue(fmt.Sprintf("%s_%s", p, controller))
+	return consumerQueue(fmt.Sprintf("%s_%s_v1", p, controller))
 }
 
 type fanoutQueue struct {
@@ -114,63 +220,28 @@ func (f fanoutQueue) FanoutExchangeKey() string {
 	return f.consumerQueue.Name()
 }
 
-func TenantEventConsumerQueue(t string) fanoutQueue {
+func TenantEventConsumerQueue(t uuid.UUID) fanoutQueue {
 	// generate a unique queue name for the tenant
 	return fanoutQueue{
-		consumerQueue: consumerQueue(t),
+		consumerQueue: consumerQueue(GetTenantExchangeName(t)),
 	}
 }
 
-type Message struct {
-	// ID is the ID of the task.
-	ID string `json:"id"`
-
-	// Payload is the payload of the task.
-	Payload map[string]interface{} `json:"payload"`
-
-	// Metadata is the metadata of the task.
-	Metadata map[string]interface{} `json:"metadata"`
-
-	// Retries is the number of retries for the task.
-	Retries int `json:"retries"`
-
-	// RetryDelay is the delay between retries.
-	RetryDelay int `json:"retry_delay"`
-
-	// Whether the message should immediately expire if it reaches the queue without an active consumer.
-	ImmediatelyExpire bool `json:"immediately_expire"`
-
-	// OtelCarrier is the OpenTelemetry carrier for the task.
-	OtelCarrier map[string]string `json:"otel_carrier"`
-}
-
-func (t *Message) TenantID() string {
-	tenantId, exists := t.Metadata["tenant_id"]
-
-	if !exists {
-		return ""
-	}
-
-	tenantIdStr, ok := tenantId.(string)
-
-	if !ok {
-		return ""
-	}
-
-	return tenantIdStr
+func GetTenantExchangeName(t uuid.UUID) string {
+	return t.String() + "_v1"
 }
 
 type AckHook func(task *Message) error
 
 type MessageQueue interface {
 	// Clone copies the message queue with a new instance.
-	Clone() (func() error, MessageQueue)
+	Clone() (func() error, MessageQueue, error)
 
 	// SetQOS sets the quality of service for the message queue.
 	SetQOS(prefetchCount int)
 
-	// AddMessage adds a task to the queue
-	AddMessage(ctx context.Context, queue Queue, task *Message) error
+	// SendMessage sends a message to the message queue.
+	SendMessage(ctx context.Context, queue Queue, msg *Message) error
 
 	// Subscribe subscribes to the task queue. It returns a cleanup function that should be called when the
 	// subscription is no longer needed.
@@ -180,7 +251,7 @@ type MessageQueue interface {
 	// new tenant is created. If this is not called, implementors should ensure that there's a check
 	// on the first message to a tenant to ensure that the tenant is registered, and store the tenant
 	// in an LRU cache which lives in-memory.
-	RegisterTenant(ctx context.Context, tenantId string) error
+	RegisterTenant(ctx context.Context, tenantId uuid.UUID) error
 
 	// IsReady returns true if the task queue is ready to accept tasks.
 	IsReady() bool

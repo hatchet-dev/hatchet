@@ -9,12 +9,12 @@ on:
 
 jobs:
   generate:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -30,7 +30,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -54,13 +54,13 @@ jobs:
         run: docker compose down
 
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Go deps
         run: go mod download
@@ -72,12 +72,12 @@ jobs:
         run: go test $(go list ./... | grep -v "quickstart") -v -failfast
 
   integration:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install Task
         uses: arduino/setup-task@v2
         with:
@@ -86,7 +86,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -118,13 +118,13 @@ jobs:
         run: docker compose down
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -134,7 +134,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -208,13 +208,13 @@ jobs:
         run: docker compose down
 
   e2e-pgmq:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -224,7 +224,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -300,16 +300,17 @@ jobs:
         run: docker compose down
 
   load:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     strategy:
       matrix:
         migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true"]
-        pg-version: ["15-alpine"]
+        pg-version: ["17-alpine"]
+        optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -319,7 +320,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -332,14 +333,17 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          # Disable gzip compression for load tests to reduce CPU overhead
+          # Compression adds overhead without benefit for 0kb payloads
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
   rampup:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     strategy:
       matrix:
@@ -348,7 +352,7 @@ jobs:
         pg-version: ["15-alpine"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -358,7 +362,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

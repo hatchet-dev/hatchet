@@ -1,23 +1,37 @@
-import api, { TenantVersion } from '@/lib/api';
+import { Button } from '@/components/v1/ui/button';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import api, { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
-import {
-  LoaderFunctionArgs,
-  redirect,
-  useLoaderData,
-  useNavigate,
-} from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { appRoutes } from '@/router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function loader(_args: LoaderFunctionArgs) {
+export async function loader(_args: { request: Request }) {
+  // Avoid calling cloud-only endpoints (like /management/invites) unless cloud is enabled.
+  // In OSS environments, cloud endpoints can return a 403 and create noisy console logs.
+  let isCloudEnabled = false;
+
+  try {
+    const meta = await cloudApi.metadataGet();
+    // In OSS, the API returns an `errors` field instead of cloud metadata.
+    // @ts-expect-error `errors` may be present in OSS mode
+    isCloudEnabled = !!meta?.data && !meta?.data?.errors;
+  } catch {
+    isCloudEnabled = false;
+  }
+
   const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
     api.userListTenantInvites(),
-    cloudApi
-      .userListOrganizationInvites()
-      .catch(() => ({ data: { rows: [] } })),
+    isCloudEnabled
+      ? cloudApi
+          .userListOrganizationInvites()
+          .catch(() => ({ data: { rows: [] } }))
+      : Promise.resolve({ data: { rows: [] } }),
   ]);
 
   const tenantInvites =
@@ -30,7 +44,7 @@ export async function loader(_args: LoaderFunctionArgs) {
       : [];
 
   if (tenantInvites.length === 0 && orgInvites.length === 0) {
-    throw redirect('/');
+    throw redirect({ to: appRoutes.authenticatedRoute.to });
   }
 
   return {
@@ -41,13 +55,25 @@ export async function loader(_args: LoaderFunctionArgs) {
 
 export default function Invites() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { handleApiError } = useApiError({});
+  const { setTenant } = useTenantDetails();
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
+  const { capture } = useAnalytics();
 
-  const { tenantInvites, orgInvites } = useLoaderData() as Awaited<
-    ReturnType<typeof loader>
-  >;
+  const { tenantInvites, orgInvites } = useLoaderData({
+    from: appRoutes.onboardingInvitesRoute.to,
+  }) as Awaited<ReturnType<typeof loader>>;
+
+  // Track invites page view
+  useEffect(() => {
+    capture('onboarding_invites_viewed', {
+      tenant_invites_count: tenantInvites.length,
+      org_invites_count: orgInvites.length,
+      total_invites: tenantInvites.length + orgInvites.length,
+    });
+  }, [capture, tenantInvites.length, orgInvites.length]);
 
   const acceptMutation = useMutation({
     mutationKey: ['tenant-invite:accept'],
@@ -59,26 +85,32 @@ export default function Invites() {
       return data.tenantId;
     },
     onSuccess: async (tenantId: string) => {
-      try {
-        const memberships = await api.tenantMembershipsList();
+      await queryClient.invalidateQueries({
+        queryKey: queries.user.listTenantMemberships.queryKey,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ['pending-invites'],
+      });
 
-        const foundTenant = memberships.data.rows?.find(
-          (m) => m.tenant?.metadata.id === tenantId,
-        )?.tenant;
+      const memberships = await queryClient.fetchQuery(
+        queries.user.listTenantMemberships,
+      );
 
-        switch (foundTenant?.version) {
-          case TenantVersion.V0:
-            navigate(`/workflow-runs?tenant=${tenantId}`);
-            break;
-          case TenantVersion.V1:
-            navigate(`/tenants/${tenantId}/runs`);
-            break;
-          default:
-            navigate('/');
-            break;
-        }
-      } catch (e) {
-        navigate('/');
+      const membership = memberships.rows?.find(
+        (m) => m.tenant?.metadata.id === tenantId,
+      );
+
+      if (membership?.tenant) {
+        setTenant(membership.tenant);
+        capture('onboarding_tenant_invite_accepted', {
+          tenant_id: tenantId,
+        });
+        navigate({
+          to: appRoutes.tenantOverviewRoute.to,
+          params: { tenant: tenantId },
+        });
+      } else {
+        throw new Error('Tenant not found after accepting invite');
       }
     },
     onError: handleApiError,
@@ -88,9 +120,16 @@ export default function Invites() {
     mutationKey: ['tenant-invite:reject'],
     mutationFn: async (data: { invite: string }) => {
       await api.tenantInviteReject(data);
+      return data.invite;
     },
-    onSuccess: async () => {
-      navigate('/');
+    onSuccess: async (inviteId: string) => {
+      await queryClient.invalidateQueries({
+        queryKey: ['pending-invites'],
+      });
+      capture('onboarding_tenant_invite_rejected', {
+        invite_id: inviteId,
+      });
+      navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,
   });
@@ -104,9 +143,9 @@ export default function Invites() {
         : 'Join ' + orgInvites[0].inviterEmail + "'s organization";
 
   return (
-    <div className="flex flex-row flex-1 w-full h-full">
+    <div className="flex h-full w-full flex-1 flex-row">
       <div className="container relative hidden flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-        <div className="lg:p-8 mx-auto w-screen">
+        <div className="mx-auto w-screen lg:p-8">
           <div className="mx-auto flex w-40 flex-col justify-center space-y-6 sm:w-[350px]">
             <div className="flex flex-col space-y-2 text-center">
               <h1 className="text-2xl font-semibold tracking-tight">
@@ -119,11 +158,11 @@ export default function Invites() {
                   key={invite.metadata.id}
                   className="flex flex-col space-y-2 text-center"
                 >
-                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                  <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
                     You got an invitation to join {invite.tenantName} on
                     Hatchet.
                   </p>
-                  <div className="flex flex-row gap-2 justify-center">
+                  <div className="flex flex-row justify-center gap-2">
                     <Button
                       variant="outline"
                       className="w-full"
@@ -158,11 +197,11 @@ export default function Invites() {
                   key={invite.metadata.id}
                   className="flex flex-col space-y-2 text-center"
                 >
-                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                  <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
                     You got an invitation to join an organization from{' '}
                     {invite.inviterEmail} on Hatchet.
                   </p>
-                  <div className="flex flex-row gap-2 justify-center">
+                  <div className="flex flex-row justify-center gap-2">
                     <Button
                       variant="outline"
                       className="w-full"
@@ -172,7 +211,15 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () => navigate('/'),
+                            onSuccess: async () => {
+                              await queryClient.invalidateQueries({
+                                queryKey: ['pending-invites'],
+                              });
+                              capture('onboarding_org_invite_rejected', {
+                                invite_id: invite.metadata.id,
+                              });
+                              navigate({ to: appRoutes.authenticatedRoute.to });
+                            },
                           },
                         );
                       }}
@@ -187,7 +234,15 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () => navigate('/'),
+                            onSuccess: async () => {
+                              await queryClient.invalidateQueries({
+                                queryKey: ['pending-invites'],
+                              });
+                              capture('onboarding_org_invite_accepted', {
+                                invite_id: invite.metadata.id,
+                              });
+                              navigate({ to: appRoutes.authenticatedRoute.to });
+                            },
                           },
                         );
                       }}

@@ -1,19 +1,26 @@
-import { useMemo, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import { useApiError } from '@/lib/hooks';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { useAppContext } from '@/providers/app-context';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMemo, useCallback } from 'react';
 
+/**
+ * Hook for organization data and operations
+ *
+ * Now backed by AppContext for better performance.
+ * Gets organization data from context, but keeps all mutation logic here.
+ */
 export function useOrganizations() {
-  const { isCloudEnabled } = useCloudApiMeta();
+  const { organizations: organizationData, isCloudEnabled } = useAppContext();
   const { handleApiError } = useApiError({});
 
+  // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
     queryKey: ['organization:list'],
     queryFn: async () => {
@@ -24,8 +31,8 @@ export function useOrganizations() {
   });
 
   const organizations = useMemo(
-    () => organizationListQuery.data?.rows || [],
-    [organizationListQuery.data?.rows],
+    () => organizationData?.rows || [],
+    [organizationData?.rows],
   );
 
   const getOrganizationForTenant = useCallback(
@@ -135,12 +142,18 @@ export function useOrganizations() {
     mutationFn: async (data: {
       organizationId: string;
       name: string;
-      duration: ManagementTokenDuration;
+      duration?: ManagementTokenDuration;
     }) => {
-      const result = await cloudApi.managementTokenCreate(data.organizationId, {
+      const body: { name: string; duration?: ManagementTokenDuration } = {
         name: data.name,
-        duration: data.duration,
-      });
+      };
+      if (data.duration != null) {
+        body.duration = data.duration;
+      }
+      const result = await cloudApi.managementTokenCreate(
+        data.organizationId,
+        body,
+      );
       return result.data;
     },
     onError: handleApiError,
@@ -196,7 +209,7 @@ export function useOrganizations() {
     (
       organizationId: string,
       name: string,
-      duration: ManagementTokenDuration,
+      duration: ManagementTokenDuration | undefined,
       onSuccess: (data: CreateManagementTokenResponse) => void,
     ) => {
       createTokenMutation.mutate(
@@ -318,7 +331,7 @@ export function useOrganizations() {
 
   return {
     organizations,
-    organizationData: organizationListQuery.data,
+    organizationData, // From context
     isCloudEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,

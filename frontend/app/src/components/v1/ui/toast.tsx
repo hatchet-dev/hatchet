@@ -1,9 +1,8 @@
-import * as React from 'react';
+import { cn } from '@/lib/utils';
 import { Cross2Icon } from '@radix-ui/react-icons';
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { cva, type VariantProps } from 'class-variance-authority';
-
-import { cn } from '@/lib/utils';
+import * as React from 'react';
 
 const ToastProvider = ToastPrimitives.Provider;
 
@@ -110,18 +109,15 @@ const ToastDescription = React.forwardRef<
 ));
 ToastDescription.displayName = ToastPrimitives.Description.displayName;
 
-type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>;
+export type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>;
 
-type ToastActionElement = React.ReactElement<typeof ToastAction>;
+export type ToastActionElement = React.ReactElement<typeof ToastAction>;
 
 export {
-  type ToastProps,
-  type ToastActionElement,
   ToastProvider,
   ToastViewport,
   Toast,
   ToastTitle,
   ToastDescription,
   ToastClose,
-  ToastAction,
 };

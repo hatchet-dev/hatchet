@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 const UserSessionKey string = "user_id"
@@ -26,7 +26,7 @@ type sessionDataJSON struct {
 type UserSessionStore struct {
 	codecs     []securecookie.Codec
 	options    *sessions.Options
-	repo       repository.UserSessionRepository
+	repo       v1.UserSessionRepository
 	cookieName string
 }
 
@@ -34,7 +34,7 @@ type UserSessionStoreOpts struct {
 	// The max age of the cookie, in seconds.
 	maxAge int
 
-	repo          repository.UserSessionRepository
+	repo          v1.UserSessionRepository
 	cookieSecrets []string
 	isInsecure    bool
 	cookieDomain  string
@@ -80,7 +80,7 @@ func WithCookieAllowInsecure(allow bool) UserSessionStoreOpt {
 	}
 }
 
-func WithSessionRepository(repo repository.UserSessionRepository) UserSessionStoreOpt {
+func WithSessionRepository(repo v1.UserSessionRepository) UserSessionStoreOpt {
 	return func(opts *UserSessionStoreOpts) {
 		opts.repo = repo
 	}
@@ -182,10 +182,14 @@ func (store *UserSessionStore) Get(r *http.Request, name string) (*sessions.Sess
 // Save saves the given session into the database and deletes cookies if needed
 func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
 	repo := store.repo
+	sessionId, err := uuid.Parse(session.ID)
+	if err != nil && session.ID != "" {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
 
 	// Set delete if max-age is < 0
 	if session.Options.MaxAge < 0 {
-		if _, err := repo.Delete(r.Context(), session.ID); err != nil {
+		if _, err := repo.Delete(r.Context(), sessionId); err != nil {
 			return err
 		}
 
@@ -219,6 +223,11 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		return fmt.Errorf("session ID required but not set")
 	}
 
+	sessionId, err := uuid.Parse(session.ID)
+	if err != nil {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
+
 	encoded, err := securecookie.EncodeMulti(session.Name(), session.Values, store.codecs...)
 	if err != nil {
 		return err
@@ -237,11 +246,16 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		}
 	}
 
-	var userId *string
+	var userId *uuid.UUID
 
 	if userIDInt, exists := session.Values[UserSessionKey]; exists && userIDInt != nil {
-		userIdStr := userIDInt.(string)
-		userId = &userIdStr
+		userIdUUID, err := uuid.Parse(userIDInt.(string))
+
+		if err != nil {
+			return fmt.Errorf("invalid user ID in session: %w", err)
+		}
+
+		userId = &userIdUUID
 	}
 
 	jsonData := &sessionDataJSON{
@@ -256,11 +270,11 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 
 	repo := store.repo
 
-	_, err = repo.GetById(ctx, session.ID)
+	_, err = repo.GetById(ctx, sessionId)
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
-		_, err := repo.Create(ctx, &repository.CreateSessionOpts{
-			ID:        session.ID,
+		_, err := repo.Create(ctx, &v1.CreateSessionOpts{
+			ID:        sessionId,
 			Data:      jsonBytes,
 			ExpiresAt: expiresOn,
 			UserId:    userId,
@@ -269,7 +283,7 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		return err
 	}
 
-	_, err = repo.Update(ctx, session.ID, &repository.UpdateSessionOpts{
+	_, err = repo.Update(ctx, sessionId, &v1.UpdateSessionOpts{
 		Data:   jsonBytes,
 		UserId: userId,
 	})
@@ -280,7 +294,12 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 // load fetches a session by ID from the database and decodes its content
 // into session.Values.
 func (store *UserSessionStore) load(ctx context.Context, session *sessions.Session) error {
-	res, err := store.repo.GetById(ctx, session.ID)
+	sessionId, err := uuid.Parse(session.ID)
+	if err != nil {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
+
+	res, err := store.repo.GetById(ctx, sessionId)
 	if err != nil {
 		return err
 	}

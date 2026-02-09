@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["postcss.config.js", "src/**/*.tsx", "src/**/*.ts"]
+}

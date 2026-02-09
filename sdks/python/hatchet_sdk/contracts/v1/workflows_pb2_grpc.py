@@ -5,10 +5,8 @@ import warnings
 
 from hatchet_sdk.contracts.v1 import workflows_pb2 as v1_dot_workflows__pb2
 
-GRPC_GENERATED_VERSION = '1.64.1'
+GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
-EXPECTED_ERROR_RELEASE = '1.65.0'
-SCHEDULED_RELEASE_DATE = 'June 25, 2024'
 _version_not_supported = False
 
 try:
@@ -18,15 +16,12 @@ except ImportError:
     _version_not_supported = True
 
 if _version_not_supported:
-    warnings.warn(
+    raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in v1/workflows_pb2_grpc.py depends on'
+        + ' but the generated code in v1/workflows_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
-        + f' This warning will become an error in {EXPECTED_ERROR_RELEASE},'
-        + f' scheduled for release on {SCHEDULED_RELEASE_DATE}.',
-        RuntimeWarning
     )
 
 
@@ -60,6 +55,11 @@ class AdminServiceStub(object):
                 request_serializer=v1_dot_workflows__pb2.TriggerWorkflowRunRequest.SerializeToString,
                 response_deserializer=v1_dot_workflows__pb2.TriggerWorkflowRunResponse.FromString,
                 _registered_method=True)
+        self.GetRunDetails = channel.unary_unary(
+                '/v1.AdminService/GetRunDetails',
+                request_serializer=v1_dot_workflows__pb2.GetRunDetailsRequest.SerializeToString,
+                response_deserializer=v1_dot_workflows__pb2.GetRunDetailsResponse.FromString,
+                _registered_method=True)
 
 
 class AdminServiceServicer(object):
@@ -90,6 +90,12 @@ class AdminServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetRunDetails(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AdminServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -112,6 +118,11 @@ def add_AdminServiceServicer_to_server(servicer, server):
                     servicer.TriggerWorkflowRun,
                     request_deserializer=v1_dot_workflows__pb2.TriggerWorkflowRunRequest.FromString,
                     response_serializer=v1_dot_workflows__pb2.TriggerWorkflowRunResponse.SerializeToString,
+            ),
+            'GetRunDetails': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRunDetails,
+                    request_deserializer=v1_dot_workflows__pb2.GetRunDetailsRequest.FromString,
+                    response_serializer=v1_dot_workflows__pb2.GetRunDetailsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -223,6 +234,33 @@ class AdminService(object):
             '/v1.AdminService/TriggerWorkflowRun',
             v1_dot_workflows__pb2.TriggerWorkflowRunRequest.SerializeToString,
             v1_dot_workflows__pb2.TriggerWorkflowRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRunDetails(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/v1.AdminService/GetRunDetails',
+            v1_dot_workflows__pb2.GetRunDetailsRequest.SerializeToString,
+            v1_dot_workflows__pb2.GetRunDetailsResponse.FromString,
             options,
             channel_credentials,
             insecure,

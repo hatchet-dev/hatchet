@@ -10,8 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLoginRequestObject) (gen.UserUpdateLoginResponseObject, error) {
@@ -37,7 +36,7 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	}
 
 	// determine if the user exists before attempting to write the user
-	existingUser, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
+	existingUser, err := u.config.V1.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
@@ -47,14 +46,14 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), sqlchelpers.UUIDToStr(existingUser.ID))
+	userPass, err := u.config.V1.User().GetUserPassword(ctx.Request().Context(), existingUser.ID)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to get user password")
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	if verified, err := repository.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
+	if verified, err := v1.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 

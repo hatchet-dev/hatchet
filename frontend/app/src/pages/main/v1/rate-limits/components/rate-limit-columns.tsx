@@ -1,9 +1,9 @@
-import { ColumnDef } from '@tanstack/react-table';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { LimitIndicator } from '../../tenant-settings/resource-limits/components/resource-limit-columns';
-import { capitalize } from '@/lib/utils';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { RateLimitWithMetadata } from '../hooks/use-rate-limits';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { capitalize } from '@/lib/utils';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const RateLimitColumn = {
   key: 'Key',
@@ -13,13 +13,13 @@ export const RateLimitColumn = {
   window: 'Window',
 };
 
-export type RateLimitColumnKeys = keyof typeof RateLimitColumn;
+type RateLimitColumnKeys = keyof typeof RateLimitColumn;
 
 export const keyKey: RateLimitColumnKeys = 'key';
-export const valueKey: RateLimitColumnKeys = 'value';
-export const limitKey: RateLimitColumnKeys = 'limit';
-export const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
-export const windowKey: RateLimitColumnKeys = 'window';
+const valueKey: RateLimitColumnKeys = 'value';
+const limitKey: RateLimitColumnKeys = 'limit';
+const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
+const windowKey: RateLimitColumnKeys = 'window';
 
 export const columns: ColumnDef<RateLimitWithMetadata>[] = [
   {
@@ -48,6 +48,7 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
     cell: ({ row }) => {
       return <div>{row.original.value}</div>;
     },
+    enableSorting: false,
   },
   {
     accessorKey: limitKey,
@@ -57,6 +58,7 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
     cell: ({ row }) => {
       return <div>{row.original.limitValue}</div>;
     },
+    enableSorting: false,
   },
   {
     accessorKey: lastRefillKey,
@@ -73,6 +75,7 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
         </div>
       );
     },
+    enableSorting: false,
   },
   {
     accessorKey: windowKey,
@@ -82,5 +85,6 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
     cell: ({ row }) => {
       return <div>{capitalize(row.original.window)}</div>;
     },
+    enableSorting: false,
   },
 ];

@@ -11,17 +11,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurrentRequestObject) (gen.UserGetCurrentResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
-	userId := sqlchelpers.UUIDToStr(user.ID)
+	user := ctx.Get("user").(*sqlcv1.User)
+	userId := user.ID
 
 	var hasPass bool
 
-	_, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
+	_, err := u.config.V1.User().GetUserPassword(ctx.Request().Context(), userId)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -45,7 +44,7 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 
 	u.config.Analytics.Enqueue(
 		"user:current",
-		userId,
+		userId.String(),
 		nil,
 		map[string]interface{}{
 			"email": user.Email,

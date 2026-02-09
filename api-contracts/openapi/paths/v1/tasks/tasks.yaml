@@ -477,6 +477,32 @@ listLogs:
         schema:
           type: string
           format: date-time
+      - description: A full-text search query to filter for
+        in: query
+        name: search
+        required: false
+        schema:
+          type: string
+      - description: The log level(s) to include
+        in: query
+        name: levels
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1LogLineLevel"
+      - description: The direction to order by
+        in: query
+        name: order_by_direction
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1LogLineOrderByDirection"
+      - description: The attempt number to filter for
+        in: query
+        name: attempt
+        required: false
+        schema:
+          type: integer
     responses:
       "200":
         content:

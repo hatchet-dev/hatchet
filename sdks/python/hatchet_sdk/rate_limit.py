@@ -62,11 +62,14 @@ class RateLimit(BaseModel):
         if self.dynamic_key and self.static_key:
             raise ValueError("Cannot have both static key and dynamic key set")
 
-        if self.limit and not isinstance(self.limit, int):
-            raise ValueError(f"Invalid CEL expression: {self.limit}")
+        if self.limit and not isinstance(self.limit, int | str):
+            raise ValueError(f"Invalid limit value: {self.limit}")
 
         if self.dynamic_key and not self.limit:
             raise ValueError("CEL based keys requires limit to be set")
+
+        if self.limit is None:
+            self.limit = -1
 
         return self
 

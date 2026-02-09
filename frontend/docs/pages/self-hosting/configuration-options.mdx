@@ -132,7 +132,6 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_ENABLE_DATA_RETENTION`               | Enable data retention                   | `true`                  |
 | `SERVER_ENABLE_WORKER_RETENTION`             | Enable worker retention                 | `false`                 |
 | `SERVER_MAX_PENDING_INVITES`                 | Max pending invites                     | `100`                   |
-| `SERVER_BUFFER_CREATE_WORKFLOW_RUNS`         | Buffer workflow run creation            | `true`                  |
 | `SERVER_DISABLE_TENANT_PUBS`                 | Disable tenant pubsub                   |                         |
 | `SERVER_MAX_INTERNAL_RETRY_COUNT`            | Max internal retry count                | `10`                    |
 | `SERVER_PREVENT_TENANT_VERSION_UPGRADE`      | Prevent tenant version upgrades         | `false`                 |
@@ -179,26 +178,23 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Limit Configuration
 
-| Variable                                         | Description                      | Default Value |
-| ------------------------------------------------ | -------------------------------- | ------------- |
-| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD`  | Default tenant retention period  | `720h`        |
-| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT`       | Default workflow run limit       | `1000`        |
-| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALARM_LIMIT` | Default workflow run alarm limit | `750`         |
-| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW`      | Default workflow run window      | `24h`         |
-| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`             | Default worker limit             | `4`           |
-| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`       | Default worker alarm limit       | `2`           |
-| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`              | Default event limit              | `1000`        |
-| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`        | Default event alarm limit        | `750`         |
-| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`             | Default event window             | `24h`         |
-| `SERVER_LIMITS_DEFAULT_CRON_LIMIT`               | Default cron limit               | `5`           |
-| `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`         | Default cron alarm limit         | `2`           |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`           | Default schedule limit           | `1000`        |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`     | Default schedule alarm limit     | `750`         |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`           | Default task run limit           | `2000`        |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`     | Default task run alarm limit     | `1500`        |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`          | Default task run window          | `24h`         |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`        | Default worker slot limit        | `4000`        |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT`  | Default worker slot alarm limit  | `3000`        |
+| Variable                                        | Description                     | Default Value |
+| ----------------------------------------------- | ------------------------------- | ------------- |
+| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` | Default tenant retention period | `720h`        |
+| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`            | Default worker limit            | `4`           |
+| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`      | Default worker alarm limit      | `2`           |
+| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`             | Default event limit             | `1000`        |
+| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`       | Default event alarm limit       | `750`         |
+| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`            | Default event window            | `24h`         |
+| `SERVER_LIMITS_DEFAULT_CRON_LIMIT`              | Default cron limit              | `5`           |
+| `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`        | Default cron alarm limit        | `2`           |
+| `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`          | Default schedule limit          | `1000`        |
+| `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`    | Default schedule alarm limit    | `750`         |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`          | Default task run limit          | `2000`        |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`    | Default task run alarm limit    | `1500`        |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`         | Default task run window         | `24h`         |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`       | Default worker slot limit       | `4000`        |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT` | Default worker slot alarm limit | `3000`        |
 
 ## Alerting Configuration
 
@@ -307,6 +303,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_OTEL_INSECURE`              | Whether to use an insecure connection to the collector URL |               |
 | `SERVER_OTEL_TRACE_ID_RATIO`        | OpenTelemetry trace ID ratio                               |               |
 | `SERVER_OTEL_COLLECTOR_AUTH`        | OpenTelemetry Collector Authorization header value         |               |
+| `SERVER_OTEL_METRICS_ENABLED`       | Enable OpenTelemetry metrics collection                    | `false`       |
 | `SERVER_PROMETHEUS_ENABLED`         | Enable Prometheus                                          | `false`       |
 | `SERVER_PROMETHEUS_ADDRESS`         | Prometheus address                                         | `:9090`       |
 | `SERVER_PROMETHEUS_PATH`            | Prometheus metrics path                                    | `/metrics`    |
@@ -322,11 +319,19 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_TENANT_ALERTING_SLACK_CLIENT_ID`     | Slack client ID                     |                        |
 | `SERVER_TENANT_ALERTING_SLACK_CLIENT_SECRET` | Slack client secret                 |                        |
 | `SERVER_TENANT_ALERTING_SLACK_SCOPES`        | Slack scopes                        | `["incoming-webhook"]` |
+| `SERVER_EMAIL_KIND`                          | Email integration kind              | `postmark`             |
 | `SERVER_EMAIL_POSTMARK_ENABLED`              | Enable Postmark                     |                        |
 | `SERVER_EMAIL_POSTMARK_SERVER_KEY`           | Postmark server key                 |                        |
 | `SERVER_EMAIL_POSTMARK_FROM_EMAIL`           | Postmark from email                 |                        |
 | `SERVER_EMAIL_POSTMARK_FROM_NAME`            | Postmark from name                  | `Hatchet Support`      |
 | `SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL`        | Postmark support email              |                        |
+| `SERVER_EMAIL_SMTP_ENABLED`                  | Enable SMTP                         |                        |
+| `SERVER_EMAIL_SMTP_SERVER_ADDR`              | SMTP server address                 |                        |
+| `SERVER_EMAIL_SMTP_FROM_EMAIL`               | SMTP from email                     |                        |
+| `SERVER_EMAIL_SMTP_FROM_NAME`                | SMTP from name                      | `Hatchet Support`      |
+| `SERVER_EMAIL_SMTP_SUPPORT_EMAIL`            | SMTP support email                  |                        |
+| `SERVER_EMAIL_SMTP_AUTH_USERNAME`            | SMTP authentication username        |                        |
+| `SERVER_EMAIL_SMTP_AUTH_PASSWORD`            | SMTP authentication password        |                        |
 | `SERVER_MONITORING_ENABLED`                  | Enable monitoring                   | `true`                 |
 | `SERVER_MONITORING_PERMITTED_TENANTS`        | Permitted tenants for monitoring    |                        |
 | `SERVER_MONITORING_PROBE_TIMEOUT`            | Monitoring probe timeout            | `30s`                  |
@@ -338,36 +343,20 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Cron Operations Configuration
 
-| Variable                                                  | Description                                           | Default Value |
-| --------------------------------------------------------- | ----------------------------------------------------- | ------------- |
-| `SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL`       | Interval for running ANALYZE on task-related tables   | `3h`          |
-| `SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL`       | Interval for running ANALYZE on OLAP/analytics tables | `3h`          |
-| `SERVER_WAIT_FOR_FLUSH`                                   | Default wait for flush                                | `1ms`         |
-| `SERVER_MAX_CONCURRENT`                                   | Default max concurrent                                | `50`          |
-| `SERVER_FLUSH_PERIOD_MILLISECONDS`                        | Default flush period                                  | `10ms`        |
-| `SERVER_FLUSH_ITEMS_THRESHOLD`                            | Default flush threshold                               | `100`         |
-| `SERVER_FLUSH_STRATEGY`                                   | Default flush strategy                                | `DYNAMIC`     |
-| `SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH`                 | Workflow run buffer wait for flush                    |               |
-| `SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT`                 | Max concurrent workflow run buffer ops                |               |
-| `SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`      | Flush period for workflow run buffer                  |               |
-| `SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD`          | Items threshold for workflow run buffer               |               |
-| `SERVER_WORKFLOWRUNBUFFER_FLUSH_STRATEGY`                 | Flush strategy for workflow run buffer                |               |
-| `SERVER_EVENTBUFFER_WAIT_FOR_FLUSH`                       | Event buffer wait for flush                           |               |
-| `SERVER_EVENTBUFFER_MAX_CONCURRENT`                       | Max concurrent event buffer ops                       |               |
-| `SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS`            | Flush period for event buffer                         |               |
-| `SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD`                | Items threshold for event buffer                      |               |
-| `SERVER_EVENTBUFFER_SERIAL_BUFFER`                        | Event buffer serial mode                              |               |
-| `SERVER_EVENTBUFFER_FLUSH_STRATEGY`                       | Flush strategy for event buffer                       |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_WAIT_FOR_FLUSH`            | Release semaphore buffer wait for flush               |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_MAX_CONCURRENT`            | Max concurrent release semaphore buffer ops           |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS` | Flush period for release semaphore buffer             |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD`     | Items threshold for release semaphore buffer          |               |
-| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_STRATEGY`            | Flush strategy for release semaphore buffer           |               |
-| `SERVER_QUEUESTEPRUNBUFFER_WAIT_FOR_FLUSH`                | Queue step run buffer wait for flush                  |               |
-| `SERVER_QUEUESTEPRUNBUFFER_MAX_CONCURRENT`                | Max concurrent queue step run buffer ops              |               |
-| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`     | Flush period for queue step run buffer                |               |
-| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD`         | Items threshold for queue step run buffer             |               |
-| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY`                | Flush strategy for queue step run buffer              |               |
+| Variable                                            | Description                                                           | Default Value |
+| --------------------------------------------------- | --------------------------------------------------------------------- | ------------- |
+| `SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL` | Interval for running ANALYZE on task-related tables                   | `3h`          |
+| `SERVER_CRON_OPERATIONS_OLAP_ANALYZE_CRON_INTERVAL` | Interval for running ANALYZE on OLAP/analytics tables                 | `3h`          |
+| `SERVER_CRON_OPERATIONS_DB_HEALTH_METRICS_INTERVAL` | Interval for collecting database health metrics (OTel)                | `60s`         |
+| `SERVER_CRON_OPERATIONS_OLAP_METRICS_INTERVAL`      | Interval for collecting OLAP metrics (OTel)                           | `5m`          |
+| `SERVER_CRON_OPERATIONS_WORKER_METRICS_INTERVAL`    | Interval for collecting worker metrics (OTel)                         | `60s`         |
+| `SERVER_CRON_OPERATIONS_YESTERDAY_RUN_COUNT_HOUR`   | Hour (0-23) at which to collect yesterday's workflow run count (OTel) | `0`           |
+| `SERVER_CRON_OPERATIONS_YESTERDAY_RUN_COUNT_MINUTE` | Minute (0-59) at which to collect yesterday's workflow run count      | `5`           |
+| `SERVER_WAIT_FOR_FLUSH`                             | Default wait for flush                                                | `1ms`         |
+| `SERVER_MAX_CONCURRENT`                             | Default max concurrent                                                | `50`          |
+| `SERVER_FLUSH_PERIOD_MILLISECONDS`                  | Default flush period                                                  | `10ms`        |
+| `SERVER_FLUSH_ITEMS_THRESHOLD`                      | Default flush threshold                                               | `100`         |
+| `SERVER_FLUSH_STRATEGY`                             | Default flush strategy                                                | `DYNAMIC`     |
 
 ## OLAP Database Configuration
 

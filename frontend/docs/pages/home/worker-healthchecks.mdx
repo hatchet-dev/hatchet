@@ -6,19 +6,27 @@ The Python SDK allows you to enable and ping a healthcheck to check on the statu
 
 First, set the `HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED` environment variable to `True`. Once that flag is set, two health check endpoints will be available (on port `8001` by default):
 
-1. `/health` - A simple healthcheck that returns a 200 with a JSON body like: `{"status": "HEALTHY"}`.
+1. `/health` - Returns **200** when the worker listener is healthy, otherwise **503** with body `{"status":"HEALTHY"}` or `{"status":"UNHEALTHY"}`.
 2. `/metrics` - A metrics endpoint intended to be used by a monitoring system like Prometheus.
 
 ### Custom Port
 
 You can set a custom port with the `HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT` environment variable, e.g. `HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT=8002`.
 
+### Event loop blocked threshold
+
+If the worker listener process event loop becomes blocked for longer than a threshold, `/health` will return **503**.
+
+You can configure this threshold (in seconds) with:
+
+- `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` (default: `5.0`)
+
 #### Example request to `/health`:
 
 ```bash
 curl localhost:8001/health
 
-{"status": "HEALTHY"}
+{"status":"HEALTHY"}
 ```
 
 #### Example request to `/metrics`:
@@ -44,9 +52,12 @@ python_gc_collections_total{generation="2"} 2.0
 # HELP python_info Python platform information
 # TYPE python_info gauge
 python_info{implementation="CPython",major="3",minor="10",patchlevel="15",version="3.10.15"} 1.0
-# HELP hatchet_worker_status Current status of the Hatchet worker
-# TYPE hatchet_worker_status gauge
-hatchet_worker_status 1.0
+# HELP hatchet_worker_listener_health_my_worker Listener health (1 healthy, 0 unhealthy)
+# TYPE hatchet_worker_listener_health_my_worker gauge
+hatchet_worker_listener_health_my_worker 1.0
+# HELP hatchet_worker_event_loop_lag_seconds_my_worker Event loop lag in seconds (listener process)
+# TYPE hatchet_worker_event_loop_lag_seconds_my_worker gauge
+hatchet_worker_event_loop_lag_seconds_my_worker 0.0
 ```
 
 #### Example Prometheus Configuration for `/metrics`:
@@ -64,5 +75,5 @@ scrape_configs:
 An example query to check if the worker is healthy might look something like:
 
 ```
-(hatchet_worker_status{instance="localhost:8001", job="hatchet"}) or vector(0)
+(hatchet_worker_listener_health_my_worker{instance="localhost:8001", job="hatchet"}) or vector(0)
 ```

@@ -22,9 +22,15 @@ def wait_for_worker_health(healthcheck_port: int) -> bool:
             )
 
         try:
-            requests.get(f"http://localhost:{healthcheck_port}/health", timeout=5)
+            resp = requests.get(
+                f"http://localhost:{healthcheck_port}/health",
+                timeout=5,
+            )
 
-            return True
+            if resp.status_code == 200:
+                return True
+
+            time.sleep(1)
         except Exception:
             time.sleep(1)
 

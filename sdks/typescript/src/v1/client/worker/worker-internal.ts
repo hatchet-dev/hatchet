@@ -31,6 +31,7 @@ import {
   NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
@@ -60,8 +61,8 @@ export class V1Worker {
   action_registry: ActionRegistry;
   workflow_registry: Array<WorkflowDefinition | Workflow> = [];
   listener: ActionListener | undefined;
-  futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
-  contexts: Record<Action['stepRunId'], Context<any, any>> = {};
+  futures: Record<Action['taskRunExternalId'], HatchetPromise<any>> = {};
+  contexts: Record<Action['taskRunExternalId'], Context<any, any>> = {};
   maxRuns?: number;
 
   logger: Logger;
@@ -372,6 +373,14 @@ export class V1Worker {
       const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
       const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
 
+      // Convert Zod schema to JSON Schema if provided
+      let inputJsonSchema: Uint8Array | undefined;
+      if (workflow.inputValidator) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const jsonSchema = zodToJsonSchema(workflow.inputValidator as any);
+        inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
+      }
+
       const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
@@ -382,6 +391,7 @@ export class V1Worker {
         concurrencyArr,
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
+        inputJsonSchema,
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
@@ -524,12 +534,12 @@ export class V1Worker {
   }
 
   async handleStartStepRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, taskRunExternalId } = action;
 
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
       const context = new DurableContext(action, this.client, this);
-      this.contexts[action.stepRunId] = context;
+      this.contexts[taskRunExternalId] = context;
 
       const step = this.action_registry[actionId];
 
@@ -542,7 +552,7 @@ export class V1Worker {
       const run = async () => {
         parentRunContextManager.setContext({
           parentId: action.workflowRunId,
-          parentRunId: action.stepRunId,
+          parentTaskRunExternalId: taskRunExternalId,
           childIndex: 0,
           desiredWorkerId: this.workerId || '',
         });
@@ -550,9 +560,13 @@ export class V1Worker {
       };
 
       const success = async (result: any) => {
-        this.logger.info(`Step run ${action.stepRunId} succeeded`);
-
         try {
+          if (context.cancelled) {
+            return;
+          }
+
+          this.logger.info(`Task run ${taskRunExternalId} succeeded`);
+
           // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
             action,
@@ -589,21 +603,25 @@ export class V1Worker {
           );
         } finally {
           // delete the run from the futures
-          delete this.futures[action.stepRunId];
-          delete this.contexts[action.stepRunId];
+          delete this.futures[taskRunExternalId];
+          delete this.contexts[taskRunExternalId];
         }
       };
 
       const failure = async (error: any) => {
-        this.logger.error(`Step run ${action.stepRunId} failed: ${error.message}`);
-
-        if (error.stack) {
-          this.logger.error(error.stack);
-        }
-
         const shouldNotRetry = error instanceof NonRetryableError;
 
         try {
+          if (context.cancelled) {
+            return;
+          }
+
+          this.logger.error(`Task run ${taskRunExternalId} failed: ${error.message}`);
+
+          if (error.stack) {
+            this.logger.error(error.stack);
+          }
+
           // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
             action,
@@ -620,8 +638,8 @@ export class V1Worker {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
           // delete the run from the futures
-          delete this.futures[action.stepRunId];
-          delete this.contexts[action.stepRunId];
+          delete this.futures[taskRunExternalId];
+          delete this.contexts[taskRunExternalId];
         }
       };
 
@@ -637,7 +655,7 @@ export class V1Worker {
           await success(result);
         })()
       );
-      this.futures[action.stepRunId] = future;
+      this.futures[taskRunExternalId] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(
@@ -654,7 +672,16 @@ export class V1Worker {
       try {
         await future.promise;
       } catch (e: any) {
-        this.logger.error('Could not wait for step run to finish: ', e);
+        const message = e?.message || String(e);
+        if (message.includes('Cancelled')) {
+          this.logger.debug(`Task run ${taskRunExternalId} was cancelled`);
+        } else {
+          this.logger.error(
+            `Could not wait for task run ${taskRunExternalId} to finish. ` +
+              `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
+            e
+          );
+        }
       }
     } catch (e: any) {
       this.logger.error('Could not send action event (outer): ', e);
@@ -662,7 +689,7 @@ export class V1Worker {
   }
 
   async handleStartGroupKeyRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, getGroupKeyRunId, taskRunExternalId } = action;
 
     this.logger.error(
       'Concurrency Key Functions have been deprecated and will be removed in a future release. Use Concurrency Expressions instead.'
@@ -671,7 +698,7 @@ export class V1Worker {
     try {
       const context = new Context(action, this.client, this);
 
-      const key = action.getGroupKeyRunId;
+      const key = getGroupKeyRunId;
 
       if (!key) {
         this.logger.error(`No group key run id provided for action ${actionId}`);
@@ -694,7 +721,7 @@ export class V1Worker {
       };
 
       const success = (result: any) => {
-        this.logger.info(`Step run ${action.stepRunId} succeeded`);
+        this.logger.info(`Task run ${taskRunExternalId} succeeded`);
 
         try {
           // Send the action event to the dispatcher
@@ -716,7 +743,7 @@ export class V1Worker {
       };
 
       const failure = (error: any) => {
-        this.logger.error(`Step run ${key} failed: ${error.message}`);
+        this.logger.error(`Task run ${key} failed: ${error.message}`);
 
         try {
           // Send the action event to the dispatcher
@@ -766,8 +793,8 @@ export class V1Worker {
       workerId: this.name,
       jobId: action.jobId,
       jobRunId: action.jobRunId,
-      stepId: action.stepId,
-      stepRunId: action.stepRunId,
+      taskId: action.taskId,
+      taskRunExternalId: action.taskRunExternalId,
       actionId: action.actionId,
       eventTimestamp: new Date(),
       eventType,
@@ -797,11 +824,11 @@ export class V1Worker {
   }
 
   async handleCancelStepRun(action: Action) {
-    const { stepRunId } = action;
+    const { taskRunExternalId } = action;
     try {
-      this.logger.info(`Cancelling step run ${action.stepRunId}`);
-      const future = this.futures[stepRunId];
-      const context = this.contexts[stepRunId];
+      this.logger.info(`Cancelling task run ${taskRunExternalId}`);
+      const future = this.futures[taskRunExternalId];
+      const context = this.contexts[taskRunExternalId];
 
       if (context && context.abortController) {
         context.abortController.abort('Cancelled by worker');
@@ -809,16 +836,17 @@ export class V1Worker {
 
       if (future) {
         future.promise.catch(() => {
-          this.logger.info(`Cancelled step run ${action.stepRunId}`);
+          this.logger.info(`Cancelled task run ${taskRunExternalId}`);
         });
         future.cancel('Cancelled by worker');
         await future.promise;
       }
     } catch (e: any) {
-      this.logger.error('Could not cancel step run: ', e);
+      // Expected: the promise rejects when cancelled
+      this.logger.debug(`Task run ${taskRunExternalId} cancellation completed`);
     } finally {
-      delete this.futures[stepRunId];
-      delete this.contexts[stepRunId];
+      delete this.futures[taskRunExternalId];
+      delete this.contexts[taskRunExternalId];
     }
   }
 

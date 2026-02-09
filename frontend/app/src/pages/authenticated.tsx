@@ -1,21 +1,39 @@
-import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import { Outlet, useNavigate } from 'react-router-dom';
-import api, { queries, TenantVersion, User } from '@/lib/api';
-import { Loading } from '@/components/ui/loading.tsx';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import SupportChat from '@/components/molecules/support-chat';
-import AnalyticsProvider from '@/components/molecules/analytics-provider';
-import { useState, useEffect } from 'react';
-import { useContextFromParent } from '@/lib/outlet';
-import { useTenant } from '@/lib/atoms';
-import { AxiosError } from 'axios';
-import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { AppLayout } from '@/components/layout/app-layout';
+import SupportChat from '@/components/support-chat';
+import TopNav from '@/components/v1/nav/top-nav.tsx';
+import { useCurrentUser } from '@/hooks/use-current-user.ts';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import api, { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
+import { lastTenantAtom } from '@/lib/atoms';
+import { useContextFromParent } from '@/lib/outlet';
+import { OutletWithContext } from '@/lib/router-helpers';
+import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { PostHogProvider } from '@/providers/posthog';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  useLocation,
+  useMatchRoute,
+  useNavigate,
+} from '@tanstack/react-router';
+import { AxiosError } from 'axios';
+import { useAtom } from 'jotai';
+import { lazy, Suspense, useEffect } from 'react';
 
-export default function Authenticated() {
-  const [hasHasBanner, setHasBanner] = useState(false);
+const DevtoolsFooter = import.meta.env.DEV
+  ? lazy(() => import('../devtools.tsx'))
+  : null;
 
-  const { tenant } = useTenant();
+function AuthenticatedInner() {
+  const { tenant } = useTenantDetails();
+  const {
+    currentUser,
+    error: userError,
+    isLoading: isUserLoading,
+  } = useCurrentUser();
+  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],
@@ -26,6 +44,31 @@ export default function Authenticated() {
   });
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = location.pathname;
+  const matchRoute = useMatchRoute();
+  const isAuthPage =
+    Boolean(matchRoute({ to: appRoutes.authLoginRoute.to })) ||
+    Boolean(matchRoute({ to: appRoutes.authRegisterRoute.to }));
+  const isTenantPage = Boolean(
+    matchRoute({ to: appRoutes.tenantRoute.to, fuzzy: true }),
+  );
+  const isOrganizationsPage = Boolean(
+    matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
+  );
+  const isOnboardingVerifyEmailPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingVerifyRoute.to }),
+  );
+  const isOnboardingInvitesPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingInvitesRoute.to }),
+  );
+  const isOnboardingCreateTenantPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingCreateTenantRoute.to }),
+  );
+  const isOnboardingPage =
+    isOnboardingVerifyEmailPage ||
+    isOnboardingInvitesPage ||
+    isOnboardingCreateTenantPage;
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -33,7 +76,7 @@ export default function Authenticated() {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
-      navigate('/auth/login');
+      navigate({ to: appRoutes.authLoginRoute.to });
     },
   });
 
@@ -44,24 +87,8 @@ export default function Authenticated() {
     },
   });
 
-  const userQuery = useQuery({
-    queryKey: ['user:get:current'],
-    retry: false,
-    queryFn: async () => {
-      const res = await api.userGetCurrent();
-
-      return res.data;
-    },
-  });
-
-  const invitesQuery = useQuery({
-    queryKey: ['user:list-tenant-invites'],
-    retry: false,
-    queryFn: async () => {
-      const res = await api.userListTenantInvites();
-      return res.data.rows || [];
-    },
-  });
+  const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
+    usePendingInvites();
 
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
@@ -69,111 +96,157 @@ export default function Authenticated() {
   });
 
   const ctx = useContextFromParent({
-    user: userQuery.data,
+    user: currentUser,
     memberships: listMembershipsQuery.data?.rows,
   });
 
   useEffect(() => {
-    const currentUrl = window.location.pathname;
-    const userQueryError = userQuery.error as AxiosError<User> | null;
+    const userQueryError = userError as AxiosError<User> | null | undefined;
 
     // Skip all redirects for organization pages
-    if (currentUrl.startsWith('/organizations')) {
+    if (isOrganizationsPage) {
+      return;
+    }
+
+    // If we definitively have no user, always go to login.
+    if (!isUserLoading && !currentUser && !isAuthPage) {
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
-      window.location.href = '/auth/login';
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (
-      userQuery.data &&
-      !userQuery.data.emailVerified &&
-      !currentUrl.includes('/onboarding/verify-email')
+      currentUser &&
+      !currentUser.emailVerified &&
+      !isOnboardingVerifyEmailPage
     ) {
-      window.location.href = '/onboarding/verify-email';
+      navigate({ to: appRoutes.onboardingVerifyRoute.to, replace: true });
       return;
     }
 
     if (
-      invitesQuery.data?.length &&
-      invitesQuery.data.length > 0 &&
-      !currentUrl.includes('/onboarding/invites')
+      pendingInvitesQuery.data &&
+      pendingInvitesQuery.data > 0 &&
+      !isOnboardingInvitesPage
     ) {
-      window.location.href = '/onboarding/invites';
+      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
       return;
     }
 
     if (
+      !isPendingInvitesLoading &&
       listMembershipsQuery.data?.rows?.length === 0 &&
-      !currentUrl.includes('/onboarding')
+      !isOnboardingPage
     ) {
-      window.location.href = '/onboarding/create-tenant';
+      navigate({ to: appRoutes.onboardingCreateTenantRoute.to, replace: true });
       return;
     }
 
+    // If user has memberships and we're at the bare root, go to their first tenant
     if (
-      tenant?.version === TenantVersion.V0 &&
-      currentUrl.startsWith('/tenants')
+      pathname === '/' &&
+      listMembershipsQuery.data?.rows &&
+      listMembershipsQuery.data.rows.length > 0
     ) {
-      window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
-      return;
+      const memberships = listMembershipsQuery.data.rows;
+      const lastTenantId = lastTenant?.metadata.id;
+
+      const lastTenantInMemberships = lastTenantId
+        ? memberships.find((m) => m.tenant?.metadata.id === lastTenantId)
+            ?.tenant
+        : undefined;
+
+      // If the cached tenant isn't in the current user's memberships (e.g. user switched),
+      // clear it so we don't keep trying to use a stale tenant.
+      if (lastTenantId && !lastTenantInMemberships) {
+        setLastTenant(undefined);
+      }
+
+      const targetTenant = lastTenantInMemberships ?? memberships[0].tenant;
+
+      if (targetTenant) {
+        // Check if tenant has workflows to decide where to redirect
+        api
+          .workflowList(targetTenant.metadata.id, { limit: 1 })
+          .then((response) => {
+            const hasWorkflows =
+              response.data.rows && response.data.rows.length > 0;
+
+            navigate({
+              to: hasWorkflows
+                ? appRoutes.tenantRunsRoute.to
+                : appRoutes.tenantOverviewRoute.to,
+              params: { tenant: targetTenant.metadata.id },
+              replace: true,
+            });
+          })
+          .catch(() => {
+            // On error, default to runs page
+            navigate({
+              to: appRoutes.tenantRunsRoute.to,
+              params: { tenant: targetTenant.metadata.id },
+              replace: true,
+            });
+          });
+      }
     }
   }, [
     tenant?.metadata.id,
-    userQuery.data,
-    invitesQuery.data,
+    currentUser,
+    pendingInvitesQuery.data,
+    isPendingInvitesLoading,
     listMembershipsQuery.data,
     tenant?.version,
-    userQuery.error,
+    userError,
+    isUserLoading,
+    navigate,
+    lastTenant,
+    pathname,
+    isOrganizationsPage,
+    isOnboardingVerifyEmailPage,
+    isOnboardingInvitesPage,
+    isOnboardingPage,
+    isAuthPage,
+    setLastTenant,
   ]);
 
-  if (
-    userQuery.isLoading ||
-    invitesQuery.isLoading ||
-    listMembershipsQuery.isLoading
-  ) {
-    return <Loading />;
-  }
-
-  if (userQuery.error) {
-    const currentUrl = window.location.pathname;
-    if (
-      !currentUrl.includes('/auth/login') &&
-      !currentUrl.includes('/auth/register')
-    ) {
-      window.location.href = '/auth/login';
-      return null;
+  useEffect(() => {
+    if (userError && !isAuthPage) {
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
     }
-  }
-
-  if (!userQuery.data) {
-    return <Loading />;
-  }
-
-  // Allow organization pages even without tenant memberships
-  const isOrgPage = window.location.pathname.includes('/organizations');
-  if (!isOrgPage && !listMembershipsQuery.data?.rows) {
-    return <Loading />;
-  }
+  }, [isAuthPage, navigate, userError]);
 
   return (
-    <AnalyticsProvider user={userQuery.data}>
-      <SupportChat user={userQuery.data}>
-        <div className="flex flex-row flex-1 w-full h-full">
-          <MainNav
-            user={userQuery.data}
-            tenantMemberships={listMembershipsQuery.data?.rows || []}
-            setHasBanner={setHasBanner}
-          />
-          <div
-            className={`${hasHasBanner ? 'pt-28' : 'pt-16'} flex-grow overflow-y-auto overflow-x-hidden`}
-          >
-            <Outlet context={ctx} />
-          </div>
-        </div>
+    <PostHogProvider user={currentUser}>
+      <SupportChat user={currentUser}>
+        <AppLayout
+          header={
+            <TopNav
+              user={currentUser}
+              tenantMemberships={listMembershipsQuery.data?.rows || []}
+            />
+          }
+          footer={
+            isTenantPage && DevtoolsFooter ? (
+              <Suspense fallback={null}>
+                <DevtoolsFooter />
+              </Suspense>
+            ) : undefined
+          }
+          // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+          contentScroll={!isTenantPage}
+        >
+          <OutletWithContext context={ctx} />
+        </AppLayout>
       </SupportChat>
-    </AnalyticsProvider>
+    </PostHogProvider>
   );
+}
+
+export default function Authenticated() {
+  return <AuthenticatedInner />;
 }

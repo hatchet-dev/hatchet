@@ -1,3 +1,10 @@
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/v1/ui/chart';
+import { capitalize, cn } from '@/lib/utils';
 import { useState, useMemo, useRef } from 'react';
 import {
   CartesianGrid,
@@ -12,13 +19,6 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/v1/ui/chart';
-import { capitalize, cn } from '@/lib/utils';
 
 export type DataPoint<T extends string> = Record<T, number> & {
   date: string;
@@ -165,7 +165,7 @@ export function ZoomableChart<T extends string>({
   return (
     <ChartContainer
       config={chartConfig}
-      className={cn('w-full h-[200px] min-h-[200px]', className)}
+      className={cn('h-[200px] min-h-[200px] w-full', className)}
     >
       <div className="h-full" ref={chartRef} style={{ touchAction: 'none' }}>
         {getChildChart(kind, {
@@ -259,7 +259,7 @@ function ChildBarChart<T extends string>({
         <ChartTooltip
           content={
             <ChartTooltipContent
-              className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
+              className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
               labelFormatter={(value) => new Date(value).toLocaleString()}
             />
           }
@@ -337,7 +337,7 @@ function ChildLineChart<T extends string>({
         <ChartTooltip
           content={
             <ChartTooltipContent
-              className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
+              className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
               labelFormatter={(value) => new Date(value).toLocaleString()}
             />
           }
@@ -397,14 +397,13 @@ function ChildAreaChart<T extends string>({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
       >
-        <CartesianGrid vertical={false} />
         <XAxis
           dataKey="date"
           tickFormatter={formatXAxis}
           tickLine={false}
           axisLine={false}
           tickMargin={4}
-          minTickGap={16}
+          minTickGap={48}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
         {showYAxis && (
@@ -418,7 +417,7 @@ function ChildAreaChart<T extends string>({
         <ChartTooltip
           content={
             <ChartTooltipContent
-              className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
+              className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
               labelFormatter={(value) => new Date(value).toLocaleString()}
             />
           }

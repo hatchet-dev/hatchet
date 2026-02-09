@@ -10,13 +10,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateRequestObject) (gen.TenantCreateResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
+	user := ctx.Get("user").(*sqlcv1.User)
 
 	if !t.config.Runtime.AllowCreateTenant {
 		return gen.TenantCreate400JSONResponse(
@@ -32,7 +31,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// determine if a tenant with the slug already exists
-	_, err := t.config.APIRepository.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
+	_, err := t.config.V1.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -45,13 +44,9 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		), nil
 	}
 
-	createOpts := &repository.CreateTenantOpts{
+	createOpts := &v1.CreateTenantOpts{
 		Slug: request.Body.Slug,
 		Name: request.Body.Name,
-	}
-
-	if request.Body.OnboardingData != nil {
-		createOpts.OnboardingData = *request.Body.OnboardingData
 	}
 
 	if request.Body.Environment != nil {
@@ -63,67 +58,43 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
 
-	uiVersion := dbsqlc.TenantMajorUIVersionV0
-
-	if request.Body.UiVersion != nil {
-		ver := *request.Body.UiVersion
-		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
-	}
-
-	createOpts.UIVersion = &uiVersion
-
-	var engineVersion *dbsqlc.TenantMajorEngineVersion
+	var engineVersion *sqlcv1.TenantMajorEngineVersion
 
 	if request.Body.EngineVersion != nil {
-		ver := dbsqlc.TenantMajorEngineVersion(*request.Body.EngineVersion)
+		ver := sqlcv1.TenantMajorEngineVersion(*request.Body.EngineVersion)
 		engineVersion = &ver
 	}
 
 	createOpts.EngineVersion = engineVersion
 
+	if request.Body.OnboardingData != nil {
+		createOpts.OnboardingData = *request.Body.OnboardingData
+	}
+
 	// write the user to the db
-	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts)
+	tenant, err := t.config.V1.Tenant().CreateTenant(ctx.Request().Context(), createOpts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
-	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
+	err = t.config.V1.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// add the user as an owner of the tenant
-	_, err = t.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &repository.CreateTenantMemberOpts{
-		UserId: sqlchelpers.UUIDToStr(user.ID),
+	_, err = t.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &v1.CreateTenantMemberOpts{
+		UserId: user.ID,
 		Role:   "OWNER",
 	})
 
 	if err != nil {
 		return nil, err
 	}
-
-	t.config.Analytics.Tenant(tenantId, map[string]interface{}{
-		"name": tenant.Name,
-		"slug": tenant.Slug,
-	})
-
-	t.config.Analytics.Enqueue(
-		"tenant:create",
-		sqlchelpers.UUIDToStr(user.ID),
-		&tenantId,
-		map[string]interface{}{
-			"tenant_created": true,
-		},
-		map[string]interface{}{
-			"name":            tenant.Name,
-			"slug":            tenant.Slug,
-			"onboarding_data": createOpts.OnboardingData,
-		},
-	)
 
 	ctx.Set("tenant", tenant)
 

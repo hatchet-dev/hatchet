@@ -1,22 +1,23 @@
 package workflows
 
 import (
+	"encoding/json"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request gen.ScheduledWorkflowRunCreateRequestObject) (gen.ScheduledWorkflowRunCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
-	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
+	workflow, err := t.config.V1.Workflows().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
 
 	if err != nil {
 		return gen.ScheduledWorkflowRunCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
@@ -28,11 +29,33 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		priority = *request.Body.Priority
 	}
 
-	scheduled, err := t.config.APIRepository.Workflow().CreateScheduledWorkflow(ctx.Request().Context(), tenantId, &repository.CreateScheduledWorkflowRunForWorkflowOpts{
+	var input, additionalMetadata []byte
+
+	if request.Body.Input != nil {
+		input, err = json.Marshal(request.Body.Input)
+
+		if err != nil {
+			return gen.ScheduledWorkflowRunCreate400JSONResponse(
+				apierrors.NewAPIErrors("could not marshal input"),
+			), nil
+		}
+	}
+
+	if request.Body.AdditionalMetadata != nil {
+		additionalMetadata, err = json.Marshal(request.Body.AdditionalMetadata)
+
+		if err != nil {
+			return gen.ScheduledWorkflowRunCreate400JSONResponse(
+				apierrors.NewAPIErrors("could not marshal additionalMetadata"),
+			), nil
+		}
+	}
+
+	scheduled, err := t.config.V1.WorkflowSchedules().CreateScheduledWorkflow(ctx.Request().Context(), tenantId, &v1.CreateScheduledWorkflowRunForWorkflowOpts{
 		ScheduledTrigger:   request.Body.TriggerAt,
-		Input:              request.Body.Input,
-		AdditionalMetadata: request.Body.AdditionalMetadata,
-		WorkflowId:         sqlchelpers.UUIDToStr(workflow.ID),
+		Input:              input,
+		AdditionalMetadata: additionalMetadata,
+		WorkflowId:         workflow.ID,
 		Priority:           &priority,
 	})
 

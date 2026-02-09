@@ -5,8 +5,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type PostAssignInput struct {
@@ -14,8 +14,8 @@ type PostAssignInput struct {
 }
 
 type SnapshotInput struct {
-	Workers               map[string]*WorkerCp
-	WorkerSlotUtilization map[string]*SlotUtilization
+	Workers               map[uuid.UUID]*WorkerCp
+	WorkerSlotUtilization map[uuid.UUID]*SlotUtilization
 }
 
 type SlotUtilization struct {
@@ -24,21 +24,21 @@ type SlotUtilization struct {
 }
 
 type WorkerCp struct {
-	WorkerId string
+	WorkerId uuid.UUID
 	MaxRuns  int
 	Labels   []*sqlcv1.ListManyWorkerLabelsRow
 	Name     string
 }
 
 type SlotCp struct {
-	WorkerId string
+	WorkerId uuid.UUID
 	Used     bool
 }
 
 type SchedulerExtension interface {
-	SetTenants(tenants []*dbsqlc.Tenant)
-	ReportSnapshot(tenantId string, input *SnapshotInput)
-	PostAssign(tenantId string, input *PostAssignInput)
+	SetTenants(tenants []*sqlcv1.Tenant)
+	ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput)
+	PostAssign(tenantId uuid.UUID, input *PostAssignInput)
 	Cleanup() error
 }
 
@@ -58,7 +58,7 @@ func (e *Extensions) Add(ext SchedulerExtension) {
 	e.exts = append(e.exts, ext)
 }
 
-func (e *Extensions) ReportSnapshot(tenantId string, input *SnapshotInput) {
+func (e *Extensions) ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -68,7 +68,7 @@ func (e *Extensions) ReportSnapshot(tenantId string, input *SnapshotInput) {
 	}
 }
 
-func (e *Extensions) PostAssign(tenantId string, input *PostAssignInput) {
+func (e *Extensions) PostAssign(tenantId uuid.UUID, input *PostAssignInput) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -92,7 +92,7 @@ func (e *Extensions) Cleanup() error {
 	return eg.Wait()
 }
 
-func (e *Extensions) SetTenants(tenants []*dbsqlc.Tenant) {
+func (e *Extensions) SetTenants(tenants []*sqlcv1.Tenant) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 

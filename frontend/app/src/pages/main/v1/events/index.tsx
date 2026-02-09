@@ -1,3 +1,6 @@
+import { useFilters } from '../filters/hooks/use-filters';
+import { RunsTable } from '../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import {
   columns,
   EventColumn,
@@ -8,26 +11,21 @@ import {
   statusKey,
   workflowKey,
 } from './components/event-columns';
-import { Separator } from '@/components/v1/ui/separator';
-import { useMemo, useState } from 'react';
-import { VisibilityState } from '@tanstack/react-table';
-import { V1Event, V1Filter } from '@/lib/api';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { RunsTable } from '../workflow-runs-v1/components/runs-table';
-import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-
-import {
-  FilterColumn,
-  filterColumns,
-} from '../filters/components/filter-columns';
-import { useFilters } from '../filters/hooks/use-filters';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
 import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Separator } from '@/components/v1/ui/separator';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { CheckIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 export default function Events() {
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
@@ -139,13 +137,11 @@ export default function Events() {
         }}
         onResetFilters={resetFilters}
         emptyState={
-          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
             <p className="text-lg font-semibold">No events found</p>
             <div className="w-fit">
               <DocsButton
                 doc={docsPages.home['run-on-event']}
-                size="full"
-                variant="outline"
                 label="Learn about pushing events to Hatchet"
               />
             </div>
@@ -166,17 +162,17 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
   return (
     <div className="w-full">
       <div className="space-y-6">
-        <div className="flex flex-col justify-center items-start gap-3 pb-4 border-b text-sm">
-          <div className="flex flex-row items-center gap-3 min-w-0 w-full">
-            <span className="text-muted-foreground font-medium shrink-0">
+        <div className="flex flex-col items-start justify-center gap-3 border-b pb-4 text-sm">
+          <div className="flex w-full min-w-0 flex-row items-center gap-3">
+            <span className="shrink-0 font-medium text-muted-foreground">
               Key
             </span>
-            <div className="px-2 py-1 overflow-x-auto min-w-0 flex-1">
+            <div className="min-w-0 flex-1 overflow-x-auto px-2 py-1">
               <span className="whitespace-nowrap">{event.key}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-muted-foreground font-medium">Seen</span>
+            <span className="font-medium text-muted-foreground">Seen</span>
             <span className="font-medium">
               <RelativeDate date={event.metadata.createdAt} />
             </span>
@@ -185,7 +181,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
 
         <div className="space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2">
+            <h3 className="mb-2 text-sm font-semibold text-foreground">
               Payload
             </h3>
             <Separator className="mb-3" />
@@ -196,7 +192,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
 
           {hasScope && filters && filters.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2">
+              <h3 className="mb-2 text-sm font-semibold text-foreground">
                 Filters
               </h3>
               <Separator className="mb-3" />
@@ -208,7 +204,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
           )}
 
           <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2">Runs</h3>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">Runs</h3>
             <Separator className="mb-3" />
             <EventWorkflowRunsList event={event} />
           </div>
@@ -244,19 +240,64 @@ function FiltersSection({
   filters: V1Filter[];
   workflowIdToName: Record<string, string>;
 }) {
-  const columns = useMemo(
-    () => filterColumns(workflowIdToName),
+  const filterColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'ID',
+        cellRenderer: (filter: V1Filter) => (
+          <div className="w-full">
+            <Button className="w-fit pl-0" variant="link">
+              {filter.metadata.id}
+            </Button>
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Workflow',
+        cellRenderer: (filter: V1Filter) => (
+          <div className="w-full">{workflowIdToName[filter.workflowId]}</div>
+        ),
+      },
+      {
+        columnLabel: 'Scope',
+        cellRenderer: (filter: V1Filter) => (
+          <div className="w-full">{filter.scope}</div>
+        ),
+      },
+      {
+        columnLabel: 'Expression',
+        cellRenderer: (filter: V1Filter) => (
+          <CodeHighlighter
+            language="text"
+            className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+            code={filter.expression}
+            copy={false}
+            maxHeight="10rem"
+            minWidth="20rem"
+          />
+        ),
+      },
+      {
+        columnLabel: 'Is Declarative',
+        cellRenderer: (filter: V1Filter) =>
+          filter.isDeclarative ? (
+            <CheckIcon className="size-4 text-green-600" />
+          ) : null,
+      },
+    ],
     [workflowIdToName],
   );
 
   return (
     <div className="w-full overflow-x-auto">
-      <div className="min-w-[500px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
-        <DataTable
-          columns={columns}
-          data={filters}
-          columnKeyToName={FilterColumn}
-        />
+      <div className="min-w-[500px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px]">
+        {filters.length > 0 ? (
+          <SimpleTable columns={filterColumns} data={filters} />
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            No filters found for this event.
+          </div>
+        )}
       </div>
     </div>
   );

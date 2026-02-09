@@ -11,7 +11,7 @@ COPY ./frontend/app ./
 RUN npm run build
 
 # Stage 2: Build the static fileserver
-FROM golang:1.24-alpine3.21 AS staticfileserver
+FROM golang:1.25-alpine AS staticfileserver
 
 WORKDIR /app
 

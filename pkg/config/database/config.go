@@ -7,8 +7,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type ConfigFile struct {
@@ -25,7 +24,7 @@ type ConfigFile struct {
 	ReadReplicaMinConns    int    `mapstructure:"readReplicaMinConns" json:"readReplicaMinConns,omitempty" default:"10"`
 
 	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
-	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"10"`
+	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
 
 	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
 	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
@@ -64,12 +63,6 @@ type Layer struct {
 	ReadReplicaPool *pgxpool.Pool
 
 	QueuePool *pgxpool.Pool
-
-	APIRepository repository.APIRepository
-
-	EngineRepository repository.EngineRepository
-
-	EntitlementRepository repository.EntitlementsRepository
 
 	V1 v1.Repository
 

@@ -16,7 +16,7 @@
   "ignorePatterns": ["dist"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": ["./tsconfig.json", "./tsconfig.node.json"],
+    "project": ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.cypress.json"],
     "warnOnUnsupportedTypeScriptVersion": false
   },
   "plugins": ["react-refresh", "import", "unused-imports", "prettier"],
@@ -46,7 +46,11 @@
     "import/no-extraneous-dependencies": [
       "error",
       {
-        "devDependencies": ["vite.config.ts"]
+        "devDependencies": [
+          "vite.config.ts",
+          "cypress.config.ts",
+          "cypress/**/*.{ts,tsx}"
+        ]
       }
     ],
     "react-hooks/exhaustive-deps": "error"

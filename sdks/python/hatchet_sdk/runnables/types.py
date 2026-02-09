@@ -1,10 +1,11 @@
 import asyncio
+import inspect
 import json
 from collections.abc import Callable, Mapping
 from enum import Enum
-from typing import Any, ParamSpec, TypeGuard, TypeVar
+from typing import Any, ParamSpec, TypeAlias, TypeGuard, TypeVar, overload
 
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
@@ -59,8 +60,21 @@ class ConcurrencyExpression(BaseModel):
             limit_strategy=self.limit_strategy,
         )
 
+    @staticmethod
+    def from_int(max_runs: int) -> "ConcurrencyExpression":
+        return ConcurrencyExpression(
+            expression="'constant'",
+            max_runs=max_runs,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        )
 
-TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel | DataclassInstance)
+
+_TWorkflowInputBound: TypeAlias = BaseModel | DataclassInstance | dict[str, Any]
+TWorkflowInput = TypeVar("TWorkflowInput", bound=_TWorkflowInputBound)
+
+TWorkflowInput_contra = TypeVar(
+    "TWorkflowInput_contra", bound=_TWorkflowInputBound, contravariant=True
+)
 
 
 class TaskDefaults(BaseModel):
@@ -87,6 +101,21 @@ class DefaultFilter(BaseModel):
         )
 
 
+TaskPayloadForInternalUse = (
+    type[BaseModel] | type[DataclassInstance] | dict[str, Any] | None
+)
+
+
+class TaskIOValidator:
+    def __init__(
+        self,
+        workflow_input: TypeAdapter[TaskPayloadForInternalUse],
+        step_output: TypeAdapter[TaskPayloadForInternalUse],
+    ) -> None:
+        self.workflow_input = workflow_input
+        self.step_output = step_output
+
+
 class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
@@ -96,14 +125,13 @@ class WorkflowConfig(BaseModel):
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
-    concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None
-    input_validator: SkipValidation[type[BaseModel] | type[DataclassInstance]] = (
-        EmptyModel
-    )
+    concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
+    input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)
+    default_additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
 class StepType(str, Enum):
@@ -126,7 +154,7 @@ def is_async_fn(
 def is_sync_fn(
     fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[SyncFunc[TWorkflowInput, R]]:
-    return not asyncio.iscoroutinefunction(fn)
+    return not inspect.iscoroutinefunction(fn)
 
 
 DurableAsyncFunc = Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]]
@@ -139,10 +167,38 @@ DurableTaskFunc = (
 def is_durable_async_fn(
     fn: Callable[..., Any],
 ) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
-    return asyncio.iscoroutinefunction(fn)
+    return inspect.iscoroutinefunction(fn)
 
 
 def is_durable_sync_fn(
     fn: DurableTaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[DurableSyncFunc[TWorkflowInput, R]]:
-    return not asyncio.iscoroutinefunction(fn)
+    return not inspect.iscoroutinefunction(fn)
+
+
+_TModel = TypeVar("_TModel", bound=BaseModel)
+_TDataclass = TypeVar("_TDataclass", bound=DataclassInstance)
+_T = TypeVar("_T")
+
+
+@overload
+def normalize_validator(validator: None) -> type[EmptyModel]: ...
+
+
+@overload
+def normalize_validator(validator: type[_TModel]) -> type[_TModel]: ...
+
+
+@overload
+def normalize_validator(validator: type[_TDataclass]) -> type[_TDataclass]: ...
+
+
+@overload
+def normalize_validator(validator: type[_T]) -> type[_T]: ...
+
+
+def normalize_validator(validator: object) -> object:
+    if validator is None or validator is type(None):
+        return EmptyModel
+
+    return validator

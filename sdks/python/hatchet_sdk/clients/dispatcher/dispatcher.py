@@ -64,21 +64,22 @@ class DispatcherClient:
         preset_labels = self.config.worker_preset_labels
 
         for key, value in preset_labels.items():
-            req.labels[key] = WorkerLabels(strValue=str(value))
+            req.labels[key] = WorkerLabels(str_value=str(value))
 
         response = cast(
             WorkerRegisterResponse,
-            await self.aio_client.Register(
+            # fixme: figure out how to get typing right here
+            await self.aio_client.Register(  # type: ignore[misc]
                 WorkerRegisterRequest(
-                    workerName=req.worker_name,
+                    worker_name=req.worker_name,
                     actions=req.actions,
                     services=req.services,
-                    maxRuns=req.slots,
+                    slots=req.slots,
                     labels=req.labels,
-                    runtimeInfo=RuntimeInfo(
-                        sdkVersion=version("hatchet_sdk"),
+                    runtime_info=RuntimeInfo(
+                        sdk_version=version("hatchet_sdk"),
                         language=SDKS.PYTHON,
-                        languageVersion=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
+                        language_version=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
                         os=platform.system().lower(),
                     ),
                 ),
@@ -87,13 +88,13 @@ class DispatcherClient:
             ),
         )
 
-        return ActionListener(self.config, response.workerId)
+        return ActionListener(self.config, response.worker_id)
 
     async def send_step_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
-        payload: str,
+        payload: str | None,
         should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
         try:
@@ -112,12 +113,11 @@ class DispatcherClient:
 
             return None
 
-    @tenacity_retry
     async def _try_send_step_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
-        payload: str,
+        payload: str | None,
         should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
         if not self.aio_client:
@@ -128,22 +128,27 @@ class DispatcherClient:
         event_timestamp.GetCurrentTime()
 
         event = StepActionEvent(
-            workerId=action.worker_id,
-            jobId=action.job_id,
-            jobRunId=action.job_run_id,
-            stepId=action.step_id,
-            stepRunId=action.step_run_id,
-            actionId=action.action_id,
-            eventTimestamp=event_timestamp,
-            eventType=event_type,
-            eventPayload=payload,
-            retryCount=action.retry_count,
-            shouldNotRetry=should_not_retry,
+            worker_id=action.worker_id,
+            job_id=action.job_id,
+            job_run_id=action.job_run_id,
+            task_id=action.step_id,
+            task_run_external_id=action.step_run_id,
+            action_id=action.action_id,
+            event_timestamp=event_timestamp,
+            event_type=event_type,
+            event_payload=payload,
+            retry_count=action.retry_count,
+            should_not_retry=should_not_retry,
+        )
+
+        send_step_action_event = tenacity_retry(
+            self.aio_client.SendStepActionEvent, self.config.tenacity
         )
 
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
-            await self.aio_client.SendStepActionEvent(
+            # fixme: figure out how to get typing right here
+            await send_step_action_event(  # type: ignore[misc]
                 event,
                 metadata=get_metadata(self.token),
             ),
@@ -164,7 +169,7 @@ class DispatcherClient:
         client = self._get_or_create_client()
 
         client.ReleaseSlot(
-            ReleaseSlotRequest(stepRunId=step_run_id),
+            ReleaseSlotRequest(task_run_external_id=step_run_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
         )
@@ -174,8 +179,8 @@ class DispatcherClient:
 
         client.RefreshTimeout(
             RefreshTimeoutRequest(
-                stepRunId=step_run_id,
-                incrementTimeoutBy=increment_by,
+                task_run_external_id=step_run_id,
+                increment_timeout_by=increment_by,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
@@ -188,14 +193,14 @@ class DispatcherClient:
 
         for key, value in labels.items():
             if isinstance(value, int):
-                worker_labels[key] = WorkerLabels(intValue=value)
+                worker_labels[key] = WorkerLabels(int_value=value)
             else:
-                worker_labels[key] = WorkerLabels(strValue=str(value))
+                worker_labels[key] = WorkerLabels(str_value=str(value))
 
         client = self._get_or_create_client()
 
         client.UpsertWorkerLabels(
-            UpsertWorkerLabelsRequest(workerId=worker_id, labels=worker_labels),
+            UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
         )
@@ -213,12 +218,13 @@ class DispatcherClient:
 
         for key, value in labels.items():
             if isinstance(value, int):
-                worker_labels[key] = WorkerLabels(intValue=value)
+                worker_labels[key] = WorkerLabels(int_value=value)
             else:
-                worker_labels[key] = WorkerLabels(strValue=str(value))
+                worker_labels[key] = WorkerLabels(str_value=str(value))
 
-        await self.aio_client.UpsertWorkerLabels(
-            UpsertWorkerLabelsRequest(workerId=worker_id, labels=worker_labels),
+        # fixme: figure out how to get typing right here
+        await self.aio_client.UpsertWorkerLabels(  # type: ignore[misc]
+            UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
         )

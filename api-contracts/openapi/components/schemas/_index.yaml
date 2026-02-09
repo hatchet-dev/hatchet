@@ -114,6 +114,8 @@ WorkflowID:
   $ref: "./event.yaml#/WorkflowID"
 EventList:
   $ref: "./event.yaml#/EventList"
+V1Event:
+  $ref: "./v1/event.yaml#/V1Event"
 V1EventList:
   $ref: "./v1/event.yaml#/V1EventList"
 V1FilterList:
@@ -186,6 +188,18 @@ ScheduledWorkflowsOrderByField:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsOrderByField"
 ScheduledRunStatus:
   $ref: "./workflow_run.yaml#/ScheduledRunStatus"
+UpdateScheduledWorkflowRunRequest:
+  $ref: "./workflow_run.yaml#/UpdateScheduledWorkflowRunRequest"
+ScheduledWorkflowsBulkDeleteRequest:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteRequest"
+ScheduledWorkflowsBulkDeleteFilter:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteFilter"
+ScheduledWorkflowsBulkDeleteResponse:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteResponse"
+ScheduledWorkflowsBulkUpdateRequest:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkUpdateRequest"
+ScheduledWorkflowsBulkUpdateResponse:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkUpdateResponse"
 CronWorkflows:
   $ref: "./workflow_run.yaml#/CronWorkflows"
 CronWorkflowsList:
@@ -362,6 +376,8 @@ V1LogLine:
   $ref: "./v1/logs.yaml#/V1LogLine"
 V1LogLineLevel:
   $ref: "./v1/logs.yaml#/V1LogLineLevel"
+V1LogLineOrderByDirection:
+  $ref: "./v1/logs.yaml#/V1LogLineOrderByDirection"
 V1LogLineList:
   $ref: "./v1/logs.yaml#/V1LogLineList"
 V1TaskTiming:

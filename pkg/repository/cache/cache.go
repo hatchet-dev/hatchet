@@ -39,6 +39,7 @@ func New(duration time.Duration) *Cache {
 		// consider a duration of 0 a very short expiry instead of no expiry
 		duration = 1 * time.Millisecond
 	}
+
 	return &Cache{
 		expiration: duration,
 		cache:      cache.NewTTL[string, interface{}](),

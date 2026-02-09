@@ -10,8 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type AuthZ struct {
@@ -68,8 +67,8 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 	}
 
 	// if tenant is set in the context, verify that the user is a member of the tenant
-	if tenant, ok := c.Get("tenant").(*dbsqlc.Tenant); ok {
-		user, ok := c.Get("user").(*dbsqlc.User)
+	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok {
+		user, ok := c.Get("user").(*sqlcv1.User)
 
 		if !ok {
 			a.l.Debug().Msgf("user not found in context")
@@ -78,7 +77,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		}
 
 		// check if the user is a member of the tenant
-		tenantMember, err := a.config.APIRepository.Tenant().GetTenantMemberByUserID(c.Request().Context(), sqlchelpers.UUIDToStr(tenant.ID), sqlchelpers.UUIDToStr(user.ID))
+		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
 
 		if err != nil {
 			a.l.Debug().Err(err).Msgf("error getting tenant member")
@@ -141,7 +140,7 @@ var permittedWithUnverifiedEmail = []string{
 }
 
 func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
-	user, ok := c.Get("user").(*dbsqlc.User)
+	user, ok := c.Get("user").(*sqlcv1.User)
 
 	if !ok {
 		return nil
@@ -171,15 +170,15 @@ var adminAndOwnerOnly = []string{
 	"ApiTokenUpdateRevoke",
 }
 
-func (a *AuthZ) authorizeTenantOperations(tenant *dbsqlc.Tenant, tenantMember *dbsqlc.PopulateTenantMembersRow, r *middleware.RouteInfo) error {
+func (a *AuthZ) authorizeTenantOperations(tenant *sqlcv1.Tenant, tenantMember *sqlcv1.PopulateTenantMembersRow, r *middleware.RouteInfo) error {
 	// if the user is an owner, they can do anything
-	if tenantMember.Role == dbsqlc.TenantMemberRoleOWNER {
+	if tenantMember.Role == sqlcv1.TenantMemberRoleOWNER {
 		return nil
 	}
 
 	// if the user is an admin, they can do anything at the moment. Some downstream handlers will case on
 	// admin roles, for example admins cannot mark users as owners.
-	if tenantMember.Role == dbsqlc.TenantMemberRoleADMIN {
+	if tenantMember.Role == sqlcv1.TenantMemberRoleADMIN {
 		return nil
 	}
 

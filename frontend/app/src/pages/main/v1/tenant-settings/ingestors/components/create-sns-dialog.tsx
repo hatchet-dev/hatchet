@@ -1,17 +1,17 @@
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
 import { Input } from '@/components/v1/ui/input';
-import { cn } from '@/lib/utils';
+import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   topicArn: z.string().min(1).max(255),
@@ -63,7 +63,7 @@ export function CreateSNSDialog({
     errors.topicArn?.message?.toString() || props.fieldErrors?.name;
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Create a new SNS integration</DialogTitle>
       </DialogHeader>

@@ -4,13 +4,13 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: "1.25"
       - uses: actions/setup-python@v6
       - uses: pre-commit/action@v3.0.1
         name: lint

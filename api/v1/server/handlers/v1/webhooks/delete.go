@@ -6,7 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (w *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1WebhookDeleteRequestObject) (gen.V1WebhookDeleteResponseObject, error) {
@@ -14,7 +14,7 @@ func (w *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1Webh
 
 	webhook, err := w.config.V1.Webhooks().DeleteWebhook(
 		ctx.Request().Context(),
-		webhook.TenantID.String(),
+		webhook.TenantID,
 		webhook.Name,
 	)
 

@@ -1,6 +1,6 @@
 import os
 
-from docs.generator.types import Document
+from docs.generator.doc_types import Document
 
 
 def crawl_directory(directory: str, only_include: list[str]) -> list[Document]:

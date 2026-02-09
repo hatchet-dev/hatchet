@@ -18,24 +18,24 @@ export function MailingListSubscription() {
     setState(null);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
+    const email = formData.get("email") as string;
 
     try {
-      const response = await fetch('/api/subscribe', {
-        method: 'POST',
+      const response = await fetch("/api/subscribe", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ email }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to subscribe');
+        throw new Error("Failed to subscribe");
       }
 
       setState({ success: true });
     } catch (error) {
-      setState({ success: false, error: 'Failed to subscribe' });
+      setState({ success: false, error: "Failed to subscribe" });
     } finally {
       setIsLoading(false);
     }
@@ -46,14 +46,19 @@ export function MailingListSubscription() {
       {state?.success ? (
         <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/50 rounded-md border border-green-200 dark:border-green-800">
           <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-          <p className="text-sm text-green-700 dark:text-green-300">Thank you for subscribing!</p>
+          <p className="text-sm text-green-700 dark:text-green-300">
+            Thank you for subscribing!
+          </p>
         </div>
       ) : (
         <>
           <div className="text-center space-y-2">
-            <h3 className="text-lg font-semibold">Subscribe for more technical deep dives</h3>
+            <h3 className="text-lg font-semibold">
+              Subscribe for more technical deep dives
+            </h3>
             <p className="text-sm text-muted-foreground">
-              Stay updated with our latest work. We share insights about distributed systems, workflow engines, and developer tools.
+              Stay updated with our latest work. We share insights about
+              distributed systems, workflow engines, and developer tools.
             </p>
           </div>
 
@@ -67,7 +72,7 @@ export function MailingListSubscription() {
                 className="flex-1"
               />
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Subscribing...' : 'Subscribe'}
+                {isLoading ? "Subscribing..." : "Subscribe"}
               </Button>
             </div>
             {state?.error && (

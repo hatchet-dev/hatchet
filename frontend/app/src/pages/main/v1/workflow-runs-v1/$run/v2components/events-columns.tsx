@@ -1,22 +1,21 @@
-import { createColumnHelper } from '@tanstack/react-table';
-import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { EventWithMetadata } from './step-run-events-for-workflow-run';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
-import {
-  ArrowLeftEndOnRectangleIcon,
-  ServerStackIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { cn, emptyGolangUUID } from '@/lib/utils';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { EventWithMetadata } from './step-run-events-for-workflow-run';
+import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { cn, emptyGolangUUID } from '@/lib/utils';
+import { appRoutes } from '@/router';
+import {
+  ArrowLeftEndOnRectangleIcon,
+  ServerStackIcon,
+  XCircleIcon,
+} from '@heroicons/react/24/outline';
+import { Link } from '@tanstack/react-router';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -39,128 +38,99 @@ function eventTypeToSeverity(
   }
 }
 
-const columnHelper = createColumnHelper<EventWithMetadata>();
-
-export const columns = ({
-  tenantId,
-  onRowClick,
+export function TaskEventCell({
+  event,
   fallbackTaskDisplayName,
+  onRowClick,
 }: {
-  tenantId: string;
-  onRowClick: (row: EventWithMetadata) => void;
+  event: EventWithMetadata;
   fallbackTaskDisplayName: string;
-}) => {
-  return [
-    columnHelper.accessor((row) => row.id, {
-      id: 'task',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Task" />
-      ),
-      cell: ({ row }) => {
-        return (
-          <div className="min-w-[120px] max-w-[180px]">
-            <Badge
-              className="cursor-pointer text-xs font-mono py-1 bg-[#ffffff] dark:bg-[#050c1c] border-[#050c1c] dark:border-gray-400"
-              variant="outline"
-              onClick={() => onRowClick(row.original)}
-            >
-              <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
-              <div className="truncate max-w-[150px]">
-                {row.original.taskDisplayName || fallbackTaskDisplayName}
-              </div>
-            </Badge>
-          </div>
-        );
-      },
-      enableSorting: false,
-      enableHiding: false,
-    }),
-    columnHelper.accessor((row) => row.timestamp, {
-      id: 'timestamp',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Seen at" />
-      ),
-      cell: ({ row }) => (
-        <div className="w-fit min-w-[120px]">
-          <RelativeDate date={row.original.timestamp} />
+  onRowClick: (event: EventWithMetadata) => void;
+}) {
+  return (
+    <div className="min-w-[120px] max-w-[180px]">
+      <Badge
+        className="cursor-pointer border-[#050c1c] bg-[#ffffff] py-1 font-mono text-xs dark:border-gray-400 dark:bg-[#050c1c]"
+        variant="outline"
+        onClick={() => onRowClick(event)}
+      >
+        <ArrowLeftEndOnRectangleIcon className="mr-1 size-4" />
+        <div className="max-w-[150px] truncate">
+          {event.taskDisplayName || fallbackTaskDisplayName}
         </div>
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    }),
-    columnHelper.accessor((row) => eventTypeToSeverity(row.eventType), {
-      id: 'event',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event" />
-      ),
-      cell: ({ row }) => {
-        const event = row.original;
-        const severity = eventTypeToSeverity(event.eventType);
+      </Badge>
+    </div>
+  );
+}
 
-        return (
-          <div className="flex flex-row items-center gap-2">
-            <EventIndicator severity={severity} />
-            <div className="tracking-wide text-sm flex flex-row gap-4">
-              {mapEventTypeToTitle(event.eventType)}
-            </div>
-          </div>
-        );
-      },
-      enableSorting: false,
-      enableHiding: false,
-    }),
-    columnHelper.accessor((row) => row.workerId, {
-      id: 'description',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Description" />
-      ),
-      cell: ({ row }) => {
-        const items: JSX.Element[] = [];
-        const event = row.original;
+export function TimestampCell({ event }: { event: EventWithMetadata }) {
+  return (
+    <div className="w-fit min-w-[120px]">
+      <RelativeDate date={event.timestamp} />
+    </div>
+  );
+}
 
-        if (event.eventType === V1TaskEventType.FAILED) {
-          items.push(<ErrorWithHoverCard key="error" event={row.original} />);
-        }
+export function EventTypeCell({ event }: { event: EventWithMetadata }) {
+  const severity = eventTypeToSeverity(event.eventType);
 
-        if (event.workerId && event.workerId !== emptyGolangUUID) {
-          items.push(
-            <Link
-              to={`/tenants/${tenantId}/workers/${event.workerId}`}
-              key="worker"
-            >
-              <Button
-                variant="link"
-                size="xs"
-                className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
-              >
-                <ServerStackIcon className="w-4 h-4 mr-1" />
-                View Worker
-              </Button>
-            </Link>,
-          );
-        }
+  return (
+    <div className="flex flex-row items-center gap-2">
+      <EventIndicator severity={severity} />
+      <div className="flex flex-row gap-4 text-sm tracking-wide">
+        {mapEventTypeToTitle(event.eventType)}
+      </div>
+    </div>
+  );
+}
 
-        return (
-          <div>
-            <div
-              key="message"
-              className="text-xs text-muted-foreground font-mono tracking-tight"
-            >
-              {event.message}
-            </div>
-            {items.length > 0 && (
-              <div key="items" className="flex flex-col items-start gap-2 mt-2">
-                {items}
-              </div>
-            )}
-          </div>
-        );
-      },
-      enableSorting: false,
-      enableHiding: false,
-    }),
-  ];
-};
+export function DescriptionCell({
+  event,
+  tenantId,
+}: {
+  event: EventWithMetadata;
+  tenantId: string;
+}) {
+  const items: JSX.Element[] = [];
+
+  if (event.eventType === V1TaskEventType.FAILED) {
+    items.push(<ErrorWithHoverCard key="error" event={event} />);
+  }
+
+  if (event.workerId && event.workerId !== emptyGolangUUID) {
+    items.push(
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: event.workerId }}
+        key="worker"
+      >
+        <Button
+          variant="link"
+          size="xs"
+          leftIcon={<ServerStackIcon className="size-4" />}
+        >
+          View Worker
+        </Button>
+      </Link>,
+    );
+  }
+
+  return (
+    <div>
+      <div
+        key="message"
+        className="font-mono text-xs tracking-tight text-muted-foreground"
+      >
+        {event.message}
+      </div>
+      {items.length > 0 && (
+        <div key="items" className="mt-2 flex flex-col items-start gap-2">
+          {items}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
   switch (eventType) {
@@ -204,6 +174,8 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
       return 'Queued';
     case V1TaskEventType.SKIPPED:
       return 'Skipped';
+    case V1TaskEventType.COULD_NOT_SEND_TO_WORKER:
+      return 'Could not send to worker';
     case undefined:
       return 'Unknown';
     default:
@@ -223,7 +195,7 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
     <div
       className={cn(
         RUN_STATUS_VARIANTS[severity],
-        'rounded-full h-[6px] w-[6px]',
+        'h-[6px] w-[6px] rounded-full',
       )}
     />
   );
@@ -236,17 +208,16 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
         <Button
           variant="link"
           size="xs"
-          className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+          leftIcon={<XCircleIcon className="size-4" />}
         >
-          <XCircleIcon className="w-4 h-4 mr-1" />
           View Error
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0 bg-popover border-border shadow-lg z-[80] w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]"
+        className="z-[80] w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
         align="start"
       >
-        <div className="p-4 w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]">
+        <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">
           <ErrorHoverContents event={event} />
         </div>
       </PopoverContent>
@@ -259,13 +230,13 @@ function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 pb-2 border-b border-border">
-        <XCircleIcon className="w-5 h-5 text-destructive" />
+      <div className="flex items-center gap-2 border-b border-border pb-2">
+        <XCircleIcon className="h-5 w-5 text-destructive" />
         <h3 className="font-medium text-foreground">Error Details</h3>
       </div>
-      <div className="rounded-md h-[400px] bg-muted/50 border border-border overflow-hidden">
-        <div className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground">
-          <pre className="whitespace-pre-wrap break-words min-h-[500px]">
+      <div className="h-[400px] overflow-hidden rounded-md border border-border bg-muted/50">
+        <div className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground h-full overflow-x-hidden overflow-y-scroll p-4 font-mono text-sm text-foreground">
+          <pre className="min-h-[500px] whitespace-pre-wrap break-words">
             {errorText || 'No error message found'}
           </pre>
         </div>

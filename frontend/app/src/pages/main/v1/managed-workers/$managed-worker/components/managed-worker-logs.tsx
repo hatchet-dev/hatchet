@@ -1,17 +1,15 @@
-import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import {
-  LogLine,
-  ManagedWorker,
-} from '@/lib/api/generated/cloud/data-contracts';
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
-import { useState, useEffect } from 'react';
-import { Input } from '@/components/v1/ui/input';
+import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
+import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import { ListCloudLogsQuery } from '@/lib/api/queries';
+import { Input } from '@/components/v1/ui/input';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
+import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
+import { ListCloudLogsQuery } from '@/lib/api/queries';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 
 export function ManagedWorkerLogs({
   managedWorker,
@@ -37,7 +35,14 @@ export function ManagedWorkerLogs({
   });
 
   useEffect(() => {
-    const logs = getLogsQuery.data?.rows || [];
+    const cloudLogs = getLogsQuery.data?.rows || [];
+    const logs: LogLine[] = cloudLogs.map((log) => ({
+      timestamp: log.timestamp,
+      line: log.line,
+      instance: log.instance,
+      level: log.level,
+      metadata: log.metadata as Record<string, unknown> | undefined,
+    }));
 
     if (!lastUpdatedAt && getLogsQuery.isSuccess) {
       setLastUpdatedAt(getLogsQuery.dataUpdatedAt);
@@ -60,33 +65,35 @@ export function ManagedWorkerLogs({
   ]);
 
   const handleBottomReached = async () => {
+    const lastLog = mergedLogs[mergedLogs.length - 1];
     if (
       getLogsQuery.isSuccess &&
       lastUpdatedAt &&
+      lastLog?.timestamp &&
       // before input should be before the last log in the list
-      (!beforeInput ||
-        beforeInput?.toISOString() >
-          mergedLogs[mergedLogs.length - 1]?.timestamp)
+      (!beforeInput || beforeInput?.toISOString() > lastLog.timestamp)
     ) {
       setQueryParams({
         ...queryParams,
         before: beforeInput?.toISOString(),
-        after: mergedLogs[mergedLogs.length - 1]?.timestamp,
+        after: lastLog.timestamp,
         direction: 'forward',
       });
     }
   };
 
   const handleTopReached = async () => {
+    const firstLog = mergedLogs[0];
     if (
       getLogsQuery.isSuccess &&
       lastUpdatedAt &&
+      firstLog?.timestamp &&
       // after input should be before the first log in the list
-      (!afterInput || afterInput?.toISOString() < mergedLogs[0]?.timestamp)
+      (!afterInput || afterInput?.toISOString() < firstLog.timestamp)
     ) {
       setQueryParams({
         ...queryParams,
-        before: mergedLogs[0]?.timestamp,
+        before: firstLog.timestamp,
         after: afterInput?.toISOString(),
         direction: 'backward',
       });
@@ -109,7 +116,7 @@ export function ManagedWorkerLogs({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <form
           onSubmit={() =>
             setQueryParams({
@@ -148,15 +155,15 @@ export function ManagedWorkerLogs({
             aria-label="Refresh logs"
           >
             <ArrowPathIcon
-              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+              className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
             />
           </Button>
         </div>
       </div>
-      <LoggingComponent
+      <LogViewer
         logs={mergedLogs}
-        onBottomReached={handleBottomReached}
-        onTopReached={handleTopReached}
+        onScrollToBottom={handleBottomReached}
+        onScrollToTop={handleTopReached}
       />
     </div>
   );
@@ -166,16 +173,19 @@ const mergeLogs = (existingLogs: LogLine[], newLogs: LogLine[]): LogLine[] => {
   const combinedLogs = [...existingLogs, ...newLogs];
   const uniqueLogs = Array.from(
     new Map(
-      combinedLogs.map((log) => [log.timestamp + log.instance + log.line, log]),
+      combinedLogs.map((log) => [
+        (log.timestamp || '') + (log.instance || '') + (log.line || ''),
+        log,
+      ]),
     ).values(),
   );
 
   // sort logs by timestamp with collisions resolved by log line
   uniqueLogs.sort((a, b) => {
     if (a.timestamp === b.timestamp) {
-      return a.line < b.line ? -1 : 1;
+      return (a.line || '') < (b.line || '') ? -1 : 1;
     }
-    return a.timestamp < b.timestamp ? -1 : 1;
+    return (a.timestamp || '') < (b.timestamp || '') ? -1 : 1;
   });
 
   // NOTE: this was used to truncate log lines to 300, but was causing issues with the scroll position

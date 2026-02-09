@@ -54,7 +54,7 @@ function dedent(code: string) {
     ...nonEmptyLines.map((line) => {
       const match = line.match(/^(\s*)/);
       return match ? match[1].length : 0;
-    })
+    }),
   );
 
   if (minIndent > 0) {

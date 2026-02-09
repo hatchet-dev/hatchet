@@ -6,13 +6,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (w *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1WebhookListRequestObject) (gen.V1WebhookListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	var sourceNames []sqlcv1.V1IncomingWebhookSourceName
 	var webhookNames []string
@@ -29,7 +28,7 @@ func (w *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1Webhoo
 
 	webhooks, err := w.config.V1.Webhooks().ListWebhooks(
 		ctx.Request().Context(),
-		tenant.ID.String(),
+		tenant.ID,
 		v1.ListWebhooksOpts{
 			WebhookNames:       webhookNames,
 			WebhookSourceNames: sourceNames,

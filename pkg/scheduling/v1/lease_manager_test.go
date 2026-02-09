@@ -8,52 +8,51 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type mockLeaseRepo struct {
 	mock.Mock
 }
 
-func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1Queue, error) {
+func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1Queue, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*sqlcv1.V1Queue), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*v1.ListActiveWorkersResult, error) {
+func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*v1.ListActiveWorkersResult, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*v1.ListActiveWorkersResult), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ListConcurrencyStrategies(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
+func (m *mockLeaseRepo) ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*sqlcv1.V1StepConcurrency), args.Error(1)
 }
 
-func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
 	args := m.Called(ctx, kind, resourceIds, existingLeases)
 	return args.Get(0).([]*sqlcv1.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId pgtype.UUID, leases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
 	args := m.Called(ctx, leases)
 	return args.Get(0).([]*sqlcv1.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*sqlcv1.Lease) error {
+func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) error {
 	args := m.Called(ctx, leases)
 	return args.Error(0)
 }
 
 func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	l := zerolog.Nop()
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
@@ -62,8 +61,8 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	}
 
 	mockWorkers := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 	mockLeases := []*sqlcv1.Lease{
 		{ID: 1, ResourceId: "worker-1"},
@@ -80,7 +79,7 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 
 func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 	l := zerolog.Nop()
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
@@ -106,7 +105,7 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 }
 
 func TestLeaseManager_SendWorkerIds(t *testing.T) {
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	workersCh := make(chan []*v1.ListActiveWorkersResult)
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
@@ -114,7 +113,7 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 	}
 
 	mockWorkers := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 
 	go leaseManager.sendWorkerIds(mockWorkers)
@@ -124,7 +123,7 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 }
 
 func TestLeaseManager_SendQueues(t *testing.T) {
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	queuesCh := make(chan []string)
 	leaseManager := &LeaseManager{
 		tenantId: tenantId,
@@ -140,7 +139,7 @@ func TestLeaseManager_SendQueues(t *testing.T) {
 }
 
 func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	workersCh := make(chan []*v1.ListActiveWorkersResult)
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
@@ -148,11 +147,11 @@ func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
 	}
 
 	mockWorkers1 := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 	mockWorkers2 := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 
 	// Send workers before listener is ready

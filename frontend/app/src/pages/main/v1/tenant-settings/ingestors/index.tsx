@@ -1,28 +1,32 @@
+import { CreateSNSDialog } from './components/create-sns-dialog';
+import { DeleteSNSForm } from './components/delete-sns-form';
+import {
+  CopyIngestURL,
+  SNSActions,
+} from './components/sns-integrations-columns';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CreateSNSIntegrationRequest,
   SNSIntegration,
   queries,
 } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { Button } from '@/components/v1/ui/button';
+import { useApiError } from '@/lib/hooks';
 import { Dialog } from '@radix-ui/react-dialog';
-import { CreateSNSDialog } from './components/create-sns-dialog';
-import { DeleteSNSForm } from './components/delete-sns-form';
-import { columns as snsIntegrationsColumns } from './components/sns-integrations-columns';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 
 export default function Ingestors() {
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-semibold leading-tight text-foreground">
           Ingestors
         </h2>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           Ingestors are integrations that allow you to send events to Hatchet.
         </p>
         <Separator className="my-4" />
@@ -41,15 +45,44 @@ function SNSIntegrationsList() {
     ...queries.snsIntegrations.list(tenantId),
   });
 
-  const cols = snsIntegrationsColumns({
-    onDeleteClick: (row) => {
-      setDeleteSNS(row);
-    },
-  });
+  const snsColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Topic ARN',
+        cellRenderer: (integration: SNSIntegration) => (
+          <div>{integration.topicArn}</div>
+        ),
+      },
+      {
+        columnLabel: 'Ingest URL',
+        cellRenderer: (integration: SNSIntegration) => (
+          <CopyIngestURL ingestUrl={integration.ingestUrl || ''} />
+        ),
+      },
+      {
+        columnLabel: 'Created',
+        cellRenderer: (integration: SNSIntegration) => (
+          <RelativeDate date={integration.metadata.createdAt} />
+        ),
+      },
+      {
+        columnLabel: 'Actions',
+        cellRenderer: (integration: SNSIntegration) => (
+          <SNSActions
+            integration={integration}
+            onDeleteClick={(integration) => {
+              setDeleteSNS(integration);
+            }}
+          />
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <div>
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           SNS Integrations
         </h3>
@@ -58,12 +91,17 @@ function SNSIntegrationsList() {
         </Button>
       </div>
       <Separator className="my-4" />
-      <DataTable
-        isLoading={listIntegrationsQuery.isLoading}
-        columns={cols}
-        data={listIntegrationsQuery.data?.rows || []}
-        getRowId={(row) => row.metadata.id}
-      />
+      {(listIntegrationsQuery.data?.rows || []).length > 0 ? (
+        <SimpleTable
+          columns={snsColumns}
+          data={listIntegrationsQuery.data?.rows || []}
+        />
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No SNS integrations found. Create an endpoint to receive events from
+          AWS SNS.
+        </div>
+      )}
       {showSNSDialog && (
         <CreateSNSIntegration
           showSNSDialog={showSNSDialog}

@@ -1,4 +1,35 @@
-import { TenantedPath } from '@/router';
+export type TenantedPath =
+  | '/tenants/:tenant/events'
+  | '/tenants/:tenant/filters'
+  | '/tenants/:tenant/webhooks'
+  | '/tenants/:tenant/rate-limits'
+  | '/tenants/:tenant/scheduled'
+  | '/tenants/:tenant/cron-jobs'
+  | '/tenants/:tenant/tasks'
+  | '/tenants/:tenant/tasks/:workflow'
+  | '/tenants/:tenant/runs'
+  | '/tenants/:tenant/runs/:run'
+  | '/tenants/:tenant/task-runs/:run'
+  | '/tenants/:tenant/workers'
+  | '/tenants/:tenant/workers/all'
+  | '/tenants/:tenant/workers/:worker'
+  | '/tenants/:tenant/managed-workers'
+  | '/tenants/:tenant/managed-workers/create'
+  | '/tenants/:tenant/managed-workers/demo-template'
+  | '/tenants/:tenant/managed-workers/:managed-worker'
+  | '/tenants/:tenant/tenant-settings/overview'
+  | '/tenants/:tenant/tenant-settings/api-tokens'
+  | '/tenants/:tenant/tenant-settings/github'
+  | '/tenants/:tenant/tenant-settings/members'
+  | '/tenants/:tenant/tenant-settings/alerting'
+  | '/tenants/:tenant/tenant-settings/billing-and-limits'
+  | '/tenants/:tenant/tenant-settings/ingestors'
+  | '/tenants/:tenant/workflow-runs'
+  | '/tenants/:tenant/workflow-runs/:run'
+  | '/tenants/:tenant/'
+  | '/tenants/:tenant/workflows'
+  | '/tenants/:tenant/workflows/:workflow'
+  | '/tenants/:tenant/tenant-settings';
 
 export interface BreadcrumbItem {
   label: string;
@@ -34,8 +65,6 @@ const createRouteLabel = (path: TenantedPath): string => {
       return 'Workers';
     case '/tenants/:tenant/workers/all':
       return 'All Workers';
-    case '/tenants/:tenant/workers/webhook':
-      return 'Webhook Workers';
     case '/tenants/:tenant/workers/:worker':
       return 'Worker Detail';
     case '/tenants/:tenant/managed-workers':
@@ -60,8 +89,6 @@ const createRouteLabel = (path: TenantedPath): string => {
       return 'Billing & Limits';
     case '/tenants/:tenant/tenant-settings/ingestors':
       return 'Ingestors';
-    case '/tenants/:tenant/onboarding/get-started':
-      return 'Get Started';
     case '/tenants/:tenant/workflow-runs':
     case '/tenants/:tenant/workflow-runs/:run':
     case '/tenants/:tenant/':

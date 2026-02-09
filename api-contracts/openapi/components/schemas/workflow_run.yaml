@@ -240,6 +240,131 @@ ScheduledWorkflowsList:
     pagination:
       $ref: "./metadata.yaml#/PaginationResponse"
 
+UpdateScheduledWorkflowRunRequest:
+  type: object
+  properties:
+    triggerAt:
+      type: string
+      format: date-time
+  required:
+    - triggerAt
+
+ScheduledWorkflowsBulkError:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    error:
+      type: string
+  required:
+    - error
+
+ScheduledWorkflowsBulkDeleteRequest:
+  type: object
+  properties:
+    scheduledWorkflowRunIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+      minItems: 1
+      maxItems: 500
+    filter:
+      $ref: "#/ScheduledWorkflowsBulkDeleteFilter"
+
+ScheduledWorkflowsBulkDeleteFilter:
+  type: object
+  properties:
+    workflowId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    parentWorkflowRunId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    parentStepRunId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    additionalMetadata:
+      description: A list of metadata key value pairs to filter by
+      type: array
+      items:
+        type: string
+      example: ["key1:value1", "key2:value2"]
+
+ScheduledWorkflowsBulkDeleteResponse:
+  type: object
+  properties:
+    deletedIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    errors:
+      type: array
+      items:
+        $ref: "#/ScheduledWorkflowsBulkError"
+  required:
+    - deletedIds
+    - errors
+
+ScheduledWorkflowsBulkUpdateItem:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    triggerAt:
+      type: string
+      format: date-time
+  required:
+    - id
+    - triggerAt
+
+ScheduledWorkflowsBulkUpdateRequest:
+  type: object
+  properties:
+    updates:
+      type: array
+      items:
+        $ref: "#/ScheduledWorkflowsBulkUpdateItem"
+      minItems: 1
+      maxItems: 500
+  required:
+    - updates
+
+ScheduledWorkflowsBulkUpdateResponse:
+  type: object
+  properties:
+    updatedIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    errors:
+      type: array
+      items:
+        $ref: "#/ScheduledWorkflowsBulkError"
+  required:
+    - updatedIds
+    - errors
+
 CronWorkflowsMethod:
   type: string
   enum:

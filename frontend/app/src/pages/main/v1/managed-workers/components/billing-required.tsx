@@ -1,13 +1,14 @@
-import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Button } from '@/components/v1/ui/button';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api/queries';
+import { appRoutes } from '@/router';
 import {
   CalendarIcon,
   CpuChipIcon,
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api/queries';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Link } from '@tanstack/react-router';
 
 interface BillingRequiredProps {
   tenant: any;
@@ -33,30 +34,30 @@ export function BillingRequired({
     computeCostQuery.data?.creditsRemaining !== undefined;
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="border rounded-lg bg-card p-12 shadow-sm">
-          <div className="flex flex-col items-center text-center max-w-md mx-auto">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="rounded-lg border bg-card p-12 shadow-sm">
+          <div className="mx-auto flex max-w-md flex-col items-center text-center">
+            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
               <CpuChipIcon className="h-8 w-8 text-primary" />
             </div>
 
-            <h3 className="text-2xl font-semibold mb-2">
+            <h3 className="mb-2 text-2xl font-semibold">
               Ready to supercharge your task runs?
             </h3>
 
             <p className="text-muted-foreground mb-6">
-              Unlock Managed Compute by adding a payment method. No commitment
+              Unlock Managed Compute by setting up billing. No commitment
               required - you only pay for what you use!
             </p>
 
             {/* Pricing Information */}
-            <div className="border rounded-lg p-4 mb-6 bg-muted/10 w-full">
+            <div className="mb-6 w-full rounded-lg border bg-muted/10 p-4">
               <div className="flex items-start">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                   <CurrencyDollarIcon className="h-5 w-5 text-primary" />
                 </div>
-                <div className="text-left flex-1">
+                <div className="flex-1 text-left">
                   <h4 className="font-medium">
                     Transparent Pay as You Go Pricing
                   </h4>
@@ -76,7 +77,10 @@ export function BillingRequired({
                             Monthly Free Credits:
                           </span>
                           <span className="font-medium text-green-500">
-                            ${computeCostQuery.data.creditsRemaining.toFixed(2)}
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                            }).format(computeCostQuery.data.creditsRemaining)}
                           </span>
                         </div>
                       )}
@@ -85,35 +89,35 @@ export function BillingRequired({
               </div>
             </div>
 
-            <div className="flex justify-center mb-8 bg-muted/30 p-6 rounded-lg">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm text-left">
+            <div className="mb-8 flex justify-center rounded-lg bg-muted/30 p-6">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-left text-sm">
                 <div className="flex items-start">
-                  <span className="text-primary mr-2 flex items-center">•</span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>Auto-scaling workers based on slots</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="text-primary mr-2 flex items-center">•</span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>Zero infrastructure headaches</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="text-primary mr-2 flex items-center">•</span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>Multiple regions and machine types</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="text-primary mr-2 flex items-center">•</span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>No cold starts</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 w-full">
+            <div className="flex w-full flex-col gap-4">
               <Button
                 onClick={manageClicked}
                 disabled={portalLoading}
-                className="min-w-40 py-6 px-8 text-base"
+                className="min-w-40 px-8 py-6 text-base"
                 size="lg"
               >
-                {portalLoading ? 'Loading...' : 'Add Payment Method →'}
+                {portalLoading ? 'Loading...' : 'Set Up Billing →'}
               </Button>
 
               <div className="relative">
@@ -128,12 +132,13 @@ export function BillingRequired({
               </div>
 
               <Link
-                to={`/tenants/${tenantId}/managed-workers/demo-template`}
+                to={appRoutes.tenantManagedWorkersTemplateRoute.to}
+                params={{ tenant: tenantId }}
                 className="w-full"
               >
                 <Button
                   variant="outline"
-                  className="min-w-40 py-6 px-8 text-base w-full"
+                  className="w-full min-w-40 px-8 py-6 text-base"
                   size="lg"
                 >
                   Deploy a Demo Template for Free
@@ -159,7 +164,7 @@ export function BillingRequired({
               >
                 <Button
                   variant="ghost"
-                  className="min-w-40 py-6 px-8 text-base w-full flex items-center justify-center gap-2"
+                  className="flex w-full min-w-40 items-center justify-center gap-2 px-8 py-6 text-base"
                   size="lg"
                 >
                   <CalendarIcon className="h-5 w-5" />

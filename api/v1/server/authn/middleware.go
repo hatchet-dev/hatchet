@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -13,8 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type AuthN struct {
@@ -169,7 +169,15 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return forbidden
 	}
 
-	user, err := a.config.APIRepository.User().GetUserByID(c.Request().Context(), userID)
+	userIdUUID, err := uuid.Parse(userID)
+
+	if err != nil {
+		a.l.Debug().Err(err).Msg("error parsing user id uuid from session")
+
+		return forbidden
+	}
+
+	user, err := a.config.V1.User().GetUserByID(c.Request().Context(), userIdUUID)
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting user by id")
 
@@ -192,7 +200,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// a tenant id must exist in the context in order for the bearer auth to succeed, since
 	// these tokens are tenant-scoped
-	queriedTenant, ok := c.Get("tenant").(*dbsqlc.Tenant)
+	queriedTenant, ok := c.Get("tenant").(*sqlcv1.Tenant)
 
 	if !ok {
 		a.l.Debug().Msgf("tenant not found in context")
@@ -219,7 +227,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// Verify that the tenant id which exists in the context is the same as the tenant id
 	// in the token.
-	if sqlchelpers.UUIDToStr(queriedTenant.ID) != tenantId {
+	if queriedTenant.ID != tenantId {
 		a.l.Debug().Msgf("tenant id in token does not match tenant id in context")
 
 		return forbidden

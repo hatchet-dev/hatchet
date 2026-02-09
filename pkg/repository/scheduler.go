@@ -3,70 +3,97 @@ package repository
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type SchedulerRepository interface {
+	Concurrency() ConcurrencyRepository
 	Lease() LeaseRepository
 	QueueFactory() QueueFactoryRepository
 	RateLimit() RateLimitRepository
 	Assignment() AssignmentRepository
-}
-
-type ListActiveWorkersResult struct {
-	ID      string
-	MaxRuns int
-	Labels  []*dbsqlc.ListManyWorkerLabelsRow
+	Optimistic() OptimisticSchedulingRepository
 }
 
 type LeaseRepository interface {
-	ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error)
-	ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error)
+	ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1Queue, error)
+	ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*ListActiveWorkersResult, error)
+	ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error)
 
-	AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error)
-	ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*dbsqlc.Lease) error
-}
-
-type RateLimitResult struct {
-	ExceededKey   string
-	ExceededUnits int32
-	ExceededVal   int32
-	StepRunId     pgtype.UUID
-}
-
-type AssignedItem struct {
-	WorkerId pgtype.UUID
-
-	QueueItem *dbsqlc.QueueItem
-}
-
-type AssignResults struct {
-	Assigned           []*AssignedItem
-	Unassigned         []*dbsqlc.QueueItem
-	SchedulingTimedOut []*dbsqlc.QueueItem
-	RateLimited        []*RateLimitResult
+	AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error)
+	ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) error
 }
 
 type QueueFactoryRepository interface {
-	NewQueue(tenantId pgtype.UUID, queueName string) QueueRepository
+	NewQueue(tenantId uuid.UUID, queueName string) QueueRepository
 }
 
 type QueueRepository interface {
-	ListQueueItems(ctx context.Context, limit int) ([]*dbsqlc.QueueItem, error)
+	ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V1QueueItem, error)
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
-	GetStepRunRateLimits(ctx context.Context, queueItems []*dbsqlc.QueueItem) (map[string]map[string]int32, error)
-	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error)
+
+	GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
+	RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
+	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
 }
 
-type RateLimitRepository interface {
-	ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error)
-	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error)
+type AssignmentRepository interface {
+	ListActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error)
+	ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error)
 }
 
-type AssignmentRepository interface {
-	ListActionsForWorkers(ctx context.Context, tenantId pgtype.UUID, workerIds []pgtype.UUID) ([]*dbsqlc.ListActionsForWorkersRow, error)
-	ListAvailableSlotsForWorkers(ctx context.Context, tenantId pgtype.UUID, params dbsqlc.ListAvailableSlotsForWorkersParams) ([]*dbsqlc.ListAvailableSlotsForWorkersRow, error)
+type OptimisticSchedulingRepository interface {
+	StartTx(ctx context.Context) (*OptimisticTx, error)
+
+	TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error)
+
+	TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error)
+
+	MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
+}
+
+type schedulerRepository struct {
+	concurrency  ConcurrencyRepository
+	lease        LeaseRepository
+	queueFactory QueueFactoryRepository
+	rateLimit    RateLimitRepository
+	assignment   AssignmentRepository
+	optimistic   OptimisticSchedulingRepository
+}
+
+func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
+	return &schedulerRepository{
+		concurrency:  newConcurrencyRepository(shared),
+		lease:        newLeaseRepository(shared),
+		queueFactory: newQueueFactoryRepository(shared),
+		rateLimit:    newRateLimitRepository(shared),
+		assignment:   newAssignmentRepository(shared),
+		optimistic:   newOptimisticSchedulingRepository(shared),
+	}
+}
+
+func (d *schedulerRepository) Concurrency() ConcurrencyRepository {
+	return d.concurrency
+}
+
+func (d *schedulerRepository) Lease() LeaseRepository {
+	return d.lease
+}
+
+func (d *schedulerRepository) QueueFactory() QueueFactoryRepository {
+	return d.queueFactory
+}
+
+func (d *schedulerRepository) RateLimit() RateLimitRepository {
+	return d.rateLimit
+}
+
+func (d *schedulerRepository) Assignment() AssignmentRepository {
+	return d.assignment
+}
+
+func (d *schedulerRepository) Optimistic() OptimisticSchedulingRepository {
+	return d.optimistic
 }

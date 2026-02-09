@@ -1,0 +1,33 @@
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+# Copy Python SDK files only
+COPY sdks/python/pyproject.toml ./sdks/python/
+COPY sdks/python/poetry.lock ./sdks/python/
+COPY sdks/python/hatchet_sdk/ ./sdks/python/hatchet_sdk/
+COPY sdks/python/README.md ./sdks/python/
+
+# Install build dependencies
+RUN pip install --upgrade pip && \
+    pip install poetry
+
+# Build Python SDK
+WORKDIR /app/sdks/python
+RUN poetry build
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN pip install --upgrade pip
+
+# Copy and install the built SDK
+COPY --from=builder /app/sdks/python/dist/*.whl ./
+RUN pip install *.whl
+
+# Copy test file
+COPY hack/dev/compression-test/tests/python_test.py /app/python_test.py
+
+CMD ["python", "python_test.py"]

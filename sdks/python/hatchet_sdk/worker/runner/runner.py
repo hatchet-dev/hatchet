@@ -40,6 +40,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_step_run_id,
+    ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
@@ -48,6 +49,8 @@ from hatchet_sdk.runnables.contextvars import (
 )
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
+from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
@@ -55,6 +58,7 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
     ContextVarToCopyDict,
+    ContextVarToCopyInt,
     ContextVarToCopyStr,
     copy_context_vars,
 )
@@ -85,6 +89,7 @@ class Runner:
         self.slots = slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
+        self.cancellations = BoundedDict[str, bool](maxsize=1000)
         self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
@@ -100,16 +105,17 @@ class Runner:
         self.dispatcher_client = DispatcherClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
         self.workflow_listener = PooledWorkflowRunListener(self.config)
-        self.runs_client = RunsClient(
-            config=self.config,
-            workflow_run_event_listener=self.workflow_run_event_listener,
-            workflow_run_listener=self.workflow_listener,
-        )
         self.admin_client = AdminClient(
             self.config,
             self.workflow_listener,
             self.workflow_run_event_listener,
-            self.runs_client,
+        )
+
+        self.runs_client = RunsClient(
+            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_listener,
+            admin_client=self.admin_client,
         )
         self.event_client = EventClient(self.config)
         self.durable_event_listener = DurableEventListener(self.config)
@@ -149,11 +155,14 @@ class Runner:
             self.running_tasks.add(t)
             t.add_done_callback(lambda task: self.running_tasks.discard(task))
 
-    def step_run_callback(self, action: Action) -> Callable[[asyncio.Task[Any]], None]:
+    def step_run_callback(
+        self, action: Action, t: Task[TWorkflowInput, R]
+    ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
+            was_cancelled = self.cancellations.pop(action.key, False)
 
-            if task.cancelled():
+            if was_cancelled or task.cancelled():
                 return
 
             try:
@@ -173,7 +182,11 @@ class Runner:
                     )
                 )
 
-                log_with_level = logger.info if should_not_retry else logger.exception
+                # log as info if we're going to retry or we explicitly should _not_ retry
+                # so that e.g. Sentry does not get reported multiple exceptions from multiple retries of a single task
+                log_as_info = should_not_retry or action.retry_count < t.retries
+
+                log_with_level = logger.info if log_as_info else logger.exception
 
                 log_with_level(
                     f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
@@ -237,60 +250,66 @@ class Runner:
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
+        ctx_task_retry_count.set(action.retry_count)
 
-        dependencies = await task._unpack_dependencies(ctx)
+        async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
+            try:
+                if task.is_async_function:
+                    return await task.aio_call(ctx, dependencies)
 
-        try:
-            if task.is_async_function:
-                return await task.aio_call(ctx, dependencies)
+                pfunc = functools.partial(
+                    # we must copy the context vars to the new thread, as only asyncio natively supports
+                    # contextvars
+                    copy_context_vars,
+                    [
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_step_run_id",
+                                value=action.step_run_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_workflow_run_id",
+                                value=action.workflow_run_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_worker_id",
+                                value=action.worker_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_action_key",
+                                value=action.key,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyDict(
+                                name="ctx_additional_metadata",
+                                value=action.additional_metadata,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyInt(
+                                name="ctx_task_retry_count",
+                                value=action.retry_count,
+                            )
+                        ),
+                    ],
+                    self.thread_action_func,
+                    ctx,
+                    task,
+                    action,
+                    dependencies,
+                )
 
-            pfunc = functools.partial(
-                # we must copy the context vars to the new thread, as only asyncio natively supports
-                # contextvars
-                copy_context_vars,
-                [
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_step_run_id",
-                            value=action.step_run_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_workflow_run_id",
-                            value=action.workflow_run_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_worker_id",
-                            value=action.worker_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_action_key",
-                            value=action.key,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyDict(
-                            name="ctx_additional_metadata",
-                            value=action.additional_metadata,
-                        )
-                    ),
-                ],
-                self.thread_action_func,
-                ctx,
-                task,
-                action,
-                dependencies,
-            )
-
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(self.thread_pool, pfunc)
-        finally:
-            self.cleanup_run_id(action.key)
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(self.thread_pool, pfunc)
+            finally:
+                self.cleanup_run_id(action.key)
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {
@@ -341,20 +360,26 @@ class Runner:
             del self.threads[key]
 
         if key in self.contexts:
+            if self.contexts[key].exit_flag:
+                self.cancellations[key] = True
+
             del self.contexts[key]
 
     @overload
     def create_context(
-        self, action: Action, is_durable: Literal[True] = True
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[True] = True
     ) -> DurableContext: ...
 
     @overload
     def create_context(
-        self, action: Action, is_durable: Literal[False] = False
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[False] = False
     ) -> Context: ...
 
     def create_context(
-        self, action: Action, is_durable: bool = True
+        self,
+        action: Action,
+        task: Task[Any, Any],
+        is_durable: bool = True,
     ) -> Context | DurableContext:
         constructor = DurableContext if is_durable else Context
 
@@ -368,6 +393,9 @@ class Runner:
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
             log_sender=self.log_sender,
+            max_attempts=task.retries + 1,
+            task_name=task.name,
+            workflow_name=task.workflow.name,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -379,8 +407,9 @@ class Runner:
 
         if action_func:
             context = self.create_context(
-                action,
-                True if action_func.is_durable else False,  # noqa: SIM210
+                action=action,
+                task=action_func,
+                is_durable=True if action_func.is_durable else False,  # noqa: SIM210
             )
 
             self.contexts[action.key] = context
@@ -388,7 +417,7 @@ class Runner:
                 ActionEvent(
                     action=action,
                     type=STEP_EVENT_TYPE_STARTED,
-                    payload="",
+                    payload=None,
                     should_not_retry=False,
                 )
             )
@@ -398,7 +427,7 @@ class Runner:
                 self.async_wrapped_action_func(context, action_func, action)
             )
 
-            task.add_done_callback(self.step_run_callback(action))
+            task.add_done_callback(self.step_run_callback(action, action_func))
             self.tasks[action.key] = task
 
             task_count.increment()
@@ -455,6 +484,7 @@ class Runner:
             # call cancel to signal the context to stop
             if key in self.contexts:
                 self.contexts[key]._set_cancellation_flag()
+                self.cancellations[key] = True
 
             await asyncio.sleep(1)
 
@@ -475,12 +505,21 @@ class Runner:
         finally:
             self.cleanup_run_id(key)
 
-    def serialize_output(self, output: Any) -> str:
+    def serialize_output(self, output: Any) -> str | None:
         if not output:
-            return ""
+            return None
 
         if isinstance(output, BaseModel):
-            output = output.model_dump(mode="json")
+            try:
+                output = output.model_dump(
+                    mode="json", context=HATCHET_PYDANTIC_SENTINEL
+                )
+            except Exception as e:
+                logger.exception("could not serialize pydantic model output")
+
+                raise IllegalTaskOutputError(
+                    f"could not serialize Pydantic BaseModel output: {e}"
+                ) from e
         elif is_dataclass(output):
             output = asdict(cast(DataclassInstance, output))
 
@@ -490,27 +529,25 @@ class Runner:
             )
 
         if output is None:
-            return ""
+            return None
 
         try:
             serialized_output = json.dumps(output, default=str)
-        except Exception:
+        except Exception as e:
             logger.exception("could not serialize output")
-            serialized_output = str(output)
+            raise IllegalTaskOutputError(
+                "Task output could not be serialized to JSON. Please ensure that all task outputs are JSON serializable."
+            ) from e
 
         if "\\u0000" in serialized_output:
-            raise IllegalTaskOutputError(
-                dedent(
-                    f"""
+            raise IllegalTaskOutputError(dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """
-                )
-            )
+                """))
 
         return serialized_output
 

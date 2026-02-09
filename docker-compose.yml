@@ -14,7 +14,7 @@ services:
       - hatchet_postgres_data:/var/lib/postgresql/data
     shm_size: 4g
   rabbitmq:
-    image: "rabbitmq:3-management"
+    image: "rabbitmq:4-management"
     hostname: "rabbitmq"
     ports:
       - "5672:5672" # RabbitMQ

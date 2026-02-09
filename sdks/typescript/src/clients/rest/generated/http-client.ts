@@ -50,6 +50,7 @@ export interface ApiConfig<SecurityDataType = unknown>
 
 export enum ContentType {
   Json = 'application/json',
+  JsonApi = 'application/vnd.api+json',
   FormData = 'multipart/form-data',
   UrlEncoded = 'application/x-www-form-urlencoded',
   Text = 'text/plain',

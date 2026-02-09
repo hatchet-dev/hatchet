@@ -1,8 +1,8 @@
 <div align="center">
 <a href ="https://hatchet.run?utm_source=github&utm_campaign=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./frontend/docs/public/hatchet_logo.png">
-  <img width="200" alt="Hatchet Logo" src="./frontend/docs/public/hatchet_logo_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/hatchet_logo_dark.svg">
+  <img width="200" alt="Hatchet Logo" src="./assets/hatchet_logo_light.svg">
 </picture>
 </a>
 
@@ -28,7 +28,21 @@
 
 ### What is Hatchet?
 
-Hatchet is a platform for running background tasks, built on top of Postgres. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure.
+Hatchet is a platform for running background tasks and durable workflows, built on top of Postgres. It bundles a durable task queue, observability, alerting, a dashboard, and a CLI into a single platform.
+
+### Get started quickly
+
+The fastest way to get started with a running Hatchet instance is to install the Hatchet CLI (on MacOS, Linux or WSL) - note that this requires [Docker](https://www.docker.com/get-started) installed locally to work:
+
+```sh
+curl -fsSL https://install.hatchet.run/install.sh | bash
+hatchet --version
+hatchet server start
+```
+
+You can also sign up on [Hatchet Cloud](https://cloud.onhatchet.run) to try it out! We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
+
+To view full documentation for self-hosting and using cloud, have a look at the [docs](https://docs.hatchet.run).
 
 ### When should I use Hatchet?
 
@@ -649,13 +663,6 @@ https://github.com/user-attachments/assets/427c15cd-8842-4b54-ab2e-3b1cabc01c7b
 Hatchet supports Slack and email-based alerting for when your tasks fail. Alerts are real-time with adjustable alerting windows.
 
 </details>
-
-### Quick Start
-
-Hatchet is available as a cloud version or self-hosted. See the following docs to get up and running quickly:
-
-- [Hatchet Cloud Quickstart](https://docs.hatchet.run/home/hatchet-cloud-quickstart)
-- [Hatchet Self-Hosted](https://docs.hatchet.run/self-hosting)
 
 ### Documentation
 

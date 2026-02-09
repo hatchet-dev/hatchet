@@ -4,11 +4,12 @@ import json
 from typing import cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
@@ -20,13 +21,14 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
     BulkPushEventRequest,
-    Event,
-    Events,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
 )
+from hatchet_sdk.contracts.events_pb2 import Event as EventProto
+from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
+from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
@@ -56,6 +58,43 @@ class BulkPushEventWithMetadata(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | None = None
     scope: str | None = None
+
+
+class Event(BaseModel):
+    tenant_id: str
+    event_id: str
+    key: str
+    payload: str
+    event_timestamp: timestamp_pb2.Timestamp
+    additional_metadata: str | None = None
+    scope: str | None = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @property
+    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
+        return self.event_timestamp
+
+    @property
+    def additionalMetadata(self) -> str | None:  # noqa: N802
+        return self.additional_metadata
+
+    @classmethod
+    def from_proto(cls, proto: EventProto) -> "Event":
+        additional_metadata = (
+            proto.additional_metadata if proto.HasField("additional_metadata") else None
+        )
+        scope = proto.scope if proto.HasField("scope") else None
+
+        return cls(
+            tenant_id=proto.tenant_id,
+            event_id=proto.event_id,
+            key=proto.key,
+            payload=proto.payload,
+            event_timestamp=proto.event_timestamp,
+            additional_metadata=additional_metadata,
+            scope=scope,
+        )
 
 
 class EventClient(BaseRestClient):
@@ -92,7 +131,6 @@ class EventClient(BaseRestClient):
         return await asyncio.to_thread(self.bulk_push, events=events, options=options)
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def push(
         self,
         event_key: str,
@@ -101,6 +139,9 @@ class EventClient(BaseRestClient):
     ) -> Event:
         namespace = options.namespace or self.namespace
         namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
+        push_event = tenacity_retry(
+            self.events_service_client.Push, self.client_config.tenacity
+        )
 
         try:
             meta_bytes = json.dumps(options.additional_metadata)
@@ -115,16 +156,17 @@ class EventClient(BaseRestClient):
         request = PushEventRequest(
             key=namespaced_event_key,
             payload=payload_str,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_bytes,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_bytes,
             priority=options.priority,
             scope=options.scope,
         )
 
-        return cast(
-            Event,
-            self.events_service_client.Push(request, metadata=get_metadata(self.token)),
+        response = cast(
+            EventProto,
+            push_event(request, metadata=get_metadata(self.token)),
         )
+        return Event.from_proto(response)
 
     def _create_push_event_request(
         self,
@@ -149,20 +191,22 @@ class EventClient(BaseRestClient):
         return PushEventRequest(
             key=event_key,
             payload=serialized_payload,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_str,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_str,
             priority=event.priority,
             scope=event.scope,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
         options: BulkPushEventOptions = BulkPushEventOptions(),
     ) -> list[Event]:
         namespace = options.namespace or self.namespace
+        bulk_push = tenacity_retry(
+            self.events_service_client.BulkPush, self.client_config.tenacity
+        )
 
         bulk_request = BulkPushEventRequest(
             events=[
@@ -170,30 +214,40 @@ class EventClient(BaseRestClient):
             ]
         )
 
-        return list(
-            cast(
-                Events,
-                self.events_service_client.BulkPush(
-                    bulk_request, metadata=get_metadata(self.token)
-                ),
-            ).events
+        response = cast(
+            EventsProto,
+            bulk_push(bulk_request, metadata=get_metadata(self.token)),
         )
+        return [Event.from_proto(event) for event in response.events]
 
-    @tenacity_retry
     def log(
-        self, message: str, step_run_id: str, level: LogLevel | None = None
+        self,
+        message: str,
+        step_run_id: str,
+        level: LogLevel | None = None,
+        task_retry_count: int | None = None,
     ) -> None:
+        if len(message) > 10_000:
+            logger.warning("truncating log message to 10,000 characters")
+            message = message[:10_000]
+
+        put_log = tenacity_retry(
+            self.events_service_client.PutLog, self.client_config.tenacity
+        )
         request = PutLogRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_external_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
+            task_retry_count=task_retry_count,
         )
 
-        self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
+        put_log(request, metadata=get_metadata(self.token))
 
-    @tenacity_retry
     def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+        put_stream_event = tenacity_retry(
+            self.events_service_client.PutStreamEvent, self.client_config.tenacity
+        )
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -202,16 +256,14 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         request = PutStreamEventRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_external_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=data_bytes,
-            eventIndex=index,
+            event_index=index,
         )
 
         try:
-            self.events_service_client.PutStreamEvent(
-                request, metadata=get_metadata(self.token)
-            )
+            put_stream_event(request, metadata=get_metadata(self.token))
         except Exception:
             raise
 
@@ -271,3 +323,22 @@ class EventClient(BaseRestClient):
                 ),
                 scopes=scopes,
             )
+
+    def get(
+        self,
+        event_id: str,
+    ) -> V1Event:
+        with self.client() as client:
+            return self._ea(client).v1_event_get(
+                tenant=self.client_config.tenant_id,
+                v1_event=event_id,
+            )
+
+    async def aio_get(
+        self,
+        event_id: str,
+    ) -> V1Event:
+        return await asyncio.to_thread(
+            self.get,
+            event_id=event_id,
+        )

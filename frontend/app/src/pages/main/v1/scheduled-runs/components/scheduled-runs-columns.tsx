@@ -1,21 +1,16 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { RateLimit, ScheduledWorkflows } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Link } from 'react-router-dom';
-
-export type RateLimitRow = RateLimit & {
-  metadata: {
-    id: string;
-  };
-};
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import { ScheduledWorkflows } from '@/lib/api';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const ScheduledRunColumn = {
   id: 'ID',
-  runId: 'Run ID',
   status: 'Status',
   triggerAt: 'Trigger At',
   workflow: 'Workflow',
@@ -24,31 +19,56 @@ export const ScheduledRunColumn = {
   actions: 'Actions',
 };
 
-export type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
+type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
 
-export const idKey: ScheduledRunColumnKeys = 'id';
-export const runIdKey: ScheduledRunColumnKeys = 'runId';
+const idKey: ScheduledRunColumnKeys = 'id';
 export const statusKey: ScheduledRunColumnKeys = 'status';
-export const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
+const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
 export const workflowKey: ScheduledRunColumnKeys = 'workflow';
 export const metadataKey: ScheduledRunColumnKeys = 'metadata';
-export const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
-export const actionsKey: ScheduledRunColumnKeys = 'actions';
+const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
+const actionsKey: ScheduledRunColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,
   onDeleteClick,
+  onRescheduleClick,
   selectedAdditionalMetaJobId,
   handleSetSelectedAdditionalMetaJobId,
   onRowClick,
 }: {
   tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
+  onRescheduleClick: (row: ScheduledWorkflows) => void;
   selectedAdditionalMetaJobId: string | null;
   handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
   onRowClick?: (row: ScheduledWorkflows) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
+    {
+      id: 'select',
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && 'indeterminate')
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          disabled={row.original.method !== 'API' ? true : undefined}
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
     {
       accessorKey: idKey,
       header: ({ column }) => (
@@ -56,31 +76,12 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div
-          className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+          className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
           onClick={() => onRowClick?.(row.original)}
         >
           {row.original.metadata.id}
         </div>
       ),
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      accessorKey: runIdKey,
-      header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={ScheduledRunColumn.runId}
-        />
-      ),
-      cell: ({ row }) =>
-        row.original.workflowRunId ? (
-          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-              {row.original.workflowRunName}
-            </div>
-          </Link>
-        ) : null,
       enableSorting: false,
       enableHiding: true,
     },
@@ -113,7 +114,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div
-          className="flex flex-row items-center gap-4 cursor-pointer"
+          className="flex cursor-pointer flex-row items-center gap-4"
           onClick={() => onRowClick?.(row.original)}
         >
           <RelativeDate date={row.original.triggerAt} />
@@ -132,12 +133,13 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <a
-              href={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+          <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
+            <Link
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: row.original.workflowId }}
             >
               {row.original.workflowName}
-            </a>
+            </Link>
           </div>
         </div>
       ),
@@ -200,9 +202,19 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row justify-center">
-          <DataTableRowActions
-            row={row}
+          <TableRowActions
+            row={row.original}
             actions={[
+              {
+                label: 'Reschedule',
+                onClick: () => onRescheduleClick(row.original),
+                disabled:
+                  row.original.method !== 'API'
+                    ? 'Cannot reschedule scheduled run created via code definition'
+                    : row.original.workflowRunId
+                      ? 'Cannot reschedule a scheduled run that has already been triggered'
+                      : undefined,
+              },
               {
                 label: 'Delete',
                 onClick: () => onDeleteClick(row.original),

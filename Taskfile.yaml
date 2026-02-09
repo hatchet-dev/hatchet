@@ -39,6 +39,9 @@ tasks:
         SERVER_AUTH_COOKIE_INSECURE=false
         SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
+        SERVER_MSGQUEUE_KIND=rabbitmq
+        SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+
         SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL=warn
         SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT=console
         SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL=error
@@ -71,7 +74,7 @@ tasks:
       - task: init-dev-env
   set-etc-hosts:
     cmds:
-      - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
+      - sudo bash ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
   empty-migration:
     cmds:
       - goose -dir cmd/hatchet-migrate/migrate/migrations/ create {{.CLI_ARGS | default "empty_migration"}} sql
@@ -81,13 +84,16 @@ tasks:
       - task: goose-migrate
   atlas-migrate:
     cmds:
-      - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
+      - bash ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
   goose-migrate:
     cmds:
-      - sh ./hack/dev/migrate.sh
+      - bash ./hack/dev/migrate.sh
   seed-dev:
     cmds:
-      - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
+      - SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
+  seed-cypress:
+    cmds:
+      - SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress
   start-dev:
     deps:
       - task: start-db
@@ -96,22 +102,35 @@ tasks:
       - task: start-frontend
   start-dev-tmux:
     cmds:
-      - sh ./hack/dev/start-dev-tmux.sh
+      - bash ./hack/dev/start-dev-tmux.sh
   start-api:
     cmds:
-      - sh ./hack/dev/start-api.sh
+      - bash ./hack/dev/start-api.sh
+  start-api-ci:
+    cmds:
+      - bash ./hack/ci/start-api.sh
   start-engine:
     cmds:
-      - sh ./hack/dev/start-engine.sh
+      - bash ./hack/dev/start-engine.sh
+  start-engine-ci:
+    cmds:
+      - bash ./hack/ci/start-engine.sh
   start-frontend:
     cmds:
-      - sh ./hack/dev/start-frontend.sh
+      - bash ./hack/dev/start-frontend.sh
+  write-e2e-env:
+    cmds:
+      - bash ./hack/ci/write-e2e-env.sh
+  e2e-frontend:
+    desc: Run Cypress E2E for frontend/app against a locally started API stack (CI-friendly).
+    cmds:
+      - bash ./hack/ci/e2e-frontend.sh
   start-ngrok:
     cmds:
       - ngrok http 8080
   start-lite:
     cmds:
-      - sh ./hack/dev/start-lite.sh
+      - bash ./hack/dev/start-lite.sh
   generate-all:
     cmds:
       - task: install-dependencies
@@ -132,37 +151,36 @@ tasks:
       - task: generate-api-client
   generate-certs:
     cmds:
-      - sh ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
+      - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
   generate-local-encryption-keys:
     cmds:
-      - sh ./hack/dev/generate-local-encryption-keys.sh ./hack/dev/encryption-keys
+      - bash ./hack/dev/generate-local-encryption-keys.sh ./hack/dev/encryption-keys
   init-dev-env:
-    - sh ./hack/dev/init-dev-token-and-env.sh
+    - bash ./hack/dev/init-dev-token-and-env.sh
   generate-dev-api-token:
     cmds:
-      - sh ./hack/dev/generate-dev-api-token.sh
+      - bash ./hack/dev/generate-dev-api-token.sh
   generate-api-server:
     cmds:
-      - sh ./hack/oas/generate-server.sh
+      - bash ./hack/oas/generate-server.sh
     silent: true
   generate-api-client:
     cmds:
-      - sh ./hack/oas/generate-clients.sh
+      - bash ./hack/oas/generate-clients.sh
     silent: true
   generate-go:
     cmds:
       - go generate ./...
   generate-proto:
     cmds:
-      - sh ./hack/proto/proto.sh
+      - bash ./hack/proto/proto.sh
   generate-proto-python:
     dir: ./python-sdk
     cmds:
       - sh ./generate.sh
   generate-sqlc:
     cmds:
-      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/postgres/dbsqlc/sqlc.yaml
-      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/v1/sqlcv1/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/sqlcv1/sqlc.yaml
   lint:
     cmds:
       - task: lint-go
@@ -190,6 +208,8 @@ tasks:
       - pre-commit install
   pre-commit-run:
     cmds:
+      - cd frontend/app/ && pnpm run lint:fix && pnpm run prettier:check
+      - cd frontend/docs/ && pnpm run lint:fix && pnpm run prettier:check
       - pre-commit run --all-files || pre-commit run --all-files
   docs:
     cmds:
@@ -208,3 +228,6 @@ tasks:
       EXTRA_ARGS: '{{.EXTRA_ARGS | default ""}}'
     cmds:
       - poetry run pytest -n auto --retries 3 --retry-delay 5
+  start-telemetry:
+    cmds:
+      - docker compose -f docker-compose.infra.yml up -d

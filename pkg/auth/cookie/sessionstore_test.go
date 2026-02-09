@@ -85,7 +85,7 @@ func newSessionStore(t *testing.T, conf *database.Layer, cookieName string) *coo
 		cookie.WithCookieDomain("hatchet.run"),
 		cookie.WithCookieName(cookieName),
 		cookie.WithCookieAllowInsecure(false),
-		cookie.WithSessionRepository(conf.APIRepository.UserSession()),
+		cookie.WithSessionRepository(conf.V1.UserSession()),
 	)
 
 	if err != nil {

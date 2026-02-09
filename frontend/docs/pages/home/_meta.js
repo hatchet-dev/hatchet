@@ -6,15 +6,19 @@ export default {
   index: "🪓 Welcome",
   architecture: "Architecture",
   "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
-  "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   "--quickstart": {
     title: "Quickstart",
+    type: "separator",
+  },
+  "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
+  "--guide": {
+    title: "Walkthrough",
     type: "separator",
   },
   setup: "Setup",
   "your-first-task": "Tasks",
   workers: "Workers",
-  "running-your-task": "Running Tasks",
+  "running-your-task": "Your First Task",
   environments: "Environments",
   "--running-tasks": {
     title: "Ways of Running Tasks",
@@ -34,12 +38,14 @@ export default {
     type: "separator",
   },
   docker: "Running with Docker",
+  "troubleshooting-workers": "Troubleshooting",
   compute: {
     title: "Managed Compute",
     type: "page",
     display: "hidden",
   },
   "worker-healthchecks": "Worker Health Checks",
+  "autoscaling-workers": "Autoscaling Workers",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",
@@ -131,9 +137,4 @@ export default {
   lifespans: "Lifespans",
   "dependency-injection": "Dependency Injection",
   dataclasses: "Dataclass Support",
-  blog: {
-    title: "Blog",
-    type: "page",
-    href: "/blog",
-  },
 };

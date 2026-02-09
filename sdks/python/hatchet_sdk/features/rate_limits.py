@@ -16,7 +16,6 @@ class RateLimitsClient(BaseRestClient):
     The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
     """
 
-    @tenacity_retry
     def put(
         self,
         key: str,
@@ -39,8 +38,11 @@ class RateLimitsClient(BaseRestClient):
 
         conn = new_conn(self.client_config, False)
         client = WorkflowServiceStub(conn)
+        put_rate_limit = tenacity_retry(
+            client.PutRateLimit, self.client_config.tenacity
+        )
 
-        client.PutRateLimit(
+        put_rate_limit(
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
@@ -49,7 +51,6 @@ class RateLimitsClient(BaseRestClient):
             metadata=get_metadata(self.client_config.token),
         )
 
-    @tenacity_retry
     async def aio_put(
         self,
         key: str,

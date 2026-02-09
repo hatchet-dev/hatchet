@@ -1,5 +1,3 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import TimeAgo from 'timeago-react';
 import {
   PortalTooltip,
   PortalTooltipTrigger,
@@ -7,6 +5,8 @@ import {
   PortalTooltipProvider,
 } from '@/components/v1/ui/portal-tooltip';
 import { format, parseISO } from 'date-fns';
+import React, { useEffect, useMemo, useState } from 'react';
+import TimeAgo from 'timeago-react';
 
 interface RelativeDateProps {
   date?: Date | string;

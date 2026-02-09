@@ -288,6 +288,53 @@ eventData:
     tags:
       - Event
 
+eventDataWithTenant:
+  get:
+    x-resources: ["tenant", "event-with-tenant"]
+    description: Get the data for an event.
+    operationId: event-data:get-with-tenant
+    parameters:
+      - description: The event id
+        in: path
+        name: event-with-tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/EventData"
+        description: Successfully retrieved the event data
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get event data
+    tags:
+      - Event
+
 keys:
   get:
     x-resources: ["tenant"]

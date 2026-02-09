@@ -1,10 +1,11 @@
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/v1/ui/button';
+import {
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Select,
@@ -13,12 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import {
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/v1/ui/dialog';
 import { TenantMember, TenantMemberRole } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   role: z.nativeEnum(TenantMemberRole),
@@ -51,7 +51,7 @@ export function UpdateMemberForm({
   const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
 
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Update member role</DialogTitle>
       </DialogHeader>

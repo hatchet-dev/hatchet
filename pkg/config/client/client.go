@@ -32,6 +32,8 @@ type ClientConfigFile struct {
 	RawRunnableActions []string `mapstructure:"runnableActions" json:"runnableActions,omitempty"`
 
 	AutoscalingTarget string `mapstructure:"autoscalingTarget" json:"autoscalingTarget,omitempty"`
+
+	DisableGzipCompression bool `mapstructure:"disableGzipCompression" json:"disableGzipCompression,omitempty"`
 }
 
 type ClientTLSConfigFile struct {
@@ -57,6 +59,8 @@ type ClientConfig struct {
 	RunnableActions []string
 
 	PresetWorkerLabels map[string]string
+
+	DisableGzipCompression bool
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -70,6 +74,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
 	_ = v.BindEnv("noGrpcRetry", "HATCHET_CLIENT_NO_GRPC_RETRY")
 	_ = v.BindEnv("autoscalingTarget", "HATCHET_CLIENT_AUTOSCALING_TARGET")
+	_ = v.BindEnv("disableGzipCompression", "HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION")
 
 	// tls options
 	_ = v.BindEnv("tls.base.tlsStrategy", "HATCHET_CLIENT_TLS_STRATEGY")

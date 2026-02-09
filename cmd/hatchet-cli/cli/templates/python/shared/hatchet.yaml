@@ -1,0 +1,26 @@
+dev:
+{{- if eq .PackageManager "poetry"}}
+  preCmds: ["poetry install"]
+  runCmd: "poetry run python src/worker.py"
+{{- else if eq .PackageManager "uv"}}
+  preCmds: ["uv venv --allow-existing", "uv pip install -e ."]
+  runCmd: "uv run python src/worker.py"
+{{- else if eq .PackageManager "pip"}}
+  preCmds: ["python -m venv .venv", ".venv/bin/pip install -r requirements.txt"]
+  runCmd: ".venv/bin/python src/worker.py"
+{{- end}}
+  files:
+    - "**/*.py"
+    - "!**/__pycache__/**"
+    - "!.venv/**"
+  reload: true
+triggers:
+  - name: "simple"
+{{- if eq .PackageManager "poetry"}}
+    command: "poetry run python src/run.py"
+{{- else if eq .PackageManager "uv"}}
+    command: "uv run python src/run.py"
+{{- else if eq .PackageManager "pip"}}
+    command: ".venv/bin/python src/run.py"
+{{- end}}
+    description: "Trigger a simple workflow"

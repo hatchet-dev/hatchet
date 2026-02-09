@@ -1,16 +1,18 @@
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
+import {
+  RefetchInterval,
+  RefetchIntervalOption,
+  LabeledRefetchInterval,
+} from '@/lib/api/refetch-interval';
+import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
   useContext,
   useMemo,
   ReactNode,
+  useEffect,
 } from 'react';
-import {
-  RefetchInterval,
-  RefetchIntervalOption,
-  LabeledRefetchInterval,
-} from '@/lib/api/api';
-import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 
 interface RefetchIntervalContextType {
   isFrozen: boolean;
@@ -33,6 +35,7 @@ const STORAGE_KEY = 'app-default-refetch-interval';
 export const RefetchIntervalProvider = ({
   children,
 }: RefetchIntervalProviderProps) => {
+  const { pathname } = useLocation();
   const [storedInterval, setStoredInterval] =
     useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, '10s');
   const [isFrozen, setIsFrozen] = useLocalStorageState<boolean>(
@@ -61,9 +64,10 @@ export const RefetchIntervalProvider = ({
 
       if (key) {
         setStoredInterval(key);
+        setIsFrozen(false);
       }
     },
-    [setStoredInterval],
+    [setStoredInterval, setIsFrozen],
   );
 
   const value = useMemo<RefetchIntervalContextType>(
@@ -82,6 +86,15 @@ export const RefetchIntervalProvider = ({
       userRefetchIntervalPreference,
     ],
   );
+
+  useEffect(() => {
+    // unfreeze refetches on route change
+    if (isFrozen) {
+      setIsFrozen(false);
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
     <RefetchIntervalContext.Provider value={value}>

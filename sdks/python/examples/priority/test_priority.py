@@ -84,15 +84,16 @@ async def test_priority(
         [
             priority_workflow.create_bulk_run_item(
                 options=TriggerWorkflowOptions(
-                    priority=(priority_to_int(priority := choice(choices))),
+                    priority=(priority_to_int(pr)),
                     additional_metadata={
-                        "priority": priority,
+                        "priority": pr,
                         "key": ix,
                         "test_run_id": test_run_id,
                     },
                 )
             )
             for ix in range(N)
+            for pr in [choice(choices)]
         ]
     )
 
@@ -173,15 +174,16 @@ async def test_priority_via_scheduling(
             priority_workflow.aio_schedule(
                 run_at=run_at,
                 options=ScheduleTriggerWorkflowOptions(
-                    priority=(priority_to_int(priority := choice(choices))),
+                    priority=(priority_to_int(pr)),
                     additional_metadata={
-                        "priority": priority,
+                        "priority": pr,
                         "key": ix,
                         "test_run_id": test_run_id,
                     },
                 ),
             )
             for ix in range(n)
+            for pr in [choice(choices)]
         ]
     )
 

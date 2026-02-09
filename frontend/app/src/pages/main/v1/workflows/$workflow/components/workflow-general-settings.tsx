@@ -1,20 +1,61 @@
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
-import { Input } from '@/components/v1/ui/input';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Label } from '@/components/v1/ui/label';
-import { WorkflowVersion } from '@/lib/api';
-import { formatCron } from '@/lib/utils';
+import {
+  ConcurrencyLimitStrategy,
+  ConcurrencyScope,
+  WorkflowVersion,
+} from '@/lib/api';
+import { formatCron } from '@/lib/cron';
+
+function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
+  switch (strategy) {
+    case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
+      return 'Cancel In Progress';
+    case ConcurrencyLimitStrategy.DROP_NEWEST:
+      return 'Drop Newest';
+    case ConcurrencyLimitStrategy.QUEUE_NEWEST:
+      return 'Queue Newest';
+    case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
+      return 'Group Round Robin';
+    default: {
+      const exhaustiveCheck: never = strategy;
+      return exhaustiveCheck;
+    }
+  }
+}
+
+function formatScope(scope: ConcurrencyScope): string {
+  switch (scope) {
+    case ConcurrencyScope.WORKFLOW:
+      return 'Workflow';
+    case ConcurrencyScope.TASK:
+      return 'Task';
+    default: {
+      const exhaustiveCheck: never = scope;
+      return exhaustiveCheck;
+    }
+  }
+}
 
 export default function WorkflowGeneralSettings({
   workflow,
 }: {
   workflow: WorkflowVersion;
 }) {
+  const hasTriggers =
+    (workflow.triggers?.events && workflow.triggers.events.length > 0) ||
+    (workflow.triggers?.crons && workflow.triggers.crons.length > 0);
+
   return (
     <div className="space-y-5">
-      <SettingsSection title="Triggers">
-        <TriggerSettings workflow={workflow} />
-      </SettingsSection>
+      {hasTriggers && (
+        <SettingsSection title="Triggers">
+          <TriggerSettings workflow={workflow} />
+        </SettingsSection>
+      )}
 
       <SettingsSection title="Concurrency">
         <ConcurrencySettings workflow={workflow} />
@@ -38,7 +79,7 @@ function SettingsSection({
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
+      <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
         {title}
       </h3>
       <div className="pl-1">{children}</div>
@@ -48,7 +89,7 @@ function SettingsSection({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <p className="text-sm text-gray-500 dark:text-gray-400 italic">{message}</p>
+    <p className="text-sm italic text-gray-500 dark:text-gray-400">{message}</p>
   );
 }
 
@@ -134,7 +175,7 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
                   {cronTrigger.cron}
                 </Badge>
                 {cronTrigger.cron && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Runs {formatCron(cronTrigger.cron)}
                   </p>
                 )}
@@ -148,36 +189,55 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
 }
 
 function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
-  if (!workflow.concurrency) {
+  if (!workflow.v1Concurrency || workflow.v1Concurrency.length === 0) {
     return (
       <EmptyState message="There are no concurrency settings for this workflow." />
     );
   }
 
   return (
-    <div className="space-y-2">
-      <FieldGroup
-        label="Max Runs"
-        description="Maximum number of concurrent workflow runs"
-      >
-        <Input
-          disabled
-          value={workflow.concurrency.maxRuns}
-          className="font-mono h-8"
-        />
-      </FieldGroup>
-
-      <FieldGroup
-        label="Strategy"
-        description="What happens when max runs is reached"
-      >
-        <Input
-          disabled
-          value={workflow.concurrency.limitStrategy}
-          className="font-mono h-8"
-        />
-      </FieldGroup>
-    </div>
+    <SimpleTable
+      data={workflow.v1Concurrency
+        .map((c) => ({
+          stepReadableId: c.stepReadableId || 'N/A',
+          ...c,
+          // hack for typing
+          metadata: {
+            id: '',
+          },
+        }))
+        .sort(
+          (a, b) =>
+            b.scope.localeCompare(a.scope) ||
+            a.stepReadableId.localeCompare(b.stepReadableId),
+        )}
+      columns={[
+        { columnLabel: 'Scope', cellRenderer: (row) => formatScope(row.scope) },
+        { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
+        { columnLabel: 'Max', cellRenderer: (row) => row.maxRuns },
+        {
+          columnLabel: 'Strategy',
+          cellRenderer: (row) => (
+            <Badge variant="secondary">
+              {formatLimitStrategy(row.limitStrategy)}
+            </Badge>
+          ),
+        },
+        {
+          columnLabel: 'Expression',
+          cellRenderer: (row) => (
+            <CodeHighlighter
+              language="text"
+              className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+              code={row.expression}
+              copy={false}
+              maxHeight="10rem"
+              minWidth="20rem"
+            />
+          ),
+        },
+      ]}
+    />
   );
 }
 

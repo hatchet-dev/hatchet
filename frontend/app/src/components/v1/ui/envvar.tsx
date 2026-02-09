@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react';
-import { Input } from '@/components/v1/ui/input';
 import { Textarea } from './textarea';
 import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
 import { cn } from '@/lib/utils';
 import { TrashIcon } from '@radix-ui/react-icons';
+import React, { useEffect } from 'react';
 
 export type KeyValueType = {
   key: string;
@@ -128,7 +128,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
             disabled={disabled || entry.locked || entry.deleted}
             className={cn(
               'w-64',
-              entry.locked && 'bg-gray-200 cursor-not-allowed',
+              entry.locked && 'cursor-not-allowed bg-gray-200',
             )}
           />
           {entry.hidden ? (
@@ -140,7 +140,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
               disabled={disabled || entry.locked || entry.deleted}
               className={cn(
                 'flex-1',
-                entry.locked && 'bg-gray-200 cursor-not-allowed',
+                entry.locked && 'cursor-not-allowed bg-gray-200',
                 !entry.isEditing && entry.hint && 'text-gray-400',
               )}
             />
@@ -155,7 +155,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
               disabled={disabled || entry.locked || entry.deleted}
               className={cn(
                 'flex-1',
-                entry.locked && 'bg-gray-200 cursor-not-allowed',
+                entry.locked && 'cursor-not-allowed bg-gray-200',
                 !entry.isEditing && entry.hint && 'text-gray-400',
               )}
             />

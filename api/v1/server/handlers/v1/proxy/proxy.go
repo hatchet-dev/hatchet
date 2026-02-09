@@ -6,8 +6,7 @@ import (
 
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type Proxy[in, out any] struct {
@@ -22,8 +21,8 @@ func NewProxy[in, out any](config *server.ServerConfig, method func(ctx context.
 	}
 }
 
-func (p *Proxy[in, out]) Do(ctx context.Context, tenant *dbsqlc.Tenant, input *in) (*out, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+func (p *Proxy[in, out]) Do(ctx context.Context, tenant *sqlcv1.Tenant, input *in) (*out, error) {
+	tenantId := tenant.ID
 
 	expiresAt := time.Now().Add(5 * time.Minute).UTC()
 
@@ -39,7 +38,7 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *dbsqlc.Tenant, input *i
 		defer cancel()
 
 		// delete the API token
-		err = p.config.APIRepository.APIToken().DeleteAPIToken(deleteCtx, tenantId, tok.TokenId)
+		err = p.config.V1.APIToken().DeleteAPIToken(deleteCtx, tenantId, tok.TokenId)
 
 		if err != nil {
 			p.config.Logger.Error().Err(err).Msg("failed to delete API token")

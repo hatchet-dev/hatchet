@@ -1,13 +1,4 @@
 import { Button } from '@/components/v1/ui/button';
-import { cn } from '@/lib/utils';
-import {
-  BuildingOffice2Icon,
-  Cog6ToothIcon,
-  PlusIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline';
 import {
   Command,
   CommandEmpty,
@@ -15,14 +6,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import { Tenant, TenantMember, TenantVersion } from '@/lib/api';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
-import { CaretSortIcon } from '@radix-ui/react-icons';
-import {
-  PopoverTrigger,
-  Popover,
-  PopoverContent,
-} from '@radix-ui/react-popover';
 import {
   Dialog,
   DialogContent,
@@ -32,21 +15,39 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { Tenant, TenantMember } from '@/lib/api';
+import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
+import {
+  BuildingOffice2Icon,
+  Cog6ToothIcon,
+  PlusIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/24/outline';
+import { CaretSortIcon } from '@radix-ui/react-icons';
+import {
+  PopoverTrigger,
+  Popover,
+  PopoverContent,
+} from '@radix-ui/react-popover';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useState, useMemo } from 'react';
 import invariant from 'tiny-invariant';
 
 interface OrganizationGroupProps {
   organization: OrganizationForUser;
   tenants: TenantMember[];
-  currentTenant: Tenant;
+  currentTenant?: Tenant;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onTenantSelect: (tenant: Tenant) => void;
   onClose: () => void;
-  onNavigate: (path: string) => void;
+  onNavigate: (nav: { to: string; params?: Record<string, string> }) => void;
 }
 
 function OrganizationGroup({
@@ -63,16 +64,24 @@ function OrganizationGroup({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate(`/organizations/${organization.metadata.id}`);
+    onNavigate({
+      to: appRoutes.organizationsRoute.to,
+      params: {
+        organization: organization.metadata.id,
+      },
+    });
   };
 
   const handleNewTenantClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate(
-      '/onboarding/create-tenant?organizationId=' + organization.metadata.id,
-    );
+    onNavigate({
+      to: appRoutes.onboardingCreateTenantRoute.to,
+      params: {
+        organizationId: organization.metadata.id,
+      },
+    });
   };
 
   return (
@@ -80,24 +89,24 @@ function OrganizationGroup({
       <CommandItem
         onSelect={onToggleExpand}
         value={`org-${organization.metadata.id}`}
-        className="text-sm cursor-pointer hover:bg-accent focus:bg-accent"
+        className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
       >
-        <div className="flex items-start justify-between w-full">
-          <div className="flex items-start gap-2 flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex w-full items-start justify-between">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <div className="flex flex-shrink-0 items-center gap-2">
               {isExpanded ? (
-                <ChevronDownIcon className="h-3 w-3" />
+                <ChevronDownIcon className="size-3" />
               ) : (
-                <ChevronRightIcon className="h-3 w-3" />
+                <ChevronRightIcon className="size-3" />
               )}
-              <BuildingOffice2Icon className="h-4 w-4" />
+              <BuildingOffice2Icon className="size-4" />
             </div>
-            <span className="font-medium leading-tight break-words">
+            <span className="break-words font-medium leading-tight">
               {organization.name}
             </span>
           </div>
           {organization.isOwner && (
-            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+            <div className="ml-2 flex flex-shrink-0 items-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
@@ -105,7 +114,7 @@ function OrganizationGroup({
                 onClick={handleNewTenantClick}
                 title="New Tenant"
               >
-                <PlusIcon className="h-3 w-3" />
+                <PlusIcon className="size-3" />
               </Button>
               <Button
                 variant="ghost"
@@ -114,7 +123,7 @@ function OrganizationGroup({
                 onClick={handleSettingsClick}
                 title="Settings"
               >
-                <Cog6ToothIcon className="h-3 w-3" />
+                <Cog6ToothIcon className="size-3" />
               </Button>
             </div>
           )}
@@ -138,12 +147,12 @@ function OrganizationGroup({
                 onTenantSelect(membership.tenant);
                 onClose();
               }}
-              className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
+              className="cursor-pointer pl-6 text-sm hover:bg-accent focus:bg-accent"
             >
-              <div className="flex items-center justify-between w-full">
+              <div className="flex w-full items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <div className="flex h-5 w-5 items-center justify-center">
+                    <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
                   <span className="text-muted-foreground">
                     {membership.tenant?.name}
@@ -151,7 +160,7 @@ function OrganizationGroup({
                 </div>
                 <CheckIcon
                   className={cn(
-                    'h-4 w-4',
+                    'size-4',
                     currentTenant?.slug === membership.tenant?.slug
                       ? 'opacity-100'
                       : 'opacity-0',
@@ -174,7 +183,12 @@ export function OrganizationSelector({
   memberships,
 }: OrganizationSelectorProps) {
   const navigate = useNavigate();
-  const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
+  const location = useLocation();
+  const {
+    setTenant: setCurrTenant,
+    isLoading: isTenantLoading,
+    tenant,
+  } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -185,24 +199,25 @@ export function OrganizationSelector({
     isTenantArchivedInOrg,
     handleCreateOrganization,
     createOrganizationLoading,
+    isLoading: isOrganizationsLoading,
   } = useOrganizations();
 
   const handleClose = () => setOpen(false);
-  const handleNavigate = (path: string) => {
+  const handleNavigate = (nav: {
+    to: string;
+    params?: Record<string, string>;
+  }) => {
+    if (!nav.to) {
+      return;
+    }
+
     // Store the current path before navigating to org settings
-    sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
-    navigate(path, { replace: false });
+    sessionStorage.setItem('orgSettingsPreviousPath', location.pathname);
+    navigate({ to: nav.to, params: nav.params, replace: false });
   };
 
   const handleTenantSelect = (tenant: Tenant) => {
     setCurrTenant(tenant);
-
-    if (tenant.version === TenantVersion.V0) {
-      // Hack to wait for next event loop tick so local storage is updated
-      setTimeout(() => {
-        window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
-      }, 0);
-    }
   };
 
   const toggleOrgExpansion = (orgId: string) => {
@@ -226,7 +241,10 @@ export function OrganizationSelector({
     handleCreateOrganization(orgName.trim(), (organizationId) => {
       setShowCreateModal(false);
       setOrgName('');
-      navigate(`/organizations/${organizationId}`);
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: organizationId },
+      });
     });
   };
 
@@ -258,8 +276,8 @@ export function OrganizationSelector({
       }
     });
 
-    const currentOrg = currTenant
-      ? getOrganizationForTenant(currTenant.metadata.id)
+    const currentOrg = tenant
+      ? getOrganizationForTenant(tenant.metadata.id)
       : null;
     const currentOrgTenants = currentOrg
       ? orgMap.get(currentOrg.metadata.id) || []
@@ -286,15 +304,14 @@ export function OrganizationSelector({
     };
   }, [
     memberships,
-    organizations,
+    tenant,
     getOrganizationForTenant,
+    organizations,
     isTenantArchivedInOrg,
-    currTenant,
   ]);
 
-  if (!currTenant) {
-    return null;
-  }
+  const triggerDisabled =
+    isTenantLoading || isOrganizationsLoading || memberships.length === 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -302,34 +319,53 @@ export function OrganizationSelector({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
+            size="sm"
             role="combobox"
             aria-expanded={open}
             aria-label="Select a tenant"
-            className={cn('w-full justify-between', className)}
+            className={cn(
+              'w-full min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+              open && 'bg-muted/30',
+              className,
+            )}
+            disabled={triggerDisabled}
           >
-            <div className="flex items-center gap-2">
-              <BuildingOffice2Icon className="h-4 w-4" />
-              <span className="truncate">{currTenant.name}</span>
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <BuildingOffice2Icon className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">
+                {tenant?.name ?? 'Loading tenant…'}
+              </span>
             </div>
-            <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            {(isTenantLoading || isOrganizationsLoading) && !open ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
+            ) : (
+              <CaretSortIcon className="size-4 shrink-0 opacity-50" />
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          side="top"
+          side="bottom"
           align="start"
-          sideOffset={20}
-          className="w-[287px] p-0 z-50 border border-border shadow-md rounded-md"
+          sideOffset={8}
+          className="z-50 w-[287px] rounded-md border border-border p-0 shadow-md"
         >
           <Command className="border-0">
             <CommandList>
               <CommandEmpty>No tenants found.</CommandEmpty>
+
+              {isOrganizationsLoading && (
+                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
+                  Loading organizations…
+                </div>
+              )}
 
               {currentOrgData && (
                 <CommandGroup heading="Current Organization">
                   <OrganizationGroup
                     organization={currentOrgData.organization}
                     tenants={currentOrgData.tenants}
-                    currentTenant={currTenant}
+                    currentTenant={tenant}
                     isExpanded={expandedOrgs.includes(
                       currentOrgData.organization.metadata.id,
                     )}
@@ -346,10 +382,10 @@ export function OrganizationSelector({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full justify-center gap-2 h-8 text-sm hover:bg-accent"
+                      fullWidth
                       onClick={handleCreateOrgClick}
+                      leftIcon={<PlusIcon className="size-4" />}
                     >
-                      <PlusIcon className="h-4 w-4" />
                       Create Organization
                     </Button>
                   </div>
@@ -363,7 +399,7 @@ export function OrganizationSelector({
                       key={organization.metadata.id}
                       organization={organization}
                       tenants={tenants}
-                      currentTenant={currTenant}
+                      currentTenant={tenant}
                       isExpanded={expandedOrgs.includes(
                         organization.metadata.id,
                       )}
@@ -389,14 +425,14 @@ export function OrganizationSelector({
                         handleTenantSelect(membership.tenant);
                         handleClose();
                       }}
-                      className="text-sm cursor-pointer"
+                      className="cursor-pointer text-sm"
                     >
-                      <BuildingOffice2Icon className="mr-2 h-4 w-4" />
+                      <BuildingOffice2Icon className="mr-2 size-4" />
                       {membership.tenant?.name}
                       <CheckIcon
                         className={cn(
-                          'ml-auto h-4 w-4',
-                          currTenant.slug === membership.tenant?.slug
+                          'ml-auto size-4',
+                          tenant?.slug === membership.tenant?.slug
                             ? 'opacity-100'
                             : 'opacity-0',
                         )}

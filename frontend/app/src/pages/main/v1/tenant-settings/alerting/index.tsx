@@ -1,7 +1,19 @@
+import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
+import { DeleteEmailGroupForm } from './components/delete-email-group-form';
+import { DeleteSlackForm } from './components/delete-slack-form';
+import {
+  EmailGroupCell,
+  EmailGroupStatusCell,
+  EmailGroupActions,
+} from './components/email-groups-columns';
+import { SlackActions } from './components/slack-webhooks-columns';
+import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import { useMemo, useState } from 'react';
-import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
   CreateTenantAlertEmailGroupRequest,
   SlackWebhook,
@@ -9,18 +21,10 @@ import api, {
   UpdateTenantRequest,
   queries,
 } from '@/lib/api';
-import { Spinner } from '@/components/v1/ui/loading';
-import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
-import { columns } from './components/slack-webhooks-columns';
-import { columns as emailGroupsColumns } from './components/email-groups-columns';
-
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { DeleteSlackForm } from './components/delete-slack-form';
-import { Button } from '@/components/v1/ui/button';
+import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { Dialog } from '@radix-ui/react-dialog';
-import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
-import { DeleteEmailGroupForm } from './components/delete-email-group-form';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 
 export default function Alerting() {
   const integrations = useApiMetaIntegrations();
@@ -29,12 +33,12 @@ export default function Alerting() {
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-semibold leading-tight text-foreground">
           Alerting
         </h2>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
+        <p className="my-4 text-gray-700 dark:text-gray-300">
           Manage alerts to get notified on task failure.
         </p>
         <Separator className="my-4" />
@@ -122,19 +126,6 @@ function EmailGroupsList() {
     ...queries.emailGroups.list(tenantId),
   });
 
-  const cols = emailGroupsColumns({
-    onDeleteClick: (row) => {
-      setDeleteEmailGroup(row);
-    },
-    alertTenantEmailsSet: isAlertMemberEmails,
-    onToggleMembersClick: (value) => {
-      setIsAlertMemberEmails(value);
-      updateMutation.mutate({
-        alertMemberEmails: value,
-      });
-    },
-  });
-
   const groups: TenantAlertEmailGroup[] = useMemo(() => {
     const customGroups = listEmailGroupQuery.data?.rows || [];
 
@@ -152,9 +143,57 @@ function EmailGroupsList() {
     ];
   }, [listEmailGroupQuery.data]);
 
+  const emailGroupColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Emails',
+        cellRenderer: (group: TenantAlertEmailGroup) => (
+          <EmailGroupCell group={group} />
+        ),
+      },
+      {
+        columnLabel: 'Created',
+        cellRenderer: (group: TenantAlertEmailGroup) =>
+          group.metadata.id != 'default' ? (
+            <RelativeDate date={group.metadata.createdAt} />
+          ) : (
+            <div />
+          ),
+      },
+      {
+        columnLabel: '',
+        cellRenderer: (group: TenantAlertEmailGroup) => (
+          <EmailGroupStatusCell
+            group={group}
+            alertTenantEmailsSet={isAlertMemberEmails}
+          />
+        ),
+      },
+      {
+        columnLabel: '',
+        cellRenderer: (group: TenantAlertEmailGroup) => (
+          <EmailGroupActions
+            group={group}
+            alertTenantEmailsSet={isAlertMemberEmails}
+            onDeleteClick={(group) => {
+              setDeleteEmailGroup(group);
+            }}
+            onToggleMembersClick={(value) => {
+              setIsAlertMemberEmails(value);
+              updateMutation.mutate({
+                alertMemberEmails: value,
+              });
+            }}
+          />
+        ),
+      },
+    ],
+    [isAlertMemberEmails, updateMutation],
+  );
+
   return (
     <div>
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Email Groups
         </h3>
@@ -168,12 +207,13 @@ function EmailGroupsList() {
         </Button>
       </div>
       <Separator className="my-4" />
-      <DataTable
-        isLoading={listEmailGroupQuery.isLoading}
-        columns={cols}
-        data={groups}
-        getRowId={(row) => row.metadata.id}
-      />
+      {groups.length > 0 ? (
+        <SimpleTable columns={emailGroupColumns} data={groups} />
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No email groups found. Create a group to receive alerts via email.
+        </div>
+      )}
       {showGroupsDialog && (
         <CreateEmailGroup
           onSuccess={() => {
@@ -277,15 +317,42 @@ function SlackWebhooksList() {
     ...queries.slackWebhooks.list(tenantId),
   });
 
-  const cols = columns({
-    onDeleteClick: (row) => {
-      setDeleteSlack(row);
-    },
-  });
+  const slackColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Team',
+        cellRenderer: (webhook: SlackWebhook) => <div>{webhook.teamName}</div>,
+      },
+      {
+        columnLabel: 'Channel',
+        cellRenderer: (webhook: SlackWebhook) => (
+          <div>{webhook.channelName}</div>
+        ),
+      },
+      {
+        columnLabel: 'Created',
+        cellRenderer: (webhook: SlackWebhook) => (
+          <RelativeDate date={webhook.metadata.createdAt} />
+        ),
+      },
+      {
+        columnLabel: 'Actions',
+        cellRenderer: (webhook: SlackWebhook) => (
+          <SlackActions
+            webhook={webhook}
+            onDeleteClick={(webhook) => {
+              setDeleteSlack(webhook);
+            }}
+          />
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <div>
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Slack Webhooks
         </h3>
@@ -294,12 +361,16 @@ function SlackWebhooksList() {
         </a>
       </div>
       <Separator className="my-4" />
-      <DataTable
-        isLoading={listWebhooksQuery.isLoading}
-        columns={cols}
-        data={listWebhooksQuery.data?.rows || []}
-        getRowId={(row) => row.metadata.id}
-      />
+      {(listWebhooksQuery.data?.rows || []).length > 0 ? (
+        <SimpleTable
+          columns={slackColumns}
+          data={listWebhooksQuery.data?.rows || []}
+        />
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No Slack webhooks found. Add a webhook to receive alerts in Slack.
+        </div>
+      )}
       {deleteSlack && (
         <DeleteSlackWebhook
           slackWebhook={deleteSlack}

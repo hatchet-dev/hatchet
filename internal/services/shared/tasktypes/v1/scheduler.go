@@ -1,9 +1,10 @@
 package v1
 
 import (
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CheckTenantQueuesPayload struct {
@@ -12,7 +13,7 @@ type CheckTenantQueuesPayload struct {
 	StrategyIds   []int64  `json:"strategy_ids"`
 }
 
-func NotifyTaskReleased(tenantId string, tasks []*sqlcv1.ReleaseTasksRow) (*msgqueue.Message, error) {
+func NotifyTaskReleased(tenantId uuid.UUID, tasks []*sqlcv1.ReleaseTasksRow) (*msgqueue.Message, error) {
 	uniqueQueueNames := make(map[string]struct{})
 	uniqueStrategies := make(map[int64]struct{})
 
@@ -40,14 +41,14 @@ func NotifyTaskReleased(tenantId string, tasks []*sqlcv1.ReleaseTasksRow) (*msgq
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"check-tenant-queue",
+		msgqueue.MsgIDCheckTenantQueue,
 		true,
 		false,
 		payload,
 	)
 }
 
-func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueue.Message, error) {
+func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	uniqueQueueNames := make(map[string]struct{})
 	uniqueStrategies := make(map[int64]struct{})
 
@@ -74,7 +75,7 @@ func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueu
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"check-tenant-queue",
+		msgqueue.MsgIDCheckTenantQueue,
 		true,
 		false,
 		payload,
@@ -82,5 +83,5 @@ func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueu
 }
 
 type TaskAssignedBulkTaskPayload struct {
-	WorkerIdToTaskIds map[string][]int64 `json:"worker_id_to_task_id" validate:"required"`
+	WorkerIdToTaskIds map[uuid.UUID][]int64 `json:"worker_id_to_task_id" validate:"required"`
 }

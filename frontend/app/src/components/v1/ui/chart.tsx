@@ -1,7 +1,6 @@
+import { cn } from '@/lib/utils';
 import * as React from 'react';
 import * as RechartsPrimitive from 'recharts';
-
-import { cn } from '@/lib/utils';
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const;
@@ -254,7 +253,7 @@ const ChartTooltipContent = React.forwardRef<
 );
 ChartTooltipContent.displayName = 'ChartTooltip';
 
-const ChartLegend = RechartsPrimitive.Legend;
+export const ChartLegend = RechartsPrimitive.Legend;
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
@@ -353,11 +352,4 @@ function getPayloadConfigFromPayload(
     : config[key as keyof typeof config];
 }
 
-export {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  ChartStyle,
-};
+export { ChartContainer, ChartTooltip, ChartTooltipContent };

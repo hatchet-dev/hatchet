@@ -5,14 +5,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateRequestObject) (gen.TenantUpdateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -38,7 +37,7 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		), nil
 	}
 	// construct the database query
-	updateOpts := &repository.UpdateTenantOpts{}
+	updateOpts := &v1.UpdateTenantOpts{}
 
 	if request.Body.AnalyticsOptOut != nil {
 		updateOpts.AnalyticsOptOut = request.Body.AnalyticsOptOut
@@ -52,22 +51,8 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		updateOpts.Name = request.Body.Name
 	}
 
-	if request.Body.Version != nil {
-		updateOpts.Version = &dbsqlc.NullTenantMajorEngineVersion{
-			Valid:                    true,
-			TenantMajorEngineVersion: dbsqlc.TenantMajorEngineVersion(*request.Body.Version),
-		}
-	}
-
-	if request.Body.UiVersion != nil {
-		updateOpts.UIVersion = &dbsqlc.NullTenantMajorUIVersion{
-			Valid:                true,
-			TenantMajorUIVersion: dbsqlc.TenantMajorUIVersion(*request.Body.UiVersion),
-		}
-	}
-
 	// update the tenant
-	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
+	tenant, err := t.config.V1.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
 
 	if err != nil {
 		return nil, err
@@ -78,10 +63,10 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		request.Body.EnableTenantResourceLimitAlerts != nil ||
 		request.Body.EnableWorkflowRunFailureAlerts != nil {
 
-		_, err = t.config.APIRepository.TenantAlertingSettings().UpsertTenantAlertingSettings(
+		_, err = t.config.V1.TenantAlertingSettings().UpsertTenantAlertingSettings(
 			ctx.Request().Context(),
 			tenantId,
-			&repository.UpsertTenantAlertingSettingsOpts{
+			&v1.UpsertTenantAlertingSettingsOpts{
 				MaxFrequency:                    request.Body.MaxAlertingFrequency,
 				EnableExpiringTokenAlerts:       request.Body.EnableExpiringTokenAlerts,
 				EnableWorkflowRunFailureAlerts:  request.Body.EnableWorkflowRunFailureAlerts,

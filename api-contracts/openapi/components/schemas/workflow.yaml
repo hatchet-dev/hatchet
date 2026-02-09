@@ -87,6 +87,8 @@ WorkflowVersionMeta:
     - order
     - workflowId
 
+
+
 WorkflowVersion:
   type: object
   properties:
@@ -121,11 +123,49 @@ WorkflowVersion:
         $ref: "#/Job"
     workflowConfig:
       type: object
+    v1Concurrency:
+      type: array
+      items:
+        $ref: "#/ConcurrencySetting"
+    inputJsonSchema:
+      type: object
+      description: The JSON schema for the workflow input.
   required:
     - metadata
     - version
     - order
     - workflowId
+
+ConcurrencyScope:
+  type: string
+  enum:
+    - WORKFLOW
+    - TASK
+
+ConcurrencySetting:
+  type: object
+  properties:
+    maxRuns:
+      type: integer
+      format: int32
+      description: The maximum number of concurrent workflow runs.
+    limitStrategy:
+      $ref: "#/ConcurrencyLimitStrategy"
+      description: The strategy to use when the concurrency limit is reached.
+    expression:
+      type: string
+      description: The concurrency expression, used to generate a key from task inputs, metadata, etc.
+    stepReadableId:
+      type: string
+      description: The readable id of the step to which this concurrency setting applies.
+    scope:
+      $ref: "#/ConcurrencyScope"
+      description: The scope of the concurrency setting.
+  required:
+    - maxRuns
+    - limitStrategy
+    - expression
+    - scope
 
 WorkflowConcurrency:
   type: object

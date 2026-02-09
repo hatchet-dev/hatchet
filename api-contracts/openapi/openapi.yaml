@@ -57,6 +57,8 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/getTaskPointMetrics"
   /api/v1/stable/tenants/{tenant}/events:
     $ref: "./paths/v1/events/event.yaml#/V1EventList"
+  /api/v1/stable/tenants/{tenant}/events/{v1-event}:
+    $ref: "./paths/v1/events/event.yaml#/V1EventGet"
   /api/v1/stable/tenants/{tenant}/events/keys:
     $ref: "./paths/v1/events/event.yaml#/keys"
   /api/v1/stable/tenants/{tenant}/filters:
@@ -161,6 +163,8 @@ paths:
     $ref: "./paths/event/event.yaml#/withEvent"
   /api/v1/events/{event}/data:
     $ref: "./paths/event/event.yaml#/eventData"
+  /api/v1/tenants/{tenant}/events/{event-with-tenant}/data:
+    $ref: "./paths/event/event.yaml#/eventDataWithTenant"
   /api/v1/tenants/{tenant}/events/keys:
     $ref: "./paths/event/event.yaml#/keys"
   /api/v1/tenants/{tenant}/workflows:
@@ -171,6 +175,10 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/scheduledList"
   /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/scheduled"
+  /api/v1/tenants/{tenant}/workflows/scheduled/bulk-delete:
+    $ref: "./paths/workflow/workflow.yaml#/scheduledBulkDelete"
+  /api/v1/tenants/{tenant}/workflows/scheduled/bulk-update:
+    $ref: "./paths/workflow/workflow.yaml#/scheduledBulkUpdate"
   /api/v1/tenants/{tenant}/workflows/{workflow}/crons:
     $ref: "./paths/workflow/workflow.yaml#/cronsCreate"
   /api/v1/tenants/{tenant}/workflows/crons:

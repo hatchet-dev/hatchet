@@ -1,0 +1,99 @@
+package repository
+
+import (
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+)
+
+type TenantScopedCallback[T any] func(uuid.UUID, T) error
+
+func (c TenantScopedCallback[T]) Do(l *zerolog.Logger, tenantId uuid.UUID, v T) {
+	// wrap in panic recover to avoid panics in the callback
+	defer func() {
+		if r := recover(); r != nil {
+			if l != nil {
+				l.Error().Interface("panic", r).Msg("panic in callback")
+			}
+		}
+	}()
+
+	go func() {
+		err := c(tenantId, v)
+
+		if err != nil {
+			l.Error().Err(err).Msg("callback failed")
+		}
+	}()
+}
+
+type UnscopedCallback[T any] func(T) error
+
+func (c UnscopedCallback[T]) Do(l *zerolog.Logger, v T) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if l != nil {
+					l.Error().Interface("panic", r).Msg("panic in callback")
+				}
+			}
+		}()
+
+		err := c(v)
+
+		if err != nil {
+			l.Error().Err(err).Msg("callback failed")
+		}
+	}()
+}
+
+type CallbackOptFunc[T any] func(*TenantCallbackOpts[T])
+
+func WithPreCommitCallback[T any](cb TenantScopedCallback[T]) CallbackOptFunc[T] {
+	return func(opts *TenantCallbackOpts[T]) {
+		opts.cbs = append(opts.cbs, cb)
+	}
+}
+
+func WithPostCommitCallback[T any](cb TenantScopedCallback[T]) CallbackOptFunc[T] {
+	return func(opts *TenantCallbackOpts[T]) {
+		opts.cbs = append(opts.cbs, cb)
+	}
+}
+
+func RunPreCommit[T any](l *zerolog.Logger, tenantId uuid.UUID, v T, opts []CallbackOptFunc[T]) {
+	// initialize the opts
+	o := &TenantCallbackOpts[T]{
+		cbs: make([]TenantScopedCallback[T], 0),
+	}
+
+	// apply the opts
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	o.Run(l, tenantId, v)
+}
+
+func RunPostCommit[T any](l *zerolog.Logger, tenantId uuid.UUID, v T, opts []CallbackOptFunc[T]) {
+	// initialize the opts
+	o := &TenantCallbackOpts[T]{
+		cbs: make([]TenantScopedCallback[T], 0),
+	}
+
+	// apply the opts
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	o.Run(l, tenantId, v)
+}
+
+type TenantCallbackOpts[T any] struct {
+	cbs []TenantScopedCallback[T]
+}
+
+func (o *TenantCallbackOpts[T]) Run(l *zerolog.Logger, tenantId uuid.UUID, v T) {
+	for _, cb := range o.cbs {
+		cb.Do(l, tenantId, v)
+	}
+}

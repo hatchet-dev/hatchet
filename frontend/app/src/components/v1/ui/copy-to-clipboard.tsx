@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
 import { Button } from './button';
-import { CopyIcon } from '@radix-ui/react-icons';
-import { CheckIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
+import { CheckIcon } from '@heroicons/react/24/outline';
+import { CopyIcon } from '@radix-ui/react-icons';
+import React, { useState } from 'react';
 
 type Props = {
   text: string;
@@ -24,8 +24,8 @@ const CopyToClipboard: React.FC<Props> = ({
       className={cn(
         className,
         withText
-          ? 'cursor-pointer flex flex-row gap-2 items-center mt-2'
-          : 'w-6 h-6 p-0 cursor-pointer',
+          ? 'mt-2 flex cursor-pointer flex-row items-center gap-2'
+          : 'h-6 w-6 cursor-pointer p-0',
       )}
       variant={withText ? 'default' : 'ghost'}
       onClick={() => {
@@ -39,9 +39,9 @@ const CopyToClipboard: React.FC<Props> = ({
       }}
     >
       {successCopy ? (
-        <CheckIcon className="w-4 h-4" />
+        <CheckIcon className="h-4 w-4" />
       ) : (
-        <CopyIcon className="w-4 h-4" />
+        <CopyIcon className="h-4 w-4" />
       )}
       {withText && (successCopy ? 'Copied' : 'Copy to clipboard')}
     </Button>

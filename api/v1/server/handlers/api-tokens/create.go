@@ -8,15 +8,14 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenCreateRequestObject) (gen.ApiTokenCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	user := ctx.Get("user").(*dbsqlc.User)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	user := ctx.Get("user").(*sqlcv1.User)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	// validate the request
 	if apiErrors, err := a.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -45,18 +44,18 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 		return nil, err
 	}
 
-	ctx.Set(constants.ResourceIdKey.String(), token.TokenId)
+	ctx.Set(constants.ResourceIdKey.String(), token.TokenId.String())
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
 	a.config.Analytics.Enqueue(
 		"api-token:create",
-		sqlchelpers.UUIDToStr(user.ID),
+		user.ID.String(),
 		&tenantId,
 		nil,
 		map[string]interface{}{
 			"name":       request.Body.Name,
 			"expires_at": expiresAt,
-			"token_id":   token.TokenId,
+			"token_id":   token.TokenId.String(),
 		},
 	)
 

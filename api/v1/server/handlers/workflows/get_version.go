@@ -4,29 +4,29 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
-	var workflowVersionId string
+	var workflowVersionId uuid.UUID
 
 	if request.Params.Version != nil {
-		workflowVersionId = request.Params.Version.String()
+		workflowVersionId = *request.Params.Version
 	} else {
-		row, err := t.config.APIRepository.Workflow().GetWorkflowById(
+		row, err := t.config.V1.Workflows().GetWorkflowById(
 			ctx.Request().Context(),
-			sqlchelpers.UUIDToStr(workflow.Workflow.ID),
+			workflow.Workflow.ID,
 		)
 
 		if err != nil {
@@ -40,10 +40,10 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 
 		}
 
-		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
+		workflowVersionId = *row.WorkflowVersionId
 	}
 
-	row, crons, events, scheduleT, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowVersionId)
+	row, crons, events, scheduleT, stepConcurrency, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -59,14 +59,14 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		&row.WorkflowVersion,
 		&workflow.Workflow,
 		&transformers.WorkflowConcurrency{
-			ID:                    row.ConcurrencyId,
-			GetConcurrencyGroupId: row.ConcurrencyGroupId,
-			MaxRuns:               row.ConcurrencyMaxRuns,
-			LimitStrategy:         row.ConcurrencyLimitStrategy,
+			MaxRuns:       row.ConcurrencyMaxRuns,
+			LimitStrategy: row.ConcurrencyLimitStrategy,
+			Expression:    row.ConcurrencyExpression.String,
 		},
 		crons,
 		events,
 		scheduleT,
+		stepConcurrency,
 	)
 
 	return gen.WorkflowVersionGet200JSONResponse(*resp), nil

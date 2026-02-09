@@ -1,0 +1,73 @@
+name: Release Hatchet CLI
+
+on:
+  push:
+    tags:
+      - "v*" # Trigger on version tags like v0.73.10
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release-cli:
+    name: Release CLI with GoReleaser
+    runs-on: ubicloud-standard-2
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: |
+          tag=${GITHUB_TAG/refs\/tags\//}
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "Building release for tag: $tag"
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all tags
+        run: git fetch --force --tags
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install quill (for macOS code signing)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/quill/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Install syft (for SBOM generation)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+          workdir: cmd/hatchet-cli
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Homebrew tap token
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # macOS signing and notarization secrets
+          # These should be set as repository secrets in GitHub
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7

@@ -1,14 +1,15 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { CronWorkflows } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Link } from 'react-router-dom';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
-import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { extractCronTz, formatCron } from '@/lib/utils';
-import { Check, X } from 'lucide-react';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
 import { Spinner } from '@/components/v1/ui/loading';
+import { CronWorkflows } from '@/lib/api';
+import { extractCronTz, formatCron } from '@/lib/cron';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
+import { Check, X } from 'lucide-react';
 
 export const CronColumn = {
   expression: 'Expression',
@@ -22,17 +23,17 @@ export const CronColumn = {
   enabled: 'Enabled',
 };
 
-export type CronColumnKeys = keyof typeof CronColumn;
+type CronColumnKeys = keyof typeof CronColumn;
 
-export const enabledKey: CronColumnKeys = 'enabled';
-export const expressionKey: CronColumnKeys = 'expression';
-export const descriptionKey: CronColumnKeys = 'description';
-export const timezoneKey: CronColumnKeys = 'timezone';
-export const nameKey: CronColumnKeys = 'name';
+const enabledKey: CronColumnKeys = 'enabled';
+const expressionKey: CronColumnKeys = 'expression';
+const descriptionKey: CronColumnKeys = 'description';
+const timezoneKey: CronColumnKeys = 'timezone';
+const nameKey: CronColumnKeys = 'name';
 export const workflowKey: CronColumnKeys = 'workflow';
 export const metadataKey: CronColumnKeys = 'metadata';
-export const createdAtKey: CronColumnKeys = 'createdAt';
-export const actionsKey: CronColumnKeys = 'actions';
+const createdAtKey: CronColumnKeys = 'createdAt';
+const actionsKey: CronColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,
@@ -110,9 +111,10 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
             <Link
-              to={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+              to={appRoutes.tenantWorkflowRoute.to}
+              params={{ tenant: tenantId, workflow: row.original.workflowId }}
             >
               {row.original.workflowName}
             </Link>
@@ -185,8 +187,8 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row justify-center">
-          <DataTableRowActions
-            row={row}
+          <TableRowActions
+            row={row.original}
             actions={[
               {
                 label: 'Delete',

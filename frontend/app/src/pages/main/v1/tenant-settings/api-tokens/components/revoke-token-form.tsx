@@ -1,10 +1,10 @@
 import { Button } from '@/components/v1/ui/button';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { APIToken } from '@/lib/api';
 
 interface RevokeTokenFormProps {
@@ -17,12 +17,12 @@ interface RevokeTokenFormProps {
 
 export function RevokeTokenForm({ className, ...props }: RevokeTokenFormProps) {
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Delete token</DialogTitle>
       </DialogHeader>
       <div>
-        <div className="text-sm text-foreground mb-4">
+        <div className="mb-4 text-sm text-foreground">
           Are you sure you want to revoke the API token {props.apiToken.name}?
           This action will immediately prevent any services running with this
           token from dispatching events or executing steps.

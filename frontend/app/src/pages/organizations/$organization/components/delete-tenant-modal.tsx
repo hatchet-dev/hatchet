@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
-import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/loading';
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Spinner } from '@/components/v1/ui/loading';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useState, useEffect } from 'react';
 
 interface DeleteTenantModalProps {
   open: boolean;
@@ -52,12 +52,12 @@ export function DeleteTenantModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+      <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
         <DialogHeader>
           <DialogTitle>Archive Tenant</DialogTitle>
         </DialogHeader>
         <div>
-          <div className="text-sm text-foreground mb-4 space-y-3">
+          <div className="mb-4 space-y-3 text-sm text-foreground">
             <p>
               Are you sure you want to archive <strong>{tenantName}</strong>{' '}
               from {organizationName}?
@@ -87,7 +87,7 @@ export function DeleteTenantModal({
               />
             </div>
           </div>
-          <div className="flex flex-row gap-4 justify-end">
+          <div className="flex flex-row justify-end gap-4">
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

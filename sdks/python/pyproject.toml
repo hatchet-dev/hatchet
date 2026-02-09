@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.21.2"
+version = "1.23.0"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 authors = [
-    "Alexander Belanger <alexander@hatchet.run>",
-    "Matt Kaye <matt@hatchet.run>",
-    "Gabe Ruttner <gabe@hatchet.run>",
-    "Mohammed Nafees <nafees@hatchet.run>",
+  "Alexander Belanger <alexander@hatchet.run>",
+  "Matt Kaye <matt@hatchet.run>",
+  "Gabe Ruttner <gabe@hatchet.run>",
+  "Mohammed Nafees <nafees@hatchet.run>",
 ]
 readme = "README.md"
 include = ["hatchet_sdk/py.typed"]
@@ -16,7 +16,7 @@ license = "MIT"
 python = "^3.10"
 grpcio = "^1.76.0"
 grpcio-tools = "^1.76.0"
-protobuf = "^6.30.0"
+protobuf = "^6.30.2"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 aiohttp = "^3.10.5"
@@ -31,19 +31,18 @@ opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
 opentelemetry-distro = { version = ">=0.49b0", optional = true }
 opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
 opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
-urllib3 = "^2.5.0"
+urllib3 = "^2.6.0"
 
 
 [tool.poetry.group.lint.dependencies]
-mypy = "^1.14.0"
+mypy = "==1.19.1"
 types-protobuf = "^5.28.3.20241030"
-black = "^24.10.0"
-isort = "^5.13.2"
+black = "==26.1.0"
 types-psutil = "^6.1.0.20241221"
-ruff = "^0.9.7"
+ruff = "==0.15.0"
 types-requests = "^2.32.0.20241016"
 psutil = "^6.0.0"
-grpc-stubs = "^1.53.0.5"
+types-grpcio = "^1.0.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.5"
@@ -67,12 +66,12 @@ uvicorn = "^0.34.3"
 
 [tool.poetry.extras]
 otel = [
-    "opentelemetry-api",
-    "opentelemetry-sdk",
-    "opentelemetry-instrumentation",
-    "opentelemetry-distro",
-    "opentelemetry-exporter-otlp",
-    "opentelemetry-exporter-otlp-proto-http",
+  "opentelemetry-api",
+  "opentelemetry-sdk",
+  "opentelemetry-instrumentation",
+  "opentelemetry-distro",
+  "opentelemetry-exporter-otlp",
+  "opentelemetry-exporter-otlp-proto-http",
 ]
 v0-sdk = ["cel-python"]
 
@@ -86,167 +85,119 @@ env = ["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 
-[tool.isort]
-profile = "black"
-known_third_party = [
-    "grpcio",
-    "grpcio_tools",
-    "loguru",
-    "protobuf",
-    "pydantic",
-    "python_dotenv",
-    "python_dateutil",
-    "pyyaml",
-    "urllib3",
-]
-extend_skip = ["hatchet_sdk/contracts/", "hatchet_sdk/v0/contracts/"]
-
 [tool.black]
 extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"
 
 [tool.mypy]
 files = ["."]
 exclude = [
-    "hatchet_sdk/clients/rest/api/*",
-    "hatchet_sdk/clients/rest/models/*",
-    "hatchet_sdk/contracts",
-    "hatchet_sdk/clients/rest/api_client.py",
-    "hatchet_sdk/clients/rest/configuration.py",
-    "hatchet_sdk/clients/rest/exceptions.py",
-    "hatchet_sdk/clients/rest/rest.py",
-    "hatchet_sdk/v0/*",
-    "site/*",
+  "hatchet_sdk/clients/rest/api/*",
+  "hatchet_sdk/clients/rest/models/*",
+  "hatchet_sdk/contracts",
+  "hatchet_sdk/clients/rest/api_client.py",
+  "hatchet_sdk/clients/rest/configuration.py",
+  "hatchet_sdk/clients/rest/exceptions.py",
+  "hatchet_sdk/clients/rest/rest.py",
+  "hatchet_sdk/v0/*",
+  "site/*",
 ]
 strict = true
 enable_error_code = [
-    "possibly-undefined",
-    "truthy-bool",
-    "redundant-expr",
-    "truthy-iterable",
+  "possibly-undefined",
+  "truthy-bool",
+  "redundant-expr",
+  "truthy-iterable",
 ]
 
 [tool.ruff]
 exclude = [
-    "hatchet_sdk/clients/rest/api/*",
-    "hatchet_sdk/clients/rest/models/*",
-    "hatchet_sdk/contracts",
-    "hatchet_sdk/clients/rest/api_client.py",
-    "hatchet_sdk/clients/rest/configuration.py",
-    "hatchet_sdk/clients/rest/exceptions.py",
-    "hatchet_sdk/clients/rest/rest.py",
-    "hatchet_sdk/v0/*",
-    "site/*",
+  "hatchet_sdk/clients/rest/api/*",
+  "hatchet_sdk/clients/rest/models/*",
+  "hatchet_sdk/contracts",
+  "hatchet_sdk/clients/rest/api_client.py",
+  "hatchet_sdk/clients/rest/configuration.py",
+  "hatchet_sdk/clients/rest/exceptions.py",
+  "hatchet_sdk/clients/rest/rest.py",
+  "hatchet_sdk/v0/*",
+  "site/*",
 ]
 target-version = "py310"
 
 [tool.ruff.lint]
 select = [
-    # Pyflakes
-    "F",
-    # pycodestyle errors
-    "E",
-    # pycodestyle warnings
-    "W",
-    # isort
-    "I",
-    # pep8-naming
-    "N",
-    # pyupgrade (modern Python idioms)
-    "UP",
-    # flake8-async (async/await)
-    "ASYNC",
-    # flake8-bugbear (likely bugs)
-    "B",
-    # flake8-simplify (code simplification)
-    "SIM",
-    # flake8-comprehensions (list/dict comprehensions)
-    "C4",
-    # flake8-pie (misc improvements)
-    "PIE",
-    # flake8-return (return statement improvements)
-    "RET",
-    # flake8-unused-arguments
-    "ARG",
-    # flake8-logging-format
-    "G",
-    # Ruff-specific rules
-    "RUF",
-    # Datetime (timezone) rules
-    "DTZ",
-    "FIX",
-    ## Performance-related rules
-    "PERF",
+  # Pyflakes
+  "F",
+  # pycodestyle errors
+  "E",
+  # pycodestyle warnings
+  "W",
+  # isort
+  "I",
+  # pep8-naming
+  "N",
+  # pyupgrade (modern Python idioms)
+  "UP",
+  # flake8-async (async/await)
+  "ASYNC",
+  # flake8-bugbear (likely bugs)
+  "B",
+  # flake8-simplify (code simplification)
+  "SIM",
+  # flake8-comprehensions (list/dict comprehensions)
+  "C4",
+  # flake8-pie (misc improvements)
+  "PIE",
+  # flake8-return (return statement improvements)
+  "RET",
+  # flake8-unused-arguments
+  "ARG",
+  # flake8-logging-format
+  "G",
+  # Ruff-specific rules
+  "RUF",
+  # Datetime (timezone) rules
+  "DTZ",
+  "FIX",
+  ## Performance-related rules
+  "PERF",
 
-    # Print statements
-    "T201",
+  # Print statements
+  "T201",
 ]
 
 ignore = [
-    # Allow long lines
-    "E501",
-    # Allow complex variable names
-    "N806",
-    # Don't enforce specific exception types initially
-    "B008",
-    # Allow unused function arguments
-    "ARG001",
-    "ARG002",
-    # Allow empty returns
-    "RET503",
+  # Allow long lines
+  "E501",
+  # Allow complex variable names
+  "N806",
+  # Don't enforce specific exception types initially
+  "B008",
+  # Allow unused function arguments
+  "ARG001",
+  "ARG002",
+  # Allow empty returns
+  "RET503",
 
-    ## FIXME (ironic) - re-enable this later
-    "FIX",
+  ## FIXME (ironic) - re-enable this later
+  "FIX",
 
-    "RET506",
+  "RET506",
 ]
 exclude = [
-    "examples/*",
-    "docs/*",
-    "hatchet_sdk/clients/rest/api/*",
-    "hatchet_sdk/clients/rest/models/*",
-    "hatchet_sdk/contracts",
-    "hatchet_sdk/clients/rest/api_client.py",
-    "hatchet_sdk/clients/rest/configuration.py",
-    "hatchet_sdk/clients/rest/exceptions.py",
-    "hatchet_sdk/clients/rest/rest.py",
-    "hatchet_sdk/v0/*",
-    "apply_patches.py",
-    "site/*",
-    "tests/*",
+  "examples/*",
+  "docs/*",
+  "hatchet_sdk/clients/rest/api/*",
+  "hatchet_sdk/clients/rest/models/*",
+  "hatchet_sdk/contracts",
+  "hatchet_sdk/clients/rest/api_client.py",
+  "hatchet_sdk/clients/rest/configuration.py",
+  "hatchet_sdk/clients/rest/exceptions.py",
+  "hatchet_sdk/clients/rest/rest.py",
+  "hatchet_sdk/v0/*",
+  "apply_patches.py",
+  "site/*",
+  "tests/*",
 ]
-
-[tool.poetry.scripts]
-
-api = "examples.api.api:main"
-async = "examples.async.worker:main"
-fanout = "examples.fanout.worker:main"
-fanout_sync = "examples.fanout_sync.worker:main"
-cancellation = "examples.cancellation.worker:main"
-concurrency_limit = "examples.concurrency_limit.worker:main"
-concurrency_limit_rr = "examples.concurrency_limit_rr.worker:main"
-dag = "examples.dag.worker:main"
-delayed = "examples.delayed.worker:main"
-events = "examples.events.worker:main"
-logger = "examples.logger.worker:main"
-manual_trigger = "examples.manual_trigger.worker:main"
-on_failure = "examples.on_failure.worker:main"
-programatic_replay = "examples.programatic_replay.worker:main"
-dynamic_rate_limit = "examples.rate_limit.dynamic:main"
-rate_limit = "examples.rate_limit.worker:main"
-simple = "examples.simple.worker:main"
-timeout = "examples.timeout.worker:main"
-blocked = "examples.blocked_async.worker:main"
-existing_loop = "examples.worker_existing_loop.worker:main"
-bulk_fanout = "examples.bulk_fanout.worker:main"
-retries_with_backoff = "examples.retries_with_backoff.worker:main"
-pydantic = "examples.pydantic.worker:main"
-v2_simple = "examples.v2.simple.worker:main"
-otel = "examples.opentelemetry_instrumentation.worker:main"
-waits = "examples.waits.worker:main"
-durable = "examples.durable.worker:main"
-streaming = "examples.streaming.worker:main"
-lifespans = "examples.lifespans.worker:main"
-docs-gen = "docs.generator.generate:main"
 
 [tool.pydoclint]
 style = 'sphinx'

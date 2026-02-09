@@ -11,12 +11,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *dbsqlc.Tenant, emailGroup *repository.TenantAlertEmailGroupForSend, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
+func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *sqlcv1.Tenant, emailGroup *v1.TenantAlertEmailGroupForSend, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -26,7 +25,7 @@ func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *dbsqlc.Tenant, em
 		subject = fmt.Sprintf("%d Hatchet workflow failed", numFailed)
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	return t.email.SendWorkflowRunFailedAlerts(
 		ctx,
@@ -36,18 +35,18 @@ func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *dbsqlc.Tenant, em
 			Items:        failedRuns,
 			Subject:      subject,
 			Summary:      subject,
-			SettingsLink: fmt.Sprintf("%s/tenant-settings/alerting?tenant=%s", t.serverURL, tenantId),
+			SettingsLink: fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, tenantId),
 		},
 	)
 }
 
-func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *dbsqlc.Tenant, emailGroup *repository.TenantAlertEmailGroupForSend, payload *alerttypes.ExpiringTokenItem) error {
+func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *sqlcv1.Tenant, emailGroup *v1.TenantAlertEmailGroupForSend, payload *alerttypes.ExpiringTokenItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	subject := fmt.Sprintf("Hatchet token expiring %s", payload.ExpiresAtRelativeDate)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	return t.email.SendExpiringTokenEmail(
 		ctx,
@@ -59,12 +58,12 @@ func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *dbsqlc.Tenant, 
 			ExpiresAtRelativeDate: payload.ExpiresAtRelativeDate,
 			Subject:               subject,
 			TokenSettings:         payload.Link,
-			SettingsLink:          fmt.Sprintf("%s/tenant-settings/alerting?tenant=%s", t.serverURL, tenantId),
+			SettingsLink:          fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, tenantId),
 		},
 	)
 }
 
-func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *dbsqlc.Tenant, emailGroup *repository.TenantAlertEmailGroupForSend, payload *alerttypes.ResourceLimitAlert) error {
+func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *sqlcv1.Tenant, emailGroup *v1.TenantAlertEmailGroupForSend, payload *alerttypes.ResourceLimitAlert) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -75,13 +74,13 @@ func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *dbsqlc.Te
 	resource := strings.ReplaceAll(strings.ToLower(payload.Resource), "_", " ")
 	resource = cases.Title(language.English).String(resource)
 
-	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeAlarm) {
+	if payload.AlertType == string(sqlcv1.TenantResourceLimitAlertTypeAlarm) {
 		subject = fmt.Sprintf("%s has exhausted %d%% of its %s limit (%d/%d)", resource, payload.Percentage, payload.LimitWindow, payload.CurrentValue, payload.LimitValue)
 		summary = "We're sending you this alert because a resource on your Hatchet tenant is approaching its usage limit."
 		summary2 = fmt.Sprintf("Once the %s limit is reached, any further resource usage will be denied. Last refilled %s.", payload.LimitWindow, payload.LastRefillAgo)
 	}
 
-	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeExhausted) {
+	if payload.AlertType == string(sqlcv1.TenantResourceLimitAlertTypeExhausted) {
 		subject = fmt.Sprintf("%s has exhausted 100%% of its %s limit (%d/%d)", payload.Resource, payload.LimitWindow, payload.CurrentValue, payload.LimitValue)
 		summary = "We're sending you this alert because a resource on your Hatchet tenant has exhausted its usage limit."
 		summary2 = fmt.Sprintf("Any further resource usage will be denied until the limit is increased or its refill window is reached. Last refilled %s.", payload.LastRefillAgo)
@@ -101,7 +100,7 @@ func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *dbsqlc.Te
 			LimitValue:   payload.LimitValue,
 			Percentage:   payload.Percentage,
 			Link:         payload.Link,
-			SettingsLink: fmt.Sprintf("%s/tenant-settings/alerting?tenant=%s", t.serverURL, sqlchelpers.UUIDToStr(tenant.ID)),
+			SettingsLink: fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, tenant.ID.String()),
 		},
 	)
 }

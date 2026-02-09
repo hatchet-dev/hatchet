@@ -1,0 +1,11 @@
+dev:
+  preCmds: ["go mod download"]
+  runCmd: "go run ./cmd/worker"
+  files:
+    - "**/*.go"
+  reload: true
+
+triggers:
+  - name: simple
+    description: "Trigger the first workflow with sample input"
+    command: "go run cmd/run/main.go"

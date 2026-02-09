@@ -6,10 +6,10 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -25,7 +25,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate snippets
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -34,10 +34,10 @@ jobs:
         run: npm run lint:check
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -53,7 +53,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate snippets
         working-directory: frontend/snippets
         run: python3 generate.py

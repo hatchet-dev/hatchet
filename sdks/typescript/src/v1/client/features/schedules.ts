@@ -1,5 +1,8 @@
 import {
   ScheduledWorkflows,
+  ScheduledWorkflowsBulkDeleteFilter,
+  ScheduledWorkflowsBulkDeleteResponse,
+  ScheduledWorkflowsBulkUpdateResponse,
   ScheduledWorkflowsList,
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
@@ -24,6 +27,15 @@ export const CreateScheduledRunTriggerSchema = z.object({
  * Type representing the input for creating a Cron.
  */
 export type CreateScheduledRunInput = z.infer<typeof CreateScheduledRunTriggerSchema>;
+
+/**
+ * Schema for updating (rescheduling) a Scheduled Run Trigger.
+ */
+export const UpdateScheduledRunTriggerSchema = z.object({
+  triggerAt: z.coerce.date(),
+});
+
+export type UpdateScheduledRunInput = z.infer<typeof UpdateScheduledRunTriggerSchema>;
 
 /**
  * Client for managing Scheduled Runs.
@@ -94,6 +106,37 @@ export class ScheduleClient {
   }
 
   /**
+   * Updates (reschedules) an existing Scheduled Run.
+   * @param scheduledRun - The Scheduled Run ID as a string or ScheduledWorkflows object.
+   * @param update - The update payload (currently only triggerAt).
+   * @returns A promise that resolves to the updated ScheduledWorkflows object.
+   */
+  async update(
+    scheduledRun: string | ScheduledWorkflows,
+    update: UpdateScheduledRunInput
+  ): Promise<ScheduledWorkflows> {
+    const scheduledRunId = this.getScheduledRunId(scheduledRun);
+
+    try {
+      const parsed = UpdateScheduledRunTriggerSchema.parse(update);
+      const response = await this.api.workflowScheduledUpdate(this.tenantId, scheduledRunId, {
+        triggerAt: parsed.triggerAt.toISOString(),
+      });
+      return response.data;
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        throw new Error(`Invalid update input: ${err.message}`);
+      }
+
+      if (err instanceof AxiosError) {
+        throw new Error(JSON.stringify(err.response?.data.errors));
+      }
+
+      throw err;
+    }
+  }
+
+  /**
    * Deletes an existing Scheduled Run.
    * @param scheduledRun - The Scheduled Run ID as a string or ScheduledWorkflows object.
    * @returns A promise that resolves when the Scheduled Run is deleted.
@@ -134,6 +177,43 @@ export class ScheduleClient {
   async get(scheduledRun: string | ScheduledWorkflows): Promise<ScheduledWorkflows> {
     const scheduledRunId = this.getScheduledRunId(scheduledRun);
     const response = await this.api.workflowScheduledGet(this.tenantId, scheduledRunId);
+    return response.data;
+  }
+
+  /**
+   * Bulk deletes scheduled runs (by explicit IDs and/or a filter).
+   * @param opts - Either `scheduledRuns` (ids/objects) and/or a server-side filter.
+   * @returns A promise that resolves to deleted ids + per-id errors.
+   */
+  async bulkDelete(opts: {
+    scheduledRuns?: Array<string | ScheduledWorkflows>;
+    filter?: ScheduledWorkflowsBulkDeleteFilter;
+  }): Promise<ScheduledWorkflowsBulkDeleteResponse> {
+    const scheduledWorkflowRunIds = opts.scheduledRuns?.map((r) => this.getScheduledRunId(r));
+
+    const response = await this.api.workflowScheduledBulkDelete(this.tenantId, {
+      scheduledWorkflowRunIds,
+      filter: opts.filter,
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Bulk updates (reschedules) scheduled runs.
+   * @param updates - List of id/object + new triggerAt.
+   * @returns A promise that resolves to updated ids + per-id errors.
+   */
+  async bulkUpdate(
+    updates: Array<{ scheduledRun: string | ScheduledWorkflows; triggerAt: Date | string }>
+  ): Promise<ScheduledWorkflowsBulkUpdateResponse> {
+    const response = await this.api.workflowScheduledBulkUpdate(this.tenantId, {
+      updates: updates.map((u) => ({
+        id: this.getScheduledRunId(u.scheduledRun),
+        triggerAt: new Date(u.triggerAt).toISOString(),
+      })),
+    });
+
     return response.data;
   }
 }

@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package v1
 
 import (
@@ -9,8 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 )
 
-// HatchetClient is the main interface for interacting with the Hatchet task orchestrator.
-// It provides access to workflow creation, worker registration, and legacy V0 client functionality.
+// Deprecated: HatchetClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type HatchetClient interface {
 	// V0 returns the underlying V0 client for backward compatibility.
 	V0() v0Client.Client
@@ -38,6 +40,7 @@ type HatchetClient interface {
 	Schedules() features.SchedulesClient
 	Events() v0Client.EventClient
 	Filters() features.FiltersClient
+	Webhooks() features.WebhooksClient
 
 	// TODO Run, RunNoWait, bulk
 }
@@ -55,10 +58,11 @@ type v1HatchetClientImpl struct {
 	crons      features.CronsClient
 	schedules  features.SchedulesClient
 	filters    features.FiltersClient
+	webhooks   features.WebhooksClient
 }
 
-// NewHatchetClient creates a new V1 Hatchet client with the provided configuration.
-// If no configuration is provided, default settings will be used.
+// Deprecated: NewHatchetClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewHatchetClient(config ...Config) (HatchetClient, error) {
 	cf := &v0Config.ClientConfigFile{}
 
@@ -184,4 +188,13 @@ func (c *v1HatchetClientImpl) CEL() features.CELClient {
 		c.cel = features.NewCELClient(api, &tenantId)
 	}
 	return c.cel
+}
+
+func (c *v1HatchetClientImpl) Webhooks() features.WebhooksClient {
+	if c.webhooks == nil {
+		api := c.V0().API()
+		tenantID := c.V0().TenantId()
+		c.webhooks = features.NewWebhooksClient(api, &tenantID)
+	}
+	return c.webhooks
 }

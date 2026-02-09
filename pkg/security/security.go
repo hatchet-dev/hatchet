@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 
 	"github.com/rs/zerolog"
 )
@@ -19,10 +19,10 @@ type DefaultSecurityCheck struct {
 	Endpoint string
 	Logger   *zerolog.Logger
 	Version  string
-	Repo     repository.SecurityCheckRepository
+	Repo     v1.SecurityCheckRepository
 }
 
-func NewSecurityCheck(opts *DefaultSecurityCheck, repo repository.SecurityCheckRepository) SecurityCheck {
+func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepository) SecurityCheck {
 	return DefaultSecurityCheck{
 		Enabled:  opts.Enabled,
 		Endpoint: opts.Endpoint,

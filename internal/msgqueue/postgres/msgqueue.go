@@ -3,24 +3,25 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cache"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type PostgresMessageQueue struct {
-	repo repository.MessageQueueRepository
+	repo v1.MessageQueueRepository
 	l    *zerolog.Logger
 	qos  int
 
@@ -57,28 +58,50 @@ func WithQos(qos int) MessageQueueImplOpt {
 	}
 }
 
-func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImplOpt) (func() error, *PostgresMessageQueue) {
+func NewPostgresMQ(repo v1.MessageQueueRepository, fs ...MessageQueueImplOpt) (func() error, *PostgresMessageQueue, error) {
 	opts := defaultMessageQueueImplOpts()
 
 	for _, f := range fs {
 		f(opts)
 	}
 
+	opts.l.Info().Msg("Creating new Postgres message queue")
+
 	c := cache.NewTTL[string, bool]()
 
+	p := &PostgresMessageQueue{
+		repo:     repo,
+		l:        opts.l,
+		qos:      opts.qos,
+		configFs: fs,
+		ttlCache: c,
+	}
+
+	err := p.upsertQueue(context.Background(), msgqueue.TASK_PROCESSING_QUEUE)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("error upserting queue %s: %w", msgqueue.TASK_PROCESSING_QUEUE.Name(), err)
+	}
+
+	err = p.upsertQueue(context.Background(), msgqueue.OLAP_QUEUE)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("error upserting queue %s: %w", msgqueue.OLAP_QUEUE.Name(), err)
+	}
+
+	err = p.upsertQueue(context.Background(), msgqueue.DISPATCHER_DEAD_LETTER_QUEUE)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("error upserting queue %s: %w", msgqueue.DISPATCHER_DEAD_LETTER_QUEUE.Name(), err)
+	}
+
 	return func() error {
-			c.Stop()
-			return nil
-		}, &PostgresMessageQueue{
-			repo:     repo,
-			l:        opts.l,
-			qos:      opts.qos,
-			ttlCache: c,
-			configFs: fs,
-		}
+		c.Stop()
+		return nil
+	}, p, nil
 }
 
-func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue) {
+func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue, error) {
 	return NewPostgresMQ(p.repo, p.configFs...)
 }
 
@@ -86,9 +109,28 @@ func (p *PostgresMessageQueue) SetQOS(prefetchCount int) {
 	p.qos = prefetchCount
 }
 
-func (p *PostgresMessageQueue) AddMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
+func (p *PostgresMessageQueue) SendMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "PostgresMessageQueue.SendMessage")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: task.TenantID})
+
+	err := p.addMessage(ctx, queue, task)
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "error adding message")
+		return err
+	}
+
+	return nil
+}
+
+func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "add-message")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: task.TenantID})
 
 	// inject otel carrier into the message
 	if task.OtelCarrier == nil {
@@ -108,15 +150,26 @@ func (p *PostgresMessageQueue) AddMessage(ctx context.Context, queue msgqueue.Qu
 		return err
 	}
 
-	err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
+	if !queue.Durable() {
+		err = p.pubNonDurableMessages(ctx, queue.Name(), task)
+	} else {
+		err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
+	}
 
 	if err != nil {
-		p.l.Error().Err(err).Msg("error adding message")
+		p.l.Error().Err(err).Msgf("error adding message for queue %s", queue.Name())
 		return err
 	}
 
-	if task.TenantID() != "" {
-		return p.addTenantExchangeMessage(ctx, task.TenantID(), msgBytes)
+	// notify the queue that a new message has been added
+	err = p.repo.Notify(ctx, queue.Name(), "")
+
+	if err != nil {
+		p.l.Error().Err(err).Msgf("error notifying queue %s", queue.Name())
+	}
+
+	if task.TenantID != uuid.Nil {
+		return p.addTenantExchangeMessage(ctx, queue, task)
 	}
 
 	return nil
@@ -177,46 +230,47 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		return nil
 	}
 
-	do := func(messages []*dbsqlc.ReadMessagesRow) error {
-		var errs error
+	do := func(messages []*sqlcv1.ReadMessagesRow) error {
+		eg := &errgroup.Group{}
+
 		for _, message := range messages {
-			var task msgqueue.Message
+			eg.Go(func() error {
+				var task msgqueue.Message
 
-			err := json.Unmarshal(message.Payload, &task)
+				err := json.Unmarshal(message.Payload, &task)
 
-			if err != nil {
-				p.l.Error().Err(err).Msg("error unmarshalling message")
-				errs = multierror.Append(errs, err)
-			}
+				if err != nil {
+					p.l.Error().Err(err).Msg("error unmarshalling message")
+					return err
+				}
 
-			err = doTask(task, &message.ID)
+				err = doTask(task, &message.ID)
 
-			if err != nil {
-				p.l.Error().Err(err).Msg("error running task")
-				errs = multierror.Append(errs, err)
-			}
+				if err != nil {
+					p.l.Error().Err(err).Msg("error running task")
+					return err
+				}
+
+				return nil
+			})
 		}
 
-		return errs
+		return eg.Wait()
 	}
 
-	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod[string](func(ctx context.Context, id string) (bool, error) {
+	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, _ string) (bool, error) {
 		messages, err := p.repo.ReadMessages(subscribeCtx, queue.Name(), p.qos)
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error reading messages")
+			return false, err
 		}
 
-		var eg errgroup.Group
-
-		eg.Go(func() error {
-			return do(messages)
-		})
-
-		err = eg.Wait()
+		err = do(messages)
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error processing messages")
+			return false, err
 		}
 
 		return len(messages) == p.qos, nil
@@ -230,9 +284,9 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 	// start the listener
 	go func() {
-		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *repository.PubSubMessage) error {
-			// if this is an exchange queue, and the message starts with JSON '{', then we process the message directly
-			if queue.FanoutExchangeKey() != "" && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
+		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *v1.PubSubMessage) error {
+			// if this is not a durable queue, and the message starts with JSON '{', then we process the message directly
+			if !queue.Durable() && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
 				var task msgqueue.Message
 
 				err := json.Unmarshal([]byte(notification.Payload), &task)
@@ -250,6 +304,10 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		})
 
 		if err != nil {
+			if subscribeCtx.Err() != nil {
+				return
+			}
+
 			p.l.Error().Err(err).Msg("error listening for new messages")
 			return
 		}
@@ -276,8 +334,8 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	}, nil
 }
 
-func (p *PostgresMessageQueue) RegisterTenant(ctx context.Context, tenantId string) error {
-	return nil
+func (p *PostgresMessageQueue) RegisterTenant(ctx context.Context, tenantId uuid.UUID) error {
+	return p.upsertQueue(ctx, msgqueue.TenantEventConsumerQueue(tenantId))
 }
 
 func (p *PostgresMessageQueue) IsReady() bool {
@@ -305,8 +363,17 @@ func (p *PostgresMessageQueue) upsertQueue(ctx context.Context, queue msgqueue.Q
 		consumer = &str
 	}
 
+	autoDeleted := queue.AutoDeleted()
+
+	// FIXME: note that this differs from the RabbitMQ implementation, since we auto-delete Postgres MQs after
+	// 1 hour of inactivity instead of immediately. So if the queue is expirable, we set it to autoDeleted and
+	// will get effectively the same behavior.
+	if queue.IsExpirable() {
+		autoDeleted = true
+	}
+
 	// bind the queue
-	err := p.repo.BindQueue(ctx, queue.Name(), queue.Durable(), queue.AutoDeleted(), exclusive, consumer)
+	err := p.repo.BindQueue(ctx, queue.Name(), queue.Durable(), autoDeleted, exclusive, consumer)
 
 	if err != nil {
 		p.l.Error().Err(err).Msg("error binding queue")

@@ -16,15 +16,18 @@ export default function GithubButton({
   }
 
   return (
-    <div className="text-sm w-fit flex flex-row items-center gap-2 text-gray-700 dark:text-gray-300">
+    <div className="flex w-fit flex-row items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
       {prefix}
       <a
         href={getHref(buildConfig, commitSha)}
         target="_blank"
         rel="noreferrer"
       >
-        <Button variant="link" className="flex items-center gap-1" size={'xs'}>
-          <GitHubLogoIcon className="w-4 h-4" />
+        <Button
+          variant="link"
+          size={'xs'}
+          leftIcon={<GitHubLogoIcon className="size-4" />}
+        >
           {commitSha
             ? commitSha.substring(0, 7)
             : `${buildConfig.githubRepository.repo_owner}/${buildConfig.githubRepository.repo_name}`}

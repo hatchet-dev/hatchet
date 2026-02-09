@@ -1,0 +1,14 @@
+[project]
+name = "hatchet-python-quickstart"
+version = "0.1.0"
+description = "Simple Setup to Run Hatchet Workflows"
+authors = [{name = "gabriel ruttner", email = "gabe@hatchet.run"}]
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+dependencies = [
+    "hatchet-sdk>=1.20.2",
+]
+
+[project.scripts]
+simple = "src.run:main"
+worker = "src.worker:main"

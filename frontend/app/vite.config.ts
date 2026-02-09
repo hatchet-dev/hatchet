@@ -20,6 +20,24 @@ export default defineConfig({
     sourcemap: true,
   },
   server: {
-    allowedHosts: ['app.dev.hatchet-tools.com'],
+    /**
+     * For E2E we run on `app.localtest.me` so cookies can be set with Domain=localtest.me.
+     * `localtest.me` resolves to 127.0.0.1 without requiring /etc/hosts changes.
+     */
+    host: true,
+    port: 5173,
+    allowedHosts: [
+      'app.dev.hatchet-tools.com',
+      'app.localtest.me',
+      'localhost',
+      '127.0.0.1',
+    ],
+    proxy: {
+      // The frontend uses relative `/api/v1/...` paths, so proxy `/api` to the API server.
+      '/api': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+      },
+    },
   },
 });

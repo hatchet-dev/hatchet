@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import {
   Dialog,
   DialogContent,
@@ -15,18 +16,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import { KeyIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { KeyIcon } from '@heroicons/react/24/outline';
-import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
-import CopyToClipboard from '@/components/ui/copy-to-clipboard';
 
 const schema = z.object({
   name: z.string().min(1, 'Token name is required'),
-  duration: z.nativeEnum(ManagementTokenDuration),
+  duration: z.union([
+    z.nativeEnum(ManagementTokenDuration),
+    z.literal('never'),
+  ]),
 });
 
 interface CreateTokenModalProps {
@@ -44,6 +47,7 @@ export function CreateTokenModal({
   organizationName,
   onSuccess,
 }: CreateTokenModalProps) {
+  const DURATION_NEVER = 'never';
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const { handleCreateToken, createTokenLoading } = useOrganizations();
 
@@ -52,6 +56,7 @@ export function CreateTokenModal({
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -68,16 +73,13 @@ export function CreateTokenModal({
   }, [reset, onOpenChange]);
 
   const handleTokenCreate = useCallback(
-    (data: { name: string; duration: ManagementTokenDuration }) => {
-      handleCreateToken(
-        organizationId,
-        data.name,
-        data.duration,
-        (tokenData) => {
-          setCreatedToken(tokenData.token);
-          onSuccess();
-        },
-      );
+    (data: z.infer<typeof schema>) => {
+      const duration: ManagementTokenDuration | undefined =
+        data.duration === DURATION_NEVER ? undefined : data.duration;
+      handleCreateToken(organizationId, data.name, duration, (tokenData) => {
+        setCreatedToken(tokenData.token);
+        onSuccess();
+      });
     },
     [organizationId, handleCreateToken, onSuccess],
   );
@@ -91,11 +93,13 @@ export function CreateTokenModal({
 
   const nameError = errors.name?.message?.toString();
   const durationError = errors.duration?.message?.toString();
+  const selectedDuration = watch('duration');
 
   const durationOptions = [
     { value: ManagementTokenDuration.Value30D, label: '30 days' },
     { value: ManagementTokenDuration.Value60D, label: '60 days' },
     { value: ManagementTokenDuration.Value90D, label: '90 days' },
+    { value: DURATION_NEVER, label: 'Do not expire' },
   ];
 
   return (
@@ -113,8 +117,8 @@ export function CreateTokenModal({
 
         {createdToken ? (
           <div className="space-y-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-              <div className="text-sm text-green-800 mb-2">
+            <div className="rounded-md border border-green-200 bg-green-50 p-4">
+              <div className="mb-2 text-sm text-green-800">
                 <strong>Token created successfully!</strong>
               </div>
               <p className="text-xs text-green-700">
@@ -186,6 +190,15 @@ export function CreateTokenModal({
               <p className="text-sm text-muted-foreground">
                 How long the token should remain valid.
               </p>
+              {selectedDuration === DURATION_NEVER && (
+                <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+                  <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span>
+                    Tokens that never expire pose a security risk. Consider
+                    using a shorter duration and rotating tokens regularly.
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">

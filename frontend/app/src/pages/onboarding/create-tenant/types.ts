@@ -17,10 +17,13 @@ export interface OnboardingStepProps<T = any> {
 export interface OnboardingFormData {
   name: string;
   slug: string;
-  hearAboutUs: string | string[];
-  whatBuilding: string | string[];
   environment: TenantEnvironment;
-  tenantData: { name: string; environment: TenantEnvironment };
+  tenantData: {
+    name: string;
+    environment: TenantEnvironment;
+    referralSource?: string;
+  };
+  referralSource?: string;
 }
 
 // Step configuration interface
@@ -35,8 +38,3 @@ export interface OnboardingStepConfig {
   validate?: (value: any) => boolean;
   buttonLabel?: string;
 }
-
-// Base component type that all steps should extend
-export type OnboardingStepComponent<T = any> = React.ComponentType<
-  OnboardingStepProps<T>
->;

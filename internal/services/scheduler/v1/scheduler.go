@@ -7,23 +7,22 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -33,7 +32,6 @@ type SchedulerOpt func(*SchedulerOpts)
 type SchedulerOpts struct {
 	mq          msgqueue.MessageQueue
 	l           *zerolog.Logger
-	repo        repository.EngineRepository
 	repov1      repov1.Repository
 	dv          datautils.DataDecoderValidator
 	alerter     hatcheterrors.Alerter
@@ -81,13 +79,7 @@ func WithAlerter(a hatcheterrors.Alerter) SchedulerOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) SchedulerOpt {
-	return func(opts *SchedulerOpts) {
-		opts.repo = r
-	}
-}
-
-func WithV2Repository(r repov1.Repository) SchedulerOpt {
+func WithRepository(r repov1.Repository) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.repov1 = r
 	}
@@ -115,7 +107,6 @@ type Scheduler struct {
 	mq        msgqueue.MessageQueue
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
-	repo      repository.EngineRepository
 	repov1    repov1.Repository
 	dv        datautils.DataDecoderValidator
 	s         gocron.Scheduler
@@ -126,6 +117,8 @@ type Scheduler struct {
 	ql *zerolog.Logger
 
 	pool *v1.SchedulingPool
+
+	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 }
@@ -141,10 +134,6 @@ func New(
 
 	if opts.mq == nil {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
-	}
-
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
 	if opts.repov1 == nil {
@@ -173,11 +162,12 @@ func New(
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
+
 	q := &Scheduler{
 		mq:                     opts.mq,
 		pubBuffer:              pubBuffer,
 		l:                      opts.l,
-		repo:                   opts.repo,
 		repov1:                 opts.repov1,
 		dv:                     opts.dv,
 		s:                      s,
@@ -186,18 +176,24 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		signaler:               signaler,
 	}
 
 	return q, nil
 }
 
 func (s *Scheduler) Start() (func() error, error) {
+	cleanupDLQ, err := s.mq.Subscribe(msgqueue.DISPATCHER_DEAD_LETTER_QUEUE, s.handleDeadLetteredMessages, msgqueue.NoOpHook)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not start subscribe to dispatcher dead letter queue: %w", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wg := sync.WaitGroup{}
 
-	_, err := s.s.NewJob(
+	_, err = s.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			s.runSetTenants(ctx),
@@ -251,7 +247,7 @@ func (s *Scheduler) Start() (func() error, error) {
 				}
 
 				go func(results *v1.QueueResults) {
-					err := s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(results.TenantId), results)
+					err := s.scheduleStepRuns(ctx, results.TenantId, results)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("could not schedule step runs")
@@ -275,7 +271,7 @@ func (s *Scheduler) Start() (func() error, error) {
 					continue
 				}
 
-				go s.notifyAfterConcurrency(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
+				go s.notifyAfterConcurrency(ctx, res.TenantId, res)
 			}
 		}
 	}()
@@ -285,6 +281,10 @@ func (s *Scheduler) Start() (func() error, error) {
 
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup job processing queue: %w", err)
+		}
+
+		if err := cleanupDLQ(); err != nil {
+			return fmt.Errorf("could not cleanup message queue buffer: %w", err)
 		}
 
 		if err := s.s.Shutdown(); err != nil {
@@ -312,7 +312,7 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		}
 	}()
 
-	if task.ID == "check-tenant-queue" {
+	if task.ID == msgqueue.MsgIDCheckTenantQueue {
 		return s.handleCheckQueue(ctx, task)
 	}
 
@@ -347,7 +347,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		s.l.Debug().Msgf("partition: checking step run requeue")
 
 		// list all tenants
-		tenants, err := s.repo.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), dbsqlc.TenantMajorEngineVersionV1)
+		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), sqlcv1.TenantMajorEngineVersionV1)
 
 		if err != nil {
 			s.l.Err(err).Msg("could not list tenants")
@@ -358,7 +358,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	}
 }
 
-func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *v1.QueueResults) error {
+func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
 
@@ -366,17 +366,15 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]int64)
+		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
 
-		workerIds := make([]string, 0)
+		workerIds := make([]uuid.UUID, 0)
 
 		for _, assigned := range res.Assigned {
-			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
+			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		var dispatcherIdWorkerIds map[string][]string
-
-		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -384,20 +382,13 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
 
-		workerIdToDispatcherId := make(map[string]string)
-
-		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-			for _, workerId := range workerIds {
-				workerIdToDispatcherId[workerId] = dispatcherId
-			}
-		}
-
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
 		for _, bulkAssigned := range res.Assigned {
-			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
+			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
+			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
-			if !ok {
+			if hasNoDispatcher || !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
 
 				s.internalRetry(ctx, tenantId, bulkAssigned)
@@ -406,16 +397,18 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			}
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]int64)
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
 			}
 
-			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
+			workerId := bulkAssigned.WorkerId
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			if !bulkAssigned.IsAssignedLocally {
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			}
 
 			taskId := bulkAssigned.QueueItem.TaskID
 
@@ -444,6 +437,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
+				continue
 			}
 
 			err = s.mq.SendMessage(
@@ -515,8 +509,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				tenantId,
 				schedulingTimedOut.TaskID,
 				schedulingTimedOut.TaskInsertedAt,
-				sqlchelpers.UUIDToStr(schedulingTimedOut.ExternalID),
-				sqlchelpers.UUIDToStr(schedulingTimedOut.WorkflowRunID),
+				schedulingTimedOut.ExternalID,
+				schedulingTimedOut.WorkflowRunID,
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
@@ -542,7 +536,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	if len(res.Unassigned) > 0 {
 		for _, unassigned := range res.Unassigned {
-			taskExternalId := sqlchelpers.UUIDToStr(unassigned.ExternalID)
+			taskExternalId := unassigned.ExternalID.String()
 
 			// if we have seen this task recently, don't send it again
 			if _, ok := s.tasksWithNoWorkerCache.Get(taskExternalId); ok {
@@ -585,14 +579,14 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	return outerErr
 }
 
-func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov1.AssignedItem) {
+func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assigned ...*repov1.AssignedItem) {
 	for _, a := range assigned {
 		msg, err := tasktypes.FailedTaskMessage(
 			tenantId,
 			a.QueueItem.TaskID,
 			a.QueueItem.TaskInsertedAt,
-			sqlchelpers.UUIDToStr(a.QueueItem.ExternalID),
-			sqlchelpers.UUIDToStr(a.QueueItem.WorkflowRunID),
+			a.QueueItem.ExternalID,
+			a.QueueItem.WorkflowRunID,
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",
@@ -617,7 +611,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 	}
 }
 
-func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string, res *v1.ConcurrencyResults) {
+func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UUID, res *v1.ConcurrencyResults) {
 	uniqueQueueNames := make(map[string]struct{}, 0)
 
 	for _, task := range res.Queued {
@@ -689,14 +683,150 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 	}
 }
 
-func taskBulkAssignedTask(tenantId string, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"task-assigned-bulk",
+		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
 		tasktypes.TaskAssignedBulkTaskPayload{
 			WorkerIdToTaskIds: workerIdsToTaskIds,
 		},
 	)
+}
+
+func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoverErr := recoveryutils.RecoverWithAlert(s.l, s.a, r)
+
+			if recoverErr != nil {
+				err = recoverErr
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+
+	switch msg.ID {
+	case msgqueue.MsgIDTaskAssignedBulk:
+		err = s.handleDeadLetteredTaskBulkAssigned(ctx, msg)
+	case msgqueue.MsgIDTaskCancelled:
+		err = s.handleDeadLetteredTaskCancelled(ctx, msg)
+	default:
+		err = fmt.Errorf("unknown task: %s", msg.ID)
+	}
+
+	return err
+}
+
+func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg *msgqueue.Message) error {
+	msgs := msgqueue.JSONConvert[tasktypes.TaskAssignedBulkTaskPayload](msg.Payloads)
+
+	taskIds := make([]int64, 0)
+
+	for _, innerMsg := range msgs {
+		for _, tasks := range innerMsg.WorkerIdToTaskIds {
+			s.l.Error().Msgf("handling dead-lettered task assignments for tenant %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, tasks)
+			taskIds = append(taskIds, tasks...)
+		}
+	}
+
+	toFail, err := s.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list tasks for dead lettered bulk assigned message: %w", err)
+	}
+
+	for _, _task := range toFail {
+		tenantId := msg.TenantID
+		task := _task
+
+		msg, err := tasktypes.FailedTaskMessage(
+			tenantId,
+			task.ID,
+			task.InsertedAt,
+			task.ExternalID,
+			task.WorkflowRunID,
+			task.RetryCount,
+			false,
+			"Could not send task to worker",
+			false,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create failed task message: %w", err)
+		}
+
+		err = s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			// NOTE: failure to send on the MQ is likely not transient; ideally we could only retry individual
+			// tasks but since this message has the tasks in a batch, we retry all of them instead. we're banking
+			// on the downstream `task-failed` processing to be idempotent.
+			return fmt.Errorf("could not send failed task message: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
+	payloads := msgqueue.JSONConvert[tasktypes.SignalTaskCancelledPayload](msg.Payloads)
+
+	// try to resend the cancellation signal to the impacted worker.
+	workerIds := make([]uuid.UUID, 0)
+
+	for _, p := range payloads {
+		s.l.Error().Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
+		workerIds = append(workerIds, p.WorkerId)
+	}
+
+	// since the dispatcher IDs may have changed since the previous send, we need to query them again
+	workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
+	}
+
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
+
+	for _, p := range payloads {
+		// if we no longer have the worker attached to a dispatcher, discard the message
+		dispatcherId, ok := workerIdToDispatcherId[p.WorkerId]
+		_, hasNoDispatcher := workersWithoutDispatchers[p.WorkerId]
+
+		if hasNoDispatcher || !ok {
+			continue
+		}
+
+		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], *p)
+	}
+
+	for dispatcherId, payloads := range dispatcherIdsToPayloads {
+		msg, err := msgqueue.NewTenantMessage(
+			msg.TenantID,
+			msgqueue.MsgIDTaskCancelled,
+			false,
+			true,
+			payloads...,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create message for task cancellation: %w", err)
+		}
+
+		err = s.mq.SendMessage(
+			ctx,
+			msgqueue.QueueTypeFromDispatcherID(dispatcherId),
+			msg,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not send message for task cancellation: %w", err)
+		}
+	}
+
+	return nil
 }

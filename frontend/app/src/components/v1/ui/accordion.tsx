@@ -1,8 +1,7 @@
-import * as React from 'react';
+import { cn } from '@/lib/utils';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
-
-import { cn } from '@/lib/utils';
+import * as React from 'react';
 
 const Accordion = AccordionPrimitive.Root;
 
@@ -35,7 +34,7 @@ const AccordionTrigger = React.forwardRef<
     >
       {children}
       {!hideChevron && (
-        <ChevronDownIcon className="h-4 w-4 shrink-0 text-gray-700 dark:text-gray-300 transition-transform duration-200" />
+        <ChevronDownIcon className="h-4 w-4 shrink-0 text-gray-700 transition-transform duration-200 dark:text-gray-300" />
       )}
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>

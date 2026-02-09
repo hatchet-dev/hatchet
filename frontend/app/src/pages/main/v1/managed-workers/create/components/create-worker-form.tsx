@@ -1,8 +1,14 @@
-import { queries } from '@/lib/api';
-import { useEffect, useState, useMemo } from 'react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/v1/ui/accordion';
 import { Button } from '@/components/v1/ui/button';
-import { useQuery } from '@tanstack/react-query';
-import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
 import {
   Select,
   SelectContent,
@@ -10,32 +16,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { z } from 'zod';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
-import { Input } from '@/components/v1/ui/input';
 import { Step, Steps } from '@/components/v1/ui/steps';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
-import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/v1/ui/accordion';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
 import {
   managedCompute,
   ComputeType,
 } from '@/lib/can/features/managed-compute';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, useMemo } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 export const machineTypes = [
   {
@@ -433,7 +433,7 @@ export default function CreateWorkerForm({
   // ) {
   //   return (
   //     <Alert>
-  //       <ExclamationTriangleIcon className="h-4 w-4" />
+  //       <ExclamationTriangleIcon className="size-4" />
   //       <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
   //       <AlertDescription>
   //         You don't have any Github accounts linked. Please{' '}
@@ -479,7 +479,7 @@ export default function CreateWorkerForm({
               Configure the Github repository the service should deploy from.
             </div>
 
-            <div className="max-w-3xl grid gap-4">
+            <div className="grid max-w-3xl gap-4">
               <Label htmlFor="role">Github account</Label>
               <Controller
                 control={control}
@@ -497,7 +497,8 @@ export default function CreateWorkerForm({
                       <div className="text-sm text-muted-foreground">
                         Not seeing your repository?{' '}
                         <a
-                          href={`/api/v1/cloud/users/github-app/start?redirect_to=/v1/managed-workers/create&with_repo_installation=true`}
+                          // fixme: make this redirect type safe
+                          href={`/api/v1/cloud/users/github-app/start?redirect_to=/tenants/${tenantId}/managed-workers/create&with_repo_installation=true`}
                           className="text-indigo-400"
                         >
                           Link a new repository
@@ -684,7 +685,7 @@ export default function CreateWorkerForm({
                   Infra-As-Code
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="iac" className="pt-4 grid gap-4">
+              <TabsContent value="iac" className="grid gap-4 pt-4">
                 <a
                   href="https://docs.hatchet.run/compute/cpu"
                   className="underline"
@@ -692,7 +693,7 @@ export default function CreateWorkerForm({
                   Learn how to configure infra-as-code.
                 </a>
               </TabsContent>
-              <TabsContent value="ui" className="pt-4 grid gap-4">
+              <TabsContent value="ui" className="grid gap-4 pt-4">
                 <Label htmlFor="region">Region</Label>
                 <Select
                   value={region?.toString()}
@@ -813,7 +814,7 @@ export default function CreateWorkerForm({
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  <TabsContent value="Static" className="pt-4 grid gap-4">
+                  <TabsContent value="Static" className="grid gap-4 pt-4">
                     <Label htmlFor="numReplicas">
                       Number of replicas (max: {getMaxReplicas})
                     </Label>
@@ -850,7 +851,7 @@ export default function CreateWorkerForm({
                       </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="Autoscaling" className="pt-4 grid gap-4">
+                  <TabsContent value="Autoscaling" className="grid gap-4 pt-4">
                     <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
                     <Controller
                       control={control}
@@ -939,7 +940,7 @@ export default function CreateWorkerForm({
                       name="runtimeConfig.autoscaling.scaleToZero"
                       render={({ field }) => {
                         return (
-                          <div className="flex flex-row gap-4 items-center">
+                          <div className="flex flex-row items-center gap-4">
                             <Label htmlFor="scaleToZero">
                               Scale to zero during periods of inactivity?
                             </Label>
@@ -1147,11 +1148,11 @@ export default function CreateWorkerForm({
             {(!isComputeAllowed ||
               !isReplicaCountAllowed ||
               !isAutoscalingMaxReplicasAllowed) && (
-              <div className="border border-red-300 dark:border-red-500 bg-red-50 dark:bg-red-900/30 p-4 rounded-md">
-                <h3 className="text-red-800 dark:text-red-200 font-medium mb-2">
+              <div className="rounded-md border border-red-300 bg-red-50 p-4 dark:border-red-500 dark:bg-red-900/30">
+                <h3 className="mb-2 font-medium text-red-800 dark:text-red-200">
                   Your configuration requires a plan upgrade
                 </h3>
-                <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-300 space-y-1">
+                <ul className="list-inside list-disc space-y-1 text-sm text-red-700 dark:text-red-300">
                   {!isComputeAllowed && (
                     <li>
                       The selected machine type is not available on your current
@@ -1174,7 +1175,7 @@ export default function CreateWorkerForm({
                     rel="noopener noreferrer"
                   >
                     <Button variant="outline" size="sm">
-                      <ArrowUpIcon className="h-4 w-4 mr-1" />
+                      <ArrowUpIcon className="mr-1 size-4" />
                       Upgrade Plan
                     </Button>
                   </a>
@@ -1193,7 +1194,7 @@ export default function CreateWorkerForm({
               }
               className="w-fit px-8"
             >
-              {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}
+              {isLoading && <PlusIcon className="size-4 animate-spin" />}
               Create service
             </Button>
           </div>
@@ -1236,7 +1237,7 @@ const getBillingPortalUrl = () => {
 };
 
 export const UpgradeMessage = ({ feature }: { feature: string }) => (
-  <div className="flex flex-col gap-2 border border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md my-3">
+  <div className="my-3 flex flex-col gap-2 rounded-md border border-yellow-400 bg-yellow-50 p-4 dark:border-yellow-500 dark:bg-yellow-900/30">
     <div className="flex items-start gap-2">
       <span className="text-yellow-500 dark:text-yellow-400">⚠️</span>
       <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
@@ -1248,9 +1249,9 @@ export const UpgradeMessage = ({ feature }: { feature: string }) => (
       <Button
         variant="outline"
         size="sm"
-        className="text-xs border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/50"
+        className="border-yellow-400 text-xs text-yellow-700 hover:bg-yellow-100 dark:border-yellow-500 dark:text-yellow-300 dark:hover:bg-yellow-900/50"
       >
-        <ArrowUpIcon className="h-3 w-3 mr-1" />
+        <ArrowUpIcon className="mr-1 size-3" />
         Upgrade Plan
       </Button>
     </a>

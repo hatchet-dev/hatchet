@@ -1,10 +1,16 @@
-import { columns, WebhookColumn } from './components/webhook-columns';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { AuthMethod } from './components/auth-method';
+import { AuthSetup } from './components/auth-setup';
+import { SourceName } from './components/source-name';
+import { WebhookActionsCell } from './components/webhook-columns';
 import {
   useWebhooks,
   WebhookFormData,
   webhookFormSchema,
+  WebhookUpdateFormData,
+  webhookUpdateFormSchema,
 } from './hooks/use-webhooks';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -16,6 +22,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading';
 import {
   Select,
   SelectContent,
@@ -23,58 +30,129 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useCallback, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  V1WebhookSourceName,
-  V1WebhookAuthType,
   V1CreateWebhookRequest,
+  V1Webhook,
+  V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
+  V1WebhookSourceName,
 } from '@/lib/api';
-import { Webhook, Copy, Check, AlertTriangle, Lightbulb } from 'lucide-react';
-import { Spinner } from '@/components/v1/ui/loading';
-import { SourceName } from './components/source-name';
-import { AuthMethod } from './components/auth-method';
-import { AuthSetup } from './components/auth-setup';
-import { Link } from 'react-router-dom';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 export default function Webhooks() {
-  const { data, isLoading, error } = useWebhooks();
+  const { data, isLoading } = useWebhooks();
+
+  const webhookColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Name',
+        cellRenderer: (webhook: V1Webhook) => (
+          <div className="w-full">{webhook.name}</div>
+        ),
+      },
+      {
+        columnLabel: 'Source',
+        cellRenderer: (webhook: V1Webhook) => (
+          <div className="w-full">
+            <SourceName sourceName={webhook.sourceName} />
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Event Key',
+        cellRenderer: (webhook: V1Webhook) => {
+          const text = webhook.eventKeyExpression || '';
+          const truncated = text.length > 25 ? `${text.slice(0, 25)}...` : text;
+          return (
+            <code className="rounded bg-muted px-2 py-1 text-xs" title={text}>
+              {truncated}
+            </code>
+          );
+        },
+      },
+      {
+        columnLabel: 'Scope',
+        cellRenderer: (webhook: V1Webhook) => {
+          if (!webhook.scopeExpression) {
+            return <span className="text-xs text-muted-foreground">—</span>;
+          }
+          const text = webhook.scopeExpression;
+          const truncated = text.length > 25 ? `${text.slice(0, 25)}...` : text;
+          return (
+            <code className="rounded bg-muted px-2 py-1 text-xs" title={text}>
+              {truncated}
+            </code>
+          );
+        },
+      },
+      {
+        columnLabel: 'Auth Method',
+        cellRenderer: (webhook: V1Webhook) => (
+          <div className="w-full">
+            <AuthMethod authMethod={webhook.authType} />
+          </div>
+        ),
+      },
+      {
+        columnLabel: 'Actions',
+        cellRenderer: (webhook: V1Webhook) => (
+          <WebhookActionsCell webhook={webhook} />
+        ),
+      },
+    ],
+    [],
+  );
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div>
-      <div className="flex flex-row justify-end w-full">
+      <div className="mb-4 flex w-full flex-row justify-end">
         <CreateWebhookModal />
       </div>
-      <DataTable
-        error={error}
-        isLoading={isLoading}
-        columns={columns()}
-        data={data}
-        columnKeyToName={WebhookColumn}
-        emptyState={
-          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
-            <p className="text-lg font-semibold">No webhooks found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.home.webhooks}
-                size="full"
-                variant="outline"
-                label="Learn about triggering runs from webhooks"
-              />
-            </div>
+      {data && data.length > 0 ? (
+        <SimpleTable columns={webhookColumns} data={data} />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+          <p className="text-lg font-semibold">No webhooks found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home.webhooks}
+              label="Learn about triggering runs from webhooks"
+            />
           </div>
-        }
-      />
+        </div>
+      )}
     </div>
   );
 }
 
+const parseStaticPayload = (
+  staticPayload: string | undefined,
+): object | undefined => {
+  if (!staticPayload || staticPayload.trim() === '') {
+    return undefined;
+  }
+  try {
+    return JSON.parse(staticPayload);
+  } catch {
+    throw new Error('Static payload must be valid JSON');
+  }
+};
+
 const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
+  const basePayload = {
+    scopeExpression: data.scopeExpression || undefined,
+    staticPayload: parseStaticPayload(data.staticPayload),
+  };
+
   switch (data.sourceName) {
     case V1WebhookSourceName.GENERIC:
       switch (data.authType) {
@@ -86,6 +164,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
           }
 
           return {
+            ...basePayload,
             sourceName: data.sourceName,
             name: data.name,
             eventKeyExpression: data.eventKeyExpression,
@@ -103,6 +182,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
           }
 
           return {
+            ...basePayload,
             sourceName: data.sourceName,
             name: data.name,
             eventKeyExpression: data.eventKeyExpression,
@@ -125,6 +205,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
           }
 
           return {
+            ...basePayload,
             sourceName: data.sourceName,
             name: data.name,
             eventKeyExpression: data.eventKeyExpression,
@@ -146,6 +227,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
       }
 
       return {
+        ...basePayload,
         sourceName: data.sourceName,
         name: data.name,
         eventKeyExpression: data.eventKeyExpression,
@@ -167,6 +249,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
       }
 
       return {
+        ...basePayload,
         sourceName: data.sourceName,
         name: data.name,
         eventKeyExpression: data.eventKeyExpression,
@@ -188,6 +271,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
       }
 
       return {
+        ...basePayload,
         sourceName: data.sourceName,
         name: data.name,
         eventKeyExpression: data.eventKeyExpression,
@@ -209,6 +293,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
       }
 
       return {
+        ...basePayload,
         sourceName: data.sourceName,
         name: data.name,
         eventKeyExpression: data.eventKeyExpression,
@@ -247,7 +332,7 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
   switch (sourceName) {
     case V1WebhookSourceName.GITHUB:
       return (
-        <div className="flex flex-row items-center gap-x-2 ml-1">
+        <div className="ml-1 flex flex-row items-center gap-x-2">
           <AlertTriangle className="size-4 text-yellow-500" />
           <p className="text-xs text-muted-foreground">
             Select <span className="font-semibold">application/json</span> as
@@ -294,6 +379,19 @@ const CreateWebhookModal = () => {
   const sourceName = watch('sourceName');
   const authType = watch('authType');
   const webhookName = watch('name');
+  const eventKeyExpression = watch('eventKeyExpression');
+
+  /* Update default event key expression when source changes */
+  useEffect(() => {
+    if (sourceName === V1WebhookSourceName.SLACK && !eventKeyExpression) {
+      setValue('eventKeyExpression', 'input.type');
+    } else if (
+      sourceName === V1WebhookSourceName.GENERIC &&
+      !eventKeyExpression
+    ) {
+      setValue('eventKeyExpression', 'input.id');
+    }
+  }, [sourceName, eventKeyExpression, setValue]);
 
   const copyToClipboard = useCallback(async () => {
     if (webhookName) {
@@ -334,14 +432,14 @@ const CreateWebhookModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button className="h-8 border px-3">Create Webhook</Button>
+        <Button variant="cta">Create Webhook</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-[90%] overflow-y-auto md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%]">
         <DialogHeader>
           <DialogTitle className="flex flex-col items-start gap-y-4">
             <div className="flex flex-row items-center gap-x-3">
-              <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-                <Webhook className="h-4 w-4 text-indigo-700" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                <Webhook className="size-4 text-indigo-700" />
               </div>
               Create a webhook
             </div>
@@ -369,15 +467,15 @@ const CreateWebhookModal = () => {
             <div className="flex flex-col items-start gap-2 text-xs text-muted-foreground">
               <span className="">Send incoming webhook requests to:</span>
               <div className="flex flex-row items-center gap-2">
-                <code className="max-w-full font-mono bg-muted px-2 py-1 rounded text-xs">
+                <code className="max-w-full rounded bg-muted px-2 py-1 font-mono text-xs">
                   {createWebhookURL(webhookName)}
                 </code>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
+                  variant="icon"
+                  size="xs"
                   onClick={copyToClipboard}
-                  className="h-6 w-6 p-0 flex-shrink-0"
+                  className="flex-shrink-0"
                   disabled={!webhookName}
                 >
                   {copied ? (
@@ -408,9 +506,9 @@ const CreateWebhookModal = () => {
               <SelectContent>
                 {Object.values(V1WebhookSourceName).map((source) => (
                   <SelectItem key={source} value={source} className="h-10">
-                    <div className="h-10 flex flex-row items-center gap-x-2">
+                    <div className="flex h-10 flex-row items-center gap-x-2">
                       <SourceName sourceName={source} />
-                      <span className="text-sm truncate max-w-full">
+                      <span className="max-w-full truncate text-sm">
                         {createSourceInlineDescription(source)}
                       </span>
                     </div>
@@ -447,29 +545,90 @@ const CreateWebhookModal = () => {
                 {errors.eventKeyExpression.message}
               </p>
             )}
-            <div className="text-xs text-muted-foreground pl-1">
+            <div className="pl-1 text-xs text-muted-foreground">
               <p>
                 CEL expression to extract the event key from the webhook
                 payload. See{' '}
-                <Link
-                  to="https://cel.dev/"
+                <a
+                  href="https://cel.dev/"
                   className="text-blue-600"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   the docs
-                </Link>{' '}
+                </a>{' '}
                 for details.
               </p>
               <ul className="list-disc pl-4">
                 <li>`input` refers to the payload</li>
                 <li>`headers` refers to the headers</li>
               </ul>
+              {sourceName === V1WebhookSourceName.SLACK && (
+                <div className="mt-2 rounded-md border border-border bg-muted p-3">
+                  <p className="text-xs text-muted-foreground">
+                    For Slack webhooks, the event key expression{' '}
+                    <code className="rounded bg-background px-1.5 py-0.5 text-foreground">
+                      input.type
+                    </code>{' '}
+                    works well since Slack interactive payloads don't have a
+                    top-level `id` field.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="scopeExpression" className="text-sm font-medium">
+              Scope Expression{' '}
+              <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id="scopeExpression"
+              placeholder="input.organization_id"
+              {...register('scopeExpression')}
+              className="h-10"
+            />
+            {errors.scopeExpression && (
+              <p className="text-xs text-red-500">
+                {errors.scopeExpression.message}
+              </p>
+            )}
+            <div className="pl-1 text-xs text-muted-foreground">
+              <p>
+                CEL expression to extract the scope from the webhook payload.
+                Used to filter which workflows to trigger based on event
+                filters.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="staticPayload" className="text-sm font-medium">
+              Static Payload{' '}
+              <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <textarea
+              id="staticPayload"
+              placeholder='{"source": "webhook", "version": "v1"}'
+              {...register('staticPayload')}
+              className="h-24 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            />
+            {errors.staticPayload && (
+              <p className="text-xs text-red-500">
+                {errors.staticPayload.message}
+              </p>
+            )}
+            <div className="pl-1 text-xs text-muted-foreground">
+              <p>
+                JSON object to merge into the webhook payload. Static payload
+                fields take precedence over incoming payload fields.
+              </p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-4 pl-4 border-l-2 border-gray-200">
+            <div className="space-y-4 border-l-2 border-gray-200 pl-4">
               {sourceName === V1WebhookSourceName.GENERIC && (
                 <div className="space-y-2">
                   <Label htmlFor="authType" className="text-sm font-medium">
@@ -518,6 +677,161 @@ const CreateWebhookModal = () => {
             <Button type="submit" disabled={isCreatePending}>
               {isCreatePending && <Spinner />}
               Create Webhook
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export const EditWebhookModal = ({
+  webhook,
+  open,
+  onOpenChange,
+}: {
+  webhook: V1Webhook;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) => {
+  const { mutations } = useWebhooks();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<WebhookUpdateFormData>({
+    resolver: zodResolver(webhookUpdateFormSchema),
+    defaultValues: {
+      eventKeyExpression: webhook.eventKeyExpression || '',
+      scopeExpression: webhook.scopeExpression || '',
+      staticPayload: webhook.staticPayload
+        ? JSON.stringify(webhook.staticPayload, null, 2)
+        : '',
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        eventKeyExpression: webhook.eventKeyExpression || '',
+        scopeExpression: webhook.scopeExpression || '',
+        staticPayload: webhook.staticPayload
+          ? JSON.stringify(webhook.staticPayload, null, 2)
+          : '',
+      });
+    }
+  }, [webhook, open, reset]);
+
+  const onSubmit = useCallback(
+    (data: WebhookUpdateFormData) => {
+      const staticPayload = parseStaticPayload(data.staticPayload);
+
+      mutations.updateWebhook(
+        {
+          webhookName: webhook.name,
+          webhookData: {
+            eventKeyExpression: data.eventKeyExpression,
+            scopeExpression: data.scopeExpression ?? '',
+            staticPayload: staticPayload ?? {},
+          },
+        },
+        {
+          onSuccess: () => {
+            onOpenChange(false);
+          },
+        },
+      );
+    },
+    [mutations, webhook.name, onOpenChange],
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Webhook: {webhook.name}</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label
+              htmlFor="edit-eventKeyExpression"
+              className="text-sm font-medium"
+            >
+              Event Key Expression <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="edit-eventKeyExpression"
+              placeholder="input.id"
+              {...register('eventKeyExpression')}
+              className="h-10"
+            />
+            {errors.eventKeyExpression && (
+              <p className="text-xs text-red-500">
+                {errors.eventKeyExpression.message}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              CEL expression to extract the event key from the webhook payload.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor="edit-scopeExpression"
+              className="text-sm font-medium"
+            >
+              Scope Expression{' '}
+              <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id="edit-scopeExpression"
+              placeholder="input.organization_id"
+              {...register('scopeExpression')}
+              className="h-10"
+            />
+            {errors.scopeExpression && (
+              <p className="text-xs text-red-500">
+                {errors.scopeExpression.message}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              CEL expression to extract the scope for event filtering.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-staticPayload" className="text-sm font-medium">
+              Static Payload{' '}
+              <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <textarea
+              id="edit-staticPayload"
+              placeholder='{"source": "webhook", "version": "v1"}'
+              {...register('staticPayload')}
+              className="h-32 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            />
+            {errors.staticPayload && (
+              <p className="text-xs text-red-500">
+                {errors.staticPayload.message}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              JSON object to merge into the webhook payload.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={mutations.isUpdatePending}>
+              {mutations.isUpdatePending && <Spinner />}
+              Save Changes
             </Button>
           </div>
         </form>

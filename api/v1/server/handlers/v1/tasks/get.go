@@ -4,7 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
@@ -53,7 +53,7 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(task.TenantID.String(), taskWithData.WorkflowVersionID.String())
+	workflowVersion, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), task.TenantID, taskWithData.WorkflowVersionID)
 
 	if err != nil {
 		return nil, err

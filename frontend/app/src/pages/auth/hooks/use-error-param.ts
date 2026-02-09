@@ -1,6 +1,6 @@
 import { useToast } from '@/components/hooks/use-toast';
+import { useSearchParams } from '@/lib/router-helpers';
 import { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 
 export default function useErrorParam() {
   const [searchParams, setSearchParams] = useSearchParams();

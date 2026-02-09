@@ -4,8 +4,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from pydantic import TypeAdapter
-
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
@@ -27,13 +25,7 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import (
-    JSONSerializableMapping,
-    LogLevel,
-    classify_output_validator,
-    is_basemodel_validator,
-    is_dataclass_validator,
-)
+from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -53,6 +45,9 @@ class Context:
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        max_attempts: int,
+        task_name: str,
+        workflow_name: str,
     ):
         self.worker = worker
 
@@ -75,6 +70,9 @@ class Context:
         self._lifespan_context = lifespan_context
 
         self.stream_index = 0
+        self._max_attempts = max_attempts
+        self._workflow_name = workflow_name
+        self._task_name = task_name
 
     def _increment_stream_index(self) -> int:
         index = self.stream_index
@@ -104,6 +102,7 @@ class Context:
         :raises ValueError: If the task was skipped or if the step output for the task is not found.
         """
         from hatchet_sdk.runnables.types import R
+        from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         if self.was_skipped(task):
             raise ValueError(f"{task.name} was skipped")
@@ -113,24 +112,12 @@ class Context:
         except KeyError as e:
             raise ValueError(f"Step output for '{task.name}' not found") from e
 
-        if parent_step_data and (v := task.validators.step_output):
-            validator = classify_output_validator(v)
-
-            if is_dataclass_validator(validator):
-                return cast(
-                    R,
-                    TypeAdapter(validator.validator_type).validate_python(
-                        parent_step_data
-                    ),
-                )
-
-            if is_basemodel_validator(validator):
-                return cast(
-                    R,
-                    validator.validator_type.model_validate(parent_step_data),
-                )
-
-        return parent_step_data
+        return cast(
+            R,
+            task.validators.step_output.validate_python(
+                parent_step_data, context=HATCHET_PYDANTIC_SENTINEL
+            ),
+        )
 
     def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         warn(
@@ -235,7 +222,12 @@ class Context:
 
         logger.info(line)
         self.log_sender.publish(
-            LogRecord(message=line, step_run_id=self.step_run_id, level=LogLevel.INFO)
+            LogRecord(
+                message=line,
+                step_run_id=self.step_run_id,
+                level=LogLevel.INFO,
+                task_retry_count=self.retry_count,
+            )
         )
 
     def release_slot(self) -> None:
@@ -310,6 +302,16 @@ class Context:
         return self.retry_count + 1
 
     @property
+    def max_attempts(self) -> int:
+        """
+        The maximum number of attempts allowed for the current task run, computed as the number of retries plus one.
+
+        :return: The maximum number of attempts allowed for the current task run.
+        """
+
+        return self._max_attempts
+
+    @property
     def additional_metadata(self) -> JSONSerializableMapping:
         """
         The additional metadata sent with the current task run.
@@ -380,6 +382,14 @@ class Context:
 
         return errors
 
+    @property
+    def workflow_name(self) -> str:
+        return self._workflow_name
+
+    @property
+    def task_name(self) -> str:
+        return self._task_name
+
     def fetch_task_run_error(
         self,
         task: "Task[TWorkflowInput, R]",
@@ -433,6 +443,9 @@ class DurableContext(Context):
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        max_attempts: int,
+        task_name: str,
+        workflow_name: str,
     ):
         super().__init__(
             action,
@@ -444,6 +457,9 @@ class DurableContext(Context):
             runs_client,
             lifespan_context,
             log_sender,
+            max_attempts,
+            task_name,
+            workflow_name,
         )
 
         self._wait_index = 0

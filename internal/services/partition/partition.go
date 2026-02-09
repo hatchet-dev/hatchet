@@ -9,8 +9,8 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -27,7 +27,7 @@ type Partition struct {
 	workerCron     gocron.Scheduler
 	schedulerCron  gocron.Scheduler
 
-	repo repository.TenantEngineRepository
+	repo v1.TenantRepository
 	l    *zerolog.Logger
 
 	controllerMu sync.Mutex
@@ -35,7 +35,7 @@ type Partition struct {
 	schedulerMu  sync.Mutex
 }
 
-func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*Partition, error) {
+func NewPartition(l *zerolog.Logger, repo v1.TenantRepository) (*Partition, error) {
 	s1, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
 	if err != nil {
@@ -168,22 +168,22 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	return cleanup, nil
 }
 
-func (p *Partition) GetInternalTenantForController(ctx context.Context) (*dbsqlc.Tenant, error) {
+func (p *Partition) GetInternalTenantForController(ctx context.Context) (*sqlcv1.Tenant, error) {
 	ctx, span := telemetry.NewSpan(ctx, "Partition.GetInternalTenantForController")
 	defer span.End()
 
 	return p.repo.GetInternalTenantForController(ctx, p.GetControllerPartitionId())
 }
 
-func (p *Partition) ListTenantsForController(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
+func (p *Partition) ListTenantsForController(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
 	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId(), majorVersion)
 }
 
-func (p *Partition) ListTenantsForScheduler(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
+func (p *Partition) ListTenantsForScheduler(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
 	return p.repo.ListTenantsBySchedulerPartition(ctx, p.GetSchedulerPartitionId(), majorVersion)
 }
 
-func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
+func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
 	return p.repo.ListTenantsByWorkerPartition(ctx, p.GetWorkerPartitionId(), majorVersion)
 }
 
@@ -413,7 +413,7 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 	}
 }
 
-func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceAllControllerPartitions(ctx)
 
 	if err != nil {
@@ -423,7 +423,7 @@ func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r 
 	return err
 }
 
-func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceAllTenantWorkerPartitions(ctx)
 
 	if err != nil {
@@ -433,7 +433,7 @@ func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, 
 	return err
 }
 
-func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceInactiveControllerPartitions(ctx)
 
 	if err != nil {
@@ -443,7 +443,7 @@ func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logge
 	return err
 }
 
-func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceInactiveTenantWorkerPartitions(ctx)
 
 	if err != nil {
@@ -453,7 +453,7 @@ func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Log
 	return err
 }
 
-func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceAllSchedulerPartitions(ctx)
 
 	if err != nil {
@@ -463,7 +463,7 @@ func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r r
 	return err
 }
 
-func rebalanceInactiveSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceInactiveSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceInactiveSchedulerPartitions(ctx)
 
 	if err != nil {

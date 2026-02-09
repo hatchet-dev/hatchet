@@ -11,9 +11,11 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -104,6 +106,89 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 	)
 
 	return exporter.Shutdown, nil
+}
+
+func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {
+	if opts.CollectorURL == "" {
+		// no-op
+		return func(context.Context) error {
+			return nil
+		}, nil
+	}
+
+	var secureOption otlpmetricgrpc.Option
+
+	if !opts.Insecure {
+		secureOption = otlpmetricgrpc.WithTLSCredentials(credentials.NewClientTLSFromCert(nil, ""))
+	} else {
+		secureOption = otlpmetricgrpc.WithInsecure()
+	}
+
+	exporter, err := otlpmetricgrpc.New(
+		context.Background(),
+		secureOption,
+		otlpmetricgrpc.WithEndpoint(opts.CollectorURL),
+		otlpmetricgrpc.WithHeaders(map[string]string{
+			"Authorization": opts.CollectorAuth,
+		}),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create exporter: %w", err)
+	}
+
+	resourceAttrs := []attribute.KeyValue{
+		attribute.String("service.name", opts.ServiceName),
+		attribute.String("library.language", "go"),
+	}
+
+	// Add Kubernetes pod information if available
+	if podName := os.Getenv("K8S_POD_NAME"); podName != "" {
+		resourceAttrs = append(resourceAttrs, attribute.String("k8s.pod.name", podName))
+	}
+	if podNamespace := os.Getenv("K8S_POD_NAMESPACE"); podNamespace != "" {
+		resourceAttrs = append(resourceAttrs, attribute.String("k8s.namespace.name", podNamespace))
+	}
+
+	resources, err := resource.New(
+		context.Background(),
+		resource.WithAttributes(resourceAttrs...),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to set resources: %w", err)
+	}
+
+	meterProvider := metric.NewMeterProvider(
+		metric.WithReader(
+			metric.NewPeriodicReader(
+				exporter,
+				metric.WithInterval(3*time.Second),
+			),
+		),
+		metric.WithResource(resources),
+	)
+
+	otel.SetMeterProvider(
+		meterProvider,
+	)
+
+	return func(ctx context.Context) error {
+		var shutdownErr error
+
+		if err := meterProvider.Shutdown(ctx); err != nil {
+			shutdownErr = fmt.Errorf("failed to shutdown meter provider: %w", err)
+		}
+
+		if err := exporter.Shutdown(ctx); err != nil {
+			if shutdownErr != nil {
+				shutdownErr = fmt.Errorf("%v; failed to shutdown exporter: %w", shutdownErr, err)
+			} else {
+				shutdownErr = fmt.Errorf("failed to shutdown exporter: %w", err)
+			}
+		}
+		return shutdownErr
+	}, nil
 }
 
 func NewSpan(ctx context.Context, name string) (context.Context, trace.Span) {

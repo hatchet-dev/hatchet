@@ -16,14 +16,17 @@ export default {
       toc: false,
     },
   },
-  blog: {
-    title: "Blog",
-    type: "page",
-  },
   contributing: {
     title: "Contributing",
     type: "page",
     display: "hidden",
+    theme: {
+      toc: false,
+    },
+  },
+  cli: {
+    title: "CLI Reference",
+    type: "page",
     theme: {
       toc: false,
     },

@@ -1,3 +1,14 @@
+import { useTheme } from '@/components/hooks/use-theme';
+import { DocPage } from '@/components/v1/docs/docs-button';
+import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
+import { ExpandedEventContent } from '@/pages/main/v1/events';
+import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
+import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
+import {
+  TaskRunDetail,
+  TabOption,
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
+import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
@@ -6,17 +17,6 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { useLocation } from 'react-router-dom';
-import {
-  TaskRunDetail,
-  TabOption,
-} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
-import { DocPage } from '@/components/v1/docs/docs-button';
-import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
-import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
-import { ExpandedEventContent } from '@/pages/main/v1/events';
-import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
-import { useTheme } from '@/components/theme-provider';
 
 type SidePanelContent =
   | {
@@ -75,7 +75,7 @@ type UseSidePanelProps =
       };
     };
 
-export function useSidePanelData(): SidePanelData {
+function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
@@ -140,10 +140,10 @@ export function useSidePanelData(): SidePanelData {
         return {
           isDocs: true,
           component: (
-            <div className="p-4 size-full">
+            <div className="size-full p-4">
               <iframe
                 src={url}
-                className="inset-0 w-full rounded-md border border-slate-800 size-full"
+                className="inset-0 size-full w-full rounded-md border border-slate-800"
                 loading="lazy"
               />
             </div>

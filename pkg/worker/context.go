@@ -299,7 +299,8 @@ func (h *hatchetContext) WorkflowVersionId() *string {
 }
 
 func (h *hatchetContext) Log(message string) {
-	err := h.c.Event().PutLog(h, h.a.StepRunId, message)
+	infoLevel := "INFO"
+	err := h.c.Event().PutLog(h, h.a.StepRunId, message, &infoLevel, &h.a.RetryCount)
 
 	if err != nil {
 		h.l.Err(err).Msg("could not put log")
@@ -406,7 +407,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		input,
 		&client.ChildWorkflowOpts{
 			ParentId:           h.WorkflowRunId(),
-			ParentStepRunId:    h.StepRunId(),
+			ParentTaskRunId:    h.StepRunId(),
 			ChildIndex:         childIndex,
 			ChildKey:           opts.Key,
 			DesiredWorkerId:    desiredWorker,
@@ -466,7 +467,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			Input:        c.Input,
 			Opts: &client.ChildWorkflowOpts{
 				ParentId:           h.WorkflowRunId(),
-				ParentStepRunId:    h.StepRunId(),
+				ParentTaskRunId:    h.StepRunId(),
 				ChildIndex:         childIndex,
 				ChildKey:           c.Key,
 				DesiredWorkerId:    desiredWorker,

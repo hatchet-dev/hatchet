@@ -6,10 +6,10 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -28,10 +28,10 @@ jobs:
         run: npm run lint:check
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -47,10 +47,105 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
       - name: Build
         working-directory: frontend/app
         run: npm run build
+  cypress:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+
+      - name: Generate docs snippets and examples
+        working-directory: frontend/app
+        run: pnpm run docs:gen
+
+      - name: Start dependencies (postgres, rabbitmq)
+        run: docker compose up -d
+
+      - name: Write E2E env
+        run: bash ./hack/ci/write-e2e-env.sh
+
+      - name: Generate encryption keys
+        run: bash ./hack/dev/generate-local-encryption-keys.sh ./hack/dev/encryption-keys
+
+      - name: Migrate DB
+        run: bash ./hack/dev/migrate.sh
+
+      - name: Seed
+        run: SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress
+
+      - name: Install frontend deps
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Start API + engine
+        run: |
+          set -euo pipefail
+          bash ./hack/ci/start-api.sh > api.log 2>&1 &
+          bash ./hack/ci/start-engine.sh > engine.log 2>&1 &
+          bash ./hack/ci/wait-for-http.sh http://127.0.0.1:8733/ready 120
+
+      - name: Start frontend
+        working-directory: frontend/app
+        run: |
+          set -euo pipefail
+          pnpm run dev -- --host app.localtest.me --port 5173 > vite.log 2>&1 &
+          bash ../../hack/ci/wait-for-http.sh http://app.localtest.me:5173 120
+
+      - name: Run Cypress
+        working-directory: frontend/app
+        env:
+          CYPRESS_BASE_URL: http://app.localtest.me:5173
+        run: pnpm run e2e:run
+
+      - name: Upload Cypress artifacts (screenshots/videos)
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: cypress-artifacts
+          if-no-files-found: ignore
+          path: |
+            frontend/app/cypress/screenshots
+            frontend/app/cypress/videos
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-logs
+          if-no-files-found: ignore
+          path: |
+            api.log
+            engine.log
+            frontend/app/vite.log

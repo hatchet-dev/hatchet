@@ -44,29 +44,29 @@ export const AdditionalMetadata = memo(
     const metadataCount = metadataEntries.length;
 
     return (
-      <div className="flex items-center justify-start max-w-32">
+      <div className="flex max-w-32 items-center justify-start">
         <Popover open={isOpen} onOpenChange={onOpenChange}>
           <PopoverTrigger asChild>
-            <div className="flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-2 py-1 transition-colors">
-              <TagIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              <span className="text-xs text-muted-foreground font-medium">
+            <div className="flex cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-muted/50">
+              <TagIcon className="size-3 flex-shrink-0 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">
                 {metadataCount}
               </span>
             </div>
           </PopoverTrigger>
           <PopoverContent
-            className="w-80 p-0 shadow-md shadow-slate-800/30 z-[70]"
+            className="z-[70] w-80 p-0 shadow-md shadow-slate-800/30"
             align={align}
           >
             <div className="p-3">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b">
-                <TagIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">
+              <div className="mb-3 flex items-center gap-2 border-b pb-2">
+                <TagIcon className="size-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
                   {title} ({metadataCount}{' '}
                   {metadataCount === 1 ? 'item' : 'items'})
                 </span>
               </div>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div className="max-h-60 space-y-2 overflow-y-auto">
                 {metadataEntries
                   .sort(([a], [b]) =>
                     a.toLowerCase().localeCompare(b.toLowerCase()),
@@ -74,15 +74,15 @@ export const AdditionalMetadata = memo(
                   .map(([key, value]) => (
                     <div
                       key={key}
-                      className="group flex flex-col gap-1 p-2 rounded border hover:bg-muted/30 transition-colors cursor-pointer"
+                      className="group flex cursor-pointer flex-col gap-1 rounded border p-2 transition-colors hover:bg-muted/30"
                       onClick={() => onClick?.({ key, value })}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-muted-foreground tracking-wide">
+                        <span className="text-xs font-medium tracking-wide text-muted-foreground">
                           {key}
                         </span>
                       </div>
-                      <div className="text-sm break-all">
+                      <div className="break-all text-sm">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -91,7 +91,7 @@ export const AdditionalMetadata = memo(
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="left" className="max-w-xs">
-                              <pre className="text-xs whitespace-pre-wrap">
+                              <pre className="whitespace-pre-wrap text-xs">
                                 {JSON.stringify(value, null, 2)}
                               </pre>
                             </TooltipContent>

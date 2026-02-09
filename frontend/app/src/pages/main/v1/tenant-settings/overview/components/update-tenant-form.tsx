@@ -1,12 +1,12 @@
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/v1/ui/button';
-import { Label } from '@/components/v1/ui/label';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   name: z.string().max(255).min(1),
@@ -55,7 +55,7 @@ export function UpdateTenantForm({
               type="name"
               autoCapitalize="none"
               autoCorrect="off"
-              className=" min-w-[300px]"
+              className="min-w-[300px]"
               disabled={props.isLoading}
             />
             {nameError && (

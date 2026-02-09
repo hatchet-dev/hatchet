@@ -1,4 +1,5 @@
 from hatchet_sdk.clients.admin import (
+    RunStatus,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
@@ -166,6 +167,7 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import TaskRunRef
+from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
@@ -242,6 +244,7 @@ __all__ = [
     "RerunStepRunRequest",
     "RunEventListener",
     "RunFilter",
+    "RunStatus",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
     "StepRun",
@@ -295,6 +298,7 @@ __all__ = [
     "WorkflowVersion",
     "WorkflowVersionDefinition",
     "WorkflowVersionMeta",
+    "is_in_hatchet_serialization_context",
     "or_",
     "remove_null_unicode_character",
     "workflow",

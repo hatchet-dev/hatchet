@@ -12,6 +12,10 @@ linters:
     - unconvert
     - unused
   settings:
+    govet:
+      enable-all: true
+      disable:
+        - printf
     staticcheck:
       checks:
         - -SA1029
@@ -42,6 +46,8 @@ linters:
         text: "context-keys-type: should not use basic type string"
       - path: (.+)\.go$
         text: error strings should not be capitalized
+      - path: "internal/services/dispatcher/(.+).go"
+        text: "ST1016:"
       - linters:
           - staticcheck
         text: "ST1003:"

@@ -4,14 +4,11 @@ import (
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
-	uiVersion := gen.TenantUIVersion(tenant.UiVersion)
-
+func ToTenant(tenant *sqlcv1.Tenant) *gen.Tenant {
 	var environment *gen.TenantEnvironment
 	if tenant.Environment.Valid {
 		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
@@ -19,20 +16,19 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 	}
 
 	return &gen.Tenant{
-		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenant.ID), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
+		Metadata:          *toAPIMetadata(tenant.ID, tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:              tenant.Name,
 		Slug:              tenant.Slug,
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
 		AlertMemberEmails: &tenant.AlertMemberEmails,
 		Version:           gen.TenantVersion(tenant.Version),
-		UiVersion:         &uiVersion,
 		Environment:       environment,
 	}
 }
 
-func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.TenantAlertingSettings {
+func ToTenantAlertingSettings(alerting *sqlcv1.TenantAlertingSettings) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:                        *toAPIMetadata(sqlchelpers.UUIDToStr(alerting.ID), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
+		Metadata:                        *toAPIMetadata(alerting.ID, alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
 		MaxAlertingFrequency:            alerting.MaxFrequency,
 		EnableExpiringTokenAlerts:       &alerting.EnableExpiringTokenAlerts,
 		EnableWorkflowRunFailureAlerts:  &alerting.EnableWorkflowRunFailureAlerts,
@@ -46,16 +42,16 @@ func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.Tena
 	return res
 }
 
-func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
+func ToTenantAlertEmailGroup(group *sqlcv1.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
 	emails := strings.Split(group.Emails, ",")
 
 	return &gen.TenantAlertEmailGroup{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(group.ID), group.CreatedAt.Time, group.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(group.ID, group.CreatedAt.Time, group.UpdatedAt.Time),
 		Emails:   emails,
 	}
 }
 
-func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantResourcePolicy {
+func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantResourcePolicy {
 
 	limits := make([]gen.TenantResourceLimit, len(_limits))
 
@@ -72,7 +68,7 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantRe
 		}
 
 		limits[i] = gen.TenantResourceLimit{
-			Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(limit.ID), limit.CreatedAt.Time, limit.UpdatedAt.Time),
+			Metadata:   *toAPIMetadata(limit.ID, limit.CreatedAt.Time, limit.UpdatedAt.Time),
 			Resource:   gen.TenantResource(limit.Resource),
 			LimitValue: int(limit.LimitValue),
 			AlarmValue: &alarmValue,
@@ -112,7 +108,8 @@ func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
 
 func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
 	result := &gen.TaskStatusStat{
-		Total: &stat.Total,
+		Total:  &stat.Total,
+		Oldest: stat.Oldest,
 	}
 
 	if len(stat.Concurrency) > 0 {

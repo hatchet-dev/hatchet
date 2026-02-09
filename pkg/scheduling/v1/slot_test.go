@@ -9,13 +9,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-var stableWorkerId1 = uuid.New().String()
-var stableWorkerId2 = uuid.New().String()
+var stableWorkerId1 = uuid.New()
+var stableWorkerId2 = uuid.New()
+
+func ptrUUID(s string) *uuid.UUID {
+	u := uuid.MustParse(s)
+	return &u
+}
 
 func TestGetRankedSlots(t *testing.T) {
 	tests := []struct {
@@ -29,23 +33,23 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "HARD sticky strategy with desired worker available",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategyHARD,
-				DesiredWorkerID: sqlchelpers.UUIDFromStr(stableWorkerId1),
+				DesiredWorkerID: &stableWorkerId1,
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: stableWorkerId1}}, []string{}),
-				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.NewString()}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.New()}}, []string{}),
 			},
-			expectedWorker: []string{stableWorkerId1},
+			expectedWorker: []string{stableWorkerId1.String()},
 		},
 		{
 			name: "HARD sticky strategy without desired worker",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategyHARD,
-				DesiredWorkerID: sqlchelpers.UUIDFromStr(uuid.New().String()),
+				DesiredWorkerID: ptrUUID(uuid.New().String()),
 			},
 			slots: []*slot{
-				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.NewString()}}, []string{}),
-				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.NewString()}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.New()}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: uuid.New()}}, []string{}),
 			},
 			expectedWorker: []string{},
 		},
@@ -53,14 +57,14 @@ func TestGetRankedSlots(t *testing.T) {
 			name: "SOFT sticky strategy with desired worker available",
 			qi: &sqlcv1.V1QueueItem{
 				Sticky:          sqlcv1.V1StickyStrategySOFT,
-				DesiredWorkerID: sqlchelpers.UUIDFromStr(stableWorkerId1),
+				DesiredWorkerID: &stableWorkerId1,
 			},
 			slots: []*slot{
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: (stableWorkerId2)}}, []string{}),
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: (stableWorkerId1)}}, []string{}),
 				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: (stableWorkerId1)}}, []string{}),
 			},
-			expectedWorker: []string{stableWorkerId1, stableWorkerId1, stableWorkerId2},
+			expectedWorker: []string{stableWorkerId1.String(), stableWorkerId1.String(), stableWorkerId2.String()},
 		},
 		{
 			name: "Affinity labels with different worker weights",
@@ -94,7 +98,7 @@ func TestGetRankedSlots(t *testing.T) {
 					IntValue: pgtype.Int4{Int32: 4, Valid: true},
 				}}}}, []string{}),
 			},
-			expectedWorker: []string{stableWorkerId2, stableWorkerId1},
+			expectedWorker: []string{stableWorkerId2.String(), stableWorkerId1.String()},
 		},
 		{
 			name: "Affinity labels with strict requirements",
@@ -114,7 +118,7 @@ func TestGetRankedSlots(t *testing.T) {
 					IntValue: pgtype.Int4{Int32: 1, Valid: true},
 				}}}}, []string{}),
 			},
-			expectedWorker: []string{stableWorkerId1},
+			expectedWorker: []string{stableWorkerId1.String()},
 		},
 		{
 			name: "Affinity labels with strict requirements and unsatisfiable conditions",
@@ -143,7 +147,7 @@ func TestGetRankedSlots(t *testing.T) {
 			actualSlots := getRankedSlots(tt.qi, tt.labels, tt.slots)
 			actualWorkerIds := make([]string, len(actualSlots))
 			for i, s := range actualSlots {
-				actualWorkerIds[i] = s.getWorkerId()
+				actualWorkerIds[i] = s.getWorkerId().String()
 			}
 
 			assert.Equal(t, tt.expectedWorker, actualWorkerIds)

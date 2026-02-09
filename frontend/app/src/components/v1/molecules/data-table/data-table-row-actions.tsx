@@ -1,6 +1,3 @@
-import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Row } from '@tanstack/react-table';
-
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -8,28 +5,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-
-import { IDGetter } from './data-table';
 import {
   Tooltip,
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
 } from '@/components/v1/ui/tooltip';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
 
-interface DataTableRowActionsProps<TData extends IDGetter<TData>> {
-  row: Row<TData>;
+interface TableRowActionsProps<T> {
+  row: T;
   actions?: {
     label: string;
-    onClick: (data: TData) => void;
+    onClick: (data: T) => void;
     disabled?: boolean | string;
   }[];
 }
 
-export function DataTableRowActions<TData extends IDGetter<TData>>({
-  row,
-  actions,
-}: DataTableRowActionsProps<TData>) {
+export function TableRowActions<T>({ row, actions }: TableRowActionsProps<T>) {
   if (!actions?.length) {
     return null;
   }
@@ -39,9 +32,10 @@ export function DataTableRowActions<TData extends IDGetter<TData>>({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
+          size="sm"
+          className="flex data-[state=open]:bg-muted"
         >
-          <DotsVerticalIcon className="h-4 w-4" />
+          <DotsVerticalIcon className="size-4" />
           <span className="sr-only">Open menu</span>
         </Button>
       </DropdownMenuTrigger>
@@ -51,7 +45,7 @@ export function DataTableRowActions<TData extends IDGetter<TData>>({
             <Tooltip>
               <TooltipTrigger className="w-full">
                 <DropdownMenuItem
-                  onClick={() => action.onClick(row.original)}
+                  onClick={() => action.onClick(row)}
                   disabled={!!action.disabled}
                   className="w-full hover:cursor-pointer"
                 >

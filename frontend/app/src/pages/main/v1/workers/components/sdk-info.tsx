@@ -1,8 +1,7 @@
 import { WorkerRuntimeSDKs } from '@/lib/api';
-
-import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
-import { IconType } from 'react-icons';
 import React from 'react';
+import { IconType } from 'react-icons';
+import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
 
 export const SdkInfo: React.FC<{
   runtimeInfo?: { language?: WorkerRuntimeSDKs; sdkVersion?: string };
@@ -23,7 +22,7 @@ export const SdkInfo: React.FC<{
     : undefined;
 
   return (
-    <div className="flex flex-row gap-2 items-center">
+    <div className="flex flex-row items-center gap-2">
       {Icon && React.createElement(Icon)}
       {!iconOnly && runtimeInfo.sdkVersion}
     </div>

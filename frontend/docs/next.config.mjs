@@ -31,7 +31,7 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/:path((?!api|home|v1|v0|compute|sdk|contributing|self-hosting|launches|blog|favicon\\.ico|.*\\.png|.*\\.gif|_next/.*|monitoring\-demo\.mp4).*)',
+        source: '/:path((?!api|home|cli|v1|v0|compute|sdk|contributing|self-hosting|launches|blog|favicon\\.ico|.*\\.png|.*\\.gif|_next/.*|monitoring\-demo\.mp4).*)',
         destination: '/home/:path*',
         permanent: false,
       },
@@ -149,6 +149,67 @@ const nextConfig = {
         source: "/sdks/python",
         destination: "/sdks/python/client",
         permanent: false,
+      },
+      // Blog redirects to hatchet.run
+      {
+        source: "/blog/automated-documentation",
+        destination: "https://hatchet.run/blog/automated-documentation",
+        permanent: true,
+      },
+      {
+        source: "/blog/background-tasks-fastapi-hatchet",
+        destination: "https://hatchet.run/blog/fastapi-background-jobs-to-hatchet",
+        permanent: true,
+      },
+      {
+        source: "/blog/go-agents",
+        destination: "https://hatchet.run/blog/go-agents",
+        permanent: true,
+      },
+      {
+        source: "/blog/warning-event-loop-blocked",
+        destination: "https://hatchet.run/blog/warning-event-loop-blocked",
+        permanent: true,
+      },
+      {
+        source: "/blog/fastest-postgres-inserts",
+        destination: "https://hatchet.run/blog/fastest-postgres-inserts",
+        permanent: true,
+      },
+      {
+        source: "/blog/task-queue-modern-python",
+        destination: "https://hatchet.run/blog/task-queue-modern-python",
+        permanent: true,
+      },
+      {
+        source: "/blog/postgres-events-table",
+        destination: "https://hatchet.run/blog/postgres-events-table",
+        permanent: true,
+      },
+      {
+        source: "/blog/migrating-off-prisma",
+        destination: "https://hatchet.run/blog",
+        permanent: true,
+      },
+      {
+        source: "/blog/problems-with-celery",
+        destination: "https://hatchet.run/blog/problems-with-celery",
+        permanent: true,
+      },
+      {
+        source: "/blog/multi-tenant-queues",
+        destination: "https://hatchet.run/blog/multi-tenant-queues",
+        permanent: true,
+      },
+      {
+        source: "/blog/mergent-migration-guide",
+        destination: "https://hatchet.run/blog",
+        permanent: true,
+      },
+      {
+        source: "/blog",
+        destination: "https://hatchet.run/blog",
+        permanent: true,
       }
     ];
   },

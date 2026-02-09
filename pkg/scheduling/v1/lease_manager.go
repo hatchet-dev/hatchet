@@ -6,12 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"golang.org/x/sync/errgroup"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/google/uuid"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // LeaseManager is responsible for leases on multiple queues and multiplexing
@@ -21,7 +20,7 @@ type LeaseManager struct {
 
 	conf *sharedConfig
 
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	workerLeases []*sqlcv1.Lease
 	workersCh    chan<- []*v1.ListActiveWorkersResult
@@ -36,7 +35,7 @@ type LeaseManager struct {
 	processMu sync.Mutex
 }
 
-func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency) {
+func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency) {
 	workersCh := make(chan []*v1.ListActiveWorkersResult)
 	queuesCh := make(chan []string)
 	concurrencyLeasesCh := make(chan []*sqlcv1.V1StepConcurrency)
@@ -126,7 +125,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 
 	for i, activeWorker := range activeWorkers {
 		aw := activeWorker
-		workerIdsStr[i] = activeWorker.ID
+		workerIdsStr[i] = activeWorker.ID.String()
 		activeWorkerIdsToResults[workerIdsStr[i]] = aw
 
 		if lease, ok := currResourceIdsToLease[workerIdsStr[i]]; ok {

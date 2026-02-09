@@ -11,6 +11,7 @@ import (
 )
 
 var printVersion bool
+var migrateDown string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -26,7 +27,11 @@ var rootCmd = &cobra.Command{
 		ctx, cancel := cmdutils.NewInterruptContext()
 		defer cancel()
 
-		migrate.RunMigrations(ctx)
+		if migrateDown != "" {
+			migrate.RunDownMigration(ctx, migrateDown)
+		} else {
+			migrate.RunMigrations(ctx)
+		}
 	},
 }
 
@@ -39,6 +44,13 @@ func main() {
 		"version",
 		false,
 		"print version and exit.",
+	)
+
+	rootCmd.PersistentFlags().StringVar(
+		&migrateDown,
+		"down",
+		"",
+		"migrate down to a specific version (e.g., 20240115180414).",
 	)
 
 	if err := rootCmd.Execute(); err != nil {

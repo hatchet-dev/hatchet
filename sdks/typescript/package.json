@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.10.2",
+  "version": "1.11.0",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -25,7 +25,7 @@
     "test:e2e": "jest --testMatch='**/*.e2e.ts'",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
-    "generate-api": "npx --yes swagger-cli bundle ../../api-contracts/openapi/openapi.yaml --outfile openapi.yaml --type yaml && npx swagger-typescript-api@13.1.0 generate -p openapi.yaml -o src/clients/rest/generated -n hatchet.ts --modular --axios",
+    "generate-api": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated -n hatchet.ts --modular --axios",
     "generate-protoc": "./generate-protoc.sh",
     "lint:check": "pnpm run eslint:check && pnpm run prettier:check",
     "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
@@ -86,13 +86,21 @@
     "nice-grpc": "^2.1.12",
     "nice-grpc-common": "^2.0.2",
     "protobufjs": "^7.4.0",
-    "qs": "^6.14.0",
+    "qs": "^6.14.1",
     "semver": "^7.7.1",
     "yaml": "^2.7.1",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.1"
   },
   "optionalDependencies": {
     "prom-client": "^15.1.3"
   },
-  "packageManager": "pnpm@10.16.1"
+  "packageManager": "pnpm@10.16.1",
+  "pnpm": {
+    "overrides": {
+      "diff": "8.0.3",
+      "tar": "^7.5.7",
+      "js-yaml": "^4.1.1"
+    }
+  }
 }

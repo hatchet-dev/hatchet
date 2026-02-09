@@ -23,7 +23,10 @@
   "include": [
     "postcss.config.js",
     "src/**/*.tsx",
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "cypress/**/*.ts",
+    "cypress/**/*.tsx",
+    "cypress.config.ts"
   ],
   "references": [
     {

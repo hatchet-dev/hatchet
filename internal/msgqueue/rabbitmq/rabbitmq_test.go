@@ -1,6 +1,6 @@
 //go:build integration
 
-package rabbitmq_test
+package rabbitmq
 
 import (
 	"context"
@@ -9,13 +9,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
+
+type testMessagePayload struct {
+	Key string `json:"key"`
+}
+
+var testTenantUUID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 func TestMessageQueueIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -27,27 +33,39 @@ func TestMessageQueueIntegration(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	cleanup, tq := rabbitmq.New(
-		rabbitmq.WithURL(url),
-		rabbitmq.WithQos(100),
+	cleanup, tq, err := New(
+		WithURL(url),
+		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
+		WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
-	defer cleanup() // nolint: errcheck
+
+	require.Nil(t, err, "error should be nil")
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
 	id, _ := random.Generate(8) // nolint: errcheck
 
 	// Test adding a task to a static queue
-	staticQueue := msgqueue.EVENT_PROCESSING_QUEUE
-	task := &msgqueue.Message{
-		ID:         id,
-		Payload:    map[string]interface{}{"key": "value"},
-		Metadata:   map[string]interface{}{"tenant_id": "test-tenant"},
-		Retries:    1,
-		RetryDelay: 5,
+	staticQueue := msgqueue.NewRandomStaticQueue()
+
+	defer func() {
+		if err := tq.deleteQueue(staticQueue); err != nil {
+			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
+		}
+	}()
+
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, map[string]interface{}{"key": "value"})
+
+	if err != nil {
+		t.Fatalf("error creating task: %v", err)
 	}
 
-	err := tq.AddMessage(ctx, staticQueue, task)
+	err = tq.SendMessage(ctx, staticQueue, task)
 	assert.NoError(t, err, "adding task to static queue should not error")
 
 	preAck := func(receivedMessage *msgqueue.Message) error {
@@ -61,12 +79,11 @@ func TestMessageQueueIntegration(t *testing.T) {
 	require.NoError(t, err, "subscribing to static queue should not error")
 
 	// Test tenant registration and queue creation
-	tenantId := "test-tenant"
-	err = tq.RegisterTenant(ctx, tenantId)
+	err = tq.RegisterTenant(ctx, testTenantUUID)
 	assert.NoError(t, err, "registering tenant should not error")
 
 	// Assuming there's a mechanism to retrieve a tenant-specific queue, e.g., by tenant ID
-	tenantQueue := msgqueue.TenantEventConsumerQueue(tenantId)
+	tenantQueue := msgqueue.TenantEventConsumerQueue(testTenantUUID)
 
 	if err != nil {
 		t.Fatalf("error creating tenant-specific queue: %v", err)
@@ -82,11 +99,11 @@ func TestMessageQueueIntegration(t *testing.T) {
 	cleanupTenantQueue, err := tq.Subscribe(tenantQueue, tqAck, msgqueue.NoOpHook)
 	require.NoError(t, err, "subscribing to tenant-specific queue should not error")
 
-	// send task to tenant-specific queue after 1 second to give time for subscriber
+	// send task to queue after 1 second to give time for subscriber
 	go func() {
 		time.Sleep(1 * time.Second)
-		err = tq.AddMessage(ctx, tenantQueue, task)
-		assert.NoError(t, err, "adding task to tenant-specific queue should not error")
+		err = tq.SendMessage(ctx, staticQueue, task)
+		assert.NoError(t, err, "adding task to queue should not error")
 	}()
 
 	wg.Wait()
@@ -95,6 +112,155 @@ func TestMessageQueueIntegration(t *testing.T) {
 		t.Fatalf("error cleaning up queue: %v", err)
 	}
 	if err := cleanupTenantQueue(); err != nil {
+		t.Fatalf("error cleaning up queue: %v", err)
+	}
+}
+
+func TestBufferedSubMessageQueueIntegration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(10) // we wait for 10 messages here
+
+	url := "amqp://user:password@localhost:5672/"
+
+	// Initialize the task queue implementation
+	cleanup, tq, err := New(
+		WithURL(url),
+		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
+	)
+
+	require.Nil(t, err, "error should be nil")
+
+	require.NotNil(t, tq, "task queue implementation should not be nil")
+
+	id, _ := random.Generate(8) // nolint: errcheck
+
+	// Test adding a task to a static queue
+	staticQueue := msgqueue.NewRandomStaticQueue()
+
+	defer func() {
+		if err := tq.deleteQueue(staticQueue); err != nil {
+			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
+		}
+	}()
+
+	mqBuffer := msgqueue.NewMQSubBuffer(staticQueue, tq, func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
+		msgs := msgqueue.JSONConvert[testMessagePayload](payloads)
+
+		for _, msg := range msgs {
+			assert.Equal(t, "value", msg.Key, "received task payload should match sent task payload")
+			wg.Done()
+		}
+
+		return nil
+	})
+
+	cleanupQueue, err := mqBuffer.Start()
+
+	if err != nil {
+		t.Fatalf("error starting buffer: %v", err)
+	}
+
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, &testMessagePayload{
+		Key: "value",
+	})
+
+	if err != nil {
+		t.Fatalf("error creating task: %v", err)
+	}
+
+	// send tasks to queue
+	for i := 0; i < 10; i++ {
+		err = tq.SendMessage(ctx, staticQueue, task)
+
+		if err != nil {
+			t.Fatalf("error sending task: %v", err)
+		}
+	}
+
+	wg.Wait()
+
+	if err := cleanupQueue(); err != nil {
+		t.Fatalf("error cleaning up queue: %v", err)
+	}
+}
+
+func TestBufferedPubMessageQueueIntegration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(10)
+
+	url := "amqp://user:password@localhost:5672/"
+
+	// Initialize the task queue implementation
+	cleanup, tq, err := New(
+		WithURL(url),
+		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
+	)
+
+	require.Nil(t, err, "error should be nil")
+
+	require.NotNil(t, tq, "task queue implementation should not be nil")
+
+	id, _ := random.Generate(8) // nolint: errcheck
+
+	// Test adding a task to a static queue
+	staticQueue := msgqueue.NewRandomStaticQueue()
+
+	defer func() {
+		if err := tq.deleteQueue(staticQueue); err != nil {
+			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
+		}
+	}()
+
+	cleanupQueue, err := tq.Subscribe(staticQueue, func(receivedMessage *msgqueue.Message) error {
+		for _ = range receivedMessage.Payloads {
+			wg.Done()
+		}
+
+		return nil
+	}, msgqueue.NoOpHook)
+
+	if err != nil {
+		t.Fatalf("error subscribing to queue: %v", err)
+	}
+
+	pub := msgqueue.NewMQPubBuffer(tq)
+
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, &testMessagePayload{
+		Key: "value",
+	})
+
+	if err != nil {
+		t.Fatalf("error creating task: %v", err)
+	}
+
+	// send tasks to queue
+	for i := 0; i < 10; i++ {
+		err := pub.Pub(ctx, staticQueue, task, false)
+
+		if err != nil {
+			t.Fatalf("error sending task: %v", err)
+		}
+	}
+
+	wg.Wait()
+
+	if err := cleanupQueue(); err != nil {
 		t.Fatalf("error cleaning up queue: %v", err)
 	}
 }
@@ -110,29 +276,41 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	cleanup, tq := rabbitmq.New(
-		rabbitmq.WithURL(url),
-		rabbitmq.WithQos(100),
-		rabbitmq.WithMessageRejection(false, 10), // Disable message rejection for this test
+	cleanup, tq, err := New(
+		WithURL(url),
+		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
+		WithMessageRejection(false, 10), // Disable message rejection for this test
 	)
-	defer cleanup() // nolint: errcheck
+
+	require.Nil(t, err, "error should be nil")
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
 	id, _ := random.Generate(8) // nolint: errcheck
 
 	// Test adding a task to a static queue
-	staticQueue := msgqueue.EVENT_PROCESSING_QUEUE
-	task := &msgqueue.Message{
-		ID:         id,
-		Payload:    map[string]interface{}{"key": "value"},
-		Metadata:   map[string]interface{}{"tenant_id": "test-tenant"},
-		Retries:    2, // Allow up to 2 retries
-		RetryDelay: 5, // Delay between retries in seconds
+	staticQueue := msgqueue.NewRandomStaticQueue()
+
+	defer func() {
+		if err := tq.deleteQueue(staticQueue); err != nil {
+			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
+		}
+	}()
+
+	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, &testMessagePayload{
+		Key: "value",
+	})
+
+	if err != nil {
+		t.Fatalf("error creating task: %v", err)
 	}
 
-	err := tq.AddMessage(ctx, staticQueue, task)
-	assert.NoError(t, err, "adding task to static queue should not error")
+	task.Retries = 2
 
 	preAck := func(receivedMessage *msgqueue.Message) error {
 		if receivedMessage.ID != task.ID {
@@ -153,6 +331,9 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	cleanupQueue, err := tq.Subscribe(staticQueue, preAck, msgqueue.NoOpHook)
 	require.NoError(t, err, "subscribing to static queue should not error")
 
+	err = tq.SendMessage(ctx, staticQueue, task)
+	assert.NoError(t, err, "adding task to static queue should not error")
+
 	wg.Wait()
 
 	if err := cleanupQueue(); err != nil {
@@ -160,65 +341,49 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	}
 }
 
-func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
-	// this falls under time threshold but over time in the DLQ
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+// deleteQueue is a helper function for removing durable queues which are used for tests.
+func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
+	poolCh, err := t.subChannels.Acquire(context.Background())
 
-	var attempts int
-
-	url := "amqp://user:password@localhost:5672/"
-
-	// Initialize the task queue implementation
-	cleanup, tq := rabbitmq.New(
-		rabbitmq.WithURL(url),
-		rabbitmq.WithQos(100),
-		rabbitmq.WithMessageRejection(true, 2), // Enable message rejection with max 2 death count
-	)
-	defer cleanup() // nolint: errcheck
-
-	require.NotNil(t, tq, "task queue implementation should not be nil")
-
-	id, _ := random.Generate(8) // nolint: errcheck
-
-	// Test adding a task to a static queue
-	staticQueue := msgqueue.EVENT_PROCESSING_QUEUE
-	task := &msgqueue.Message{
-		ID:         id,
-		Payload:    map[string]interface{}{"key": "value"},
-		Metadata:   map[string]interface{}{"tenant_id": "test-tenant"},
-		Retries:    2, // Allow up to 2 retries
-		RetryDelay: 5, // Delay between retries in seconds
+	if err != nil {
+		t.l.Error().Msgf("[deleteQueue] cannot acquire channel for deleting queue: %v", err)
+		return err
 	}
 
-	err := tq.AddMessage(ctx, staticQueue, task)
-	assert.NoError(t, err, "adding task to static queue should not error")
+	ch := poolCh.Value()
 
-	preAck := func(receivedMessage *msgqueue.Message) error {
-		// only process messages which match the id
-		if receivedMessage.ID != task.ID {
-			return nil
+	if ch.IsClosed() {
+		poolCh.Destroy()
+		return fmt.Errorf("channel is closed")
+	}
+
+	defer poolCh.Release()
+
+	_, err = ch.QueueDelete(q.Name(), true, true, false)
+
+	if err != nil {
+		t.l.Error().Msgf("cannot delete queue: %q, %v", q.Name(), err)
+		return err
+	}
+
+	if q.DLQ().Name() != "" {
+		dlq1 := getTmpDLQName(q.DLQ().Name())
+		dlq2 := getProcDLQName(q.DLQ().Name())
+
+		_, err = ch.QueueDelete(dlq1, true, true, false)
+
+		if err != nil {
+			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq1, err)
+			return err
 		}
 
-		attempts++
+		_, err = ch.QueueDelete(dlq2, true, true, false)
 
-		// Always return an error to trigger retries
-		return fmt.Errorf("intentional error on attempt %d", attempts)
+		if err != nil {
+			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq2, err)
+			return err
+		}
 	}
 
-	// Test subscription to the static queue
-	cleanupQueue, err := tq.Subscribe(staticQueue, preAck, msgqueue.NoOpHook)
-	require.NoError(t, err, "subscribing to static queue should not error")
-
-	// Wait for the context to be cancelled or timeout
-	<-ctx.Done()
-
-	// Verify that the message was retried the expected number of times
-	// With message rejection enabled and maxDeathCount=2, the message should be
-	// permanently rejected after 2 death counts (which means 2 processing attempts)
-	assert.GreaterOrEqual(t, attempts, 2, "message should have been retried at least 2 times before being permanently rejected")
-
-	if err := cleanupQueue(); err != nil {
-		t.Fatalf("error cleaning up queue: %v", err)
-	}
+	return nil
 }

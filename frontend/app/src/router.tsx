@@ -1,788 +1,629 @@
-import { FC } from 'react';
-import {
-  createBrowserRouter,
-  redirect,
-  RouteObject,
-  RouterProvider,
-} from 'react-router-dom';
+import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
+import api, { queries } from '@/lib/api';
+import queryClient from '@/query-client';
+import {
+  RouterProvider,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent,
+  redirect,
+} from '@tanstack/react-router';
+import { Outlet } from '@tanstack/react-router';
+import { FC } from 'react';
+import { validate } from 'uuid';
 
-export const tenantedPaths = [
-  '/tenants/:tenant/events',
-  '/tenants/:tenant/filters',
-  '/tenants/:tenant/webhooks',
-  '/tenants/:tenant/rate-limits',
-  '/tenants/:tenant/scheduled',
-  '/tenants/:tenant/cron-jobs',
-  '/tenants/:tenant/tasks',
-  '/tenants/:tenant/tasks/:workflow',
-  '/tenants/:tenant/runs',
-  '/tenants/:tenant/runs/:run',
-  '/tenants/:tenant/task-runs/:run',
-  '/tenants/:tenant/workers',
-  '/tenants/:tenant/workers/all',
-  '/tenants/:tenant/workers/webhook',
-  '/tenants/:tenant/workers/:worker',
-  '/tenants/:tenant/managed-workers',
-  '/tenants/:tenant/managed-workers/demo-template',
-  '/tenants/:tenant/managed-workers/create',
-  '/tenants/:tenant/managed-workers/:managed-worker',
-  '/tenants/:tenant/tenant-settings',
-  '/tenants/:tenant/tenant-settings/overview',
-  '/tenants/:tenant/tenant-settings/api-tokens',
-  '/tenants/:tenant/tenant-settings/github',
-  '/tenants/:tenant/tenant-settings/members',
-  '/tenants/:tenant/tenant-settings/alerting',
-  '/tenants/:tenant/tenant-settings/billing-and-limits',
-  '/tenants/:tenant/tenant-settings/ingestors',
-  '/tenants/:tenant/onboarding/get-started',
-  '/tenants/:tenant/workflow-runs',
-  '/tenants/:tenant/workflow-runs/:run',
-  '/tenants/:tenant/',
-  '/tenants/:tenant/workflows',
-  '/tenants/:tenant/workflows/:workflow',
-] as const;
+const rootRoute = createRootRoute({
+  component: Root,
+  errorComponent: (props) => (
+    <Root>
+      <ErrorBoundary {...props} />
+    </Root>
+  ),
+  notFoundComponent: () => (
+    <Root>
+      <NotFound />
+    </Root>
+  ),
+});
 
-export type TenantedPath = (typeof tenantedPaths)[number];
-
-const createTenantedRoute = (path: TenantedPath): RouteObject => {
-  switch (path) {
-    case '/tenants/:tenant/events':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/events').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/filters':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/filters').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/webhooks':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/webhooks').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/rate-limits':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/rate-limits').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/scheduled':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/scheduled-runs').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/cron-jobs':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/recurring').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/workflows':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workflows').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/workflows/:workflow':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workflows/$workflow').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/runs':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workflow-runs-v1/index.tsx').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/runs/:run':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workflow-runs-v1/$run').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/task-runs/:run':
-      return {
-        path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/runs/${params.run}`);
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/workers':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workers').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/workers/all':
-      return {
-        path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/workers`);
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/workers/webhook':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workers/webhooks/index.tsx').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/workers/:worker':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/workers/$worker').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/managed-workers':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/managed-workers/index.tsx').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/managed-workers/demo-template':
-      return {
-        path,
-        lazy: async () =>
-          import(
-            './pages/main/v1/managed-workers/demo-template/index.tsx'
-          ).then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/managed-workers/create':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/managed-workers/create/index.tsx').then(
-            (res) => {
-              return {
-                Component: res.default,
-              };
-            },
-          ),
-      };
-    case '/tenants/:tenant/managed-workers/:managed-worker':
-      return {
-        path,
-        lazy: async () =>
-          import(
-            './pages/main/v1/managed-workers/$managed-worker/index.tsx'
-          ).then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/tenant-settings/overview':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/tenant-settings/overview').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/tenant-settings/api-tokens':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/tenant-settings/api-tokens').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/tenant-settings/github':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/tenant-settings/github').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/tenant-settings/members':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/tenant-settings/members').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/tenant-settings/alerting':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/tenant-settings/alerting').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/tenant-settings/billing-and-limits':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/tenant-settings/resource-limits').then(
-            (res) => {
-              return {
-                Component: res.default,
-              };
-            },
-          ),
-      };
-    case '/tenants/:tenant/tenant-settings/ingestors':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/main/v1/tenant-settings/ingestors').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/onboarding/get-started':
-      return {
-        path,
-        lazy: async () =>
-          import('./pages/onboarding/get-started').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      };
-    case '/tenants/:tenant/workflow-runs':
-      return {
-        path,
-        loader: ({ params }) => {
-          return redirect(`/tenants/${params.tenant}/runs`);
-        },
-      };
-    case '/tenants/:tenant/workflow-runs/:run':
-      return {
-        path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/runs/${params.run}`);
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/':
-      return {
-        path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/runs`);
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/tasks':
-      return {
-        path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/workflows`);
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/tasks/:workflow':
-      return {
-        path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(
-                `/tenants/${params.tenant}/workflows/${params.workflow}`,
-              );
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/tenant-settings':
-      return {
-        path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(
-                `/tenants/${params.tenant}/tenant-settings/overview`,
-              );
-            },
-          };
-        },
-      };
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const exhaustiveCheck: never = path;
-      throw new Error(`Unhandled path: ${exhaustiveCheck}`);
-  }
-};
-
-export const routes: RouteObject[] = [
-  {
-    path: '/',
-    element: <Root />,
-    errorElement: (
-      <Root>
-        <ErrorBoundary />
-      </Root>
-    ),
-    children: [
-      {
-        path: '/auth',
-        lazy: async () =>
-          import('./pages/auth/no-auth').then((res) => {
-            return {
-              loader: res.loader,
-            };
-          }),
-        children: [
-          {
-            path: '/auth/login',
-            lazy: async () =>
-              import('./pages/auth/login').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-          {
-            path: '/auth/register',
-            lazy: async () =>
-              import('./pages/auth/register').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-        ],
-      },
-      {
-        path: '/onboarding/verify-email',
-        lazy: async () =>
-          import('./pages/onboarding/verify-email').then((res) => {
-            return {
-              Component: res.default,
-              loader: res.loader,
-            };
-          }),
-      },
-      {
-        path: '/organizations/:organization',
-        lazy: async () =>
-          import('./pages/organizations/$organization').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      },
-      {
-        path: '/',
-        lazy: async () =>
-          import('./pages/authenticated').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-        children: [
-          {
-            path: '/',
-            lazy: async () => {
-              return {
-                loader: function () {
-                  return redirect('/workflow-runs');
-                },
-              };
-            },
-          },
-          {
-            path: '/onboarding/create-tenant',
-            lazy: async () =>
-              import('./pages/onboarding/create-tenant').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-          {
-            path: '/onboarding/get-started',
-            lazy: async () =>
-              import('./pages/onboarding/get-started').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-          {
-            path: '/onboarding/invites',
-            lazy: async () =>
-              import('./pages/onboarding/invites').then((res) => {
-                return {
-                  Component: res.default,
-                  loader: res.loader,
-                };
-              }),
-          },
-          {
-            path: '/',
-            lazy: async () =>
-              import('./pages/main').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-            children: [
-              {
-                path: '/events',
-                lazy: async () =>
-                  import('./pages/main/events').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/rate-limits',
-                lazy: async () =>
-                  import('./pages/main/rate-limits').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/scheduled',
-                lazy: async () =>
-                  import('./pages/main/scheduled-runs').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/cron-jobs',
-                lazy: async () =>
-                  import('./pages/main/recurring').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflows',
-                lazy: async () =>
-                  import('./pages/main/workflows').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflows/:workflow',
-                lazy: async () =>
-                  import('./pages/main/workflows/$workflow').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflow-runs',
-                lazy: async () =>
-                  import('./pages/main/workflow-runs').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflow-runs/:run',
-                lazy: async () =>
-                  import('./pages/main/workflow-runs/$run').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workers',
-                lazy: async () => {
-                  return {
-                    loader: function () {
-                      return redirect('/workers/all');
-                    },
-                  };
-                },
-              },
-              {
-                path: '/workers/all',
-                lazy: async () =>
-                  import('./pages/main/workers').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workers/webhook',
-                lazy: async () =>
-                  import('./pages/main/workers/webhooks/index.tsx').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/workers/:worker',
-                lazy: async () =>
-                  import('./pages/main/workers/$worker').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/managed-workers',
-                lazy: async () =>
-                  import('./pages/main/managed-workers/index.tsx').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/managed-workers/demo-template',
-                lazy: async () =>
-                  import(
-                    './pages/main/managed-workers/demo-template/index.tsx'
-                  ).then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/managed-workers/create',
-                lazy: async () =>
-                  import('./pages/main/managed-workers/create/index.tsx').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/managed-workers/:managed-worker',
-                lazy: async () =>
-                  import(
-                    './pages/main/managed-workers/$managed-worker/index.tsx'
-                  ).then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/tenant-settings/overview',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/overview').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/api-tokens',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/api-tokens').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/github',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/github').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/tenant-settings/members',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/members').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/tenant-settings/alerting',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/alerting').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/billing-and-limits',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/resource-limits').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/ingestors',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/ingestors').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        path: '/v1/*',
-        lazy: async () => {
-          return {
-            loader: function () {
-              return redirect('/');
-            },
-          };
-        },
-      },
-      {
-        path: '/tenants/:tenant',
-        lazy: async () =>
-          import('./pages/authenticated').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-        children: [
-          {
-            path: '/tenants/:tenant',
-            lazy: async () =>
-              import('./pages/main/v1').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-            children: tenantedPaths.map((path) => createTenantedRoute(path)),
-          },
-        ],
-      },
-    ],
+const authRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'auth',
+  loader: async () => {
+    const mod = await import('./pages/auth/no-auth');
+    if (mod.loader) {
+      return mod.loader();
+    }
+    return null;
   },
+  component: () => (
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+      <Outlet />
+    </div>
+  ),
+});
+
+const authLoginRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: 'login',
+  component: lazyRouteComponent(() => import('./pages/auth/login'), 'default'),
+});
+
+const authRegisterRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: 'register',
+  component: lazyRouteComponent(
+    () => import('./pages/auth/register'),
+    'default',
+  ),
+});
+
+const onboardingVerifyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'onboarding/verify-email',
+  loader: async () => {
+    const mod = await import('./pages/onboarding/verify-email');
+    if (mod.loader) {
+      return mod.loader({
+        request: new Request(window.location.href),
+        params: {},
+      } as never);
+    }
+    return null;
+  },
+  component: lazyRouteComponent(
+    () => import('./pages/onboarding/verify-email'),
+    'default',
+  ),
+});
+
+const organizationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'organizations/$organization',
+  component: lazyRouteComponent(
+    () => import('./pages/organizations/$organization'),
+    'default',
+  ),
+});
+
+const authenticatedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: lazyRouteComponent(
+    () => import('./pages/authenticated'),
+    'default',
+  ),
+  notFoundComponent: () => <NotFound />,
+});
+
+const onboardingCreateTenantRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'onboarding/create-tenant',
+  component: lazyRouteComponent(
+    () => import('./pages/onboarding/create-tenant'),
+    'default',
+  ),
+});
+
+const onboardingInvitesRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'onboarding/invites',
+  loader: async () => {
+    const mod = await import('./pages/onboarding/invites');
+    if (mod.loader) {
+      return mod.loader({} as never);
+    }
+    return null;
+  },
+  component: lazyRouteComponent(
+    () => import('./pages/onboarding/invites'),
+    'default',
+  ),
+});
+
+const v1RedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'v1/*',
+  loader: () => {
+    throw redirect({ to: appRoutes.authenticatedRoute.to });
+  },
+});
+
+const tenantRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'tenants/$tenant',
+  loader: async ({ params }) => {
+    // Ensure the tenant in the URL is one the user actually has access to.
+    // If not, throw a 403 so the global error boundary can show a friendly message.
+    const memberships = await queryClient.fetchQuery({
+      ...queries.user.listTenantMemberships,
+      retry: false,
+    });
+
+    const hasAccess = Boolean(
+      memberships?.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
+    );
+
+    if (!hasAccess) {
+      throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+    }
+
+    // Optionally warm the tenant details cache, since most tenant pages expect it.
+    // If this fails for any reason, let the error boundary handle it.
+    await queryClient.fetchQuery({
+      queryKey: ['tenant:get', params.tenant],
+      queryFn: async () => (await api.tenantGet(params.tenant)).data,
+      retry: false,
+    });
+
+    return null;
+  },
+  component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+  notFoundComponent: () => <NotFound />,
+});
+
+const tenantIndexRedirectRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: '/',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
+  },
+});
+
+const tenantEventsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'events',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/events'),
+    'default',
+  ),
+});
+
+const tenantFiltersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'filters',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/filters'),
+    'default',
+  ),
+});
+
+const tenantWebhooksRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'webhooks',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/webhooks'),
+    'default',
+  ),
+});
+
+const tenantRateLimitsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'rate-limits',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/rate-limits'),
+    'default',
+  ),
+});
+
+const tenantScheduledRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'scheduled',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/scheduled-runs'),
+    'default',
+  ),
+});
+
+const tenantCronJobsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'cron-jobs',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/recurring'),
+    'default',
+  ),
+});
+
+const tenantWorkflowsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'workflows',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/workflows'),
+    'default',
+  ),
+});
+
+const tenantWorkflowRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'workflows/$workflow',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/workflows/$workflow'),
+    'default',
+  ),
+});
+
+const tenantOverviewRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'overview',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/overview/index.tsx'),
+    'default',
+  ),
+});
+
+const tenantRunsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'runs',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/workflow-runs-v1/index.tsx'),
+    'default',
+  ),
+});
+
+const tenantRunRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'runs/$run',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/workflow-runs-v1/$run'),
+    'default',
+  ),
+});
+
+const tenantTaskRunsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'task-runs/$run',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantRunRoute.to, params });
+  },
+});
+
+const tenantWorkersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'workers',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/workers'),
+    'default',
+  ),
+});
+
+const tenantWorkersAllRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'workers/all',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantWorkersRoute.to, params });
+  },
+});
+
+const tenantWorkerRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'workers/$worker',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/workers/$worker'),
+    'default',
+  ),
+});
+
+const tenantManagedWorkersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'managed-workers',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/managed-workers/index.tsx'),
+    'default',
+  ),
+});
+
+const tenantManagedWorkersTemplateRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'managed-workers/demo-template',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/managed-workers/demo-template/index.tsx'),
+    'default',
+  ),
+});
+
+const tenantManagedWorkersCreateRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'managed-workers/create',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/managed-workers/create/index.tsx'),
+    'default',
+  ),
+});
+
+const tenantManagedWorkerRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'managed-workers/$managedWorker',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/managed-workers/$managed-worker/index.tsx'),
+    'default',
+  ),
+});
+
+const tenantSettingsIndexRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsOverviewRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantSettingsOverviewRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/overview',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/overview'),
+    'default',
+  ),
+});
+
+const tenantSettingsApiTokensRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/api-tokens',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/api-tokens'),
+    'default',
+  ),
+});
+
+const tenantSettingsGithubRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/github',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/github'),
+    'default',
+  ),
+});
+
+const tenantSettingsMembersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/members',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/members'),
+    'default',
+  ),
+});
+
+const tenantSettingsAlertingRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/alerting',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/alerting'),
+    'default',
+  ),
+});
+
+const tenantSettingsBillingRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/billing-and-limits',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/resource-limits'),
+    'default',
+  ),
+});
+
+const tenantSettingsIngestorsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/ingestors',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/ingestors'),
+    'default',
+  ),
+});
+
+const tenantWorkflowRunsRedirectRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'workflow-runs',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
+  },
+});
+
+const tenantWorkflowRunRedirectRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'workflow-runs/$run',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
+  },
+});
+
+const tenantTasksRedirectRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tasks',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantWorkflowsRoute.to, params });
+  },
+});
+
+const tenantTasksWorkflowRedirectRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tasks/$workflow',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantWorkflowRoute.to,
+      params,
+    });
+  },
+});
+
+// redirects for alerting - redirect old non-tenanted routes to tenanted routes
+// super janky using `any` since this breaks the types otherwise, since the routes
+// that might be landed on don't actually exist anymore in the route tree
+const workflowRunRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'workflow-runs/$run',
+  loader: ({ location, params }) => {
+    const tenantId: string | null | undefined =
+      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+
+    const run: string | null | undefined = (params as any)?.run;
+
+    if (!tenantId || !run || !validate(run)) {
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
+    }
+
+    throw redirect({
+      to: appRoutes.tenantRunRoute.to,
+      params: { tenant: tenantId, run },
+    });
+  },
+});
+
+const tenantSettingsRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'tenant-settings',
+  loader: ({ location }) => {
+    const tenantId: string | null | undefined =
+      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+
+    if (!tenantId) {
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
+    }
+
+    throw redirect({
+      to: appRoutes.tenantSettingsOverviewRoute.to,
+      params: { tenant: tenantId },
+    });
+  },
+});
+
+const tenantSettingsSubpathRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'tenant-settings/$',
+  loader: ({ params, location }) => {
+    const tenantId: string | null | undefined =
+      (location.search as any)?.tenantId || (location.search as any)?.tenant;
+
+    const subpath: string | null | undefined = (params as any)?._splat || '';
+    const allowedSubpaths = [
+      tenantSettingsAlertingRoute.path,
+      tenantSettingsApiTokensRoute.path,
+      tenantSettingsBillingRoute.path,
+      tenantSettingsGithubRoute.path,
+      tenantSettingsIngestorsRoute.path,
+      tenantSettingsMembersRoute.path,
+      tenantSettingsOverviewRoute.path,
+    ].map((p) => p.split('/').pop());
+
+    if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
+      throw redirect({ to: appRoutes.authenticatedRoute.to });
+    }
+
+    throw redirect({
+      to: `/tenants/${tenantId}/tenant-settings/${subpath}`,
+    } as any);
+  },
+});
+
+const tenantRoutes = [
+  tenantEventsRoute,
+  tenantFiltersRoute,
+  tenantWebhooksRoute,
+  tenantRateLimitsRoute,
+  tenantScheduledRoute,
+  tenantCronJobsRoute,
+  tenantWorkflowsRoute,
+  tenantWorkflowRoute,
+  tenantOverviewRoute,
+  tenantRunsRoute,
+  tenantRunRoute,
+  tenantTaskRunsRoute,
+  tenantWorkersRoute,
+  tenantWorkersAllRoute,
+  tenantWorkerRoute,
+  tenantManagedWorkersRoute,
+  tenantManagedWorkersTemplateRoute,
+  tenantManagedWorkersCreateRoute,
+  tenantManagedWorkerRoute,
+  tenantSettingsIndexRoute,
+  tenantSettingsOverviewRoute,
+  tenantSettingsApiTokensRoute,
+  tenantSettingsGithubRoute,
+  tenantSettingsMembersRoute,
+  tenantSettingsAlertingRoute,
+  tenantSettingsBillingRoute,
+  tenantSettingsIngestorsRoute,
+  tenantWorkflowRunsRedirectRoute,
+  tenantWorkflowRunRedirectRoute,
+  tenantTasksRedirectRoute,
+  tenantTasksWorkflowRedirectRoute,
 ];
 
-const router = createBrowserRouter(routes, { basename: '/' });
+const routeTree = rootRoute.addChildren([
+  authRoute.addChildren([authLoginRoute, authRegisterRoute]),
+  onboardingVerifyRoute,
+  organizationsRoute,
+  authenticatedRoute.addChildren([
+    onboardingCreateTenantRoute,
+    onboardingInvitesRoute,
+    tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
+  ]),
+  v1RedirectRoute,
+  workflowRunRedirectRoute,
+  tenantSettingsRedirect,
+  tenantSettingsSubpathRedirect,
+]);
+
+export const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+});
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+export const appRoutes = {
+  rootRoute,
+  authRoute,
+  authLoginRoute,
+  authRegisterRoute,
+  onboardingVerifyRoute,
+  organizationsRoute,
+  authenticatedRoute,
+  onboardingCreateTenantRoute,
+  onboardingInvitesRoute,
+  tenantRoute,
+  tenantEventsRoute,
+  tenantFiltersRoute,
+  tenantWebhooksRoute,
+  tenantRateLimitsRoute,
+  tenantScheduledRoute,
+  tenantCronJobsRoute,
+  tenantWorkflowsRoute,
+  tenantWorkflowRoute,
+  tenantOverviewRoute,
+  tenantRunsRoute,
+  tenantRunRoute,
+  tenantTaskRunsRoute,
+  tenantWorkersRoute,
+  tenantWorkersAllRoute,
+  tenantWorkerRoute,
+  tenantManagedWorkersRoute,
+  tenantManagedWorkersTemplateRoute,
+  tenantManagedWorkersCreateRoute,
+  tenantManagedWorkerRoute,
+  tenantSettingsIndexRoute,
+  tenantSettingsOverviewRoute,
+  tenantSettingsApiTokensRoute,
+  tenantSettingsGithubRoute,
+  tenantSettingsMembersRoute,
+  tenantSettingsAlertingRoute,
+  tenantSettingsBillingRoute,
+  tenantSettingsIngestorsRoute,
+  tenantWorkflowRunsRedirectRoute,
+  tenantWorkflowRunRedirectRoute,
+  tenantTasksRedirectRoute,
+  tenantTasksWorkflowRedirectRoute,
+  workflowRunRedirectRoute,
+};
 
 const Router: FC = () => {
   return <RouterProvider router={router} />;

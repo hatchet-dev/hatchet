@@ -1,0 +1,53 @@
+import { Tabs, Callout } from "nextra/components";
+
+# Hatchet CLI Setup & Installation
+
+<Callout type="warning">
+  The Hatchet CLI is currently in beta and may have breaking changes in future
+  releases.
+</Callout>
+
+The Hatchet CLI is a command-line tool with utilities for running workers locally, interacting with a running Hatchet deployment, and running a local Hatchet instance for development.
+
+## Features
+
+- **Quickstarts**: the `hatchet quickstart` command sets up a local Hatchet instance with a sample project to help you get started quickly.
+
+- **Local worker reloading**: the [`hatchet worker dev`](/cli/running-workers-locally) command lets you run a worker locally with automatic reloading when code changes are detected.
+
+- **A full built-in TUI**: the [`hatchet tui`](/cli/tui) command lets you interact with your Hatchet deployment through a terminal user interface (TUI) that provides real-time observability into tasks, workflows, workers, and more.
+
+- **Profiles**: the [`hatchet profile`](/cli/profiles) commands allow you to manage multiple Hatchet instances and tenants with named profiles, making it easy to switch between different environments.
+
+## Installation
+
+The recommended way to install the Hatchet CLI is via our install script or Homebrew:
+
+<Tabs items={['Native Install (Recommended)', 'Homebrew']}>
+    <Tabs.Tab value="script" label="Native Install (Recommended)">
+
+    **MacOS, Linux, WSL**
+
+    ```sh
+    curl -fsSL https://install.hatchet.run/install.sh | bash
+    ```
+
+    </Tabs.Tab>
+    <Tabs.Tab value="homebrew" label="Homebrew">
+
+    **MacOS**
+
+    ```sh
+    brew install hatchet-dev/hatchet/hatchet --cask
+    ```
+    </Tabs.Tab>
+
+</Tabs>
+
+## Verifying Installation
+
+After installation, verify that the Hatchet CLI is installed correctly by checking its version:
+
+```sh
+hatchet --version
+```

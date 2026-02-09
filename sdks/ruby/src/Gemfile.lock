@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    hatchet-sdk (0.1.0)
+    hatchet-sdk (0.1.0.pre.alpha)
       faraday (~> 2.0)
       faraday-multipart
       json (~> 2.0)
@@ -88,7 +88,7 @@ GEM
     unicode-display_width (3.1.4)
       unicode-emoji (~> 4.0, >= 4.0.4)
     unicode-emoji (4.0.4)
-    uri (1.0.3)
+    uri (1.1.1)
 
 PLATFORMS
   arm64-darwin-24

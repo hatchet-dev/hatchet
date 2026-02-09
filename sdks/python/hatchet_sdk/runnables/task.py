@@ -1,5 +1,10 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    asynccontextmanager,
+)
 from dataclasses import asdict, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
@@ -9,6 +14,8 @@ from typing import (
     Concatenate,
     Generic,
     ParamSpec,
+    Protocol,
+    TypeGuard,
     TypeVar,
     cast,
     get_args,
@@ -16,7 +23,7 @@ from typing import (
     get_type_hints,
 )
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from hatchet_sdk.conditions import (
     Action,
@@ -40,17 +47,19 @@ from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     R,
     StepType,
+    TaskIOValidator,
     TWorkflowInput,
+    TWorkflowInput_contra,
     is_async_fn,
     is_sync_fn,
+    normalize_validator,
 )
+from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
     JSONSerializableMapping,
-    TaskIOValidator,
-    is_basemodel_subclass,
 )
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
 
@@ -58,19 +67,45 @@ if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
 
 T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
+
+
+def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:
+    """Type guard to check if an object is an async context manager."""
+    return hasattr(obj, "__aenter__") and hasattr(obj, "__aexit__")
+
+
+def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
+    """Type guard to check if an object is a sync context manager."""
+    return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
+
+
+class DependencyFunc(Protocol[T_co, TWorkflowInput_contra]):
+    def __call__(
+        self, input: TWorkflowInput_contra, ctx: Context, *args: Any, **kwargs: Any
+    ) -> (
+        T_co
+        | CoroutineLike[T_co]
+        | AbstractContextManager[T_co]
+        | AbstractAsyncContextManager[T_co]
+    ): ...
+
+    def __name__(self) -> str: ...
 
 
 class Depends(Generic[T, TWorkflowInput]):
     def __init__(
-        self, fn: Callable[[TWorkflowInput, Context], T | CoroutineLike[T]]
+        self,
+        fn: DependencyFunc[T, TWorkflowInput],
     ) -> None:
         sig = signature(fn)
         params = list(sig.parameters.values())
 
-        if len(params) != 2:
+        if len(params) < 2:
             raise InvalidDependencyError(
-                f"Dependency function {fn.__name__} must have exactly two parameters: input and ctx."
+                f"Dependency function {fn.__name__} must have at least two parameters: input and ctx. "
+                f"Additional parameters can be dependencies."
             )
 
         self.fn = fn
@@ -110,7 +145,7 @@ class Task(Generic[TWorkflowInput, R]):
         desired_worker_labels: dict[str, DesiredWorkerLabels] | None,
         backoff_factor: float | None,
         backoff_max_seconds: int | None,
-        concurrency: list[ConcurrencyExpression] | None,
+        concurrency: int | list[ConcurrencyExpression] | None,
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
@@ -142,8 +177,85 @@ class Task(Generic[TWorkflowInput, R]):
 
         self.validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow.config.input_validator,
-            step_output=return_type if is_basemodel_subclass(return_type) else None,
+            step_output=TypeAdapter(normalize_validator(return_type)),
         )
+
+    async def _parse_maybe_cm_param(
+        self,
+        parsed: DependencyToInject,
+        cms_to_exit: (
+            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
+        ),
+    ) -> tuple[
+        Any, AbstractAsyncContextManager[Any] | AbstractContextManager[Any] | None
+    ]:
+        value = parsed.value
+        to_exit: (
+            AbstractAsyncContextManager[Any] | AbstractContextManager[Any] | None
+        ) = None
+
+        if is_async_context_manager(value):
+            entered_value: Any = await value.__aenter__()
+
+            if cms_to_exit is not None:
+                to_exit = value
+
+            return entered_value, to_exit
+
+        if is_sync_context_manager(value):
+            entered_value = await asyncio.to_thread(value.__enter__)
+
+            if cms_to_exit is not None:
+                to_exit = value
+
+            return entered_value, to_exit
+
+        return value, to_exit
+
+    async def _resolve_function_dependencies(
+        self,
+        fn: Callable[..., Any],
+        input: TWorkflowInput,
+        ctx: Context | DurableContext,
+        resolution_stack: set[str] | None = None,  # detect cycles
+        cms_to_exit: (
+            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
+        ) = None,
+    ) -> dict[str, Any]:
+        if resolution_stack is None:
+            resolution_stack = set()
+
+        fn_name = fn.__name__
+        if fn_name in resolution_stack:
+            stack_path = " -> ".join(resolution_stack)
+            raise InvalidDependencyError(
+                f"Circular dependency detected: {fn_name} is already being resolved. "
+                f"Dependency chain: {stack_path} -> {fn_name}"
+            )
+
+        resolution_stack.add(fn_name)
+        try:
+            sig = signature(fn)
+            params = list(sig.parameters.items())
+
+            dependencies: dict[str, Any] = {}
+
+            for name, param in params[2:]:  # first two params are input and ctx
+                parsed = await self._parse_parameter(
+                    name, param, input, ctx, resolution_stack, cms_to_exit
+                )
+                if parsed is not None:
+                    value, to_exit = await self._parse_maybe_cm_param(
+                        parsed, cms_to_exit
+                    )
+
+                    dependencies[parsed.name] = value
+                    if to_exit is not None and cms_to_exit is not None:
+                        cms_to_exit.append(to_exit)
+
+            return dependencies
+        finally:
+            resolution_stack.discard(fn_name)
 
     async def _parse_parameter(
         self,
@@ -151,6 +263,10 @@ class Task(Generic[TWorkflowInput, R]):
         param: Parameter,
         input: TWorkflowInput,
         ctx: Context | DurableContext,
+        resolution_stack: set[str] | None = None,
+        cms_to_exit: (
+            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
+        ) = None,
     ) -> DependencyToInject | None:
         annotation = param.annotation
 
@@ -164,13 +280,18 @@ class Task(Generic[TWorkflowInput, R]):
 
             for item in metadata:
                 if isinstance(item, Depends):
+                    deps = await self._resolve_function_dependencies(
+                        item.fn, input, ctx, resolution_stack, cms_to_exit
+                    )
+
                     if iscoroutinefunction(item.fn):
                         return DependencyToInject(
-                            name=name, value=await item.fn(input, ctx)
+                            name=name, value=await item.fn(input, ctx, **deps)
                         )
 
                     return DependencyToInject(
-                        name=name, value=await asyncio.to_thread(item.fn, input, ctx)
+                        name=name,
+                        value=await asyncio.to_thread(item.fn, input, ctx, **deps),
                     )
 
         return None
@@ -185,6 +306,40 @@ class Task(Generic[TWorkflowInput, R]):
             for n, p in sig.parameters.items()
             if (parsed := await self._parse_parameter(n, p, input, ctx)) is not None
         }
+
+    @asynccontextmanager
+    async def _unpack_dependencies_with_cleanup(
+        self, ctx: Context | DurableContext
+    ) -> AsyncIterator[dict[str, Any]]:
+        sig = signature(self.fn)
+        input = self.workflow._get_workflow_input(ctx)
+
+        dependencies: dict[str, Any] = {}
+        cms_to_exit: list[
+            AbstractAsyncContextManager[Any] | AbstractContextManager[Any]
+        ] = []
+
+        try:
+            for n, p in sig.parameters.items():
+                parsed = await self._parse_parameter(
+                    n, p, input, ctx, None, cms_to_exit
+                )
+                if parsed is not None:
+                    value, to_exit = await self._parse_maybe_cm_param(
+                        parsed, cms_to_exit
+                    )
+
+                    dependencies[parsed.name] = value
+                    if to_exit is not None:
+                        cms_to_exit.append(to_exit)
+
+            yield dependencies
+        finally:
+            for cm in reversed(cms_to_exit):
+                if is_async_context_manager(cm):
+                    await cm.__aexit__(None, None, None)
+                elif is_sync_context_manager(cm):
+                    await asyncio.to_thread(cm.__exit__, None, None, None)
 
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
@@ -217,6 +372,11 @@ class Task(Generic[TWorkflowInput, R]):
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
     def to_proto(self, service_name: str) -> CreateTaskOpts:
+        if isinstance(self.concurrency, int):
+            concurrency = [ConcurrencyExpression.from_int(self.concurrency)]
+        else:
+            concurrency = self.concurrency
+
         return CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
@@ -228,7 +388,7 @@ class Task(Generic[TWorkflowInput, R]):
             worker_labels=self.desired_worker_labels,
             backoff_factor=self.backoff_factor,
             backoff_max_seconds=self.backoff_max_seconds,
-            concurrency=[t.to_proto() for t in self.concurrency],
+            concurrency=[t.to_proto() for t in concurrency],
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
         )
@@ -294,7 +454,7 @@ class Task(Generic[TWorkflowInput, R]):
         if is_dataclass(input):
             serialized_input = asdict(input)
         elif isinstance(input, BaseModel):
-            serialized_input = input.model_dump()
+            serialized_input = input.model_dump(context=HATCHET_PYDANTIC_SENTINEL)
 
         action_payload = ActionPayload(input=serialized_input, parents=parent_outputs)
 
@@ -334,6 +494,9 @@ class Task(Generic[TWorkflowInput, R]):
             runs_client=self.workflow.client._client.runs,
             lifespan_context=lifespan_context,
             log_sender=AsyncLogSender(self.workflow.client._client.event),
+            max_attempts=self.retries + 1,
+            task_name=self.name,
+            workflow_name=self.workflow.name,
         )
 
     def mock_run(

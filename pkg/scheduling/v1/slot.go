@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // slot expiry is 1 second to account for the 1 second replenish rate, plus 500 ms of buffer
@@ -39,7 +39,7 @@ func newSlot(worker *worker, actions []string) *slot {
 	}
 }
 
-func (s *slot) getWorkerId() string {
+func (s *slot) getWorkerId() uuid.UUID {
 	return s.worker.ID
 }
 
@@ -125,13 +125,13 @@ type rankedValidSlots struct {
 	ranksToSlots map[int][]*slot
 
 	// cachedWorkerRanks is a map of worker id to rank.
-	cachedWorkerRanks map[string]int
+	cachedWorkerRanks map[uuid.UUID]int
 }
 
 func newRankedValidSlots() *rankedValidSlots {
 	return &rankedValidSlots{
 		ranksToSlots:      make(map[int][]*slot),
-		cachedWorkerRanks: make(map[string]int),
+		cachedWorkerRanks: make(map[uuid.UUID]int),
 	}
 }
 
@@ -201,9 +201,9 @@ func getRankedSlots(
 		// if this is a HARD sticky strategy, and there's a desired worker id, it can only be assigned to that
 		// worker. if there's no desired worker id, we assign to any worker.
 		if qi.Sticky == sqlcv1.V1StickyStrategyHARD {
-			if qi.DesiredWorkerID.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
+			if qi.DesiredWorkerID != nil && workerId == *qi.DesiredWorkerID {
 				validSlots.addSlot(slot, 0)
-			} else if !qi.DesiredWorkerID.Valid {
+			} else if qi.DesiredWorkerID == nil {
 				validSlots.addSlot(slot, 0)
 			}
 
@@ -213,7 +213,7 @@ func getRankedSlots(
 		// if this is a SOFT sticky strategy, we should prefer the desired worker, but if it is not
 		// available, we can assign to any worker.
 		if qi.Sticky == sqlcv1.V1StickyStrategySOFT {
-			if qi.DesiredWorkerID.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
+			if qi.DesiredWorkerID != nil && workerId == *qi.DesiredWorkerID {
 				validSlots.addSlot(slot, 1)
 			} else {
 				validSlots.addSlot(slot, 0)

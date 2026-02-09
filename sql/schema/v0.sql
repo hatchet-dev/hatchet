@@ -38,7 +38,6 @@ CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY');
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (
-    'WORKFLOW_RUN',
     'TASK_RUN',
     'EVENT',
     'WORKER',
@@ -607,7 +606,7 @@ CREATE TABLE "Tenant" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V0',
+    "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V1',
     "uiVersion" "TenantMajorUIVersion" NOT NULL DEFAULT 'V0',
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
@@ -1081,6 +1080,7 @@ CREATE TABLE
         "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
+        "inputJsonSchema" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

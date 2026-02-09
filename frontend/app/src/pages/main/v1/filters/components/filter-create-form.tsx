@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { createFilterSchema, CreateFilterFormData } from '../schemas';
+import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,10 +8,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { Textarea } from '@/components/v1/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -17,12 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { Filter } from 'lucide-react';
-import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { createFilterSchema, CreateFilterFormData } from '../schemas';
+import { Textarea } from '@/components/v1/ui/textarea';
 import { V1CreateFilterRequest } from '@/lib/api';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Filter } from 'lucide-react';
+import { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 
 interface FilterCreateFormProps {
   isOpen: boolean;
@@ -32,7 +32,7 @@ interface FilterCreateFormProps {
   isCreating: boolean;
 }
 
-export function FilterCreateForm({
+function FilterCreateForm({
   isOpen,
   onClose,
   workflowNameFilters,
@@ -191,7 +191,7 @@ export function FilterCreateButton({
 
   return (
     <>
-      <Button onClick={() => setIsOpen(true)} className="h-8 border px-3">
+      <Button onClick={() => setIsOpen(true)} variant="cta">
         Create Filter
       </Button>
       <FilterCreateForm

@@ -14,9 +14,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
@@ -68,7 +67,7 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	}, nil
 }
 
-func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *server.ServerConfig, tok *oauth2.Token) (*dbsqlc.User, error) {
+func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *server.ServerConfig, tok *oauth2.Token) (*sqlcv1.User, error) {
 	gInfo, err := u.getGithubEmailFromToken(tok)
 
 	if err != nil {
@@ -94,7 +93,7 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 		return nil, fmt.Errorf("failed to encrypt refresh token: %s", err.Error())
 	}
 
-	oauthOpts := &repository.OAuthOpts{
+	oauthOpts := &v1.OAuthOpts{
 		Provider:       "github",
 		ProviderUserId: gInfo.ID,
 		AccessToken:    accessTokenEncrypted,
@@ -102,13 +101,13 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 		ExpiresAt:      &expiresAt,
 	}
 
-	user, err := u.config.APIRepository.User().GetUserByEmail(ctx, gInfo.Email)
+	user, err := u.config.V1.User().GetUserByEmail(ctx, gInfo.Email)
 
 	switch err {
 	case nil:
-		user, err = u.config.APIRepository.User().UpdateUser(ctx, sqlchelpers.UUIDToStr(user.ID), &repository.UpdateUserOpts{
-			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
-			Name:          repository.StringPtr(gInfo.Name),
+		user, err = u.config.V1.User().UpdateUser(ctx, user.ID, &v1.UpdateUserOpts{
+			EmailVerified: v1.BoolPtr(gInfo.EmailVerified),
+			Name:          v1.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
 
@@ -116,10 +115,10 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 			return nil, fmt.Errorf("failed to update user: %s", err.Error())
 		}
 	case pgx.ErrNoRows:
-		user, err = u.config.APIRepository.User().CreateUser(ctx, &repository.CreateUserOpts{
+		user, err = u.config.V1.User().CreateUser(ctx, &v1.CreateUserOpts{
 			Email:         gInfo.Email,
-			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
-			Name:          repository.StringPtr(gInfo.Name),
+			EmailVerified: v1.BoolPtr(gInfo.EmailVerified),
+			Name:          v1.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
 

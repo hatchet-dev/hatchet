@@ -1,6 +1,6 @@
+import { useSearchParams } from '@/lib/router-helpers';
 import { PaginationState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
 
 type PaginationQueryShape = {
   i: number; // index
@@ -79,10 +79,10 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
       return {
         ...Object.fromEntries(prev.entries()),
-        [paramKey]: JSON.stringify({
+        [paramKey]: {
           i: nextPagination.pageIndex,
           s: nextPagination.pageSize,
-        }),
+        },
       };
     });
   }, [setSearchParams, paramKey]);
@@ -98,10 +98,10 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
       return {
         ...Object.fromEntries(prev.entries()),
-        [paramKey]: JSON.stringify({
+        [paramKey]: {
           i: prevPagination.pageIndex,
           s: prevPagination.pageSize,
-        }),
+        },
       };
     });
   }, [setSearchParams, paramKey]);
@@ -118,10 +118,10 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
         return {
           ...Object.fromEntries(prev.entries()),
-          [paramKey]: JSON.stringify({
+          [paramKey]: {
             i: nextPagination.pageIndex,
             s: nextPagination.pageSize,
-          }),
+          },
         };
       });
     },
@@ -138,10 +138,10 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
         return {
           ...Object.fromEntries(prev.entries()),
-          [paramKey]: JSON.stringify({
+          [paramKey]: {
             i: newPagination.pageIndex,
             s: newPagination.pageSize,
-          }),
+          },
         };
       });
     },

@@ -1,6 +1,6 @@
-import React from 'react';
-import { Tabs } from 'nextra/components';
-import { useLanguage } from '../context/LanguageContext';
+import React from "react";
+import { Tabs } from "nextra/components";
+import { useLanguage } from "../context/LanguageContext";
 
 interface UniversalTabsProps {
   items: string[];
@@ -11,18 +11,17 @@ interface UniversalTabsProps {
 export const UniversalTabs: React.FC<UniversalTabsProps> = ({
   items,
   children,
-  optionKey = "language"
+  optionKey = "language",
 }) => {
   const {
     selectedLanguage,
     setSelectedLanguage,
     getSelectedOption,
-    setSelectedOption
+    setSelectedOption,
   } = useLanguage();
 
-  const selectedValue = optionKey === "language"
-    ? selectedLanguage
-    : getSelectedOption(optionKey);
+  const selectedValue =
+    optionKey === "language" ? selectedLanguage : getSelectedOption(optionKey);
 
   const handleChange = (index: number) => {
     if (optionKey === "language") {
@@ -35,7 +34,9 @@ export const UniversalTabs: React.FC<UniversalTabsProps> = ({
   return (
     <Tabs
       items={items}
-      selectedIndex={items.includes(selectedValue) ? items.indexOf(selectedValue) : 0}
+      selectedIndex={
+        items.includes(selectedValue) ? items.indexOf(selectedValue) : 0
+      }
       onChange={handleChange}
     >
       {children}

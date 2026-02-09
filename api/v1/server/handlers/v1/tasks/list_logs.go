@@ -6,18 +6,16 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
 func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineListRequestObject) (gen.V1LogLineListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
 	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/stable/tasks/{task}/logs")
@@ -29,9 +27,13 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	)
 
 	var (
-		limit = int64(50)
-		since *time.Time
-		until *time.Time
+		limit            = int64(50)
+		since            *time.Time
+		until            *time.Time
+		levels           []string
+		search           *string
+		orderByDirection *string
+		attempt          *int32
 	)
 
 	if request.Params.Limit != nil {
@@ -46,15 +48,39 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		until = request.Params.Until
 	}
 
+	if request.Params.Levels != nil {
+		for _, level := range *request.Params.Levels {
+			levels = append(levels, string(level))
+		}
+	}
+
+	if request.Params.Search != nil {
+		search = request.Params.Search
+	}
+
+	if request.Params.OrderByDirection != nil {
+		orderByDirectionStr := string(*request.Params.OrderByDirection)
+		orderByDirection = &orderByDirectionStr
+	}
+
+	if request.Params.Attempt != nil {
+		attemptInt32 := int32(*request.Params.Attempt) // nolint: gosec
+		attempt = &attemptInt32
+	}
+
 	limitInt := int(limit)
 
 	opts := &v1.ListLogsOpts{
-		Limit: &limitInt,
-		Since: since,
-		Until: until,
+		Limit:            &limitInt,
+		Since:            since,
+		Until:            until,
+		Search:           search,
+		Levels:           levels,
+		OrderByDirection: orderByDirection,
+		Attempt:          attempt,
 	}
 
-	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ID, task.InsertedAt, opts)
+	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ExternalID, opts)
 
 	if err != nil {
 		span.RecordError(err)

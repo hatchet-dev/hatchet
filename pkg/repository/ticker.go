@@ -4,11 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CreateTickerOpts struct {
-	ID string `validate:"required,uuid"`
+	ID uuid.UUID `validate:"required"`
 }
 
 type UpdateTickerOpts struct {
@@ -22,55 +24,124 @@ type ListTickerOpts struct {
 	Active *bool
 }
 
-type TickerEngineRepository interface {
+type TickerRepository interface {
+	IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error)
+
 	// CreateNewTicker creates a new ticker.
-	CreateNewTicker(ctx context.Context, opts *CreateTickerOpts) (*dbsqlc.Ticker, error)
+	CreateNewTicker(ctx context.Context, opts *CreateTickerOpts) (*sqlcv1.Ticker, error)
 
 	// UpdateTicker updates a ticker.
-	UpdateTicker(ctx context.Context, tickerId string, opts *UpdateTickerOpts) (*dbsqlc.Ticker, error)
+	UpdateTicker(ctx context.Context, tickerId uuid.UUID, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error)
 
 	// ListTickers lists tickers.
-	ListTickers(ctx context.Context, opts *ListTickerOpts) ([]*dbsqlc.Ticker, error)
+	ListTickers(ctx context.Context, opts *ListTickerOpts) ([]*sqlcv1.Ticker, error)
 
 	// DeactivateTicker deletes a ticker.
-	DeactivateTicker(ctx context.Context, tickerId string) error
-
-	// PollJobRuns looks for get group key runs who are close to past their timeoutAt value and are in a running state
-	PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error)
+	DeactivateTicker(ctx context.Context, tickerId uuid.UUID) error
 
 	// PollCronSchedules returns all cron schedules which should be managed by the ticker
-	PollCronSchedules(ctx context.Context, tickerId string) ([]*dbsqlc.PollCronSchedulesRow, error)
+	PollCronSchedules(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollCronSchedulesRow, error)
 
-	PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*dbsqlc.PollScheduledWorkflowsRow, error)
+	PollScheduledWorkflows(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollScheduledWorkflowsRow, error)
 
-	PollTenantAlerts(ctx context.Context, tickerId string) ([]*dbsqlc.PollTenantAlertsRow, error)
+	PollTenantAlerts(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollTenantAlertsRow, error)
 
-	PollExpiringTokens(ctx context.Context) ([]*dbsqlc.PollExpiringTokensRow, error)
+	PollExpiringTokens(ctx context.Context) ([]*sqlcv1.PollExpiringTokensRow, error)
 
-	PollTenantResourceLimitAlerts(ctx context.Context) ([]*dbsqlc.TenantResourceLimitAlert, error)
+	PollTenantResourceLimitAlerts(ctx context.Context) ([]*sqlcv1.TenantResourceLimitAlert, error)
+}
 
-	PollUnresolvedFailedStepRuns(ctx context.Context) ([]*dbsqlc.PollUnresolvedFailedStepRunsRow, error)
+type tickerRepository struct {
+	*sharedRepository
+}
 
-	// // AddJobRun assigns a job run to a ticker.
-	// AddJobRun(tickerId string, jobRun *db.JobRunModel) (*db.TickerModel, error)
+func newTickerRepository(shared *sharedRepository) TickerRepository {
+	return &tickerRepository{
+		sharedRepository: shared,
+	}
+}
 
-	// // AddStepRun assigns a step run to a ticker.
-	// AddStepRun(tickerId, stepRunId string) (*db.TickerModel, error)
+func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error) {
+	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, tenantId)
 
-	// // AddGetGroupKeyRun assigns a get group key run to a ticker.
-	// AddGetGroupKeyRun(tickerId, getGroupKeyRunId string) (*db.TickerModel, error)
+	if err != nil {
+		return false, time.Now(), err
+	}
 
-	// // AddCron assigns a cron to a ticker.
-	// AddCron(tickerId string, cron *db.WorkflowTriggerCronRefModel) (*db.TickerModel, error)
+	return res.IsActive, res.LastAlertedAt.Time, nil
+}
 
-	// // RemoveCron removes a cron from a ticker.
-	// RemoveCron(tickerId string, cron *db.WorkflowTriggerCronRefModel) (*db.TickerModel, error)
+func (t *tickerRepository) CreateNewTicker(ctx context.Context, opts *CreateTickerOpts) (*sqlcv1.Ticker, error) {
+	if err := t.v.Validate(opts); err != nil {
+		return nil, err
+	}
 
-	// // AddScheduledWorkflow assigns a scheduled workflow to a ticker.
-	// AddScheduledWorkflow(tickerId string, schedule *db.WorkflowTriggerScheduledRefModel) (*db.TickerModel, error)
+	return t.queries.CreateTicker(ctx, t.pool, opts.ID)
+}
 
-	// // RemoveScheduledWorkflow removes a scheduled workflow from a ticker.
-	// RemoveScheduledWorkflow(tickerId string, schedule *db.WorkflowTriggerScheduledRefModel) (*db.TickerModel, error)
+func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId uuid.UUID, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error) {
+	if err := t.v.Validate(opts); err != nil {
+		return nil, err
+	}
 
-	// UpdateStaleTickers(onStale func(tickerId string, getValidTickerId func() string) error) error
+	return t.queries.UpdateTicker(
+		ctx,
+		t.pool,
+		sqlcv1.UpdateTickerParams{
+			ID:              tickerId,
+			LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
+		},
+	)
+}
+
+func (t *tickerRepository) ListTickers(ctx context.Context, opts *ListTickerOpts) ([]*sqlcv1.Ticker, error) {
+	if err := t.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	params := sqlcv1.ListTickersParams{}
+
+	if opts.LatestHeartbeatAfter != nil {
+		params.LastHeartbeatAfter = sqlchelpers.TimestampFromTime(opts.LatestHeartbeatAfter.UTC())
+	}
+
+	if opts.Active != nil {
+		params.IsActive = *opts.Active
+	}
+
+	return t.queries.ListTickers(
+		ctx,
+		t.pool,
+		params,
+	)
+}
+
+func (t *tickerRepository) DeactivateTicker(ctx context.Context, tickerId uuid.UUID) error {
+	_, err := t.queries.DeactivateTicker(
+		ctx,
+		t.pool,
+		tickerId,
+	)
+
+	return err
+}
+
+func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollCronSchedulesRow, error) {
+	return t.queries.PollCronSchedules(ctx, t.pool, tickerId)
+}
+
+func (t *tickerRepository) PollScheduledWorkflows(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollScheduledWorkflowsRow, error) {
+	return t.queries.PollScheduledWorkflows(ctx, t.pool, tickerId)
+}
+
+func (t *tickerRepository) PollTenantAlerts(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollTenantAlertsRow, error) {
+	return t.queries.PollTenantAlerts(ctx, t.pool, tickerId)
+}
+
+func (t *tickerRepository) PollExpiringTokens(ctx context.Context) ([]*sqlcv1.PollExpiringTokensRow, error) {
+	return t.queries.PollExpiringTokens(ctx, t.pool)
+}
+
+func (t *tickerRepository) PollTenantResourceLimitAlerts(ctx context.Context) ([]*sqlcv1.TenantResourceLimitAlert, error) {
+	return t.queries.PollTenantResourceLimitAlerts(ctx, t.pool)
 }

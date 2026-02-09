@@ -1,7 +1,7 @@
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export const useMetrics = ({
   workflow,

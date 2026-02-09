@@ -1,10 +1,10 @@
 import { Button } from '@/components/v1/ui/button';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { TenantInvite } from '@/lib/api';
 
 interface DeleteInviteFormProps {
@@ -20,12 +20,12 @@ export function DeleteInviteForm({
   ...props
 }: DeleteInviteFormProps) {
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Delete invite</DialogTitle>
       </DialogHeader>
       <div>
-        <div className="text-sm text-foreground mb-4">
+        <div className="mb-4 text-sm text-foreground">
           Are you sure you want to delete this invite?
         </div>
         <div className="flex flex-row gap-4">

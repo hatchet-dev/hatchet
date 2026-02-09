@@ -10,8 +10,8 @@
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
-    "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
-    "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write",
+    "prettier:check": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --list-different",
+    "prettier:fix": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --write",
     "generate-examples": "cd ../snippets/ && python3 generate.py"
   },
   "repository": {
@@ -33,10 +33,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "estree-util-value-to-estree": "^3.4.0",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "loops": "^5.0.1",
     "lucide-react": "^0.459.0",
-    "next": "^14.2.33",
+    "next": "^14.2.35",
     "nextra": "^3.3.1",
     "nextra-theme-docs": "^3.3.1",
     "postcss": "^8.5.6",
@@ -67,7 +67,12 @@
   "type": "module",
   "pnpm": {
     "overrides": {
-      "prismjs": "^1.30.0"
+      "preact": "10.28.2",
+      "prismjs": "^1.30.0",
+      "mdast-util-to-hast": ">=13.2.1",
+      "tar": "^7.5.7",
+      "lodash": "^4.17.23",
+      "lodash-es": "^4.17.23"
     }
   }
 }

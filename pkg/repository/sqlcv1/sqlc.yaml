@@ -1,0 +1,70 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    # database:
+    #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
+    queries:
+      - api_token.sql
+      - concurrency.sql
+      - dags.sql
+      - dispatcher.sql
+      - health.sql
+      - tasks.sql
+      - queue.sql
+      - triggers.sql
+      - workflows.sql
+      - lease.sql
+      - workers.sql
+      - matches.sql
+      - mq.sql
+      - olap.sql
+      - rate_limits.sql
+      - log_line.sql
+      - security_check.sql
+      - slack.sql
+      - sleep.sql
+      - sns.sql
+      - tenants.sql
+      - tenant_invites.sql
+      - tenant_limits.sql
+      - ticker.sql
+      - filters.sql
+      - payload-store.sql
+      - webhooks.sql
+      - idempotency-keys.sql
+      - interval_settings.sql
+      - pg_health.sql
+      - users.sql
+      - workflow_schedules.sql
+    schema:
+      - ../../../sql/schema/v0.sql
+      - ../../../sql/schema/v1-core.sql
+      - ../../../sql/schema/v1-olap.sql
+      - ../../../sql/schema/pg-stubs.sql
+      - ./concurrency-additional-tables.sql
+    strict_order_by: false
+    gen:
+      go:
+        package: "sqlcv1"
+        sql_package: "pgx/v5"
+        out: "."
+        emit_exact_table_names: true
+        emit_methods_with_db_argument: true
+        emit_result_struct_pointers: true
+        emit_json_tags: true
+        overrides:
+          - column: "v1_task.concurrency_parent_strategy_ids"
+            go_type:
+              import: "github.com/jackc/pgx/v5/pgtype"
+              type: "Int8"
+              slice: true
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true

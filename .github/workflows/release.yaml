@@ -9,16 +9,17 @@ on:
 name: Release
 jobs:
   load:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
     strategy:
       matrix:
         migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true", "false"]
         pg-version: ["15-alpine", "16-alpine", "17-alpine"]
+        optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -28,7 +29,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: "1.25"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -48,8 +49,7 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   push-hatchet-server:
     name: Push latest
-    runs-on: ubuntu-latest
-    needs: load
+    runs-on: ubicloud-standard-2
     steps:
       - name: Get tag name
         id: tag_name

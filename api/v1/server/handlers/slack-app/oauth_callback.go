@@ -9,7 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
@@ -22,7 +22,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	sh := authn.NewSessionHelpers(g.config)
 
-	tenantId, err := sh.GetKey(ctx, "tenant")
+	tenantId, err := sh.GetKeyUuid(ctx, "tenant")
 
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
@@ -61,10 +61,10 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. An internal error occurred.")
 	}
 
-	_, err = g.config.APIRepository.Slack().UpsertSlackWebhook(
+	_, err = g.config.V1.Slack().UpsertSlackWebhook(
 		ctx.Request().Context(),
-		tenantId,
-		&repository.UpsertSlackWebhookOpts{
+		*tenantId,
+		&v1.UpsertSlackWebhookOpts{
 			TeamId:      resp.Team.ID,
 			TeamName:    resp.Team.Name,
 			ChannelId:   resp.IncomingWebhook.ChannelID,

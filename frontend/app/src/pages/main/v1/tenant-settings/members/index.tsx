@@ -1,9 +1,18 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useState, useEffect, useMemo } from 'react';
+import { ChangePasswordDialog } from './components/change-password-dialog';
 import { CreateInviteForm } from './components/create-invite-form';
-import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { DeleteInviteForm } from './components/delete-invite-form';
+import { InviteActions } from './components/invites-columns';
+import { MemberActions } from './components/members-columns';
+import { UpdateInviteForm } from './components/update-invite-form';
+import { UpdateMemberForm } from './components/update-member-form';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Button } from '@/components/v1/ui/button';
+import { Dialog } from '@/components/v1/ui/dialog';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CreateTenantInviteRequest,
   TenantInvite,
@@ -13,63 +22,27 @@ import api, {
   UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
-import { Dialog } from '@/components/v1/ui/dialog';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { columns } from './components/invites-columns';
-import { columns as membersColumns } from './components/members-columns';
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { UpdateInviteForm } from './components/update-invite-form';
-import { UpdateMemberForm } from './components/update-member-form';
-import { DeleteInviteForm } from './components/delete-invite-form';
-import { ChangePasswordDialog } from './components/change-password-dialog';
-import { AxiosError } from 'axios';
+import { useApiError } from '@/lib/hooks';
+import { capitalize } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useOrganizations } from '@/hooks/use-organizations';
-
-// Simplified columns for owners (no role column, no actions)
-const ownersColumns: ColumnDef<TenantMember>[] = [
-  {
-    accessorKey: 'name',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
-    ),
-    cell: ({ row }) => <div>{row.original.user.name}</div>,
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'email',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Email" />
-    ),
-    cell: ({ row }) => <div>{row.original.user.email}</div>,
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'joined',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Joined" />
-    ),
-    cell: ({ row }) => <RelativeDate date={row.original.metadata.createdAt} />,
-  },
-];
+import { appRoutes } from '@/router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
+import { useState, useEffect, useMemo } from 'react';
 
 export default function Members() {
-  const meta = useApiMeta();
+  const { meta } = useApiMeta();
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
           Members and Invites
         </h2>
         <Separator className="my-4" />
         <MembersList />
-        {meta.data?.allowInvites && (
+        {meta?.allowInvites && (
           <>
             <Separator className="my-4" />
             <InvitesList />
@@ -93,17 +66,15 @@ function MembersList() {
 
   const organizationId = getOrganizationIdForTenant(tenantId);
 
-  // Get current user query
-  const currentUserQuery = useQuery({
-    ...queries.user.current,
-  });
+  // Get current user
+  const { currentUser } = useCurrentUser();
 
   // Check if current user is admin
   const currentUserMember = useMemo(() => {
     return listMembersQuery.data?.rows?.find(
-      (member) => member.user.email === currentUserQuery.data?.email,
+      (member) => member.user.email === currentUser?.email,
     );
-  }, [listMembersQuery.data?.rows, currentUserQuery.data?.email]);
+  }, [listMembersQuery.data?.rows, currentUser?.email]);
 
   const isCurrentUserOwner = currentUserMember?.role === 'OWNER';
 
@@ -131,31 +102,92 @@ function MembersList() {
     );
   }, [listMembersQuery.data?.rows, isCloudEnabled]);
 
+  const ownersColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Name',
+        cellRenderer: (member: TenantMember) => <div>{member.user.name}</div>,
+      },
+      {
+        columnLabel: 'Email',
+        cellRenderer: (member: TenantMember) => <div>{member.user.email}</div>,
+      },
+      {
+        columnLabel: 'Joined',
+        cellRenderer: (member: TenantMember) => (
+          <RelativeDate date={member.metadata.createdAt} />
+        ),
+      },
+    ],
+    [],
+  );
+
+  const membersColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Name',
+        cellRenderer: (member: TenantMember) => <div>{member.user.name}</div>,
+      },
+      {
+        columnLabel: 'Email',
+        cellRenderer: (member: TenantMember) => <div>{member.user.email}</div>,
+      },
+      {
+        columnLabel: 'Role',
+        cellRenderer: (member: TenantMember) => (
+          <div className="font-medium">{capitalize(member.role)}</div>
+        ),
+      },
+      {
+        columnLabel: 'Joined',
+        cellRenderer: (member: TenantMember) => (
+          <RelativeDate date={member.metadata.createdAt} />
+        ),
+      },
+      {
+        columnLabel: 'Actions',
+        cellRenderer: (member: TenantMember) => (
+          <MemberActions
+            member={member}
+            onChangePasswordClick={() => {
+              setShowChangePasswordDialog(true);
+            }}
+            onEditRoleClick={(member) => {
+              setMemberToEdit(member);
+            }}
+          />
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <div>
       {/* Owners Section - Only show in cloud mode */}
       {isCloudEnabled && (
         <>
-          <div className="flex flex-row justify-between items-center">
+          <div className="flex flex-row items-center justify-between">
             <h3 className="text-xl font-semibold leading-tight text-foreground">
               Owners
             </h3>
             {organizationId && isCurrentUserOwner && (
               <a
                 href={`/organizations/${organizationId}`}
-                className="text-primary hover:underline text-sm"
+                className="text-sm text-primary hover:underline"
               >
                 Manage in Organization →
               </a>
             )}
           </div>
           <Separator className="my-4" />
-          <DataTable
-            columns={ownersColumns}
-            data={owners}
-            getRowId={(row) => row.metadata.id}
-            isLoading={listMembersQuery.isLoading}
-          />
+          {owners.length > 0 ? (
+            <SimpleTable columns={ownersColumns} data={owners} />
+          ) : (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No owners found.
+            </div>
+          )}
           <Separator className="my-8" />
         </>
       )}
@@ -165,19 +197,13 @@ function MembersList() {
         Members
       </h3>
       <Separator className="my-4" />
-      <DataTable
-        columns={membersColumns({
-          onChangePasswordClick: () => {
-            setShowChangePasswordDialog(true);
-          },
-          onEditRoleClick: (member) => {
-            setMemberToEdit(member);
-          },
-        })}
-        data={nonOwners}
-        getRowId={(row) => row.metadata.id}
-        isLoading={listMembersQuery.isLoading}
-      />
+      {nonOwners.length > 0 ? (
+        <SimpleTable columns={membersColumns} data={nonOwners} />
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No members found.
+        </div>
+      )}
       {showChangePasswordDialog && (
         <ChangePassword
           showChangePasswordDialog={showChangePasswordDialog}
@@ -214,7 +240,7 @@ function UpdateMember({
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
-
+  const navigate = useNavigate();
   // Check if this is a cloud tenant and if we're trying to modify an OWNER
   const isOwnerRole = member.role === 'OWNER';
 
@@ -223,10 +249,13 @@ function UpdateMember({
   // If it's cloud-enabled and the member is an OWNER, redirect to org settings
   useEffect(() => {
     if (isCloudEnabled && isOwnerRole && organizationId) {
-      window.location.href = `/organizations/${organizationId}`;
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: organizationId },
+      });
       onClose();
     }
-  }, [isCloudEnabled, isOwnerRole, organizationId, onClose]);
+  }, [isCloudEnabled, isOwnerRole, organizationId, onClose, navigate]);
 
   const updateMutation = useMutation({
     mutationKey: ['tenant-member:update', tenantId, member.metadata.id],
@@ -277,18 +306,51 @@ function InvitesList() {
     ...queries.invites.list(tenantId),
   });
 
-  const cols = columns({
-    onEditClick: (row) => {
-      setUpdateInvite(row);
-    },
-    onDeleteClick: (row) => {
-      setDeleteInvite(row);
-    },
-  });
+  const invitesColumns = useMemo(
+    () => [
+      {
+        columnLabel: 'Email',
+        cellRenderer: (invite: TenantInvite) => <div>{invite.email}</div>,
+      },
+      {
+        columnLabel: 'Role',
+        cellRenderer: (invite: TenantInvite) => (
+          <div>{capitalize(invite.role)}</div>
+        ),
+      },
+      {
+        columnLabel: 'Created',
+        cellRenderer: (invite: TenantInvite) => (
+          <RelativeDate date={invite.metadata.createdAt} />
+        ),
+      },
+      {
+        columnLabel: 'Expires',
+        cellRenderer: (invite: TenantInvite) => (
+          <RelativeDate date={invite.expires} />
+        ),
+      },
+      {
+        columnLabel: 'Actions',
+        cellRenderer: (invite: TenantInvite) => (
+          <InviteActions
+            invite={invite}
+            onEditClick={(invite) => {
+              setUpdateInvite(invite);
+            }}
+            onDeleteClick={(invite) => {
+              setDeleteInvite(invite);
+            }}
+          />
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <div>
-      <div className="flex flex-row justify-between items-center">
+      <div className="flex flex-row items-center justify-between">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Invites
         </h3>
@@ -300,12 +362,16 @@ function InvitesList() {
         </Button>
       </div>
       <Separator className="my-4" />
-      <DataTable
-        isLoading={listInvitesQuery.isLoading}
-        columns={cols}
-        data={listInvitesQuery.data?.rows || []}
-        getRowId={(row) => row.metadata.id}
-      />
+      {(listInvitesQuery.data?.rows || []).length > 0 ? (
+        <SimpleTable
+          columns={invitesColumns}
+          data={listInvitesQuery.data?.rows || []}
+        />
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No invites found. Create an invite to add new members to your tenant.
+        </div>
+      )}
       {showCreateInviteModal && (
         <CreateInvite
           showCreateInviteModal={showCreateInviteModal}

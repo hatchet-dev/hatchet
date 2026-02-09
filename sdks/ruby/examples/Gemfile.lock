@@ -1,7 +1,7 @@
 PATH
   remote: ../src
   specs:
-    hatchet-sdk (0.1.0)
+    hatchet-sdk (0.1.0.pre.alpha)
       faraday (~> 2.0)
       faraday-multipart
       json (~> 2.0)
@@ -24,7 +24,7 @@ GEM
     multipart-post (2.4.1)
     net-http (0.6.0)
       uri
-    uri (1.0.3)
+    uri (1.1.1)
 
 PLATFORMS
   arm64-darwin-24

@@ -3,49 +3,64 @@ package v1
 import (
 	"fmt"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
+	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	"github.com/rs/zerolog"
 )
 
 type AdminService interface {
 	contracts.AdminServiceServer
+	Cleanup() error
 }
 
 type AdminServiceImpl struct {
 	contracts.UnimplementedAdminServiceServer
 
-	entitlements repository.EntitlementsRepository
-	repo         v1.Repository
-	mq           msgqueue.MessageQueue
-	v            validator.Validator
-	analytics    analytics.Analytics
+	repo      v1.Repository
+	mq        msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
+
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
+	l               *zerolog.Logger
+
+	tw        *trigger.TriggerWriter
+	pubBuffer *msgqueue.MQPubBuffer
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	entitlements repository.EntitlementsRepository
-	repo         v1.Repository
-	mq           msgqueue.MessageQueue
-	v            validator.Validator
-	analytics    analytics.Analytics
+	repo      v1.Repository
+	mq        msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
+
+	localScheduler              *scheduler.Scheduler
+	localDispatcher             *dispatcher.DispatcherImpl
+	l                           *zerolog.Logger
+	optimisticSchedulingEnabled bool
+
+	grpcTriggersEnabled bool
+	grpcTriggerSlots    int
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
 	v := validator.NewDefaultValidator()
+	logger := logger.NewDefaultLogger("v1_admin_service")
 
 	return &AdminServiceOpts{
 		v: v,
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
-		opts.entitlements = r
+		l: &logger,
 	}
 }
 
@@ -73,6 +88,42 @@ func WithAnalytics(a analytics.Analytics) AdminServiceOpt {
 	}
 }
 
+func WithLocalScheduler(s *scheduler.Scheduler) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.localScheduler = s
+	}
+}
+
+func WithLocalDispatcher(d *dispatcher.DispatcherImpl) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.localDispatcher = d
+	}
+}
+
+func WithOptimisticSchedulingEnabled(enabled bool) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.optimisticSchedulingEnabled = enabled
+	}
+}
+
+func WithLogger(l *zerolog.Logger) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.l = l
+	}
+}
+
+func WithGrpcTriggersEnabled(enabled bool) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.grpcTriggersEnabled = enabled
+	}
+}
+
+func WithGrpcTriggerSlots(slots int) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.grpcTriggerSlots = slots
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -88,15 +139,38 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
+	var tw *trigger.TriggerWriter
+	var pubBuffer *msgqueue.MQPubBuffer
+
+	if opts.grpcTriggersEnabled {
+		pubBuffer = msgqueue.NewMQPubBuffer(opts.mq)
+
+		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots)
+	}
+
+	var localScheduler *scheduler.Scheduler
+
+	if opts.optimisticSchedulingEnabled && opts.localScheduler != nil {
+		localScheduler = opts.localScheduler
 	}
 
 	return &AdminServiceImpl{
-		entitlements: opts.entitlements,
-		repo:         opts.repo,
-		mq:           opts.mq,
-		v:            opts.v,
-		analytics:    opts.analytics,
+		repo:            opts.repo,
+		mq:              opts.mq,
+		v:               opts.v,
+		analytics:       opts.analytics,
+		localScheduler:  localScheduler,
+		localDispatcher: opts.localDispatcher,
+		l:               opts.l,
+		tw:              tw,
+		pubBuffer:       pubBuffer,
 	}, nil
+}
+
+// Cleanup stops the pubBuffer goroutines if they exist
+func (a *AdminServiceImpl) Cleanup() error {
+	if a.pubBuffer != nil {
+		a.pubBuffer.Stop()
+	}
+	return nil
 }

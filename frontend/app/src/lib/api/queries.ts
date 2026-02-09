@@ -1,9 +1,8 @@
-import { createQueryKeyStore } from '@lukemorales/query-key-factory';
-
-import api, { cloudApi } from './api';
-import invariant from 'tiny-invariant';
 import { WebhookWorkerCreateRequest } from '.';
+import api, { cloudApi } from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
+import { createQueryKeyStore } from '@lukemorales/query-key-factory';
+import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
@@ -11,7 +10,7 @@ type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
-export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
+type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 type WorkflowRunEventsMetrics = Parameters<
   typeof cloudApi.workflowRunEventsGetMetrics
@@ -32,6 +31,12 @@ export const queries = createQueryKeyStore({
     billing: (tenant: string) => ({
       queryKey: ['billing-state:get', tenant],
       queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+    }),
+
+    paymentMethods: (tenant: string) => ({
+      queryKey: ['payment-methods:get', tenant],
+      queryFn: async () =>
+        (await cloudApi.tenantPaymentMethodsGet(tenant)).data,
     }),
 
     getComputeCost: (tenant: string) => ({
