@@ -2234,5 +2234,6 @@ func (r *sharedRepository) NewTriggerOpt(
 
 	return &WorkflowNameTriggerOpts{
 		TriggerTaskData: t,
+		ExternalId:      uuid.New(),
 	}, nil
 }

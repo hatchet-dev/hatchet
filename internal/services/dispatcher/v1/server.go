@@ -490,12 +490,8 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			return status.Errorf(codes.Internal, "failed to spawn child: %v", err)
 		}
 
-		triggeredRunExternalId = &spawnedChild.ChildExternalId
 
-		if err != nil {
-			d.l.Error().Err(err).Msg("failed to spawn child workflow")
-			return status.Errorf(codes.Internal, "failed to spawn child workflow: %v", err)
-		}
+		triggeredRunExternalId = &spawnedChild.ChildExternalId
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED
 	default:
@@ -504,6 +500,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 	externalId := uuid.New()
+	
 	_, err = d.repo.DurableEvents().CreateEventLogEntries(ctx, []v1.CreateEventLogEntryOpts{{
 		TenantId:               invocation.tenantId,
 		ExternalId:             externalId,
