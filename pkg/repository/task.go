@@ -272,6 +272,8 @@ type TaskRepository interface {
 
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error)
+
+	FilterValidTasksByExternalIds(ctx context.Context, externalIds []uuid.UUID) (map[int64]struct{}, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -4176,4 +4178,19 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		ReadableIdToDetails: taskRunDetails,
 		AdditionalMetadata:  additionalMeta,
 	}, nil
+}
+
+func (r *TaskRepositoryImpl) FilterValidTasksByExternalIds(ctx context.Context, externalIds []uuid.UUID) (map[int64]struct{}, error) {
+	res := make(map[int64]struct{})
+
+	taskIds, err := r.queries.FilterValidTasksByExternalIds(ctx, r.pool, externalIds)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, taskId := range taskIds {
+		res[taskId] = struct{}{}
+	}
+
+	return res, nil
 }

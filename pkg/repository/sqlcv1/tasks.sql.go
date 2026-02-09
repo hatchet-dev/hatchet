@@ -550,6 +550,37 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
+const filterValidTasksByExternalIds = `-- name: FilterValidTasksByExternalIds :many
+SELECT
+    t.id
+FROM
+    v1_task t
+JOIN v1_lookup_table lt ON lt.task_id = t.id AND lt.inserted_at = t.inserted_at
+JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
+WHERE
+    lt.external_id = ANY($1::uuid[])
+`
+
+func (q *Queries) FilterValidTasksByExternalIds(ctx context.Context, db DBTX, externalids []uuid.UUID) ([]int64, error) {
+	rows, err := db.Query(ctx, filterValidTasksByExternalIds, externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findOldestRunningTask = `-- name: FindOldestRunningTask :one
 SELECT task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at
 FROM v1_task_runtime

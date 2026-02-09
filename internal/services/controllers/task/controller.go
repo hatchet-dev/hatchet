@@ -791,7 +791,22 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
 
 	for _, msg := range msgs {
+		externalIds := make([]uuid.UUID, 0)
+
 		for _, task := range msg.Tasks {
+			externalIds = append(externalIds, task.TaskExternalId)
+		}
+
+		tasks, err := tc.repov1.Tasks().FilterValidTasksByExternalIds(ctx, externalIds)
+		if err != nil {
+			return fmt.Errorf("failed to list valid tasks by external ids: %w", err)
+		}
+
+		for _, task := range msg.Tasks {
+			if _, ok := tasks[task.Id]; !ok {
+				continue
+			}
+
 			taskIdRetryCounts = append(taskIdRetryCounts, tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
 				TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
 					Id:         task.Id,

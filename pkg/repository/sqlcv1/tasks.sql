@@ -1224,3 +1224,13 @@ FROM
     input
 RETURNING
     *;
+
+-- name: FilterValidTasksByExternalIds :many
+SELECT
+    t.id
+FROM
+    v1_task t
+JOIN v1_lookup_table lt ON lt.task_id = t.id AND lt.inserted_at = t.inserted_at
+JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
+WHERE
+    lt.external_id = ANY(@externalIds::uuid[]);
