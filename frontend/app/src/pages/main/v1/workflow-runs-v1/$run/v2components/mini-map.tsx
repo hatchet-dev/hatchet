@@ -2,7 +2,12 @@ import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import {
+  queries,
+  V1TaskEventType,
+  WorkflowRunShapeItemForWorkflowRunDetails,
+} from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
@@ -17,7 +22,23 @@ type NodeRelationship = {
 };
 
 export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
-  const { shape, taskRuns: tasks, isLoading, isError } = useWorkflowDetails();
+  const {
+    shape,
+    taskRuns: tasks,
+    taskEvents,
+    isLoading,
+    isError,
+  } = useWorkflowDetails();
+
+  const skippedTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of taskEvents) {
+      if (event.eventType === V1TaskEventType.SKIPPED) {
+        ids.add(event.taskId);
+      }
+    }
+    return ids;
+  }, [taskEvents]);
 
   const taskRunRelationships: NodeRelationship[] = useMemo(() => {
     if (!shape || !tasks) {
@@ -127,6 +148,9 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
                   onClick: () => onClick(taskRun?.metadata.id),
                   childWorkflowsCount: taskRun?.numSpawnedChildren || 0,
                   taskName: shapeItem.taskName,
+                  isSkipped: taskRun
+                    ? skippedTaskIds.has(taskRun.metadata.id)
+                    : false,
                 }}
               />
             );
@@ -159,7 +183,16 @@ export const TaskRunMiniMap = ({
   onClick,
   taskRunId,
 }: JobMiniMapProps & UseTaskRunProps) => {
+  const { tenantId } = useCurrentTenantId();
   const { taskRun, isLoading, isError } = useTaskRun({ taskRunId });
+
+  const eventsQuery = useQuery({
+    ...queries.v1TaskEvents.list(tenantId, { limit: 50, offset: 0 }, taskRunId),
+  });
+
+  const isSkipped = eventsQuery.data?.rows?.some(
+    (event) => event.eventType === V1TaskEventType.SKIPPED,
+  );
 
   if (isLoading || isError || !taskRun) {
     return null;
@@ -175,6 +208,7 @@ export const TaskRunMiniMap = ({
             onClick: () => onClick(taskRun.metadata.id),
             childWorkflowsCount: taskRun.numSpawnedChildren,
             taskName: taskRun.displayName,
+            isSkipped,
           }}
         />
       </div>

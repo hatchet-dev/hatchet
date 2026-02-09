@@ -21,7 +21,12 @@ import {
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import {
+  V1TaskEventType,
+  V1TaskStatus,
+  V1TaskSummary,
+  queries,
+} from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
@@ -120,6 +125,7 @@ export const TaskRunDetail = ({
     },
     [open],
   );
+  const { tenantId } = useCurrentTenantId();
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -133,6 +139,10 @@ export const TaskRunDetail = ({
     },
   });
 
+  const eventsQuery = useQuery({
+    ...queries.v1TaskEvents.list(tenantId, { limit: 50, offset: 0 }, taskRunId),
+  });
+
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -143,6 +153,10 @@ export const TaskRunDetail = ({
     return <div>No events found</div>;
   }
 
+  const isSkipped = eventsQuery.data?.rows?.some(
+    (event) => event.eventType === V1TaskEventType.SKIPPED,
+  );
+
   const isStandaloneTaskRun =
     taskRun.workflowRunExternalId === emptyGolangUUID ||
     taskRun.workflowRunExternalId === taskRun.metadata.id;
@@ -152,7 +166,9 @@ export const TaskRunDetail = ({
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
-            {taskRun.status && <V1RunIndicator status={taskRun.status} />}
+            {taskRun.status && (
+              <V1RunIndicator status={taskRun.status} isSkipped={isSkipped} />
+            )}
             <h3 className="flex flex-row items-center gap-4 font-mono text-lg font-semibold leading-tight tracking-tight text-foreground">
               {taskRun.displayName || 'Task Run Detail'}
             </h3>
@@ -326,8 +342,13 @@ export const TaskRunDetail = ({
 };
 
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
+  const { tenantId } = useCurrentTenantId();
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
+  });
+
+  const eventsQuery = useQuery({
+    ...queries.v1TaskEvents.list(tenantId, { limit: 50, offset: 0 }, taskRunId),
   });
 
   const timings = [];
@@ -337,6 +358,10 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   if (taskRunQuery.isLoading || !data) {
     return <Loading />;
   }
+
+  const hasSkippedEvent = eventsQuery.data?.rows?.some(
+    (event) => event.eventType === V1TaskEventType.SKIPPED,
+  );
 
   if (data.startedAt) {
     timings.push(
@@ -359,7 +384,7 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   if (data.status === V1TaskStatus.COMPLETED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
-        {'Succeeded '}
+        {hasSkippedEvent ? 'Skipped ' : 'Succeeded '}
         <RelativeDate date={data.finishedAt} />
       </div>,
     );
