@@ -553,9 +553,9 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 const filterValidTasks = `-- name: FilterValidTasks :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::bigint[]) AS task_id,
-        UNNEST($2::timestamptz[]) AS task_inserted_at,
-        UNNEST($3::integer[]) AS task_retry_count
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS task_retry_count
 )
 SELECT
     t.id
@@ -567,16 +567,23 @@ WHERE
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
+    AND t.tenant_id = $1::uuid
 `
 
 type FilterValidTasksParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Taskretrycounts []int32              `json:"taskretrycounts"`
 }
 
 func (q *Queries) FilterValidTasks(ctx context.Context, db DBTX, arg FilterValidTasksParams) ([]int64, error) {
-	rows, err := db.Query(ctx, filterValidTasks, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
+	rows, err := db.Query(ctx, filterValidTasks,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+	)
 	if err != nil {
 		return nil, err
 	}

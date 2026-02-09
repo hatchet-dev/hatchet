@@ -802,7 +802,11 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 			taskRetryCounts = append(taskRetryCounts, task.RetryCount)
 		}
 
-		tasks, err := tc.repov1.Tasks().FilterValidTasks(ctx, taskIds, taskInsertedAts, taskRetryCounts)
+		tasks, err := tc.repov1.Tasks().FilterValidTasks(ctx, tenantId, &v1.FilterValidTasksOpts{
+			TaskIds:         taskIds,
+			TaskInsertedAts: taskInsertedAts,
+			TaskRetryCounts: taskRetryCounts,
+		})
 		if err != nil {
 			return fmt.Errorf("failed to list valid tasks by external ids: %w", err)
 		}

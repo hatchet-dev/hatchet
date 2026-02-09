@@ -210,6 +210,12 @@ type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
 
+type FilterValidTasksOpts struct {
+	TaskIds         []int64
+	TaskInsertedAts []pgtype.Timestamptz
+	TaskRetryCounts []int32
+}
+
 type TaskRepository interface {
 	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
@@ -273,7 +279,7 @@ type TaskRepository interface {
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error)
 
-	FilterValidTasks(ctx context.Context, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, taskRetryCounts []int32) (map[int64]struct{}, error)
+	FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts *FilterValidTasksOpts) (map[int64]struct{}, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -4180,13 +4186,14 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, taskRetryCounts []int32) (map[int64]struct{}, error) {
+func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts *FilterValidTasksOpts) (map[int64]struct{}, error) {
 	res := make(map[int64]struct{})
 
 	taskIds, err := r.queries.FilterValidTasks(ctx, r.pool, sqlcv1.FilterValidTasksParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Taskretrycounts: taskRetryCounts,
+		Tenantid:        tenantId,
+		Taskids:         opts.TaskIds,
+		Taskinsertedats: opts.TaskInsertedAts,
+		Taskretrycounts: opts.TaskRetryCounts,
 	})
 	if err != nil {
 		return nil, err

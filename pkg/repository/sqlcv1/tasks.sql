@@ -1242,4 +1242,5 @@ WHERE
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
+    AND t.tenant_id = @tenantId::uuid
 ;
