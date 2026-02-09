@@ -8,6 +8,7 @@ import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Waterfall } from '../waterfall';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
+import { useToast } from '@/components/v1/hooks/use-toast';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Button } from '@/components/v1/ui/button';
@@ -21,12 +22,19 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, {
+  V1TaskEventType,
+  V1TaskStatus,
+  V1TaskSummary,
+  queries,
+} from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -107,6 +115,11 @@ export const TaskRunDetail = ({
 }: TaskRunDetailProps) => {
   const { open } = useSidePanel();
   const [logsResetKey, setLogsResetKey] = useState(0);
+  const { tenantId } = useCurrentTenantId();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { handleApiError } = useApiError({});
+
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
       open({
@@ -135,6 +148,61 @@ export const TaskRunDetail = ({
 
   const { isSkipped } = useIsTaskRunSkipped({ taskRunId });
   const taskRun = taskRunQuery.data;
+
+  const taskRunEventsQuery = useQuery({
+    ...queries.v1TaskEvents.list(
+      tenantId,
+      { limit: 50, offset: 0 },
+      taskRunId,
+      undefined,
+    ),
+    enabled: !!tenantId && !!taskRunId,
+    refetchInterval: () => {
+      if (isTerminalState(taskRun?.status)) {
+        return 5000;
+      }
+      return 1000;
+    },
+  });
+
+  const isEvicted = (() => {
+    const rows = taskRunEventsQuery.data?.rows ?? [];
+    const sorted = [...rows].sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
+    let evicted = false;
+    for (const e of sorted) {
+      if (e.eventType === V1TaskEventType.DURABLE_EVICTED) {
+        evicted = true;
+      } else if (e.eventType === V1TaskEventType.DURABLE_RESUMING) {
+        evicted = false;
+      }
+    }
+
+    return evicted;
+  })();
+
+  const { mutate: restoreTask, isPending: isWaking } = useMutation({
+    mutationKey: ['v1-task:restore', taskRunId],
+    mutationFn: async () => (await api.v1TaskRestore(taskRunId)).data,
+    onError: handleApiError,
+    onSuccess: async (data) => {
+      toast({
+        title: data.requeued ? 'Restore requested' : 'Not woken',
+        description:
+          !data.requeued && 'Task was not evicted or is already queued.',
+      });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['v1-task:get', taskRunId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['v1:workflow-run:list', tenantId, taskRunId],
+        }),
+      ]);
+    },
+  });
 
   if (taskRunQuery.isLoading) {
     return <Loading />;
@@ -187,6 +255,14 @@ export const TaskRunDetail = ({
                 showModal={false}
                 showLabel
               />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => restoreTask()}
+                disabled={!isEvicted || isWaking}
+              >
+                Restore
+              </Button>
             </RunsProvider>
           </div>
           <div className="flex flex-row items-center gap-2">

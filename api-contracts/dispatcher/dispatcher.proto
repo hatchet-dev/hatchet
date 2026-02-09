@@ -165,16 +165,16 @@ message AssignedAction {
     int32 retry_count = 13;
 
     // (optional) additional metadata set on the workflow
-    optional string additional_metadata = 14;
+    optional string additionalMetadata = 14;
 
     // (optional) the child workflow index (if this is a child workflow)
-    optional int32 child_workflow_index = 15;
+    optional int32 childWorkflowIndex = 15;
 
     // (optional) the child workflow key (if this is a child workflow)
-    optional string child_workflow_key = 16;
+    optional string childWorkflowKey = 16;
 
     // (optional) the parent workflow run id (if this is a child workflow)
-    optional string parent_workflow_run_id = 17;
+    optional string parentWorkflowRunId = 17;
 
     // (optional) the priority of the run
     int32 priority = 18;
@@ -238,12 +238,6 @@ enum StepActionEventType {
     STEP_EVENT_TYPE_COMPLETED = 2;
     STEP_EVENT_TYPE_FAILED = 3;
     STEP_EVENT_TYPE_ACKNOWLEDGED = 4;
-    // Monitoring-only events (used for OLAP observability)
-    STEP_EVENT_TYPE_CANCELLING = 9;
-    STEP_EVENT_TYPE_CANCELLED_CONFIRMED = 5;
-    STEP_EVENT_TYPE_CANCELLATION_FAILED = 6;
-    STEP_EVENT_TYPE_DURABLE_EVICTED = 7;
-    STEP_EVENT_TYPE_DURABLE_RESUMING = 8;
 }
 
 message StepActionEvent {

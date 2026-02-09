@@ -50,4 +50,3 @@ DROP TYPE v1_event_type_olap;
 ALTER TYPE v1_event_type_olap_old RENAME TO v1_event_type_olap;
 
 -- +goose StatementEnd
-
