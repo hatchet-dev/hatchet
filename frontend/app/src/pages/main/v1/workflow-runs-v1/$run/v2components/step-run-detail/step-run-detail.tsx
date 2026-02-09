@@ -20,7 +20,6 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   V1TaskEventType,
   V1TaskStatus,
@@ -32,7 +31,7 @@ import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
@@ -64,7 +63,7 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
 
   if (showViewTaskRunButton) {
     return (
@@ -125,7 +124,7 @@ export const TaskRunDetail = ({
     },
     [open],
   );
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -342,7 +341,7 @@ export const TaskRunDetail = ({
 };
 
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
   });

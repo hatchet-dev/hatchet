@@ -2,13 +2,14 @@ import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   queries,
   V1TaskEventType,
   WorkflowRunShapeItemForWorkflowRunDetails,
 } from '@/lib/api';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 interface JobMiniMapProps {
@@ -183,7 +184,7 @@ export const TaskRunMiniMap = ({
   onClick,
   taskRunId,
 }: JobMiniMapProps & UseTaskRunProps) => {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const { taskRun, isLoading, isError } = useTaskRun({ taskRunId });
 
   const eventsQuery = useQuery({
