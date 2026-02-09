@@ -174,9 +174,7 @@ class DurableEvictionManager:
 
                 # TODO-DURABLE: the eviction event is not optional, and we need to ack it before unwinding locally.
 
-                # Unwind locally ASAP (causes waits to raise). Do this *before* the remote
-                # cancel so the CancellationToken reason remains `evicted` even if the
-                # engine cancel action arrives quickly.
+                # Unwind locally ASAP (causes waits to raise).
                 rec.token.cancel(CancellationReason.EVICTED)
 
                 # Observability hook: emitted when we actually cancel locally.
