@@ -15,10 +15,10 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.workflows import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
+from hatchet_sdk.contracts.workflows import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.workflows.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
 from hatchet_sdk.metadata import get_metadata

@@ -36,7 +36,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     DesiredWorkerLabels,
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
-from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
+from hatchet_sdk.contracts.workflows.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
