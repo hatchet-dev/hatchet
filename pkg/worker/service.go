@@ -8,7 +8,7 @@ import (
 )
 
 // Deprecated: Service is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Service struct {
 	Name string
 
@@ -18,19 +18,19 @@ type Service struct {
 }
 
 // Deprecated: Use is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (s *Service) Use(mws ...MiddlewareFunc) {
 	s.mws.add(mws...)
 }
 
 // Deprecated: RegisterWorkflow is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (s *Service) RegisterWorkflow(workflow workflowConverter) error {
 	return s.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
 // Deprecated: On is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	namespace := s.worker.client.Namespace()
 
@@ -75,18 +75,18 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 }
 
 // Deprecated: registerActionOpts is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type registerActionOpts struct {
 	name    string
 	compute *compute.Compute
 }
 
 // Deprecated: RegisterActionOpt is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type RegisterActionOpt func(*registerActionOpts)
 
 // Deprecated: WithActionName is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithActionName(name string) RegisterActionOpt {
 	return func(opts *registerActionOpts) {
 		opts.name = name
@@ -94,7 +94,7 @@ func WithActionName(name string) RegisterActionOpt {
 }
 
 // Deprecated: WithCompute is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithCompute(compute *compute.Compute) RegisterActionOpt {
 	return func(opts *registerActionOpts) {
 		opts.compute = compute
@@ -102,7 +102,7 @@ func WithCompute(compute *compute.Compute) RegisterActionOpt {
 }
 
 // Deprecated: RegisterAction is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 	fnOpts := &registerActionOpts{}
 
@@ -118,7 +118,7 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 }
 
 // Deprecated: Call is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (s *Service) Call(verb string) *WorkflowStep {
 	actionId := fmt.Sprintf("%s:%s", s.Name, verb)
 

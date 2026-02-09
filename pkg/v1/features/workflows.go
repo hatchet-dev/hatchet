@@ -11,7 +11,7 @@ import (
 )
 
 // Deprecated: WorkflowsClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // WorkflowsClient provides methods for interacting with workflows
 // in the Hatchet platform.
@@ -46,7 +46,7 @@ type workflowsClientImpl struct {
 }
 
 // Deprecated: NewWorkflowsClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // NewWorkflowsClient creates a new client for interacting with workflows.
 func NewWorkflowsClient(

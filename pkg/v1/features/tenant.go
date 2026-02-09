@@ -9,7 +9,7 @@ import (
 )
 
 // Deprecated: TenantClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // TenantClient provides methods for interacting with your Tenant
 type TenantClient interface {
@@ -23,7 +23,7 @@ type tenantClientImpl struct {
 }
 
 // Deprecated: NewTenantCliet is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewTenantCliet(
 	api *rest.ClientWithResponses,
 	tenantId *string,

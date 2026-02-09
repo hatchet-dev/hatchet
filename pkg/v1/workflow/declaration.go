@@ -1,5 +1,5 @@
 // Deprecated: This package is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package workflow
 
 import (
@@ -24,22 +24,22 @@ import (
 )
 
 // Deprecated: WrappedTaskFn is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WrappedTaskFn func(ctx worker.HatchetContext) (interface{}, error)
 
 // Deprecated: DurableWrappedTaskFn is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type DurableWrappedTaskFn func(ctx worker.DurableHatchetContext) (interface{}, error)
 
 // Deprecated: NamedFunction is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type NamedFunction struct {
 	ActionID string
 	Fn       WrappedTaskFn
 }
 
 // Deprecated: WorkflowBase is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowBase interface {
 	// Dump converts the workflow declaration into a protobuf request and function mappings.
 	// Returns the workflow definition, regular task functions, durable task functions, and the on failure task function.
@@ -47,14 +47,14 @@ type WorkflowBase interface {
 }
 
 // Deprecated: RunOpts is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
 	Priority           *int32
 }
 
 // Deprecated: RunAsChildOpts is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type RunAsChildOpts struct {
 	RunOpts
 	Sticky *bool
@@ -62,7 +62,7 @@ type RunAsChildOpts struct {
 }
 
 // Deprecated: WorkflowDeclaration is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowDeclaration[I, O any] interface {
 	WorkflowBase
 

@@ -9,7 +9,7 @@ import (
 )
 
 // Deprecated: FiltersClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type FiltersClient interface {
 	List(ctx context.Context, opts *rest.V1FilterListParams) (*rest.V1FilterList, error)
 
@@ -28,7 +28,7 @@ type filtersClientImpl struct {
 }
 
 // Deprecated: NewFiltersClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewFiltersClient(
 	api *rest.ClientWithResponses,
 	tenantID *string,

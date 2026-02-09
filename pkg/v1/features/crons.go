@@ -10,7 +10,7 @@ import (
 )
 
 // Deprecated: CronsClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // CronsClient provides methods for interacting with cron workflow triggers
 // in the Hatchet platform.
@@ -29,7 +29,7 @@ type CronsClient interface {
 }
 
 // Deprecated: CreateCronTrigger is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // CreateCronTrigger contains the configuration for creating a cron trigger.
 type CreateCronTrigger struct {
@@ -55,7 +55,7 @@ type cronsClientImpl struct {
 }
 
 // Deprecated: NewCronsClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // NewCronsClient creates a new client for interacting with cron workflow triggers.
 func NewCronsClient(
@@ -71,7 +71,7 @@ func NewCronsClient(
 }
 
 // Deprecated: ValidateCronExpression is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // ValidateCronExpression validates that a string is a valid cron expression.
 func ValidateCronExpression(expression string) bool {
@@ -168,7 +168,7 @@ func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWor
 }
 
 // Deprecated: InvalidCronExpressionError is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // InvalidCronExpressionError represents an error when an invalid cron expression is provided.
 type InvalidCronExpressionError struct {

@@ -9,7 +9,7 @@ import (
 )
 
 // Deprecated: NewTask is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // NewTask creates a standalone task that is implemented as a simple workflow with a single task.
 // It provides proper type inference for the input and output types.

@@ -1,5 +1,5 @@
 // Deprecated: This package is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package task
 
 import (
@@ -14,19 +14,19 @@ import (
 )
 
 // Deprecated: NamedTaskImpl is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type NamedTaskImpl struct {
 	Name string
 }
 
 // Deprecated: TaskBase is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type TaskBase interface {
 	Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts
 }
 
 // Deprecated: TaskShared is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type TaskShared struct {
 	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
 	ExecutionTimeout *time.Duration
@@ -58,7 +58,7 @@ type TaskShared struct {
 }
 
 // Deprecated: TaskDeclaration is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type TaskDeclaration[I any] struct {
 	TaskBase
 	NamedTaskImpl
@@ -85,7 +85,7 @@ type TaskDeclaration[I any] struct {
 }
 
 // Deprecated: DurableTaskDeclaration is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type DurableTaskDeclaration[I any] struct {
 	TaskBase
 	NamedTaskImpl

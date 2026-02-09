@@ -10,7 +10,7 @@ import (
 )
 
 // Deprecated: CELClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // The CEL client is a client for debugging CEL expressions within Hatchet
 type CELClient interface {
@@ -23,7 +23,7 @@ type celClientImpl struct {
 }
 
 // Deprecated: NewCELClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewCELClient(
 	api *rest.ClientWithResponses,
 	tenantId *string,
@@ -37,7 +37,7 @@ func NewCELClient(
 }
 
 // Deprecated: CELEvaluationResult is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type CELEvaluationResult struct {
 	status gen.V1CELDebugResponseStatus
 	output *bool

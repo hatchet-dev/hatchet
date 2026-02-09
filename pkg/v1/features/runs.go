@@ -13,7 +13,7 @@ import (
 )
 
 // Deprecated: RunsClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // RunsClient provides methods for interacting with workflow runs
 // in the Hatchet platform.
@@ -50,7 +50,7 @@ type runsClientImpl struct {
 }
 
 // Deprecated: NewRunsClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // NewRunsClient creates a new client for interacting with workflow runs.
 func NewRunsClient(

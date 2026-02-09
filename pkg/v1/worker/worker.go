@@ -1,5 +1,5 @@
 // Deprecated: This package is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package worker
 
 import (
@@ -16,7 +16,7 @@ import (
 )
 
 // Deprecated: Worker is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Worker interface {
 	// Start begins worker execution in a non-blocking manner and returns a cleanup function.
 	// the cleanup function should be called when the worker needs to be stopped.
@@ -39,11 +39,11 @@ type Worker interface {
 }
 
 // Deprecated: WorkerLabels is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerLabels map[string]interface{}
 
 // Deprecated: WorkerOpts is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerOpts struct {
 	// (required) the friendly name of the worker
 	Name string
@@ -68,7 +68,7 @@ type WorkerOpts struct {
 }
 
 // Deprecated: WorkerImpl is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerImpl struct {
 	// v0 is the client used to communicate with the hatchet API.
 	v0 v0Client.Client
@@ -105,7 +105,7 @@ type WorkerImpl struct {
 }
 
 // Deprecated: NewWorker is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts WorkerOpts) (Worker, error) {
 	w := &WorkerImpl{
 		v0:        v0,
@@ -141,7 +141,7 @@ func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts Wo
 }
 
 // Deprecated: NamedFunction is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type NamedFunction struct {
 	ActionID string
 	Fn       workflow.WrappedTaskFn

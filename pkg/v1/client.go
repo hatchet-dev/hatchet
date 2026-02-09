@@ -1,5 +1,5 @@
 // Deprecated: This package is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package v1
 
 import (
@@ -12,7 +12,7 @@ import (
 )
 
 // Deprecated: HatchetClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type HatchetClient interface {
 	// V0 returns the underlying V0 client for backward compatibility.
 	V0() v0Client.Client
@@ -62,7 +62,7 @@ type v1HatchetClientImpl struct {
 }
 
 // Deprecated: NewHatchetClient is part of the old generics-based v1 Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewHatchetClient(config ...Config) (HatchetClient, error) {
 	cf := &v0Config.ClientConfigFile{}
 

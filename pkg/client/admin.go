@@ -40,10 +40,10 @@ type WorkflowRun struct {
 
 type AdminClient interface {
 	// Deprecated: PutWorkflow is part of the legacy v0 workflow definition system.
-	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 	// Deprecated: PutWorkflowV1 is an internal method used by the new Go SDK.
-	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly.
+	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 	PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, opts ...PutOptFunc) error
 
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
@@ -110,7 +110,7 @@ func defaultPutOpts() *putOpts {
 }
 
 // Deprecated: PutWorkflow is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc) error {
 	opts := defaultPutOpts()
 
@@ -134,7 +134,7 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 }
 
 // Deprecated: PutWorkflowV1 is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, fs ...PutOptFunc) error {
 	opts := defaultPutOpts()
 
