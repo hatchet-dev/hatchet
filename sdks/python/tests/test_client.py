@@ -2,6 +2,8 @@ import os
 from typing import Any, cast
 from unittest import mock
 
+import pytest
+
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.utils.slots import resolve_worker_slot_config
@@ -88,3 +90,38 @@ def test_resolve_slot_config_mixed() -> None:
     )
 
     assert resolved == {SlotType.DEFAULT: 100, SlotType.DURABLE: 1000}
+
+
+def test_resolve_slot_config_custom_type_raises_when_missing() -> None:
+    class GpuTask:
+        is_durable = False
+        slot_requests: dict[str, int] = {"gpu": 1}
+
+    class DummyWorkflow:
+        tasks = [GpuTask()]
+
+    with pytest.raises(ValueError, match="gpu"):
+        resolve_worker_slot_config(
+            slot_config=None,
+            slots=None,
+            durable_slots=None,
+            workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
+        )
+
+
+def test_resolve_slot_config_custom_type_passes_when_configured() -> None:
+    class GpuTask:
+        is_durable = False
+        slot_requests: dict[str, int] = {"gpu": 1}
+
+    class DummyWorkflow:
+        tasks = [GpuTask()]
+
+    resolved = resolve_worker_slot_config(
+        slot_config={"gpu": 4},
+        slots=None,
+        durable_slots=None,
+        workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
+    )
+
+    assert resolved == {"gpu": 4}

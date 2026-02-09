@@ -21,27 +21,25 @@ def has_slot_config(
 
 def ensure_slot_config(
     slot_config: dict[SlotType | str, int], slot_type: SlotType, default_value: int
-) -> None:
-    if not has_slot_config(slot_config, slot_type):
-        slot_config[slot_type] = default_value
+) -> dict[SlotType | str, int]:
+    if has_slot_config(slot_config, slot_type):
+        return slot_config
+    return {**slot_config, slot_type: default_value}
 
 
 def required_slot_types_from_workflows(
     workflows: list[BaseWorkflow[Any]] | None,
-) -> set[SlotType]:
-    required: set[SlotType] = set()
+) -> set[str]:
+    required: set[str] = set()
     if not workflows:
         return required
 
     for workflow in workflows:
         for task in workflow.tasks:
             if task.is_durable:
-                required.add(SlotType.DURABLE)
+                required.add(SlotType.DURABLE.value)
             for key in task.slot_requests:
-                if key == SlotType.DEFAULT or key == SlotType.DEFAULT.value:
-                    required.add(SlotType.DEFAULT)
-                if key == SlotType.DURABLE or key == SlotType.DURABLE.value:
-                    required.add(SlotType.DURABLE)
+                required.add(key.value if isinstance(key, SlotType) else key)
 
     return required
 
@@ -68,12 +66,26 @@ def resolve_worker_slot_config(
         resolved_config = legacy_config if legacy_config else {}
 
     required_slot_types = required_slot_types_from_workflows(workflows)
-    if SlotType.DEFAULT in required_slot_types:
-        ensure_slot_config(resolved_config, SlotType.DEFAULT, 100)
-    if SlotType.DURABLE in required_slot_types:
-        ensure_slot_config(resolved_config, SlotType.DURABLE, 1000)
+
+    # Apply defaults for well-known slot types
+    if SlotType.DEFAULT.value in required_slot_types:
+        resolved_config = ensure_slot_config(resolved_config, SlotType.DEFAULT, 100)
+    if SlotType.DURABLE.value in required_slot_types:
+        resolved_config = ensure_slot_config(resolved_config, SlotType.DURABLE, 1000)
+
+    # Raise for any required custom slot types that are missing from the config
+    configured_keys = {
+        key.value if isinstance(key, SlotType) else key for key in resolved_config
+    }
+    missing = required_slot_types - configured_keys
+    if missing:
+        formatted = ", ".join(sorted(missing))
+        raise ValueError(
+            f"Worker is missing slot config for required slot type(s): {formatted}. "
+            "Please provide a slot_config entry for each custom slot type used by your workflows."
+        )
 
     if not resolved_config:
-        resolved_config[SlotType.DEFAULT] = 100
+        resolved_config = {SlotType.DEFAULT: 100}
 
     return resolved_config
