@@ -1,6 +1,7 @@
 -- name: CreateDurableEventLogFile :many
 WITH inputs AS (
     SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@latestInsertedAts::TIMESTAMPTZ[]) AS latest_inserted_at,
@@ -9,6 +10,7 @@ WITH inputs AS (
         UNNEST(@latestBranchFirstParentNodeIds::BIGINT[]) AS latest_branch_first_parent_node_id
 )
 INSERT INTO v1_durable_event_log_file (
+    tenant_id,
     durable_task_id,
     durable_task_inserted_at,
     latest_inserted_at,
@@ -17,6 +19,7 @@ INSERT INTO v1_durable_event_log_file (
     latest_branch_first_parent_node_id
 )
 SELECT
+    i.tenant_id,
     i.durable_task_id,
     i.durable_task_inserted_at,
     i.latest_inserted_at,
@@ -39,6 +42,7 @@ RETURNING *
 
 -- name: GetOrCreateEventLogFileForTask :one
 INSERT INTO v1_durable_event_log_file (
+    tenant_id,
     durable_task_id,
     durable_task_inserted_at,
     latest_inserted_at,
@@ -47,6 +51,7 @@ INSERT INTO v1_durable_event_log_file (
     latest_branch_first_parent_node_id
 )
 VALUES (
+    @tenantId::UUID,
     @durableTaskId::BIGINT,
     @durableTaskInsertedAt::TIMESTAMPTZ,
     @latestInsertedAt::TIMESTAMPTZ,
@@ -63,6 +68,7 @@ RETURNING *
 -- name: CreateDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
@@ -84,6 +90,7 @@ WITH inputs AS (
     GROUP BY durable_task_id, durable_task_inserted_at
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
+        tenant_id,
         external_id,
         durable_task_id,
         durable_task_inserted_at,
@@ -97,6 +104,7 @@ WITH inputs AS (
         triggered_run_external_id
     )
     SELECT
+        i.tenant_id,
         i.external_id,
         i.durable_task_id,
         i.durable_task_inserted_at,
@@ -150,6 +158,7 @@ WHERE durable_task_id = @durableTaskId
 -- name: CreateDurableEventLogCallbacks :many
 WITH inputs AS (
     SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
@@ -160,6 +169,7 @@ WITH inputs AS (
         UNNEST(@externalIds::UUID[]) AS external_id
 )
 INSERT INTO v1_durable_event_log_callback (
+    tenant_id,
     durable_task_id,
     durable_task_inserted_at,
     inserted_at,
@@ -170,6 +180,7 @@ INSERT INTO v1_durable_event_log_callback (
     external_id
 )
 SELECT
+    i.tenant_id,
     i.durable_task_id,
     i.durable_task_inserted_at,
     i.inserted_at,

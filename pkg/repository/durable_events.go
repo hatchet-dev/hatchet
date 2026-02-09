@@ -13,6 +13,7 @@ import (
 )
 
 type CreateEventLogFileOpts struct {
+	TenantId                      uuid.UUID
 	DurableTaskId                 int64
 	DurableTaskInsertedAt         pgtype.Timestamptz
 	LatestInsertedAt              pgtype.Timestamptz
@@ -36,6 +37,7 @@ type CreateEventLogEntryOpts struct {
 }
 
 type CreateEventLogCallbackOpts struct {
+	TenantId              uuid.UUID
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
 	InsertedAt            pgtype.Timestamptz
@@ -58,7 +60,7 @@ type EventLogEntryWithData struct {
 
 type DurableEventsRepository interface {
 	CreateEventLogFiles(ctx context.Context, opts []CreateEventLogFileOpts) ([]*sqlcv1.V1DurableEventLogFile, error)
-	GetOrCreateEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
+	GetOrCreateEventLogFileForTask(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error)
 
 	CreateEventLogEntries(ctx context.Context, opts []CreateEventLogEntryOpts) ([]*sqlcv1.CreateDurableEventLogEntriesRow, error)
 	GetEventLogEntry(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodeId int64) (*EventLogEntryWithData, error)
@@ -94,6 +96,7 @@ func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts 
 	latestNodeIds := make([]int64, len(opts))
 	latestBranchIds := make([]int64, len(opts))
 	latestBranchFirstParentNodeIds := make([]int64, len(opts))
+	tenantIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
 		durableTaskIds[i] = opt.DurableTaskId
@@ -102,9 +105,11 @@ func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts 
 		latestNodeIds[i] = opt.LatestNodeId
 		latestBranchIds[i] = opt.LatestBranchId
 		latestBranchFirstParentNodeIds[i] = opt.LatestBranchFirstParentNodeId
+		tenantIds[i] = opt.TenantId
 	}
 
 	files, err := r.queries.CreateDurableEventLogFile(ctx, tx, sqlcv1.CreateDurableEventLogFileParams{
+		Tenantids:                      tenantIds,
 		Durabletaskids:                 durableTaskIds,
 		Durabletaskinsertedats:         durableTaskInsertedAts,
 		Latestinsertedats:              latestInsertedAts,
@@ -123,8 +128,9 @@ func (r *durableEventsRepository) CreateEventLogFiles(ctx context.Context, opts 
 	return files, nil
 }
 
-func (r *durableEventsRepository) GetOrCreateEventLogFileForTask(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+func (r *durableEventsRepository) GetOrCreateEventLogFileForTask(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
 	return r.queries.GetOrCreateEventLogFileForTask(ctx, r.pool, sqlcv1.GetOrCreateEventLogFileForTaskParams{
+		Tenantid:                      tenantId,
 		Durabletaskid:                 durableTaskId,
 		Durabletaskinsertedat:         durableTaskInsertedAt,
 		Latestinsertedat:              sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
@@ -142,6 +148,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 	}
 	defer rollback()
 
+	tenantIds := make([]uuid.UUID, len(opts))
 	externalIds := make([]uuid.UUID, len(opts))
 	durableTaskIds := make([]int64, len(opts))
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, len(opts))
@@ -156,6 +163,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 	childRunExternalIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
+		tenantIds[i] = opt.TenantId
 		externalIds[i] = opt.ExternalId
 		durableTaskIds[i] = opt.DurableTaskId
 		durableTaskInsertedAts[i] = opt.DurableTaskInsertedAt
@@ -177,6 +185,7 @@ func (r *durableEventsRepository) CreateEventLogEntries(ctx context.Context, opt
 	}
 
 	entries, err := r.queries.CreateDurableEventLogEntries(ctx, tx, sqlcv1.CreateDurableEventLogEntriesParams{
+		Tenantids:              tenantIds,
 		Externalids:            externalIds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
@@ -272,6 +281,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 	}
 	defer rollback()
 
+	tenantIds := make([]uuid.UUID, len(opts))
 	durableTaskIds := make([]int64, len(opts))
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	insertedAts := make([]pgtype.Timestamptz, len(opts))
@@ -282,6 +292,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 	externalIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
+		tenantIds[i] = opt.TenantId
 		durableTaskIds[i] = opt.DurableTaskId
 		durableTaskInsertedAts[i] = opt.DurableTaskInsertedAt
 		insertedAts[i] = opt.InsertedAt
@@ -293,6 +304,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 	}
 
 	callbacks, err := r.queries.CreateDurableEventLogCallbacks(ctx, tx, sqlcv1.CreateDurableEventLogCallbacksParams{
+		Tenantids:              tenantIds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
 		Insertedats:            insertedAts,

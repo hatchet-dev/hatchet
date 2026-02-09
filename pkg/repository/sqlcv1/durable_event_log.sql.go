@@ -15,16 +15,18 @@ import (
 const createDurableEventLogCallbacks = `-- name: CreateDurableEventLogCallbacks :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($4::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
-        UNNEST($5::TEXT[]) AS key,
-        UNNEST($6::BIGINT[]) AS node_id,
-        UNNEST($7::BOOLEAN[]) AS is_satisfied,
-        UNNEST($8::UUID[]) AS external_id
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BIGINT[]) AS durable_task_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($4::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($5::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
+        UNNEST($6::TEXT[]) AS key,
+        UNNEST($7::BIGINT[]) AS node_id,
+        UNNEST($8::BOOLEAN[]) AS is_satisfied,
+        UNNEST($9::UUID[]) AS external_id
 )
 INSERT INTO v1_durable_event_log_callback (
+    tenant_id,
     durable_task_id,
     durable_task_inserted_at,
     inserted_at,
@@ -35,6 +37,7 @@ INSERT INTO v1_durable_event_log_callback (
     external_id
 )
 SELECT
+    i.tenant_id,
     i.durable_task_id,
     i.durable_task_inserted_at,
     i.inserted_at,
@@ -49,6 +52,7 @@ RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task
 `
 
 type CreateDurableEventLogCallbacksParams struct {
+	Tenantids              []uuid.UUID          `json:"tenantids"`
 	Durabletaskids         []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Insertedats            []pgtype.Timestamptz `json:"insertedats"`
@@ -61,6 +65,7 @@ type CreateDurableEventLogCallbacksParams struct {
 
 func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, arg CreateDurableEventLogCallbacksParams) ([]*V1DurableEventLogCallback, error) {
 	rows, err := db.Query(ctx, createDurableEventLogCallbacks,
+		arg.Tenantids,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Insertedats,
@@ -103,18 +108,19 @@ const createDurableEventLogEntries = `-- name: CreateDurableEventLogEntries :man
 
 WITH inputs AS (
     SELECT
-        UNNEST($1::UUID[]) AS external_id,
-        UNNEST($2::BIGINT[]) AS durable_task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($4::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($5::TEXT[] AS v1_durable_event_log_entry_kind[])) AS kind,
-        UNNEST($6::BIGINT[]) AS node_id,
-        UNNEST($7::BIGINT[]) AS parent_node_id,
-        UNNEST($8::BIGINT[]) AS branch_id,
-        UNNEST($9::BYTEA[]) AS data_hash,
-        UNNEST($10::TEXT[]) AS data_hash_alg,
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS external_id,
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($6::TEXT[] AS v1_durable_event_log_entry_kind[])) AS kind,
+        UNNEST($7::BIGINT[]) AS node_id,
+        UNNEST($8::BIGINT[]) AS parent_node_id,
+        UNNEST($9::BIGINT[]) AS branch_id,
+        UNNEST($10::BYTEA[]) AS data_hash,
+        UNNEST($11::TEXT[]) AS data_hash_alg,
         -- todo: probably need an override here since this can be null
-        UNNEST($11::UUID[]) AS triggered_run_external_id
+        UNNEST($12::UUID[]) AS triggered_run_external_id
 ), latest_node_ids AS (
     SELECT
         durable_task_id,
@@ -124,6 +130,7 @@ WITH inputs AS (
     GROUP BY durable_task_id, durable_task_inserted_at
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
+        tenant_id,
         external_id,
         durable_task_id,
         durable_task_inserted_at,
@@ -137,6 +144,7 @@ WITH inputs AS (
         triggered_run_external_id
     )
     SELECT
+        i.tenant_id,
         i.external_id,
         i.durable_task_id,
         i.durable_task_inserted_at,
@@ -172,6 +180,7 @@ FROM inserts
 `
 
 type CreateDurableEventLogEntriesParams struct {
+	Tenantids              []uuid.UUID          `json:"tenantids"`
 	Externalids            []uuid.UUID          `json:"externalids"`
 	Durabletaskids         []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
@@ -204,6 +213,7 @@ type CreateDurableEventLogEntriesRow struct {
 // todo: implement UpdateLatestNodeId
 func (q *Queries) CreateDurableEventLogEntries(ctx context.Context, db DBTX, arg CreateDurableEventLogEntriesParams) ([]*CreateDurableEventLogEntriesRow, error) {
 	rows, err := db.Query(ctx, createDurableEventLogEntries,
+		arg.Tenantids,
 		arg.Externalids,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
@@ -251,14 +261,16 @@ func (q *Queries) CreateDurableEventLogEntries(ctx context.Context, db DBTX, arg
 const createDurableEventLogFile = `-- name: CreateDurableEventLogFile :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::TIMESTAMPTZ[]) AS latest_inserted_at,
-        UNNEST($4::BIGINT[]) AS latest_node_id,
-        UNNEST($5::BIGINT[]) AS latest_branch_id,
-        UNNEST($6::BIGINT[]) AS latest_branch_first_parent_node_id
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BIGINT[]) AS durable_task_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($4::TIMESTAMPTZ[]) AS latest_inserted_at,
+        UNNEST($5::BIGINT[]) AS latest_node_id,
+        UNNEST($6::BIGINT[]) AS latest_branch_id,
+        UNNEST($7::BIGINT[]) AS latest_branch_first_parent_node_id
 )
 INSERT INTO v1_durable_event_log_file (
+    tenant_id,
     durable_task_id,
     durable_task_inserted_at,
     latest_inserted_at,
@@ -267,6 +279,7 @@ INSERT INTO v1_durable_event_log_file (
     latest_branch_first_parent_node_id
 )
 SELECT
+    i.tenant_id,
     i.durable_task_id,
     i.durable_task_inserted_at,
     i.latest_inserted_at,
@@ -279,6 +292,7 @@ RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_
 `
 
 type CreateDurableEventLogFileParams struct {
+	Tenantids                      []uuid.UUID          `json:"tenantids"`
 	Durabletaskids                 []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats         []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Latestinsertedats              []pgtype.Timestamptz `json:"latestinsertedats"`
@@ -289,6 +303,7 @@ type CreateDurableEventLogFileParams struct {
 
 func (q *Queries) CreateDurableEventLogFile(ctx context.Context, db DBTX, arg CreateDurableEventLogFileParams) ([]*V1DurableEventLogFile, error) {
 	rows, err := db.Query(ctx, createDurableEventLogFile,
+		arg.Tenantids,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Latestinsertedats,
@@ -391,6 +406,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 
 const getOrCreateEventLogFileForTask = `-- name: GetOrCreateEventLogFileForTask :one
 INSERT INTO v1_durable_event_log_file (
+    tenant_id,
     durable_task_id,
     durable_task_inserted_at,
     latest_inserted_at,
@@ -399,18 +415,20 @@ INSERT INTO v1_durable_event_log_file (
     latest_branch_first_parent_node_id
 )
 VALUES (
-    $1::BIGINT,
-    $2::TIMESTAMPTZ,
+    $1::UUID,
+    $2::BIGINT,
     $3::TIMESTAMPTZ,
-    $4::BIGINT,
+    $4::TIMESTAMPTZ,
     $5::BIGINT,
-    $6::BIGINT
+    $6::BIGINT,
+    $7::BIGINT
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
 RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
 `
 
 type GetOrCreateEventLogFileForTaskParams struct {
+	Tenantid                      uuid.UUID          `json:"tenantid"`
 	Durabletaskid                 int64              `json:"durabletaskid"`
 	Durabletaskinsertedat         pgtype.Timestamptz `json:"durabletaskinsertedat"`
 	Latestinsertedat              pgtype.Timestamptz `json:"latestinsertedat"`
@@ -421,6 +439,7 @@ type GetOrCreateEventLogFileForTaskParams struct {
 
 func (q *Queries) GetOrCreateEventLogFileForTask(ctx context.Context, db DBTX, arg GetOrCreateEventLogFileForTaskParams) (*V1DurableEventLogFile, error) {
 	row := db.QueryRow(ctx, getOrCreateEventLogFileForTask,
+		arg.Tenantid,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 		arg.Latestinsertedat,
