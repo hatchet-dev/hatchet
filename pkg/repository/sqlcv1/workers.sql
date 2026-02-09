@@ -108,14 +108,9 @@ LEFT JOIN
 
 -- name: ListWorkers :many
 SELECT
-    sqlc.embed(workers),
-    ww."url" AS "webhookUrl",
-    ww."id" AS "webhookId"
+    sqlc.embed(workers)
 FROM
     "Worker" workers
-LEFT JOIN
-    -- FIXME: remove this in a future release
-    "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
     workers."tenantId" = @tenantId
     AND (
@@ -144,17 +139,13 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url", ww."id";
+    workers."id";
 
 -- name: GetWorkerById :one
 SELECT
-    sqlc.embed(w),
-    ww."url" AS "webhookUrl"
+    sqlc.embed(w)
 FROM
     "Worker" w
-LEFT JOIN
-    -- FIXME: remove this in a future release
-    "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
     w."id" = @id::uuid;
 
@@ -430,7 +421,6 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "webhookId",
     "type",
     "sdkVersion",
     "language",
@@ -444,7 +434,6 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('webhookId')::uuid,
     sqlc.narg('type')::"WorkerType",
     sqlc.narg('sdkVersion')::text,
     sqlc.narg('language')::"WorkerSDKS",

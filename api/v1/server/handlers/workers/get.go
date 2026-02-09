@@ -58,7 +58,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 
 	slotConfig := workerSlotConfig[worker.Worker.ID]
 
-	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, slotConfig, &worker.WebhookUrl.String, actions, &workerWorkflows)
+	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, slotConfig, actions, &workerWorkflows)
 
 	workerResp.RecentStepRuns = &respStepRuns
 

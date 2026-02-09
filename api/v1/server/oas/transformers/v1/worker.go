@@ -59,7 +59,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotConfig, webhookUrl *string, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotConfig, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
 
 	dispatcherId := worker.DispatcherId
 
@@ -93,7 +93,6 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 		Status:         &status,
 		DispatcherId:   dispatcherId,
 		SlotConfig:     slotConfigInt,
-		WebhookUrl:     webhookUrl,
 		RuntimeInfo:    ToWorkerRuntimeInfo(worker),
 		WebhookId:      worker.WebhookId,
 	}

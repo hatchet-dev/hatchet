@@ -20,7 +20,6 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "webhookId",
     "type",
     "sdkVersion",
     "language",
@@ -34,13 +33,12 @@ INSERT INTO "Worker" (
     $1::uuid,
     $2::text,
     $3::uuid,
-    $4::uuid,
-    $5::"WorkerType",
-    $6::text,
-    $7::"WorkerSDKS",
+    $4::"WorkerType",
+    $5::text,
+    $6::"WorkerSDKS",
+    $7::text,
     $8::text,
-    $9::text,
-    $10::text
+    $9::text
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
@@ -48,7 +46,6 @@ type CreateWorkerParams struct {
 	Tenantid        uuid.UUID      `json:"tenantid"`
 	Name            string         `json:"name"`
 	Dispatcherid    uuid.UUID      `json:"dispatcherid"`
-	WebhookId       *uuid.UUID     `json:"webhookId"`
 	Type            NullWorkerType `json:"type"`
 	SdkVersion      pgtype.Text    `json:"sdkVersion"`
 	Language        NullWorkerSDKS `json:"language"`
@@ -62,7 +59,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Tenantid,
 		arg.Name,
 		arg.Dispatcherid,
-		arg.WebhookId,
 		arg.Type,
 		arg.SdkVersion,
 		arg.Language,
@@ -256,20 +252,15 @@ func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg G
 
 const getWorkerById = `-- name: GetWorkerById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
-    ww."url" AS "webhookUrl"
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion"
 FROM
     "Worker" w
-LEFT JOIN
-    -- FIXME: remove this in a future release
-    "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
     w."id" = $1::uuid
 `
 
 type GetWorkerByIdRow struct {
-	Worker     Worker      `json:"worker"`
-	WebhookUrl pgtype.Text `json:"webhookUrl"`
+	Worker Worker `json:"worker"`
 }
 
 func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkerByIdRow, error) {
@@ -294,7 +285,6 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*Ge
 		&i.Worker.Os,
 		&i.Worker.RuntimeExtra,
 		&i.Worker.SdkVersion,
-		&i.WebhookUrl,
 	)
 	return &i, err
 }
@@ -1051,14 +1041,9 @@ func (q *Queries) ListWorkerSlotConfigs(ctx context.Context, db DBTX, arg ListWo
 
 const listWorkers = `-- name: ListWorkers :many
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion",
-    ww."url" AS "webhookUrl",
-    ww."id" AS "webhookId"
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion"
 FROM
     "Worker" workers
-LEFT JOIN
-    -- FIXME: remove this in a future release
-    "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
     workers."tenantId" = $1
     AND (
@@ -1087,7 +1072,7 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url", ww."id"
+    workers."id"
 `
 
 type ListWorkersParams struct {
@@ -1098,9 +1083,7 @@ type ListWorkersParams struct {
 }
 
 type ListWorkersRow struct {
-	Worker     Worker      `json:"worker"`
-	WebhookUrl pgtype.Text `json:"webhookUrl"`
-	WebhookId  *uuid.UUID  `json:"webhookId"`
+	Worker Worker `json:"worker"`
 }
 
 func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParams) ([]*ListWorkersRow, error) {
@@ -1136,8 +1119,6 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 			&i.Worker.Os,
 			&i.Worker.RuntimeExtra,
 			&i.Worker.SdkVersion,
-			&i.WebhookUrl,
-			&i.WebhookId,
 		); err != nil {
 			return nil, err
 		}

@@ -44,5 +44,5 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 
 	slotConfig := workerSlotConfig[updatedWorker.ID]
 
-	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, slotConfig, nil, nil)), nil
+	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, slotConfig, nil)), nil
 }
