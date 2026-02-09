@@ -23,7 +23,8 @@ WITH inputs AS (
         UNNEST($6::TEXT[]) AS key,
         UNNEST($7::BIGINT[]) AS node_id,
         UNNEST($8::BOOLEAN[]) AS is_satisfied,
-        UNNEST($9::UUID[]) AS external_id
+        UNNEST($9::UUID[]) AS external_id,
+        UNNEST($10::UUID[]) AS dispatcher_id
 )
 INSERT INTO v1_durable_event_log_callback (
     tenant_id,
@@ -34,7 +35,8 @@ INSERT INTO v1_durable_event_log_callback (
     key,
     node_id,
     is_satisfied,
-    external_id
+    external_id,
+    dispatcher_id
 )
 SELECT
     i.tenant_id,
@@ -45,10 +47,11 @@ SELECT
     i.key,
     i.node_id,
     i.is_satisfied,
-    i.external_id
+    i.external_id,
+    i.dispatcher_id
 FROM
     inputs i
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
 `
 
 type CreateDurableEventLogCallbacksParams struct {
@@ -61,6 +64,7 @@ type CreateDurableEventLogCallbacksParams struct {
 	Nodeids                []int64              `json:"nodeids"`
 	Issatisfieds           []bool               `json:"issatisfieds"`
 	Externalids            []uuid.UUID          `json:"externalids"`
+	Dispatcherids          []uuid.UUID          `json:"dispatcherids"`
 }
 
 func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, arg CreateDurableEventLogCallbacksParams) ([]*V1DurableEventLogCallback, error) {
@@ -74,6 +78,7 @@ func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, a
 		arg.Nodeids,
 		arg.Issatisfieds,
 		arg.Externalids,
+		arg.Dispatcherids,
 	)
 	if err != nil {
 		return nil, err
@@ -93,6 +98,7 @@ func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, a
 			&i.Key,
 			&i.NodeID,
 			&i.IsSatisfied,
+			&i.DispatcherID,
 		); err != nil {
 			return nil, err
 		}
@@ -338,7 +344,7 @@ func (q *Queries) CreateDurableEventLogFile(ctx context.Context, db DBTX, arg Cr
 }
 
 const getDurableEventLogCallback = `-- name: GetDurableEventLogCallback :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
 FROM v1_durable_event_log_callback
 WHERE durable_task_id = $1
   AND durable_task_inserted_at = $2
@@ -365,6 +371,7 @@ func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg G
 		&i.Key,
 		&i.NodeID,
 		&i.IsSatisfied,
+		&i.DispatcherID,
 	)
 	return &i, err
 }
@@ -484,7 +491,7 @@ func (q *Queries) GetOrCreateEventLogFileForTask(ctx context.Context, db DBTX, a
 }
 
 const listDurableEventLogCallbacks = `-- name: ListDurableEventLogCallbacks :many
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
 FROM v1_durable_event_log_callback
 WHERE durable_task_id = $1
   AND durable_task_inserted_at = $2
@@ -516,6 +523,7 @@ func (q *Queries) ListDurableEventLogCallbacks(ctx context.Context, db DBTX, arg
 			&i.Key,
 			&i.NodeID,
 			&i.IsSatisfied,
+			&i.DispatcherID,
 		); err != nil {
 			return nil, err
 		}
@@ -580,7 +588,7 @@ SET is_satisfied = $1
 WHERE durable_task_id = $2
   AND durable_task_inserted_at = $3
   AND key = $4
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
 `
 
 type UpdateDurableEventLogCallbackSatisfiedParams struct {
@@ -609,6 +617,7 @@ func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db
 		&i.Key,
 		&i.NodeID,
 		&i.IsSatisfied,
+		&i.DispatcherID,
 	)
 	return &i, err
 }

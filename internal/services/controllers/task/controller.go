@@ -437,6 +437,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessInternalEvents(context.Background(), tenantId, payloads)
 	case msgqueue.MsgIDTaskTrigger:
 		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
+	case msgqueue.MsgIDRegisterDurableCallback:
+		return tc.handleRegisterDurableCallback(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -1078,6 +1080,12 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 		}
 	}
 
+	if len(matchResult.SatisfiedCallbacks) > 0 {
+		if err := tc.processSatisfiedCallbacks(ctx, tenantId, matchResult.SatisfiedCallbacks); err != nil {
+			tc.l.Error().Err(err).Msg("could not process satisfied callbacks")
+		}
+	}
+
 	return nil
 }
 
@@ -1115,6 +1123,12 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 
 		if err != nil {
 			return fmt.Errorf("could not signal replayed tasks: %w", err)
+		}
+	}
+
+	if len(matchResult.SatisfiedCallbacks) > 0 {
+		if err := tc.processSatisfiedCallbacks(ctx, tenantId, matchResult.SatisfiedCallbacks); err != nil {
+			tc.l.Error().Err(err).Msg("could not process satisfied callbacks")
 		}
 	}
 

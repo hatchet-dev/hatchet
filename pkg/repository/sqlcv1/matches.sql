@@ -261,6 +261,16 @@ ORDER BY
     m.id
 FOR UPDATE;
 
+-- name: UpdateMatchCallbackLink :exec
+UPDATE v1_match
+SET durable_event_log_callback_durable_task_id = @durableTaskId::BIGINT,
+    durable_event_log_callback_durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ,
+    durable_event_log_callback_key = @callbackKey::TEXT
+WHERE signal_task_id = @signalTaskId::BIGINT
+  AND signal_task_inserted_at = @signalTaskInsertedAt::TIMESTAMPTZ
+  AND signal_key = @signalKey::TEXT
+  AND is_satisfied = false;
+
 -- name: CleanupMatchWithMatchConditions :exec
 WITH deleted_match_ids AS (
     DELETE FROM

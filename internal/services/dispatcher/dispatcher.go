@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -45,9 +46,10 @@ type DispatcherImpl struct {
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
 
-	dispatcherId uuid.UUID
-	workers      *workers
-	a            *hatcheterrors.Wrapped
+	dispatcherId            uuid.UUID
+	workers                 *workers
+	a                       *hatcheterrors.Wrapped
+	durableCallbackHandler  DurableCallbackHandler
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -124,6 +126,7 @@ type DispatcherOpts struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	durableCallbackHandler      DurableCallbackHandler
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -201,6 +204,12 @@ func WithWorkflowRunBufferSize(size int) DispatcherOpt {
 	}
 }
 
+func WithDurableCallbackHandler(h DurableCallbackHandler) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.durableCallbackHandler = h
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -250,6 +259,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
+		durableCallbackHandler:      opts.durableCallbackHandler,
 	}, nil
 }
 
@@ -372,11 +382,45 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "task-cancelled":
 		err = d.a.WrapErr(d.handleTaskCancelled(ctx, task), map[string]interface{}{})
+	case msgqueue.MsgIDDurableCallbackCompleted:
+		err = d.a.WrapErr(d.handleDurableCallbackCompleted(ctx, task), map[string]interface{}{})
 	default:
 		err = fmt.Errorf("unknown task: %s", task.ID)
 	}
 
 	return err
+}
+
+func (d *DispatcherImpl) DispatcherId() uuid.UUID {
+	return d.dispatcherId
+}
+
+func (d *DispatcherImpl) SetDurableCallbackHandler(h DurableCallbackHandler) {
+	d.durableCallbackHandler = h
+}
+
+func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
+	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](task.Payloads)
+
+	for _, payload := range payloads {
+		if d.durableCallbackHandler == nil {
+			d.l.Warn().Msg("received durable-callback-completed but no callback handler is set")
+			continue
+		}
+
+		err := d.durableCallbackHandler.DeliverCallbackCompletion(
+			payload.TaskExternalId,
+			payload.NodeId,
+			payload.InvocationCount,
+			payload.Payload,
+		)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
+		}
+	}
+
+	return nil
 }
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {

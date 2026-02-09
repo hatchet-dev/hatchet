@@ -179,7 +179,8 @@ WITH inputs AS (
         UNNEST(@keys::TEXT[]) AS key,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
-        UNNEST(@externalIds::UUID[]) AS external_id
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@dispatcherIds::UUID[]) AS dispatcher_id
 )
 INSERT INTO v1_durable_event_log_callback (
     tenant_id,
@@ -190,7 +191,8 @@ INSERT INTO v1_durable_event_log_callback (
     key,
     node_id,
     is_satisfied,
-    external_id
+    external_id,
+    dispatcher_id
 )
 SELECT
     i.tenant_id,
@@ -201,7 +203,8 @@ SELECT
     i.key,
     i.node_id,
     i.is_satisfied,
-    i.external_id
+    i.external_id,
+    i.dispatcher_id
 FROM
     inputs i
 RETURNING *

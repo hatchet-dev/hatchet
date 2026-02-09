@@ -483,3 +483,35 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 	}
 	return items, nil
 }
+
+const updateMatchCallbackLink = `-- name: UpdateMatchCallbackLink :exec
+UPDATE v1_match
+SET durable_event_log_callback_durable_task_id = $1::BIGINT,
+    durable_event_log_callback_durable_task_inserted_at = $2::TIMESTAMPTZ,
+    durable_event_log_callback_key = $3::TEXT
+WHERE signal_task_id = $4::BIGINT
+  AND signal_task_inserted_at = $5::TIMESTAMPTZ
+  AND signal_key = $6::TEXT
+  AND is_satisfied = false
+`
+
+type UpdateMatchCallbackLinkParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Callbackkey           string             `json:"callbackkey"`
+	Signaltaskid          int64              `json:"signaltaskid"`
+	Signaltaskinsertedat  pgtype.Timestamptz `json:"signaltaskinsertedat"`
+	Signalkey             string             `json:"signalkey"`
+}
+
+func (q *Queries) UpdateMatchCallbackLink(ctx context.Context, db DBTX, arg UpdateMatchCallbackLinkParams) error {
+	_, err := db.Exec(ctx, updateMatchCallbackLink,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Callbackkey,
+		arg.Signaltaskid,
+		arg.Signaltaskinsertedat,
+		arg.Signalkey,
+	)
+	return err
+}

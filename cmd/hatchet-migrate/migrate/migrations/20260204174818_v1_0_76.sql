@@ -123,6 +123,9 @@ ALTER TABLE v1_match
     ADD COLUMN durable_event_log_callback_durable_task_id BIGINT,
     ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ,
     ADD COLUMN durable_event_log_callback_key TEXT;
+
+ALTER TABLE v1_durable_event_log_callback
+    ADD COLUMN dispatcher_id UUID;
 -- +goose StatementEnd
 
 -- +goose Down
@@ -137,4 +140,7 @@ ALTER TABLE v1_match
     DROP COLUMN durable_event_log_callback_durable_task_id,
     DROP COLUMN durable_event_log_callback_durable_task_inserted_at,
     DROP COLUMN durable_event_log_callback_key;
+
+ALTER TABLE v1_durable_event_log_callback
+    DROP COLUMN dispatcher_id;
 -- +goose StatementEnd

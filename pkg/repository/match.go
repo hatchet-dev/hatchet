@@ -117,6 +117,9 @@ type EventMatchResults struct {
 
 	// The list of tasks which were replayed from the matches
 	ReplayedTasks []*V1TaskWithPayload
+
+	// The list of satisfied durable callbacks from matches
+	SatisfiedCallbacks []SatisfiedCallback
 }
 
 type GroupMatchCondition struct {
@@ -140,11 +143,20 @@ type GroupMatchCondition struct {
 	Data []byte
 }
 
+type SatisfiedCallback struct {
+	DurableTaskId         int64
+	DurableTaskInsertedAt pgtype.Timestamptz
+	CallbackKey           string
+	Data                  []byte
+}
+
 type MatchRepository interface {
 	RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, eventMatches []ExternalCreateSignalMatchOpts) error
 
 	ProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
 	ProcessInternalEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
+
+	LinkCallbackToMatch(ctx context.Context, tenantId uuid.UUID, signalTaskId int64, signalTaskInsertedAt pgtype.Timestamptz, signalKey string, callbackTaskId int64, callbackTaskInsertedAt pgtype.Timestamptz, callbackKey string) error
 }
 
 type MatchRepositoryImpl struct {
@@ -155,6 +167,17 @@ func newMatchRepository(s *sharedRepository) MatchRepository {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
 	}
+}
+
+func (m *MatchRepositoryImpl) LinkCallbackToMatch(ctx context.Context, tenantId uuid.UUID, signalTaskId int64, signalTaskInsertedAt pgtype.Timestamptz, signalKey string, callbackTaskId int64, callbackTaskInsertedAt pgtype.Timestamptz, callbackKey string) error {
+	return m.queries.UpdateMatchCallbackLink(ctx, m.pool, sqlcv1.UpdateMatchCallbackLinkParams{
+		Durabletaskid:         pgtype.Int8{Int64: callbackTaskId, Valid: true},
+		Durabletaskinsertedat: callbackTaskInsertedAt,
+		Callbackkey:           pgtype.Text{String: callbackKey, Valid: true},
+		Signaltaskid:          pgtype.Int8{Int64: signalTaskId, Valid: true},
+		Signaltaskinsertedat:  signalTaskInsertedAt,
+		Signalkey:             pgtype.Text{String: signalKey, Valid: true},
+	})
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -652,6 +675,19 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	}
 
 	res.CreatedTasks = tasks
+
+	satisfiedCallbacks := make([]SatisfiedCallback, 0)
+	for _, match := range satisfiedMatches {
+		if match.DurableEventLogCallbackKey.Valid {
+			satisfiedCallbacks = append(satisfiedCallbacks, SatisfiedCallback{
+				DurableTaskId:         match.DurableEventLogCallbackDurableTaskID.Int64,
+				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt,
+				CallbackKey:           match.DurableEventLogCallbackKey.String,
+				Data:                  match.McAggregatedData,
+			})
+		}
+	}
+	res.SatisfiedCallbacks = satisfiedCallbacks
 
 	if len(signalIds) > 0 {
 		// create a SIGNAL_COMPLETED event for any signal

@@ -3,11 +3,14 @@ package v1
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -17,6 +20,8 @@ type DispatcherService interface {
 	contracts.V1DispatcherServer
 }
 
+var _ dispatcher.DurableCallbackHandler = (*DispatcherServiceImpl)(nil)
+
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
 
@@ -25,15 +30,19 @@ type DispatcherServiceImpl struct {
 	v             validator.Validator
 	l             *zerolog.Logger
 	triggerWriter *trigger.TriggerWriter
+	dispatcherId  uuid.UUID
+
+	durableInvocations syncx.Map[string, *durableTaskInvocation]
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)
 
 type DispatcherServiceOpts struct {
-	repo v1.Repository
-	mq   msgqueue.MessageQueue
-	v    validator.Validator
-	l    *zerolog.Logger
+	repo         v1.Repository
+	mq           msgqueue.MessageQueue
+	v            validator.Validator
+	l            *zerolog.Logger
+	dispatcherId uuid.UUID
 }
 
 func defaultDispatcherServiceOpts() *DispatcherServiceOpts {
@@ -70,6 +79,12 @@ func WithLogger(l *zerolog.Logger) DispatcherServiceOpt {
 	}
 }
 
+func WithDispatcherId(id uuid.UUID) DispatcherServiceOpt {
+	return func(opts *DispatcherServiceOpts) {
+		opts.dispatcherId = id
+	}
+}
+
 func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error) {
 	opts := defaultDispatcherServiceOpts()
 
@@ -94,5 +109,24 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error)
 		v:             opts.v,
 		l:             opts.l,
 		triggerWriter: tw,
+		dispatcherId:  opts.dispatcherId,
 	}, nil
+}
+
+func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId string, nodeId int64, invocationCount int64, payload []byte) error {
+	inv, ok := d.durableInvocations.Load(taskExternalId)
+	if !ok {
+		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
+	}
+
+	return inv.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_CallbackCompleted{
+			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+				InvocationCount:       invocationCount,
+				DurableTaskExternalId: taskExternalId,
+				NodeId:                nodeId,
+				Payload:               payload,
+			},
+		},
+	})
 }

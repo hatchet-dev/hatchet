@@ -15,7 +15,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -371,6 +373,13 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		l:        d.l,
 	}
 
+	registeredTasks := make(map[string]struct{})
+	defer func() {
+		for taskId := range registeredTasks {
+			d.durableInvocations.Delete(taskId)
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -385,6 +394,20 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 			}
 			d.l.Error().Err(err).Msg("error receiving durable task request")
 			return err
+		}
+
+		if event := req.GetEvent(); event != nil {
+			taskExtId := event.DurableTaskExternalId
+			if _, exists := registeredTasks[taskExtId]; !exists {
+				d.durableInvocations.Store(taskExtId, invocation)
+				registeredTasks[taskExtId] = struct{}{}
+			}
+		} else if cb := req.GetRegisterCallback(); cb != nil {
+			taskExtId := cb.DurableTaskExternalId
+			if _, exists := registeredTasks[taskExtId]; !exists {
+				d.durableInvocations.Store(taskExtId, invocation)
+				registeredTasks[taskExtId] = struct{}{}
+			}
 		}
 
 		if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
@@ -490,7 +513,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			return status.Errorf(codes.Internal, "failed to spawn child: %v", err)
 		}
 
-
 		triggeredRunExternalId = &spawnedChild.ChildExternalId
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO:
 		entryKind = sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED
@@ -500,7 +522,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 	externalId := uuid.New()
-	
+
 	_, err = d.repo.DurableEvents().CreateEventLogEntries(ctx, []v1.CreateEventLogEntryOpts{{
 		TenantId:               invocation.tenantId,
 		ExternalId:             externalId,
@@ -674,9 +696,6 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 	entry := entryWithData.Entry
 
-	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
-	externalId := uuid.New()
-
 	var callbackKind sqlcv1.V1DurableEventLogCallbackKind
 	switch entry.Kind.V1DurableEventLogEntryKind {
 	case sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED:
@@ -684,6 +703,41 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	default:
 		callbackKind = sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED
 	}
+
+	if callbackKind == sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED {
+		d.durableInvocations.Store(req.DurableTaskExternalId, invocation)
+
+		msg, err := tasktypes.RegisterDurableCallbackMessage(
+			tenantId,
+			req.DurableTaskExternalId,
+			req.NodeId,
+			req.InvocationCount,
+			d.dispatcherId,
+		)
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to create register callback message: %v", err)
+		}
+
+		err = d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to send register callback message: %v", err)
+		}
+
+		return invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_RegisterCallbackAck{
+				RegisterCallbackAck: &contracts.DurableTaskRegisterCallbackAckResponse{
+					InvocationCount:       req.InvocationCount,
+					DurableTaskExternalId: req.DurableTaskExternalId,
+					NodeId:                req.NodeId,
+				},
+			},
+		})
+	}
+
+	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
+	externalId := uuid.New()
 
 	_, err = d.repo.DurableEvents().CreateEventLogCallbacks(ctx, []v1.CreateEventLogCallbackOpts{{
 		DurableTaskId:         task.ID,

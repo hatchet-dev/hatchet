@@ -46,6 +46,7 @@ type CreateEventLogCallbackOpts struct {
 	Key                   string
 	NodeId                int64
 	IsSatisfied           bool
+	DispatcherId          uuid.UUID
 }
 
 type EventLogCallbackWithPayload struct {
@@ -290,6 +291,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 	nodeIds := make([]int64, len(opts))
 	isSatisfieds := make([]bool, len(opts))
 	externalIds := make([]uuid.UUID, len(opts))
+	dispatcherIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
 		tenantIds[i] = opt.TenantId
@@ -301,6 +303,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		nodeIds[i] = opt.NodeId
 		isSatisfieds[i] = opt.IsSatisfied
 		externalIds[i] = opt.ExternalId
+		dispatcherIds[i] = opt.DispatcherId
 	}
 
 	callbacks, err := r.queries.CreateDurableEventLogCallbacks(ctx, tx, sqlcv1.CreateDurableEventLogCallbacksParams{
@@ -313,6 +316,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		Nodeids:                nodeIds,
 		Issatisfieds:           isSatisfieds,
 		Externalids:            externalIds,
+		Dispatcherids:          dispatcherIds,
 	})
 
 	if err != nil {

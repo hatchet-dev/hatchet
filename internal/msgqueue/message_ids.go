@@ -3,6 +3,7 @@ package msgqueue
 // Message ID constants for tenant messages
 const (
 	MsgIDCancelTasks                  = "cancel-tasks"
+	MsgIDDurableCallbackCompleted     = "durable-callback-completed"
 	MsgIDCELEvaluationFailure         = "cel-evaluation-failure"
 	MsgIDCheckTenantQueue             = "check-tenant-queue"
 	MsgIDCreateMonitoringEvent        = "create-monitoring-event"
@@ -12,6 +13,7 @@ const (
 	MsgIDFailedWebhookValidation      = "failed-webhook-validation"
 	MsgIDInternalEvent                = "internal-event"
 	MsgIDOffloadPayload               = "offload-payload"
+	MsgIDRegisterDurableCallback      = "register-durable-callback"
 	MsgIDReplayTasks                  = "replay-tasks"
 	MsgIDTaskAssignedBulk             = "task-assigned-bulk"
 	MsgIDTaskCancelled                = "task-cancelled"

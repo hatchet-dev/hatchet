@@ -214,3 +214,61 @@ type CandidateFinalizedPayload struct {
 	// (required) the workflow run id (can either be a workflow run id or single task)
 	WorkflowRunId uuid.UUID `validate:"required"`
 }
+
+type RegisterDurableCallbackPayload struct {
+	TenantId        uuid.UUID
+	TaskExternalId  string
+	NodeId          int64
+	InvocationCount int64
+	DispatcherId    uuid.UUID
+}
+
+func RegisterDurableCallbackMessage(
+	tenantId uuid.UUID,
+	taskExternalId string,
+	nodeId int64,
+	invocationCount int64,
+	dispatcherId uuid.UUID,
+) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDRegisterDurableCallback,
+		false,
+		true,
+		RegisterDurableCallbackPayload{
+			TenantId:        tenantId,
+			TaskExternalId:  taskExternalId,
+			NodeId:          nodeId,
+			InvocationCount: invocationCount,
+			DispatcherId:    dispatcherId,
+		},
+	)
+}
+
+type DurableCallbackCompletedPayload struct {
+	TaskExternalId  string
+	NodeId          int64
+	InvocationCount int64
+	Payload         []byte
+}
+
+func DurableCallbackCompletedMessage(
+	tenantId uuid.UUID,
+	taskExternalId string,
+	nodeId int64,
+	invocationCount int64,
+	payload []byte,
+) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDDurableCallbackCompleted,
+		false,
+		true,
+		DurableCallbackCompletedPayload{
+			TaskExternalId:  taskExternalId,
+			NodeId:          nodeId,
+			InvocationCount: invocationCount,
+			Payload:         payload,
+		},
+	)
+}
