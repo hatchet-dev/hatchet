@@ -4,7 +4,7 @@ import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
@@ -17,18 +17,19 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 export default function ManagedWorkers() {
-  const { tenant, billing, can } = useTenantDetails();
-  const { tenantId } = useCurrentTenantId();
+  const { tenant, tenantId, billing, can } = useTenantDetails();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenant!.metadata.id),
+    ...queries.cloud.getComputeCost(tenantId ?? ''),
+    enabled: !!tenantId,
   });
 
   const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenant!.metadata.id),
+    ...queries.cloud.listManagedWorkers(tenantId ?? ''),
+    enabled: !!tenantId,
   });
 
   // Check if the user can create more worker pools
@@ -55,7 +56,10 @@ export default function ManagedWorkers() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
+      if (!tenantId) {
+        return;
+      }
+      const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
