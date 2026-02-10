@@ -55,6 +55,7 @@ import (
 
 	pkgWorker "github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+	"github.com/hatchet-dev/hatchet/pkg/worker/eviction"
 )
 
 // Context represents the execution context passed to task functions.
@@ -90,4 +91,25 @@ func OrCondition(conditions ...condition.Condition) condition.Condition {
 // AndCondition creates a condition that is satisfied when all of the provided conditions are met.
 func AndCondition(conditions ...condition.Condition) condition.Condition {
 	return condition.Conditions(conditions...)
+}
+
+// Eviction types re-exported for convenience.
+
+// EvictionPolicy defines task-scoped eviction parameters for durable tasks.
+type EvictionPolicy = eviction.Policy
+
+// EvictionManagerConfig holds per-worker eviction manager settings.
+type EvictionManagerConfig = eviction.ManagerConfig
+
+// ErrEvicted is the error cause set on a durable run's context when it is evicted.
+var ErrEvicted = eviction.ErrEvicted
+
+// DefaultEvictionPolicy returns sensible defaults for durable task eviction.
+func DefaultEvictionPolicy() *EvictionPolicy {
+	return eviction.DefaultPolicy()
+}
+
+// DefaultEvictionManagerConfig returns sensible defaults for the eviction manager.
+func DefaultEvictionManagerConfig() EvictionManagerConfig {
+	return eviction.DefaultManagerConfig()
 }

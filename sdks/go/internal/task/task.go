@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+	"github.com/hatchet-dev/hatchet/pkg/worker/eviction"
 )
 
 type NamedTaskImpl struct {
@@ -109,6 +110,10 @@ type DurableTaskDeclaration[I any] struct {
 	// The function to execute when the task runs
 	// must be a function that takes an input and a DurableHatchetContext and returns an output and an error
 	Fn interface{}
+
+	// EvictionPolicy controls when and how this durable task can be evicted from a slot while waiting.
+	// A nil policy means the task is never eligible for eviction.
+	EvictionPolicy *eviction.Policy
 }
 
 // OnFailureTaskDeclaration represents a task that will be executed if

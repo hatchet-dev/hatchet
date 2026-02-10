@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/worker/eviction"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
@@ -50,7 +51,9 @@ type actionImpl struct {
 	method               any
 	service              string
 
-	compute *compute.Compute
+	compute        *compute.Compute
+	isDurable      bool
+	evictionPolicy *eviction.Policy
 }
 
 func (j *actionImpl) Name() string {
@@ -111,6 +114,9 @@ type Worker struct {
 	id *string
 
 	panicHandler func(ctx HatchetContext, recovered any)
+
+	evictionManager *eviction.Manager
+	evictionConfig  *eviction.ManagerConfig
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -129,6 +135,8 @@ type WorkerOpts struct {
 	actions []string
 
 	labels map[string]interface{}
+
+	evictionConfig *eviction.ManagerConfig
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -197,6 +205,13 @@ func WithSlotConfig(slotConfig map[string]int32) WorkerOpt {
 func WithLabels(labels map[string]interface{}) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.labels = labels
+	}
+}
+
+// WithEvictionConfig sets the eviction manager configuration for the worker.
+func WithEvictionConfig(config *eviction.ManagerConfig) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.evictionConfig = config
 	}
 }
 
@@ -271,6 +286,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
+		evictionConfig:       opts.evictionConfig,
 	}
 
 	mws.add(w.panicMiddleware)
@@ -384,6 +400,39 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 	return w.registerAction(action.Service, action.Verb, method, nil)
 }
 
+// RegisterDurableAction registers a durable action with an optional eviction policy.
+func (w *Worker) RegisterDurableAction(actionId string, method any, evictionPolicy *eviction.Policy) error {
+	action, err := types.ParseActionID(actionId)
+
+	if err != nil {
+		return fmt.Errorf("could not parse action id: %w", err)
+	}
+
+	if _, ok := w.services.Load(action.Service); !ok {
+		w.NewService(action.Service)
+	}
+
+	err = w.registerAction(action.Service, action.Verb, method, nil)
+	if err != nil {
+		return err
+	}
+
+	// Mark the action as durable with its eviction policy
+	actionID := strings.ToLower(fmt.Sprintf("%s:%s", action.Service, action.Verb))
+	if a, ok := w.actions[actionID]; ok {
+		impl := a.(*actionImpl)
+		impl.isDurable = true
+		impl.evictionPolicy = evictionPolicy
+	}
+
+	return nil
+}
+
+// EvictionManager returns the worker's eviction manager (may be nil if not started).
+func (w *Worker) EvictionManager() *eviction.Manager {
+	return w.evictionManager
+}
+
 func (w *Worker) registerAction(service, verb string, method any, compute *compute.Compute) error {
 	actionID := strings.ToLower(fmt.Sprintf("%s:%s", service, verb))
 
@@ -467,6 +516,7 @@ func (w *Worker) ID() *string {
 func (w *Worker) startBlocking(ctx context.Context) error {
 	actionNames := []string{}
 
+	hasDurableActions := false
 	for _, action := range w.actions {
 		if w.client.RunnableActions() != nil {
 			if !slices.Contains(w.client.RunnableActions(), action.Name()) {
@@ -475,9 +525,35 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 		}
 
 		actionNames = append(actionNames, action.Name())
+
+		if impl, ok := action.(*actionImpl); ok && impl.isDurable {
+			hasDurableActions = true
+		}
 	}
 
 	w.l.Debug().Msgf("worker %s is listening for actions: %v", w.name, actionNames)
+
+	// Initialize eviction manager if there are durable actions
+	if hasDurableActions {
+		evictionCfg := eviction.DefaultManagerConfig()
+		if w.evictionConfig != nil {
+			evictionCfg = *w.evictionConfig
+		}
+
+		durableSlotCount := 1000
+		if w.durableSlots != nil {
+			durableSlotCount = *w.durableSlots
+		}
+		if w.slotConfig != nil {
+			if ds, ok := w.slotConfig["durable"]; ok {
+				durableSlotCount = int(ds)
+			}
+		}
+
+		w.evictionManager = eviction.NewManager(durableSlotCount, evictionCfg, w.l)
+		w.evictionManager.Start()
+		defer w.evictionManager.Stop()
+	}
 
 	_ = NewManagedCompute(&w.actions, w.client, 1)
 
@@ -592,10 +668,18 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 		return fmt.Errorf("could not decode args to interface: %w", err)
 	}
 
-	runContext, cancel := context.WithCancel(context.Background())
+	runContext, cancelCause := context.WithCancelCause(context.Background())
 
-	w.cancelMap.Store(assignedAction.StepRunId, cancel)
+	w.cancelMap.Store(assignedAction.StepRunId, cancelCause)
 	defer w.cancelMap.Delete(assignedAction.StepRunId)
+
+	// Register durable action with eviction manager
+	actionKey := assignedAction.StepRunId
+	impl, isActionImpl := action.(*actionImpl)
+	if isActionImpl && impl.isDurable && w.evictionManager != nil {
+		w.evictionManager.RegisterRun(actionKey, assignedAction.StepRunId, runContext, cancelCause, impl.evictionPolicy)
+		defer w.evictionManager.UnregisterRun(actionKey)
+	}
 
 	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
 
@@ -616,7 +700,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	// the service-specific middleware
 	return w.middlewares.runAll(hCtx, func(ctx HatchetContext) error {
 		return svc.mws.runAll(ctx, func(ctx HatchetContext) error {
-			defer cancel()
+			defer cancelCause(nil)
 
 			args := []any{ctx}
 
@@ -756,9 +840,9 @@ func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Actio
 
 	w.l.Debug().Msgf("cancelling step run %s", assignedAction.StepRunId)
 
-	cancelFn := cancel.(context.CancelFunc)
+	cancelFn := cancel.(context.CancelCauseFunc)
 
-	cancelFn()
+	cancelFn(nil)
 
 	return nil
 }

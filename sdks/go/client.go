@@ -102,6 +102,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		workerOpts = append(workerOpts, worker.WithLabels(config.labels))
 	}
 
+	if config.evictionConfig != nil {
+		workerOpts = append(workerOpts, worker.WithEvictionConfig(config.evictionConfig))
+	}
+
 	mainWorker, err := worker.NewWorker(workerOpts...)
 	if err != nil {
 		return nil, err
@@ -118,7 +122,7 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		}
 
 		for _, namedFn := range dump.durableActions {
-			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+			err = mainWorker.RegisterDurableAction(namedFn.ActionID, namedFn.Fn, namedFn.EvictionPolicy)
 			if err != nil {
 				return nil, err
 			}

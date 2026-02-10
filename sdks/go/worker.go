@@ -4,6 +4,7 @@ import (
 	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/worker/eviction"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
@@ -19,6 +20,7 @@ type workerConfig struct {
 	labels          map[string]any
 	logger          *zerolog.Logger
 	panicHandler    func(ctx Context, recovered any)
+	evictionConfig  *eviction.ManagerConfig
 }
 
 type WorkflowBase interface {
@@ -73,5 +75,13 @@ func WithDurableSlots(durableSlots int) WorkerOption {
 func WithPanicHandler(panicHandler func(ctx Context, recovered any)) WorkerOption {
 	return func(config *workerConfig) {
 		config.panicHandler = panicHandler
+	}
+}
+
+// WithEvictionConfig sets the eviction manager configuration for the worker.
+// This controls the background eviction loop that manages durable task slot pressure.
+func WithEvictionConfig(evictionConfig *eviction.ManagerConfig) WorkerOption {
+	return func(config *workerConfig) {
+		config.evictionConfig = evictionConfig
 	}
 }
