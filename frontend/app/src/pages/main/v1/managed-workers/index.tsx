@@ -145,7 +145,7 @@ export default function ManagedWorkers() {
             </Button>
             <Link
               to={appRoutes.tenantSettingsBillingRoute.to}
-              params={{ tenant: tenantId }}
+              params={{ tenant: tenantId ?? '' }}
             >
               <Button leftIcon={<ArrowUpIcon className="size-4" />}>
                 Upgrade Plan
@@ -167,7 +167,7 @@ export default function ManagedWorkers() {
           {canCreateMoreWorkerPools ? (
             <Link
               to={appRoutes.tenantManagedWorkersCreateRoute.to}
-              params={{ tenant: tenantId }}
+              params={{ tenant: tenantId ?? '' }}
             >
               <Button leftIcon={<PlusIcon className="size-4" />}>
                 Add Service
