@@ -32,7 +32,7 @@ type DispatcherServiceImpl struct {
 	triggerWriter *trigger.TriggerWriter
 	dispatcherId  uuid.UUID
 
-	durableInvocations syncx.Map[string, *durableTaskInvocation]
+	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)
@@ -113,7 +113,7 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error)
 	}, nil
 }
 
-func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId string, nodeId int64, invocationCount int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
@@ -123,7 +123,7 @@ func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId string,
 		Message: &contracts.DurableTaskResponse_CallbackCompleted{
 			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
 				InvocationCount:       invocationCount,
-				DurableTaskExternalId: taskExternalId,
+				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
 				Payload:               payload,
 			},

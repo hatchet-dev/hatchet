@@ -3,6 +3,9 @@ package repository
 import (
 	"context"
 	"crypto/sha256"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,7 +46,7 @@ type CreateEventLogCallbackOpts struct {
 	InsertedAt            pgtype.Timestamptz
 	ExternalId            uuid.UUID
 	Kind                  sqlcv1.V1DurableEventLogCallbackKind
-	Key                   string
+	Key                   CallbackKey
 	NodeId                int64
 	IsSatisfied           bool
 	DispatcherId          uuid.UUID
@@ -68,9 +71,11 @@ type DurableEventsRepository interface {
 	ListEventLogEntries(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogEntry, error)
 
 	CreateEventLogCallbacks(ctx context.Context, opts []CreateEventLogCallbackOpts) ([]*sqlcv1.V1DurableEventLogCallback, error)
-	GetEventLogCallback(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*EventLogCallbackWithPayload, error)
+	GetEventLogCallback(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key CallbackKey) (*EventLogCallbackWithPayload, error)
 	ListEventLogCallbacks(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogCallback, error)
-	UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error)
+	UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key CallbackKey, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error)
+
+	ParseCallbackKey(ctx context.Context, key string) (*CallbackKey, error)
 }
 
 type durableEventsRepository struct {
@@ -299,7 +304,7 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 		durableTaskInsertedAts[i] = opt.DurableTaskInsertedAt
 		insertedAts[i] = opt.InsertedAt
 		kinds[i] = string(opt.Kind)
-		keys[i] = opt.Key
+		keys[i] = opt.Key.String()
 		nodeIds[i] = opt.NodeId
 		isSatisfieds[i] = opt.IsSatisfied
 		externalIds[i] = opt.ExternalId
@@ -330,11 +335,11 @@ func (r *durableEventsRepository) CreateEventLogCallbacks(ctx context.Context, o
 	return callbacks, nil
 }
 
-func (r *durableEventsRepository) GetEventLogCallback(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string) (*EventLogCallbackWithPayload, error) {
+func (r *durableEventsRepository) GetEventLogCallback(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key CallbackKey) (*EventLogCallbackWithPayload, error) {
 	callback, err := r.queries.GetDurableEventLogCallback(ctx, r.pool, sqlcv1.GetDurableEventLogCallbackParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
-		Key:                   key,
+		Key:                   key.String(),
 	})
 
 	if err != nil {
@@ -365,7 +370,7 @@ func (r *durableEventsRepository) ListEventLogCallbacks(ctx context.Context, dur
 	})
 }
 
-func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key string, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error) {
+func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, key CallbackKey, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error) {
 	// note: might need to pass a tx in here instead
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
@@ -376,7 +381,7 @@ func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Co
 	callback, err := r.queries.UpdateDurableEventLogCallbackSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbackSatisfiedParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
-		Key:                   key,
+		Key:                   key.String(),
 		Issatisfied:           isSatisfied,
 	})
 
@@ -406,4 +411,36 @@ func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Co
 	}
 
 	return callback, nil
+}
+
+type CallbackKey struct {
+	TaskExternalId uuid.UUID
+	NodeId         int64
+}
+
+func (ck *CallbackKey) String() string {
+	return fmt.Sprintf("%s:%d", ck.TaskExternalId.String(), ck.NodeId)
+}
+
+func (r *durableEventsRepository) ParseCallbackKey(ctx context.Context, key string) (*CallbackKey, error) {
+	parts := strings.Split(key, ":")
+
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid callback key format: %s", key)
+	}
+
+	taskExternalId, err := uuid.Parse(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid task external id in callback key: %w", err)
+	}
+
+	nodeId, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid node id in callback key: %w", err)
+	}
+
+	return &CallbackKey{
+		TaskExternalId: taskExternalId,
+		NodeId:         nodeId,
+	}, nil
 }

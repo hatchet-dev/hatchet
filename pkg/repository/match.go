@@ -48,7 +48,7 @@ type ExternalCreateSignalMatchOpts struct {
 	// Optional callback fields for durable WAIT_FOR
 	DurableCallbackTaskId         *int64
 	DurableCallbackTaskInsertedAt pgtype.Timestamptz
-	DurableCallbackKey            *string
+	DurableCallbackKey            *CallbackKey
 }
 
 type CreateExternalSignalConditionKind string
@@ -118,7 +118,7 @@ type CreateMatchOpts struct {
 	// Optional callback fields for durable WAIT_FOR
 	DurableCallbackTaskId         *int64
 	DurableCallbackTaskInsertedAt pgtype.Timestamptz
-	DurableCallbackKey            *string
+	DurableCallbackKey            *CallbackKey
 }
 
 type EventMatchResults struct {
@@ -1061,7 +1061,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			}
 			callbackTaskInsertedAts[i] = match.DurableCallbackTaskInsertedAt
 			if match.DurableCallbackKey != nil {
-				callbackKeys[i] = *match.DurableCallbackKey
+				callbackKeys[i] = match.DurableCallbackKey.String()
 			}
 		}
 

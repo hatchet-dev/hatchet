@@ -371,7 +371,7 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		l:        d.l,
 	}
 
-	registeredTasks := make(map[string]struct{})
+	registeredTasks := make(map[uuid.UUID]struct{})
 	defer func() {
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(taskId)
@@ -395,13 +395,23 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		}
 
 		if event := req.GetEvent(); event != nil {
-			taskExtId := event.DurableTaskExternalId
+			taskExtId, err := uuid.Parse(event.DurableTaskExternalId)
+
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "invalid durable task external id: %v", err)
+			}
+
 			if _, exists := registeredTasks[taskExtId]; !exists {
 				d.durableInvocations.Store(taskExtId, invocation)
 				registeredTasks[taskExtId] = struct{}{}
 			}
 		} else if cb := req.GetRegisterCallback(); cb != nil {
-			taskExtId := cb.DurableTaskExternalId
+			taskExtId, err := uuid.Parse(cb.DurableTaskExternalId)
+
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "invalid durable task external id: %v", err)
+			}
+
 			if _, exists := registeredTasks[taskExtId]; !exists {
 				d.durableInvocations.Store(taskExtId, invocation)
 				registeredTasks[taskExtId] = struct{}{}
@@ -540,7 +550,16 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	if req.Kind == contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR && req.WaitForConditions != nil {
 		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, nodeId)
-		callbackKey := fmt.Sprintf("%s:%d", req.DurableTaskExternalId, nodeId)
+		externalId, err := uuid.Parse(req.DurableTaskExternalId)
+
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "invalid durable task external id: %v", err)
+		}
+
+		callbackKey := v1.CallbackKey{
+			TaskExternalId: externalId,
+			NodeId:         nodeId,
+		}
 
 		callbackExternalId := uuid.New()
 		_, err = d.repo.DurableEvents().CreateEventLogCallbacks(ctx, []v1.CreateEventLogCallbackOpts{{
@@ -679,7 +698,16 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	tenantId := invocation.tenantId
-	callbackKey := fmt.Sprintf("%s:%d", req.DurableTaskExternalId, req.NodeId)
+	durableTaskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
+
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid durable task external id: %v", err)
+	}
+
+	callbackKey := v1.CallbackKey{
+		TaskExternalId: durableTaskExternalId,
+		NodeId:         req.NodeId,
+	}
 
 	existingCallback, err := d.repo.DurableEvents().GetEventLogCallback(ctx, tenantId, task.ID, task.InsertedAt, callbackKey)
 
@@ -723,7 +751,13 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 	}
 
 	if callbackKind == sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED {
-		d.durableInvocations.Store(req.DurableTaskExternalId, invocation)
+		durableTaskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
+
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "invalid durable task external id: %v", err)
+		}
+
+		d.durableInvocations.Store(durableTaskExternalId, invocation)
 
 		// Callback was already created in handleDurableTaskEvent, just send ack
 		return invocation.send(&contracts.DurableTaskResponse{
@@ -783,7 +817,7 @@ func (d *DispatcherServiceImpl) pollForCompletion(
 	signalKey string,
 	childExternalId *uuid.UUID,
 	req *contracts.DurableTaskRegisterCallbackRequest,
-	callbackKey string,
+	callbackKey v1.CallbackKey,
 ) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -850,7 +884,7 @@ func (d *DispatcherServiceImpl) sendCallbackCompleted(
 	invocation *durableTaskInvocation,
 	task *sqlcv1.FlattenExternalIdsRow,
 	req *contracts.DurableTaskRegisterCallbackRequest,
-	callbackKey string,
+	callbackKey v1.CallbackKey,
 	payload []byte,
 	tenantId uuid.UUID,
 ) {

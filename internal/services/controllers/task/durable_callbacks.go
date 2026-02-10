@@ -28,15 +28,14 @@ func (tc *TasksControllerImpl) processSingleSatisfiedCallback(ctx context.Contex
 
 	dispatcherId := *cb.DispatcherId
 
-	taskExternalId, nodeId, err := parseCallbackKey(cb.CallbackKey)
+	callbackKey, err := tc.repov1.DurableEvents().ParseCallbackKey(ctx, cb.CallbackKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse callback key %s: %w", cb.CallbackKey, err)
 	}
 
 	msg, err := tasktypes.DurableCallbackCompletedMessage(
 		tenantId,
-		taskExternalId,
-		nodeId,
+		*callbackKey,
 		1,
 		cb.Data,
 	)
@@ -45,30 +44,4 @@ func (tc *TasksControllerImpl) processSingleSatisfiedCallback(ctx context.Contex
 	}
 
 	return tc.mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherId), msg)
-}
-
-func parseCallbackKey(key string) (string, int64, error) {
-	var nodeId int64
-	parts := make([]string, 0)
-	current := ""
-	for _, c := range key {
-		if c == ':' {
-			parts = append(parts, current)
-			current = ""
-		} else {
-			current += string(c)
-		}
-	}
-	parts = append(parts, current)
-
-	if len(parts) != 2 {
-		return "", 0, fmt.Errorf("invalid callback key format: %s", key)
-	}
-
-	_, err := fmt.Sscanf(parts[1], "%d", &nodeId)
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid node id in callback key: %w", err)
-	}
-
-	return parts[0], nodeId, nil
 }
