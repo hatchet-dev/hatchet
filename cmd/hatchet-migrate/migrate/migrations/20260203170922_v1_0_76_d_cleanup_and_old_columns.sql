@@ -12,16 +12,10 @@ DROP FUNCTION IF EXISTS v1_task_runtime_slot_insert_function();
 
 DROP TRIGGER IF EXISTS v1_task_runtime_slot_delete_trigger ON v1_task_runtime;
 DROP FUNCTION IF EXISTS v1_task_runtime_slot_delete_function();
-
-ALTER TABLE "Worker"
-    DROP COLUMN IF EXISTS "maxRuns";
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-ALTER TABLE "Worker"
-    ADD COLUMN IF NOT EXISTS "maxRuns" INTEGER NOT NULL DEFAULT 100;
-
 CREATE OR REPLACE FUNCTION v1_worker_slot_config_insert_function()
 RETURNS TRIGGER AS
 $$

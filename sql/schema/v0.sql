@@ -851,6 +851,8 @@ CREATE TABLE "Worker" (
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
     "dispatcherId" UUID,
+    -- FIXME: maxRuns is deprecated, remove this column in a future migration
+    "maxRuns" INTEGER NOT NULL DEFAULT 100,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
