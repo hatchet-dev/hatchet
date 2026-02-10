@@ -271,6 +271,15 @@ export const AuthSetup = ({
           helpLink="https://docs.slack.dev/authentication/verifying-requests-from-slack/#validating-a-request"
         />
       );
+    case V1WebhookSourceName.SVIX:
+      return (
+        <PreconfiguredHMACAuth
+          register={register}
+          secretLabel="Svix Endpoint Secret"
+          secretPlaceholder="whsec_..."
+          helpText="You can find your endpoint secret in the Svix dashboard under the endpoint's settings."
+        />
+      );
     default:
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);

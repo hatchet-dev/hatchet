@@ -83,6 +83,32 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 	return req, err
 }
 
+// SvixAuth configures webhook verification using the Svix SDK.
+// Only the signing secret (whsec_...) is required; the Svix SDK handles
+// signature headers and algorithms internally.
+type SvixAuth struct {
+	SigningSecret string
+}
+
+func (a SvixAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookRequest, error) {
+	var req rest.V1CreateWebhookRequest
+	err := req.FromV1CreateWebhookRequestHMAC(rest.V1CreateWebhookRequestHMAC{
+		Name:               opts.Name,
+		SourceName:         rest.V1WebhookSourceName("SVIX"),
+		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
+		AuthType:           rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
+		Auth: rest.V1WebhookHMACAuth{
+			SigningSecret:       a.SigningSecret,
+			SignatureHeaderName: "svix-signature",
+			Algorithm:           rest.SHA256,
+			Encoding:            rest.BASE64,
+		},
+	})
+	return req, err
+}
+
 type CreateWebhookOpts struct {
 	Name               string
 	SourceName         rest.V1WebhookSourceName

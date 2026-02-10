@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	svix "github.com/svix/svix-webhooks/go"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -582,6 +583,31 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			return false, &ValidationError{
 				Code:      Http403,
 				ErrorText: "invalid HMAC signature",
+			}
+		}
+	case sqlcv1.V1IncomingWebhookSourceNameSVIX:
+		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+
+		if err != nil {
+			return false, &ValidationError{
+				Code:      Http500,
+				ErrorText: fmt.Sprintf("failed to decrypt SVIX signing secret: %s", err),
+			}
+		}
+
+		wh, err := svix.NewWebhook(string(decryptedSigningSecret))
+
+		if err != nil {
+			return false, &ValidationError{
+				Code:      Http500,
+				ErrorText: fmt.Sprintf("failed to create SVIX webhook verifier: %s", err),
+			}
+		}
+
+		if err := wh.Verify(webhookPayload, request.Header); err != nil {
+			return false, &ValidationError{
+				Code:      Http403,
+				ErrorText: fmt.Sprintf("SVIX signature verification failed: %s", err),
 			}
 		}
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
