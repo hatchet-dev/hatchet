@@ -332,14 +332,18 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 	return eventExternalIdToRuns
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	triggerOpts, err := r.prepareTriggerFromWorkflowNames(ctx, r.pool, tenantId, opts)
+func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx, tenantId, opts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	return r.triggerWorkflows(ctx, nil, tenantId, triggerOpts, nil)
+	return s.triggerWorkflows(ctx, nil, tenantId, triggerOpts, nil)
+}
+
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+	return r.triggerFromWorkflowNames(ctx, r.pool, tenantId, opts)
 }
 
 type ErrNamesNotFound struct {

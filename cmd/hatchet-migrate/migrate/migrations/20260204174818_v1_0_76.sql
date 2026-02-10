@@ -63,9 +63,7 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Possible: we may want to query a range of node_ids for a durable task
     -- Possible: we may want to query a range of inserted_ats for a durable task
 
-    triggered_run_external_id UUID,
-    CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id),
-    CONSTRAINT v1_durable_event_log_extid_w_trigger_kind CHECK (kind != 'RUN_TRIGGERED' OR (kind = 'RUN_TRIGGERED' AND triggered_run_external_id IS NOT NULL))
+    CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
 SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE);

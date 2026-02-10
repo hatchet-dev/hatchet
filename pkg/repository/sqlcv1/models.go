@@ -3116,19 +3116,18 @@ type V1DurableEventLogCallback struct {
 }
 
 type V1DurableEventLogEntry struct {
-	TenantID               uuid.UUID                      `json:"tenant_id"`
-	ExternalID             uuid.UUID                      `json:"external_id"`
-	InsertedAt             pgtype.Timestamptz             `json:"inserted_at"`
-	ID                     int64                          `json:"id"`
-	DurableTaskID          int64                          `json:"durable_task_id"`
-	DurableTaskInsertedAt  pgtype.Timestamptz             `json:"durable_task_inserted_at"`
-	Kind                   NullV1DurableEventLogEntryKind `json:"kind"`
-	NodeID                 int64                          `json:"node_id"`
-	ParentNodeID           pgtype.Int8                    `json:"parent_node_id"`
-	BranchID               int64                          `json:"branch_id"`
-	DataHash               []byte                         `json:"data_hash"`
-	DataHashAlg            pgtype.Text                    `json:"data_hash_alg"`
-	TriggeredRunExternalID *uuid.UUID                     `json:"triggered_run_external_id"`
+	TenantID              uuid.UUID                      `json:"tenant_id"`
+	ExternalID            uuid.UUID                      `json:"external_id"`
+	InsertedAt            pgtype.Timestamptz             `json:"inserted_at"`
+	ID                    int64                          `json:"id"`
+	DurableTaskID         int64                          `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz             `json:"durable_task_inserted_at"`
+	Kind                  NullV1DurableEventLogEntryKind `json:"kind"`
+	NodeID                int64                          `json:"node_id"`
+	ParentNodeID          pgtype.Int8                    `json:"parent_node_id"`
+	BranchID              int64                          `json:"branch_id"`
+	DataHash              []byte                         `json:"data_hash"`
+	DataHashAlg           pgtype.Text                    `json:"data_hash_alg"`
 }
 
 type V1DurableEventLogFile struct {
