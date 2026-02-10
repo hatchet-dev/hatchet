@@ -1,5 +1,5 @@
-import { hatchet } from '../hatchet-client';
 import type { InputType } from '@hatchet/v1';
+import { hatchet } from '../hatchet-client';
 
 // Mirrors `sdks/python/examples/simple/worker.py` outputs for e2e.
 export const helloWorld = hatchet.task({
@@ -16,4 +16,3 @@ export const helloWorldDurable = hatchet.durableTask({
     return { result: 'Hello, world!' };
   },
 });
-

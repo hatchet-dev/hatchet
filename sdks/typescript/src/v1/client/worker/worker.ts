@@ -3,7 +3,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { LegacyHatchetClient } from '@hatchet/clients/hatchet-client';
 import { BaseWorkflowDeclaration } from '../../declaration';
 import type { LegacyWorkflow } from '../../../legacy/legacy-transformer';
-import { normalizeWorkflow, normalizeWorkflows } from '../../../legacy/legacy-transformer';
+import { normalizeWorkflows } from '../../../legacy/legacy-transformer';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
 import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
@@ -85,9 +85,7 @@ export class Worker {
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  async registerWorkflows(
-    workflows?: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow>
-  ) {
+  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow>) {
     const normalized = workflows ? normalizeWorkflows(workflows) : [];
     for (const wf of normalized) {
       await this._internal.registerWorkflowV1(wf);

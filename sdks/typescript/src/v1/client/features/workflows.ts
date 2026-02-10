@@ -1,15 +1,14 @@
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
-import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
+import {
+  isLegacyWorkflow,
+  warnLegacyWorkflow,
+} from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
 import { isValidUUID } from '@util/uuid';
 import { HatchetClient } from '../client';
 
 export const workflowNameString = (
-  workflow:
-    | string
-    | WorkflowDefinition
-    | BaseWorkflowDeclaration<any, any>
-    | LegacyWorkflow
+  workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow
 ) => {
   if (typeof workflow === 'string') {
     return workflow;

@@ -18,20 +18,15 @@ describe('concurrency_limit_rr-e2e', () => {
     await stopWorker(worker);
   });
 
-  it.skip(
-    'round-robin concurrency behavior (timing-sensitive)',
-    async () => {
-      // Python version is skipped due to timing unreliability; keep parity here.
-      // If we want to test this reliably, we should assert on engine events/ordering
-      // rather than wall-clock duration.
-      await simpleConcurrency.run([
-        { Message: 'a', GroupKey: 'A' },
-        { Message: 'b', GroupKey: 'A' },
-        { Message: 'c', GroupKey: 'B' },
-        { Message: 'd', GroupKey: 'B' },
-      ]);
-    },
-    120_000
-  );
+  it.skip('round-robin concurrency behavior (timing-sensitive)', async () => {
+    // Python version is skipped due to timing unreliability; keep parity here.
+    // If we want to test this reliably, we should assert on engine events/ordering
+    // rather than wall-clock duration.
+    await simpleConcurrency.run([
+      { Message: 'a', GroupKey: 'A' },
+      { Message: 'b', GroupKey: 'A' },
+      { Message: 'c', GroupKey: 'B' },
+      { Message: 'd', GroupKey: 'B' },
+    ]);
+  }, 120_000);
 });
-

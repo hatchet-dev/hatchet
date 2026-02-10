@@ -18,25 +18,20 @@ describe('simple-run-modes-e2e', () => {
     await stopWorker(worker);
   });
 
-  it(
-    'supports the run variants for tasks and durable tasks',
-    async () => {
-      const expected = { result: 'Hello, world!' };
+  it('supports the run variants for tasks and durable tasks', async () => {
+    const expected = { result: 'Hello, world!' };
 
-      for (const task of [helloWorld, helloWorldDurable]) {
-        const x1 = await task.run({});
-        const x2 = await (await task.runNoWait({})).output;
+    for (const task of [helloWorld, helloWorldDurable]) {
+      const x1 = await task.run({});
+      const x2 = await (await task.runNoWait({})).output;
 
-        const x3 = (await task.run([{}]))[0];
-        const x4 = await (await task.runNoWait([{}]))[0].output;
+      const x3 = (await task.run([{}]))[0];
+      const x4 = await (await task.runNoWait([{}]))[0].output;
 
-        // output alias for output
-        const x5 = await (await task.runNoWait({})).output;
+      // output alias for output
+      const x5 = await (await task.runNoWait({})).output;
 
-        expect([x1, x2, x3, x4, x5]).toEqual([expected, expected, expected, expected, expected]);
-      }
-    },
-    90_000
-  );
+      expect([x1, x2, x3, x4, x5]).toEqual([expected, expected, expected, expected, expected]);
+    }
+  }, 90_000);
 });
-

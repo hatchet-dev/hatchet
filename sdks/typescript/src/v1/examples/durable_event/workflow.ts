@@ -38,4 +38,3 @@ export const durableEventWithFilter = hatchet.durableTask({
   },
 });
 // !!
-

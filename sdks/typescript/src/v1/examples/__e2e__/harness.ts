@@ -73,4 +73,3 @@ export async function poll<T>(
     await sleep(intervalMs);
   }
 }
-

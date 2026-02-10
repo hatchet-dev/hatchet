@@ -19,36 +19,27 @@ describe('non-retryable-e2e', () => {
     await stopWorker(worker);
   });
 
-  it(
-    'retries only the retryable failure',
-    async () => {
-      const ref = await nonRetryableWorkflow.runNoWait({});
+  it('retries only the retryable failure', async () => {
+    const ref = await nonRetryableWorkflow.runNoWait({});
 
-      const details = await poll(
-        async () => hatchet.runs.get(ref),
-        {
-          timeoutMs: 60_000,
-          intervalMs: 1000,
-          label: 'nonRetryableWorkflow terminal',
-          shouldStop: (d) =>
-            ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any),
-        }
-      );
+    const details = await poll(async () => hatchet.runs.get(ref), {
+      timeoutMs: 60_000,
+      intervalMs: 1000,
+      label: 'nonRetryableWorkflow terminal',
+      shouldStop: (d) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any),
+    });
 
-      expect(details.run.status).toBe(V1TaskStatus.FAILED);
+    expect(details.run.status).toBe(V1TaskStatus.FAILED);
 
-      const retrying = details.taskEvents.filter(
-        (e: { eventType: V1TaskEventType }) => e.eventType === V1TaskEventType.RETRYING
-      );
-      expect(retrying.length).toBe(1);
+    const retrying = details.taskEvents.filter(
+      (e: { eventType: V1TaskEventType }) => e.eventType === V1TaskEventType.RETRYING
+    );
+    expect(retrying.length).toBe(1);
 
-      const failed = details.taskEvents.filter(
-        (e: { eventType: V1TaskEventType }) => e.eventType === V1TaskEventType.FAILED
-      );
-      // python expects 3 FAILED events (two initial failures + one retry failure)
-      expect(failed.length).toBeGreaterThanOrEqual(3);
-    },
-    90_000
-  );
+    const failed = details.taskEvents.filter(
+      (e: { eventType: V1TaskEventType }) => e.eventType === V1TaskEventType.FAILED
+    );
+    // python expects 3 FAILED events (two initial failures + one retry failure)
+    expect(failed.length).toBeGreaterThanOrEqual(3);
+  }, 90_000);
 });
-

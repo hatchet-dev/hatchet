@@ -18,18 +18,13 @@ describe('dag-e2e', () => {
     await stopWorker(worker);
   });
 
-  it(
-    'runs the DAG and produces expected output',
-    async () => {
-      const res = await dag.run({
-        Message: 'hello',
-      });
+  it('runs the DAG and produces expected output', async () => {
+    const res = await dag.run({
+      Message: 'hello',
+    });
 
-      // Ensure parent output access and transform happened
-      expect(res.reverse.Original).toBe('hello');
-      expect(res.reverse.Transformed).toBe('olleh');
-    },
-    60_000
-  );
+    // Ensure parent output access and transform happened
+    expect(res.reverse.Original).toBe('hello');
+    expect(res.reverse.Transformed).toBe('olleh');
+  }, 60_000);
 });
-

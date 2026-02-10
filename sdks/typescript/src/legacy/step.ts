@@ -757,6 +757,7 @@ export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): Creat
 }
 
 // Helper function to validate CEL expressions
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function validateCelExpression(expr: string): boolean {
   // This is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
   // For now, we'll just return true to mimic the behavior.

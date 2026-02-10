@@ -18,13 +18,8 @@ describe('bulk-fanout-e2e', () => {
     await stopWorker(worker);
   });
 
-  it(
-    'spawns N children and returns all results',
-    async () => {
-      const result = await bulkParentWorkflow.run({ n: 12 });
-      expect((result as any).spawn.results).toHaveLength(12);
-    },
-    90_000
-  );
+  it('spawns N children and returns all results', async () => {
+    const result = await bulkParentWorkflow.run({ n: 12 });
+    expect((result as any).spawn.results).toHaveLength(12);
+  }, 90_000);
 });
-

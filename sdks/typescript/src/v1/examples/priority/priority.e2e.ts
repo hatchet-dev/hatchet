@@ -1,6 +1,6 @@
+import { Priority } from '@hatchet/v1';
 import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
 import { priority, priorityWf } from './workflow';
-import { Priority } from '@hatchet/v1';
 
 describe('priority-e2e', () => {
   const hatchet = makeE2EClient();
@@ -19,13 +19,8 @@ describe('priority-e2e', () => {
     await stopWorker(worker);
   });
 
-  it(
-    'task sees its configured default priority (unless overridden)',
-    async () => {
-      const res = await priority.run({});
-      expect(res.priority).toBe(Priority.MEDIUM);
-    },
-    60_000
-  );
+  it('task sees its configured default priority (unless overridden)', async () => {
+    const res = await priority.run({});
+    expect(res.priority).toBe(Priority.MEDIUM);
+  }, 60_000);
 });
-

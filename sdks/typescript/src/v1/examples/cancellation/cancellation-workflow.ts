@@ -1,4 +1,3 @@
-import sleep from '@hatchet/util/sleep';
 import axios from 'axios';
 import { hatchet } from '../hatchet-client';
 
@@ -80,4 +79,3 @@ export const abortSignal = hatchet.task({
 // !!
 
 // see ./worker.ts and ./run.ts for how to run the workflow
-
