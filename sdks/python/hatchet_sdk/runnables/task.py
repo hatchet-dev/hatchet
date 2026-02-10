@@ -381,7 +381,7 @@ class Task(Generic[TWorkflowInput, R]):
         else:
             concurrency = self.concurrency
 
-        proto = CreateTaskOpts(
+        return CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
             timeout=timedelta_to_expr(self.execution_timeout),
@@ -396,8 +396,6 @@ class Task(Generic[TWorkflowInput, R]):
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
         )
-
-        return proto
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
         condition.base.action = action
