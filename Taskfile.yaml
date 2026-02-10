@@ -1,9 +1,5 @@
 version: "3"
 
-vars:
-  PRE_COMMIT_CMD: '{{.PRE_COMMIT_CMD | default "pre-commit"}}'
-  PIP_CMD: '{{.PIP_CMD | default "pip"}}'
-
 tasks:
   setup:
     cmds:
@@ -66,12 +62,12 @@ tasks:
     dir: frontend/docs
     cmd: pnpm run prettier:fix && pnpm run prettier:check
   pre:
-    aliases: [fmt, pre-commit-run]
+    aliases: [fmt]
     cmds:
       - task: fmt-go
       - task: fmt-app
       - task: fmt-docs
-      - '{{.PRE_COMMIT_CMD}} run --all-files || {{.PRE_COMMIT_CMD}} run --all-files'
+      - task: pre-commit-run
   start-db:
     cmds:
       - docker compose up -d
@@ -215,10 +211,18 @@ tasks:
   copy-ca-to-sdks:
     cmds:
       - mkdir -p ./python-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./python-sdk/certs/
+  venv:
+    status: [test -d .venv]
+    cmd: python3 -m venv .venv
   pre-commit-install:
+    status: [source .venv/bin/activate && pre-commit -V]
+    deps: [venv]
     cmds:
-      - '{{.PIP_CMD}} install pre-commit' # can use brew install pre-commit if you are on macOS
-      - pre-commit install
+      - 'source .venv/bin/activate && pip install pre-commit'
+      - 'source .venv/bin/activate && pre-commit install'
+  pre-commit-run:
+    deps: [pre-commit-install]
+    cmd: 'source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files'
   docs:
     cmds:
       - |

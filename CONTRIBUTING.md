@@ -29,7 +29,7 @@ Ensure all prerequisite dependencies are installed:
 - [goose](https://pressly.github.io/goose/installation/)
 - [atlas](https://atlasgo.io/)
 - [pre-commit](https://pre-commit.com/)
-   - You can install this in a virtual environment with `python3 -m venv .venv && source .venv/bin/activate && pip3 install pre-commit`
+   - You can install this in a virtual environment with `task pre-commit-install`
 
 We recommend installing these tools individually using your preferred package manager (e.g., Homebrew).
 
