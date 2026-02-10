@@ -295,7 +295,7 @@ func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlc
 	}
 
 	if len(optsToPayload) == 0 {
-		return nil, err
+		return nil, pgx.ErrNoRows
 	}
 
 	return optsToPayload[opt], nil
