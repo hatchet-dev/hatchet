@@ -551,7 +551,7 @@ class DurableContext(Context):
     async def spawn_child(
         self,
         workflow: "BaseWorkflow[TWorkflowInput]",
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(Any, EmptyModel()),
         options: "TriggerWorkflowOptions" | None = None,
     ) -> dict[str, Any]:
         """
@@ -564,6 +564,7 @@ class DurableContext(Context):
         :param input: The input data for the child workflow.
         :param options: Optional options to configure the child workflow run.
 
+        :raises ValueError: If the durable task client is not available.
         :return: The result of the child workflow execution.
         """
         if self.durable_task_client is None:

@@ -687,7 +687,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				Data:                  match.McAggregatedData,
 			}
 
-			// Update the callback as satisfied within this tx
 			callback, err := m.queries.UpdateDurableEventLogCallbackSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbackSatisfiedParams{
 				Durabletaskid:         cb.DurableTaskId,
 				Durabletaskinsertedat: cb.DurableTaskInsertedAt,
@@ -700,7 +699,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				continue
 			}
 
-			// Store the result payload within the same tx
 			if len(cb.Data) > 0 {
 				err = m.payloadStore.Store(ctx, tx, StorePayloadOpts{
 					Id:         callback.ID,
