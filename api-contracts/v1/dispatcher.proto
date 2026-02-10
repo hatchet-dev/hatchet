@@ -64,6 +64,18 @@ message DurableTaskEvictInvocationRequest {
     string durable_task_external_id = 2;
 }
 
+message DurableTaskAwaitedCallback {
+    string durable_task_external_id = 2;
+    int64 node_id = 3;
+}
+
+message DurableTaskWorkerStatusRequest {
+    string worker_id = 1;
+    int64 node_id = 2;
+    int64 branch_id = 3;
+    repeated DurableTaskAwaitedCallback waiting_callbacks = 4;
+}
+
 message DurableTaskRequest {
     oneof message {
         DurableTaskRequestRegisterWorker register_worker = 1;

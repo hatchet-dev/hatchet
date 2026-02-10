@@ -405,17 +405,6 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				d.durableInvocations.Store(taskExtId, invocation)
 				registeredTasks[taskExtId] = struct{}{}
 			}
-		} else if cb := req.GetRegisterCallback(); cb != nil {
-			taskExtId, err := uuid.Parse(cb.DurableTaskExternalId)
-
-			if err != nil {
-				return status.Errorf(codes.InvalidArgument, "invalid durable task external id: %v", err)
-			}
-
-			if _, exists := registeredTasks[taskExtId]; !exists {
-				d.durableInvocations.Store(taskExtId, invocation)
-				registeredTasks[taskExtId] = struct{}{}
-			}
 		}
 
 		if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
