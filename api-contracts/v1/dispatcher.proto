@@ -52,18 +52,6 @@ message DurableTaskEventAckResponse {
     int64 node_id = 3;
 }
 
-message DurableTaskRegisterCallbackRequest {
-    int64 invocation_count = 1;
-    string durable_task_external_id = 2;
-    int64 node_id = 3;
-}
-
-message DurableTaskRegisterCallbackAckResponse {
-    int64 invocation_count = 1;
-    string durable_task_external_id = 2;
-    int64 node_id = 3;
-}
-
 message DurableTaskCallbackCompletedResponse {
     int64 invocation_count = 1;
     string durable_task_external_id = 2;
@@ -80,7 +68,6 @@ message DurableTaskRequest {
     oneof message {
         DurableTaskRequestRegisterWorker register_worker = 1;
         DurableTaskEventRequest event = 2;
-        DurableTaskRegisterCallbackRequest register_callback = 3;
         DurableTaskEvictInvocationRequest evict_invocation = 4;
     }
 }
@@ -89,7 +76,6 @@ message DurableTaskResponse {
     oneof message {
         DurableTaskResponseRegisterWorker register_worker = 1;
         DurableTaskEventAckResponse trigger_ack = 2;
-        DurableTaskRegisterCallbackAckResponse register_callback_ack = 3;
         DurableTaskCallbackCompletedResponse callback_completed = 4;
     }
 }
