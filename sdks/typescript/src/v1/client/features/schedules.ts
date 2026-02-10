@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
+import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
@@ -74,7 +75,10 @@ export class ScheduleClient {
    * @returns A promise that resolves to the created ScheduledWorkflows object.
    * @throws Will throw an error if the input is invalid or the API call fails.
    */
-  async create(workflow: string, cron: CreateScheduledRunInput): Promise<ScheduledWorkflows> {
+  async create(
+    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
+    cron: CreateScheduledRunInput
+  ): Promise<ScheduledWorkflows> {
     const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
 
     // Validate cron input with zod schema
@@ -149,7 +153,7 @@ export class ScheduleClient {
    */
   async list(
     query: Parameters<typeof this.api.workflowScheduledList>[1] & {
-      workflow?: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any>;
+      workflow?: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow;
     }
   ): Promise<ScheduledWorkflowsList> {
     const { workflow, ...rest } = query;

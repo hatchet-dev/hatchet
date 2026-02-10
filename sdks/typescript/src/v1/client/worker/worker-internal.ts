@@ -305,15 +305,6 @@ export class V1Worker {
         workflow._tasks.push(onSuccessTask);
       }
 
-      // cron and event triggers
-      if (workflow.on) {
-        this.logger.warn(
-          `\`on\` for event and cron triggers is deprecated and will be removed soon, use \`onEvents\` and \`onCrons\` instead for ${
-            workflow.name
-          }`
-        );
-      }
-
       const eventTriggers = [
         ...(workflow.onEvents || []).map((event) =>
           applyNamespace(event, this.client.config.namespace)

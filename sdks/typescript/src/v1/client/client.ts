@@ -28,6 +28,8 @@ import {
   CreateDurableTaskWorkflow,
   CreateDurableTaskWorkflowOpts,
 } from '../declaration';
+import type { LegacyWorkflow } from '../../legacy/legacy-transformer';
+import { getWorkflowName } from '../../legacy/legacy-transformer';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker/worker';
 import { MetricsClient } from './features/metrics';
@@ -276,19 +278,11 @@ export class HatchetClient implements IHatchetClient {
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
   async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts
   ): Promise<WorkflowRunRef<O>> {
-    let name: string;
-    if (typeof workflow === 'string') {
-      name = workflow;
-    } else if ('name' in workflow) {
-      name = workflow.name;
-    } else {
-      throw new Error('unable to identify workflow');
-    }
-
+    const name = getWorkflowName(workflow);
     return this.admin.runWorkflow<I, O>(name, input, options);
   }
 
@@ -303,7 +297,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async runAndWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
@@ -320,7 +314,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async run<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {

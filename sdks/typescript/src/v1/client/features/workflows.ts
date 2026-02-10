@@ -1,15 +1,25 @@
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
+import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
+import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
 import { isValidUUID } from '@util/uuid';
 import { HatchetClient } from '../client';
 
 export const workflowNameString = (
-  workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+  workflow:
+    | string
+    | WorkflowDefinition
+    | BaseWorkflowDeclaration<any, any>
+    | LegacyWorkflow
 ) => {
   if (typeof workflow === 'string') {
     return workflow;
   }
   if (typeof workflow === 'object' && 'name' in workflow) {
     return workflow.name as string;
+  }
+  if (isLegacyWorkflow(workflow)) {
+    warnLegacyWorkflow();
+    return workflow.id;
   }
   throw new Error(
     'Invalid workflow: must be a string, Workflow object, or WorkflowDefinition object'
@@ -43,7 +53,7 @@ export class WorkflowsClient {
    * @returns The workflow ID as a string.
    */
   async getWorkflowIdFromName(
-    workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+    workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow
   ): Promise<string> {
     const str = (() => {
       if (typeof workflow === 'string') {
@@ -70,7 +80,7 @@ export class WorkflowsClient {
     return str;
   }
 
-  async get(workflow: string | BaseWorkflowDeclaration<any, any>) {
+  async get(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
     // Get workflow name string
     const name = workflowNameString(workflow);
 
@@ -115,7 +125,7 @@ export class WorkflowsClient {
     return data;
   }
 
-  async delete(workflow: string | BaseWorkflowDeclaration<any, any>) {
+  async delete(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
     const name = workflowNameString(workflow);
 
     try {

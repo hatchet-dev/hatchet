@@ -8,3 +8,4 @@ export * from './types';
 export * from './task';
 export * from './client/worker/context';
 export * from './slot-types';
+export * from '../legacy/legacy-transformer';

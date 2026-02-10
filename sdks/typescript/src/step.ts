@@ -1,4 +1,5 @@
-export {};
+export * from './legacy/step';
+
 console.warn(
   '\x1b[31mDeprecation warning: The v0 sdk, including the step module has been deprecated and has been removed in release v1.12.0.\x1b[0m'
 );

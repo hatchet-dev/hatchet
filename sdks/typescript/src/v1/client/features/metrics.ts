@@ -1,4 +1,5 @@
 import { BaseWorkflowDeclaration, workflowNameString } from '@hatchet/v1';
+import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
 import { HatchetClient } from '../client';
 /**
  * MetricsClient is used to get metrics for workflows
@@ -13,7 +14,7 @@ export class MetricsClient {
   }
 
   async getWorkflowMetrics(
-    workflow: string | BaseWorkflowDeclaration<any, any>,
+    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
     opts?: Parameters<typeof this.api.workflowGetMetrics>[1]
   ) {
     const name = workflowNameString(workflow);

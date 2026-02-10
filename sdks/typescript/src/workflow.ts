@@ -1,3 +1,5 @@
+export * from './legacy/workflow';
+
 import { ConcurrencyLimitStrategy, StickyStrategy } from '@hatchet/v1';
 
 export { ConcurrencyLimitStrategy, StickyStrategy };
