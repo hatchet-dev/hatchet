@@ -101,10 +101,7 @@ CREATE TABLE v1_durable_event_log_callback (
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     kind v1_durable_event_log_callback_kind,
-    -- A unique, generated key for this callback. This key will change dependent on the callback kind.
-    -- Important: this key should be easily queryable directly from the durable log writers but also the controllers
-    -- that are checking if callbacks are satisfied.
-    key TEXT NOT NULL,
+
     -- The associated log node id that this callback references.
     node_id BIGINT NOT NULL,
     -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
@@ -113,7 +110,7 @@ CREATE TABLE v1_durable_event_log_callback (
     -- Access patterns:
     -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied
-    CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, key)
+    CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
 SELECT create_v1_range_partition('v1_durable_event_log_callback', NOW()::DATE);
@@ -122,7 +119,7 @@ SELECT create_v1_range_partition('v1_durable_event_log_callback', (NOW() + INTER
 ALTER TABLE v1_match
     ADD COLUMN durable_event_log_callback_durable_task_id BIGINT,
     ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ,
-    ADD COLUMN durable_event_log_callback_key TEXT;
+    ADD COLUMN durable_event_log_callback_node_id BIGINT;
 
 ALTER TABLE v1_durable_event_log_callback
     ADD COLUMN dispatcher_id UUID;
@@ -139,8 +136,5 @@ DROP TYPE v1_durable_event_log_callback_kind;
 ALTER TABLE v1_match
     DROP COLUMN durable_event_log_callback_durable_task_id,
     DROP COLUMN durable_event_log_callback_durable_task_inserted_at,
-    DROP COLUMN durable_event_log_callback_key;
-
-ALTER TABLE v1_durable_event_log_callback
-    DROP COLUMN dispatcher_id;
+    DROP COLUMN durable_event_log_callback_node_id;
 -- +goose StatementEnd

@@ -506,7 +506,7 @@ CREATE TABLE v1_match (
     trigger_priority integer,
     durable_event_log_callback_durable_task_id bigint,
     durable_event_log_callback_durable_task_inserted_at timestamptz,
-    durable_event_log_callback_key text,
+    durable_event_log_callback_node_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
@@ -2320,10 +2320,7 @@ CREATE TABLE v1_durable_event_log_callback (
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
     kind v1_durable_event_log_callback_kind,
-    -- A unique, generated key for this callback. This key will change dependent on the callback kind.
-    -- Important: this key should be easily queryable directly from the durable log writers but also the controllers
-    -- that are checking if callbacks are satisfied.
-    key TEXT NOT NULL,
+
     -- The associated log node id that this callback references.
     node_id BIGINT NOT NULL,
     -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple

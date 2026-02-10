@@ -35,8 +35,8 @@ RETURNING *
 UPDATE v1_durable_event_log_file
 SET latest_node_id = @latestNodeId::BIGINT
 WHERE
-    durable_task_id = @durableTaskId
-    AND durable_task_inserted_at = @durableTaskInsertedAt
+    durable_task_id = @durableTaskId::BIGINT
+    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *
 ;
 
@@ -155,17 +155,17 @@ FROM inserts
 -- name: ListDurableEventLogEntries :many
 SELECT *
 FROM v1_durable_event_log_entry
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 ORDER BY node_id ASC
 ;
 
 -- name: GetDurableEventLogEntry :one
 SELECT *
 FROM v1_durable_event_log_entry
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-  AND node_id = @nodeId
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND node_id = @nodeId::BIGINT
 ;
 
 -- name: CreateDurableEventLogCallbacks :many
@@ -176,7 +176,6 @@ WITH inputs AS (
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST(@kinds::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
-        UNNEST(@keys::TEXT[]) AS key,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
         UNNEST(@externalIds::UUID[]) AS external_id,
@@ -188,7 +187,6 @@ INSERT INTO v1_durable_event_log_callback (
     durable_task_inserted_at,
     inserted_at,
     kind,
-    key,
     node_id,
     is_satisfied,
     external_id,
@@ -200,7 +198,6 @@ SELECT
     i.durable_task_inserted_at,
     i.inserted_at,
     i.kind,
-    i.key,
     i.node_id,
     i.is_satisfied,
     i.external_id,
@@ -213,24 +210,24 @@ RETURNING *
 -- name: GetDurableEventLogCallback :one
 SELECT *
 FROM v1_durable_event_log_callback
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-  AND key = @key
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND node_id = @nodeId::BIGINT
 ;
 
 -- name: ListDurableEventLogCallbacks :many
 SELECT *
 FROM v1_durable_event_log_callback
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 ORDER BY inserted_at ASC
 ;
 
 -- name: UpdateDurableEventLogCallbackSatisfied :one
 UPDATE v1_durable_event_log_callback
-SET is_satisfied = @isSatisfied
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-  AND key = @key
+SET is_satisfied = @isSatisfied::BOOLEAN
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND node_id = @nodeId::BIGINT
 RETURNING *
 ;

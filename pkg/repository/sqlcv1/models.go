@@ -3110,7 +3110,6 @@ type V1DurableEventLogCallback struct {
 	DurableTaskID         int64                             `json:"durable_task_id"`
 	DurableTaskInsertedAt pgtype.Timestamptz                `json:"durable_task_inserted_at"`
 	Kind                  NullV1DurableEventLogCallbackKind `json:"kind"`
-	Key                   string                            `json:"key"`
 	NodeID                int64                             `json:"node_id"`
 	IsSatisfied           bool                              `json:"is_satisfied"`
 	DispatcherID          *uuid.UUID                        `json:"dispatcher_id"`
@@ -3306,7 +3305,7 @@ type V1Match struct {
 	TriggerPriority                              pgtype.Int4        `json:"trigger_priority"`
 	DurableEventLogCallbackDurableTaskID         pgtype.Int8        `json:"durable_event_log_callback_durable_task_id"`
 	DurableEventLogCallbackDurableTaskInsertedAt pgtype.Timestamptz `json:"durable_event_log_callback_durable_task_inserted_at"`
-	DurableEventLogCallbackKey                   pgtype.Text        `json:"durable_event_log_callback_key"`
+	DurableEventLogCallbackNodeID                pgtype.Int8        `json:"durable_event_log_callback_node_id"`
 }
 
 type V1MatchCondition struct {

@@ -20,11 +20,10 @@ WITH inputs AS (
         UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST($4::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST($5::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
-        UNNEST($6::TEXT[]) AS key,
-        UNNEST($7::BIGINT[]) AS node_id,
-        UNNEST($8::BOOLEAN[]) AS is_satisfied,
-        UNNEST($9::UUID[]) AS external_id,
-        UNNEST($10::UUID[]) AS dispatcher_id
+        UNNEST($6::BIGINT[]) AS node_id,
+        UNNEST($7::BOOLEAN[]) AS is_satisfied,
+        UNNEST($8::UUID[]) AS external_id,
+        UNNEST($9::UUID[]) AS dispatcher_id
 )
 INSERT INTO v1_durable_event_log_callback (
     tenant_id,
@@ -32,7 +31,6 @@ INSERT INTO v1_durable_event_log_callback (
     durable_task_inserted_at,
     inserted_at,
     kind,
-    key,
     node_id,
     is_satisfied,
     external_id,
@@ -44,14 +42,13 @@ SELECT
     i.durable_task_inserted_at,
     i.inserted_at,
     i.kind,
-    i.key,
     i.node_id,
     i.is_satisfied,
     i.external_id,
     i.dispatcher_id
 FROM
     inputs i
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
 `
 
 type CreateDurableEventLogCallbacksParams struct {
@@ -60,7 +57,6 @@ type CreateDurableEventLogCallbacksParams struct {
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Insertedats            []pgtype.Timestamptz `json:"insertedats"`
 	Kinds                  []string             `json:"kinds"`
-	Keys                   []string             `json:"keys"`
 	Nodeids                []int64              `json:"nodeids"`
 	Issatisfieds           []bool               `json:"issatisfieds"`
 	Externalids            []uuid.UUID          `json:"externalids"`
@@ -74,7 +70,6 @@ func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, a
 		arg.Durabletaskinsertedats,
 		arg.Insertedats,
 		arg.Kinds,
-		arg.Keys,
 		arg.Nodeids,
 		arg.Issatisfieds,
 		arg.Externalids,
@@ -95,7 +90,6 @@ func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, a
 			&i.DurableTaskID,
 			&i.DurableTaskInsertedAt,
 			&i.Kind,
-			&i.Key,
 			&i.NodeID,
 			&i.IsSatisfied,
 			&i.DispatcherID,
@@ -344,21 +338,21 @@ func (q *Queries) CreateDurableEventLogFile(ctx context.Context, db DBTX, arg Cr
 }
 
 const getDurableEventLogCallback = `-- name: GetDurableEventLogCallback :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
 FROM v1_durable_event_log_callback
-WHERE durable_task_id = $1
-  AND durable_task_inserted_at = $2
-  AND key = $3
+WHERE durable_task_id = $1::BIGINT
+  AND durable_task_inserted_at = $2::TIMESTAMPTZ
+  AND node_id = $3::BIGINT
 `
 
 type GetDurableEventLogCallbackParams struct {
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Key                   string             `json:"key"`
+	Nodeid                int64              `json:"nodeid"`
 }
 
 func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg GetDurableEventLogCallbackParams) (*V1DurableEventLogCallback, error) {
-	row := db.QueryRow(ctx, getDurableEventLogCallback, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Key)
+	row := db.QueryRow(ctx, getDurableEventLogCallback, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Nodeid)
 	var i V1DurableEventLogCallback
 	err := row.Scan(
 		&i.TenantID,
@@ -368,7 +362,6 @@ func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg G
 		&i.DurableTaskID,
 		&i.DurableTaskInsertedAt,
 		&i.Kind,
-		&i.Key,
 		&i.NodeID,
 		&i.IsSatisfied,
 		&i.DispatcherID,
@@ -379,9 +372,9 @@ func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg G
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
 SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, triggered_run_external_id
 FROM v1_durable_event_log_entry
-WHERE durable_task_id = $1
-  AND durable_task_inserted_at = $2
-  AND node_id = $3
+WHERE durable_task_id = $1::BIGINT
+  AND durable_task_inserted_at = $2::TIMESTAMPTZ
+  AND node_id = $3::BIGINT
 `
 
 type GetDurableEventLogEntryParams struct {
@@ -491,10 +484,10 @@ func (q *Queries) GetOrCreateEventLogFileForTask(ctx context.Context, db DBTX, a
 }
 
 const listDurableEventLogCallbacks = `-- name: ListDurableEventLogCallbacks :many
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
 FROM v1_durable_event_log_callback
-WHERE durable_task_id = $1
-  AND durable_task_inserted_at = $2
+WHERE durable_task_id = $1::BIGINT
+  AND durable_task_inserted_at = $2::TIMESTAMPTZ
 ORDER BY inserted_at ASC
 `
 
@@ -520,7 +513,6 @@ func (q *Queries) ListDurableEventLogCallbacks(ctx context.Context, db DBTX, arg
 			&i.DurableTaskID,
 			&i.DurableTaskInsertedAt,
 			&i.Kind,
-			&i.Key,
 			&i.NodeID,
 			&i.IsSatisfied,
 			&i.DispatcherID,
@@ -538,8 +530,8 @@ func (q *Queries) ListDurableEventLogCallbacks(ctx context.Context, db DBTX, arg
 const listDurableEventLogEntries = `-- name: ListDurableEventLogEntries :many
 SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, triggered_run_external_id
 FROM v1_durable_event_log_entry
-WHERE durable_task_id = $1
-  AND durable_task_inserted_at = $2
+WHERE durable_task_id = $1::BIGINT
+  AND durable_task_inserted_at = $2::TIMESTAMPTZ
 ORDER BY node_id ASC
 `
 
@@ -584,18 +576,18 @@ func (q *Queries) ListDurableEventLogEntries(ctx context.Context, db DBTX, arg L
 
 const updateDurableEventLogCallbackSatisfied = `-- name: UpdateDurableEventLogCallbackSatisfied :one
 UPDATE v1_durable_event_log_callback
-SET is_satisfied = $1
-WHERE durable_task_id = $2
-  AND durable_task_inserted_at = $3
-  AND key = $4
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, key, node_id, is_satisfied, dispatcher_id
+SET is_satisfied = $1::BOOLEAN
+WHERE durable_task_id = $2::BIGINT
+  AND durable_task_inserted_at = $3::TIMESTAMPTZ
+  AND node_id = $4::BIGINT
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
 `
 
 type UpdateDurableEventLogCallbackSatisfiedParams struct {
 	Issatisfied           bool               `json:"issatisfied"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Key                   string             `json:"key"`
+	Nodeid                int64              `json:"nodeid"`
 }
 
 func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogCallbackSatisfiedParams) (*V1DurableEventLogCallback, error) {
@@ -603,7 +595,7 @@ func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db
 		arg.Issatisfied,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
-		arg.Key,
+		arg.Nodeid,
 	)
 	var i V1DurableEventLogCallback
 	err := row.Scan(
@@ -614,7 +606,6 @@ func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db
 		&i.DurableTaskID,
 		&i.DurableTaskInsertedAt,
 		&i.Kind,
-		&i.Key,
 		&i.NodeID,
 		&i.IsSatisfied,
 		&i.DispatcherID,
@@ -626,8 +617,8 @@ const updateLatestNodeId = `-- name: UpdateLatestNodeId :one
 UPDATE v1_durable_event_log_file
 SET latest_node_id = $1::BIGINT
 WHERE
-    durable_task_id = $2
-    AND durable_task_inserted_at = $3
+    durable_task_id = $2::BIGINT
+    AND durable_task_inserted_at = $3::TIMESTAMPTZ
 RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
 `
 
