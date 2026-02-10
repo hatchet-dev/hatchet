@@ -1,128 +1,121 @@
 # Contributing
 
-### Setup
+This guide will help you understand how to contribute effectively to the Hatchet project.
 
-1. Make sure all prerequisite dependencies are installed:
+## Getting Started
 
-   - [Go 1.25+](https://go.dev/doc/install)
-   - [Node.js v18+](https://nodejs.org/en/download) - we recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions.
-   - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
-   - [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
-   - [protoc](https://grpc.io/docs/protoc-installation/)
-   - [pip](https://pip.pypa.io/en/stable/installation/)
-   - [Caddy](https://caddyserver.com/docs/install)
-   - [atlas](https://atlasgo.io/)
-   - [pre-commit](https://pre-commit.com/)
-     - You can install this in a virtual environment with `python3 -m venv venv && source venv/bin/activate && pip3 install pre-commit`
+New to Hatchet? Start with our [Architecture](https://docs.hatchet.run/home/architecture) docs to familiarize yourself with Hatchet's core system design.
 
-2. You can then populate a local `.env` file with the following:
+Then, before contributing, check out the following sections:
 
+- [Development Environment Setup](#development-environment-setup)
+- [Contribution Guidelines](#contribution-guidelines)
+- [Testing](#testing)
+- [Running Locally](#running-locally)
+   - [Example Workflow](#example-workflow)
+
+## Development Environment Setup
+
+Ensure all prerequisite dependencies are installed:
+
+- [Go 1.25+](https://go.dev/doc/install)
+- [Node.js v18+](https://nodejs.org/en/download)
+   - We recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions to match the version defined in [`.nvmrc`](.nvmrc)
+- [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
+- [Docker](https://docs.docker.com/engine/install/)
+- [task](https://taskfile.dev/docs/installation)
+- [protoc](https://grpc.io/docs/protoc-installation/)
+- [Caddy](https://caddyserver.com/docs/install)
+- [goose](https://pressly.github.io/goose/installation/)
+- [atlas](https://atlasgo.io/)
+- [pre-commit](https://pre-commit.com/)
+   - You can install this in a virtual environment with `python3 -m venv .venv && source .venv/bin/activate && pip3 install pre-commit`
+
+We recommend installing these tools individually using your preferred package manager (e.g., Homebrew).
+
+## Pull Requests
+
+Before opening a PR, check if there's a related issue in our [backlog](https://github.com/hatchet-dev/hatchet/issues).
+
+For non-trivial changes (anything beyond typos or patch version bumps), please create an issue first so we can discuss the proposal and ensure it aligns with the project.
+
+Next, ensure all changes are:
+
+- Unit tested with `task test`
+- Linted with `task lint`
+- Formatted with `task fmt`
+- Integration tested with `task test-integration` (when applicable)
+
+If your changes require documentation updates, modify the relevant files in [`frontend/docs/pages/`](frontend/docs/pages/). You can spin up the documentation site locally by running `task docs`. By default, this will be available at [`http://localhost:3000`](http://localhost:3000).
+
+For configuration changes, see [Updating Configuration](docs/development/updating-configuration.md).
+
+## Testing
+
+Hatchet uses Go build tags to categorize tests into different test suites. For example, these build tags mark a test as unit-only:
+```go
+//go:build !e2e && !load && !rampup && !integration
+
+func TestMyUnitOfCode() { ... }
 ```
-DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
 
-SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
-SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
-SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
+Most contributors should familiarize themselves with **unit testing** and **integration testing**.
 
-SERVER_PORT=8080
-SERVER_URL=http://localhost:8080
-
-SERVER_AUTH_COOKIE_SECRETS="1234"
-SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-SERVER_AUTH_COOKIE_INSECURE=false
-SERVER_AUTH_SET_EMAIL_VERIFIED=true
-
-SERVER_MSGQUEUE_KIND=rabbitmq
-SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
-
-SERVER_GRPC_BROADCAST_ADDRESS=grpc.dev.hatchet-tools.com:443
-SERVER_GRPC_INSECURE=true
+**Unit tests** verify individual functions without external dependencies:
+```sh
+task test
 ```
 
-3. Start the Database and RabbitMQ services:
+**Integration tests** verify components working together with real dependencies (normally spun up via `docker compose`):
+```sh
+task test-integration
+```
 
+Note: **manual testing** is acceptable for cases where automated testing is impractical, but testing steps should be clearly outlined in your PR description.
+
+## Running locally
+
+1. Start the Postgres Database and RabbitMQ services:
 ```sh
 task start-db
 ```
 
-4. Install dependencies, run migrations, generate encryption keys, and seed the database:
-
+2. Install Go & Node.js dependencies, run migrations, generate encryption keys, and seed the database:
 ```sh
 task setup
 ```
 
-**_Note: You might need to run this as `sudo` so it can install certificates._**
+**Note:** You might need to run this with `sudo` to install certificates.
 
-### Starting the dev server
-
-Start the Hatchet engine, API server, dashboard, and Prisma studio:
-
+3. Start the Hatchet engine, API server, and frontend:
 ```sh
 task start-dev # or task start-dev-tmux if you want to use tmux panes
 ```
 
-### Creating and testing workflows
+### Example Workflow
 
-To create and test workflows, run the examples in the `./examples` directory.
-
-You will need to add the tenant (output from the `task seed-dev` command) to the `.env` file in each example directory. An example `.env` file for the `./examples/simple` directory. You can be generated and add it to the .env file via:
-
+1. Generate client credentials:
 ```sh
-cat >> ./examples/simple/.env <<EOF
-HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --name local --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
-EOF
+task init-dev-env | tee ./examples/go/simple/.env
 ```
 
-This example can then be run via `go run main.go` from the `./examples/simple` directory.
-
-### Logging
-
-You can set the following logging formats to configure your logging:
-
-```
-# info, debug, error, etc
-SERVER_LOGGER_LEVEL=debug
-
-# json or console
-SERVER_LOGGER_FORMAT=json
-
-DATABASE_LOGGER_LEVEL=debug
-DATABASE_LOGGER_FORMAT=console
+2. Run the simple workflow by loading the environment variables from `./examples/go/simple/.env`:
+```sh
+cd ./examples/go/simple
+env $(cat .env | xargs) go run main.go
 ```
 
-### OpenTelemetry
-
-You can set the following to enable distributed tracing:
-
-```
-SERVER_OTEL_SERVICE_NAME=engine
-SERVER_OTEL_COLLECTOR_URL=<collector-url>
-
-# optional
-OTEL_EXPORTER_OTLP_HEADERS=<optional-headers>
-
-# optional
-OTEL_EXPORTER_OTLP_ENDPOINT=<collector-url>
+You should see the following logs if the workflow was started against your local instance successfully:
+```log
+{"level":"debug","service":"client","message":"connecting to 127.0.0.1:7070 without TLS"}
+{"level":"info","service":"client","message":"gzip compression enabled for gRPC client"}
+{"level":"debug","service":"worker","message":"worker simple-worker is listening for actions: [process-message:process-message]"}
+{"level":"debug","service":"client","message":"No compute configs found, skipping cloud registration and running all actions locally."}
+{"level":"debug","service":"client","message":"Registered worker with id: c47cc839-8c3b-4b0f-a904-00e37f164b7d"}
+{"level":"debug","service":"client","message":"Starting to listen for actions"}
+{"level":"debug","service":"client","message":"updating worker c47cc839-8c3b-4b0f-a904-00e37f164b7d heartbeat"}
 ```
 
-### CloudKMS
+## Questions
 
-CloudKMS can be used to generate master encryption keys:
-
-```
-gcloud kms keyrings create "development" --location "global"
-gcloud kms keys create "development" --location "global" --keyring "development" --purpose "encryption"
-gcloud kms keys list --location "global" --keyring "development"
-```
-
-From the last step, copy the Key URI and set the following environment variable:
-
-```
-SERVER_ENCRYPTION_CLOUDKMS_KEY_URI=gcp-kms://projects/<PROJECT>/locations/global/keyRings/development/cryptoKeys/development
-```
-
-Generate a service account in GCP which can encrypt/decrypt on CloudKMS, then download a service account JSON file and set it via:
-
-```
-SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON='{...}'
-```
+If you have any further questions or queries, feel free to raise an issue on GitHub. Else, come join our [Discord](https://hatchet.run/discord)!
