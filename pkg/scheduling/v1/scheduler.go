@@ -113,11 +113,17 @@ func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
 	}
 }
 
-func (s *Scheduler) getWorkers() map[uuid.UUID]*worker {
+func (s *Scheduler) copyWorkers() map[uuid.UUID]*worker {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
-	return s.workers
+	copied := make(map[uuid.UUID]*worker, len(s.workers))
+
+	for k, v := range s.workers {
+		copied[k] = v
+	}
+
+	return copied
 }
 
 // replenish loads new slots from the database.
@@ -145,7 +151,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	s.l.Debug().Msg("replenishing slots")
 
-	workers := s.getWorkers()
+	workers := s.copyWorkers()
 	workerIds := make([]uuid.UUID, 0)
 
 	for workerId := range workers {
@@ -873,7 +879,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 	defer s.actionsMu.RUnlock()
 
-	workers := s.getWorkers()
+	workers := s.copyWorkers()
 
 	res := &SnapshotInput{
 		Workers: make(map[uuid.UUID]*WorkerCp),
