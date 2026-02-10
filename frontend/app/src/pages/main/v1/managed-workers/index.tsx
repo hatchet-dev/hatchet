@@ -23,12 +23,16 @@ export default function ManagedWorkers() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  const tenantMetadataId = tenant?.metadata?.id;
+
   const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenant!.metadata.id),
+    ...queries.cloud.getComputeCost(tenantMetadataId ?? ''),
+    enabled: !!tenantMetadataId,
   });
 
   const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenant!.metadata.id),
+    ...queries.cloud.listManagedWorkers(tenantMetadataId ?? ''),
+    enabled: !!tenantMetadataId,
   });
 
   // Check if the user can create more worker pools
@@ -55,7 +59,10 @@ export default function ManagedWorkers() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
+      if (!tenantMetadataId) {
+        return;
+      }
+      const link = await cloudApi.billingPortalLinkGet(tenantMetadataId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
