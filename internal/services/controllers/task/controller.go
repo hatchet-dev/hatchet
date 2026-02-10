@@ -793,17 +793,17 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	for _, msg := range msgs {
 		opts := make([]v1.TaskIdInsertedAtRetryCount, len(msg.Tasks))
 
-		for _, task := range msg.Tasks {
-			opts = append(opts, v1.TaskIdInsertedAtRetryCount{
+		for i, task := range msg.Tasks {
+			opts[i] = v1.TaskIdInsertedAtRetryCount{
 				Id:         task.Id,
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
-			})
+			}
 		}
 
 		validTasks, err := tc.repov1.Tasks().FilterValidTasks(ctx, tenantId, opts)
 		if err != nil {
-			return fmt.Errorf("failed to list valid tasks by external ids: %w", err)
+			return fmt.Errorf("failed to filter valid tasks for replay: %w", err)
 		}
 
 		for _, task := range msg.Tasks {
