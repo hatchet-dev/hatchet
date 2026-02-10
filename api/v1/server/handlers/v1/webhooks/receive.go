@@ -357,22 +357,14 @@ func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1Inco
 	}
 }
 
-type HttpResponseCode int
-
-const (
-	Http400 HttpResponseCode = iota
-	Http403
-	Http500
-)
-
 type ValidationError struct {
-	Code      HttpResponseCode
+	Code      int
 	ErrorText string
 }
 
 func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, error) {
 	switch vr.Code {
-	case Http400:
+	case http.StatusBadRequest:
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{
@@ -380,7 +372,7 @@ func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, erro
 				},
 			},
 		}, nil
-	case Http403:
+	case http.StatusForbidden:
 		return gen.V1WebhookReceive403JSONResponse{
 			Errors: []gen.APIError{
 				{
@@ -388,7 +380,7 @@ func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, erro
 				},
 			},
 		}, nil
-	case Http500:
+	case http.StatusInternalServerError:
 		return nil, errors.New(vr.ErrorText)
 	default:
 		return nil, fmt.Errorf("no validation error set")
@@ -434,7 +426,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if timestampHeader == "" {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: "missing or invalid timestamp header: X-Slack-Request-Timestamp",
 			}
 		}
@@ -443,7 +435,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: "Invalid timestamp in header",
 			}
 		}
@@ -451,7 +443,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		// qq: should this be utc?
 		if time.Unix(timestamp, 0).UTC().Before(time.Now().Add(-5 * time.Minute)) {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: "timestamp in header is out of range",
 			}
 		}
@@ -462,7 +454,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http500,
+				Code:      http.StatusInternalServerError,
 				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
 			}
 		}
@@ -473,7 +465,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http500,
+				Code:      http.StatusInternalServerError,
 				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
 			}
 		}
@@ -484,14 +476,14 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if signatureHeader == "" {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
 			}
 		}
 
 		if !signaturesMatch(signatureHeader, expectedSignature) {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: "invalid HMAC signature",
 			}
 		}
@@ -502,7 +494,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if signatureHeader == "" {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      http.StatusBadRequest,
 				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
 			}
 		}
@@ -514,7 +506,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			parts := strings.Split(header, "=")
 			if len(parts) != 2 {
 				return false, &ValidationError{
-					Code:      Http400,
+					Code:      http.StatusBadRequest,
 					ErrorText: fmt.Sprintf("invalid signature header format: %s", webhook.AuthHmacSignatureHeaderName.String),
 				}
 			}
@@ -526,7 +518,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if timestampHeader == "" || v1SignatureHeader == "" || !hasTimestampHeader || !hasV1SignatureHeader {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      http.StatusBadRequest,
 				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
 			}
 		}
@@ -536,7 +528,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if timestamp == "" || signature == "" {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      http.StatusBadRequest,
 				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
 			}
 		}
@@ -545,14 +537,14 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      http.StatusBadRequest,
 				ErrorText: "Invalid timestamp in signature header",
 			}
 		}
 
 		if time.Unix(parsedTimestamp, 0).UTC().Before(time.Now().Add(-10 * time.Minute)) {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      http.StatusBadRequest,
 				ErrorText: "timestamp in signature header is out of range",
 			}
 		}
@@ -560,7 +552,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http500,
+				Code:      http.StatusInternalServerError,
 				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
 			}
 		}
@@ -574,14 +566,14 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
 			}
 		}
 
 		if !signaturesMatch(signature, expectedSignature) {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: "invalid HMAC signature",
 			}
 		}
@@ -590,7 +582,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http500,
+				Code:      http.StatusInternalServerError,
 				ErrorText: fmt.Sprintf("failed to decrypt SVIX signing secret: %s", err),
 			}
 		}
@@ -599,14 +591,14 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http500,
+				Code:      http.StatusInternalServerError,
 				ErrorText: fmt.Sprintf("failed to create SVIX webhook verifier: %s", err),
 			}
 		}
 
 		if err := wh.Verify(webhookPayload, request.Header); err != nil {
 			return false, &ValidationError{
-				Code:      Http403,
+				Code:      http.StatusForbidden,
 				ErrorText: fmt.Sprintf("SVIX signature verification failed: %s", err),
 			}
 		}
@@ -621,7 +613,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 			if !ok {
 				return false, &ValidationError{
-					Code:      Http403,
+					Code:      http.StatusForbidden,
 					ErrorText: "missing or invalid authorization header",
 				}
 			}
@@ -630,14 +622,14 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 			if err != nil {
 				return false, &ValidationError{
-					Code:      Http500,
+					Code:      http.StatusInternalServerError,
 					ErrorText: fmt.Sprintf("failed to decrypt basic auth password: %s", err),
 				}
 			}
 
 			if username != webhook.AuthBasicUsername.String || password != string(decryptedPassword) {
 				return false, &ValidationError{
-					Code:      Http403,
+					Code:      http.StatusForbidden,
 					ErrorText: "invalid basic auth credentials",
 				}
 			}
@@ -646,7 +638,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 			if apiKey == "" {
 				return false, &ValidationError{
-					Code:      Http403,
+					Code:      http.StatusForbidden,
 					ErrorText: fmt.Sprintf("missing or invalid api key header: %s", webhook.AuthApiKeyHeaderName.String),
 				}
 			}
@@ -655,14 +647,14 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 			if err != nil {
 				return false, &ValidationError{
-					Code:      Http500,
+					Code:      http.StatusInternalServerError,
 					ErrorText: fmt.Sprintf("failed to decrypt api key: %s", err),
 				}
 			}
 
 			if apiKey != string(decryptedApiKey) {
 				return false, &ValidationError{
-					Code:      Http403,
+					Code:      http.StatusForbidden,
 					ErrorText: fmt.Sprintf("invalid api key: %s", webhook.AuthApiKeyHeaderName.String),
 				}
 			}
@@ -671,7 +663,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 			if signature == "" {
 				return false, &ValidationError{
-					Code:      Http403,
+					Code:      http.StatusForbidden,
 					ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
 				}
 			}
@@ -680,7 +672,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 			if err != nil {
 				return false, &ValidationError{
-					Code:      Http500,
+					Code:      http.StatusInternalServerError,
 					ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
 				}
 			}
@@ -692,26 +684,26 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 			if err != nil {
 				return false, &ValidationError{
-					Code:      Http500,
+					Code:      http.StatusInternalServerError,
 					ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
 				}
 			}
 
 			if !signaturesMatch(signature, expectedSignature) {
 				return false, &ValidationError{
-					Code:      Http403,
+					Code:      http.StatusForbidden,
 					ErrorText: "invalid HMAC signature",
 				}
 			}
 		default:
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      http.StatusBadRequest,
 				ErrorText: fmt.Sprintf("unsupported auth type: %s", webhook.AuthMethod),
 			}
 		}
 	default:
 		return false, &ValidationError{
-			Code:      Http400,
+			Code:      http.StatusBadRequest,
 			ErrorText: fmt.Sprintf("unsupported source name: %+v", webhook.SourceName),
 		}
 	}
