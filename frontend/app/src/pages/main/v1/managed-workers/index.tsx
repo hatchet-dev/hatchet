@@ -4,7 +4,7 @@ import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import { useTenantDetails } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
@@ -17,19 +17,18 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 export default function ManagedWorkers() {
-  const { tenant, tenantId, billing, can } = useTenantDetails();
+  const { tenant, billing, can } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenantId ?? ''),
-    enabled: !!tenantId,
+    ...queries.cloud.getComputeCost(tenantId),
   });
 
   const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenantId ?? ''),
-    enabled: !!tenantId,
+    ...queries.cloud.listManagedWorkers(tenantId),
   });
 
   // Check if the user can create more worker pools
@@ -145,7 +144,7 @@ export default function ManagedWorkers() {
             </Button>
             <Link
               to={appRoutes.tenantSettingsBillingRoute.to}
-              params={{ tenant: tenantId ?? '' }}
+              params={{ tenant: tenantId }}
             >
               <Button leftIcon={<ArrowUpIcon className="size-4" />}>
                 Upgrade Plan
@@ -167,7 +166,7 @@ export default function ManagedWorkers() {
           {canCreateMoreWorkerPools ? (
             <Link
               to={appRoutes.tenantManagedWorkersCreateRoute.to}
-              params={{ tenant: tenantId ?? '' }}
+              params={{ tenant: tenantId }}
             >
               <Button leftIcon={<PlusIcon className="size-4" />}>
                 Add Service
