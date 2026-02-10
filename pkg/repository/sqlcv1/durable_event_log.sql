@@ -31,15 +31,6 @@ FROM
 RETURNING *
 ;
 
--- name: UpdateLatestNodeId :one
-UPDATE v1_durable_event_log_file
-SET latest_node_id = @latestNodeId::BIGINT
-WHERE
-    durable_task_id = @durableTaskId::BIGINT
-    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-RETURNING *
-;
-
 -- name: GetOrCreateEventLogFileForTask :one
 WITH to_insert AS (
     SELECT
@@ -76,8 +67,6 @@ SELECT *
 FROM to_insert
 ;
 
--- todo: implement UpdateLatestNodeId
-
 -- name: CreateDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
@@ -93,7 +82,7 @@ WITH inputs AS (
         UNNEST(@dataHashes::BYTEA[]) AS data_hash,
         UNNEST(@dataHashAlgs::TEXT[]) AS data_hash_alg,
         -- todo: probably need an override here since this can be null
-        UNNEST(@childRunExternalIds::UUID[]) AS triggered_run_external_id
+        UNNEST(@childRunExternalIds::TEXT[]) AS triggered_run_external_id
 ), latest_node_ids AS (
     SELECT
         durable_task_id,
@@ -129,7 +118,10 @@ WITH inputs AS (
         i.branch_id,
         i.data_hash,
         i.data_hash_alg,
-        i.triggered_run_external_id
+        CASE
+            WHEN i.triggered_run_external_id = '' THEN NULL
+            ELSE i.triggered_run_external_id::UUID
+        END
     FROM
         inputs i
     ORDER BY

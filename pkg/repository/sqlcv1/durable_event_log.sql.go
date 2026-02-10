@@ -105,7 +105,6 @@ func (q *Queries) CreateDurableEventLogCallbacks(ctx context.Context, db DBTX, a
 }
 
 const createDurableEventLogEntries = `-- name: CreateDurableEventLogEntries :many
-
 WITH inputs AS (
     SELECT
         UNNEST($1::UUID[]) AS tenant_id,
@@ -120,7 +119,7 @@ WITH inputs AS (
         UNNEST($10::BYTEA[]) AS data_hash,
         UNNEST($11::TEXT[]) AS data_hash_alg,
         -- todo: probably need an override here since this can be null
-        UNNEST($12::UUID[]) AS triggered_run_external_id
+        UNNEST($12::TEXT[]) AS triggered_run_external_id
 ), latest_node_ids AS (
     SELECT
         durable_task_id,
@@ -156,7 +155,10 @@ WITH inputs AS (
         i.branch_id,
         i.data_hash,
         i.data_hash_alg,
-        i.triggered_run_external_id
+        CASE
+            WHEN i.triggered_run_external_id = '' THEN NULL
+            ELSE i.triggered_run_external_id::UUID
+        END
     FROM
         inputs i
     ORDER BY
@@ -191,7 +193,7 @@ type CreateDurableEventLogEntriesParams struct {
 	Branchids              []int64              `json:"branchids"`
 	Datahashes             [][]byte             `json:"datahashes"`
 	Datahashalgs           []string             `json:"datahashalgs"`
-	Childrunexternalids    []uuid.UUID          `json:"childrunexternalids"`
+	Childrunexternalids    []string             `json:"childrunexternalids"`
 }
 
 type CreateDurableEventLogEntriesRow struct {
@@ -210,7 +212,6 @@ type CreateDurableEventLogEntriesRow struct {
 	TriggeredRunExternalID *uuid.UUID                     `json:"triggered_run_external_id"`
 }
 
-// todo: implement UpdateLatestNodeId
 func (q *Queries) CreateDurableEventLogEntries(ctx context.Context, db DBTX, arg CreateDurableEventLogEntriesParams) ([]*CreateDurableEventLogEntriesRow, error) {
 	rows, err := db.Query(ctx, createDurableEventLogEntries,
 		arg.Tenantids,
@@ -609,36 +610,6 @@ func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db
 		&i.NodeID,
 		&i.IsSatisfied,
 		&i.DispatcherID,
-	)
-	return &i, err
-}
-
-const updateLatestNodeId = `-- name: UpdateLatestNodeId :one
-UPDATE v1_durable_event_log_file
-SET latest_node_id = $1::BIGINT
-WHERE
-    durable_task_id = $2::BIGINT
-    AND durable_task_inserted_at = $3::TIMESTAMPTZ
-RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
-`
-
-type UpdateLatestNodeIdParams struct {
-	Latestnodeid          int64              `json:"latestnodeid"`
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-}
-
-func (q *Queries) UpdateLatestNodeId(ctx context.Context, db DBTX, arg UpdateLatestNodeIdParams) (*V1DurableEventLogFile, error) {
-	row := db.QueryRow(ctx, updateLatestNodeId, arg.Latestnodeid, arg.Durabletaskid, arg.Durabletaskinsertedat)
-	var i V1DurableEventLogFile
-	err := row.Scan(
-		&i.TenantID,
-		&i.DurableTaskID,
-		&i.DurableTaskInsertedAt,
-		&i.LatestInsertedAt,
-		&i.LatestNodeID,
-		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
 	)
 	return &i, err
 }
