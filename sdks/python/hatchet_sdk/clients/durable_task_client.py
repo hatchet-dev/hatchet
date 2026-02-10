@@ -200,9 +200,9 @@ class DurableTaskClient:
                 completed.node_id,
             )
             if completed_key in self._pending_callbacks:
-                self._pending_callbacks[completed_key].set_result(
-                    DurableTaskCallbackResult.from_proto(completed)
-                )
+                future = self._pending_callbacks[completed_key]
+                if not future.done():
+                    future.set_result(DurableTaskCallbackResult.from_proto(completed))
                 del self._pending_callbacks[completed_key]
 
     async def _register_worker(self) -> None:

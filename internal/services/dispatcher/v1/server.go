@@ -760,7 +760,7 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 		d.durableInvocations.Store(durableTaskExternalId, invocation)
 
 		// Callback was already created in handleDurableTaskEvent, just send ack
-		return invocation.send(&contracts.DurableTaskResponse{
+		err = invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_RegisterCallbackAck{
 				RegisterCallbackAck: &contracts.DurableTaskRegisterCallbackAckResponse{
 					InvocationCount:       req.InvocationCount,
@@ -769,6 +769,19 @@ func (d *DispatcherServiceImpl) handleRegisterCallback(
 				},
 			},
 		})
+
+		if err != nil {
+			return err
+		}
+
+		// Poll for signal completion in case the match already fired while the
+		// invocation was disconnected (e.g. cancel then replay). Without this,
+		// the callback would never be satisfied because the MQ message was
+		// already consumed by the previous (now-dead) invocation.
+		signalKey := getDurableTaskSignalKey(req.DurableTaskExternalId, req.NodeId)
+		go d.pollForCompletion(invocation, task, signalKey, nil, req, callbackKey)
+
+		return nil
 	}
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
