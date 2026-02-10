@@ -2287,7 +2287,7 @@ CREATE TABLE v1_durable_event_log_entry (
 
     triggered_run_external_id UUID,
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id),
-    CONSTRAINT v1_durable_event_log_extid_w_trigger_kind CHECK (kind != 'RUN_TRIGGERED' OR (kind == 'RUN_TRIGGERED' AND triggered_run_external_id IS NOT NULL))
+    CONSTRAINT v1_durable_event_log_extid_w_trigger_kind CHECK (kind != 'RUN_TRIGGERED' OR (kind = 'RUN_TRIGGERED' AND triggered_run_external_id IS NOT NULL))
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
 CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
