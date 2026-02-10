@@ -470,7 +470,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	pubSpan.End()
 
 	// if this is a tenant msg, publish to the tenant exchange
-	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != uuid.Nil {
+	if (!t.disableTenantExchangePubs || msg.ID == msgqueue.MsgIDTaskStreamEvent) && msg.TenantID != uuid.Nil {
 		// determine if the tenant exchange exists
 		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
 			// register the tenant exchange

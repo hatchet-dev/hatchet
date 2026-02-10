@@ -1217,7 +1217,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 	workflowEvents := []*contracts.WorkflowEvent{}
 
 	switch msgId {
-	case "created-task":
+	case msgqueue.MsgIDCreatedTask:
 		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 		for _, payload := range payloads {
@@ -1230,7 +1230,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				RetryCount:     &payload.RetryCount,
 			})
 		}
-	case "task-completed":
+	case msgqueue.MsgIDTaskCompleted:
 		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
 		for _, payload := range payloads {
@@ -1244,7 +1244,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				EventPayload:   string(payload.Output),
 			})
 		}
-	case "task-failed":
+	case msgqueue.MsgIDTaskFailed:
 		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
 
 		for _, payload := range payloads {
@@ -1258,7 +1258,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				EventPayload:   payload.ErrorMsg,
 			})
 		}
-	case "task-cancelled":
+	case msgqueue.MsgIDTaskCancelled:
 		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 
 		for _, payload := range payloads {
@@ -1271,7 +1271,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				RetryCount:     &payload.RetryCount,
 			})
 		}
-	case "task-stream-event":
+	case msgqueue.MsgIDTaskStreamEvent:
 		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
 
 		for _, payload := range payloads {

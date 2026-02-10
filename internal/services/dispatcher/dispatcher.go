@@ -378,9 +378,9 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 	}()
 
 	switch task.ID {
-	case "task-assigned-bulk":
+	case msgqueue.MsgIDTaskAssignedBulk:
 		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
-	case "task-cancelled":
+	case msgqueue.MsgIDTaskCancelled:
 		err = d.a.WrapErr(d.handleTaskCancelled(ctx, task), map[string]interface{}{})
 	case msgqueue.MsgIDDurableCallbackCompleted:
 		err = d.a.WrapErr(d.handleDurableCallbackCompleted(ctx, task), map[string]interface{}{})

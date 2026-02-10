@@ -435,19 +435,19 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId strin
 	}()
 
 	switch msgId {
-	case "created-task":
+	case msgqueue.MsgIDCreatedTask:
 		return tc.handleCreatedTask(context.Background(), tenantId, payloads)
-	case "created-dag":
+	case msgqueue.MsgIDCreatedDAG:
 		return tc.handleCreatedDAG(context.Background(), tenantId, payloads)
-	case "create-monitoring-event":
+	case msgqueue.MsgIDCreateMonitoringEvent:
 		return tc.handleCreateMonitoringEvent(context.Background(), tenantId, payloads)
-	case "created-event-trigger":
+	case msgqueue.MsgIDCreatedEventTrigger:
 		return tc.handleCreateEventTriggers(context.Background(), tenantId, payloads)
-	case "failed-webhook-validation":
+	case msgqueue.MsgIDFailedWebhookValidation:
 		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
-	case "cel-evaluation-failure":
+	case msgqueue.MsgIDCELEvaluationFailure:
 		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
-	case "offload-payload":
+	case msgqueue.MsgIDOffloadPayload:
 		return tc.handlePayloadOffload(context.Background(), tenantId, payloads)
 	}
 
