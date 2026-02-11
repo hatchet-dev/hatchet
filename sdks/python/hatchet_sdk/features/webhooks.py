@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
 from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
@@ -12,6 +12,9 @@ from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
 )
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
     V1CreateWebhookRequestAPIKey,
+)
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_base import (
+    V1CreateWebhookRequestBase,
 )
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
     V1CreateWebhookRequestBasicAuth,
@@ -32,18 +35,7 @@ from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 
-class CreateWebhookRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    name: str
-    event_key_expression: str = Field(serialization_alias="eventKeyExpression")
-    source_name: V1WebhookSourceName = Field(serialization_alias="sourceName")
-    scope_expression: str | None = Field(
-        default=None, serialization_alias="scopeExpression"
-    )
-    static_payload: dict[str, Any] | None = Field(
-        default=None, serialization_alias="staticPayload"
-    )
+class CreateWebhookRequest(V1CreateWebhookRequestBase):
     auth_type: Literal["BASIC", "API_KEY", "HMAC"] = Field(
         serialization_alias="authType"
     )
@@ -148,12 +140,14 @@ class WebhooksClient(BaseRestClient):
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
     ) -> V1Webhook:
+        if event_key_expression is None:
+            event_key_expression = self.get(webhook_name).event_key_expression
         with self.client() as client:
             return self._wa(client).v1_webhook_update(
                 tenant=self.tenant_id,
                 v1_webhook=webhook_name,
                 v1_update_webhook_request=V1UpdateWebhookRequest(
-                    eventKeyExpression=event_key_expression or "",
+                    eventKeyExpression=event_key_expression,
                     scopeExpression=scope_expression,
                     staticPayload=static_payload,
                 ),

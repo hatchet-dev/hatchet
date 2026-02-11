@@ -453,3 +453,40 @@ async def test_scope_expression_uses_static_payload_values(
         assert triggered_event is not None
 
         assert triggered_event.scope == "cust-123"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_webhook_update_scope_expression(
+    hatchet: Hatchet,
+    test_run_id: str,
+    test_start: datetime,
+    webhook_body_with_scope: WebhookInputWithScope,
+) -> None:
+    """Update webhook scope_expression without passing event_key_expression (SDK fetches current)."""
+    async with webhook_with_scope_expression(
+        hatchet,
+        test_run_id,
+        scope_expression="input.type",
+    ) as incoming_webhook:
+        assert incoming_webhook.scope_expression == "input.type"
+
+        updated = hatchet.webhooks.update(
+            incoming_webhook.name,
+            scope_expression="input.scope",
+        )
+        assert updated.scope_expression == "input.scope"
+        assert updated.event_key_expression == incoming_webhook.event_key_expression
+
+        async with await send_webhook_request(
+            url(hatchet.tenant_id, incoming_webhook.name),
+            webhook_body_with_scope.model_dump(),
+        ) as response:
+            assert response.status == 200
+            data = await response.json()
+            assert data == {"message": "ok"}
+
+        triggered_event = await wait_for_event(
+            hatchet, incoming_webhook.name, test_start
+        )
+        assert triggered_event is not None
+        assert triggered_event.scope == webhook_body_with_scope.scope
