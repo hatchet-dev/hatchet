@@ -439,3 +439,4 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		EventLogEntry: entry,
 	}, nil
 }
+

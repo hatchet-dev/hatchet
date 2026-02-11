@@ -46,10 +46,11 @@ type DispatcherImpl struct {
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
 
-	dispatcherId           uuid.UUID
-	workers                *workers
-	a                      *hatcheterrors.Wrapped
-	durableCallbackHandler DurableCallbackHandler
+	dispatcherId uuid.UUID
+	workers      *workers
+	a            *hatcheterrors.Wrapped
+
+	durableCallbackFn func(taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte) error
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -126,7 +127,6 @@ type DispatcherOpts struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
-	durableCallbackHandler      DurableCallbackHandler
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -204,12 +204,6 @@ func WithWorkflowRunBufferSize(size int) DispatcherOpt {
 	}
 }
 
-func WithDurableCallbackHandler(h DurableCallbackHandler) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.durableCallbackHandler = h
-	}
-}
-
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -259,7 +253,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
-		durableCallbackHandler:      opts.durableCallbackHandler,
 	}, nil
 }
 
@@ -395,20 +388,19 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 	return d.dispatcherId
 }
 
-func (d *DispatcherImpl) SetDurableCallbackHandler(h DurableCallbackHandler) {
-	d.durableCallbackHandler = h
+func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int64, int64, []byte) error) {
+	d.durableCallbackFn = fn
 }
 
 func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
+	if d.durableCallbackFn == nil {
+		return nil
+	}
+
 	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](task.Payloads)
 
 	for _, payload := range payloads {
-		if d.durableCallbackHandler == nil {
-			d.l.Warn().Msg("received durable-callback-completed but no callback handler is set")
-			continue
-		}
-
-		err := d.durableCallbackHandler.DeliverCallbackCompletion(
+		err := d.durableCallbackFn(
 			payload.TaskExternalId,
 			payload.NodeId,
 			payload.InvocationCount,

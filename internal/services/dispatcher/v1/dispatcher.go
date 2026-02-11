@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -19,8 +18,6 @@ import (
 type DispatcherService interface {
 	contracts.V1DispatcherServer
 }
-
-var _ dispatcher.DurableCallbackHandler = (*DispatcherServiceImpl)(nil)
 
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
@@ -86,7 +83,7 @@ func WithDispatcherId(id uuid.UUID) DispatcherServiceOpt {
 	}
 }
 
-func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error) {
+func NewDispatcherService(fs ...DispatcherServiceOpt) (*DispatcherServiceImpl, error) {
 	opts := defaultDispatcherServiceOpts()
 
 	for _, f := range fs {
@@ -112,22 +109,4 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error)
 		triggerWriter: tw,
 		dispatcherId:  opts.dispatcherId,
 	}, nil
-}
-
-func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte) error {
-	inv, ok := d.durableInvocations.Load(taskExternalId)
-	if !ok {
-		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
-	}
-
-	return inv.send(&contracts.DurableTaskResponse{
-		Message: &contracts.DurableTaskResponse_CallbackCompleted{
-			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
-				InvocationCount:       invocationCount,
-				DurableTaskExternalId: taskExternalId.String(),
-				NodeId:                nodeId,
-				Payload:               payload,
-			},
-		},
-	})
 }

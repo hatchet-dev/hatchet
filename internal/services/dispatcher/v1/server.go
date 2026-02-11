@@ -501,11 +501,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	})
 }
 
-type spawnChildWorkflowResult struct {
-	ChildExternalId uuid.UUID
-	WasSkipped      bool
-}
-
 func (d *DispatcherServiceImpl) handleEvictInvocation(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
@@ -562,4 +557,22 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	return nil
+}
+
+func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte) error {
+	inv, ok := d.durableInvocations.Load(taskExternalId)
+	if !ok {
+		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
+	}
+
+	return inv.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_CallbackCompleted{
+			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+				InvocationCount:       invocationCount,
+				DurableTaskExternalId: taskExternalId.String(),
+				NodeId:                nodeId,
+				Payload:               payload,
+			},
+		},
+	})
 }
