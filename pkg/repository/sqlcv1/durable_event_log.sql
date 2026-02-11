@@ -1,10 +1,20 @@
 -- name: GetOrCreateEventLogFile :one
 INSERT INTO v1_durable_event_log_file (
-    tenant_id, durable_task_id, durable_task_inserted_at,
-    latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    latest_inserted_at,
+    latest_node_id,
+    latest_branch_id,
+    latest_branch_first_parent_node_id
 ) VALUES (
-    @tenantId::UUID, @durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ,
-    NOW(), @nodeId::BIGINT, 1, 0
+    @tenantId::UUID,
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    NOW(),
+    1,
+    1,
+    0
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at)
 DO UPDATE SET

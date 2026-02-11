@@ -320,7 +320,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Tenantid:              opts.TenantId,
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
-		Nodeid:                nodeId,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or create event log file: %w", err)

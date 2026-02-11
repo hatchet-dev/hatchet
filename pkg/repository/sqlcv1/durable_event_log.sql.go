@@ -248,11 +248,21 @@ func (q *Queries) GetOrCreateDurableEventLogEntry(ctx context.Context, db DBTX, 
 
 const getOrCreateEventLogFile = `-- name: GetOrCreateEventLogFile :one
 INSERT INTO v1_durable_event_log_file (
-    tenant_id, durable_task_id, durable_task_inserted_at,
-    latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    latest_inserted_at,
+    latest_node_id,
+    latest_branch_id,
+    latest_branch_first_parent_node_id
 ) VALUES (
-    $1::UUID, $2::BIGINT, $3::TIMESTAMPTZ,
-    NOW(), $4::BIGINT, 1, 0
+    $1::UUID,
+    $2::BIGINT,
+    $3::TIMESTAMPTZ,
+    NOW(),
+    1,
+    1,
+    0
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at)
 DO UPDATE SET
@@ -265,16 +275,10 @@ type GetOrCreateEventLogFileParams struct {
 	Tenantid              uuid.UUID          `json:"tenantid"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Nodeid                int64              `json:"nodeid"`
 }
 
 func (q *Queries) GetOrCreateEventLogFile(ctx context.Context, db DBTX, arg GetOrCreateEventLogFileParams) (*V1DurableEventLogFile, error) {
-	row := db.QueryRow(ctx, getOrCreateEventLogFile,
-		arg.Tenantid,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
-		arg.Nodeid,
-	)
+	row := db.QueryRow(ctx, getOrCreateEventLogFile, arg.Tenantid, arg.Durabletaskid, arg.Durabletaskinsertedat)
 	var i V1DurableEventLogFile
 	err := row.Scan(
 		&i.TenantID,
