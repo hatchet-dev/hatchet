@@ -915,7 +915,7 @@ WITH task AS (
 ), deleted_slots AS (
     DELETE FROM v1_task_runtime_slot
     WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
     RETURNING task_id
 )
 UPDATE
