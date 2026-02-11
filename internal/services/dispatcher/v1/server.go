@@ -497,13 +497,13 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	if ingestionResult.Callback.Callback.IsSatisfied {
 		err := d.DeliverCallbackCompletion(
 			taskExternalId,
-			ingestionResult.EventLogFile.LatestNodeID,
+			ingestionResult.NodeId,
 			req.InvocationCount,
 			ingestionResult.Callback.Result,
 		)
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, ingestionResult.EventLogFile.LatestNodeID)
+			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, ingestionResult.NodeId)
 			return status.Errorf(codes.Internal, "failed to deliver callback completion: %v", err)
 		}
 	}
