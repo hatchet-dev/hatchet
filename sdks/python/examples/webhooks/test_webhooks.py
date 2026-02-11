@@ -14,19 +14,6 @@ import pytest
 
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
-    V1CreateWebhookRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
-    V1CreateWebhookRequestAPIKey,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
-    V1CreateWebhookRequestBasicAuth,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
-    V1CreateWebhookRequestHMAC,
-)
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -41,6 +28,7 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
     V1WebhookHMACEncoding,
 )
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
+from hatchet_sdk.features.webhooks import CreateWebhookRequest
 
 TEST_BASIC_USERNAME = "test_user"
 TEST_BASIC_PASSWORD = "test_password"
@@ -48,6 +36,9 @@ TEST_API_KEY_HEADER = "X-API-Key"
 TEST_API_KEY_VALUE = "test_api_key_123"
 TEST_HMAC_SIGNATURE_HEADER = "X-Signature"
 TEST_HMAC_SECRET = "test_hmac_secret"
+
+
+hatchet = Hatchet(debug=True)
 
 
 @pytest.fixture
@@ -169,33 +160,21 @@ async def basic_auth_webhook(
     password: str = TEST_BASIC_PASSWORD,
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
-    ## Hack to get the API client
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
-    webhook_request = V1CreateWebhookRequestBasicAuth(
-        sourceName=source_name,
+    webhook_request = CreateWebhookRequest(
+        source_name=source_name,
         name=f"test-webhook-basic-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        authType="BASIC",
-        auth=V1WebhookBasicAuth(
-            username=username,
-            password=password,
-        ),
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        auth_type="BASIC",
+        auth=V1WebhookBasicAuth(username=username, password=password),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
+    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 @asynccontextmanager
@@ -206,32 +185,24 @@ async def api_key_webhook(
     api_key: str = TEST_API_KEY_VALUE,
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
-    webhook_request = V1CreateWebhookRequestAPIKey(
-        sourceName=source_name,
+    webhook_request = CreateWebhookRequest(
+        source_name=source_name,
         name=f"test-webhook-apikey-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        authType="API_KEY",
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        auth_type="API_KEY",
         auth=V1WebhookAPIKeyAuth(
-            headerName=header_name,
-            apiKey=api_key,
+            header_name=header_name,
+            api_key=api_key,
         ),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
+    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 @asynccontextmanager
@@ -244,34 +215,26 @@ async def hmac_webhook(
     encoding: V1WebhookHMACEncoding = V1WebhookHMACEncoding.HEX,
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
-    webhook_request = V1CreateWebhookRequestHMAC(
-        sourceName=source_name,
+    webhook_request = CreateWebhookRequest(
+        source_name=source_name,
         name=f"test-webhook-hmac-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        authType="HMAC",
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        auth_type="HMAC",
         auth=V1WebhookHMACAuth(
             algorithm=algorithm,
             encoding=encoding,
-            signatureHeaderName=signature_header_name,
-            signingSecret=signing_secret,
+            signature_header_name=signature_header_name,
+            signing_secret=signing_secret,
         ),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
+    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 def url(tenant_id: str, webhook_name: str) -> str:

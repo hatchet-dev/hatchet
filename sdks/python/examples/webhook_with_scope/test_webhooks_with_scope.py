@@ -13,19 +13,13 @@ from examples.webhook_with_scope.worker import (
     WebhookInputWithStaticPayload,
 )
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
-    V1CreateWebhookRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
-    V1CreateWebhookRequestBasicAuth,
-)
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
+from hatchet_sdk.features.webhooks import CreateWebhookRequest
 
 TEST_BASIC_USERNAME = "test_user"
 TEST_BASIC_PASSWORD = "test_password"
@@ -119,38 +113,30 @@ async def webhook_with_scope_expression(
     username: str = TEST_BASIC_USERNAME,
     password: str = TEST_BASIC_PASSWORD,
 ) -> AsyncGenerator[V1Webhook, None]:
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
     if event_key_expression is None:
         event_key_expression = (
             f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
         )
 
-    webhook_request = V1CreateWebhookRequestBasicAuth(
-        sourceName=V1WebhookSourceName.GENERIC,
+    webhook_request = CreateWebhookRequest(
+        source_name=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-scope-{test_run_id}",
-        eventKeyExpression=event_key_expression,
-        scopeExpression=scope_expression,
-        authType="BASIC",
+        event_key_expression=event_key_expression,
+        scope_expression=scope_expression,
+        auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
         ),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
+    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 @asynccontextmanager
@@ -162,38 +148,30 @@ async def webhook_with_static_payload(
     username: str = TEST_BASIC_USERNAME,
     password: str = TEST_BASIC_PASSWORD,
 ) -> AsyncGenerator[V1Webhook, None]:
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
     if event_key_expression is None:
         event_key_expression = (
             f"'{hatchet.config.apply_namespace('webhook-static')}:' + input.type"
         )
 
-    webhook_request = V1CreateWebhookRequestBasicAuth(
-        sourceName=V1WebhookSourceName.GENERIC,
+    webhook_request = CreateWebhookRequest(
+        source_name=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-static-{test_run_id}",
-        eventKeyExpression=event_key_expression,
-        staticPayload=static_payload,
-        authType="BASIC",
+        event_key_expression=event_key_expression,
+        static_payload=static_payload,
+        auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
         ),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
+    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 @asynccontextmanager
@@ -206,39 +184,31 @@ async def webhook_with_scope_and_static(
     username: str = TEST_BASIC_USERNAME,
     password: str = TEST_BASIC_PASSWORD,
 ) -> AsyncGenerator[V1Webhook, None]:
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
     if event_key_expression is None:
         event_key_expression = (
             f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
         )
 
-    webhook_request = V1CreateWebhookRequestBasicAuth(
-        sourceName=V1WebhookSourceName.GENERIC,
+    webhook_request = CreateWebhookRequest(
+        source_name=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-both-{test_run_id}",
-        eventKeyExpression=event_key_expression,
-        scopeExpression=scope_expression,
-        staticPayload=static_payload,
-        authType="BASIC",
+        event_key_expression=event_key_expression,
+        scope_expression=scope_expression,
+        static_payload=static_payload,
+        auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
         ),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
+    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 def url(tenant_id: str, webhook_name: str) -> str:
