@@ -528,10 +528,10 @@ class Runner:
             elapsed = time.monotonic() - start_time
             elapsed_ms = round(elapsed * 1000)
 
-            # Check if task is still running after warning threshold
-            task_was_running = key in self.tasks and not self.tasks[key].done()
+            # Check if the task has not yet exited despite the cancellation signal.
+            task_still_running = key in self.tasks and not self.tasks[key].done()
 
-            if task_was_running:
+            if task_still_running:
                 logger.warning(
                     f"Cancellation: task {action.action_id} has not cancelled after "
                     f"{elapsed_ms}ms (warning threshold {warning_threshold_ms}ms). "

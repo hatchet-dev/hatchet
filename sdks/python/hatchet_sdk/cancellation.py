@@ -59,7 +59,9 @@ class CancellationToken:
                 self._async_event.set()
         return self._async_event
 
-    def cancel(self, reason: CancellationReason = CancellationReason.TOKEN_CANCELLED) -> None:
+    def cancel(
+        self, reason: CancellationReason = CancellationReason.TOKEN_CANCELLED
+    ) -> None:
         """
         Trigger cancellation.
 

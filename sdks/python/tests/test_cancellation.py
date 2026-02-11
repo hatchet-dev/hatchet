@@ -34,7 +34,6 @@ def test_cancel_sets_reason() -> None:
     assert token.reason == CancellationReason.USER_REQUESTED
 
 
-
 def test_reason_is_none_before_cancel() -> None:
     """reason should be None before cancellation."""
     token = CancellationToken()
@@ -362,7 +361,7 @@ def test_all_reasons_exist() -> None:
     assert CancellationReason.TIMEOUT.value == "timeout"
     assert CancellationReason.PARENT_CANCELLED.value == "parent_cancelled"
     assert CancellationReason.WORKFLOW_CANCELLED.value == "workflow_cancelled"
-    assert CancellationReason.x.value == "unknown"
+    assert CancellationReason.TOKEN_CANCELLED.value == "token_cancelled"
 
 
 def test_reasons_are_strings() -> None:

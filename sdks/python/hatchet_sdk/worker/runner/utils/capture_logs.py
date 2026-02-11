@@ -5,10 +5,11 @@ import functools
 import logging
 from collections.abc import Awaitable, Callable
 from io import StringIO
-from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar
+from typing import Literal, ParamSpec, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
@@ -26,8 +27,6 @@ from hatchet_sdk.utils.typing import (
     JSONSerializableMapping,
     LogLevel,
 )
-
-
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -59,7 +58,7 @@ class ContextVarToCopyToken(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: Literal["ctx_cancellation_token"]
-    value: Any  # CancellationToken, but using Any to avoid Pydantic issues with custom classes
+    value: CancellationToken | None
 
 
 class ContextVarToCopy(BaseModel):

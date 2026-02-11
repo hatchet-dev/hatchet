@@ -868,7 +868,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_children_with_token(
             cancellation_token,
             refs,
-            "Workflow.run_many",
         )
 
         # Pass cancellation_token through to each result() call
@@ -942,7 +941,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_children_with_token(
             cancellation_token,
             refs,
-            "Workflow.aio_run_many",
         )
 
         return await await_with_cancellation(
@@ -981,7 +979,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_children_with_token(
             cancellation_token,
             refs,
-            "Workflow.run_many_no_wait",
         )
 
         return refs
@@ -1016,7 +1013,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_children_with_token(
             cancellation_token,
             refs,
-            "Workflow.aio_run_many_no_wait",
         )
 
         return refs

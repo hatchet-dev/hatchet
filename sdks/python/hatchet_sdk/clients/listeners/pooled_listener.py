@@ -15,8 +15,8 @@ from hatchet_sdk.clients.event_ts import (
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.cancellation import race_against_token
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.cancellation import race_against_token
 
 if TYPE_CHECKING:
     from hatchet_sdk.cancellation import CancellationToken

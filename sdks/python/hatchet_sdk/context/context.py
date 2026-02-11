@@ -222,7 +222,9 @@ class Context:
 
         :return: None
         """
-        logger.debug(f"Context: cancel() called for task_run_external_id={self.step_run_id}")
+        logger.debug(
+            f"Context: cancel() called for task_run_external_id={self.step_run_id}"
+        )
         self.runs_client.cancel(self.step_run_id)
         self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
 
@@ -232,7 +234,9 @@ class Context:
 
         :return: None
         """
-        logger.debug(f"Context: aio_cancel() called for task_run_external_id={self.step_run_id}")
+        logger.debug(
+            f"Context: aio_cancel() called for task_run_external_id={self.step_run_id}"
+        )
         await self.runs_client.aio_cancel(self.step_run_id)
         self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
 
