@@ -554,7 +554,7 @@ jobs:
       matrix:
         migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true"]
-        pg-version: ["15-alpine"]
+        pg-version: ["17-alpine"]
 
     steps:
       - uses: actions/checkout@v6

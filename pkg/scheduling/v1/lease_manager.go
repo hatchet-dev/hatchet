@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -23,23 +25,26 @@ type LeaseManager struct {
 
 	tenantId uuid.UUID
 
-	workerLeases []*sqlcv1.Lease
-	workersCh    chan<- []*v1.ListActiveWorkersResult
+	workerLeasesMu sync.Mutex
+	workerLeases   []*sqlcv1.Lease
+	workersCh      notifierCh[*v1.ListActiveWorkersResult]
 
-	queueLeases []*sqlcv1.Lease
-	queuesCh    chan<- []string
+	queueLeasesMu sync.Mutex
+	queueLeases   []*sqlcv1.Lease
+	queuesCh      notifierCh[string]
 
+	concurrencyLeasesMu sync.Mutex
 	concurrencyLeases   []*sqlcv1.Lease
-	concurrencyLeasesCh chan<- []*sqlcv1.V1StepConcurrency
+	concurrencyLeasesCh notifierCh[*sqlcv1.V1StepConcurrency]
 
 	cleanedUp bool
-	processMu sync.Mutex
+	processMu sync.RWMutex
 }
 
-func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency) {
-	workersCh := make(chan []*v1.ListActiveWorkersResult)
-	queuesCh := make(chan []string)
-	concurrencyLeasesCh := make(chan []*sqlcv1.V1StepConcurrency)
+func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, notifierCh[*v1.ListActiveWorkersResult], notifierCh[string], notifierCh[*sqlcv1.V1StepConcurrency]) {
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
+	queuesCh := make(notifierCh[string])
+	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency])
 
 	return &LeaseManager{
 		lr:                  conf.repo.Lease(),
@@ -51,61 +56,65 @@ func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, <-c
 	}, workersCh, queuesCh, concurrencyLeasesCh
 }
 
-func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult) {
+func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult, isIncremental bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
 		}
 	}()
 
-	// at this point, we have a cleanupMu lock, so it's safe to read
-	if l.cleanedUp {
-		return
-	}
-
 	select {
-	case l.workersCh <- workerIds:
+	case l.workersCh <- notifierMsg[*v1.ListActiveWorkersResult]{
+		items:         workerIds,
+		isIncremental: isIncremental,
+	}:
 	default:
 	}
 }
 
-func (l *LeaseManager) sendQueues(queues []string) {
+func (l *LeaseManager) sendQueues(queues []string, isIncremental bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
 		}
 	}()
 
-	// at this point, we have a cleanupMu lock, so it's safe to read
-	if l.cleanedUp {
-		return
-	}
-
 	select {
-	case l.queuesCh <- queues:
+	case l.queuesCh <- notifierMsg[string]{
+		items:         queues,
+		isIncremental: isIncremental,
+	}:
 	default:
 	}
 }
 
-func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepConcurrency) {
+func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepConcurrency, isIncremental bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
 		}
 	}()
 
-	// at this point, we have a cleanupMu lock, so it's safe to read
-	if l.cleanedUp {
-		return
-	}
-
 	select {
-	case l.concurrencyLeasesCh <- concurrencyLeases:
+	case l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
+		items:         concurrencyLeases,
+		isIncremental: isIncremental,
+	}:
 	default:
 	}
 }
 
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	l.workerLeasesMu.Lock()
+	defer l.workerLeasesMu.Unlock()
+
 	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
 
 	if err != nil {
@@ -155,7 +164,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		}
 	}
 
-	l.sendWorkerIds(successfullyAcquiredWorkerIds)
+	l.sendWorkerIds(successfullyAcquiredWorkerIds, false)
 
 	if len(leasesToRelease) != 0 {
 		if err := l.lr.ReleaseLeases(ctx, l.tenantId, leasesToRelease); err != nil {
@@ -166,7 +175,69 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	return nil
 }
 
+func (l *LeaseManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID) error {
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	if !l.workerLeasesMu.TryLock() {
+		return nil
+	}
+
+	defer l.workerLeasesMu.Unlock()
+
+	// check that we don't already have a lease for this worker
+	for _, lease := range l.workerLeases {
+		if lease.ResourceId == workerId.String() {
+			return nil
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	worker, err := l.lr.GetActiveWorker(ctx, l.tenantId, workerId)
+
+	if err != nil {
+		// if the worker isn't active yet, just abort
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return err
+	}
+
+	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindWORKER, []string{workerId.String()}, []*sqlcv1.Lease{})
+
+	if err != nil {
+		return err
+	}
+
+	if len(lease) == 0 || lease[0].ResourceId == "" {
+		return nil
+	}
+
+	l.workerLeases = append(l.workerLeases, lease...)
+
+	l.sendWorkerIds([]*v1.ListActiveWorkersResult{worker}, true)
+
+	return nil
+}
+
 func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	l.queueLeasesMu.Lock()
+	defer l.queueLeasesMu.Unlock()
+
 	queues, err := l.lr.ListQueues(ctx, l.tenantId)
 
 	if err != nil {
@@ -213,7 +284,7 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		}
 	}
 
-	l.sendQueues(successfullyAcquiredQueues)
+	l.sendQueues(successfullyAcquiredQueues, false)
 
 	if len(leasesToRelease) != 0 {
 		if err := l.lr.ReleaseLeases(ctx, l.tenantId, leasesToRelease); err != nil {
@@ -224,7 +295,65 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	return nil
 }
 
+func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) error {
+	l.conf.l.Debug().Msgf("[notifyNewQueue] notifying new queue %s for tenant %s", queueName, l.tenantId)
+
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		l.conf.l.Debug().Msgf("[notifyNewQueue] lease manager already cleaned up, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
+		return nil
+	}
+
+	if !l.queueLeasesMu.TryLock() {
+		l.conf.l.Debug().Msgf("[notifyNewQueue] could not acquire queueLeasesMu, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
+		return nil
+	}
+
+	defer l.queueLeasesMu.Unlock()
+
+	// check that we don't already have a lease for this queue
+	for _, lease := range l.queueLeases {
+		if lease.ResourceId == queueName {
+			l.conf.l.Debug().Msgf("[notifyNewQueue] already have lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
+			return nil
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, []string{queueName}, []*sqlcv1.Lease{})
+
+	if err != nil {
+		l.conf.l.Debug().Err(err).Msgf("[notifyNewQueue] error acquiring lease for queue %s for tenant %s", queueName, l.tenantId)
+		return err
+	}
+
+	if len(lease) == 0 || lease[0].ResourceId == "" {
+		l.conf.l.Debug().Msgf("[notifyNewQueue] did not acquire lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
+		return nil
+	}
+
+	l.queueLeases = append(l.queueLeases, lease...)
+
+	l.sendQueues([]string{queueName}, true)
+
+	return nil
+}
+
 func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	l.concurrencyLeasesMu.Lock()
+	defer l.concurrencyLeasesMu.Unlock()
+
 	strats, err := l.lr.ListConcurrencyStrategies(ctx, l.tenantId)
 
 	if err != nil {
@@ -275,7 +404,7 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 		}
 	}
 
-	l.sendConcurrencyLeases(successfullyAcquiredStrats)
+	l.sendConcurrencyLeases(successfullyAcquiredStrats, false)
 
 	if len(leasesToRelease) != 0 {
 		if err := l.lr.ReleaseLeases(ctx, l.tenantId, leasesToRelease); err != nil {
@@ -286,18 +415,63 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	return nil
 }
 
-// loopForLeases acquires new leases every 1 second for workers and queues
+func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) error {
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	if !l.concurrencyLeasesMu.TryLock() {
+		return nil
+	}
+
+	defer l.concurrencyLeasesMu.Unlock()
+
+	// check that we don't already have a lease for this concurrency strategy
+	for _, lease := range l.concurrencyLeases {
+		if lease.ResourceId == fmt.Sprintf("%d", strategyId) {
+			return nil
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	strategy, err := l.lr.GetConcurrencyStrategy(ctx, l.tenantId, strategyId)
+
+	if err != nil {
+		return err
+	}
+
+	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindCONCURRENCYSTRATEGY, []string{fmt.Sprintf("%d", strategyId)}, []*sqlcv1.Lease{})
+
+	if err != nil {
+		return err
+	}
+
+	if len(lease) == 0 || lease[0].ResourceId == "" {
+		return nil
+	}
+
+	l.concurrencyLeases = append(l.concurrencyLeases, lease...)
+
+	// send the new concurrency strategy to the channel
+	l.sendConcurrencyLeases([]*sqlcv1.V1StepConcurrency{strategy}, true)
+
+	return nil
+}
+
+// loopForLeases acquires new leases every 5 seconds for workers, queues, and concurrency strategies
 func (l *LeaseManager) loopForLeases(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// we acquire a processMu lock here to prevent cleanup from occurring simultaneously
-			l.processMu.Lock()
-
 			// we don't want to block the cleanup process, so we use a separate context with a timeout
 			loopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 
@@ -332,7 +506,6 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 			wg.Wait()
 
 			cancel()
-			l.processMu.Unlock()
 		}
 	}
 }

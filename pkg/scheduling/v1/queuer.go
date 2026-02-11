@@ -121,6 +121,8 @@ func (q *Queuer) queue(ctx context.Context) {
 func (q *Queuer) loopQueue(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 
+	q.l.Debug().Msgf("starting queue loop for tenant %s and queue %s with limit %d", q.tenantId, q.queueName, q.limit)
+
 	for {
 		var carrier map[string]string
 
@@ -130,6 +132,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case <-ticker.C:
 		case carrier = <-q.notifyQueueCh:
 		}
+
+		q.l.Debug().Msgf("queue loop tick for tenant %s and queue %s", q.tenantId, q.queueName)
 
 		prometheus.QueueInvocations.Inc()
 		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
@@ -161,6 +165,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
 		}
+
+		q.l.Debug().Int("refilled_items", len(qis)).Msgf("refilled queue for tenant %s and queue %s", q.tenantId, q.queueName)
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
