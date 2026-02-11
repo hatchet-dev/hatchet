@@ -359,8 +359,20 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to get or create event log file: %w", err)
 	}
 
-	nodeId := int64(1)
-	if !logFile.IsNewInvocation {
+	var nodeId int64
+	if logFile.IsNewInvocation {
+		newNode, err := r.queries.ResetLatestNodeId(ctx, tx, sqlcv1.ResetLatestNodeIdParams{
+			Nodeid:                1,
+			Durabletaskid:         task.ID,
+			Durabletaskinsertedat: task.InsertedAt,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to reset latest node id for new invocation: %w", err)
+		}
+
+		nodeId = newNode.LatestNodeID
+	} else {
 		// if it's not a new invocation, we need to increment the latest node id (of the current invocation)
 		nodeId = logFile.LatestNodeID + 1
 	}

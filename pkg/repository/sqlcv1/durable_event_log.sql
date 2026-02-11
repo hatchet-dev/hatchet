@@ -1,3 +1,10 @@
+-- name: ResetLatestNodeId :one
+UPDATE v1_durable_event_log_file
+SET latest_node_id = @nodeId::BIGINT
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+RETURNING *;
+
 -- name: GetOrCreateEventLogFile :one
 WITH existing_log_file AS (
     SELECT *

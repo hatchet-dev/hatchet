@@ -396,6 +396,36 @@ func (q *Queries) GetSatisfiedCallbacks(ctx context.Context, db DBTX, arg GetSat
 	return items, nil
 }
 
+const resetLatestNodeId = `-- name: ResetLatestNodeId :one
+UPDATE v1_durable_event_log_file
+SET latest_node_id = $1::BIGINT
+WHERE durable_task_id = $2::BIGINT
+  AND durable_task_inserted_at = $3::TIMESTAMPTZ
+RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+`
+
+type ResetLatestNodeIdParams struct {
+	Nodeid                int64              `json:"nodeid"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+}
+
+func (q *Queries) ResetLatestNodeId(ctx context.Context, db DBTX, arg ResetLatestNodeIdParams) (*V1DurableEventLogFile, error) {
+	row := db.QueryRow(ctx, resetLatestNodeId, arg.Nodeid, arg.Durabletaskid, arg.Durabletaskinsertedat)
+	var i V1DurableEventLogFile
+	err := row.Scan(
+		&i.TenantID,
+		&i.DurableTaskID,
+		&i.DurableTaskInsertedAt,
+		&i.LatestInvocationCount,
+		&i.LatestInsertedAt,
+		&i.LatestNodeID,
+		&i.LatestBranchID,
+		&i.LatestBranchFirstParentNodeID,
+	)
+	return &i, err
+}
+
 const updateDurableEventLogCallbackSatisfied = `-- name: UpdateDurableEventLogCallbackSatisfied :one
 UPDATE v1_durable_event_log_callback
 SET is_satisfied = $1::BOOLEAN
