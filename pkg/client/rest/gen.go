@@ -296,6 +296,7 @@ const (
 	LINEAR  V1WebhookSourceName = "LINEAR"
 	SLACK   V1WebhookSourceName = "SLACK"
 	STRIPE  V1WebhookSourceName = "STRIPE"
+	SVIX    V1WebhookSourceName = "SVIX"
 )
 
 // Defines values for V1WorkflowType.
