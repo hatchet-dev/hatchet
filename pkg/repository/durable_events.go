@@ -80,6 +80,7 @@ type IngestDurableTaskEventOpts struct {
 	Payload           []byte
 	DispatcherId      uuid.UUID
 	WaitForConditions *v1.DurableEventListenerConditions
+	InvocationCount   int64
 }
 
 type IngestDurableTaskEventResult struct {
@@ -317,17 +318,17 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	fmt.Printf("Ingesting durable task event with opts: %s\n", string(oj))
 
 	// todo: maybe acquire an exclusive lock on the row before incrementing the node id here
+	nodeId := opts.InvocationCount
 
-	logFile, err := r.queries.IncrementAndGetNextNodeId(ctx, tx, sqlcv1.IncrementAndGetNextNodeIdParams{
+	logFile, err := r.queries.GetOrCreateEventLogFile(ctx, tx, sqlcv1.GetOrCreateEventLogFileParams{
 		Tenantid:              opts.TenantId,
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
+		Nodeid:                nodeId,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to increment and get next node id: %w", err)
+		return nil, fmt.Errorf("failed to get or create event log file: %w", err)
 	}
-
-	nodeId := logFile.LatestNodeID
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 
