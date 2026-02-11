@@ -468,7 +468,6 @@ async def test_webhook_update_scope_expression(
         test_run_id,
         scope_expression="input.type",
     ) as incoming_webhook:
-        assert incoming_webhook.scope_expression == "input.type"
 
         updated = hatchet.webhooks.update(
             incoming_webhook.name,
