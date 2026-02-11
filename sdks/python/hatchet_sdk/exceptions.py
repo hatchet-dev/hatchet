@@ -38,9 +38,6 @@ class TaskRunError(Exception):
         return str(self)
 
     def serialize(self, include_metadata: bool) -> str:
-        if not self.exc_type or not self.exc:
-            return ""
-
         metadata = json.dumps(
             {
                 TASK_RUN_ERROR_METADATA_KEY: {
