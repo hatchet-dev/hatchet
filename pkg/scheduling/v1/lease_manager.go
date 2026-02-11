@@ -296,14 +296,18 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 }
 
 func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) error {
+	l.conf.l.Debug().Msgf("[notifyNewQueue] notifying new queue %s for tenant %s", queueName, l.tenantId)
+
 	l.processMu.RLock()
 	defer l.processMu.RUnlock()
 
 	if l.cleanedUp {
+		l.conf.l.Debug().Msgf("[notifyNewQueue] lease manager already cleaned up, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
 		return nil
 	}
 
 	if !l.queueLeasesMu.TryLock() {
+		l.conf.l.Debug().Msgf("[notifyNewQueue] could not acquire queueLeasesMu, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
 		return nil
 	}
 
@@ -312,6 +316,7 @@ func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) err
 	// check that we don't already have a lease for this queue
 	for _, lease := range l.queueLeases {
 		if lease.ResourceId == queueName {
+			l.conf.l.Debug().Msgf("[notifyNewQueue] already have lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
 			return nil
 		}
 	}
@@ -322,10 +327,12 @@ func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) err
 	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, []string{queueName}, []*sqlcv1.Lease{})
 
 	if err != nil {
+		l.conf.l.Debug().Err(err).Msgf("[notifyNewQueue] error acquiring lease for queue %s for tenant %s", queueName, l.tenantId)
 		return err
 	}
 
 	if len(lease) == 0 || lease[0].ResourceId == "" {
+		l.conf.l.Debug().Msgf("[notifyNewQueue] did not acquire lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
 		return nil
 	}
 
