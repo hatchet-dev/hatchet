@@ -134,14 +134,11 @@ export class V1Worker {
     );
   }
 
-  // TODO where is this used, this doesnt make much sense
   private getAvailableSlots(): number {
-    const baseSlots = this.slotConfig[SlotType.Default] ?? this.slots ?? 0;
-    if (!baseSlots) {
-      return 0;
-    }
+    // sum all the slots in the slot config
+    const totalSlots = Object.values(this.slotConfig).reduce((acc, curr) => acc + curr, 0);
     const currentRuns = Object.keys(this.futures).length;
-    return Math.max(0, baseSlots - currentRuns);
+    return Math.max(0, totalSlots - currentRuns);
   }
 
   private getRegisteredActions(): string[] {
