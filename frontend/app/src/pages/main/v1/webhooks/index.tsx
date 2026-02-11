@@ -320,8 +320,9 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
         authType: V1WebhookAuthType.HMAC,
         auth: {
           // Svix uses its own SDK for verification; these HMAC fields are
-          // stored but the server-side validation delegates to the Svix SDK.
-          // See: https://docs.svix.com/receiving/verifying-payloads/how
+          // stored but the server-side validation implements Svix's signature
+          // verification protocol.
+          // See: https://docs.svix.com/receiving/verifying-payloads/how-to-verify-a-payload
           algorithm: V1WebhookHMACAlgorithm.SHA256,
           encoding: V1WebhookHMACEncoding.BASE64,
           signatureHeaderName: 'svix-signature',

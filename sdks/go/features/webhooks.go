@@ -83,9 +83,9 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 	return req, err
 }
 
-// SvixAuth configures webhook verification using the Svix SDK.
-// Only the signing secret (whsec_...) is required; the Svix SDK handles
-// signature headers and algorithms internally.
+// SvixAuth implements Svix's signature verification protocol for webhooks.
+// Only the signing secret (whsec_...) is required; signature headers and
+// algorithms are configured explicitly to match Svix's expectations.
 type SvixAuth struct {
 	SigningSecret string
 }
