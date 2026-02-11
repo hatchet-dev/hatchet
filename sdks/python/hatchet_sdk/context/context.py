@@ -13,7 +13,6 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
 )
-from hatchet_sdk.clients.listeners.durable_task_client import DurableTaskClient
 from hatchet_sdk.conditions import (
     OrGroup,
     SleepCondition,
@@ -44,7 +43,6 @@ class Context:
         admin_client: AdminClient,
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
-        durable_task_client: DurableTaskClient | None,
         worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
@@ -66,7 +64,6 @@ class Context:
         self.event_client = event_client
         self.runs_client = runs_client
         self.durable_event_listener = durable_event_listener
-        self.durable_task_client = durable_task_client
 
         self.input = self.data.input
         self.filter_payload = self.data.filter_payload
@@ -444,7 +441,6 @@ class DurableContext(Context):
         admin_client: AdminClient,
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
-        durable_task_client: DurableTaskClient | None,
         worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
@@ -459,7 +455,6 @@ class DurableContext(Context):
             admin_client,
             event_client,
             durable_event_listener,
-            durable_task_client,
             worker,
             runs_client,
             lifespan_context,
@@ -496,7 +491,7 @@ class DurableContext(Context):
         :return: A dictionary containing the results of the wait.
         :raises ValueError: If the durable task client is not available.
         """
-        if self.durable_task_client is None:
+        if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
         from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
@@ -509,7 +504,7 @@ class DurableContext(Context):
         )
         invocation_count = self.attempt_number
 
-        ack = await self.durable_task_client.send_event(
+        ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
             ## todo: figure out how to store this invocation count properly
             invocation_count=invocation_count,
@@ -519,7 +514,7 @@ class DurableContext(Context):
         )
         node_id = ack.node_id
 
-        result = await self.durable_task_client.wait_for_callback(
+        result = await self.durable_event_listener.wait_for_callback(
             durable_task_external_id=self.step_run_id,
             node_id=node_id,
         )
@@ -560,12 +555,12 @@ class DurableContext(Context):
         :raises ValueError: If the durable task client is not available.
         :return: The result of the child workflow execution.
         """
-        if self.durable_task_client is None:
+        if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
         await self._ensure_stream_started()
 
-        ack = await self.durable_task_client.send_event(
+        ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.retry_count + 1,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
@@ -576,7 +571,7 @@ class DurableContext(Context):
 
         node_id = ack.node_id
 
-        result = await self.durable_task_client.wait_for_callback(
+        result = await self.durable_event_listener.wait_for_callback(
             durable_task_external_id=self.step_run_id,
             node_id=node_id,
         )
@@ -584,7 +579,7 @@ class DurableContext(Context):
         return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:
-        if self.durable_task_client is None:
+        if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
-        await self.durable_task_client.ensure_started(self.action.worker_id)
+        await self.durable_event_listener.ensure_started(self.action.worker_id)

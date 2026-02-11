@@ -488,7 +488,6 @@ class Task(Generic[TWorkflowInput, R]):
             admin_client=self.workflow.client._client.admin,
             event_client=self.workflow.client._client.event,
             durable_event_listener=None,
-            durable_task_client=None,
             worker=WorkerContext(
                 labels={}, client=self.workflow.client._client.dispatcher
             ),

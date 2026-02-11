@@ -4,9 +4,6 @@ from hatchet_sdk.clients.admin import (
     TriggerWorkflowOptions,
 )
 from hatchet_sdk.clients.events import PushEventOptions
-from hatchet_sdk.clients.listeners.durable_event_listener import (
-    RegisterDurableEventRequest,
-)
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     StepRunEventType,

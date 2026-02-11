@@ -17,8 +17,9 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
-from hatchet_sdk.clients.listeners.durable_task_client import DurableTaskClient
+from hatchet_sdk.clients.listeners.durable_event_listener import (
+    DurableEventListener,
+)
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
@@ -121,8 +122,7 @@ class Runner:
             admin_client=self.admin_client,
         )
         self.event_client = EventClient(self.config)
-        self.durable_event_listener = DurableEventListener(self.config)
-        self.durable_task_client = DurableTaskClient(
+        self.durable_event_listener = DurableEventListener(
             self.config, admin_client=self.admin_client
         )
 
@@ -143,8 +143,8 @@ class Runner:
         if self.worker_context.id() is None:
             self.worker_context._worker_id = action.worker_id
             if self.is_durable:
-                self.durable_task_client_task = asyncio.create_task(
-                    self.durable_task_client.ensure_started(action.worker_id)
+                self.durable_event_listener_task = asyncio.create_task(
+                    self.durable_event_listener.ensure_started(action.worker_id)
                 )
 
         t: asyncio.Task[Exception | None] | None = None
@@ -399,7 +399,6 @@ class Runner:
             admin_client=self.admin_client,
             event_client=self.event_client,
             durable_event_listener=self.durable_event_listener,
-            durable_task_client=self.durable_task_client,
             worker=self.worker_context,
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
