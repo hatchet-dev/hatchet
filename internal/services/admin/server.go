@@ -86,6 +86,10 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				}
 			}
 		}()
+	} else if err != nil {
+		a.l.Warn().Err(err).Msgf("could not get actions for tasks for workflow version %s, skipping notifying new queues for tenant %s", currWorkflow.WorkflowVersion.ID.String(), tenantId)
+	} else if !tenant.SchedulerPartitionId.Valid {
+		a.l.Debug().Msgf("tenant %s does not have a valid scheduler partition id, skipping notifying new queues for workflow version %s", tenantId, currWorkflow.WorkflowVersion.ID.String())
 	}
 
 	resp := toWorkflowVersion(currWorkflow)

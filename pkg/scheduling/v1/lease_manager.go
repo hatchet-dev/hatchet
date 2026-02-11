@@ -456,9 +456,9 @@ func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strateg
 	return nil
 }
 
-// loopForLeases acquires new leases every 1 second for workers, queues, and concurrency strategies
+// loopForLeases acquires new leases every 5 seconds for workers, queues, and concurrency strategies
 func (l *LeaseManager) loopForLeases(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 
 	for {
 		select {
