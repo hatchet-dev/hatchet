@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	svix "github.com/svix/svix-webhooks/go"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -422,186 +421,11 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 ) {
 	switch webhook.SourceName {
 	case sqlcv1.V1IncomingWebhookSourceNameSLACK:
-		timestampHeader := request.Header.Get("X-Slack-Request-Timestamp")
-
-		if timestampHeader == "" {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: "missing or invalid timestamp header: X-Slack-Request-Timestamp",
-			}
-		}
-
-		timestamp, err := strconv.ParseInt(strings.TrimSpace(timestampHeader), 10, 64)
-
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: "Invalid timestamp in header",
-			}
-		}
-
-		// qq: should this be utc?
-		if time.Unix(timestamp, 0).UTC().Before(time.Now().Add(-5 * time.Minute)) {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: "timestamp in header is out of range",
-			}
-		}
-
-		algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
-		encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
-		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
-
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusInternalServerError,
-				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
-			}
-		}
-
-		sigBaseString := fmt.Sprintf("v0:%d:%s", timestamp, webhookPayload)
-
-		hash, err := computeHMACSignature([]byte(sigBaseString), decryptedSigningSecret, algorithm, encoding)
-
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusInternalServerError,
-				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
-			}
-		}
-
-		expectedSignature := fmt.Sprintf("v0=%s", hash)
-
-		signatureHeader := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
-
-		if signatureHeader == "" {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
-			}
-		}
-
-		if !signaturesMatch(signatureHeader, expectedSignature) {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: "invalid HMAC signature",
-			}
-		}
-
-		return true, nil
+		return w.validateSlackWebhook(webhookPayload, webhook, request)
 	case sqlcv1.V1IncomingWebhookSourceNameSTRIPE:
-		signatureHeader := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
-
-		if signatureHeader == "" {
-			return false, &ValidationError{
-				Code:      http.StatusBadRequest,
-				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
-			}
-		}
-
-		splitHeader := strings.Split(signatureHeader, ",")
-		headersMap := make(map[string]string)
-
-		for _, header := range splitHeader {
-			parts := strings.Split(header, "=")
-			if len(parts) != 2 {
-				return false, &ValidationError{
-					Code:      http.StatusBadRequest,
-					ErrorText: fmt.Sprintf("invalid signature header format: %s", webhook.AuthHmacSignatureHeaderName.String),
-				}
-			}
-			headersMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		}
-
-		timestampHeader, hasTimestampHeader := headersMap["t"]
-		v1SignatureHeader, hasV1SignatureHeader := headersMap["v1"]
-
-		if timestampHeader == "" || v1SignatureHeader == "" || !hasTimestampHeader || !hasV1SignatureHeader {
-			return false, &ValidationError{
-				Code:      http.StatusBadRequest,
-				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
-			}
-		}
-
-		timestamp := strings.TrimPrefix(timestampHeader, "t=")
-		signature := strings.TrimPrefix(v1SignatureHeader, "v1=")
-
-		if timestamp == "" || signature == "" {
-			return false, &ValidationError{
-				Code:      http.StatusBadRequest,
-				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
-			}
-		}
-
-		parsedTimestamp, err := strconv.ParseInt(timestamp, 10, 64)
-
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusBadRequest,
-				ErrorText: "Invalid timestamp in signature header",
-			}
-		}
-
-		if time.Unix(parsedTimestamp, 0).UTC().Before(time.Now().Add(-10 * time.Minute)) {
-			return false, &ValidationError{
-				Code:      http.StatusBadRequest,
-				ErrorText: "timestamp in signature header is out of range",
-			}
-		}
-
-		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusInternalServerError,
-				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
-			}
-		}
-
-		algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
-		encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
-
-		signedPayload := fmt.Sprintf("%s.%s", timestamp, webhookPayload)
-
-		expectedSignature, err := computeHMACSignature([]byte(signedPayload), decryptedSigningSecret, algorithm, encoding)
-
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
-			}
-		}
-
-		if !signaturesMatch(signature, expectedSignature) {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: "invalid HMAC signature",
-			}
-		}
+		return w.validateStripeWebhook(webhookPayload, webhook, request)
 	case sqlcv1.V1IncomingWebhookSourceNameSVIX:
-		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
-
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusInternalServerError,
-				ErrorText: fmt.Sprintf("failed to decrypt SVIX signing secret: %s", err),
-			}
-		}
-
-		wh, err := svix.NewWebhook(string(decryptedSigningSecret))
-
-		if err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusInternalServerError,
-				ErrorText: fmt.Sprintf("failed to create SVIX webhook verifier: %s", err),
-			}
-		}
-
-		if err := wh.Verify(webhookPayload, request.Header); err != nil {
-			return false, &ValidationError{
-				Code:      http.StatusForbidden,
-				ErrorText: fmt.Sprintf("SVIX signature verification failed: %s", err),
-			}
-		}
+		return w.validateSvixWebhook(webhookPayload, webhook, request)
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
 		fallthrough
 	case sqlcv1.V1IncomingWebhookSourceNameLINEAR:
@@ -711,6 +535,263 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 	return true, nil
 }
 
+func (w *V1WebhooksService) validateSlackWebhook(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (
+	IsValid,
+	*ValidationError,
+) {
+	timestampHeader := request.Header.Get("X-Slack-Request-Timestamp")
+
+	if timestampHeader == "" {
+		return false, &ValidationError{
+			Code:      http.StatusForbidden,
+			ErrorText: "missing or invalid timestamp header: X-Slack-Request-Timestamp",
+		}
+	}
+
+	timestamp, err := strconv.ParseInt(strings.TrimSpace(timestampHeader), 10, 64)
+
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusForbidden,
+			ErrorText: "Invalid timestamp in header",
+		}
+	}
+
+	// qq: should this be utc?
+	if time.Unix(timestamp, 0).UTC().Before(time.Now().Add(-5 * time.Minute)) {
+		return false, &ValidationError{
+			Code:      http.StatusForbidden,
+			ErrorText: "timestamp in header is out of range",
+		}
+	}
+
+	algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
+	encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusInternalServerError,
+			ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
+		}
+	}
+
+	sigBaseString := fmt.Sprintf("v0:%d:%s", timestamp, webhookPayload)
+
+	hash, err := computeHMACSignature([]byte(sigBaseString), decryptedSigningSecret, algorithm, encoding)
+
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusInternalServerError,
+			ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
+		}
+	}
+
+	expectedSignature := fmt.Sprintf("v0=%s", hash)
+
+	signatureHeader := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
+
+	if signatureHeader == "" {
+		return false, &ValidationError{
+			Code:      http.StatusForbidden,
+			ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+		}
+	}
+
+	if !signaturesMatch(signatureHeader, expectedSignature) {
+		return false, &ValidationError{
+			Code:      http.StatusForbidden,
+			ErrorText: "invalid HMAC signature",
+		}
+	}
+
+	return true, nil
+}
+
+func (w *V1WebhooksService) validateStripeWebhook(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (
+	IsValid,
+	*ValidationError,
+) {
+	signatureHeader := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
+
+	if signatureHeader == "" {
+		return false, &ValidationError{
+			Code:      http.StatusBadRequest,
+			ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+		}
+	}
+
+	splitHeader := strings.Split(signatureHeader, ",")
+	headersMap := make(map[string]string)
+
+	for _, header := range splitHeader {
+		parts := strings.Split(header, "=")
+		if len(parts) != 2 {
+			return false, &ValidationError{
+				Code:      http.StatusBadRequest,
+				ErrorText: fmt.Sprintf("invalid signature header format: %s", webhook.AuthHmacSignatureHeaderName.String),
+			}
+		}
+		headersMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+	}
+
+	timestampHeader, hasTimestampHeader := headersMap["t"]
+	v1SignatureHeader, hasV1SignatureHeader := headersMap["v1"]
+
+	if timestampHeader == "" || v1SignatureHeader == "" || !hasTimestampHeader || !hasV1SignatureHeader {
+		return false, &ValidationError{
+			Code:      http.StatusBadRequest,
+			ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+		}
+	}
+
+	timestamp := strings.TrimPrefix(timestampHeader, "t=")
+	signature := strings.TrimPrefix(v1SignatureHeader, "v1=")
+
+	if timestamp == "" || signature == "" {
+		return false, &ValidationError{
+			Code:      http.StatusBadRequest,
+			ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+		}
+	}
+
+	parsedTimestamp, err := strconv.ParseInt(timestamp, 10, 64)
+
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusBadRequest,
+			ErrorText: "Invalid timestamp in signature header",
+		}
+	}
+
+	if time.Unix(parsedTimestamp, 0).UTC().Before(time.Now().Add(-10 * time.Minute)) {
+		return false, &ValidationError{
+			Code:      http.StatusBadRequest,
+			ErrorText: "timestamp in signature header is out of range",
+		}
+	}
+
+	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusInternalServerError,
+			ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
+		}
+	}
+
+	algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
+	encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+
+	signedPayload := fmt.Sprintf("%s.%s", timestamp, webhookPayload)
+
+	expectedSignature, err := computeHMACSignature([]byte(signedPayload), decryptedSigningSecret, algorithm, encoding)
+
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusForbidden,
+			ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
+		}
+	}
+
+	if !signaturesMatch(signature, expectedSignature) {
+		return false, &ValidationError{
+			Code:      http.StatusForbidden,
+			ErrorText: "invalid HMAC signature",
+		}
+	}
+
+	return true, nil
+}
+
+func (w *V1WebhooksService) validateSvixWebhook(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (
+	IsValid,
+	*ValidationError,
+) {
+	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusInternalServerError,
+			ErrorText: fmt.Sprintf("failed to decrypt SVIX signing secret: %s", err),
+		}
+	}
+
+	key, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(string(decryptedSigningSecret), "whsec_"))
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusInternalServerError,
+			ErrorText: fmt.Sprintf("failed to decode SVIX signing secret: %s", err),
+		}
+	}
+
+	headers := request.Header
+
+	msgId := headers.Get("svix-id")
+	msgSignature := headers.Get("svix-signature")
+	msgTimestamp := headers.Get("svix-timestamp")
+
+	if msgId == "" || msgSignature == "" || msgTimestamp == "" {
+		msgId = headers.Get("webhook-id")
+		msgSignature = headers.Get("webhook-signature")
+		msgTimestamp = headers.Get("webhook-timestamp")
+		if msgId == "" || msgSignature == "" || msgTimestamp == "" {
+			return false, &ValidationError{
+				Code:      http.StatusBadRequest,
+				ErrorText: "missing or invalid headers",
+			}
+		}
+	}
+
+	timestamp, err := svixParseTimestampHeader(msgTimestamp)
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusBadRequest,
+			ErrorText: fmt.Sprintf("invalid timestamp header: %s", err),
+		}
+	}
+
+	err = svixVerifyTimestamp(timestamp)
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusBadRequest,
+			ErrorText: fmt.Sprintf("invalid timestamp header: %s", err),
+		}
+	}
+
+	computedSignature, err := svixSign(key, msgId, timestamp, webhookPayload)
+	if err != nil {
+		return false, &ValidationError{
+			Code:      http.StatusInternalServerError,
+			ErrorText: fmt.Sprintf("failed to sign SVIX payload: %s", err),
+		}
+	}
+	expectedSignature := []byte(strings.Split(computedSignature, ",")[1])
+
+	passedSignatures := strings.SplitSeq(msgSignature, " ")
+
+	for versionedSignature := range passedSignatures {
+		sigParts := strings.Split(versionedSignature, ",")
+		if len(sigParts) < 2 {
+			continue
+		}
+		version := sigParts[0]
+		signature := []byte(sigParts[1])
+
+		if version != "v1" {
+			continue
+		}
+
+		if hmac.Equal(signature, expectedSignature) {
+			return true, nil
+		}
+	}
+
+	return false, &ValidationError{
+		Code:      http.StatusForbidden,
+		ErrorText: "invalid SVIX signature",
+	}
+}
+
 func signaturesMatch(providedSignature, expectedSignature string) bool {
 	providedSignature = strings.TrimSpace(providedSignature)
 	expectedSignature = strings.TrimSpace(expectedSignature)
@@ -728,4 +809,41 @@ func removePrefixesFromSignature(signature string) string {
 	signature = strings.TrimPrefix(signature, "md5=")
 
 	return signature
+}
+
+var errInvalidHeaders = errors.New("invalid headers")
+var errMessageTooOld = errors.New("message too old")
+var errMessageTooNew = errors.New("message too new")
+var tolerance = 5 * time.Minute
+
+func svixParseTimestampHeader(timestampHeader string) (time.Time, error) {
+	timeInt, err := strconv.ParseInt(timestampHeader, 10, 64)
+	if err != nil {
+		return time.Time{}, errInvalidHeaders
+	}
+	timestamp := time.Unix(timeInt, 0)
+	return timestamp, nil
+}
+
+func svixVerifyTimestamp(timestamp time.Time) error {
+	now := time.Now()
+
+	if now.Sub(timestamp) > tolerance {
+		return errMessageTooOld
+	}
+	if timestamp.Unix() > now.Add(tolerance).Unix() {
+		return errMessageTooNew
+	}
+
+	return nil
+}
+
+func svixSign(key []byte, msgId string, timestamp time.Time, payload []byte) (string, error) {
+	toSign := fmt.Sprintf("%s.%d.%s", msgId, timestamp.Unix(), payload)
+
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(toSign))
+	sig := make([]byte, base64.StdEncoding.EncodedLen(h.Size()))
+	base64.StdEncoding.Encode(sig, h.Sum(nil))
+	return fmt.Sprintf("v1,%s", sig), nil
 }
