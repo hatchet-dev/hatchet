@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -85,12 +86,12 @@ func (s *slot) getWorkerId() uuid.UUID {
 	return s.worker.ID
 }
 
-func (s *slot) getSlotType() string {
+func (s *slot) getSlotType() (string, error) {
 	if s.meta == nil {
-		return ""
+		return "", fmt.Errorf("slot has nil meta")
 	}
 
-	return s.meta.slotType
+	return s.meta.slotType, nil
 }
 
 func (s *slot) extendExpiry() {
