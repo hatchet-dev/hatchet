@@ -26,45 +26,34 @@ from hatchet_sdk.clients.rest.rest import RESTClientObject
 
 
 class TestRestTransportExceptionHierarchy:
-    """Test that exception hierarchy is correct for backward compatibility."""
-
     def test_rest_transport_error_inherits_from_api_exception(self) -> None:
-        """RestTransportError should inherit from ApiException."""
         assert issubclass(RestTransportError, ApiException)
 
     def test_rest_timeout_error_inherits_from_transport_error(self) -> None:
-        """RestTimeoutError should inherit from RestTransportError."""
         assert issubclass(RestTimeoutError, RestTransportError)
         assert issubclass(RestTimeoutError, ApiException)
 
     def test_rest_connection_error_inherits_from_transport_error(self) -> None:
-        """RestConnectionError should inherit from RestTransportError."""
         assert issubclass(RestConnectionError, RestTransportError)
         assert issubclass(RestConnectionError, ApiException)
 
     def test_rest_tls_error_inherits_from_transport_error(self) -> None:
-        """RestTLSError should inherit from RestTransportError."""
         assert issubclass(RestTLSError, RestTransportError)
         assert issubclass(RestTLSError, ApiException)
 
     def test_rest_protocol_error_inherits_from_transport_error(self) -> None:
-        """RestProtocolError should inherit from RestTransportError."""
         assert issubclass(RestProtocolError, RestTransportError)
         assert issubclass(RestProtocolError, ApiException)
 
 
 class TestRestTransportExceptionTranslation:
-    """Test that urllib3 exceptions are translated to the correct typed exceptions."""
-
     @pytest.fixture
     def rest_client(self) -> Any:
-        """Create a RESTClientObject with minimal configuration."""
         config = Configuration(host="http://localhost:8080")
         return cast(Any, RESTClientObject(config))
 
     @pytest.fixture
     def request_params(self) -> dict[str, Any]:
-        """Standard request parameters for testing."""
         return {
             "method": "GET",
             "url": "http://localhost:8080/api/test",
@@ -78,7 +67,6 @@ class TestRestTransportExceptionTranslation:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """urllib3.exceptions.SSLError should raise RestTLSError."""
         original_exc = urllib3.exceptions.SSLError("SSL certificate verify failed")
 
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
@@ -103,7 +91,6 @@ class TestRestTransportExceptionTranslation:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """urllib3.exceptions.ConnectTimeoutError should raise RestTimeoutError."""
         original_exc = urllib3.exceptions.ConnectTimeoutError(
             None, "http://localhost:8080", "Connection timed out"
         )
@@ -130,7 +117,6 @@ class TestRestTransportExceptionTranslation:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """urllib3.exceptions.ReadTimeoutError should raise RestTimeoutError."""
         original_exc = urllib3.exceptions.ReadTimeoutError(
             cast(Any, None), "http://localhost:8080", "Read timed out"
         )
@@ -157,7 +143,6 @@ class TestRestTransportExceptionTranslation:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """urllib3.exceptions.MaxRetryError should raise RestConnectionError."""
         original_exc = urllib3.exceptions.MaxRetryError(
             cast(Any, None), "http://localhost:8080", Exception("Max retries exceeded")
         )
@@ -184,7 +169,6 @@ class TestRestTransportExceptionTranslation:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """urllib3.exceptions.NewConnectionError should raise RestConnectionError."""
         original_exc = urllib3.exceptions.NewConnectionError(
             cast(Any, None), "Failed to establish a new connection"
         )
@@ -211,7 +195,6 @@ class TestRestTransportExceptionTranslation:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """urllib3.exceptions.ProtocolError should raise RestProtocolError."""
         original_exc = urllib3.exceptions.ProtocolError("Connection aborted")
 
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
@@ -232,17 +215,13 @@ class TestRestTransportExceptionTranslation:
 
 
 class TestRestTransportExceptionBackwardCompatibility:
-    """Test that existing code catching ApiException still works."""
-
     @pytest.fixture
     def rest_client(self) -> Any:
-        """Create a RESTClientObject with minimal configuration."""
         config = Configuration(host="http://localhost:8080")
         return cast(Any, RESTClientObject(config))
 
     @pytest.fixture
     def request_params(self) -> dict[str, Any]:
-        """Standard request parameters for testing."""
         return {
             "method": "GET",
             "url": "http://localhost:8080/api/test",
@@ -256,7 +235,6 @@ class TestRestTransportExceptionBackwardCompatibility:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Code catching ApiException should also catch RestTLSError."""
 
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
             raise urllib3.exceptions.SSLError("SSL failed")
@@ -275,8 +253,6 @@ class TestRestTransportExceptionBackwardCompatibility:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Code catching ApiException should also catch RestTimeoutError."""
-
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
             raise urllib3.exceptions.ConnectTimeoutError(None, "url", "timeout")
 
@@ -293,8 +269,6 @@ class TestRestTransportExceptionBackwardCompatibility:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Code catching ApiException should also catch RestConnectionError."""
-
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
             raise urllib3.exceptions.NewConnectionError(
                 cast(Any, None), "connection failed"
@@ -313,8 +287,6 @@ class TestRestTransportExceptionBackwardCompatibility:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Code catching ApiException should also catch RestProtocolError."""
-
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
             raise urllib3.exceptions.ProtocolError("protocol error")
 
@@ -331,7 +303,6 @@ class TestRestTransportExceptionBackwardCompatibility:
         request_params: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Code catching RestTransportError should catch all transport subtypes."""
         exceptions_to_test = [
             (urllib3.exceptions.SSLError("ssl"), RestTLSError),
             (
@@ -373,18 +344,14 @@ class TestRestTransportExceptionBackwardCompatibility:
 
 
 class TestRestTransportExceptionDiagnostics:
-    """Test that diagnostic information is correctly included in exceptions."""
-
     @pytest.fixture
     def rest_client(self) -> Any:
-        """Create a RESTClientObject with minimal configuration."""
         config = Configuration(host="http://localhost:8080")
         return cast(Any, RESTClientObject(config))
 
     def test_reason_includes_all_diagnostic_fields(
         self, rest_client: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Verify that reason includes method, url, and timeout."""
 
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
             raise urllib3.exceptions.SSLError("test error message")
@@ -409,8 +376,6 @@ class TestRestTransportExceptionDiagnostics:
     def test_reason_handles_none_timeout(
         self, rest_client: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Verify that reason correctly shows timeout=None when not specified."""
-
         def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
             raise urllib3.exceptions.NewConnectionError(
                 cast(Any, None), "connection refused"

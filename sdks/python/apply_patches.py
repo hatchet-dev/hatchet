@@ -361,13 +361,10 @@ if __name__ == "__main__":
         [patch_workflow_run_metrics_counts_return_type],
     )
 
-    # Patch exceptions.py first to add typed transport exceptions
     atomically_patch_file(
         "hatchet_sdk/clients/rest/exceptions.py",
         [patch_rest_transport_exceptions],
     )
-
-    # Patch rest.py with imports and typed exception handlers
     atomically_patch_file(
         "hatchet_sdk/clients/rest/rest.py",
         [patch_rest_imports, patch_rest_error_diagnostics],
