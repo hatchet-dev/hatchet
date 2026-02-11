@@ -224,7 +224,7 @@ WITH inputs AS (
 ), node_id_update AS (
     -- todo: this should probably be figured out at the repo level
     UPDATE v1_durable_event_log_file AS f
-    SET latest_node_id = GREATEST(f.latest_node_id, i.latest_node_id)
+    SET latest_node_id = GREATEST(f.latest_node_id, i.node_id)
     FROM inputs i
     WHERE
         f.durable_task_id = i.durable_task_id
