@@ -60,7 +60,7 @@ JOIN inputs i ON
     c.durable_task_id = i.durable_task_id
     AND c.durable_task_inserted_at = i.durable_task_inserted_at
     AND c.node_id = i.node_id
-WHERE NOT EXISTS (SELECT 1 FROM ins)
+LIMIT 1
 `
 
 type GetOrCreateDurableEventLogCallbackParams struct {
@@ -180,7 +180,7 @@ JOIN inputs i ON
     e.durable_task_id = i.durable_task_id
     AND e.durable_task_inserted_at = i.durable_task_inserted_at
     AND e.node_id = i.node_id
-WHERE NOT EXISTS (SELECT 1 FROM inserts)
+LIMIT 1
 `
 
 type GetOrCreateDurableEventLogEntryParams struct {
