@@ -69,6 +69,8 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			defer cancel()
 
 			for _, action := range actions {
+				a.l.Debug().Msgf("notifying new queue for tenant %s and action %s", tenantId, action)
+
 				msg, err := tasktypes.NotifyNewQueue(tenantId, action)
 
 				if err != nil {
@@ -83,6 +85,8 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 					if err != nil {
 						a.l.Err(err).Msg("could not add message to scheduler partition queue")
 					}
+
+					a.l.Debug().Msgf("notified new queue for tenant %s and action %s", tenantId, action)
 				}
 			}
 		}()

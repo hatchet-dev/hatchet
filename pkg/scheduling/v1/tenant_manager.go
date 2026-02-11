@@ -355,6 +355,8 @@ func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID)
 }
 
 func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {
+	t.cf.l.Debug().Msgf("notifying new queue %s for tenant %s", queueName, t.tenantId)
+
 	err := t.leaseManager.notifyNewQueue(ctx, queueName)
 
 	if err != nil {
