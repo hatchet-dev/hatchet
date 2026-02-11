@@ -1,26 +1,42 @@
 -- name: GetOrCreateEventLogFile :one
-INSERT INTO v1_durable_event_log_file (
-    tenant_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    latest_inserted_at,
-    latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
-) VALUES (
-    @tenantId::UUID,
-    @durableTaskId::BIGINT,
-    @durableTaskInsertedAt::TIMESTAMPTZ,
-    NOW(),
-    1,
-    1,
-    0
+WITH existing_log_file AS (
+    SELECT *
+    FROM v1_durable_event_log_file
+    WHERE durable_task_id = @durableTaskId::BIGINT
+      AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+), upsert_result AS (
+    INSERT INTO v1_durable_event_log_file (
+        tenant_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        latest_invocation_count,
+        latest_inserted_at,
+        latest_node_id,
+        latest_branch_id,
+        latest_branch_first_parent_node_id
+    ) VALUES (
+        @tenantId::UUID,
+        @durableTaskId::BIGINT,
+        @durableTaskInsertedAt::TIMESTAMPTZ,
+        @invocationCount::BIGINT,
+        NOW(),
+        1,
+        1,
+        0
+    )
+    ON CONFLICT (durable_task_id, durable_task_inserted_at)
+    DO UPDATE SET
+        latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, EXCLUDED.latest_node_id),
+        latest_inserted_at = NOW(),
+        latest_invocation_count = GREATEST(v1_durable_event_log_file.latest_invocation_count, EXCLUDED.latest_invocation_count)
+    RETURNING *
 )
-ON CONFLICT (durable_task_id, durable_task_inserted_at)
-DO UPDATE SET
-    latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, EXCLUDED.latest_node_id),
-    latest_inserted_at = NOW()
-RETURNING *
+
+SELECT
+    r.*,
+    COALESCE(e.latest_invocation_count, 0) < @invocationCount::BIGINT AS is_new_invocation
+FROM upsert_result r
+LEFT JOIN existing_log_file e USING (durable_task_id, durable_task_inserted_at)
 ;
 
 -- name: GetOrCreateDurableEventLogEntry :one

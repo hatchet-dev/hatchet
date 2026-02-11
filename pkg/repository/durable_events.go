@@ -314,15 +314,20 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	defer rollback()
 
 	// todo: maybe acquire an exclusive lock on the row before incrementing the node id here
-	nodeId := opts.InvocationCount
-
 	logFile, err := r.queries.GetOrCreateEventLogFile(ctx, tx, sqlcv1.GetOrCreateEventLogFileParams{
 		Tenantid:              opts.TenantId,
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
+		Invocationcount:       opts.InvocationCount,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or create event log file: %w", err)
+	}
+
+	nodeId := int64(1)
+	if !logFile.IsNewInvocation {
+		nodeId = logFile.LatestNodeID
 	}
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
@@ -453,8 +458,17 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	return &IngestDurableTaskEventResult{
-		Callback:      callbackResult,
-		EventLogFile:  logFile,
+		Callback: callbackResult,
+		EventLogFile: &sqlcv1.V1DurableEventLogFile{
+			TenantID:                      logFile.TenantID,
+			DurableTaskID:                 logFile.DurableTaskID,
+			DurableTaskInsertedAt:         logFile.DurableTaskInsertedAt,
+			LatestInvocationCount:         logFile.LatestInvocationCount,
+			LatestInsertedAt:              logFile.LatestInsertedAt,
+			LatestNodeID:                  logFile.LatestNodeID,
+			LatestBranchID:                logFile.LatestBranchID,
+			LatestBranchFirstParentNodeID: logFile.LatestBranchFirstParentNodeID,
+		},
 		EventLogEntry: entryResult,
 	}, nil
 }

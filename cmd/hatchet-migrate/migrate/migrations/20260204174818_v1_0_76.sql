@@ -9,7 +9,11 @@ CREATE TABLE v1_durable_event_log_file (
     -- The id and inserted_at of the durable task which created this entry
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
+
     latest_inserted_at TIMESTAMPTZ NOT NULL,
+
+    latest_invocation_count BIGINT NOT NULL,
+
     -- A monotonically increasing node id for this durable event log scoped to the durable task.
     -- Starts at 0 and increments by 1 for each new entry.
     latest_node_id BIGINT NOT NULL,
@@ -17,6 +21,7 @@ CREATE TABLE v1_durable_event_log_file (
     latest_branch_id BIGINT NOT NULL,
     -- The parent node id which should be linked to the first node in a new branch to its parent node.
     latest_branch_first_parent_node_id BIGINT NOT NULL,
+
     CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 

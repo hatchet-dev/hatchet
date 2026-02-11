@@ -247,47 +247,83 @@ func (q *Queries) GetOrCreateDurableEventLogEntry(ctx context.Context, db DBTX, 
 }
 
 const getOrCreateEventLogFile = `-- name: GetOrCreateEventLogFile :one
-INSERT INTO v1_durable_event_log_file (
-    tenant_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    latest_inserted_at,
-    latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
-) VALUES (
-    $1::UUID,
-    $2::BIGINT,
-    $3::TIMESTAMPTZ,
-    NOW(),
-    1,
-    1,
-    0
+WITH existing_log_file AS (
+    SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+    FROM v1_durable_event_log_file
+    WHERE durable_task_id = $2::BIGINT
+      AND durable_task_inserted_at = $3::TIMESTAMPTZ
+), upsert_result AS (
+    INSERT INTO v1_durable_event_log_file (
+        tenant_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        latest_invocation_count,
+        latest_inserted_at,
+        latest_node_id,
+        latest_branch_id,
+        latest_branch_first_parent_node_id
+    ) VALUES (
+        $4::UUID,
+        $2::BIGINT,
+        $3::TIMESTAMPTZ,
+        $1::BIGINT,
+        NOW(),
+        1,
+        1,
+        0
+    )
+    ON CONFLICT (durable_task_id, durable_task_inserted_at)
+    DO UPDATE SET
+        latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, EXCLUDED.latest_node_id),
+        latest_inserted_at = NOW(),
+        latest_invocation_count = GREATEST(v1_durable_event_log_file.latest_invocation_count, EXCLUDED.latest_invocation_count)
+    RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
 )
-ON CONFLICT (durable_task_id, durable_task_inserted_at)
-DO UPDATE SET
-    latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, EXCLUDED.latest_node_id),
-    latest_inserted_at = NOW()
-RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+
+SELECT
+    r.tenant_id, r.durable_task_id, r.durable_task_inserted_at, r.latest_invocation_count, r.latest_inserted_at, r.latest_node_id, r.latest_branch_id, r.latest_branch_first_parent_node_id,
+    COALESCE(e.latest_invocation_count, 0) < $1::BIGINT AS is_new_invocation
+FROM upsert_result r
+LEFT JOIN existing_log_file e USING (durable_task_id, durable_task_inserted_at)
 `
 
 type GetOrCreateEventLogFileParams struct {
-	Tenantid              uuid.UUID          `json:"tenantid"`
+	Invocationcount       int64              `json:"invocationcount"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Tenantid              uuid.UUID          `json:"tenantid"`
 }
 
-func (q *Queries) GetOrCreateEventLogFile(ctx context.Context, db DBTX, arg GetOrCreateEventLogFileParams) (*V1DurableEventLogFile, error) {
-	row := db.QueryRow(ctx, getOrCreateEventLogFile, arg.Tenantid, arg.Durabletaskid, arg.Durabletaskinsertedat)
-	var i V1DurableEventLogFile
+type GetOrCreateEventLogFileRow struct {
+	TenantID                      uuid.UUID          `json:"tenant_id"`
+	DurableTaskID                 int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	LatestInvocationCount         int64              `json:"latest_invocation_count"`
+	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
+	LatestNodeID                  int64              `json:"latest_node_id"`
+	LatestBranchID                int64              `json:"latest_branch_id"`
+	LatestBranchFirstParentNodeID int64              `json:"latest_branch_first_parent_node_id"`
+	IsNewInvocation               bool               `json:"is_new_invocation"`
+}
+
+func (q *Queries) GetOrCreateEventLogFile(ctx context.Context, db DBTX, arg GetOrCreateEventLogFileParams) (*GetOrCreateEventLogFileRow, error) {
+	row := db.QueryRow(ctx, getOrCreateEventLogFile,
+		arg.Invocationcount,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Tenantid,
+	)
+	var i GetOrCreateEventLogFileRow
 	err := row.Scan(
 		&i.TenantID,
 		&i.DurableTaskID,
 		&i.DurableTaskInsertedAt,
+		&i.LatestInvocationCount,
 		&i.LatestInsertedAt,
 		&i.LatestNodeID,
 		&i.LatestBranchID,
 		&i.LatestBranchFirstParentNodeID,
+		&i.IsNewInvocation,
 	)
 	return &i, err
 }
