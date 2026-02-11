@@ -180,6 +180,7 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 	tx sqlcv1.DBTX,
 	tenantId uuid.UUID,
 	params sqlcv1.CreateDurableEventLogCallbackParams,
+	payload []byte,
 ) (*EventLogCallbackWithPayload, error) {
 	alreadyExists := true
 	callback, err := r.queries.GetDurableEventLogCallback(ctx, tx, sqlcv1.GetDurableEventLogCallbackParams{
@@ -206,6 +207,21 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 
 		if err != nil {
 			return nil, err
+		}
+
+		if len(payload) > 0 {
+			err = r.payloadStore.Store(ctx, tx, StorePayloadOpts{
+				Id:         newCallback.ID,
+				InsertedAt: newCallback.InsertedAt,
+				ExternalId: newCallback.ExternalID,
+				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+				Payload:    payload,
+				TenantId:   tenantId,
+			})
+
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		callback = &sqlcv1.V1DurableEventLogCallback{
@@ -361,6 +377,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	var kind sqlcv1.V1DurableEventLogCallbackKind
+	var callbackPayload []byte
+	isSatisfied := false
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED:
@@ -369,21 +387,31 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		kind = sqlcv1.V1DurableEventLogCallbackKindRUNCOMPLETED
 	case sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED:
 		kind = sqlcv1.V1DurableEventLogCallbackKindMEMOCOMPLETED
+
+		// for memoization, we don't need to wait for anything before marking the callback as satisfied since it's just a cache entry
+		isSatisfied = true
+		callbackPayload = opts.Payload
 	default:
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
-	callbackResult, err := r.getOrCreateEventLogCallback(ctx, tx, opts.TenantId, sqlcv1.CreateDurableEventLogCallbackParams{
-		Tenantid:              opts.TenantId,
-		Durabletaskid:         task.ID,
-		Durabletaskinsertedat: task.InsertedAt,
-		Insertedat:            now,
-		Kind:                  kind,
-		Nodeid:                nodeId,
-		Issatisfied:           false,
-		Externalid:            uuid.New(),
-		Dispatcherid:          opts.DispatcherId,
-	})
+	callbackResult, err := r.getOrCreateEventLogCallback(
+		ctx,
+		tx,
+		opts.TenantId,
+		sqlcv1.CreateDurableEventLogCallbackParams{
+			Tenantid:              opts.TenantId,
+			Durabletaskid:         task.ID,
+			Durabletaskinsertedat: task.InsertedAt,
+			Insertedat:            now,
+			Kind:                  kind,
+			Nodeid:                nodeId,
+			Issatisfied:           isSatisfied,
+			Externalid:            uuid.New(),
+			Dispatcherid:          opts.DispatcherId,
+		},
+		callbackPayload,
+	)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or create callback entry: %w", err)
