@@ -394,6 +394,8 @@ jobs:
             -e SERVER_GRPC_PORT=7077 \
             -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
             -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
             /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
 
@@ -405,6 +407,8 @@ jobs:
             -e SERVER_GRPC_PORT=7077 \
             -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
             -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
             /hatchet/hatchet-admin token create --config /hatchet/generated)
           echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
@@ -417,6 +421,8 @@ jobs:
             -e SERVER_GRPC_PORT=7077 \
             -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
             -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
             -e SERVER_LOGGER_LEVEL=warn \
             -e SERVER_LOGGER_FORMAT=console \
             -e DATABASE_LOGGER_LEVEL=warn \
