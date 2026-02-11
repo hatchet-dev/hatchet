@@ -197,6 +197,8 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 			delete(queueNamesSet, q.queueName)
 		} else {
 			// if not in new set, cleanup
+			t.cf.l.Debug().Msgf("cleaning up queuer for queue %s for tenant %s", q.queueName, t.tenantId)
+
 			go q.Cleanup()
 		}
 	}
