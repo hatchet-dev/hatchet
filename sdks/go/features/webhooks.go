@@ -110,18 +110,18 @@ func (a SvixAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 }
 
 type CreateWebhookOpts struct {
+	Auth               WebhookAuth
+	ScopeExpression    *string
+	StaticPayload      *map[string]interface{}
 	Name               string
 	SourceName         rest.V1WebhookSourceName
 	EventKeyExpression string
-	ScopeExpression    *string
-	StaticPayload      *map[string]interface{}
-	Auth               WebhookAuth
 }
 
 type UpdateWebhookOpts struct {
-	EventKeyExpression string
 	ScopeExpression    *string
 	StaticPayload      *map[string]interface{}
+	EventKeyExpression string
 }
 
 // WebhooksClient provides methods for managing webhook configurations

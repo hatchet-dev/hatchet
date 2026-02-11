@@ -88,10 +88,10 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 // Deprecated: CreateWebhookOpts is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type CreateWebhookOpts struct {
+	Auth               WebhookAuth
 	Name               string
 	SourceName         rest.V1WebhookSourceName
 	EventKeyExpression string
-	Auth               WebhookAuth
 }
 
 // Deprecated: UpdateWebhookOpts is part of the old generics-based v1 Go SDK.

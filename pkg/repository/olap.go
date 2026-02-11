@@ -2491,7 +2491,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		for i, opt := range putPayloadOpts {
 			storeOpts := OffloadToExternalStoreOpts{
 				TenantId:   tenantId,
-				ExternalID: uuid.UUID(opt.ExternalId),
+				ExternalID: opt.ExternalId,
 				InsertedAt: opt.InsertedAt,
 				Payload:    opt.Payload,
 			}
