@@ -147,8 +147,7 @@ SELECT
 FROM
     "Worker" w
 WHERE
-    w."tenantId" = @tenantId::uuid
-    AND w."id" = @id::uuid;
+    w."id" = @id::uuid;
 
 -- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT

@@ -22,7 +22,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 	reqCtx := ctx.Request().Context()
 	workerV0 := ctx.Get("worker").(*sqlcv1.GetWorkerByIdRow)
 
-	worker, err := t.config.V1.Workers().GetWorkerById(reqCtx, tenant.ID, workerV0.Worker.ID)
+	worker, err := t.config.V1.Workers().GetWorkerById(reqCtx, workerV0.Worker.ID)
 
 	if err != nil {
 		return nil, err

@@ -76,7 +76,7 @@ type UpsertWorkerLabelOpts struct {
 
 type WorkerRepository interface {
 	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, error)
-	GetWorkerById(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
+	GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
 	ListTotalActiveSlotsPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListActiveSlotsPerTenantAndSlotType(ctx context.Context) (map[TenantIdSlotTypeTuple]int64, error)
 	CountActiveWorkersPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
@@ -171,11 +171,8 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	return workers, nil
 }
 
-func (w *workerRepository) GetWorkerById(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
-	return w.queries.GetWorkerById(ctx, w.pool, sqlcv1.GetWorkerByIdParams{
-		Tenantid: tenantId,
-		ID:       workerId,
-	})
+func (w *workerRepository) GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(ctx, w.pool, workerId)
 }
 
 type SDK struct {
