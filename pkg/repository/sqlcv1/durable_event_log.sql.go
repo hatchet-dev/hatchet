@@ -15,55 +15,49 @@ import (
 const getOrCreateDurableEventLogCallback = `-- name: GetOrCreateDurableEventLogCallback :one
 WITH inputs AS (
     SELECT
-        $1::UUID AS tenant_id,
-        $2::BIGINT AS durable_task_id,
-        $3::TIMESTAMPTZ AS durable_task_inserted_at,
-        $4::TIMESTAMPTZ AS inserted_at,
-        $5::v1_durable_event_log_callback_kind AS kind,
-        $6::BIGINT AS node_id,
-        $7::BOOLEAN AS is_satisfied,
-        $8::UUID AS external_id,
+        $2::UUID AS tenant_id,
+        $3::BIGINT AS durable_task_id,
+        $4::TIMESTAMPTZ AS durable_task_inserted_at,
+        $5::TIMESTAMPTZ AS inserted_at,
+        $6::v1_durable_event_log_callback_kind AS kind,
+        $7::BIGINT AS node_id,
+        $8::BOOLEAN AS is_satisfied,
+        $1::UUID AS external_id,
         $9::UUID AS dispatcher_id
-), ins AS (
-    INSERT INTO v1_durable_event_log_callback (
-        tenant_id,
-        durable_task_id,
-        durable_task_inserted_at,
-        inserted_at,
-        kind,
-        node_id,
-        is_satisfied,
-        external_id,
-        dispatcher_id
-    )
-    SELECT
-        i.tenant_id,
-        i.durable_task_id,
-        i.durable_task_inserted_at,
-        i.inserted_at,
-        i.kind,
-        i.node_id,
-        i.is_satisfied,
-        i.external_id,
-        i.dispatcher_id
-    FROM
-        inputs i
-    ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
-    RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
 )
 
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id, false AS already_exists FROM ins
-UNION ALL
-SELECT c.tenant_id, c.external_id, c.inserted_at, c.id, c.durable_task_id, c.durable_task_inserted_at, c.kind, c.node_id, c.is_satisfied, c.dispatcher_id, true AS already_exists
-FROM v1_durable_event_log_callback c
-JOIN inputs i ON
-    c.durable_task_id = i.durable_task_id
-    AND c.durable_task_inserted_at = i.durable_task_inserted_at
-    AND c.node_id = i.node_id
-WHERE NOT EXISTS (SELECT 1 FROM ins)
+INSERT INTO v1_durable_event_log_callback (
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    inserted_at,
+    kind,
+    node_id,
+    is_satisfied,
+    external_id,
+    dispatcher_id
+)
+SELECT
+    i.tenant_id,
+    i.durable_task_id,
+    i.durable_task_inserted_at,
+    i.inserted_at,
+    i.kind,
+    i.node_id,
+    i.is_satisfied,
+    i.external_id,
+    i.dispatcher_id
+FROM
+    inputs i
+ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO UPDATE SET
+    external_id = v1_durable_event_log_callback.external_id
+RETURNING
+    tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id,
+    (external_id != $1::UUID) AS already_exists
 `
 
 type GetOrCreateDurableEventLogCallbackParams struct {
+	Externalid            uuid.UUID                     `json:"externalid"`
 	Tenantid              uuid.UUID                     `json:"tenantid"`
 	Durabletaskid         int64                         `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz            `json:"durabletaskinsertedat"`
@@ -71,7 +65,6 @@ type GetOrCreateDurableEventLogCallbackParams struct {
 	Kind                  V1DurableEventLogCallbackKind `json:"kind"`
 	Nodeid                int64                         `json:"nodeid"`
 	Issatisfied           bool                          `json:"issatisfied"`
-	Externalid            uuid.UUID                     `json:"externalid"`
 	Dispatcherid          uuid.UUID                     `json:"dispatcherid"`
 }
 
@@ -91,6 +84,7 @@ type GetOrCreateDurableEventLogCallbackRow struct {
 
 func (q *Queries) GetOrCreateDurableEventLogCallback(ctx context.Context, db DBTX, arg GetOrCreateDurableEventLogCallbackParams) (*GetOrCreateDurableEventLogCallbackRow, error) {
 	row := db.QueryRow(ctx, getOrCreateDurableEventLogCallback,
+		arg.Externalid,
 		arg.Tenantid,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
@@ -98,7 +92,6 @@ func (q *Queries) GetOrCreateDurableEventLogCallback(ctx context.Context, db DBT
 		arg.Kind,
 		arg.Nodeid,
 		arg.Issatisfied,
-		arg.Externalid,
 		arg.Dispatcherid,
 	)
 	var i GetOrCreateDurableEventLogCallbackRow
@@ -132,7 +125,7 @@ WITH inputs AS (
         $9::BIGINT AS branch_id,
         $10::BYTEA AS data_hash,
         $11::TEXT AS data_hash_alg
-), inserts AS (
+), upsert AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
         external_id,
@@ -160,8 +153,11 @@ WITH inputs AS (
         i.data_hash_alg
     FROM
         inputs i
-    ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
-    RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
+    ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO UPDATE SET
+        external_id = v1_durable_event_log_entry.external_id
+    RETURNING
+        tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg,
+        (external_id != $2::UUID) AS already_exists
 ), node_id_update AS (
     -- todo: this should probably be figured out at the repo level
     UPDATE v1_durable_event_log_file AS f
@@ -172,15 +168,8 @@ WITH inputs AS (
         AND f.durable_task_inserted_at = i.durable_task_inserted_at
 )
 
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, false AS already_exists FROM inserts
-UNION ALL
-SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.data_hash, e.data_hash_alg, true AS already_exists
-FROM v1_durable_event_log_entry e
-JOIN inputs i ON
-    e.durable_task_id = i.durable_task_id
-    AND e.durable_task_inserted_at = i.durable_task_inserted_at
-    AND e.node_id = i.node_id
-WHERE NOT EXISTS (SELECT 1 FROM inserts)
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, already_exists
+FROM upsert
 `
 
 type GetOrCreateDurableEventLogEntryParams struct {
