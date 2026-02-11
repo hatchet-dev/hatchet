@@ -256,7 +256,7 @@ export class V0Worker {
       };
 
       const success = async (result: any) => {
-        this.logger.info(`Step run ${action.stepRunId} succeeded`);
+        this.logger.info(`Task run ${action.taskRunExternalId} succeeded`);
 
         try {
           // Send the action event to the dispatcher
@@ -301,7 +301,7 @@ export class V0Worker {
       };
 
       const failure = async (error: any) => {
-        this.logger.error(`Step run ${action.stepRunId} failed: ${error.message}`);
+        this.logger.error(`Task run ${action.taskRunExternalId} failed: ${error.message}`);
 
         if (error.stack) {
           this.logger.error(error.stack);
@@ -360,7 +360,16 @@ export class V0Worker {
       try {
         await future.promise;
       } catch (e: any) {
-        this.logger.error('Could not wait for step run to finish: ', e);
+        const message = e?.message || String(e);
+        if (message.includes('Cancelled')) {
+          this.logger.debug(`Task run ${action.taskRunExternalId} was cancelled`);
+        } else {
+          this.logger.error(
+            `Could not wait for task run ${action.taskRunExternalId} to finish. ` +
+              `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
+            e
+          );
+        }
       }
     } catch (e: any) {
       this.logger.error('Could not send action event (outer): ', e);
@@ -396,7 +405,7 @@ export class V0Worker {
       };
 
       const success = (result: any) => {
-        this.logger.info(`Step run ${action.stepRunId} succeeded`);
+        this.logger.info(`Task run ${action.taskRunExternalId} succeeded`);
 
         try {
           // Send the action event to the dispatcher
@@ -418,7 +427,7 @@ export class V0Worker {
       };
 
       const failure = (error: any) => {
-        this.logger.error(`Step run ${key} failed: ${error.message}`);
+        this.logger.error(`Task run ${key} failed: ${error.message}`);
 
         try {
           // Send the action event to the dispatcher
@@ -468,8 +477,8 @@ export class V0Worker {
       workerId: this.name,
       jobId: action.jobId,
       jobRunId: action.jobRunId,
-      stepId: action.stepId,
-      stepRunId: action.stepRunId,
+      taskId: action.taskId,
+      taskRunExternalId: action.taskRunExternalId,
       actionId: action.actionId,
       eventTimestamp: new Date(),
       eventType,
@@ -499,9 +508,9 @@ export class V0Worker {
   }
 
   async handleCancelStepRun(action: Action) {
-    const { stepRunId } = action;
+    const { taskRunExternalId } = action;
     try {
-      this.logger.info(`Cancelling step run ${action.stepRunId}`);
+      this.logger.info(`Cancelling task run ${action.taskRunExternalId}`);
       const future = this.futures[createActionKey(action)];
       const context = this.contexts[createActionKey(action)];
 
@@ -511,13 +520,14 @@ export class V0Worker {
 
       if (future) {
         future.promise.catch(() => {
-          this.logger.info(`Cancelled step run ${action.stepRunId}`);
+          this.logger.info(`Cancelled task run ${action.taskRunExternalId}`);
         });
         future.cancel('Cancelled by worker');
         await future.promise;
       }
     } catch (e: any) {
-      this.logger.error('Could not cancel step run: ', e);
+      // Expected: the promise rejects when cancelled
+      this.logger.debug(`Task run ${taskRunExternalId} cancellation completed`);
     } finally {
       delete this.futures[createActionKey(action)];
       delete this.contexts[createActionKey(action)];

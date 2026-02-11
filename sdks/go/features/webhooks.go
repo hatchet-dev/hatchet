@@ -24,6 +24,8 @@ func (a BasicAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhook
 		Name:               opts.Name,
 		SourceName:         opts.SourceName,
 		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
 		AuthType:           rest.V1CreateWebhookRequestBasicAuthAuthType("BASIC"),
 		Auth: rest.V1WebhookBasicAuth{
 			Username: a.Username,
@@ -44,6 +46,8 @@ func (a APIKeyAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhoo
 		Name:               opts.Name,
 		SourceName:         opts.SourceName,
 		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
 		AuthType:           rest.V1CreateWebhookRequestAPIKeyAuthType("API_KEY"),
 		Auth: rest.V1WebhookAPIKeyAuth{
 			HeaderName: a.HeaderName,
@@ -66,6 +70,8 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 		Name:               opts.Name,
 		SourceName:         opts.SourceName,
 		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
 		AuthType:           rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
 		Auth: rest.V1WebhookHMACAuth{
 			SigningSecret:       a.SigningSecret,
@@ -77,15 +83,45 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 	return req, err
 }
 
+// SvixAuth implements Svix's signature verification protocol for webhooks.
+// Only the signing secret (whsec_...) is required; signature headers and
+// algorithms are configured explicitly to match Svix's expectations.
+type SvixAuth struct {
+	SigningSecret string
+}
+
+func (a SvixAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookRequest, error) {
+	var req rest.V1CreateWebhookRequest
+	err := req.FromV1CreateWebhookRequestHMAC(rest.V1CreateWebhookRequestHMAC{
+		Name:               opts.Name,
+		SourceName:         rest.SVIX,
+		EventKeyExpression: opts.EventKeyExpression,
+		ScopeExpression:    opts.ScopeExpression,
+		StaticPayload:      opts.StaticPayload,
+		AuthType:           rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
+		Auth: rest.V1WebhookHMACAuth{
+			SigningSecret:       a.SigningSecret,
+			SignatureHeaderName: "svix-signature",
+			Algorithm:           rest.SHA256,
+			Encoding:            rest.BASE64,
+		},
+	})
+	return req, err
+}
+
 type CreateWebhookOpts struct {
 	Name               string
 	SourceName         rest.V1WebhookSourceName
 	EventKeyExpression string
+	ScopeExpression    *string
+	StaticPayload      *map[string]interface{}
 	Auth               WebhookAuth
 }
 
 type UpdateWebhookOpts struct {
 	EventKeyExpression string
+	ScopeExpression    *string
+	StaticPayload      *map[string]interface{}
 }
 
 // WebhooksClient provides methods for managing webhook configurations
@@ -178,6 +214,8 @@ func (c *WebhooksClient) Update(ctx context.Context, webhookName string, opts Up
 		webhookName,
 		rest.V1UpdateWebhookRequest{
 			EventKeyExpression: opts.EventKeyExpression,
+			ScopeExpression:    opts.ScopeExpression,
+			StaticPayload:      opts.StaticPayload,
 		},
 	)
 	if err != nil {

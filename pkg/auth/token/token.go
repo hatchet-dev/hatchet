@@ -10,12 +10,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error)
-	ValidateTenantToken(ctx context.Context, token string) (string, string, error)
+	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error)
+	ValidateTenantToken(ctx context.Context, token string) (uuid.UUID, uuid.UUID, error)
 }
 
 type TokenOpts struct {
@@ -48,12 +47,12 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APIT
 }
 
 type Token struct {
-	TokenId   string
+	TokenId   uuid.UUID
 	ExpiresAt time.Time
 	Token     string
 }
 
-func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string, id *string, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, name string, id *uuid.UUID, expires *time.Time) (*Token, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
 	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
 
@@ -82,7 +81,7 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string,
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error) {
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
@@ -103,7 +102,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 	return token, nil
 }
 
-func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId string, tokenUUID string, err error) {
+func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId uuid.UUID, tokenUUID uuid.UUID, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
 
@@ -115,24 +114,30 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	})
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create JWT Validator: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to create JWT Validator: %v", err)
 	}
 
 	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to verify and decode JWT: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to verify and decode JWT: %v", err)
 	}
 
 	// Read the token from the database and make sure it's not revoked
 	if hasTokenId := verifiedJwt.HasStringClaim("token_id"); !hasTokenId {
-		return "", "", fmt.Errorf("token does not have token_id claim")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have token_id claim")
 	}
 
 	tokenId, err := verifiedJwt.StringClaim("token_id")
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read token_id claim: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token_id claim: %v", err)
+	}
+
+	tokenIdUuid, err := uuid.Parse(tokenId)
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse token_id claim: %v", err)
 	}
 
 	// ensure the current server url matches the token, if present
@@ -140,44 +145,50 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		serverURL, err := verifiedJwt.StringClaim("server_url")
 
 		if err != nil {
-			return "", "", fmt.Errorf("failed to read server_url claim: %v", err)
+			return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read server_url claim: %v", err)
 		}
 
 		if serverURL != j.opts.ServerURL {
-			return "", "", fmt.Errorf("server_url claim does not match")
+			return uuid.Nil, uuid.Nil, fmt.Errorf("server_url claim does not match")
 		}
 	}
 
 	// read the token from the database
-	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenId)
+	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenIdUuid)
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read token from database: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token from database: %v", err)
 	}
 
 	if dbToken.Revoked {
-		return "", "", fmt.Errorf("token has been revoked")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token has been revoked")
 	}
 
 	if expiresAt := dbToken.ExpiresAt.Time; expiresAt.Before(time.Now().UTC()) {
-		return "", "", fmt.Errorf("token has expired")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token has expired")
 	}
 
 	// ensure the subject of the token matches the tenantId
 	if hasSubject := verifiedJwt.HasSubject(); !hasSubject {
-		return "", "", fmt.Errorf("token does not have subject claim")
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have subject claim")
 	}
 
 	subject, err := verifiedJwt.Subject()
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read subject claim: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read subject claim: %v", err)
 	}
 
-	return subject, sqlchelpers.UUIDToStr(dbToken.ID), nil
+	parsedSubject, err := uuid.Parse(subject)
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse subject claim: %v", err)
+	}
+
+	return parsedSubject, dbToken.ID, nil
 }
 
-func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
+func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId uuid.UUID, id *uuid.UUID, expires *time.Time) (tokenId uuid.UUID, expiresAt time.Time, opts *jwt.RawJWTOptions) {
 
 	if expires != nil {
 		expiresAt = *expires
@@ -190,18 +201,20 @@ func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string, id *string, exp
 	subject := tenantId
 	issuer := j.opts.Issuer
 	if id == nil {
-		tokenId = uuid.New().String()
+		tokenId = uuid.New()
 	} else {
 		tokenId = *id
 	}
+
+	subjectString := subject.String()
 	opts = &jwt.RawJWTOptions{
 		IssuedAt:  &iAt,
 		Audience:  &audience,
-		Subject:   &subject,
+		Subject:   &subjectString,
 		ExpiresAt: &expiresAt,
 		Issuer:    &issuer,
 		CustomClaims: map[string]interface{}{
-			"token_id":               tokenId,
+			"token_id":               tokenId.String(),
 			"server_url":             j.opts.ServerURL,
 			"grpc_broadcast_address": j.opts.GRPCBroadcastAddress,
 		},

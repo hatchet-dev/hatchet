@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"google.golang.org/grpc/codes"
@@ -17,10 +17,16 @@ import (
 )
 
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")
+	}
 
 	// get single task
-	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+	task, err := i.getSingleTask(ctx, tenantId, taskExternalId, false)
 
 	if err != nil {
 		return nil, err
@@ -32,8 +38,8 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 		true,
 		false,
 		tasktypes.StreamEventPayload{
-			WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
-			StepRunId:     req.StepRunId,
+			WorkflowRunId: task.WorkflowRunID,
+			TaskRunId:     taskExternalId,
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
 			EventIndex:    req.EventIndex,
@@ -55,18 +61,23 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 	return &contracts.PutStreamEventResponse{}, nil
 }
 
-func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
 	return i.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
+	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")
+	}
 
 	if !i.isLogIngestionEnabled {
 		return &contracts.PutLogResponse{}, nil
 	}
 
-	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+	task, err := i.getSingleTask(ctx, tenantId, taskExternalId, false)
 
 	if err != nil {
 		return nil, err
@@ -103,7 +114,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 	}
 
 	opts := &v1.CreateLogLineOpts{
-		TaskExternalId: task.ExternalID.String(),
+		TaskExternalId: task.ExternalID,
 		TaskId:         task.ID,
 		TaskInsertedAt: task.InsertedAt,
 		CreatedAt:      createdAt,

@@ -55,6 +55,7 @@ func SleepCondition(duration time.Duration) *sleepCondition {
 	return &sleepCondition{
 		baseCondition: &baseCondition{
 			readableDataKey: "sleep:" + duration.String(),
+			orGroupID:       uuid.New(),
 		},
 		duration: duration,
 	}
@@ -91,6 +92,7 @@ func UserEventCondition(eventKey string, expression string) *userEventCondition 
 	return &userEventCondition{
 		baseCondition: baseCondition{
 			readableDataKey: eventKey,
+			orGroupID:       uuid.New(),
 			expression:      expression,
 		},
 		eventKey: eventKey,
@@ -128,6 +130,7 @@ func ParentCondition(parent NamedTask, expression string) *parentCondition {
 	return &parentCondition{
 		baseCondition: baseCondition{
 			readableDataKey: parent.GetName(),
+			orGroupID:       uuid.New(),
 			expression:      expression,
 		},
 		parentReadableId: parent.GetName(),

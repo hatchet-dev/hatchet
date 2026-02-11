@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
@@ -16,7 +15,7 @@ import (
 
 func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineListRequestObject) (gen.V1LogLineListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
 	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/stable/tasks/{task}/logs")
@@ -65,7 +64,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	}
 
 	if request.Params.Attempt != nil {
-		attemptInt32 := int32(*request.Params.Attempt)
+		attemptInt32 := int32(*request.Params.Attempt) // nolint: gosec
 		attempt = &attemptInt32
 	}
 
@@ -81,7 +80,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		Attempt:          attempt,
 	}
 
-	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ExternalID.String(), opts)
+	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ExternalID, opts)
 
 	if err != nil {
 		span.RecordError(err)

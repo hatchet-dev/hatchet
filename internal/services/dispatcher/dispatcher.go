@@ -14,10 +14,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -45,7 +45,7 @@ type DispatcherImpl struct {
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
 
-	dispatcherId string
+	dispatcherId uuid.UUID
 	workers      *workers
 	a            *hatcheterrors.Wrapped
 }
@@ -53,34 +53,34 @@ type DispatcherImpl struct {
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
 
 type workers struct {
-	innerMap sync.Map
+	innerMap syncx.Map[uuid.UUID, *syncx.Map[string, *subscribedWorker]]
 }
 
-func (w *workers) Range(f func(key, value interface{}) bool) {
+func (w *workers) Range(f func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool) {
 	w.innerMap.Range(f)
 }
 
-func (w *workers) Add(workerId, sessionId string, worker *subscribedWorker) {
-	actual, _ := w.innerMap.LoadOrStore(workerId, &sync.Map{})
+func (w *workers) Add(workerId uuid.UUID, sessionId string, worker *subscribedWorker) {
+	actual, _ := w.innerMap.LoadOrStore(workerId, &syncx.Map[string, *subscribedWorker]{})
 
-	actual.(*sync.Map).Store(sessionId, worker)
+	actual.Store(sessionId, worker)
 }
 
-func (w *workers) GetForSession(workerId, sessionId string) (*subscribedWorker, error) {
+func (w *workers) GetForSession(workerId uuid.UUID, sessionId string) (*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 	if !ok {
 		return nil, ErrWorkerNotFound
 	}
 
-	worker, ok := actual.(*sync.Map).Load(sessionId)
+	worker, ok := actual.Load(sessionId)
 	if !ok {
 		return nil, ErrWorkerNotFound
 	}
 
-	return worker.(*subscribedWorker), nil
+	return worker, nil
 }
 
-func (w *workers) Get(workerId string) ([]*subscribedWorker, error) {
+func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
@@ -89,25 +89,25 @@ func (w *workers) Get(workerId string) ([]*subscribedWorker, error) {
 
 	workers := []*subscribedWorker{}
 
-	actual.(*sync.Map).Range(func(key, value interface{}) bool {
-		workers = append(workers, value.(*subscribedWorker))
+	actual.Range(func(key string, value *subscribedWorker) bool {
+		workers = append(workers, value)
 		return true
 	})
 
 	return workers, nil
 }
 
-func (w *workers) DeleteForSession(workerId, sessionId string) {
+func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId string) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
 		return
 	}
 
-	actual.(*sync.Map).Delete(sessionId)
+	actual.Delete(sessionId)
 }
 
-func (w *workers) Delete(workerId string) {
+func (w *workers) Delete(workerId uuid.UUID) {
 	w.innerMap.Delete(workerId)
 }
 
@@ -118,7 +118,7 @@ type DispatcherOpts struct {
 	l                           *zerolog.Logger
 	dv                          datautils.DataDecoderValidator
 	repov1                      v1.Repository
-	dispatcherId                string
+	dispatcherId                uuid.UUID
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
@@ -133,7 +133,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	return &DispatcherOpts{
 		l:                           &logger,
 		dv:                          datautils.NewDataDecoderValidator(),
-		dispatcherId:                uuid.New().String(),
+		dispatcherId:                uuid.New(),
 		alerter:                     alerter,
 		payloadSizeThreshold:        3 * 1024 * 1024,
 		defaultMaxWorkerBacklogSize: 20,
@@ -171,7 +171,7 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) DispatcherOpt {
 	}
 }
 
-func WithDispatcherId(dispatcherId string) DispatcherOpt {
+func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.dispatcherId = dispatcherId
 	}
@@ -285,7 +285,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	// subscribe to a task queue with the dispatcher id
-	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
+	dispatcherId := dispatcher.ID
 
 	fv1 := func(task *msgqueue.Message) error {
 		wg.Add(1)
@@ -323,9 +323,9 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		// drain the existing connections
 		d.l.Debug().Msg("draining existing connections")
 
-		d.workers.Range(func(key, value interface{}) bool {
-			value.(*sync.Map).Range(func(key, value interface{}) bool {
-				w := value.(*subscribedWorker)
+		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
+			value.Range(func(key string, value *subscribedWorker) bool {
+				w := value
 
 				w.finished <- true
 
