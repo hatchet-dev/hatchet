@@ -456,15 +456,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
 	}
 
-	// in a single tx:
-	// 1. grab the task by its external id
-	// 2. get the existing log file (or create it)
-	// 3. get the event log entry if it exists
-	// 4. create the callback (unsatisfied)
-	// 5. commit
-	// 6. do other stuff like spawning children, registering signal match conditions, etc. outside the tx
-	// 7. return ack to the worker
-
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
@@ -488,9 +479,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
 	}
 
-	// todo: check if things already existed here, and if they did, return
-
-	return invocation.send(&contracts.DurableTaskResponse{
+	err = invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_TriggerAck{
 			TriggerAck: &contracts.DurableTaskEventAckResponse{
 				InvocationCount:       req.InvocationCount,
@@ -499,6 +488,26 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			},
 		},
 	})
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
+	}
+
+	if ingestionResult.Callback.Callback.IsSatisfied {
+		err := d.DeliverCallbackCompletion(
+			taskExternalId,
+			ingestionResult.EventLogFile.LatestNodeID,
+			req.InvocationCount,
+			ingestionResult.Callback.Result,
+		)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, ingestionResult.EventLogFile.LatestNodeID)
+			return status.Errorf(codes.Internal, "failed to deliver callback completion: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (d *DispatcherServiceImpl) handleEvictInvocation(

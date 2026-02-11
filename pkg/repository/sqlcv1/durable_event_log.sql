@@ -65,10 +65,15 @@ WITH inputs AS (
         AND f.durable_task_inserted_at = i.durable_task_inserted_at
 )
 
-SELECT
-    *,
-    (SELECT COUNT(*) FROM inserts) = 0 AS already_exists
-FROM inserts
+SELECT *, false AS already_exists FROM inserts
+UNION ALL
+SELECT *, true AS already_exists
+FROM v1_durable_event_log_entry e
+JOIN inputs i ON
+    e.durable_task_id = i.durable_task_id
+    AND e.durable_task_inserted_at = i.durable_task_inserted_at
+    AND e.node_id = i.node_id
+WHERE NOT EXISTS (SELECT 1 FROM inserts)
 ;
 
 -- name: ListDurableEventLogEntries :many
@@ -127,10 +132,15 @@ WITH inputs AS (
     RETURNING *
 )
 
-SELECT
-    *,
-    (SELECT COUNT(*) FROM ins) = 0 AS already_exists
-FROM inputs
+SELECT *, false AS already_exists FROM ins
+UNION ALL
+SELECT *, true AS already_exists
+FROM v1_durable_event_log_callback c
+JOIN inputs i ON
+    c.durable_task_id = i.durable_task_id
+    AND c.durable_task_inserted_at = i.durable_task_inserted_at
+    AND c.node_id = i.node_id
+WHERE NOT EXISTS (SELECT 1 FROM ins)
 ;
 
 -- name: GetDurableEventLogCallback :one

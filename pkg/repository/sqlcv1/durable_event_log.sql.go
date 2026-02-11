@@ -118,10 +118,15 @@ WITH inputs AS (
     RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
 )
 
-SELECT
-    tenant_id, durable_task_id, durable_task_inserted_at, inserted_at, kind, node_id, is_satisfied, external_id, dispatcher_id,
-    (SELECT COUNT(*) FROM ins) = 0 AS already_exists
-FROM inputs
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id, false AS already_exists FROM ins
+UNION ALL
+SELECT c.tenant_id, c.external_id, c.inserted_at, id, c.durable_task_id, c.durable_task_inserted_at, c.kind, c.node_id, c.is_satisfied, c.dispatcher_id, i.tenant_id, i.durable_task_id, i.durable_task_inserted_at, i.inserted_at, i.kind, i.node_id, i.is_satisfied, i.external_id, i.dispatcher_id, true AS already_exists
+FROM v1_durable_event_log_callback c
+JOIN inputs i ON
+    c.durable_task_id = i.durable_task_id
+    AND c.durable_task_inserted_at = i.durable_task_inserted_at
+    AND c.node_id = i.node_id
+WHERE NOT EXISTS (SELECT 1 FROM ins)
 `
 
 type GetOrCreateDurableEventLogCallbackParams struct {
@@ -137,16 +142,17 @@ type GetOrCreateDurableEventLogCallbackParams struct {
 }
 
 type GetOrCreateDurableEventLogCallbackRow struct {
-	TenantID              uuid.UUID                     `json:"tenant_id"`
-	DurableTaskID         int64                         `json:"durable_task_id"`
-	DurableTaskInsertedAt pgtype.Timestamptz            `json:"durable_task_inserted_at"`
-	InsertedAt            pgtype.Timestamptz            `json:"inserted_at"`
-	Kind                  V1DurableEventLogCallbackKind `json:"kind"`
-	NodeID                int64                         `json:"node_id"`
-	IsSatisfied           bool                          `json:"is_satisfied"`
-	ExternalID            uuid.UUID                     `json:"external_id"`
-	DispatcherID          uuid.UUID                     `json:"dispatcher_id"`
-	AlreadyExists         bool                          `json:"already_exists"`
+	TenantID              uuid.UUID                         `json:"tenant_id"`
+	ExternalID            uuid.UUID                         `json:"external_id"`
+	InsertedAt            pgtype.Timestamptz                `json:"inserted_at"`
+	ID                    int64                             `json:"id"`
+	DurableTaskID         int64                             `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz                `json:"durable_task_inserted_at"`
+	Kind                  NullV1DurableEventLogCallbackKind `json:"kind"`
+	NodeID                int64                             `json:"node_id"`
+	IsSatisfied           bool                              `json:"is_satisfied"`
+	DispatcherID          *uuid.UUID                        `json:"dispatcher_id"`
+	AlreadyExists         bool                              `json:"already_exists"`
 }
 
 func (q *Queries) GetOrCreateDurableEventLogCallback(ctx context.Context, db DBTX, arg GetOrCreateDurableEventLogCallbackParams) (*GetOrCreateDurableEventLogCallbackRow, error) {
@@ -164,13 +170,14 @@ func (q *Queries) GetOrCreateDurableEventLogCallback(ctx context.Context, db DBT
 	var i GetOrCreateDurableEventLogCallbackRow
 	err := row.Scan(
 		&i.TenantID,
+		&i.ExternalID,
+		&i.InsertedAt,
+		&i.ID,
 		&i.DurableTaskID,
 		&i.DurableTaskInsertedAt,
-		&i.InsertedAt,
 		&i.Kind,
 		&i.NodeID,
 		&i.IsSatisfied,
-		&i.ExternalID,
 		&i.DispatcherID,
 		&i.AlreadyExists,
 	)
@@ -231,10 +238,15 @@ WITH inputs AS (
         AND f.durable_task_inserted_at = i.durable_task_inserted_at
 )
 
-SELECT
-    tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg,
-    (SELECT COUNT(*) FROM inserts) = 0 AS already_exists
-FROM inserts
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, false AS already_exists FROM inserts
+UNION ALL
+SELECT e.tenant_id, e.external_id, e.inserted_at, id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.data_hash, e.data_hash_alg, i.tenant_id, i.external_id, i.durable_task_id, i.durable_task_inserted_at, i.inserted_at, i.kind, i.node_id, i.parent_node_id, i.branch_id, i.data_hash, i.data_hash_alg, true AS already_exists
+FROM v1_durable_event_log_entry e
+JOIN inputs i ON
+    e.durable_task_id = i.durable_task_id
+    AND e.durable_task_inserted_at = i.durable_task_inserted_at
+    AND e.node_id = i.node_id
+WHERE NOT EXISTS (SELECT 1 FROM inserts)
 `
 
 type GetOrCreateDurableEventLogEntryParams struct {
