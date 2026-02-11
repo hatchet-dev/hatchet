@@ -122,9 +122,9 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		Nodeid:                params.Nodeid,
 	})
 
-	if err != nil && !errors.As(err, pgx.ErrNoRows) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
-	} else if errors.As(err, pgx.ErrNoRows) {
+	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExisted = false
 		newEntry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
 			Tenantid:              params.Tenantid,
@@ -189,9 +189,9 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 		Nodeid:                params.Nodeid,
 	})
 
-	if err != nil && !errors.As(err, pgx.ErrNoRows) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
-	} else if errors.As(err, pgx.ErrNoRows) {
+	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExists = false
 		newCallback, err := r.queries.CreateDurableEventLogCallback(ctx, tx, sqlcv1.CreateDurableEventLogCallbackParams{
 			Tenantid:              params.Tenantid,
