@@ -317,6 +317,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
 		lastHeartbeat := time.Now().Add(-5 * time.Second)
+		firstHeartbeat := true
 
 		for {
 			select {
@@ -340,15 +341,19 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						}
 					}
 
-					// detect heartbeat delays caused by CPU contention or other scheduling issues
-					actualInterval := now.Sub(lastHeartbeat)
-					if actualInterval > heartbeatInterval*6/5 {
-						a.l.Warn().Msgf(
-							"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
-							a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval,
-						)
+					// detect heartbeat delays caused by CPU contention or other scheduling issues,
+					// but skip the first heartbeat since lastHeartbeat is artificially backdated
+					if !firstHeartbeat {
+						actualInterval := now.Sub(lastHeartbeat)
+						if actualInterval > heartbeatInterval*6/5 {
+							a.l.Warn().Msgf(
+								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
+								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval,
+							)
+						}
 					}
 
+					firstHeartbeat = false
 					lastHeartbeat = now
 				}
 			}
