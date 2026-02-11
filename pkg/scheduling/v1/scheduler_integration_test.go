@@ -98,6 +98,7 @@ func createTenantDispatcherWorker(
 		Name:         "worker-it",
 		Services:     []string{},
 		Actions:      actions,
+		SlotConfig:   map[string]int32{repo.SlotTypeDefault: int32(maxRuns)},
 	})
 	require.NoError(t, err)
 
@@ -141,6 +142,10 @@ func waitForWorkerUtilization(
 			}
 
 			if util, ok := ev.input.WorkerSlotUtilization[workerId]; ok {
+				// Skip snapshots captured before replenish has populated any slots.
+				if util.UtilizedSlots+util.NonUtilizedSlots == 0 {
+					continue
+				}
 				return util
 			}
 		}
