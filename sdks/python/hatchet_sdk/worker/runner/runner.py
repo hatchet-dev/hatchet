@@ -16,9 +16,9 @@ from pydantic import BaseModel
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
-from hatchet_sdk.clients.durable_task_client import DurableTaskClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
+from hatchet_sdk.clients.listeners.durable_task_client import DurableTaskClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
@@ -143,7 +143,7 @@ class Runner:
         if self.worker_context.id() is None:
             self.worker_context._worker_id = action.worker_id
             if self.is_durable:
-                asyncio.create_task(
+                self.durable_task_client_task = asyncio.create_task(
                     self.durable_task_client.ensure_started(action.worker_id)
                 )
 

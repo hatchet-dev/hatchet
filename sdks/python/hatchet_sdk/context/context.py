@@ -9,11 +9,11 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
     Action,
     DispatcherClient,
 )
-from hatchet_sdk.clients.durable_task_client import DurableTaskClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
 )
+from hatchet_sdk.clients.listeners.durable_task_client import DurableTaskClient
 from hatchet_sdk.conditions import (
     OrGroup,
     SleepCondition,
