@@ -204,13 +204,6 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 	return &EventLogCallbackWithPayload{Callback: callback, Result: result}, nil
 }
 
-func (r *durableEventsRepository) ListEventLogCallbacks(ctx context.Context, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogCallback, error) {
-	return r.queries.ListDurableEventLogCallbacks(ctx, r.pool, sqlcv1.ListDurableEventLogCallbacksParams{
-		Durabletaskid:         durableTaskId,
-		Durabletaskinsertedat: durableTaskInsertedAt,
-	})
-}
-
 func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, nodeId, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error) {
 	// note: might need to pass a tx in here instead
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)

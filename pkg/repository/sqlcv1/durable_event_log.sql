@@ -76,22 +76,6 @@ JOIN inputs i ON
 WHERE NOT EXISTS (SELECT 1 FROM inserts)
 ;
 
--- name: ListDurableEventLogEntries :many
-SELECT *
-FROM v1_durable_event_log_entry
-WHERE durable_task_id = @durableTaskId::BIGINT
-  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-ORDER BY node_id ASC
-;
-
--- name: GetDurableEventLogEntry :one
-SELECT *
-FROM v1_durable_event_log_entry
-WHERE durable_task_id = @durableTaskId::BIGINT
-  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-  AND node_id = @nodeId::BIGINT
-;
-
 -- name: GetOrCreateDurableEventLogCallback :one
 WITH inputs AS (
     SELECT
@@ -141,22 +125,6 @@ JOIN inputs i ON
     AND c.durable_task_inserted_at = i.durable_task_inserted_at
     AND c.node_id = i.node_id
 WHERE NOT EXISTS (SELECT 1 FROM ins)
-;
-
--- name: GetDurableEventLogCallback :one
-SELECT *
-FROM v1_durable_event_log_callback
-WHERE durable_task_id = @durableTaskId::BIGINT
-  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-  AND node_id = @nodeId::BIGINT
-;
-
--- name: ListDurableEventLogCallbacks :many
-SELECT *
-FROM v1_durable_event_log_callback
-WHERE durable_task_id = @durableTaskId::BIGINT
-  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-ORDER BY inserted_at ASC
 ;
 
 -- name: UpdateDurableEventLogCallbackSatisfied :one
