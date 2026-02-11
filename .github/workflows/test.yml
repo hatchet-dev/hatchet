@@ -423,6 +423,7 @@ jobs:
             -e SERVER_GRPC_INSECURE=true \
             -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
             -e SERVER_AUTH_COOKIE_INSECURE=true \
+            -e SERVER_MSGQUEUE_KIND=postgres \
             -e SERVER_LOGGER_LEVEL=warn \
             -e SERVER_LOGGER_FORMAT=console \
             -e DATABASE_LOGGER_LEVEL=warn \
