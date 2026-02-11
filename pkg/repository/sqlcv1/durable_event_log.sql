@@ -1,39 +1,14 @@
--- name: GetOrCreateDurableEventLogFile :one
-WITH to_insert AS (
-    SELECT
-        @tenantId::UUID AS tenant_id,
-        @durableTaskId::BIGINT AS durable_task_id,
-        @durableTaskInsertedAt::TIMESTAMPTZ AS durable_task_inserted_at,
-        @latestInsertedAt::TIMESTAMPTZ AS latest_inserted_at,
-        @latestNodeId::BIGINT AS latest_node_id,
-        @latestBranchId::BIGINT AS latest_branch_id,
-        @latestBranchFirstParentNodeId::BIGINT AS latest_branch_first_parent_node_id
-), ins AS (
-    INSERT INTO v1_durable_event_log_file (
-        tenant_id,
-        durable_task_id,
-        durable_task_inserted_at,
-        latest_inserted_at,
-        latest_node_id,
-        latest_branch_id,
-        latest_branch_first_parent_node_id
-    )
-    SELECT
-        tenant_id,
-        durable_task_id,
-        durable_task_inserted_at,
-        latest_inserted_at,
-        latest_node_id,
-        latest_branch_id,
-        latest_branch_first_parent_node_id
-    FROM to_insert
-    ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
+-- name: IncrementAndGetNextNodeId :one
+INSERT INTO v1_durable_event_log_file (
+    tenant_id, durable_task_id, durable_task_inserted_at,
+    latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+) VALUES (
+    @tenantId::UUID, @durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ,
+    NOW(), 1, 1, 0
 )
-
-SELECT
-    *,
-    (SELECT COUNT(*) FROM ins) = 0 AS already_exists
-FROM to_insert
+ON CONFLICT (durable_task_id, durable_task_inserted_at)
+DO UPDATE SET latest_node_id = v1_durable_event_log_file.latest_node_id + 1
+RETURNING *
 ;
 
 -- name: GetOrCreateDurableEventLogEntry :one
@@ -181,4 +156,18 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
   AND node_id = @nodeId::BIGINT
 RETURNING *
+;
+
+-- name: GetSatisfiedCallbacks :many
+SELECT cb.*, t.external_id AS task_external_id
+FROM v1_durable_event_log_callback cb
+JOIN v1_task t ON t.id = cb.durable_task_id
+    AND t.inserted_at = cb.durable_task_inserted_at
+    AND t.tenant_id = @tenantId::UUID
+WHERE (t.external_id, cb.node_id) IN (
+    SELECT
+        unnest(@taskExternalIds::uuid[]),
+        unnest(@nodeIds::bigint[])
+)
+  AND cb.is_satisfied = TRUE
 ;

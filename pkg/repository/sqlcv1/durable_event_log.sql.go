@@ -300,76 +300,94 @@ func (q *Queries) GetOrCreateDurableEventLogEntry(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
-const getOrCreateDurableEventLogFile = `-- name: GetOrCreateDurableEventLogFile :one
-WITH to_insert AS (
+const getSatisfiedCallbacks = `-- name: GetSatisfiedCallbacks :many
+SELECT cb.tenant_id, cb.external_id, cb.inserted_at, cb.id, cb.durable_task_id, cb.durable_task_inserted_at, cb.kind, cb.node_id, cb.is_satisfied, cb.dispatcher_id, t.external_id AS task_external_id
+FROM v1_durable_event_log_callback cb
+JOIN v1_task t ON t.id = cb.durable_task_id
+    AND t.inserted_at = cb.durable_task_inserted_at
+    AND t.tenant_id = $1::UUID
+WHERE (t.external_id, cb.node_id) IN (
     SELECT
-        $1::UUID AS tenant_id,
-        $2::BIGINT AS durable_task_id,
-        $3::TIMESTAMPTZ AS durable_task_inserted_at,
-        $4::TIMESTAMPTZ AS latest_inserted_at,
-        $5::BIGINT AS latest_node_id,
-        $6::BIGINT AS latest_branch_id,
-        $7::BIGINT AS latest_branch_first_parent_node_id
-), ins AS (
-    INSERT INTO v1_durable_event_log_file (
-        tenant_id,
-        durable_task_id,
-        durable_task_inserted_at,
-        latest_inserted_at,
-        latest_node_id,
-        latest_branch_id,
-        latest_branch_first_parent_node_id
-    )
-    SELECT
-        tenant_id,
-        durable_task_id,
-        durable_task_inserted_at,
-        latest_inserted_at,
-        latest_node_id,
-        latest_branch_id,
-        latest_branch_first_parent_node_id
-    FROM to_insert
-    ON CONFLICT (durable_task_id, durable_task_inserted_at) DO NOTHING
+        unnest($2::uuid[]),
+        unnest($3::bigint[])
 )
-
-SELECT
-    tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id,
-    (SELECT COUNT(*) FROM ins) = 0 AS already_exists
-FROM to_insert
+  AND cb.is_satisfied = TRUE
 `
 
-type GetOrCreateDurableEventLogFileParams struct {
-	Tenantid                      uuid.UUID          `json:"tenantid"`
-	Durabletaskid                 int64              `json:"durabletaskid"`
-	Durabletaskinsertedat         pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Latestinsertedat              pgtype.Timestamptz `json:"latestinsertedat"`
-	Latestnodeid                  int64              `json:"latestnodeid"`
-	Latestbranchid                int64              `json:"latestbranchid"`
-	Latestbranchfirstparentnodeid int64              `json:"latestbranchfirstparentnodeid"`
+type GetSatisfiedCallbacksParams struct {
+	Tenantid        uuid.UUID   `json:"tenantid"`
+	Taskexternalids []uuid.UUID `json:"taskexternalids"`
+	Nodeids         []int64     `json:"nodeids"`
 }
 
-type GetOrCreateDurableEventLogFileRow struct {
-	TenantID                      uuid.UUID          `json:"tenant_id"`
-	DurableTaskID                 int64              `json:"durable_task_id"`
-	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
-	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
-	LatestNodeID                  int64              `json:"latest_node_id"`
-	LatestBranchID                int64              `json:"latest_branch_id"`
-	LatestBranchFirstParentNodeID int64              `json:"latest_branch_first_parent_node_id"`
-	AlreadyExists                 bool               `json:"already_exists"`
+type GetSatisfiedCallbacksRow struct {
+	TenantID              uuid.UUID                         `json:"tenant_id"`
+	ExternalID            uuid.UUID                         `json:"external_id"`
+	InsertedAt            pgtype.Timestamptz                `json:"inserted_at"`
+	ID                    int64                             `json:"id"`
+	DurableTaskID         int64                             `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz                `json:"durable_task_inserted_at"`
+	Kind                  NullV1DurableEventLogCallbackKind `json:"kind"`
+	NodeID                int64                             `json:"node_id"`
+	IsSatisfied           bool                              `json:"is_satisfied"`
+	DispatcherID          *uuid.UUID                        `json:"dispatcher_id"`
+	TaskExternalID        uuid.UUID                         `json:"task_external_id"`
 }
 
-func (q *Queries) GetOrCreateDurableEventLogFile(ctx context.Context, db DBTX, arg GetOrCreateDurableEventLogFileParams) (*GetOrCreateDurableEventLogFileRow, error) {
-	row := db.QueryRow(ctx, getOrCreateDurableEventLogFile,
-		arg.Tenantid,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
-		arg.Latestinsertedat,
-		arg.Latestnodeid,
-		arg.Latestbranchid,
-		arg.Latestbranchfirstparentnodeid,
-	)
-	var i GetOrCreateDurableEventLogFileRow
+func (q *Queries) GetSatisfiedCallbacks(ctx context.Context, db DBTX, arg GetSatisfiedCallbacksParams) ([]*GetSatisfiedCallbacksRow, error) {
+	rows, err := db.Query(ctx, getSatisfiedCallbacks, arg.Tenantid, arg.Taskexternalids, arg.Nodeids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetSatisfiedCallbacksRow
+	for rows.Next() {
+		var i GetSatisfiedCallbacksRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.InsertedAt,
+			&i.ID,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.Kind,
+			&i.NodeID,
+			&i.IsSatisfied,
+			&i.DispatcherID,
+			&i.TaskExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const incrementAndGetNextNodeId = `-- name: IncrementAndGetNextNodeId :one
+INSERT INTO v1_durable_event_log_file (
+    tenant_id, durable_task_id, durable_task_inserted_at,
+    latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+) VALUES (
+    $1::UUID, $2::BIGINT, $3::TIMESTAMPTZ,
+    NOW(), 1, 1, 0
+)
+ON CONFLICT (durable_task_id, durable_task_inserted_at)
+DO UPDATE SET latest_node_id = v1_durable_event_log_file.latest_node_id + 1
+RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+`
+
+type IncrementAndGetNextNodeIdParams struct {
+	Tenantid              uuid.UUID          `json:"tenantid"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+}
+
+func (q *Queries) IncrementAndGetNextNodeId(ctx context.Context, db DBTX, arg IncrementAndGetNextNodeIdParams) (*V1DurableEventLogFile, error) {
+	row := db.QueryRow(ctx, incrementAndGetNextNodeId, arg.Tenantid, arg.Durabletaskid, arg.Durabletaskinsertedat)
+	var i V1DurableEventLogFile
 	err := row.Scan(
 		&i.TenantID,
 		&i.DurableTaskID,
@@ -378,7 +396,6 @@ func (q *Queries) GetOrCreateDurableEventLogFile(ctx context.Context, db DBTX, a
 		&i.LatestNodeID,
 		&i.LatestBranchID,
 		&i.LatestBranchFirstParentNodeID,
-		&i.AlreadyExists,
 	)
 	return &i, err
 }

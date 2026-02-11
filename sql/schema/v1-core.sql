@@ -504,6 +504,7 @@ CREATE TABLE v1_match (
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
+    durable_event_log_callback_durable_task_external_id uuid,
     durable_event_log_callback_durable_task_id bigint,
     durable_event_log_callback_durable_task_inserted_at timestamptz,
     durable_event_log_callback_node_id bigint,
@@ -2329,5 +2330,5 @@ CREATE TABLE v1_durable_event_log_callback (
     -- Access patterns:
     -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied
-    CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, key)
+    CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);

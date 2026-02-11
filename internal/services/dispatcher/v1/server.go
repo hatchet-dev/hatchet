@@ -319,11 +319,6 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	}
 }
 
-type durableTaskInvocationKey struct {
-	taskExternalId  string
-	invocationCount int64
-}
-
 type durableTaskInvocation struct {
 	server   contracts.V1Dispatcher_DurableTaskServer
 	tenantId uuid.UUID
@@ -331,23 +326,6 @@ type durableTaskInvocation struct {
 	l        *zerolog.Logger
 
 	sendMu sync.Mutex
-
-	nextNodeIdMu sync.Mutex
-	nextNodeId   map[durableTaskInvocationKey]int64
-}
-
-func (inv *durableTaskInvocation) getNextNodeId(taskExternalId string, invocationCount int64) int64 {
-	inv.nextNodeIdMu.Lock()
-	defer inv.nextNodeIdMu.Unlock()
-
-	if inv.nextNodeId == nil {
-		inv.nextNodeId = make(map[durableTaskInvocationKey]int64)
-	}
-
-	key := durableTaskInvocationKey{taskExternalId: taskExternalId, invocationCount: invocationCount}
-	nodeId := inv.nextNodeId[key] + 1
-	inv.nextNodeId[key] = nodeId
-	return nodeId
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -373,6 +351,9 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	defer func() {
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(taskId)
+		}
+		if invocation.workerId != "" {
+			d.workerInvocations.Delete(invocation.workerId)
 		}
 	}()
 
@@ -427,6 +408,9 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	case *contracts.DurableTaskRequest_EvictInvocation:
 		return d.handleEvictInvocation(ctx, invocation, msg.EvictInvocation)
 
+	case *contracts.DurableTaskRequest_WorkerStatus:
+		return d.handleWorkerStatus(ctx, invocation, msg.WorkerStatus)
+
 	default:
 		return status.Errorf(codes.InvalidArgument, "unknown message type: %T", msg)
 	}
@@ -438,6 +422,7 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	req *contracts.DurableTaskRequestRegisterWorker,
 ) error {
 	invocation.workerId = req.WorkerId
+	d.workerInvocations.Store(req.WorkerId, invocation)
 
 	return invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_RegisterWorker{
@@ -485,27 +470,23 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	nodeId := invocation.getNextNodeId(req.DurableTaskExternalId, req.InvocationCount)
 	kind, err := getDurableTaskEventKind(req.Kind)
-
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid event kind: %v", err)
 	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
-		TenantId:     invocation.tenantId,
-		Task:         task,
-		NodeId:       nodeId,
-		Kind:         kind,
-		Payload:      req.Payload,
-		DispatcherId: d.dispatcherId,
+		TenantId:          invocation.tenantId,
+		Task:              task,
+		Kind:              kind,
+		Payload:           req.Payload,
+		DispatcherId:      d.dispatcherId,
+		WaitForConditions: req.WaitForConditions,
 	})
 
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
 	}
-
-	fmt.Println("ingested durable task event, got result: ", ingestionResult)
 
 	// todo: check if things already existed here, and if they did, return
 
@@ -514,7 +495,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			TriggerAck: &contracts.DurableTaskEventAckResponse{
 				InvocationCount:       req.InvocationCount,
 				DurableTaskExternalId: req.DurableTaskExternalId,
-				NodeId:                nodeId,
+				NodeId:                ingestionResult.EventLogFile.LatestNodeID,
 			},
 		},
 	})
@@ -531,6 +512,54 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
 	// TODO: Clean up any state associated with this invocation
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) handleWorkerStatus(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskWorkerStatusRequest,
+) error {
+	if len(req.WaitingCallbacks) == 0 {
+		return nil
+	}
+
+	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingCallbacks))
+	for _, cb := range req.WaitingCallbacks {
+		taskExtId, err := uuid.Parse(cb.DurableTaskExternalId)
+		if err != nil {
+			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status: %s", cb.DurableTaskExternalId)
+			continue
+		}
+		waiting = append(waiting, v1.TaskExternalIdNodeId{
+			TaskExternalId: taskExtId.String(),
+			NodeId:         cb.NodeId,
+		})
+	}
+
+	if len(waiting) == 0 {
+		return nil
+	}
+
+	callbacks, err := d.repo.DurableEvents().GetSatisfiedCallbacks(ctx, invocation.tenantId, waiting)
+	if err != nil {
+		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
+	}
+
+	for _, cb := range callbacks {
+		if err := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_CallbackCompleted{
+				CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+					DurableTaskExternalId: cb.TaskExternalId.String(),
+					NodeId:                cb.NodeID,
+					Payload:               cb.Result,
+				},
+			},
+		}); err != nil {
+			d.l.Error().Err(err).Msgf("failed to send callback_completed for task %s node %d", cb.TaskExternalId, cb.NodeID)
+		}
+	}
 
 	return nil
 }

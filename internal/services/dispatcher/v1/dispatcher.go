@@ -33,6 +33,7 @@ type DispatcherServiceImpl struct {
 	dispatcherId  uuid.UUID
 
 	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
+	workerInvocations  syncx.Map[string, *durableTaskInvocation]
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)

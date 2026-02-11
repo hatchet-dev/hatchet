@@ -3302,6 +3302,7 @@ type V1Match struct {
 	TriggerExistingTaskID                        pgtype.Int8        `json:"trigger_existing_task_id"`
 	TriggerExistingTaskInsertedAt                pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
 	TriggerPriority                              pgtype.Int4        `json:"trigger_priority"`
+	DurableEventLogCallbackDurableTaskExternalID *uuid.UUID         `json:"durable_event_log_callback_durable_task_external_id"`
 	DurableEventLogCallbackDurableTaskID         pgtype.Int8        `json:"durable_event_log_callback_durable_task_id"`
 	DurableEventLogCallbackDurableTaskInsertedAt pgtype.Timestamptz `json:"durable_event_log_callback_durable_task_inserted_at"`
 	DurableEventLogCallbackNodeID                pgtype.Int8        `json:"durable_event_log_callback_node_id"`

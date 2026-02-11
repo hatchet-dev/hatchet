@@ -519,15 +519,8 @@ class DurableContext(Context):
         )
         node_id = ack.node_id
 
-        await self.durable_task_client.register_callback(
-            durable_task_external_id=self.step_run_id,
-            invocation_count=invocation_count,
-            node_id=node_id,
-        )
-
         result = await self.durable_task_client.wait_for_callback(
             durable_task_external_id=self.step_run_id,
-            invocation_count=invocation_count,
             node_id=node_id,
         )
 
@@ -571,7 +564,6 @@ class DurableContext(Context):
             raise ValueError("Durable task client is not available")
 
         await self._ensure_stream_started()
-        invocation_count = self.attempt_number
 
         ack = await self.durable_task_client.send_event(
             durable_task_external_id=self.step_run_id,
@@ -583,15 +575,9 @@ class DurableContext(Context):
         )
 
         node_id = ack.node_id
-        await self.durable_task_client.register_callback(
-            durable_task_external_id=self.step_run_id,
-            invocation_count=invocation_count,
-            node_id=node_id,
-        )
 
         result = await self.durable_task_client.wait_for_callback(
             durable_task_external_id=self.step_run_id,
-            invocation_count=invocation_count,
             node_id=node_id,
         )
 

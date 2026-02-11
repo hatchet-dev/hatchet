@@ -154,7 +154,9 @@ type GroupMatchCondition struct {
 }
 
 type SatisfiedCallback struct {
-	DurableTaskId         int64
+	// need to figure out if we want the id + inserted at, external id, or both here - seems like we might need both
+	DurableTaskExternalId uuid.UUID
+	DurableTaskId         *int64
 	DurableTaskInsertedAt pgtype.Timestamptz
 	NodeId                int64
 	Data                  []byte
@@ -679,16 +681,18 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	satisfiedCallbacks := make([]SatisfiedCallback, 0)
 	for _, match := range satisfiedMatches {
-		if match.DurableEventLogCallbackNodeID.Valid {
+		if match.DurableEventLogCallbackNodeID.Valid && match.DurableEventLogCallbackDurableTaskID.Valid {
+			durableTaskId := match.DurableEventLogCallbackDurableTaskID.Int64
 			cb := SatisfiedCallback{
-				DurableTaskId:         match.DurableEventLogCallbackDurableTaskID.Int64,
+				DurableTaskExternalId: *match.DurableEventLogCallbackDurableTaskExternalID,
+				DurableTaskId:         &durableTaskId,
 				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt,
 				NodeId:                match.DurableEventLogCallbackNodeID.Int64,
 				Data:                  match.McAggregatedData,
 			}
 
 			callback, err := m.queries.UpdateDurableEventLogCallbackSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbackSatisfiedParams{
-				Durabletaskid:         cb.DurableTaskId,
+				Durabletaskid:         *cb.DurableTaskId,
 				Durabletaskinsertedat: cb.DurableTaskInsertedAt,
 				Nodeid:                cb.NodeId,
 				Issatisfied:           true,

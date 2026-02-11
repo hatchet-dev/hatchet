@@ -81,6 +81,7 @@ message DurableTaskRequest {
         DurableTaskRequestRegisterWorker register_worker = 1;
         DurableTaskEventRequest event = 2;
         DurableTaskEvictInvocationRequest evict_invocation = 4;
+        DurableTaskWorkerStatusRequest worker_status = 5;
     }
 }
 

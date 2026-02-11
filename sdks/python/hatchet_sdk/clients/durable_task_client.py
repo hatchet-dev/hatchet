@@ -11,13 +11,14 @@ from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    DurableTaskAwaitedCallback,
     DurableTaskCallbackCompletedResponse,
     DurableTaskEventKind,
     DurableTaskEventRequest,
-    DurableTaskRegisterCallbackRequest,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
+    DurableTaskWorkerStatusRequest,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
@@ -70,11 +71,8 @@ class DurableTaskClient:
         self._pending_event_acks: dict[
             tuple[str, int], asyncio.Future[DurableTaskEventAck]
         ] = {}
-        self._pending_callback_acks: dict[
-            tuple[str, int, int], asyncio.Future[None]
-        ] = {}
         self._pending_callbacks: dict[
-            tuple[str, int, int], asyncio.Future[DurableTaskCallbackResult]
+            tuple[str, int], asyncio.Future[DurableTaskCallbackResult]
         ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
@@ -140,10 +138,32 @@ class DurableTaskClient:
                 yield await asyncio.wait_for(self._request_queue.get(), timeout=1.0)
 
     async def _send_loop(self) -> None:
-        # The actual sending happens in _request_iterator
-        # This task just keeps the stream alive
-        while self._running:  # noqa: ASYNC110
+        while self._running:
             await asyncio.sleep(1)
+            await self._poll_worker_status()
+
+    async def _poll_worker_status(self) -> None:
+        if self._request_queue is None or self._worker_id is None:
+            return
+
+        if not self._pending_callbacks:
+            return
+
+        waiting = [
+            DurableTaskAwaitedCallback(
+                durable_task_external_id=task_ext_id,
+                node_id=node_id,
+            )
+            for (task_ext_id, node_id) in self._pending_callbacks
+        ]
+
+        request = DurableTaskRequest(
+            worker_status=DurableTaskWorkerStatusRequest(
+                worker_id=self._worker_id,
+                waiting_callbacks=waiting,
+            )
+        )
+        await self._request_queue.put(request)
 
     async def _receive_loop(self) -> None:
         if not self._stream:
@@ -182,21 +202,10 @@ class DurableTaskClient:
                     )
                 )
                 del self._pending_event_acks[event_key]
-        elif response.HasField("register_callback_ack"):
-            callback_ack = response.register_callback_ack
-            callback_ack_key = (
-                callback_ack.durable_task_external_id,
-                callback_ack.invocation_count,
-                callback_ack.node_id,
-            )
-            if callback_ack_key in self._pending_callback_acks:
-                self._pending_callback_acks[callback_ack_key].set_result(None)
-                del self._pending_callback_acks[callback_ack_key]
         elif response.HasField("callback_completed"):
             completed = response.callback_completed
             completed_key = (
                 completed.durable_task_external_id,
-                completed.invocation_count,
                 completed.node_id,
             )
             if completed_key in self._pending_callbacks:
@@ -260,37 +269,12 @@ class DurableTaskClient:
 
         return await future
 
-    async def register_callback(
-        self,
-        durable_task_external_id: str,
-        invocation_count: int,
-        node_id: int,
-    ) -> None:
-        if self._request_queue is None:
-            raise RuntimeError("Client not started")
-
-        key = (durable_task_external_id, invocation_count, node_id)
-        future: asyncio.Future[None] = asyncio.Future()
-        self._pending_callback_acks[key] = future
-
-        request = DurableTaskRequest(
-            register_callback=DurableTaskRegisterCallbackRequest(
-                durable_task_external_id=durable_task_external_id,
-                invocation_count=invocation_count,
-                node_id=node_id,
-            )
-        )
-        await self._request_queue.put(request)
-
-        await future
-
     async def wait_for_callback(
         self,
         durable_task_external_id: str,
-        invocation_count: int,
         node_id: int,
     ) -> DurableTaskCallbackResult:
-        key = (durable_task_external_id, invocation_count, node_id)
+        key = (durable_task_external_id, node_id)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskCallbackResult] = asyncio.Future()

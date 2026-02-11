@@ -223,9 +223,8 @@ type DurableCallbackCompletedPayload struct {
 }
 
 func DurableCallbackCompletedMessage(
-	tenantId uuid.UUID,
-	callbackKey v1.CallbackKey,
-	invocationCount int64,
+	tenantId, taskExternalId uuid.UUID,
+	nodeId, invocationCount int64,
 	payload []byte,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
@@ -234,8 +233,8 @@ func DurableCallbackCompletedMessage(
 		false,
 		true,
 		DurableCallbackCompletedPayload{
-			TaskExternalId:  callbackKey.TaskExternalId,
-			NodeId:          callbackKey.NodeId,
+			TaskExternalId:  taskExternalId,
+			NodeId:          nodeId,
 			InvocationCount: invocationCount,
 			Payload:         payload,
 		},

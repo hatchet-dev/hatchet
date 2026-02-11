@@ -15,7 +15,7 @@ func (tc *TasksControllerImpl) processSatisfiedCallbacks(ctx context.Context, te
 	for _, cb := range callbacks {
 		err := tc.processSingleSatisfiedCallback(ctx, tenantId, cb)
 		if err != nil {
-			tc.l.Error().Err(err).Msgf("failed to process satisfied callback %s", cb.CallbackKey)
+			tc.l.Error().Err(err).Msgf("failed to process satisfied callback for task %s node %d", cb.DurableTaskExternalId, cb.NodeId)
 		}
 	}
 	return nil
@@ -23,20 +23,16 @@ func (tc *TasksControllerImpl) processSatisfiedCallbacks(ctx context.Context, te
 
 func (tc *TasksControllerImpl) processSingleSatisfiedCallback(ctx context.Context, tenantId uuid.UUID, cb v1.SatisfiedCallback) error {
 	if cb.DispatcherId == nil {
-		return fmt.Errorf("callback %s has no dispatcher_id set", cb.CallbackKey)
+		return fmt.Errorf("callback has no dispatcher_id set")
 	}
 
 	dispatcherId := *cb.DispatcherId
 
-	callbackKey, err := tc.repov1.DurableEvents().ParseCallbackKey(ctx, cb.CallbackKey)
-	if err != nil {
-		return fmt.Errorf("failed to parse callback key %s: %w", cb.CallbackKey, err)
-	}
-
 	msg, err := tasktypes.DurableCallbackCompletedMessage(
 		tenantId,
-		*callbackKey,
-		1,
+		cb.DurableTaskExternalId,
+		cb.NodeId,
+		0,
 		cb.Data,
 	)
 	if err != nil {

@@ -59,10 +59,20 @@ type EventLogEntryWithData struct {
 	Data  []byte
 }
 
+type TaskExternalIdNodeId struct {
+	TaskExternalId string
+	NodeId         int64
+}
+
+type SatisfiedCallbackWithPayload struct {
+	TaskExternalId uuid.UUID
+	NodeID         int64
+	Result         []byte
+}
+
 type IngestDurableTaskEventOpts struct {
 	TenantId          uuid.UUID
 	Task              *sqlcv1.FlattenExternalIdsRow
-	NodeId            int64
 	Kind              sqlcv1.V1DurableEventLogEntryKind
 	Payload           []byte
 	DispatcherId      uuid.UUID
@@ -72,13 +82,15 @@ type IngestDurableTaskEventOpts struct {
 type IngestDurableTaskEventResult struct {
 	Callback      *sqlcv1.GetOrCreateDurableEventLogCallbackRow
 	EventLogEntry *sqlcv1.GetOrCreateDurableEventLogEntryRow
-	EventLogFile  *sqlcv1.GetOrCreateDurableEventLogFileRow
+	EventLogFile  *sqlcv1.V1DurableEventLogFile
 }
 
 type DurableEventsRepository interface {
 	UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, nodeId, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error)
 
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
+
+	GetSatisfiedCallbacks(ctx context.Context, tenantId uuid.UUID, callbacks []TaskExternalIdNodeId) ([]*SatisfiedCallbackWithPayload, error)
 }
 
 type durableEventsRepository struct {
@@ -206,6 +218,56 @@ func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Co
 	return callback, nil
 }
 
+func (r *durableEventsRepository) GetSatisfiedCallbacks(ctx context.Context, tenantId uuid.UUID, callbacks []TaskExternalIdNodeId) ([]*SatisfiedCallbackWithPayload, error) {
+	if len(callbacks) == 0 {
+		return nil, nil
+	}
+
+	taskExternalIds := make([]uuid.UUID, len(callbacks))
+	nodeIds := make([]int64, len(callbacks))
+
+	for i, cb := range callbacks {
+		taskId, err := uuid.Parse(cb.TaskExternalId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid task external id %s: %w", cb.TaskExternalId, err)
+		}
+		taskExternalIds[i] = taskId
+		nodeIds[i] = cb.NodeId
+	}
+
+	rows, err := r.queries.GetSatisfiedCallbacks(ctx, r.pool, sqlcv1.GetSatisfiedCallbacksParams{
+		Tenantid:        tenantId,
+		Taskexternalids: taskExternalIds,
+		Nodeids:         nodeIds,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get and claim satisfied callbacks: %w", err)
+	}
+
+	result := make([]*SatisfiedCallbackWithPayload, 0, len(rows))
+
+	for _, row := range rows {
+		payload, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
+			Id:         row.ID,
+			InsertedAt: row.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+			TenantId:   tenantId,
+		})
+		if err != nil {
+			r.l.Warn().Err(err).Msgf("failed to retrieve payload for callback %d", row.NodeID)
+			payload = nil
+		}
+
+		result = append(result, &SatisfiedCallbackWithPayload{
+			TaskExternalId: row.TaskExternalID,
+			NodeID:         row.NodeID,
+			Result:         payload,
+		})
+	}
+
+	return result, nil
+}
+
 func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
 }
@@ -219,25 +281,24 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 	defer rollback()
 
-	logFile, err := r.queries.GetOrCreateDurableEventLogFile(ctx, tx, sqlcv1.GetOrCreateDurableEventLogFileParams{
-		Tenantid:                      opts.TenantId,
-		Durabletaskid:                 task.ID,
-		Durabletaskinsertedat:         task.InsertedAt,
-		Latestinsertedat:              task.InsertedAt,
-		Latestnodeid:                  0,
-		Latestbranchid:                1,
-		Latestbranchfirstparentnodeid: 0,
+	// Atomically increment and get the next node ID from the log file
+	logFile, err := r.queries.IncrementAndGetNextNodeId(ctx, tx, sqlcv1.IncrementAndGetNextNodeIdParams{
+		Tenantid:              opts.TenantId,
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get or create event log file for task: %w", err)
+		return nil, fmt.Errorf("failed to increment and get next node id: %w", err)
 	}
+
+	nodeId := logFile.LatestNodeID
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 	entryExternalId := uuid.New()
 
 	parentNodeId := pgtype.Int8{
-		Int64: logFile.LatestNodeID,
-		Valid: true,
+		Int64: nodeId - 1,
+		Valid: nodeId > 1,
 	}
 
 	entry, err := r.queries.GetOrCreateDurableEventLogEntry(ctx, tx, sqlcv1.GetOrCreateDurableEventLogEntryParams{
@@ -247,10 +308,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Durabletaskinsertedat: task.InsertedAt,
 		Insertedat:            now,
 		Kind:                  opts.Kind,
-		Nodeid:                opts.NodeId,
+		Nodeid:                nodeId,
 		ParentNodeId:          parentNodeId,
 		Branchid:              logFile.LatestBranchID,
-		Datahash:              nil, // todo: populate this
+		Datahash:              nil,
 		Datahashalg:           "",
 	})
 
@@ -280,7 +341,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Durabletaskinsertedat: task.InsertedAt,
 		Insertedat:            now,
 		Kind:                  sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED,
-		Nodeid:                opts.NodeId,
+		Nodeid:                nodeId,
 		Issatisfied:           false,
 		Externalid:            callbackExternalId,
 		Dispatcherid:          opts.DispatcherId,
@@ -294,7 +355,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	case sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED:
 		if opts.WaitForConditions != nil {
 			externalId := opts.Task.ExternalID
-			signalKey := getDurableTaskSignalKey(externalId, opts.NodeId)
+			signalKey := getDurableTaskSignalKey(externalId, nodeId)
 
 			createConditionOpts := make([]CreateExternalSignalConditionOpt, 0)
 
@@ -352,13 +413,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			return nil, fmt.Errorf("failed to create trigger options: %w", err)
 		}
 
-		tasks, dags, err := r.triggerFromWorkflowNames(ctx, tx, opts.TenantId, []*WorkflowNameTriggerOpts{triggerOpt})
+		// todo: need to pub olap messages after this somewhere
+		_, _, err = r.triggerFromWorkflowNames(ctx, tx, opts.TenantId, []*WorkflowNameTriggerOpts{triggerOpt})
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to trigger workflows: %w", err)
 		}
-
-		fmt.Println("triggered workflows, got tasks: ", tasks, " and dags: ", dags)
 
 		// todo: pub to olap here
 	case sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED:

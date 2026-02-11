@@ -115,9 +115,10 @@ SELECT create_v1_range_partition('v1_durable_event_log_callback', NOW()::DATE);
 SELECT create_v1_range_partition('v1_durable_event_log_callback', (NOW() + INTERVAL '1 day')::DATE);
 
 ALTER TABLE v1_match
+    ADD COLUMN durable_event_log_callback_durable_task_external_id UUID,
+    ADD COLUMN durable_event_log_callback_node_id BIGINT,
     ADD COLUMN durable_event_log_callback_durable_task_id BIGINT,
-    ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ,
-    ADD COLUMN durable_event_log_callback_node_id BIGINT;
+    ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ;
 
 ALTER TABLE v1_durable_event_log_callback
     ADD COLUMN dispatcher_id UUID;
@@ -132,7 +133,8 @@ DROP TYPE v1_durable_event_log_entry_kind;
 DROP TYPE v1_durable_event_log_callback_kind;
 
 ALTER TABLE v1_match
+    DROP COLUMN durable_event_log_callback_durable_task_external_id,
+    DROP COLUMN durable_event_log_callback_node_id,
     DROP COLUMN durable_event_log_callback_durable_task_id,
-    DROP COLUMN durable_event_log_callback_durable_task_inserted_at,
-    DROP COLUMN durable_event_log_callback_node_id;
+    DROP COLUMN durable_event_log_callback_durable_task_inserted_at;
 -- +goose StatementEnd
