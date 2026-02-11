@@ -186,6 +186,24 @@ func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UU
 	}
 }
 
+func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyNewWorker(ctx, workerId)
+	}
+}
+
+func (p *SchedulingPool) NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyNewQueue(ctx, queueName)
+	}
+}
+
+func (p *SchedulingPool) NotifyNewConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategyId int64) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyNewConcurrencyStrategy(ctx, strategyId)
+	}
+}
+
 func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bool) *tenantManager {
 	tm, ok := p.tenants.Load(tenantId)
 
