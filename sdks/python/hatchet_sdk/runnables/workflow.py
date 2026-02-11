@@ -643,27 +643,21 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         cancellation_token: CancellationToken | None,
         workflow_run_id: str,
-        log_prefix: str,
     ) -> None:
         if not cancellation_token:
             return
 
-        logger.debug(f"{log_prefix}: registered child {workflow_run_id} with token")
         cancellation_token.register_child(workflow_run_id)
 
     def _register_children_with_token(
         self,
         cancellation_token: CancellationToken | None,
         refs: list[WorkflowRunRef],
-        log_prefix: str,
     ) -> None:
         if not cancellation_token:
             return
 
         for ref in refs:
-            logger.debug(
-                f"{log_prefix}: registered child {ref.workflow_run_id} with token"
-            )
             cancellation_token.register_child(ref.workflow_run_id)
 
     def run_no_wait(
@@ -699,7 +693,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_child_with_token(
             cancellation_token,
             ref.workflow_run_id,
-            "Workflow.run_no_wait",
         )
 
         return ref
@@ -736,7 +729,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_child_with_token(
             cancellation_token,
             ref.workflow_run_id,
-            "Workflow.run",
         )
 
         logger.debug(f"Workflow.run: awaiting result for {ref.workflow_run_id}")
@@ -776,7 +768,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_child_with_token(
             cancellation_token,
             ref.workflow_run_id,
-            "Workflow.aio_run_no_wait",
         )
 
         return ref
@@ -813,7 +804,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self._register_child_with_token(
             cancellation_token,
             ref.workflow_run_id,
-            "Workflow.aio_run",
         )
 
         logger.debug(f"Workflow.aio_run: awaiting result for {ref.workflow_run_id}")
@@ -870,11 +860,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :raises Exception: If a workflow run fails (and return_exceptions is False).
         """
         cancellation_token = self._resolve_check_cancellation_token()
-
-        logger.debug(
-            f"Workflow.run_many: triggering {len(workflows)} workflows, "
-            f"token={cancellation_token is not None}"
-        )
 
         refs = self.client._client.admin.run_workflows(
             workflows=workflows,

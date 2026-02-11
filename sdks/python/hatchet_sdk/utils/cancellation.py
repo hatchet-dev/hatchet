@@ -16,6 +16,56 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
+async def race_against_token(
+    main_task: asyncio.Task[T],
+    token: CancellationToken,
+) -> T:
+    """
+    Race an asyncio task against a cancellation token.
+
+    Waits for either the task to complete or the token to be cancelled. Cleans up
+    whichever side loses the race.
+
+    Args:
+        main_task: The asyncio task to race.
+        token: The cancellation token to race against.
+
+    Returns:
+        The result of the main task if it completes first.
+
+    Raises:
+        asyncio.CancelledError: If the token fires before the task completes.
+    """
+    cancel_task = asyncio.create_task(token.aio_wait())
+
+    try:
+        done, pending = await asyncio.wait(
+            [main_task, cancel_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # Cancel pending tasks
+        for task in pending:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        if cancel_task in done:
+            raise asyncio.CancelledError("Operation cancelled by cancellation token")
+
+        return main_task.result()
+
+    except asyncio.CancelledError:
+        # Ensure both tasks are cleaned up on any cancellation (external or token)
+        main_task.cancel()
+        cancel_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await main_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await cancel_task
+        raise
+
+
 async def await_with_cancellation(
     coro: Awaitable[T],
     token: CancellationToken | None,
@@ -83,41 +133,16 @@ async def await_with_cancellation(
         raise asyncio.CancelledError("Operation cancelled by cancellation token")
 
     main_task = asyncio.ensure_future(coro)
-    cancel_task = asyncio.create_task(token.aio_wait())
 
     try:
-        done, pending = await asyncio.wait(
-            [main_task, cancel_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        # Cancel pending tasks
-        for task in pending:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
-
-        if cancel_task in done:
-            logger.debug("await_with_cancellation: cancelled before completion")
-            if cancel_callback:
-                logger.debug("await_with_cancellation: invoking cancel callback")
-                await _invoke_cancel_callback()
-            raise asyncio.CancelledError("Operation cancelled by cancellation token")
-
+        result = await race_against_token(main_task, token)
         logger.debug("await_with_cancellation: completed successfully")
-        return main_task.result()
+        return result
 
     except asyncio.CancelledError:
-        # If we're cancelled externally (not via token), also invoke callback
-        logger.debug("await_with_cancellation: externally cancelled")
+        logger.debug("await_with_cancellation: cancelled")
         if cancel_callback:
             logger.debug("await_with_cancellation: invoking cancel callback")
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.shield(_invoke_cancel_callback())
-        main_task.cancel()
-        cancel_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await main_task
-        with contextlib.suppress(asyncio.CancelledError):
-            await cancel_task
         raise

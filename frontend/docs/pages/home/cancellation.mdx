@@ -33,24 +33,7 @@ When a sync task is cancelled while waiting for a child workflow or during a can
   `asyncio.CancelledError`.
 </Callout>
 
-```python
-from hatchet_sdk import CancelledError, CancellationReason
-
-@hatchet.task()
-def my_task(input: MyInput, ctx: Context) -> dict:
-    try:
-        result = child_workflow.run(input)
-    except CancelledError as e:
-        # Handle cancellation - i.e. perform cleanup, then re-raise
-        print(f"Task cancelled: {e.reason}")
-        # Always re-raise CancelledError so Hatchet can properly handle the cancellation
-        raise
-    except Exception as e:
-        # This will NOT catch CancelledError
-        print(f"Other error: {e}")
-        raise
-    return result
-```
+<Snippet src={snippets.python.cancellation.worker.handling_cancelled_error} />
 
 ### Cancellation Reasons
 
@@ -68,11 +51,9 @@ The `CancelledError` includes a `reason` attribute that indicates why the cancel
   <Tabs.Tab title="Typescript">
     <Snippet
       src={snippets.typescript.cancellations.workflow.declaring_a_task}
-
     />
     <Snippet
       src={snippets.typescript.cancellations.workflow.abort_signal}
-
     />
 
   </Tabs.Tab>

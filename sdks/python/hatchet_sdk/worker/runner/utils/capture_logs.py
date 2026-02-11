@@ -27,8 +27,7 @@ from hatchet_sdk.utils.typing import (
     LogLevel,
 )
 
-if TYPE_CHECKING:
-    pass
+
 
 T = TypeVar("T")
 P = ParamSpec("P")

@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import CancellationReason, CancelledError, Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
@@ -37,6 +37,26 @@ def check_flag(input: EmptyModel, ctx: Context) -> dict[str, str]:
             raise ValueError("Task has been cancelled")
 
     return {"error": "Task should have been cancelled"}
+
+
+# !!
+
+
+# > Handling cancelled error
+@cancellation_workflow.task()
+def my_task(input: EmptyModel, ctx: Context) -> dict:
+    try:
+        result = ctx.playground("test", "default")
+    except CancelledError as e:
+        # Handle parent cancellation - i.e. perform cleanup, then re-raise
+        print(f"Parent Task cancelled: {e.reason}")
+        # Always re-raise CancelledError so Hatchet can properly handle the cancellation
+        raise
+    except Exception as e:
+        # This will NOT catch CancelledError
+        print(f"Other error: {e}")
+        raise
+    return result
 
 
 # !!

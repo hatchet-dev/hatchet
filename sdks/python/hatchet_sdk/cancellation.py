@@ -59,7 +59,7 @@ class CancellationToken:
                 self._async_event.set()
         return self._async_event
 
-    def cancel(self, reason: CancellationReason = CancellationReason.UNKNOWN) -> None:
+    def cancel(self, reason: CancellationReason = CancellationReason.TOKEN_CANCELLED) -> None:
         """
         Trigger cancellation.
 
@@ -92,7 +92,6 @@ class CancellationToken:
                 self._async_event.set()
             self._sync_event.set()
 
-            # Invoke callbacks
             for callback in self._callbacks:
                 try:
                     logger.debug(f"CancellationToken: invoking callback {callback}")

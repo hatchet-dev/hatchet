@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Generic, Literal, TypeVar
@@ -16,6 +15,7 @@ from hatchet_sdk.clients.event_ts import (
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
+from hatchet_sdk.utils.cancellation import race_against_token
 from hatchet_sdk.metadata import get_metadata
 
 if TYPE_CHECKING:
@@ -243,34 +243,9 @@ class PooledListener(Generic[R, T, L], ABC):
             )
 
             if cancellation_token:
-                # Race the event wait against the cancellation token
-                cancel_task = asyncio.create_task(cancellation_token.aio_wait())
                 result_task = asyncio.create_task(self.events[subscription_id].get())
-
-                done, pending = await asyncio.wait(
-                    [cancel_task, result_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-
-                # Cancel pending tasks
-                for task in pending:
-                    task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await task
-
-                if cancel_task in done:
-                    logger.debug(
-                        f"PooledListener.subscribe: cancelled while waiting for id={id}"
-                    )
-                    raise asyncio.CancelledError(
-                        "Operation cancelled by cancellation token"
-                    )
-
-                logger.debug(f"PooledListener.subscribe: received event for id={id}")
-                return result_task.result()
-            result = await self.events[subscription_id].get()
-            logger.debug(f"PooledListener.subscribe: received event for id={id}")
-            return result
+                return await race_against_token(result_task, cancellation_token)
+            return await self.events[subscription_id].get()
         except asyncio.CancelledError:
             logger.debug(f"PooledListener.subscribe: externally cancelled for id={id}")
             raise

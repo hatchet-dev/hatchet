@@ -539,12 +539,10 @@ class Runner:
                     f"See https://docs.hatchet.run/home/cancellation"
                 )
 
-                # Continue waiting until grace period only if task is still running
                 remaining = grace_period - elapsed
                 if remaining > 0:
                     await asyncio.sleep(remaining)
 
-                # Force cancel if still running after grace period
                 if key in self.tasks and not self.tasks[key].done():
                     logger.debug(
                         f"Cancellation: force-cancelling task {action.action_id} "
@@ -552,7 +550,6 @@ class Runner:
                     )
                     self.tasks[key].cancel()
 
-                # Check if thread is still running
                 if key in self.threads:
                     thread = self.threads[key]
 
@@ -570,7 +567,6 @@ class Runner:
                             f"and prevent new tasks from running."
                         )
 
-                # Log final status for slow cancellation
                 total_elapsed = time.monotonic() - start_time
                 total_elapsed_ms = round(total_elapsed * 1000)
                 if total_elapsed > grace_period:
@@ -583,7 +579,6 @@ class Runner:
                         f"Cancellation: task {action.action_id} eventually completed in {total_elapsed_ms}ms"
                     )
             else:
-                # Task completed quickly - log success and exit
                 logger.info(f"Cancellation: task {action.action_id} completed")
         finally:
             self.cleanup_run_id(key)

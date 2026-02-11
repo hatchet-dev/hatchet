@@ -192,8 +192,6 @@ class CancellationReason(Enum):
     TOKEN_CANCELLED = "token_cancelled"
     """The cancellation token was cancelled."""
 
-    UNKNOWN = "unknown"
-    """Unknown or unspecified cancellation reason."""
 
 
 class CancelledError(BaseException):

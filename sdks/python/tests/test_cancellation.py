@@ -34,12 +34,6 @@ def test_cancel_sets_reason() -> None:
     assert token.reason == CancellationReason.USER_REQUESTED
 
 
-def test_cancel_default_reason_is_unknown() -> None:
-    """cancel() without explicit reason should default to UNKNOWN."""
-    token = CancellationToken()
-    token.cancel()
-    assert token.reason == CancellationReason.UNKNOWN
-
 
 def test_reason_is_none_before_cancel() -> None:
     """reason should be None before cancellation."""
@@ -368,7 +362,7 @@ def test_all_reasons_exist() -> None:
     assert CancellationReason.TIMEOUT.value == "timeout"
     assert CancellationReason.PARENT_CANCELLED.value == "parent_cancelled"
     assert CancellationReason.WORKFLOW_CANCELLED.value == "workflow_cancelled"
-    assert CancellationReason.UNKNOWN.value == "unknown"
+    assert CancellationReason.x.value == "unknown"
 
 
 def test_reasons_are_strings() -> None:
