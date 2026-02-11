@@ -10,6 +10,8 @@ const SvixLogo = ({ className }: { className?: string }) => (
     viewBox="0 0 230 230"
     fill="currentColor"
     className={className}
+    aria-hidden="true"
+    focusable="false"
   >
     <g transform="translate(10.7,10.6)">
       <path

@@ -94,7 +94,7 @@ func (a SvixAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 	var req rest.V1CreateWebhookRequest
 	err := req.FromV1CreateWebhookRequestHMAC(rest.V1CreateWebhookRequestHMAC{
 		Name:               opts.Name,
-		SourceName:         rest.V1WebhookSourceName("SVIX"),
+		SourceName:         rest.SVIX,
 		EventKeyExpression: opts.EventKeyExpression,
 		ScopeExpression:    opts.ScopeExpression,
 		StaticPayload:      opts.StaticPayload,
