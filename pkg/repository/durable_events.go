@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -313,9 +312,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
 	}
 	defer rollback()
-
-	oj, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("Ingesting durable task event with opts: %s\n", string(oj))
 
 	// todo: maybe acquire an exclusive lock on the row before incrementing the node id here
 	nodeId := opts.InvocationCount
