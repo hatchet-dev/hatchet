@@ -342,6 +342,128 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
+  load-online-migrate:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Determine latest stable release tag
+        run: |
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "ERROR: No stable release tag found"
+            exit 1
+          fi
+          echo "Latest stable tag: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Pull old release images
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }}
+
+      - name: Run old migrations
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+
+      - name: Setup config and seed database
+        run: |
+          mkdir -p generated
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+
+      - name: Generate API token
+        run: |
+          TOKEN=$(docker run --rm --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-admin token create --config /hatchet/generated)
+          echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Start old engine
+        run: |
+          docker run -d --name hatchet-engine --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_LOGGER_LEVEL=warn \
+            -e SERVER_LOGGER_FORMAT=console \
+            -e DATABASE_LOGGER_LEVEL=warn \
+            -e DATABASE_LOGGER_FORMAT=console \
+            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-engine --config /hatchet/generated
+          echo "Waiting 30s for engine to start..."
+          sleep 30
+
+      - name: Start old load test
+        run: |
+          docker run -d --name hatchet-loadtest --network host \
+            -e HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
+            -e HATCHET_CLIENT_TLS_STRATEGY=none \
+            -e HATCHET_CLIENT_HOST_PORT=localhost:7077 \
+            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-load-test loadtest -e 10 -d 240s -w 60s -s 100
+
+      - name: Wait then apply new migrations
+        run: |
+          echo "Waiting 30s for load test to get started..."
+          sleep 30
+          echo "Applying new migrations from current branch..."
+          go run ./cmd/hatchet-migrate
+          echo "New migrations applied successfully"
+
+      - name: Wait for load test to complete
+        run: |
+          echo "Waiting for load test container to finish..."
+          docker wait hatchet-loadtest
+          EXIT_CODE=$(docker inspect hatchet-loadtest --format='{{.State.ExitCode}}')
+          echo "Load test exited with code: $EXIT_CODE"
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "=== Load test logs ==="
+            docker logs hatchet-loadtest
+            echo "=== Engine logs ==="
+            docker logs hatchet-engine
+            exit 1
+          fi
+          echo "Load test passed"
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker rm -f hatchet-loadtest hatchet-engine 2>/dev/null || true
+          docker compose down
+
   load-deadlock:
     runs-on: ubicloud-standard-4
     timeout-minutes: 30
