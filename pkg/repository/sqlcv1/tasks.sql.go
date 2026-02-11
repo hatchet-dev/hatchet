@@ -550,6 +550,58 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
+const filterValidTasks = `-- name: FilterValidTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS task_retry_count
+)
+SELECT
+    t.id
+FROM
+    v1_task t
+JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
+WHERE
+    (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM inputs
+    )
+    AND t.tenant_id = $1::uuid
+`
+
+type FilterValidTasksParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+}
+
+func (q *Queries) FilterValidTasks(ctx context.Context, db DBTX, arg FilterValidTasksParams) ([]int64, error) {
+	rows, err := db.Query(ctx, filterValidTasks,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findOldestRunningTask = `-- name: FindOldestRunningTask :one
 SELECT
     task_id,

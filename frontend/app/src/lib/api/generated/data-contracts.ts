@@ -241,6 +241,7 @@ export enum V1WebhookSourceName {
   STRIPE = "STRIPE",
   SLACK = "SLACK",
   LINEAR = "LINEAR",
+  SVIX = "SVIX",
 }
 
 export enum TenantEnvironment {

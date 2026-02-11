@@ -5,6 +5,13 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.1] - 2026-02-10
+
+### Changed
+
+- Fixes a bug introduced in v1.21.0 where the `BaseWorkflow.input_validator` class property became incorrectly typed. Now separate properties are available for the type adapter and the underlying type.
+
+
 ## [1.23.0] - 2026-02-05
 
 ### Internal Only

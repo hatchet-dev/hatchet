@@ -59,6 +59,7 @@ V1WebhookSourceName:
     - STRIPE
     - SLACK
     - LINEAR
+    - SVIX
 
 V1WebhookHMACAlgorithm:
   type: string

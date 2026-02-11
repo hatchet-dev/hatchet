@@ -1,6 +1,8 @@
 import { Button } from '@/components/v1/ui/button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Tenant } from '@/lib/api';
 import { queries } from '@/lib/api/queries';
+import { BillingContext } from '@/lib/atoms';
 import { appRoutes } from '@/router';
 import {
   CalendarIcon,
@@ -11,8 +13,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
 interface BillingRequiredProps {
-  tenant: any;
-  billing: any;
+  tenant?: Tenant | undefined;
+  billing?: BillingContext | undefined;
   manageClicked: () => Promise<void>;
   portalLoading: boolean;
 }

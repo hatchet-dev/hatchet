@@ -1228,6 +1228,7 @@ const (
 	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
 	V1IncomingWebhookSourceNameSLACK   V1IncomingWebhookSourceName = "SLACK"
 	V1IncomingWebhookSourceNameLINEAR  V1IncomingWebhookSourceName = "LINEAR"
+	V1IncomingWebhookSourceNameSVIX    V1IncomingWebhookSourceName = "SVIX"
 )
 
 func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
@@ -3577,6 +3578,7 @@ type Worker struct {
 	LastHeartbeatAt         pgtype.Timestamp `json:"lastHeartbeatAt"`
 	Name                    string           `json:"name"`
 	DispatcherId            *uuid.UUID       `json:"dispatcherId"`
+	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	IsPaused                bool             `json:"isPaused"`
