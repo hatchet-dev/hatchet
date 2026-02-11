@@ -275,9 +275,9 @@ export const AuthSetup = ({
       return (
         <PreconfiguredHMACAuth
           register={register}
-          secretLabel="Svix Endpoint Secret"
+          secretLabel="Svix Signing Secret"
           secretPlaceholder="whsec_..."
-          helpText="You can find your endpoint secret in the Svix dashboard under the endpoint's settings."
+          helpText="You can find your signing secret in the Svix dashboard under the endpoint's settings."
         />
       );
     default:
