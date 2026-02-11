@@ -389,6 +389,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			}
 
 			if len(createConditionOpts) > 0 {
+				taskExternalId := task.ExternalID
 				createMatchOpts := []ExternalCreateSignalMatchOpts{{
 					Conditions:                    createConditionOpts,
 					SignalTaskId:                  task.ID,
@@ -398,6 +399,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 					DurableCallbackTaskId:         &task.ID,
 					DurableCallbackTaskInsertedAt: task.InsertedAt,
 					DurableCallbackNodeId:         &callback.NodeID,
+					DurableCallbackTaskExternalId: &taskExternalId,
 				}}
 
 				err = r.registerSignalMatchConditions(ctx, tx, opts.TenantId, createMatchOpts)

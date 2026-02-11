@@ -52,7 +52,7 @@ type CreateMatchConditionsParams struct {
 const createMatchesForSignalTriggers = `-- name: CreateMatchesForSignalTriggers :many
 WITH input AS (
     SELECT
-        tenant_id, kind, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, callback_durable_task_id, callback_durable_task_inserted_at, callback_node_id
+        tenant_id, kind, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, callback_durable_task_id, callback_durable_task_inserted_at, callback_node_id, callback_durable_task_external_id
     FROM
         (
             SELECT
@@ -64,7 +64,8 @@ WITH input AS (
                 unnest($6::text[]) AS signal_key,
                 unnest($7::bigint[]) AS callback_durable_task_id,
                 unnest($8::timestamptz[]) AS callback_durable_task_inserted_at,
-                unnest($9::bigint[]) AS callback_node_id
+                unnest($9::bigint[]) AS callback_node_id,
+                unnest($10::uuid[]) AS callback_durable_task_external_id
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -76,7 +77,8 @@ INSERT INTO v1_match (
     signal_key,
     durable_event_log_callback_durable_task_id,
     durable_event_log_callback_durable_task_inserted_at,
-    durable_event_log_callback_node_id
+    durable_event_log_callback_node_id,
+    durable_event_log_callback_durable_task_external_id
 )
 SELECT
     i.tenant_id,
@@ -87,7 +89,8 @@ SELECT
     i.signal_key,
     i.callback_durable_task_id,
     i.callback_durable_task_inserted_at,
-    i.callback_node_id
+    i.callback_node_id,
+    i.callback_durable_task_external_id
 FROM
     input i
 RETURNING
@@ -104,6 +107,7 @@ type CreateMatchesForSignalTriggersParams struct {
 	Callbackdurabletaskids         []int64              `json:"callbackdurabletaskids"`
 	Callbackdurabletaskinsertedats []pgtype.Timestamptz `json:"callbackdurabletaskinsertedats"`
 	Callbacknodeids                []int64              `json:"callbacknodeids"`
+	Callbackdurabletaskexternalids []uuid.UUID          `json:"callbackdurabletaskexternalids"`
 }
 
 func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V1Match, error) {
@@ -117,6 +121,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 		arg.Callbackdurabletaskids,
 		arg.Callbackdurabletaskinsertedats,
 		arg.Callbacknodeids,
+		arg.Callbackdurabletaskexternalids,
 	)
 	if err != nil {
 		return nil, err

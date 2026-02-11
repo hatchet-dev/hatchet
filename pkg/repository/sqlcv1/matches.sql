@@ -13,7 +13,8 @@ WITH input AS (
                 unnest(@signalKeys::text[]) AS signal_key,
                 unnest(@callbackDurableTaskIds::bigint[]) AS callback_durable_task_id,
                 unnest(@callbackDurableTaskInsertedAts::timestamptz[]) AS callback_durable_task_inserted_at,
-                unnest(@callbackNodeIds::bigint[]) AS callback_node_id
+                unnest(@callbackNodeIds::bigint[]) AS callback_node_id,
+                unnest(@callbackDurableTaskExternalIds::uuid[]) AS callback_durable_task_external_id
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -25,7 +26,8 @@ INSERT INTO v1_match (
     signal_key,
     durable_event_log_callback_durable_task_id,
     durable_event_log_callback_durable_task_inserted_at,
-    durable_event_log_callback_node_id
+    durable_event_log_callback_node_id,
+    durable_event_log_callback_durable_task_external_id
 )
 SELECT
     i.tenant_id,
@@ -36,7 +38,8 @@ SELECT
     i.signal_key,
     i.callback_durable_task_id,
     i.callback_durable_task_inserted_at,
-    i.callback_node_id
+    i.callback_node_id,
+    i.callback_durable_task_external_id
 FROM
     input i
 RETURNING
