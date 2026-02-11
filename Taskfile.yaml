@@ -26,7 +26,6 @@ tasks:
         SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
         SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
         SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
-        SERVER_TLS_STRATEGY=none
 
         SERVER_PORT=8080
         SERVER_URL=http://localhost:8080

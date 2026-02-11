@@ -9,7 +9,7 @@ New to Hatchet? Start with our [Architecture](https://docs.hatchet.run/home/arch
 Then, before contributing, check out the following sections:
 
 - [Development Environment Setup](#development-environment-setup)
-- [Contribution Guidelines](#contribution-guidelines)
+- [Pull Requests](#pull-requests)
 - [Testing](#testing)
 - [Running Locally](#running-locally)
    - [Example Workflow](#example-workflow)
@@ -27,7 +27,6 @@ Ensure all prerequisite dependencies are installed:
 - [protoc](https://grpc.io/docs/protoc-installation/)
 - [Caddy](https://caddyserver.com/docs/install)
 - [goose](https://pressly.github.io/goose/installation/)
-- [atlas](https://atlasgo.io/)
 - [pre-commit](https://pre-commit.com/)
    - You can install this in a virtual environment with `task pre-commit-install`
 
