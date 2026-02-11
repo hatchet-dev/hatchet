@@ -109,7 +109,7 @@ type ReplayTaskOpts struct {
 }
 
 type TaskIdInsertedAtRetryCount struct {
-	// (required) the external id
+	// (required) the id
 	Id int64 `validate:"required"`
 
 	// (required) the inserted at time
@@ -272,6 +272,8 @@ type TaskRepository interface {
 
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error)
+
+	FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts []TaskIdInsertedAtRetryCount) (map[int64]struct{}, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -4176,4 +4178,34 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		ReadableIdToDetails: taskRunDetails,
 		AdditionalMetadata:  additionalMeta,
 	}, nil
+}
+
+func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts []TaskIdInsertedAtRetryCount) (map[int64]struct{}, error) {
+	res := make(map[int64]struct{})
+
+	taskIds := make([]int64, len(opts))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
+	taskRetryCounts := make([]int32, len(opts))
+
+	for i, opt := range opts {
+		taskIds[i] = opt.Id
+		taskInsertedAts[i] = opt.InsertedAt
+		taskRetryCounts[i] = opt.RetryCount
+	}
+
+	taskIds, err := r.queries.FilterValidTasks(ctx, r.pool, sqlcv1.FilterValidTasksParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, taskId := range taskIds {
+		res[taskId] = struct{}{}
+	}
+
+	return res, nil
 }

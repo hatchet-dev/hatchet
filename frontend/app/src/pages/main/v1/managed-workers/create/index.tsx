@@ -15,7 +15,7 @@ import { useState } from 'react';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
-  const { billing, can } = useTenantDetails();
+  const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -69,7 +69,7 @@ export default function CreateWorker() {
   if (isBillingRequired) {
     return (
       <BillingRequired
-        tenant={tenantId}
+        tenant={tenant}
         billing={billing}
         manageClicked={manageClicked}
         portalLoading={portalLoading}
