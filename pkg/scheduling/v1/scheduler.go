@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"slices"
 	"strings"
@@ -336,7 +337,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	for _, unackedSlot := range s.unackedSlots {
 		for _, assignedSlot := range unackedSlot.slots {
 			workerId := assignedSlot.getWorkerId()
-			slotType := assignedSlot.getSlotType()
+
+			slotType, err := assignedSlot.getSlotType()
+			if err != nil {
+				return fmt.Errorf("could not get slot type for unacked slot: %w", err)
+			}
 
 			if _, ok := workersToUnackedSlots[workerId]; !ok {
 				workersToUnackedSlots[workerId] = make(map[string][]*slot)
@@ -458,7 +463,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		storedAction.slotsByTypeAndWorkerId = make(map[string]map[uuid.UUID][]*slot)
 
 		for _, slotItem := range newSlots {
-			slotType := slotItem.getSlotType()
+			slotType, err := slotItem.getSlotType()
+			if err != nil {
+				return fmt.Errorf("could not get slot type during cleanup: %w", err)
+			}
+
 			workerId := slotItem.getWorkerId()
 
 			if _, ok := storedAction.slotsByTypeAndWorkerId[slotType]; !ok {
@@ -841,24 +850,24 @@ func selectSlotsForWorker(
 			continue
 		}
 
-		byWorker, ok := slotsByType[slotType]
+		slotsByWorker, ok := slotsByType[slotType]
 		if !ok {
 			return nil, false
 		}
 
-		slots := byWorker[workerId]
-		if len(slots) == 0 {
+		workerSlots := slotsByWorker[workerId]
+		if len(workerSlots) == 0 {
 			return nil, false
 		}
 
 		needed := int(units)
 		found := 0
 
-		for _, slotItem := range slots {
-			if !slotItem.active() {
+		for _, s := range workerSlots {
+			if !s.active() {
 				continue
 			}
-			selected = append(selected, slotItem)
+			selected = append(selected, s)
 			found++
 			if found >= needed {
 				break
