@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const PARENT_STRATEGY_LOCK_OFFSET = 1000000000000 // 1 trillion
@@ -22,9 +22,9 @@ type TaskWithCancelledReason struct {
 
 	CancelledReason string
 
-	TaskExternalId string
+	TaskExternalId uuid.UUID
 
-	WorkflowRunId string
+	WorkflowRunId uuid.UUID
 }
 
 type RunConcurrencyResult struct {
@@ -40,9 +40,9 @@ type RunConcurrencyResult struct {
 
 type ConcurrencyRepository interface {
 	// Checks whether the concurrency strategy is active, and if not, sets is_active=False
-	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency) error
+	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
-	RunConcurrencyStrategy(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
+	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
 }
 
 type ConcurrencyRepositoryImpl struct {
@@ -57,7 +57,7 @@ func newConcurrencyRepository(s *sharedRepository) ConcurrencyRepository {
 
 func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
@@ -103,7 +103,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 
 func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	switch strategy.Strategy {
@@ -132,7 +132,7 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 
 func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
@@ -199,8 +199,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -242,8 +242,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -260,6 +260,11 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 		}
 	}
 
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
+	}
+
 	if err = commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -273,7 +278,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
@@ -374,15 +379,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -455,15 +460,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -480,6 +485,11 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		}
 	}
 
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
+	}
+
 	if err = commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -493,7 +503,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 
 func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	ctx context.Context,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
@@ -628,15 +638,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -709,15 +719,15 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "CONCURRENCY_LIMIT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
 					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case len(r.NextStrategyIds) > 0:
 				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
@@ -734,6 +744,11 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		}
 	}
 
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
+	}
+
 	if err = commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -743,4 +758,23 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
 	}, nil
+}
+
+func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, queuedTasks []TaskWithQueue) error {
+	uniqueQueues := make(map[string]bool, len(queuedTasks))
+	queueList := make([]string, 0, len(queuedTasks))
+	for _, queue := range queuedTasks {
+		if _, ok := uniqueQueues[queue.Queue]; ok {
+			continue
+		}
+		uniqueQueues[queue.Queue] = true
+		queueList = append(queueList, queue.Queue)
+	}
+
+	_, err := c.upsertQueues(ctx, tx, tenantId, queueList)
+	if err != nil {
+		return fmt.Errorf("failed to upsert queues: %w", err)
+	}
+
+	return nil
 }

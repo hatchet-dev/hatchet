@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -25,14 +25,14 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 
 		existingSchedules := make(map[string]bool)
 
-		t.scheduledWorkflows.Range(func(key, value interface{}) bool {
-			existingSchedules[key.(string)] = false
+		t.scheduledWorkflows.Range(func(key string, _ context.CancelFunc) bool {
+			existingSchedules[key] = false
 			return true
 		})
 
 		for _, scheduledWorkflow := range scheduledWorkflows {
-			workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
-			scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
+			workflowVersionId := scheduledWorkflow.WorkflowVersionId
+			scheduledWorkflowId := scheduledWorkflow.ID
 
 			t.l.Debug().Msgf("ticker: handling scheduled workflow %s for version %s", scheduledWorkflowId, workflowVersionId)
 
@@ -65,9 +65,9 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
 	// parse trigger time
-	tenantId := sqlchelpers.UUIDToStr(scheduledWorkflow.TenantId)
-	workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
-	scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
+	tenantId := scheduledWorkflow.TenantId
+	workflowVersionId := scheduledWorkflow.WorkflowVersionId
+	scheduledWorkflowId := scheduledWorkflow.ID
 	triggerAt := scheduledWorkflow.TriggerAt.Time
 
 	key := getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId)
@@ -111,7 +111,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	return nil
 }
 
-func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId string, scheduled *sqlcv1.PollScheduledWorkflowsRow) func() {
+func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId uuid.UUID, scheduled *sqlcv1.PollScheduledWorkflowsRow) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -138,7 +138,7 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 	t.l.Debug().Msg("ticker: canceling scheduled workflow")
 
 	// get the cancel function
-	cancelVal, ok := t.scheduledWorkflows.Load(key)
+	cancel, ok := t.scheduledWorkflows.Load(key)
 
 	if !ok {
 		return fmt.Errorf("could not find scheduled workflow with key %s", key)
@@ -146,18 +146,12 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 
 	defer t.scheduledWorkflows.Delete(key)
 
-	cancel, ok := cancelVal.(context.CancelFunc)
-
-	if !ok {
-		return fmt.Errorf("could not cast cancel function")
-	}
-
 	// cancel the scheduled workflow
 	cancel()
 
 	return nil
 }
 
-func getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId string) string {
-	return fmt.Sprintf("%s-%s", workflowVersionId, scheduledWorkflowId)
+func getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId uuid.UUID) string {
+	return fmt.Sprintf("%s-%s", workflowVersionId.String(), scheduledWorkflowId.String())
 }

@@ -10,6 +10,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
@@ -21,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
+	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
@@ -30,7 +33,6 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
-	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -185,6 +187,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		})
 	}
 
+	var localScheduler *schedulerv1.Scheduler
+
 	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
 	// path for old config files.
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("retention") || sc.HasService("ticker") {
@@ -233,6 +237,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "schedulerv1",
 			Fn:   cleanup,
 		})
+
+		localScheduler = sv1
 	}
 
 	if sc.HasService("ticker") {
@@ -355,6 +361,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 		)
 
 		if err != nil {
@@ -381,6 +388,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
+			ingestor.WithLocalScheduler(localScheduler),
+			ingestor.WithLocalDispatcher(d),
+			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
+			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
@@ -390,6 +402,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
+			admin.WithLocalScheduler(localScheduler),
+			admin.WithLocalDispatcher(d),
+			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
+			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
@@ -399,10 +416,24 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithAnalytics(sc.Analytics),
+			adminv1.WithLocalScheduler(localScheduler),
+			adminv1.WithLocalDispatcher(d),
+			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
+			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
+		oc, err := otelcol.NewOTelCollector(
+			otelcol.WithRepository(sc.V1),
+			otelcol.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create otel collector: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -412,6 +443,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -446,6 +478,19 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				}
 
 				cacheInstance.Stop()
+				return nil
+			})
+
+			g.Go(func() error {
+				if err := adminSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup admin service: %w", err)
+				}
+				if err := adminv1Svc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if err := ei.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
 				return nil
 			})
 
@@ -699,6 +744,48 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 	}
 
+	var localScheduler *schedulerv1.Scheduler
+
+	if sc.HasService("all") || sc.HasService("scheduler") {
+		partitionCleanup, err := p.StartSchedulerPartition(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "scheduler partition",
+			Fn:   partitionCleanup,
+		})
+
+		sv1, err := schedulerv1.New(
+			schedulerv1.WithAlerter(sc.Alerter),
+			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithRepository(sc.V1),
+			schedulerv1.WithLogger(sc.Logger),
+			schedulerv1.WithPartition(p),
+			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+		}
+
+		cleanup, err := sv1.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "schedulerv1",
+			Fn:   cleanup,
+		})
+
+		localScheduler = sv1
+	}
+
 	if sc.HasService("all") || sc.HasService("grpc-api") {
 		cacheInstance := cache.New(10 * time.Second)
 
@@ -711,6 +798,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 		)
 
 		if err != nil {
@@ -738,6 +826,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
+			ingestor.WithLocalScheduler(localScheduler),
+			ingestor.WithLocalDispatcher(d),
+			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
+			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
@@ -747,6 +840,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
+			admin.WithLocalScheduler(localScheduler),
+			admin.WithLocalDispatcher(d),
+			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
+			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
@@ -757,10 +855,24 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithAnalytics(sc.Analytics),
+			adminv1.WithLocalScheduler(localScheduler),
+			adminv1.WithLocalDispatcher(d),
+			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
+			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
+			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
+		oc, err := otelcol.NewOTelCollector(
+			otelcol.WithRepository(sc.V1),
+			otelcol.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create otel collector: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -770,6 +882,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -808,6 +921,19 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			})
 
 			g.Go(func() error {
+				if err := adminSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup admin service: %w", err)
+				}
+				if err := adminv1Svc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if err := ei.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
+				return nil
+			})
+
+			g.Go(func() error {
 				err := grpcServerCleanup()
 				if err != nil {
 					return fmt.Errorf("failed to cleanup GRPC server: %w", err)
@@ -824,44 +950,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		teardown = append(teardown, Teardown{
 			Name: "grpc",
-			Fn:   cleanup,
-		})
-	}
-
-	if sc.HasService("all") || sc.HasService("scheduler") {
-		partitionCleanup, err := p.StartSchedulerPartition(ctx)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "scheduler partition",
-			Fn:   partitionCleanup,
-		})
-
-		sv1, err := schedulerv1.New(
-			schedulerv1.WithAlerter(sc.Alerter),
-			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
-			schedulerv1.WithRepository(sc.V1),
-			schedulerv1.WithLogger(sc.Logger),
-			schedulerv1.WithPartition(p),
-			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
-		}
-
-		cleanup, err := sv1.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "schedulerv1",
 			Fn:   cleanup,
 		})
 	}

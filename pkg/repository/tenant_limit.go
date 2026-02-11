@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -30,16 +30,16 @@ type Limit struct {
 type PlanLimitMap map[string][]Limit
 
 type TenantLimitRepository interface {
-	GetLimits(ctx context.Context, tenantId string) ([]*sqlcv1.TenantResourceLimit, error)
+	GetLimits(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantResourceLimit, error)
 
 	// CanCreate checks if the tenant can create a resource
-	CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (bool, int, error)
+	CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error)
 
 	// Create new Tenant Resource Limits for a tenant
-	SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *string) error
+	SelectOrInsertTenantLimits(ctx context.Context, tenantId uuid.UUID, plan *string) error
 
 	// UpsertTenantLimits updates or inserts new tenant limits
-	UpsertTenantLimits(ctx context.Context, tenantId string, plan *string) error
+	UpsertTenantLimits(ctx context.Context, tenantId uuid.UUID, plan *string) error
 
 	// Resolve all tenant resource limits
 	ResolveAllTenantResourceLimits(ctx context.Context) error
@@ -51,7 +51,7 @@ type TenantLimitRepository interface {
 
 	Stop()
 
-	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (precommit func() error, postcommit func())
+	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
 }
 
 type tenantLimitRepository struct {
@@ -136,7 +136,7 @@ func (t *tenantLimitRepository) planLimitMap(plan *string) []Limit {
 	return (*t.plans)[*plan]
 }
 
-func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
+func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId uuid.UUID, plan *string) error {
 
 	planLimits := t.planLimitMap(plan)
 
@@ -150,7 +150,7 @@ func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, 
 	return nil
 }
 
-func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
+func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId uuid.UUID, plan *string) error {
 	planLimits := t.planLimitMap(plan)
 
 	for _, limits := range planLimits {
@@ -163,7 +163,7 @@ func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId
 	return nil
 }
 
-func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, tenantId string, limits Limit, upsert bool) error {
+func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, tenantId uuid.UUID, limits Limit, upsert bool) error {
 
 	limit := pgtype.Int4{}
 
@@ -194,7 +194,7 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 
 	if upsert {
 		_, err := t.queries.UpsertTenantResourceLimit(ctx, t.pool, sqlcv1.UpsertTenantResourceLimitParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Tenantid: tenantId,
 			Resource: sqlcv1.NullLimitResource{
 				LimitResource: limits.Resource,
 				Valid:         true,
@@ -209,7 +209,7 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 	}
 
 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, sqlcv1.SelectOrInsertTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{
 			LimitResource: limits.Resource,
 			Valid:         true,
@@ -223,12 +223,12 @@ func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, te
 	return err
 }
 
-func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) ([]*sqlcv1.TenantResourceLimit, error) {
+func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantResourceLimit, error) {
 	if !t.enforceLimits {
 		return []*sqlcv1.TenantResourceLimit{}, nil
 	}
 
-	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -238,7 +238,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 	for _, limit := range limits {
 
 		if limit.Resource == sqlcv1.LimitResourceWORKER {
-			workerCount, err := t.queries.CountTenantWorkers(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+			workerCount, err := t.queries.CountTenantWorkers(ctx, t.pool, tenantId)
 			if err != nil {
 				return nil, err
 			}
@@ -246,7 +246,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 		}
 
 		if limit.Resource == sqlcv1.LimitResourceWORKERSLOT {
-			workerSlotCount, err := t.queries.CountTenantWorkerSlots(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+			workerSlotCount, err := t.queries.CountTenantWorkerSlots(ctx, t.pool, tenantId)
 			if err != nil {
 				return nil, err
 			}
@@ -258,13 +258,13 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 	return limits, nil
 }
 
-func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (bool, int, error) {
+func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	if !t.enforceLimits {
 		return true, 0, nil
 	}
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, sqlcv1.GetTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{
 			LimitResource: resource,
 			Valid:         true,
@@ -289,7 +289,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 
 	// patch custom worker limits aggregate methods
 	if resource == sqlcv1.LimitResourceWORKER {
-		count, err := t.queries.CountTenantWorkers(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+		count, err := t.queries.CountTenantWorkers(ctx, t.pool, tenantId)
 		value = int32(count) // nolint: gosec
 
 		if err != nil {
@@ -311,13 +311,13 @@ func calcPercent(value int32, limit int32) int {
 	return int((float64(value) / float64(limit)) * 100)
 }
 
-func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (*sqlcv1.TenantResourceLimit, error) {
+func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (*sqlcv1.TenantResourceLimit, error) {
 	if !t.enforceLimits {
 		return nil, nil
 	}
 
 	r, err := t.queries.MeterTenantResource(ctx, t.pool, sqlcv1.MeterTenantResourceParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{
 			LimitResource: resource,
 			Valid:         true,
@@ -332,7 +332,7 @@ func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.L
 	return r, nil
 }
 
-func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (bool, int, error) {
+func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	var key = fmt.Sprintf("%s:%s", resource, tenantId)
 
 	var canCreate *bool
@@ -361,7 +361,7 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sq
 	return *canCreate, percent, nil
 }
 
-func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId string, numberOfResources int32) (precommit func() error, postcommit func()) {
+func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
 			canCreate, _, err := t.cachedCanCreate(ctx, resource, tenantId, numberOfResources)
 

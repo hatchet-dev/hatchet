@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -28,10 +29,16 @@ type ListLogsOpts struct {
 
 	// (optional) the end time to get logs for
 	Until *time.Time
+
+	// (optional) the attempt number to filter for
+	Attempt *int32
+
+	// (optional) Order by direction
+	OrderByDirection *string `validate:"omitempty,oneof=ASC DESC"`
 }
 
 type CreateLogLineOpts struct {
-	TaskExternalId string `validate:"required,uuid"`
+	TaskExternalId uuid.UUID `validate:"required"`
 
 	TaskId int64
 
@@ -54,9 +61,9 @@ type CreateLogLineOpts struct {
 }
 
 type LogLineRepository interface {
-	ListLogLines(ctx context.Context, tenantId, taskExternalId string, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
+	ListLogLines(ctx context.Context, tenantId, taskExternalId uuid.UUID, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
 
-	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error
+	PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error
 }
 
 type logLineRepositoryImpl struct {
@@ -69,7 +76,7 @@ func newLogLineRepository(s *sharedRepository) LogLineRepository {
 	}
 }
 
-func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, taskExternalId string, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
+func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, taskExternalId uuid.UUID, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -81,12 +88,11 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 		return nil, err
 	}
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
 	queryParams := sqlcv1.ListLogLinesParams{
-		Tenantid:       pgTenantId,
-		Taskid:         task.ID,
-		Taskinsertedat: task.InsertedAt,
+		Tenantid:         tenantId,
+		Taskid:           task.ID,
+		Taskinsertedat:   task.InsertedAt,
+		Orderbydirection: "ASC",
 	}
 
 	if opts.Search != nil {
@@ -94,11 +100,17 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 	}
 
 	if opts.Limit != nil {
-		queryParams.Limit = *opts.Limit
+		queryParams.Limit = pgtype.Int8{
+			Int64: int64(*opts.Limit),
+			Valid: true,
+		}
 	}
 
 	if opts.Offset != nil {
-		queryParams.Offset = *opts.Offset
+		queryParams.Offset = pgtype.Int8{
+			Int64: int64(*opts.Offset),
+			Valid: true,
+		}
 	}
 
 	if opts.Since != nil {
@@ -124,6 +136,17 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 		queryParams.Levels = levels
 	}
 
+	if opts.OrderByDirection != nil {
+		queryParams.Orderbydirection = *opts.OrderByDirection
+	}
+
+	if opts.Attempt != nil {
+		queryParams.Attempt = pgtype.Int4{
+			Int32: *opts.Attempt,
+			Valid: true,
+		}
+	}
+
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
 	if err != nil {
 		return nil, err
@@ -132,7 +155,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 	return logLines, nil
 }
 
-func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error {
+func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error {
 	if err := r.v.Validate(opts); err != nil {
 		return err
 	}
@@ -150,7 +173,7 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opt
 		r.pool,
 		[]sqlcv1.InsertLogLineParams{
 			{
-				TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+				TenantID:       tenantId,
 				TaskID:         opts.TaskId,
 				TaskInsertedAt: opts.TaskInsertedAt,
 				Message:        opts.Message,

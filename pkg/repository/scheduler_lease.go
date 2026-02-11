@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -13,7 +13,7 @@ import (
 )
 
 type ListActiveWorkersResult struct {
-	ID      string
+	ID      uuid.UUID
 	MaxRuns int
 	Name    string
 	Labels  []*sqlcv1.ListManyWorkerLabelsRow
@@ -29,7 +29,7 @@ func newLeaseRepository(shared *sharedRepository) *leaseRepository {
 	}
 }
 
-func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
 	ctx, span := telemetry.NewSpan(ctx, "acquire-leases")
 	defer span.End()
 
@@ -75,7 +75,7 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pg
 	return leases, nil
 }
 
-func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*sqlcv1.Lease) error {
+func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) error {
 	ctx, span := telemetry.NewSpan(ctx, "release-leases")
 	defer span.End()
 
@@ -106,14 +106,14 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUI
 	return nil
 }
 
-func (d *leaseRepository) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1Queue, error) {
+func (d *leaseRepository) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1Queue, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-queues")
 	defer span.End()
 
 	return d.queries.ListQueues(ctx, d.pool, tenantId)
 }
 
-func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error) {
+func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*ListActiveWorkersResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-active-workers")
 	defer span.End()
 
@@ -123,7 +123,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 		return nil, err
 	}
 
-	workerIds := make([]pgtype.UUID, 0, len(activeWorkers))
+	workerIds := make([]uuid.UUID, 0, len(activeWorkers))
 
 	for _, worker := range activeWorkers {
 		workerIds = append(workerIds, worker.ID)
@@ -138,7 +138,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 	workerIdsToLabels := make(map[string][]*sqlcv1.ListManyWorkerLabelsRow, len(labels))
 
 	for _, label := range labels {
-		wId := sqlchelpers.UUIDToStr(label.WorkerId)
+		wId := label.WorkerId.String()
 
 		if _, ok := workerIdsToLabels[wId]; !ok {
 			workerIdsToLabels[wId] = make([]*sqlcv1.ListManyWorkerLabelsRow, 0)
@@ -150,9 +150,9 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 	res := make([]*ListActiveWorkersResult, 0, len(activeWorkers))
 
 	for _, worker := range activeWorkers {
-		wId := sqlchelpers.UUIDToStr(worker.ID)
+		wId := worker.ID.String()
 		res = append(res, &ListActiveWorkersResult{
-			ID:      sqlchelpers.UUIDToStr(worker.ID),
+			ID:      worker.ID,
 			MaxRuns: int(worker.MaxRuns),
 			Labels:  workerIdsToLabels[wId],
 			Name:    worker.Name,
@@ -162,7 +162,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 	return res, nil
 }
 
-func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
+func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-queues")
 	defer span.End()
 

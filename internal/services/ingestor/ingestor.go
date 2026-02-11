@@ -4,13 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	"github.com/rs/zerolog"
 )
 
 type Ingestor interface {
@@ -19,7 +26,8 @@ type Ingestor interface {
 	IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error
 	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.Tenant, replayedEvent *sqlcv1.Event) (*sqlcv1.Event, error)
-	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
+	IngestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
+	Cleanup() error
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -28,6 +36,14 @@ type IngestorOpts struct {
 	mqv1                  msgqueue.MessageQueue
 	repov1                v1.Repository
 	isLogIngestionEnabled bool
+
+	localScheduler              *scheduler.Scheduler
+	localDispatcher             *dispatcher.DispatcherImpl
+	optimisticSchedulingEnabled bool
+	l                           *zerolog.Logger
+
+	grpcTriggersEnabled bool
+	grpcTriggerSlots    int
 }
 
 func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
@@ -48,9 +64,48 @@ func WithLogIngestionEnabled(isEnabled bool) IngestorOptFunc {
 	}
 }
 
+func WithGrpcTriggersEnabled(enabled bool) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.grpcTriggersEnabled = enabled
+	}
+}
+
+func WithGrpcTriggerSlots(slots int) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.grpcTriggerSlots = slots
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
+	l := logger.NewDefaultLogger("ingestor")
+
 	return &IngestorOpts{
 		isLogIngestionEnabled: true,
+		l:                     &l,
+	}
+}
+
+func WithOptimisticSchedulingEnabled(enabled bool) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.optimisticSchedulingEnabled = enabled
+	}
+}
+
+func WithLocalScheduler(s *scheduler.Scheduler) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localScheduler = s
+	}
+}
+
+func WithLocalDispatcher(d *dispatcher.DispatcherImpl) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localDispatcher = d
+	}
+}
+
+func WithLogger(l *zerolog.Logger) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.l = l
 	}
 }
 
@@ -64,6 +119,13 @@ type IngestorImpl struct {
 	repov1 v1.Repository
 
 	isLogIngestionEnabled bool
+
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
+	l               *zerolog.Logger
+
+	tw        *trigger.TriggerWriter
+	pubBuffer *msgqueue.MQPubBuffer
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -88,12 +150,32 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("could not create step run cache: %w", err)
 	}
 
+	var tw *trigger.TriggerWriter
+	var pubBuffer *msgqueue.MQPubBuffer
+
+	if opts.grpcTriggersEnabled {
+		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
+
+		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
+	}
+
+	var localScheduler *scheduler.Scheduler
+
+	if opts.optimisticSchedulingEnabled && opts.localScheduler != nil {
+		localScheduler = opts.localScheduler
+	}
+
 	return &IngestorImpl{
 		steprunTenantLookupCache: stepRunCache,
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
+		l:                        opts.l,
+		localScheduler:           localScheduler,
+		localDispatcher:          opts.localDispatcher,
+		tw:                       tw,
+		pubBuffer:                pubBuffer,
 	}, nil
 }
 
@@ -102,7 +184,7 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, k
 }
 
 func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error {
-	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
+	return i.ingestWebhookValidationFailure(tenant.ID, webhookName, errorText)
 }
 
 func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error) {
@@ -113,11 +195,19 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *sqlcv1.T
 	return i.ingestReplayedEventV1(ctx, tenant, replayedEvent)
 }
 
-func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
+func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
 	return i.ingestCELEvaluationFailure(
 		ctx,
 		tenantId,
 		errorText,
 		source,
 	)
+}
+
+// Cleanup stops the pubBuffer goroutines if they exist
+func (i *IngestorImpl) Cleanup() error {
+	if i.pubBuffer != nil {
+		i.pubBuffer.Stop()
+	}
+	return nil
 }

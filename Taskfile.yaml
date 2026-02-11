@@ -124,29 +124,7 @@ tasks:
   e2e-frontend:
     desc: Run Cypress E2E for frontend/app against a locally started API stack (CI-friendly).
     cmds:
-      - |
-        set -euo pipefail
-
-        trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
-
-        task start-db
-        task write-e2e-env
-        task generate-local-encryption-keys
-        task migrate
-        task seed-cypress
-
-        bash ./hack/ci/start-api.sh &
-        bash ./hack/ci/start-engine.sh &
-
-        # API readiness server runs on the healthcheck port (default 8733)
-        bash ./hack/ci/wait-for-http.sh http://127.0.0.1:8733/ready 120
-
-        cd frontend/app
-        # Start Vite bound to app.localtest.me (see vite.config.ts)
-        pnpm run dev -- --host app.localtest.me --port 5173 &
-        bash ../../hack/ci/wait-for-http.sh http://app.localtest.me:5173 120
-
-        CYPRESS_BASE_URL=http://app.localtest.me:5173 pnpm run e2e:run
+      - bash ./hack/ci/e2e-frontend.sh
   start-ngrok:
     cmds:
       - ngrok http 8080

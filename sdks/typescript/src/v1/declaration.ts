@@ -8,6 +8,7 @@ import {
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
+import { z } from 'zod';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -135,6 +136,13 @@ export type CreateBaseWorkflowOpts = {
   defaultPriority?: Priority;
 
   defaultFilters?: DefaultFilter[];
+
+  /**
+   * (optional) Zod schema for the workflow input.
+   * When provided, a JSON Schema is generated and sent to the Hatchet backend, which
+   * can be used on the dashboard for autocomplete.
+   */
+  inputValidator?: z.ZodType<any>;
 };
 
 export type CreateTaskWorkflowOpts<
@@ -315,7 +323,7 @@ export class BaseWorkflowDeclaration<
     const runOpts = {
       ...options,
       parentId: parentRunContext?.parentId,
-      parentStepRunId: parentRunContext?.parentRunId,
+      parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
       sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
       childKey: options?.childKey,
@@ -483,12 +491,17 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the workflow metrics.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  metrics(opts?: Parameters<MetricsClient['getWorkflowMetrics']>[1]) {
+  async metrics(opts?: Omit<Parameters<MetricsClient['getTaskStatusMetrics']>[0], 'workflows'>) {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return this.client.metrics.getWorkflowMetrics(this.definition.name, opts);
+    const workflow = await this.client.workflows.get(this.definition.name);
+    return this.client.metrics.getTaskStatusMetrics({
+      since: opts?.since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      until: opts?.until || new Date().toISOString(),
+      workflow_ids: [workflow.metadata.id],
+    });
   }
 
   /**
@@ -497,14 +510,19 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the workflow metrics.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  queueMetrics(opts?: Omit<Parameters<MetricsClient['getQueueMetrics']>[0], 'workflows'>) {
+  async taskStatusMetrics(
+    opts?: Omit<Parameters<MetricsClient['getTaskStatusMetrics']>[0], 'workflows'>
+  ) {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return this.client.metrics.getQueueMetrics({
-      ...opts,
-      workflows: [this.definition.name],
+    const workflow = await this.client.workflows.get(this.definition.name);
+
+    return this.client.metrics.getTaskStatusMetrics({
+      since: opts?.since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      until: opts?.until || new Date().toISOString(),
+      workflow_ids: [workflow.metadata.id],
     });
   }
 
@@ -798,7 +816,8 @@ export function CreateTaskWorkflow<
  * Creates a new workflow instance.
  * @template I The input type for the workflow.
  * @template O The return type of the workflow.
- * @param options The options for creating the workflow.
+ * @param options The options for creating the workflow. Optionally include a Zod schema
+ *                via the `input` field to generate a JSON Schema for the backend.
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */

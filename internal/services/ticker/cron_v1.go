@@ -15,7 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) error {
+func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) error {
 	if additionalMetadata == nil {
 		additionalMetadata = make(map[string]interface{})
 	}
@@ -44,7 +44,7 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, wor
 			AdditionalMetadata: additionalMetaBytes,
 			Priority:           priority,
 		},
-		ExternalId: uuid.NewString(),
+		ExternalId: uuid.New(),
 		ShouldSkip: false,
 	}
 

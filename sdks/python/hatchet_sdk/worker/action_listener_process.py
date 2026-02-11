@@ -34,6 +34,7 @@ from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_step_run_id,
+    ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
@@ -54,7 +55,7 @@ class HealthStatus(str, Enum):
 class ActionEvent:
     action: Action
     type: Any  # TODO type
-    payload: str
+    payload: str | None
     should_not_retry: bool
 
 
@@ -73,8 +74,6 @@ class WorkerActionListenerProcess:
         handle_kill: bool,
         debug: bool,
         labels: dict[str, str | int],
-        enable_health_server: bool = False,
-        healthcheck_port: int = 8001,
     ) -> None:
         self.name = name
         self.actions = actions
@@ -85,8 +84,6 @@ class WorkerActionListenerProcess:
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
-        self.enable_health_server = enable_health_server
-        self.healthcheck_port = healthcheck_port
 
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
@@ -94,9 +91,6 @@ class WorkerActionListenerProcess:
         self._event_loop_monitor_task: asyncio.Task[None] | None = None
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
-        self._event_loop_block_threshold: timedelta = (
-            self.config.healthcheck.event_loop_block_threshold_seconds
-        )
         self._waiting_steps_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
@@ -125,7 +119,7 @@ class WorkerActionListenerProcess:
             signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
         )
 
-        if self.enable_health_server:
+        if self.config.healthcheck.enabled:
             self._listener_health_gauge = Gauge(
                 "hatchet_worker_listener_health",
                 "Listener health (1 healthy, 0 unhealthy)",
@@ -147,7 +141,10 @@ class WorkerActionListenerProcess:
             lag = max(0.0, elapsed - interval)
             # If the loop is "completely blocked" across multiple monitor ticks,
             # report a continuously increasing lag value (time since first detected block).
-            if timedelta(seconds=lag) >= self._event_loop_block_threshold:
+            if (
+                timedelta(seconds=lag)
+                >= self.config.healthcheck.event_loop_block_threshold_seconds
+            ):
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
                 self._event_loop_last_lag_seconds = max(
@@ -156,7 +153,10 @@ class WorkerActionListenerProcess:
             else:
                 self._event_loop_last_lag_seconds = lag
 
-            if timedelta(seconds=lag) < self._event_loop_block_threshold:
+            if (
+                timedelta(seconds=lag)
+                < self.config.healthcheck.event_loop_block_threshold_seconds
+            ):
                 self._event_loop_blocked_since = None
 
     def _starting_timed_out(self) -> bool:
@@ -170,7 +170,7 @@ class WorkerActionListenerProcess:
         if (
             self._event_loop_blocked_since is not None
             and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
-            > self._event_loop_block_threshold
+            > self.config.healthcheck.event_loop_block_threshold_seconds
         ):
             return HealthStatus.UNHEALTHY
 
@@ -180,7 +180,7 @@ class WorkerActionListenerProcess:
         if (
             self._waiting_steps_blocked_since is not None
             and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
-            > self._event_loop_block_threshold
+            > self.config.healthcheck.event_loop_block_threshold_seconds
         ):
             return HealthStatus.UNHEALTHY
 
@@ -241,7 +241,7 @@ class WorkerActionListenerProcess:
         return web.Response(body=generate_latest(), content_type="text/plain")
 
     async def start_health_server(self) -> None:
-        if not self.enable_health_server:
+        if not self.config.healthcheck.enabled:
             return
 
         if self._health_runner is not None:
@@ -259,14 +259,18 @@ class WorkerActionListenerProcess:
 
         try:
             await runner.setup()
-            await web.TCPSite(runner, "0.0.0.0", self.healthcheck_port).start()
+            await web.TCPSite(
+                runner,
+                host=self.config.healthcheck.bind_address,
+                port=self.config.healthcheck.port,
+            ).start()
         except Exception:
             logger.exception("failed to start healthcheck server (listener process)")
             return
 
         self._health_runner = runner
         logger.info(
-            f"healthcheck server (listener process) running on port {self.healthcheck_port}"
+            f"healthcheck server (listener process) running on {self.config.healthcheck.bind_address}:{self.config.healthcheck.port}"
         )
 
         if self._event_loop_monitor_task is None:
@@ -437,6 +441,7 @@ class WorkerActionListenerProcess:
                 ctx_workflow_run_id.set(action.workflow_run_id)
                 ctx_worker_id.set(action.worker_id)
                 ctx_action_key.set(action.key)
+                ctx_task_retry_count.set(action.retry_count)
 
                 # Process the action here
                 match action.action_type:
@@ -445,7 +450,7 @@ class WorkerActionListenerProcess:
                             ActionEvent(
                                 action=action,
                                 type=STEP_EVENT_TYPE_STARTED,  # TODO ack type
-                                payload="",
+                                payload=None,
                                 should_not_retry=False,
                             )
                         )
@@ -510,9 +515,29 @@ class WorkerActionListenerProcess:
         logger.debug("forcefully closing listener...")
 
 
-def worker_action_listener_process(*args: Any, **kwargs: Any) -> None:
+def worker_action_listener_process(
+    name: str,
+    actions: list[str],
+    slots: int,
+    config: ClientConfig,
+    action_queue: "Queue[Action]",
+    event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
+    handle_kill: bool,
+    debug: bool,
+    labels: dict[str, str | int],
+) -> None:
     async def run() -> None:
-        process = WorkerActionListenerProcess(*args, **kwargs)
+        process = WorkerActionListenerProcess(
+            name=name,
+            actions=actions,
+            slots=slots,
+            config=config,
+            action_queue=action_queue,
+            event_queue=event_queue,
+            handle_kill=handle_kill,
+            debug=debug,
+            labels=labels,
+        )
         await process.start_health_server()
         await process.start()
         # Keep the process running

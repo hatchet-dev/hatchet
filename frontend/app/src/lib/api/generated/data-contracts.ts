@@ -241,6 +241,7 @@ export enum V1WebhookSourceName {
   STRIPE = "STRIPE",
   SLACK = "SLACK",
   LINEAR = "LINEAR",
+  SVIX = "SVIX",
 }
 
 export enum TenantEnvironment {
@@ -252,6 +253,11 @@ export enum TenantEnvironment {
 export enum TenantVersion {
   V0 = "V0",
   V1 = "V1",
+}
+
+export enum V1LogLineOrderByDirection {
+  ASC = "ASC",
+  DESC = "DESC",
 }
 
 export enum V1LogLineLevel {
@@ -904,6 +910,10 @@ export interface V1Webhook {
   sourceName: V1WebhookSourceName;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
   /** The type of authentication to use for the webhook */
   authType: V1WebhookAuthType;
 }
@@ -920,6 +930,10 @@ export interface V1CreateWebhookRequestBase {
   name: string;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
 }
 
 export interface V1WebhookBasicAuth {
@@ -973,6 +987,10 @@ export type V1CreateWebhookRequest =
 export interface V1UpdateWebhookRequest {
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
 }
 
 export interface V1CELDebugRequest {
@@ -1818,6 +1836,8 @@ export interface WorkflowVersion {
   jobs?: Job[];
   workflowConfig?: object;
   v1Concurrency?: ConcurrencySetting[];
+  /** The JSON schema for the workflow input. */
+  inputJsonSchema?: object;
 }
 
 export interface TriggerWorkflowRunRequest {

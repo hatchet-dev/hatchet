@@ -1,5 +1,6 @@
 V1WebhookGetDeleteReceiveUpdate:
   get:
+    x-resources: ["tenant", "v1-webhook"]
     description: Get a webhook by its name
     operationId: v1-webhook:get
     x-enable-rate-limiting: true

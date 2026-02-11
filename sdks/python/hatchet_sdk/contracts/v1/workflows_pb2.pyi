@@ -77,20 +77,20 @@ LESS_THAN: WorkerLabelComparator
 LESS_THAN_OR_EQUAL: WorkerLabelComparator
 
 class CancelTasksRequest(_message.Message):
-    __slots__ = ("externalIds", "filter")
-    EXTERNALIDS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("external_ids", "filter")
+    EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
-    externalIds: _containers.RepeatedScalarFieldContainer[str]
+    external_ids: _containers.RepeatedScalarFieldContainer[str]
     filter: TasksFilter
-    def __init__(self, externalIds: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
+    def __init__(self, external_ids: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
 
 class ReplayTasksRequest(_message.Message):
-    __slots__ = ("externalIds", "filter")
-    EXTERNALIDS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("external_ids", "filter")
+    EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
-    externalIds: _containers.RepeatedScalarFieldContainer[str]
+    external_ids: _containers.RepeatedScalarFieldContainer[str]
     filter: TasksFilter
-    def __init__(self, externalIds: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
+    def __init__(self, external_ids: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
 
 class TasksFilter(_message.Message):
     __slots__ = ("statuses", "since", "until", "workflow_ids", "additional_metadata")
@@ -137,7 +137,7 @@ class TriggerWorkflowRunResponse(_message.Message):
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
 class CreateWorkflowVersionRequest(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -151,6 +151,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     DEFAULT_PRIORITY_FIELD_NUMBER: _ClassVar[int]
     CONCURRENCY_ARR_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_FILTERS_FIELD_NUMBER: _ClassVar[int]
+    INPUT_JSON_SCHEMA_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -164,7 +165,8 @@ class CreateWorkflowVersionRequest(_message.Message):
     default_priority: int
     concurrency_arr: _containers.RepeatedCompositeFieldContainer[Concurrency]
     default_filters: _containers.RepeatedCompositeFieldContainer[DefaultFilter]
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ...) -> None: ...
+    input_json_schema: bytes
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ...) -> None: ...
 
 class DefaultFilter(_message.Message):
     __slots__ = ("expression", "scope", "payload")
@@ -187,18 +189,18 @@ class Concurrency(_message.Message):
     def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
 
 class DesiredWorkerLabels(_message.Message):
-    __slots__ = ("strValue", "intValue", "required", "comparator", "weight")
-    STRVALUE_FIELD_NUMBER: _ClassVar[int]
-    INTVALUE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("str_value", "int_value", "required", "comparator", "weight")
+    STR_VALUE_FIELD_NUMBER: _ClassVar[int]
+    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
     COMPARATOR_FIELD_NUMBER: _ClassVar[int]
     WEIGHT_FIELD_NUMBER: _ClassVar[int]
-    strValue: str
-    intValue: int
+    str_value: str
+    int_value: int
     required: bool
     comparator: WorkerLabelComparator
     weight: int
-    def __init__(self, strValue: _Optional[str] = ..., intValue: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
+    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
 
 class CreateTaskOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout")

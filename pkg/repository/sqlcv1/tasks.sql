@@ -4,7 +4,10 @@ SELECT
     create_v1_range_partition('v1_dag', @date::date),
     create_v1_range_partition('v1_task_event', @date::date),
     create_v1_range_partition('v1_log_line', @date::date),
-    create_v1_range_partition('v1_payload', @date::date);
+    create_v1_range_partition('v1_payload', @date::date),
+    create_v1_range_partition('v1_event', @date::date),
+    create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
+    create_v1_range_partition('v1_event_to_run', @date::date);
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -18,6 +21,10 @@ WITH tomorrow_date AS (
     SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_payload_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -43,6 +50,12 @@ WITH task_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
 ), payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
+), event_partitions AS (
+    SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', @date::date) AS p
+), event_lookup_table_partitions AS (
+    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', @date::date) AS p
+), event_to_run_partitions AS (
+    SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
 )
 
 SELECT
@@ -77,6 +90,27 @@ SELECT
     *
 FROM
     payload_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    event_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    event_lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    event_to_run_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -1170,4 +1204,43 @@ WHERE
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
+;
+
+-- name: CreateEventToRuns :many
+WITH input AS (
+    SELECT
+        UNNEST(@runExternalIds::uuid[]) AS run_external_id,
+        UNNEST(@eventIds::bigint[]) AS event_id,
+        UNNEST(@eventSeenAts::timestamptz[]) AS event_seen_at,
+        UNNEST(@filterIds::uuid[]) AS filter_id
+)
+INSERT INTO v1_event_to_run (run_external_id, event_id, event_seen_at, filter_id)
+SELECT
+    run_external_id,
+    event_id,
+    event_seen_at,
+    filter_id
+FROM
+    input
+RETURNING
+    *;
+
+-- name: FilterValidTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS task_retry_count
+)
+SELECT
+    t.id
+FROM
+    v1_task t
+JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
+WHERE
+    (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM inputs
+    )
+    AND t.tenant_id = @tenantId::uuid
 ;

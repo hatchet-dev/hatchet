@@ -20,12 +20,12 @@ type LoggerConfigFile struct {
 }
 
 type OpenTelemetryConfigFile struct {
-	CollectorURL  string `mapstructure:"collectorURL" json:"collectorURL,omitempty"`
-	ServiceName   string `mapstructure:"serviceName" json:"serviceName,omitempty" default:"server"`
-	TraceIdRatio  string `mapstructure:"traceIdRatio" json:"traceIdRatio,omitempty" default:"1"`
-	Insecure      bool   `mapstructure:"insecure" json:"insecure,omitempty" default:"false"`
-	CollectorAuth string `mapstructure:"collectorAuth" json:"collectorAuth,omitempty"`
-	MetricsEnabled bool  `mapstructure:"metricsEnabled" json:"metricsEnabled,omitempty" default:"false"`
+	CollectorURL   string `mapstructure:"collectorURL" json:"collectorURL,omitempty"`
+	ServiceName    string `mapstructure:"serviceName" json:"serviceName,omitempty" default:"server"`
+	TraceIdRatio   string `mapstructure:"traceIdRatio" json:"traceIdRatio,omitempty" default:"1"`
+	Insecure       bool   `mapstructure:"insecure" json:"insecure,omitempty" default:"false"`
+	CollectorAuth  string `mapstructure:"collectorAuth" json:"collectorAuth,omitempty"`
+	MetricsEnabled bool   `mapstructure:"metricsEnabled" json:"metricsEnabled,omitempty" default:"false"`
 }
 
 type PrometheusConfigFile struct {

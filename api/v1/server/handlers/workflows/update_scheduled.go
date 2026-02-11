@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -26,7 +25,7 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 	}
 
 	// If a scheduled run has already been triggered, it can no longer be rescheduled.
-	if scheduled.WorkflowRunId.Valid {
+	if scheduled.WorkflowRunId == nil {
 		return gen.WorkflowScheduledUpdate400JSONResponse(apierrors.NewAPIErrors("Scheduled run has already been triggered and cannot be rescheduled.")), nil
 	}
 
@@ -35,8 +34,8 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 
 	err := t.config.V1.WorkflowSchedules().UpdateScheduledWorkflow(
 		dbCtx,
-		sqlchelpers.UUIDToStr(scheduled.TenantId),
-		request.ScheduledWorkflowRun.String(),
+		scheduled.TenantId,
+		request.ScheduledWorkflowRun,
 		request.Body.TriggerAt,
 	)
 	if err != nil {
@@ -45,8 +44,8 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 
 	updated, err := t.config.V1.WorkflowSchedules().GetScheduledWorkflow(
 		dbCtx,
-		sqlchelpers.UUIDToStr(scheduled.TenantId),
-		request.ScheduledWorkflowRun.String(),
+		scheduled.TenantId,
+		request.ScheduledWorkflowRun,
 	)
 	if err != nil {
 		return nil, err

@@ -30,7 +30,9 @@ WHERE
     AND (sqlc.narg('since')::TIMESTAMPTZ IS NULL OR l.created_at > sqlc.narg('since')::TIMESTAMPTZ)
     AND (sqlc.narg('until')::TIMESTAMPTZ IS NULL OR l.created_at < sqlc.narg('until')::TIMESTAMPTZ)
     AND (sqlc.narg('levels')::v1_log_line_level[] IS NULL OR l.level = ANY(sqlc.narg('levels')::v1_log_line_level[]))
+    AND (sqlc.narg('attempt')::INTEGER IS NULL OR l.retry_count = (sqlc.narg('attempt')::INTEGER - 1))
 ORDER BY
-    l.created_at ASC
-LIMIT COALESCE(sqlc.narg('limit'), 1000)
-OFFSET COALESCE(sqlc.narg('offset'), 0);
+    CASE WHEN @orderByDirection::TEXT = 'DESC' THEN l.created_at END DESC,
+    CASE WHEN @orderByDirection::TEXT = 'ASC' THEN l.created_at END ASC
+LIMIT COALESCE(sqlc.narg('limit')::BIGINT, 1000)
+OFFSET COALESCE(sqlc.narg('offset')::BIGINT, 0);

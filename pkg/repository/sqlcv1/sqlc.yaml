@@ -58,3 +58,13 @@ sql:
               import: "github.com/jackc/pgx/v5/pgtype"
               type: "Int8"
               slice: true
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true

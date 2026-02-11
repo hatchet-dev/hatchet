@@ -37,11 +37,11 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
-    # HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS
     event_loop_block_threshold_seconds: timedelta = Field(
         default=timedelta(seconds=5),
         description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
     )
+    bind_address: str | None = "0.0.0.0"
 
     @field_validator("event_loop_block_threshold_seconds", mode="before")
     @classmethod
@@ -61,6 +61,17 @@ class HealthcheckConfig(BaseSettings):
             v = v[:-1].strip()
 
         return timedelta(seconds=float(v))
+
+    @field_validator("bind_address", mode="after")
+    @classmethod
+    def validate_bind_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        if value.lower() == "none" or not value.strip():
+            return None
+
+        return value
 
 
 class OpenTelemetryConfig(BaseSettings):

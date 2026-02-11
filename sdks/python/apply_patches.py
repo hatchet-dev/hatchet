@@ -8,11 +8,20 @@ def prepend_import(content: str, import_statement: str) -> str:
     if import_statement in content:
         return content
 
+    future_import_pattern = r"^from __future__ import [^\n]+\n"
+    future_imports = re.findall(future_import_pattern, content, re.MULTILINE)
+    content = re.sub(future_import_pattern, "", content, flags=re.MULTILINE)
+
     match = re.search(r"^import\s+|^from\s+", content, re.MULTILINE)
     insert_position = match.start() if match else 0
 
+    future_block = "".join(future_imports)
     return (
-        content[:insert_position] + import_statement + "\n" + content[insert_position:]
+        content[:insert_position]
+        + future_block
+        + import_statement
+        + "\n"
+        + content[insert_position:]
     )
 
 
@@ -78,6 +87,37 @@ def patch_grpc_init_signature(content: str) -> str:
     )
 
 
+def patch_rest_error_diagnostics(content: str) -> str:
+    pattern = (
+        r"(?ms)^([ \t]*)except urllib3\.exceptions\.SSLError as e:\s*\n"
+        r"^\1[ \t]*msg = \"\\n\"\.join\(\[type\(e\)\.__name__, str\(e\)\]\)\s*\n"
+        r"^\1[ \t]*raise ApiException\(status=0, reason=msg\)\s*\n"
+    )
+
+    replacement = (
+        r"\1except (\n"
+        r"\1    urllib3.exceptions.SSLError,\n"
+        r"\1    urllib3.exceptions.ConnectTimeoutError,\n"
+        r"\1    urllib3.exceptions.ReadTimeoutError,\n"
+        r"\1    urllib3.exceptions.MaxRetryError,\n"
+        r"\1    urllib3.exceptions.NewConnectionError,\n"
+        r"\1    urllib3.exceptions.ProtocolError,\n"
+        r"\1) as e:\n"
+        r'\1    msg = "\\n".join(\n'
+        r"\1        [\n"
+        r"\1            type(e).__name__,\n"
+        r"\1            str(e),\n"
+        r'\1            f"method={method}",\n'
+        r'\1            f"url={url}",\n'
+        r'\1            f"timeout={_request_timeout}",\n'
+        r"\1        ]\n"
+        r"\1    )\n"
+        r"\1    raise ApiException(status=0, reason=msg)\n"
+    )
+
+    return apply_patch(content, pattern, replacement)
+
+
 def apply_patches_to_matching_files(
     root: str, glob: str, patch_funcs: list[Callable[[str], str]]
 ) -> None:
@@ -121,6 +161,10 @@ if __name__ == "__main__":
     atomically_patch_file(
         "hatchet_sdk/clients/rest/models/workflow_runs_metrics.py",
         [patch_workflow_run_metrics_counts_return_type],
+    )
+
+    atomically_patch_file(
+        "hatchet_sdk/clients/rest/rest.py", [patch_rest_error_diagnostics]
     )
 
     grpc_patches: list[Callable[[str], str]] = [

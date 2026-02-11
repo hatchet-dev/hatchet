@@ -8,7 +8,7 @@ package sqlcv1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const health = `-- name: Health :many
@@ -17,15 +17,15 @@ FROM "User"
 LIMIT 1
 `
 
-func (q *Queries) Health(ctx context.Context, db DBTX) ([]pgtype.UUID, error) {
+func (q *Queries) Health(ctx context.Context, db DBTX) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, health)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
