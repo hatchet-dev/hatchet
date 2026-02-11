@@ -120,7 +120,7 @@ WITH inputs AS (
 
 SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id, false AS already_exists FROM ins
 UNION ALL
-SELECT c.tenant_id, c.external_id, c.inserted_at, id, c.durable_task_id, c.durable_task_inserted_at, c.kind, c.node_id, c.is_satisfied, c.dispatcher_id, i.tenant_id, i.durable_task_id, i.durable_task_inserted_at, i.inserted_at, i.kind, i.node_id, i.is_satisfied, i.external_id, i.dispatcher_id, true AS already_exists
+SELECT c.tenant_id, c.external_id, c.inserted_at, c.id, c.durable_task_id, c.durable_task_inserted_at, c.kind, c.node_id, c.is_satisfied, c.dispatcher_id, true AS already_exists
 FROM v1_durable_event_log_callback c
 JOIN inputs i ON
     c.durable_task_id = i.durable_task_id
@@ -240,7 +240,7 @@ WITH inputs AS (
 
 SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, false AS already_exists FROM inserts
 UNION ALL
-SELECT e.tenant_id, e.external_id, e.inserted_at, id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.data_hash, e.data_hash_alg, i.tenant_id, i.external_id, i.durable_task_id, i.durable_task_inserted_at, i.inserted_at, i.kind, i.node_id, i.parent_node_id, i.branch_id, i.data_hash, i.data_hash_alg, true AS already_exists
+SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.data_hash, e.data_hash_alg, true AS already_exists
 FROM v1_durable_event_log_entry e
 JOIN inputs i ON
     e.durable_task_id = i.durable_task_id

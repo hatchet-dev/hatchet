@@ -67,7 +67,7 @@ WITH inputs AS (
 
 SELECT *, false AS already_exists FROM inserts
 UNION ALL
-SELECT *, true AS already_exists
+SELECT e.*, true AS already_exists
 FROM v1_durable_event_log_entry e
 JOIN inputs i ON
     e.durable_task_id = i.durable_task_id
@@ -134,7 +134,7 @@ WITH inputs AS (
 
 SELECT *, false AS already_exists FROM ins
 UNION ALL
-SELECT *, true AS already_exists
+SELECT c.*, true AS already_exists
 FROM v1_durable_event_log_callback c
 JOIN inputs i ON
     c.durable_task_id = i.durable_task_id
