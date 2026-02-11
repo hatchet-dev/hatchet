@@ -388,7 +388,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	// todo: real branching logic here
 	branchId := logFile.LatestBranchID
 
-	entryResult, err := r.getOrCreateEventLogEntry(ctx, tx, opts.TenantId, sqlcv1.CreateDurableEventLogEntryParams{
+	logEntry, err := r.getOrCreateEventLogEntry(ctx, tx, opts.TenantId, sqlcv1.CreateDurableEventLogEntryParams{
 		Tenantid:              opts.TenantId,
 		Externalid:            uuid.New(),
 		Durabletaskid:         task.ID,
@@ -421,7 +421,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to get or create callback entry: %w", err)
 	}
 
-	if !entryResult.AlreadyExisted {
+	if !logEntry.AlreadyExisted {
 		switch opts.Kind {
 		case sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED:
 			if opts.WaitForConditions != nil {
@@ -516,6 +516,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			LatestBranchID:                logFile.LatestBranchID,
 			LatestBranchFirstParentNodeID: logFile.LatestBranchFirstParentNodeID,
 		},
-		EventLogEntry: entryResult,
+		EventLogEntry: logEntry,
 	}, nil
 }
