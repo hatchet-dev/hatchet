@@ -85,6 +85,7 @@ type IngestDurableTaskEventOpts struct {
 }
 
 type IngestDurableTaskEventResult struct {
+	NodeId        int64
 	Callback      *EventLogCallbackWithPayload
 	EventLogEntry *EventLogEntryWithPayload
 	EventLogFile  *sqlcv1.V1DurableEventLogFile
@@ -360,7 +361,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	nodeId := int64(1)
 	if !logFile.IsNewInvocation {
-		nodeId = logFile.LatestNodeID
+		// if it's not a new invocation, we need to increment the latest node id (of the current invocation)
+		nodeId = logFile.LatestNodeID + 1
 	}
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
@@ -490,6 +492,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	return &IngestDurableTaskEventResult{
+		NodeId:   nodeId,
 		Callback: callbackResult,
 		EventLogFile: &sqlcv1.V1DurableEventLogFile{
 			TenantID:                      logFile.TenantID,

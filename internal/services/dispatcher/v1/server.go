@@ -485,7 +485,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			TriggerAck: &contracts.DurableTaskEventAckResponse{
 				InvocationCount:       req.InvocationCount,
 				DurableTaskExternalId: req.DurableTaskExternalId,
-				NodeId:                ingestionResult.EventLogFile.LatestNodeID,
+				NodeId:                ingestionResult.NodeId,
 			},
 		},
 	})

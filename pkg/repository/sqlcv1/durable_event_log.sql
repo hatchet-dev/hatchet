@@ -20,7 +20,7 @@ WITH existing_log_file AS (
         @durableTaskInsertedAt::TIMESTAMPTZ,
         @invocationCount::BIGINT,
         NOW(),
-        1,
+        0,
         1,
         0
     )
@@ -47,7 +47,6 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND node_id = @nodeId::BIGINT;
 
 -- name: CreateDurableEventLogEntry :one
-
 WITH ins AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,

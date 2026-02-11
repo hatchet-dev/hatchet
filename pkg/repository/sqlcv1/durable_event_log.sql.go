@@ -80,7 +80,6 @@ func (q *Queries) CreateDurableEventLogCallback(ctx context.Context, db DBTX, ar
 }
 
 const createDurableEventLogEntry = `-- name: CreateDurableEventLogEntry :one
-
 WITH ins AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -271,7 +270,7 @@ WITH existing_log_file AS (
         $3::TIMESTAMPTZ,
         $1::BIGINT,
         NOW(),
-        1,
+        0,
         1,
         0
     )
