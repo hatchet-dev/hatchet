@@ -39,7 +39,7 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
-import { SlotConfig, SlotType } from '../../slot-types';
+import { SlotConfig } from '../../slot-types';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
