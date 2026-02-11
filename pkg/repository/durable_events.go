@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -50,13 +51,15 @@ type CreateEventLogCallbackOpts struct {
 }
 
 type EventLogCallbackWithPayload struct {
-	Callback *sqlcv1.V1DurableEventLogCallback
-	Result   []byte
+	Callback       *sqlcv1.V1DurableEventLogCallback
+	Result         []byte
+	AlreadyExisted bool
 }
 
 type EventLogEntryWithPayload struct {
-	Entry   *sqlcv1.V1DurableEventLogEntry
-	Payload []byte
+	Entry          *sqlcv1.V1DurableEventLogEntry
+	Payload        []byte
+	AlreadyExisted bool
 }
 
 type TaskExternalIdNodeId struct {
@@ -142,7 +145,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			return nil, err
 		}
 
-		return &EventLogEntryWithPayload{Entry: entry, Payload: existingPayload}, nil
+		return &EventLogEntryWithPayload{Entry: entry, Payload: existingPayload, AlreadyExisted: row.AlreadyExists}, nil
 	}
 
 	if len(payload) > 0 {
@@ -159,7 +162,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		}
 	}
 
-	return &EventLogEntryWithPayload{Entry: entry, Payload: payload}, nil
+	return &EventLogEntryWithPayload{Entry: entry, Payload: payload, AlreadyExisted: row.AlreadyExists}, nil
 }
 
 func (r *durableEventsRepository) getOrCreateEventLogCallback(
@@ -201,7 +204,7 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 		}
 	}
 
-	return &EventLogCallbackWithPayload{Callback: callback, Result: result}, nil
+	return &EventLogCallbackWithPayload{Callback: callback, Result: result, AlreadyExisted: row.AlreadyExists}, nil
 }
 
 func (r *durableEventsRepository) UpdateEventLogCallbackSatisfied(ctx context.Context, tenantId uuid.UUID, nodeId, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, isSatisfied bool, result []byte) (*sqlcv1.V1DurableEventLogCallback, error) {
@@ -310,6 +313,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 	defer rollback()
 
+	oj, _ := json.MarshalIndent(opts, "", "  ")
+	fmt.Printf("Ingesting durable task event with opts: %s\n", string(oj))
+
+	// todo: maybe acquire an exclusive lock on the row before incrementing the node id here
+
 	logFile, err := r.queries.IncrementAndGetNextNodeId(ctx, tx, sqlcv1.IncrementAndGetNextNodeIdParams{
 		Tenantid:              opts.TenantId,
 		Durabletaskid:         task.ID,
@@ -323,10 +331,14 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 
+	// todo: real logic here for figuring out the parent
 	parentNodeId := pgtype.Int8{
-		Int64: nodeId - 1,
-		Valid: nodeId > 1,
+		Int64: 0,
+		Valid: false,
 	}
+
+	// todo: real branching logic here
+	branchId := logFile.LatestBranchID
 
 	entryResult, err := r.getOrCreateEventLogEntry(ctx, tx, opts.TenantId, sqlcv1.GetOrCreateDurableEventLogEntryParams{
 		Tenantid:              opts.TenantId,
@@ -337,10 +349,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Kind:                  opts.Kind,
 		Nodeid:                nodeId,
 		ParentNodeId:          parentNodeId,
-		Branchid:              logFile.LatestBranchID,
-		Datahash:              nil,
+		Branchid:              branchId,
+		Datahash:              nil, // todo: implement this for nondeterminism check
 		Datahashalg:           "",
 	}, opts.Payload)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
 	}
@@ -356,86 +369,87 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Externalid:            uuid.New(),
 		Dispatcherid:          opts.DispatcherId,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or create callback entry: %w", err)
 	}
 
-	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED:
-		if opts.WaitForConditions != nil {
-			externalId := opts.Task.ExternalID
-			signalKey := getDurableTaskSignalKey(externalId, nodeId)
+	if !entryResult.AlreadyExisted {
+		switch opts.Kind {
+		case sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED:
+			if opts.WaitForConditions != nil {
+				externalId := opts.Task.ExternalID
+				signalKey := getDurableTaskSignalKey(externalId, nodeId)
 
-			createConditionOpts := make([]CreateExternalSignalConditionOpt, 0)
+				createConditionOpts := make([]CreateExternalSignalConditionOpt, 0)
 
-			for _, condition := range opts.WaitForConditions.SleepConditions {
-				orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-				if err != nil {
-					return nil, fmt.Errorf("or group id is not a valid uuid: %w", err)
+				for _, condition := range opts.WaitForConditions.SleepConditions {
+					orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+					if err != nil {
+						return nil, fmt.Errorf("or group id is not a valid uuid: %w", err)
+					}
+
+					createConditionOpts = append(createConditionOpts, CreateExternalSignalConditionOpt{
+						Kind:            CreateExternalSignalConditionKindSLEEP,
+						ReadableDataKey: condition.Base.ReadableDataKey,
+						OrGroupId:       orGroupId,
+						SleepFor:        &condition.SleepFor,
+					})
 				}
 
-				createConditionOpts = append(createConditionOpts, CreateExternalSignalConditionOpt{
-					Kind:            CreateExternalSignalConditionKindSLEEP,
-					ReadableDataKey: condition.Base.ReadableDataKey,
-					OrGroupId:       orGroupId,
-					SleepFor:        &condition.SleepFor,
-				})
-			}
+				for _, condition := range opts.WaitForConditions.UserEventConditions {
+					orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+					if err != nil {
+						return nil, fmt.Errorf("or group id is not a valid uuid: %w", err)
+					}
 
-			for _, condition := range opts.WaitForConditions.UserEventConditions {
-				orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-				if err != nil {
-					return nil, fmt.Errorf("or group id is not a valid uuid: %w", err)
+					createConditionOpts = append(createConditionOpts, CreateExternalSignalConditionOpt{
+						Kind:            CreateExternalSignalConditionKindUSEREVENT,
+						ReadableDataKey: condition.Base.ReadableDataKey,
+						OrGroupId:       orGroupId,
+						UserEventKey:    &condition.UserEventKey,
+						Expression:      condition.Base.Expression,
+					})
 				}
 
-				createConditionOpts = append(createConditionOpts, CreateExternalSignalConditionOpt{
-					Kind:            CreateExternalSignalConditionKindUSEREVENT,
-					ReadableDataKey: condition.Base.ReadableDataKey,
-					OrGroupId:       orGroupId,
-					UserEventKey:    &condition.UserEventKey,
-					Expression:      condition.Base.Expression,
-				})
-			}
+				if len(createConditionOpts) > 0 {
+					taskExternalId := task.ExternalID
+					createMatchOpts := []ExternalCreateSignalMatchOpts{{
+						Conditions:                    createConditionOpts,
+						SignalTaskId:                  task.ID,
+						SignalTaskInsertedAt:          task.InsertedAt,
+						SignalExternalId:              task.ExternalID,
+						SignalKey:                     signalKey,
+						DurableCallbackTaskId:         &task.ID,
+						DurableCallbackTaskInsertedAt: task.InsertedAt,
+						DurableCallbackNodeId:         &callbackResult.Callback.NodeID,
+						DurableCallbackTaskExternalId: &taskExternalId,
+					}}
 
-			if len(createConditionOpts) > 0 {
-				taskExternalId := task.ExternalID
-				createMatchOpts := []ExternalCreateSignalMatchOpts{{
-					Conditions:                    createConditionOpts,
-					SignalTaskId:                  task.ID,
-					SignalTaskInsertedAt:          task.InsertedAt,
-					SignalExternalId:              task.ExternalID,
-					SignalKey:                     signalKey,
-					DurableCallbackTaskId:         &task.ID,
-					DurableCallbackTaskInsertedAt: task.InsertedAt,
-					DurableCallbackNodeId:         &callbackResult.Callback.NodeID,
-					DurableCallbackTaskExternalId: &taskExternalId,
-				}}
-
-				err = r.registerSignalMatchConditions(ctx, tx, opts.TenantId, createMatchOpts)
-				if err != nil {
-					return nil, fmt.Errorf("failed to register signal match conditions: %w", err)
+					err = r.registerSignalMatchConditions(ctx, tx, opts.TenantId, createMatchOpts)
+					if err != nil {
+						return nil, fmt.Errorf("failed to register signal match conditions: %w", err)
+					}
 				}
 			}
+		case sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED:
+			triggerOpt, err := r.NewTriggerOpt(ctx, opts.TenantId, nil, task)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to create trigger options: %w", err)
+			}
+
+			_, _, err = r.triggerFromWorkflowNames(ctx, tx, opts.TenantId, []*WorkflowNameTriggerOpts{triggerOpt})
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to trigger workflows: %w", err)
+			}
+
+		case sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED:
+			// todo: memo here
+		default:
+			return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 		}
-	case sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED:
-		triggerOpt, err := r.NewTriggerOpt(ctx, opts.TenantId, nil, task)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to create trigger options: %w", err)
-		}
-
-		// todo: need to pub olap messages after this somewhere
-		_, _, err = r.triggerFromWorkflowNames(ctx, tx, opts.TenantId, []*WorkflowNameTriggerOpts{triggerOpt})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to trigger workflows: %w", err)
-		}
-
-		// todo: pub to olap here
-	case sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED:
-		// todo: memo here
-	default:
-		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
 	if err := commit(ctx); err != nil {
