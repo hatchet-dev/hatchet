@@ -345,10 +345,11 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					// but skip the first heartbeat since lastHeartbeat is artificially backdated
 					if !firstHeartbeat {
 						actualInterval := now.Sub(lastHeartbeat)
-						if actualInterval > heartbeatInterval*6/5 {
+						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
+						if actualInterval > heartbeatInterval+1*time.Second {
 							a.l.Warn().Msgf(
 								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
-								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval,
+								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
 							)
 						}
 					}
