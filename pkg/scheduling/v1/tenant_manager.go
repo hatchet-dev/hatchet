@@ -124,18 +124,18 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 			if msg.isIncremental {
 				for _, worker := range msg.items {
 					t.scheduler.addWorker(worker)
-
-					t.replenish(ctx)
-
-					// notify all queues to check if the new worker can take any tasks
-					t.queuersMu.RLock()
-
-					for _, q := range t.queuers {
-						q.queue(ctx)
-					}
-
-					t.queuersMu.RUnlock()
 				}
+
+				t.replenish(ctx)
+
+				// notify all queues to check if the new worker can take any tasks
+				t.queuersMu.RLock()
+
+				for _, q := range t.queuers {
+					q.queue(ctx)
+				}
+
+				t.queuersMu.RUnlock()
 			} else {
 				t.scheduler.setWorkers(msg.items)
 			}

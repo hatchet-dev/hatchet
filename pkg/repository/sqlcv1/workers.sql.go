@@ -196,11 +196,17 @@ LEFT JOIN
     "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
     w."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
     AND w."dispatcherId" IS NOT NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
 `
+
+type GetActiveWorkerByIdParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
 
 type GetActiveWorkerByIdRow struct {
 	Worker         Worker      `json:"worker"`
@@ -208,8 +214,8 @@ type GetActiveWorkerByIdRow struct {
 	RemainingSlots int32       `json:"remainingSlots"`
 }
 
-func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetActiveWorkerByIdRow, error) {
-	row := db.QueryRow(ctx, getActiveWorkerById, id)
+func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiveWorkerByIdParams) (*GetActiveWorkerByIdRow, error) {
+	row := db.QueryRow(ctx, getActiveWorkerById, arg.ID, arg.Tenantid)
 	var i GetActiveWorkerByIdRow
 	err := row.Scan(
 		&i.Worker.ID,

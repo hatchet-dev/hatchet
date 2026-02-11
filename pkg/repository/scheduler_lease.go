@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -164,14 +163,13 @@ func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerI
 	ctx, span := telemetry.NewSpan(ctx, "get-active-worker")
 	defer span.End()
 
-	worker, err := d.queries.GetActiveWorkerById(ctx, d.pool, workerId)
+	worker, err := d.queries.GetActiveWorkerById(ctx, d.pool, sqlcv1.GetActiveWorkerByIdParams{
+		Tenantid: tenantId,
+		ID:       workerId,
+	})
 
 	if err != nil {
 		return nil, err
-	}
-
-	if worker.Worker.TenantId != tenantId {
-		return nil, fmt.Errorf("active worker %s does not belong to tenant %s", workerId, tenantId)
 	}
 
 	labels, err := d.queries.ListManyWorkerLabels(ctx, d.pool, []uuid.UUID{workerId})

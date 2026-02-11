@@ -88,6 +88,7 @@ LEFT JOIN
     "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
     w."id" = @id::uuid
+    AND w."tenantId" = @tenantId::uuid
     AND w."dispatcherId" IS NOT NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
