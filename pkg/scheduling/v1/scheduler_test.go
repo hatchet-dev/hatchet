@@ -239,7 +239,7 @@ func TestScheduler_SetWorkers_GetWorkers(t *testing.T) {
 
 	s.setWorkers([]*repo.ListActiveWorkersResult{w1, w2})
 
-	got := s.getWorkers()
+	got := s.copyWorkers()
 	require.Len(t, got, 2)
 	require.Equal(t, w1.ID, got[w1.ID].ID)
 	require.Equal(t, w2.ID, got[w2.ID].ID)
