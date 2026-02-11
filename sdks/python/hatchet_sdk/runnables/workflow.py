@@ -263,8 +263,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return options_copy
 
     @property
-    def input_validator(self) -> type[TWorkflowInput]:
-        return cast(type[TWorkflowInput], self.config.input_validator)
+    def input_validator(self) -> TypeAdapter[TWorkflowInput]:
+        return cast(TypeAdapter[TWorkflowInput], self.config.input_validator)
+
+    @property
+    def input_validator_type(self) -> type[TWorkflowInput]:
+        return cast(type[TWorkflowInput], self.config.input_validator._type)
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
