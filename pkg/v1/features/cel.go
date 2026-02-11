@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -11,8 +13,6 @@ import (
 
 // Deprecated: CELClient is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// The CEL client is a client for debugging CEL expressions within Hatchet
 type CELClient interface {
 	Debug(ctx context.Context, expression string, input map[string]interface{}, additionalMetadata, filterPayload *map[string]interface{}) (*CELEvaluationResult, error)
 }
@@ -44,7 +44,8 @@ type CELEvaluationResult struct {
 	err    *string
 }
 
-// Debug a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production.
+// Deprecated: Debug is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *celClientImpl) Debug(ctx context.Context, expression string, input map[string]interface{}, additionalMetadata, filterPayload *map[string]interface{}) (*CELEvaluationResult, error) {
 	resp, err := c.api.V1CelDebugWithResponse(
 		ctx,

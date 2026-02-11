@@ -1,4 +1,5 @@
-// package features provides functionality for interacting with hatchet features.
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -12,26 +13,17 @@ import (
 
 // Deprecated: CreateRatelimitOpts is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// createRatelimitOpts contains options for creating or updating a rate limit.
 type CreateRatelimitOpts struct {
-	// key is the unique identifier for the rate limit
-	Key string
-	// limit is the maximum number of requests allowed within the duration
-	Limit int
-	// duration specifies the time period for the rate limit
+	Key      string
+	Limit    int
 	Duration types.RateLimitDuration
 }
 
 // Deprecated: RateLimitsClient is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// rateLimitsClient provides an interface for managing rate limits.
 type RateLimitsClient interface {
-	// upsert creates or updates a rate limit with the provided options.
 	Upsert(opts CreateRatelimitOpts) error
 
-	// list retrieves rate limits based on the provided parameters (optional).
 	List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitListResponse, error)
 }
 
