@@ -41,6 +41,8 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_admin_client,
+    ctx_durable_context,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -261,6 +263,10 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
         ctx_task_retry_count.set(action.retry_count)
+        ctx_admin_client.set(self.admin_client)
+        ctx_durable_context.set(
+            ctx if isinstance(ctx, DurableContext) and task.is_durable else None
+        )
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:

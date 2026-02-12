@@ -536,25 +536,12 @@ class DurableContext(Context):
         )
 
     ## todo: instrumentor for this
-    async def spawn_child(
+    async def _spawn_child(
         self,
         workflow: "BaseWorkflow[TWorkflowInput]",
         input: TWorkflowInput = cast(Any, EmptyModel()),
         options: "TriggerWorkflowOptions" | None = None,
     ) -> dict[str, Any]:
-        """
-        Spawn a child workflow and durably wait for it to complete.
-
-        This method triggers a child workflow run and waits for it to complete
-        using the durable task stream for reliable delivery.
-
-        :param workflow: The workflow to spawn as a child (can be either a `Workflow` or a `Standalone` task).
-        :param input: The input data for the child workflow.
-        :param options: Optional options to configure the child workflow run.
-
-        :raises ValueError: If the durable task client is not available.
-        :return: The result of the child workflow execution.
-        """
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
