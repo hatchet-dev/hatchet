@@ -5,6 +5,8 @@ import signal
 import threading
 import time
 import traceback
+from typing import Any
+
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -52,7 +54,7 @@ def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "Hello from durable!"}
 
 
-def _force_stop_worker(worker, thread) -> None:
+def _force_stop_worker(worker: Any, thread: threading.Thread) -> None:
     """Forcefully terminate the worker and its child processes."""
     worker.killing = True
     worker._terminate_processes()
@@ -62,7 +64,7 @@ def _force_stop_worker(worker, thread) -> None:
     thread.join(timeout=5)
 
 
-def start_worker(suffix: str = "") -> tuple:
+def start_worker(suffix: str = "") -> tuple[Any, threading.Thread]:
     """Create and start a worker in a background thread."""
     name = f"test-worker-{suffix}" if suffix else "test-worker"
     worker = hatchet.worker(
@@ -85,7 +87,7 @@ def start_worker(suffix: str = "") -> tuple:
     return worker, thread
 
 
-def stop_worker(worker, thread) -> None:
+def stop_worker(worker: Any, thread: threading.Thread) -> None:
     """Stop the worker gracefully."""
     try:
         if worker.loop and worker.loop.is_running():
