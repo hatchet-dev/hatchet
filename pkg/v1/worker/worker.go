@@ -142,6 +142,9 @@ type NamedFunction struct {
 	Fn       workflow.WrappedTaskFn
 }
 
+// Deprecated: RegisterWorkflows is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // RegisterWorkflows registers one or more workflows with the worker.
 // it converts the workflows to the format expected by the underlying worker implementation
 // and registers both the workflow definitions and their action functions.
@@ -216,6 +219,9 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 	return nil
 }
 
+// Deprecated: Start is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Start begins worker execution in a non-blocking manner.
 // returns a cleanup function to be called when the worker should be stopped,
 // and any error encountered during startup.
@@ -232,6 +238,9 @@ func (w *WorkerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
+// Deprecated: StartBlocking is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // StartBlocking begins worker execution and blocks until the process is interrupted.
 // this method handles graceful shutdown via interrupt signals.
 // returns any error encountered during startup or shutdown.
@@ -250,7 +259,10 @@ func (w *WorkerImpl) StartBlocking(ctx context.Context) error {
 	return nil
 }
 
-// IsPaused checks if the worker is paused
+// Deprecated: IsPaused is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// IsPaused checks if all worker instances are paused
 func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
 	if w.worker == nil {
 		return false, nil
@@ -259,7 +271,10 @@ func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
 	return w.workers.IsPaused(ctx, *w.worker.ID())
 }
 
-// Pause pauses the worker
+// Deprecated: Pause is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Pause pauses all worker instances
 func (w *WorkerImpl) Pause(ctx context.Context) error {
 	if w.worker == nil {
 		return nil
@@ -269,7 +284,10 @@ func (w *WorkerImpl) Pause(ctx context.Context) error {
 	return err
 }
 
-// Unpause resumes the paused worker
+// Deprecated: Unpause is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Unpause resumes all paused worker instances
 func (w *WorkerImpl) Unpause(ctx context.Context) error {
 	if w.worker == nil {
 		return nil

@@ -11,6 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
 )
 
+// Deprecated: ManagedCompute is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ManagedCompute struct {
 	ActionRegistry  *ActionRegistry
 	Client          client.Client
@@ -20,6 +22,8 @@ type ManagedCompute struct {
 	Logger          *zerolog.Logger
 }
 
+// Deprecated: NewManagedCompute is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewManagedCompute(actionRegistry *ActionRegistry, client client.Client, maxRuns int) *ManagedCompute {
 	if maxRuns == 0 {
 		maxRuns = 1
@@ -106,6 +110,8 @@ func getComputeConfigs(actions *ActionRegistry, maxRuns int) []rest.CreateManage
 	return configs
 }
 
+// Deprecated: CloudRegister is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (mc *ManagedCompute) CloudRegister(ctx context.Context) {
 	if mc.CloudRegisterID != nil {
 		mc.Logger.Info().Msg("Registering cloud compute plan with ID: " + *mc.CloudRegisterID)

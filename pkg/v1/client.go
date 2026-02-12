@@ -87,6 +87,8 @@ func NewHatchetClient(config ...Config) (HatchetClient, error) {
 	}, nil
 }
 
+// Deprecated: Metrics is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Metrics() features.MetricsClient {
 	if c.metrics == nil {
 		api := c.V0().API()
@@ -97,25 +99,38 @@ func (c *v1HatchetClientImpl) Metrics() features.MetricsClient {
 	return c.metrics
 }
 
+// Deprecated: V0 is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // V0 returns the underlying V0 client for backward compatibility.
 func (c *v1HatchetClientImpl) V0() v0Client.Client {
 	return c.v0
 }
 
+// Deprecated: Workflow is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Workflow creates a new workflow declaration with the provided options.
 func (c *v1HatchetClientImpl) Workflow(opts create.WorkflowCreateOpts[any]) workflow.WorkflowDeclaration[any, any] {
 	return workflow.NewWorkflowDeclaration[any, any](opts, c.v0)
 }
 
+// Deprecated: Events is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Events() v0Client.EventClient {
 	return c.V0().Event()
 }
 
+// Deprecated: Worker is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Worker creates and configures a new worker with the provided options and optional configuration functions.
 func (c *v1HatchetClientImpl) Worker(opts worker.WorkerOpts) (worker.Worker, error) {
 	return worker.NewWorker(c.workers, c.v0, opts)
 }
 
+// Deprecated: RateLimits is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) RateLimits() features.RateLimitsClient {
 	if c.rateLimits == nil {
 		api := c.V0().API()
@@ -126,6 +141,8 @@ func (c *v1HatchetClientImpl) RateLimits() features.RateLimitsClient {
 	return c.rateLimits
 }
 
+// Deprecated: Runs is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Runs() features.RunsClient {
 	if c.runs == nil {
 		tenantId := c.V0().TenantId()
@@ -134,6 +151,8 @@ func (c *v1HatchetClientImpl) Runs() features.RunsClient {
 	return c.runs
 }
 
+// Deprecated: Workers is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Workers() features.WorkersClient {
 	if c.workers == nil {
 		api := c.V0().API()
@@ -143,6 +162,8 @@ func (c *v1HatchetClientImpl) Workers() features.WorkersClient {
 	return c.workers
 }
 
+// Deprecated: Workflows is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Workflows() features.WorkflowsClient {
 	if c.workflows == nil {
 		api := c.V0().API()
@@ -152,6 +173,8 @@ func (c *v1HatchetClientImpl) Workflows() features.WorkflowsClient {
 	return c.workflows
 }
 
+// Deprecated: Crons is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Crons() features.CronsClient {
 	if c.crons == nil {
 		api := c.V0().API()
@@ -161,6 +184,8 @@ func (c *v1HatchetClientImpl) Crons() features.CronsClient {
 	return c.crons
 }
 
+// Deprecated: Schedules is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Schedules() features.SchedulesClient {
 	if c.schedules == nil {
 		api := c.V0().API()
@@ -172,6 +197,8 @@ func (c *v1HatchetClientImpl) Schedules() features.SchedulesClient {
 	return c.schedules
 }
 
+// Deprecated: Filters is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Filters() features.FiltersClient {
 	if c.filters == nil {
 		api := c.V0().API()
@@ -181,6 +208,8 @@ func (c *v1HatchetClientImpl) Filters() features.FiltersClient {
 	return c.filters
 }
 
+// Deprecated: CEL is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) CEL() features.CELClient {
 	if c.cel == nil {
 		api := c.V0().API()
@@ -190,6 +219,8 @@ func (c *v1HatchetClientImpl) CEL() features.CELClient {
 	return c.cel
 }
 
+// Deprecated: Webhooks is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *v1HatchetClientImpl) Webhooks() features.WebhooksClient {
 	if c.webhooks == nil {
 		api := c.V0().API()

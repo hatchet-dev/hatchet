@@ -115,6 +115,9 @@ type DurableTaskDeclaration[I any] struct {
 	Fn interface{}
 }
 
+// Deprecated: OnFailureTaskDeclaration is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // OnFailureTaskDeclaration represents a task that will be executed if
 // any tasks in the workflow fail.
 type OnFailureTaskDeclaration[I any] struct {
@@ -279,6 +282,9 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	return taskOpts
 }
 
+// Deprecated: Dump is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Dump converts the task declaration into a protobuf request.
 func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
@@ -333,6 +339,8 @@ func durationToSeconds(d time.Duration) string {
 	return fmt.Sprintf("%ds", int(d.Seconds()))
 }
 
+// Deprecated: Dump is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
@@ -343,6 +351,9 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *crea
 	return base
 }
 
+// Deprecated: Dump is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Dump converts the on failure task declaration into a protobuf request.
 func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
@@ -354,17 +365,20 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *cr
 	return base
 }
 
-// Implement GetName for TaskDeclaration
+// Deprecated: GetName is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (t *TaskDeclaration[I]) GetName() string {
 	return t.Name
 }
 
-// Implement GetName for DurableTaskDeclaration
+// Deprecated: GetName is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (t *DurableTaskDeclaration[I]) GetName() string {
 	return t.Name
 }
 
-// Implement GetName for NamedTask
+// Deprecated: GetName is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (t *NamedTaskImpl) GetName() string {
 	return t.Name
 }
