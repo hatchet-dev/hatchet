@@ -589,6 +589,12 @@ export interface ReleaseSlotRequest {
 
 export interface ReleaseSlotResponse {}
 
+export interface GetVersionRequest {}
+
+export interface GetVersionResponse {
+  dispatcherVersion: number;
+}
+
 function createBaseWorkerLabels(): WorkerLabels {
   return { strValue: undefined, intValue: undefined };
 }
@@ -3812,6 +3818,108 @@ export const ReleaseSlotResponse: MessageFns<ReleaseSlotResponse> = {
   },
 };
 
+function createBaseGetVersionRequest(): GetVersionRequest {
+  return {};
+}
+
+export const GetVersionRequest: MessageFns<GetVersionRequest> = {
+  encode(_: GetVersionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetVersionRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetVersionRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        default:
+          reader.skip(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(_: any): GetVersionRequest {
+    return {};
+  },
+
+  toJSON(_: GetVersionRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetVersionRequest>): GetVersionRequest {
+    return GetVersionRequest.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<GetVersionRequest>): GetVersionRequest {
+    const message = createBaseGetVersionRequest();
+    return message;
+  },
+};
+
+function createBaseGetVersionResponse(): GetVersionResponse {
+  return { dispatcherVersion: 0 };
+}
+
+export const GetVersionResponse: MessageFns<GetVersionResponse> = {
+  encode(message: GetVersionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.dispatcherVersion !== 0) {
+      writer.uint32(8).int32(message.dispatcherVersion);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetVersionResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetVersionResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+          message.dispatcherVersion = reader.int32();
+          continue;
+        }
+        default:
+          reader.skip(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetVersionResponse {
+    return {
+      dispatcherVersion: isSet(object.dispatcherVersion)
+        ? globalThis.Number(object.dispatcherVersion)
+        : 0,
+    };
+  },
+
+  toJSON(message: GetVersionResponse): unknown {
+    const obj: any = {};
+    if (message.dispatcherVersion !== 0) {
+      obj.dispatcherVersion = globalThis.Math.round(message.dispatcherVersion);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetVersionResponse>): GetVersionResponse {
+    return GetVersionResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetVersionResponse>): GetVersionResponse {
+    const message = createBaseGetVersionResponse();
+    message.dispatcherVersion = object.dispatcherVersion ?? 0;
+    return message;
+  },
+};
+
 export type DispatcherDefinition = typeof DispatcherDefinition;
 export const DispatcherDefinition = {
   name: 'Dispatcher',
@@ -3926,6 +4034,18 @@ export const DispatcherDefinition = {
       responseStream: false,
       options: {},
     },
+    /**
+     * GetVersion returns the engine version. SDKs use this to determine whether to use
+     * the new slot_config registration or fall back to the legacy slots-based registration.
+     */
+    getVersion: {
+      name: 'GetVersion',
+      requestType: GetVersionRequest,
+      requestStream: false,
+      responseType: GetVersionResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -3987,6 +4107,10 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
     request: UpsertWorkerLabelsRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<UpsertWorkerLabelsResponse>>;
+  getVersion(
+    request: GetVersionRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<GetVersionResponse>>;
 }
 
 export interface DispatcherClient<CallOptionsExt = {}> {
@@ -4047,6 +4171,10 @@ export interface DispatcherClient<CallOptionsExt = {}> {
     request: DeepPartial<UpsertWorkerLabelsRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<UpsertWorkerLabelsResponse>;
+  getVersion(
+    request: DeepPartial<GetVersionRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<GetVersionResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

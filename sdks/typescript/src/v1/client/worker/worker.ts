@@ -7,6 +7,7 @@ import { BaseWorkflowDeclaration } from '../../declaration';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
 import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
+import { isLegacyEngine, LegacyDualWorker } from './deprecated';
 
 /**
  * Options for creating a new hatchet worker
@@ -30,6 +31,9 @@ export class Worker {
 
   /** Internal reference to the underlying V0 worker implementation */
   _internal: V1Worker;
+
+  /** Set when connected to a legacy engine that needs dual-worker architecture */
+  private _legacyWorker: LegacyDualWorker | undefined;
 
   /**
    * Creates a new HatchetWorker instance
@@ -108,7 +112,12 @@ export class Worker {
    * Starts the worker
    * @returns Promise that resolves when the worker is stopped or killed
    */
-  start() {
+  async start() {
+    // Check engine version and fall back to legacy dual-worker mode if needed
+    if (await isLegacyEngine(this._v1)) {
+      this._legacyWorker = await LegacyDualWorker.create(this._v1, this.name, this.config);
+      return this._legacyWorker.start();
+    }
     return this._internal.start();
   }
 
@@ -117,6 +126,9 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
+    if (this._legacyWorker) {
+      return this._legacyWorker.stop();
+    }
     return this._internal.stop();
   }
 

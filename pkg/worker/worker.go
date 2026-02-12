@@ -126,6 +126,11 @@ type Worker struct {
 	durableSlots *int
 	slotConfig   map[string]int32
 
+	// legacySlots, when non-nil, causes the registration to use the deprecated
+	// `slots` proto field instead of `slot_config`. For backward compatibility
+	// with engines that do not support multiple slot types.
+	legacySlots *int32
+
 	initActionNames []string
 
 	labels map[string]interface{}
@@ -151,6 +156,7 @@ type WorkerOpts struct {
 	slots        *int
 	durableSlots *int
 	slotConfig   map[string]int32
+	legacySlots  *int32
 
 	actions []string
 
@@ -233,6 +239,15 @@ func WithDurableSlots(durableSlots int) WorkerOpt {
 func WithSlotConfig(slotConfig map[string]int32) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.slotConfig = slotConfig
+	}
+}
+
+// WithLegacySlots configures the worker to register using the deprecated `slots`
+// proto field instead of `slot_config`. This is for backward compatibility with
+// engines that do not support multiple slot types.
+func WithLegacySlots(slots int32) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.legacySlots = &slots
 	}
 }
 
@@ -340,6 +355,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		slots:                opts.slots,
 		durableSlots:         opts.durableSlots,
 		slotConfig:           opts.slotConfig,
+		legacySlots:          opts.legacySlots,
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
@@ -570,10 +586,11 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	_ = NewManagedCompute(&w.actions, w.client, 1)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
-		WorkerName: w.name,
-		Actions:    actionNames,
-		Labels:     w.labels,
-		SlotConfig: w.slotConfig,
+		WorkerName:  w.name,
+		Actions:     actionNames,
+		Labels:      w.labels,
+		SlotConfig:  w.slotConfig,
+		LegacySlots: w.legacySlots,
 	})
 
 	w.id = id

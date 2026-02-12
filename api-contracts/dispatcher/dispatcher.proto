@@ -33,6 +33,11 @@ service Dispatcher {
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 
     rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
+
+    // GetVersion returns the dispatcher protocol version as a simple integer.
+    // SDKs use this to determine feature support (e.g. slot_config registration).
+    // Old engines that do not implement this RPC will return UNIMPLEMENTED.
+    rpc GetVersion(GetVersionRequest) returns (GetVersionResponse) {}
 }
 
 message WorkerLabels {
@@ -406,3 +411,9 @@ message ReleaseSlotRequest {
 }
 
 message ReleaseSlotResponse {}
+
+message GetVersionRequest {}
+
+message GetVersionResponse {
+    int32 dispatcher_version = 1;
+}

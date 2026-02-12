@@ -903,6 +903,20 @@ export class V1Worker {
     }
   }
 
+  /**
+   * Creates an action listener by registering the worker with the dispatcher.
+   * Override in subclasses to change registration behavior (e.g. legacy engines).
+   */
+  protected async createListener(): Promise<ActionListener> {
+    return this.client._v0.dispatcher.getActionListener({
+      workerName: this.name,
+      services: ['default'],
+      actions: Object.keys(this.action_registry),
+      slotConfig: this.slotConfig,
+      labels: this.labels,
+    });
+  }
+
   async start() {
     this.setStatus(workerStatus.STARTING);
 
@@ -924,13 +938,7 @@ export class V1Worker {
     }
 
     try {
-      this.listener = await this.client._v0.dispatcher.getActionListener({
-        workerName: this.name,
-        services: ['default'],
-        actions: Object.keys(this.action_registry),
-        slotConfig: this.slotConfig,
-        labels: this.labels,
-      });
+      this.listener = await this.createListener();
 
       this.workerId = this.listener.workerId;
       this.setStatus(workerStatus.HEALTHY);

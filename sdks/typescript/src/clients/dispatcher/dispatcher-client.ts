@@ -87,6 +87,15 @@ export class DispatcherClient {
     return new ActionListener(this, registration.workerId);
   }
 
+  /**
+   * Calls the GetVersion RPC. Returns the dispatcher protocol version as a number.
+   * Throws a gRPC error with code UNIMPLEMENTED on older engines.
+   */
+  async getVersion(): Promise<number> {
+    const response = await this.client.getVersion({});
+    return response.dispatcherVersion;
+  }
+
   async sendStepActionEvent(in_: StepActionEventInput) {
     const { taskId, taskRunExternalId, ...rest } = in_;
     const event: StepActionEvent = {
@@ -139,7 +148,7 @@ export class DispatcherClient {
   }
 }
 
-function mapLabels(in_: WorkerLabels): Record<string, PbWorkerAffinityConfig> {
+export function mapLabels(in_: WorkerLabels): Record<string, PbWorkerAffinityConfig> {
   return Object.entries(in_).reduce<Record<string, PbWorkerAffinityConfig>>(
     (acc, [key, value]) => ({
       ...acc,

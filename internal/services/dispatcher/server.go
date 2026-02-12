@@ -651,3 +651,9 @@ func UnmarshalPayload[T any](payload interface{}) (T, error) {
 
 	return result, nil
 }
+
+func (s *DispatcherImpl) GetVersion(ctx context.Context, req *contracts.GetVersionRequest) (*contracts.GetVersionResponse, error) {
+	return &contracts.GetVersionResponse{
+		DispatcherVersion: 1,
+	}, nil
+}

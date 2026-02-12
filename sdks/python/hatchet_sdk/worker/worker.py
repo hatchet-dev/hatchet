@@ -14,9 +14,12 @@ from types import FrameType
 from typing import Any, TypeVar
 from warnings import warn
 
+import grpc
+
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
+from hatchet_sdk.deprecated.worker import legacy_aio_start
 from hatchet_sdk.exceptions import LifespanSetupError, LoopAlreadyRunningError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
@@ -204,6 +207,35 @@ class Worker:
         if self.handle_kill:
             sys.exit(0)
 
+    async def _check_engine_version(self) -> bool:
+        """Returns True if engine is legacy (pre-slot-config)."""
+        try:
+            from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+
+            dispatcher = DispatcherClient(self.config)
+            await dispatcher.get_version()
+            return False  # new engine
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.UNIMPLEMENTED:
+                from datetime import datetime, timezone
+
+                from hatchet_sdk.deprecated.deprecation import (
+                    emit_deprecation_notice,
+                )
+
+                emit_deprecation_notice(
+                    feature="legacy-engine",
+                    message=(
+                        "Connected to an older Hatchet engine that does not support "
+                        "multiple slot types. Falling back to legacy worker registration. "
+                        "Please upgrade your Hatchet engine to the latest version."
+                    ),
+                    start=datetime(2026, 2, 12, tzinfo=timezone.utc),
+                    error_days=180,
+                )
+                return True  # old engine
+            raise
+
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
 
@@ -217,6 +249,12 @@ class Worker:
             raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
+
+        # Check engine version and fall back to legacy dual-worker mode if needed
+        is_legacy = await self._check_engine_version()
+        if is_legacy:
+            await legacy_aio_start(self)
+            return
 
         lifespan_context = None
         if self.lifespan:
@@ -430,6 +468,13 @@ class Worker:
         if self.action_runner is not None:
             self.action_runner.cleanup()
 
+        # Also clean up the durable action runner (legacy mode)
+        durable_runner: WorkerActionRunLoopManager | None = getattr(
+            self, "_legacy_durable_action_runner", None
+        )
+        if durable_runner is not None:
+            durable_runner.cleanup()
+
         await self.action_listener_health_check
 
         self._close_queues()
@@ -446,8 +491,22 @@ class Worker:
             await self.action_runner.wait_for_tasks()
             await self.action_runner.exit_gracefully()
 
+        # Also clean up the durable action runner (legacy mode)
+        durable_runner: WorkerActionRunLoopManager | None = getattr(
+            self, "_legacy_durable_action_runner", None
+        )
+        if durable_runner:
+            await durable_runner.wait_for_tasks()
+            await durable_runner.exit_gracefully()
+
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
+
+        if (
+            self.durable_action_listener_process
+            and self.durable_action_listener_process.is_alive()
+        ):
+            self.durable_action_listener_process.kill()
 
         try:
             await self._cleanup_lifespan()

@@ -25,6 +25,10 @@ import (
 type DispatcherClient interface {
 	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
+	// GetVersion calls the GetVersion RPC. Returns the dispatcher protocol version.
+	// Old engines that do not implement this will return codes.Unimplemented.
+	GetVersion(ctx context.Context) (int32, error)
+
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
@@ -50,6 +54,11 @@ type GetActionListenerRequest struct {
 	SlotConfig map[string]int32
 	Labels     map[string]interface{}
 	WebhookId  *string
+
+	// LegacySlots, when non-nil, causes the registration to use the deprecated
+	// `slots` proto field instead of `slot_config`. This is for backward
+	// compatibility with engines that do not support multiple slot types.
+	LegacySlots *int32
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -270,7 +279,9 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if len(req.SlotConfig) > 0 {
+	if req.LegacySlots != nil {
+		registerReq.Slots = req.LegacySlots
+	} else if len(req.SlotConfig) > 0 {
 		registerReq.SlotConfig = req.SlotConfig
 	} else {
 		return nil, nil, fmt.Errorf("slot config is required for worker registration")
@@ -533,6 +544,14 @@ func (a *actionListenerImpl) Unregister() error {
 	}
 
 	return nil
+}
+
+func (d *dispatcherClientImpl) GetVersion(ctx context.Context) (int32, error) {
+	resp, err := d.client.GetVersion(d.ctx.newContext(ctx), &dispatchercontracts.GetVersionRequest{})
+	if err != nil {
+		return 0, err
+	}
+	return resp.DispatcherVersion, nil
 }
 
 func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {

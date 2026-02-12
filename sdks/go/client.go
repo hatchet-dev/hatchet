@@ -51,6 +51,10 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 type Worker struct {
 	worker *worker.Worker
 	name   string
+
+	// legacyDurable is set when connected to an older engine that needs separate
+	// durable/non-durable workers. nil when using the new unified slot_config approach.
+	legacyDurable *worker.Worker
 }
 
 // slotType represents supported slot types (internal use).
@@ -74,25 +78,34 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 
 	dumps := gatherWorkflowDumps(config.workflows)
 
-	slotConfig := resolveWorkerSlotConfig(map[slotType]int{}, dumps)
+	// Check engine version to decide between new and legacy worker architecture
+	isLegacy, err := c.isLegacyEngine()
+	if err != nil {
+		return nil, err
+	}
+	if isLegacy {
+		return newLegacyWorker(c, name, config, dumps)
+	}
+
+	initialSlotConfig := map[slotType]int{}
+	if config.slotsSet {
+		initialSlotConfig[slotTypeDefault] = config.slots
+	}
+	if config.durableSlotsSet {
+		initialSlotConfig[slotTypeDurable] = config.durableSlots
+	}
+	slotConfig := resolveWorkerSlotConfig(initialSlotConfig, dumps)
 
 	workerOpts := []worker.WorkerOpt{
 		worker.WithClient(c.legacyClient),
 		worker.WithName(name),
 	}
 
-	if len(slotConfig) > 0 {
-		slotConfigMap := make(map[string]int32, len(slotConfig))
-		for key, value := range slotConfig {
-			slotConfigMap[string(key)] = int32(value)
-		}
-		workerOpts = append(workerOpts, worker.WithSlotConfig(slotConfigMap))
-	} else {
-		workerOpts = append(workerOpts,
-			worker.WithSlots(config.slots),
-			worker.WithDurableSlots(config.durableSlots),
-		)
+	slotConfigMap := make(map[string]int32, len(slotConfig))
+	for key, value := range slotConfig {
+		slotConfigMap[string(key)] = int32(value)
 	}
+	workerOpts = append(workerOpts, worker.WithSlotConfig(slotConfigMap))
 
 	if config.logger != nil {
 		workerOpts = append(workerOpts, worker.WithLogger(config.logger))
@@ -231,6 +244,10 @@ func (w *Worker) Start() (func() error, error) {
 
 	if w.worker != nil {
 		workers = append(workers, w.worker)
+	}
+
+	if w.legacyDurable != nil {
+		workers = append(workers, w.legacyDurable)
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines
