@@ -1,7 +1,7 @@
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import stepRunNode, { NodeData } from './step-run-node';
 import { useTheme } from '@/components/hooks/use-theme';
-import { V1TaskStatus } from '@/lib/api';
+import { V1TaskEventType, V1TaskStatus } from '@/lib/api';
 import dagre from 'dagre';
 import { useMemo } from 'react';
 import ReactFlow, {
@@ -30,7 +30,18 @@ const WorkflowRunVisualizer = ({
   setSelectedTaskRunId: (id: string) => void;
 }) => {
   const { theme } = useTheme();
-  const { shape, taskRuns, isLoading, isError } = useWorkflowDetails();
+  const { shape, taskRuns, taskEvents, isLoading, isError } =
+    useWorkflowDetails();
+
+  const skippedTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of taskEvents) {
+      if (event.eventType === V1TaskEventType.SKIPPED) {
+        ids.add(event.taskId);
+      }
+    }
+    return ids;
+  }, [taskEvents]);
 
   const edges: Edge[] = useMemo(
     () =>
@@ -85,6 +96,7 @@ const WorkflowRunVisualizer = ({
           onClick: () => task && setSelectedTaskRunId(task.metadata.id),
           childWorkflowsCount: task?.numSpawnedChildren || 0,
           taskName: shapeItem.taskName,
+          isSkipped: task ? skippedTaskIds.has(task.metadata.id) : false,
         };
 
         return {
@@ -95,7 +107,7 @@ const WorkflowRunVisualizer = ({
           selectable: true,
         };
       }) || [],
-    [shape, taskRuns, setSelectedTaskRunId],
+    [shape, taskRuns, setSelectedTaskRunId, skippedTaskIds],
   );
 
   const nodeWidth = 230;

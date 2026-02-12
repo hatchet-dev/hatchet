@@ -25,7 +25,8 @@ import (
 
 type actionFunc func(args ...any) []any
 
-// Action is an individual action that can be run by the worker.
+// Deprecated: Action is an internal interface used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Action interface {
 	// Name returns the name of the action
 	Name() string
@@ -77,8 +78,12 @@ func (j *actionImpl) Compute() *compute.Compute {
 	return j.compute
 }
 
+// Deprecated: ActionRegistry is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ActionRegistry map[string]Action
 
+// Deprecated: Worker is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Worker struct {
 	client client.Client
 
@@ -111,8 +116,12 @@ type Worker struct {
 	panicHandler func(ctx HatchetContext, recovered any)
 }
 
+// Deprecated: WorkerOpt is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerOpt func(*WorkerOpts)
 
+// Deprecated: WorkerOpts is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerOpts struct {
 	client client.Client
 	name   string
@@ -136,54 +145,70 @@ func defaultWorkerOpts() *WorkerOpts {
 	}
 }
 
+// Deprecated: WithInternalData is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithInternalData(actions []string) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.actions = actions
 	}
 }
 
+// Deprecated: WithName is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithName(name string) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.name = name
 	}
 }
 
+// Deprecated: WithClient is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithClient(client client.Client) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.client = client
 	}
 }
 
+// Deprecated: WithIntegration is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithIntegration(integration integrations.Integration) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.integrations = append(opts.integrations, integration)
 	}
 }
 
+// Deprecated: WithErrorAlerter is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithErrorAlerter(alerter errors.Alerter) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.alerter = alerter
 	}
 }
 
-// Deprecated: use WithSlots instead.
+// Deprecated: WithMaxRuns is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithMaxRuns(maxRuns int) WorkerOpt {
 	return WithSlots(maxRuns)
 }
 
-// WithSlots sets the number of concurrent slots this worker can handle.
+// Deprecated: WithSlots is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithSlots(slots int) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.slots = &slots
 	}
 }
 
+// Deprecated: WithLabels is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithLabels(labels map[string]interface{}) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.labels = labels
 	}
 }
 
+// Deprecated: WithLogger is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithLogger(l *zerolog.Logger) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		if opts.l != nil {
@@ -195,6 +220,8 @@ func WithLogger(l *zerolog.Logger) WorkerOpt {
 	}
 }
 
+// Deprecated: WithLogLevel is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithLogLevel(lvl string) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		var l zerolog.Logger
@@ -215,7 +242,8 @@ func WithLogLevel(lvl string) WorkerOpt {
 	}
 }
 
-// NewWorker creates a new worker instance
+// Deprecated: NewWorker is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	opts := defaultWorkerOpts()
 
@@ -273,14 +301,20 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	return w, nil
 }
 
+// Deprecated: Use is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) Use(mws ...MiddlewareFunc) {
 	w.middlewares.add(mws...)
 }
 
+// Deprecated: SetPanicHandler is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) SetPanicHandler(panicHandler func(ctx HatchetContext, recovered any)) {
 	w.panicHandler = panicHandler
 }
 
+// Deprecated: NewService is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) NewService(name string) *Service {
 	ns := w.client.Namespace()
 	svcName := strings.ToLower(clientconfig.ApplyNamespace(name, &ns))
@@ -296,6 +330,8 @@ func (w *Worker) NewService(name string) *Service {
 	return svc
 }
 
+// Deprecated: RegisterWorkflow is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 	wf, ok := workflow.(*WorkflowJob)
 	if ok && wf.On == nil {
@@ -307,6 +343,8 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 	return w.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
+// Deprecated: RegisterWorkflowV1 is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) RegisterWorkflowV1(workflow *contracts.CreateWorkflowVersionRequest) error {
 	namespace := w.client.Namespace()
 	namespaced := namespace + workflow.Name
@@ -316,7 +354,8 @@ func (w *Worker) RegisterWorkflowV1(workflow *contracts.CreateWorkflowVersionReq
 	return w.client.Admin().PutWorkflowV1(workflow)
 }
 
-// Deprecated: Use RegisterWorkflow instead
+// Deprecated: On is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	svcName := workflow.ToWorkflow("", "").Name
 	svcName = strings.ToLower(svcName)
@@ -337,7 +376,8 @@ func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	return svc.(*Service).On(t, workflow)
 }
 
-// RegisterAction can be used to register a single action which can be reused across multiple workflows.
+// Deprecated: RegisterAction is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
 // An action should be of the format <service>:<verb>, for example slack:create-channel.
 //
@@ -403,8 +443,8 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 	return nil
 }
 
-// Start starts the worker in non-blocking fashion, returning a cleanup function and an error if the
-// worker could not be started.
+// Deprecated: Start is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -428,16 +468,20 @@ func (w *Worker) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-// Run starts the worker in blocking fashion, returning an error if the worker could not be started
-// or if the worker stopped due to a networking issue.
+// Deprecated: Run is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) Run(ctx context.Context) error {
 	return w.startBlocking(ctx)
 }
 
+// Deprecated: Logger is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) Logger() *zerolog.Logger {
 	return w.l
 }
 
+// Deprecated: ID is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) ID() *string {
 	return w.id
 }

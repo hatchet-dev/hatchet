@@ -10,6 +10,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
+// Deprecated: CreateRatelimitOpts is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // createRatelimitOpts contains options for creating or updating a rate limit.
 type CreateRatelimitOpts struct {
 	// key is the unique identifier for the rate limit
@@ -20,6 +23,9 @@ type CreateRatelimitOpts struct {
 	Duration types.RateLimitDuration
 }
 
+// Deprecated: RateLimitsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // rateLimitsClient provides an interface for managing rate limits.
 type RateLimitsClient interface {
 	// upsert creates or updates a rate limit with the provided options.
@@ -36,6 +42,9 @@ type rlClientImpl struct {
 	tenantId uuid.UUID
 }
 
+// Deprecated: NewRateLimitsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // newRateLimitsClient creates a new rateLimitsClient with the provided api client, tenant id, and admin client.
 func NewRateLimitsClient(
 	api *rest.ClientWithResponses,

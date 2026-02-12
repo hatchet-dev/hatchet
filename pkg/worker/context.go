@@ -300,6 +300,14 @@ func (h *hatchetContext) WorkflowVersionId() *string {
 
 func (h *hatchetContext) Log(message string) {
 	infoLevel := "INFO"
+
+	runes := []rune(message)
+
+	if len(runes) > 10_000 {
+		h.l.Warn().Msg("log message is too long, truncating to the first 10,000 characters")
+		message = string(runes[:10_000])
+	}
+
 	err := h.c.Event().PutLog(h, h.a.StepRunId, message, &infoLevel, &h.a.RetryCount)
 
 	if err != nil {

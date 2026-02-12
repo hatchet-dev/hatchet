@@ -5,6 +5,27 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.3] - 2026-02-12
+
+### Added
+
+- Adds type-hinted `Standalone.output_validator` and `Standalone.output_validator_type` properties to support easier type-safety and match the `input_validator` property pattern on `BaseWorkflow`.
+- Adds type-hinted `Task.output_validator` and `Task.output_validator_type` properties to support easier type-safety and match the patterns on `BaseWorkflow/Standalone`.
+
+## [1.23.2] - 2026-02-11
+
+### Changed
+
+- Improves error handling for REST transport-level failures by raising typed exceptions for timeouts, connection, TLS, and protocol errors while preserving existing diagnostics.
+
+
+## [1.23.1] - 2026-02-10
+
+### Changed
+
+- Fixes a bug introduced in v1.21.0 where the `BaseWorkflow.input_validator` class property became incorrectly typed. Now separate properties are available for the type adapter and the underlying type.
+
+
 ## [1.23.0] - 2026-02-05
 
 ### Internal Only

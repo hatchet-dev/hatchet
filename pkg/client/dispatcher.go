@@ -311,18 +311,20 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
 	go func() {
+		heartbeatInterval := 4 * time.Second
 		timer := time.NewTicker(100 * time.Millisecond)
 		defer timer.Stop()
 
 		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
 		lastHeartbeat := time.Now().Add(-5 * time.Second)
+		firstHeartbeat := true
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
+				if now := time.Now().UTC(); lastHeartbeat.Add(heartbeatInterval).Before(now) {
 					a.l.Debug().Msgf("updating worker %s heartbeat", a.workerId)
 
 					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
@@ -339,7 +341,21 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						}
 					}
 
-					lastHeartbeat = time.Now().UTC()
+					// detect heartbeat delays caused by CPU contention or other scheduling issues,
+					// but skip the first heartbeat since lastHeartbeat is artificially backdated
+					if !firstHeartbeat {
+						actualInterval := now.Sub(lastHeartbeat)
+						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
+						if actualInterval > heartbeatInterval+1*time.Second {
+							a.l.Warn().Msgf(
+								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
+								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
+							)
+						}
+					}
+
+					firstHeartbeat = false
+					lastHeartbeat = now
 				}
 			}
 		}
