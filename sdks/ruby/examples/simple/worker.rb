@@ -7,7 +7,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 SIMPLE = HATCHET.task(name: "simple") do |input, ctx|
-  { "result" => "Hello, moon" }
+  { "result" => "Hello, world!" }
 end
 
 SIMPLE_DURABLE = HATCHET.durable_task(name: "simple_durable") do |input, ctx|

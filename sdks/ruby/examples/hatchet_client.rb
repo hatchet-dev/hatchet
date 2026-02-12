@@ -27,4 +27,4 @@ puts "TriggeredRun ID: #{run.metadata.id}"
 result = HATCHET.runs.poll(run.metadata.id)
 
 puts "Runs client initialized: #{result.inspect}"
-puts "Run status: #{result.run.status}"
+puts "Run status: #{result.status}"

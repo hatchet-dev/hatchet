@@ -16,7 +16,7 @@ DURABLE_WORKFLOW.task(:ephemeral_task) do |input, ctx|
   puts "Running non-durable task"
 end
 
-DURABLE_WORKFLOW.durable_task(:durable_task) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:durable_task, execution_timeout: 60) do |input, ctx|
   puts "Waiting for sleep"
   ctx.sleep_for(duration: DURABLE_SLEEP_TIME)
   puts "Sleep finished"
@@ -32,7 +32,7 @@ DURABLE_WORKFLOW.durable_task(:durable_task) do |input, ctx|
 end
 
 # > Add durable tasks that wait for or groups
-DURABLE_WORKFLOW.durable_task(:wait_for_or_group_1) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:wait_for_or_group_1, execution_timeout: 60) do |input, ctx|
   start = Time.now
   wait_result = ctx.wait_for(
     SecureRandom.hex(16),
@@ -52,7 +52,7 @@ DURABLE_WORKFLOW.durable_task(:wait_for_or_group_1) do |input, ctx|
   }
 end
 
-DURABLE_WORKFLOW.durable_task(:wait_for_or_group_2) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:wait_for_or_group_2, execution_timeout: 120) do |input, ctx|
   start = Time.now
   wait_result = ctx.wait_for(
     SecureRandom.hex(16),
@@ -72,7 +72,7 @@ DURABLE_WORKFLOW.durable_task(:wait_for_or_group_2) do |input, ctx|
   }
 end
 
-DURABLE_WORKFLOW.durable_task(:wait_for_multi_sleep) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:wait_for_multi_sleep, execution_timeout: 120) do |input, ctx|
   start = Time.now
 
   3.times do
@@ -86,7 +86,7 @@ EPHEMERAL_WORKFLOW.task(:ephemeral_task_2) do |input, ctx|
   puts "Running non-durable task"
 end
 
-WAIT_FOR_SLEEP_TWICE = HATCHET.durable_task(name: "wait_for_sleep_twice") do |input, ctx|
+WAIT_FOR_SLEEP_TWICE = HATCHET.durable_task(name: "wait_for_sleep_twice", execution_timeout: 60) do |input, ctx|
   start = Time.now
 
   ctx.sleep_for(duration: DURABLE_SLEEP_TIME)

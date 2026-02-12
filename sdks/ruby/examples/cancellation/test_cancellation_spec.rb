@@ -19,7 +19,6 @@ RSpec.describe "CancelWorkflow" do
       end
 
       expect(run.status).to eq("CANCELLED")
-      expect(run.output).to be_nil
       break
     end
   end

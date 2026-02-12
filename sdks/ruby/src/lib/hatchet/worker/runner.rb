@@ -78,7 +78,8 @@ module Hatchet
             service_name = @client.config.apply_namespace(wf.name.downcase)
 
             wf.tasks.each do |name, task|
-              key = "#{service_name}:#{name}"
+              # TODO: is this what we do across sdks...
+              key = "#{service_name}:#{name}".downcase
               map[key] = task
             end
 
@@ -94,7 +95,7 @@ module Hatchet
             workflow = wf.workflow
             if workflow
               service_name = @client.config.apply_namespace(workflow.name.downcase)
-              map["#{service_name}:#{wf.name}"] = wf
+              map["#{service_name}:#{wf.name}".downcase] = wf
             end
           end
         end
@@ -116,8 +117,8 @@ module Hatchet
         # Send STARTED event
         send_started(action)
 
-        # Look up the task by action_id (service_name:task_name)
-        task_key = action.action_id
+        # Look up the task by action_id (service_name:task_name), case-insensitive
+        task_key = action.action_id.downcase
         task = @task_map[task_key]
 
         unless task
@@ -146,6 +147,11 @@ module Hatchet
 
         # Parse input from action payload
         input = parse_input(action)
+
+        # Resolve dependencies if the task has any
+        if task.deps && !task.deps.empty?
+          ctx.deps = resolve_dependencies(task.deps, input, ctx)
+        end
 
         # Execute the task
         result = task.call(input, ctx)
@@ -197,6 +203,28 @@ module Hatchet
           retry_count: action.retry_count,
           should_not_retry: !retryable
         )
+      end
+
+      # Resolve task dependencies in two passes:
+      # 1. Simple deps (2-arg lambdas: input, ctx)
+      # 2. Composite deps (3-arg lambdas: input, ctx, resolved_deps)
+      def resolve_dependencies(deps_hash, input, ctx)
+        resolved = {}
+        deferred = {}
+
+        deps_hash.each do |name, dep_fn|
+          if dep_fn.arity.abs <= 2
+            resolved[name] = dep_fn.call(input, ctx)
+          else
+            deferred[name] = dep_fn
+          end
+        end
+
+        deferred.each do |name, dep_fn|
+          resolved[name] = dep_fn.call(input, ctx, resolved)
+        end
+
+        resolved
       end
 
       # Parse additional metadata from the action.

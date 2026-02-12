@@ -20,6 +20,6 @@ RSpec.describe "EventWorkflow" do
     ]
 
     result = HATCHET.events.bulk_push(events)
-    expect(result.length).to eq(3)
+    expect(result.events.length).to eq(3)
   end
 end

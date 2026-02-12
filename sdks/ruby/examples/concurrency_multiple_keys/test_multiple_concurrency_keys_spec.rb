@@ -76,7 +76,8 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
         started_at: r.started_at,
         finished_at: r.finished_at
       }
-    end.sort_by { |r| r[:started_at] }
+    end.select { |r| r[:started_at] && r[:finished_at] }
+      .sort_by { |r| r[:started_at] }
 
     overlapping_groups = {}
 

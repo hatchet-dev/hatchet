@@ -65,8 +65,15 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
       expect { runs_client.get(test_workflow_run_id) }.not_to raise_error
     end
 
-    it "returns WorkflowRunDetails when getting a workflow run" do
+    it "returns unwrapped V1WorkflowRun when getting a workflow run" do
       result = runs_client.get(test_workflow_run_id)
+      expect(result).to be_a(HatchetSdkRest::V1WorkflowRun)
+      expect(result).to respond_to(:status)
+      expect(result).to respond_to(:metadata)
+    end
+
+    it "returns full WorkflowRunDetails when using get_details" do
+      result = runs_client.get_details(test_workflow_run_id)
       expect(result).to be_a(HatchetSdkRest::V1WorkflowRunDetails)
       expect(result).to respond_to(:run)
       expect(result).to respond_to(:task_events)
@@ -189,14 +196,18 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
       skip "No runs available for structure validation" if recent_runs.rows.empty?
 
       run_id = recent_runs.rows.first.metadata.id
-      result = runs_client.get(run_id)
 
-      expect(result).to be_a(HatchetSdkRest::V1WorkflowRunDetails)
-      expect(result.run).not_to be_nil
-      expect(result.task_events).to be_an(Array)
+      # get returns the unwrapped V1WorkflowRun
+      run = runs_client.get(run_id)
+      expect(run).to be_a(HatchetSdkRest::V1WorkflowRun)
+      expect(run.metadata).not_to be_nil
+      expect(run.status).not_to be_nil
 
-      expect(result.run.metadata).not_to be_nil
-      expect(result.run.status).not_to be_nil
+      # get_details returns the full V1WorkflowRunDetails wrapper
+      details = runs_client.get_details(run_id)
+      expect(details).to be_a(HatchetSdkRest::V1WorkflowRunDetails)
+      expect(details.run).not_to be_nil
+      expect(details.task_events).to be_an(Array)
     end
   end
 

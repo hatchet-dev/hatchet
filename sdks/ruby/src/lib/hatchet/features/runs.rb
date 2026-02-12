@@ -114,12 +114,27 @@ module Hatchet
         @task_api.v1_task_get(task_run_id)
       end
 
-      # Get workflow run details for a given workflow run ID
+      # Get a workflow run by its ID
       #
-      # @param workflow_run_id [String] The ID of the workflow run to retrieve details for
-      # @return [HatchetSdkRest::V1WorkflowRunDetails] Workflow run details for the specified workflow run ID
+      # Returns the unwrapped V1WorkflowRun object directly (with status, output, etc.)
+      # Use {#get_details} if you need the full details wrapper (task_events, shape, tasks, etc.)
+      #
+      # @param workflow_run_id [String] The ID of the workflow run to retrieve
+      # @return [HatchetSdkRest::V1WorkflowRun] The workflow run
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def get(workflow_run_id)
+        details = @workflow_runs_api.v1_workflow_run_get(workflow_run_id.to_s)
+        details.run
+      end
+
+      # Get full workflow run details for a given workflow run ID
+      #
+      # Returns the full V1WorkflowRunDetails including task_events, shape, tasks, and workflow_config.
+      #
+      # @param workflow_run_id [String] The ID of the workflow run to retrieve details for
+      # @return [HatchetSdkRest::V1WorkflowRunDetails] Full workflow run details
+      # @raise [Hatchet::Error] If the API request fails or returns an error
+      def get_details(workflow_run_id)
         @workflow_runs_api.v1_workflow_run_get(workflow_run_id.to_s)
       end
 
@@ -300,10 +315,13 @@ module Hatchet
 
       # Replay task or workflow runs in bulk, according to a set of filters
       #
-      # @param opts [BulkCancelReplayOpts] Options for bulk replay, including filters and IDs
+      # @param opts [BulkCancelReplayOpts, nil] Options for bulk replay, including filters and IDs
+      # @param ids [Array<String>, nil] List of run IDs to replay
+      # @param filters [Hash, nil] Filter hash with :workflow_ids, :additional_metadata, :since, :until_time, :statuses
       # @return [void]
       # @raise [Hatchet::Error] If the API request fails or returns an error
-      def bulk_replay(opts)
+      def bulk_replay(opts = nil, ids: nil, filters: nil)
+        opts ||= build_bulk_opts(ids: ids, filters: filters)
         @task_api.v1_task_replay(
           @config.tenant_id,
           opts.to_replay_request
@@ -321,10 +339,13 @@ module Hatchet
 
       # Cancel task or workflow runs in bulk, according to a set of filters
       #
-      # @param opts [BulkCancelReplayOpts] Options for bulk cancel, including filters and IDs
+      # @param opts [BulkCancelReplayOpts, nil] Options for bulk cancel, including filters and IDs
+      # @param ids [Array<String>, nil] List of run IDs to cancel
+      # @param filters [Hash, nil] Filter hash with :workflow_ids, :additional_metadata, :since, :until_time, :statuses
       # @return [void]
       # @raise [Hatchet::Error] If the API request fails or returns an error
-      def bulk_cancel(opts)
+      def bulk_cancel(opts = nil, ids: nil, filters: nil)
+        opts ||= build_bulk_opts(ids: ids, filters: filters)
         @task_api.v1_task_cancel(
           @config.tenant_id,
           opts.to_cancel_request
@@ -337,8 +358,8 @@ module Hatchet
       # @return [Hash] The result of the workflow run
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def get_result(run_id)
-        details = get(run_id)
-        details.run.output
+        run = get(run_id)
+        run.output
       end
 
       # Replay runs matching the specified filters in chunks
@@ -432,13 +453,13 @@ module Hatchet
 
         loop do
           puts "Polling for completion of run #{workflow_run_id}"
-          details = get(workflow_run_id)
-          status = details.run.status
+          run = get(workflow_run_id)
+          status = run.status
 
           # Check if workflow run has reached a terminal state
           puts "Run status: #{status}"
           if terminal_status?(status)
-            return details
+            return run
           end
 
           # Check timeout
@@ -450,7 +471,67 @@ module Hatchet
         end
       end
 
+      # Subscribe to stream events for a workflow run.
+      #
+      # Opens a gRPC server-streaming subscription to `SubscribeToWorkflowEvents`
+      # and yields each stream chunk payload to the given block.
+      #
+      # @param workflow_run_id [String] The workflow run ID to subscribe to
+      # @yield [String] Each stream chunk payload
+      # @return [void]
+      # @raise [Hatchet::Error] If the subscription fails
+      def subscribe_to_stream(workflow_run_id, &block)
+        return unless block_given?
+
+        stub = ::Dispatcher::Stub.new(
+          @config.host_port,
+          nil,
+          channel_override: @client.channel
+        )
+
+        request = ::SubscribeToWorkflowEventsRequest.new(
+          workflow_run_id: workflow_run_id
+        )
+
+        response_stream = stub.subscribe_to_workflow_events(
+          request,
+          metadata: @config.auth_metadata
+        )
+
+        response_stream.each do |event|
+          # Filter for stream events (RESOURCE_EVENT_TYPE_STREAM = 6)
+          if event.event_type == :RESOURCE_EVENT_TYPE_STREAM
+            yield event.event_payload
+          end
+
+          # Stop if we get a hangup signal
+          break if event.respond_to?(:hangup) && event.hangup
+        end
+      end
+
       private
+
+      # Build BulkCancelReplayOpts from keyword arguments.
+      #
+      # @param ids [Array<String>, nil] List of run IDs
+      # @param filters [Hash, nil] Filter hash
+      # @return [BulkCancelReplayOpts]
+      def build_bulk_opts(ids: nil, filters: nil)
+        if filters.is_a?(Hash)
+          filter_obj = RunFilter.new(
+            since: filters[:since] || (Time.now - DEFAULT_SINCE_DAYS * 24 * 60 * 60),
+            until_time: filters[:until_time],
+            statuses: filters[:statuses],
+            workflow_ids: filters[:workflow_ids],
+            additional_metadata: filters[:additional_metadata]
+          )
+          BulkCancelReplayOpts.new(filters: filter_obj)
+        elsif ids
+          BulkCancelReplayOpts.new(ids: ids)
+        else
+          raise ArgumentError, "ids or filters must be provided"
+        end
+      end
 
       # Perform a bulk action (cancel or replay) on runs matching filters in chunks
       #

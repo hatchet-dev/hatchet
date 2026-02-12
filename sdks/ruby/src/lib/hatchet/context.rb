@@ -31,7 +31,7 @@ module Hatchet
     attr_reader :lifespan
 
     # @return [Hash] Resolved dependency values
-    attr_reader :deps
+    attr_accessor :deps
 
     # @return [Integer, nil] Task priority
     attr_reader :priority

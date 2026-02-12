@@ -51,7 +51,7 @@ RSpec.describe "PriorityWorkflow" do
       limit: 1000
     )
 
-    sorted_runs = runs.rows.sort_by(&:started_at)
+    sorted_runs = runs.rows.select(&:started_at).sort_by(&:started_at)
     expect(sorted_runs.length).to eq(n)
 
     sorted_runs.each_cons(2) do |curr, nxt|

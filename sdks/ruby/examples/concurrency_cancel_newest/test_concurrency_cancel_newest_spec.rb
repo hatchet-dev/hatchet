@@ -35,13 +35,17 @@ RSpec.describe "ConcurrencyCancelNewest" do
     sleep 5
 
     successful_run = HATCHET.runs.get(to_run.workflow_run_id)
-    expect(successful_run.run.status).to eq("COMPLETED")
+    expect(successful_run.status).to eq("COMPLETED")
 
     all_runs = HATCHET.runs.list(
-      additional_metadata: { "test_run_id" => test_run_id }
+      additional_metadata: { "test_run_id" => test_run_id },
+      limit: 100
     ).rows
 
-    other_runs = all_runs.reject { |r| r.metadata.id == to_run.workflow_run_id }
+    # Filter to workflow-level runs only
+    workflow_runs = all_runs.reject { |r| r.respond_to?(:type) && r.type == "TASK" }
+
+    other_runs = workflow_runs.reject { |r| r.metadata.id == to_run.workflow_run_id }
     expect(other_runs.all? { |r| r.status == "CANCELLED" }).to be true
   end
 end

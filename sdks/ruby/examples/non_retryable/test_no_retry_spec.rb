@@ -11,7 +11,7 @@ RSpec.describe "NonRetryableWorkflow" do
 
     sleep 3
 
-    run_details = HATCHET.runs.get(ref.workflow_run_id)
+    run_details = HATCHET.runs.get_details(ref.workflow_run_id)
 
     # Only the task with the wrong exception type should have retrying events
     retrying_events = run_details.task_events.select { |e| e.event_type == "RETRYING" }

@@ -61,14 +61,15 @@ RSpec.describe Hatchet::Features::Runs do
 
   describe "#get" do
     let(:workflow_run_id) { "workflow-123" }
-    let(:workflow_run_details) { instance_double("HatchetSdkRest::V1WorkflowRunDetails") }
+    let(:workflow_run) { instance_double("HatchetSdkRest::V1WorkflowRun") }
+    let(:workflow_run_details) { instance_double("HatchetSdkRest::V1WorkflowRunDetails", run: workflow_run) }
 
-    it "retrieves workflow run details" do
+    it "retrieves and unwraps the workflow run" do
       allow(workflow_runs_api).to receive(:v1_workflow_run_get).with("workflow-123").and_return(workflow_run_details)
 
       result = runs_client.get(workflow_run_id)
 
-      expect(result).to eq(workflow_run_details)
+      expect(result).to eq(workflow_run)
       expect(workflow_runs_api).to have_received(:v1_workflow_run_get).with("workflow-123")
     end
 
@@ -78,6 +79,20 @@ RSpec.describe Hatchet::Features::Runs do
       runs_client.get(123)
 
       expect(workflow_runs_api).to have_received(:v1_workflow_run_get).with("123")
+    end
+  end
+
+  describe "#get_details" do
+    let(:workflow_run_id) { "workflow-123" }
+    let(:workflow_run_details) { instance_double("HatchetSdkRest::V1WorkflowRunDetails") }
+
+    it "retrieves the full workflow run details" do
+      allow(workflow_runs_api).to receive(:v1_workflow_run_get).with("workflow-123").and_return(workflow_run_details)
+
+      result = runs_client.get_details(workflow_run_id)
+
+      expect(result).to eq(workflow_run_details)
+      expect(workflow_runs_api).to have_received(:v1_workflow_run_get).with("workflow-123")
     end
   end
 
