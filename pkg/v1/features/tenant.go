@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -36,6 +38,8 @@ func NewTenantCliet(
 	}
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (t *tenantClientImpl) Get(ctx context.Context) (*rest.Tenant, error) {
 	resp, err := t.api.TenantGetWithResponse(ctx, t.tenantId)
 

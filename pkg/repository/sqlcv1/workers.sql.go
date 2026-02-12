@@ -179,6 +179,70 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Wor
 	return &i, err
 }
 
+const getActiveWorkerById = `-- name: GetActiveWorkerById :one
+SELECT
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
+    ww."url" AS "webhookUrl",
+    w."maxRuns" - (
+        SELECT COUNT(*)
+        FROM v1_task_runtime runtime
+        WHERE
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
+    ) AS "remainingSlots"
+FROM
+    "Worker" w
+LEFT JOIN
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
+WHERE
+    w."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+`
+
+type GetActiveWorkerByIdParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
+
+type GetActiveWorkerByIdRow struct {
+	Worker         Worker      `json:"worker"`
+	WebhookUrl     pgtype.Text `json:"webhookUrl"`
+	RemainingSlots int32       `json:"remainingSlots"`
+}
+
+func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiveWorkerByIdParams) (*GetActiveWorkerByIdRow, error) {
+	row := db.QueryRow(ctx, getActiveWorkerById, arg.ID, arg.Tenantid)
+	var i GetActiveWorkerByIdRow
+	err := row.Scan(
+		&i.Worker.ID,
+		&i.Worker.CreatedAt,
+		&i.Worker.UpdatedAt,
+		&i.Worker.DeletedAt,
+		&i.Worker.TenantId,
+		&i.Worker.LastHeartbeatAt,
+		&i.Worker.Name,
+		&i.Worker.DispatcherId,
+		&i.Worker.MaxRuns,
+		&i.Worker.IsActive,
+		&i.Worker.LastListenerEstablished,
+		&i.Worker.IsPaused,
+		&i.Worker.Type,
+		&i.Worker.WebhookId,
+		&i.Worker.Language,
+		&i.Worker.LanguageVersion,
+		&i.Worker.Os,
+		&i.Worker.RuntimeExtra,
+		&i.Worker.SdkVersion,
+		&i.WebhookUrl,
+		&i.RemainingSlots,
+	)
+	return &i, err
+}
+
 const getWorkerActionsByWorkerId = `-- name: GetWorkerActionsByWorkerId :many
 WITH inputs AS (
     SELECT UNNEST($2::UUID[]) AS "workerId"
@@ -284,6 +348,7 @@ SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
     w."dispatcherId" AS "dispatcherId",
+    w."lastHeartbeatAt" AS "lastHeartbeatAt",
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
     w."lastListenerEstablished" AS "lastListenerEstablished"
@@ -305,6 +370,7 @@ type GetWorkerForEngineRow struct {
 	ID                        uuid.UUID        `json:"id"`
 	TenantId                  uuid.UUID        `json:"tenantId"`
 	DispatcherId              *uuid.UUID       `json:"dispatcherId"`
+	LastHeartbeatAt           pgtype.Timestamp `json:"lastHeartbeatAt"`
 	DispatcherLastHeartbeatAt pgtype.Timestamp `json:"dispatcherLastHeartbeatAt"`
 	IsActive                  bool             `json:"isActive"`
 	LastListenerEstablished   pgtype.Timestamp `json:"lastListenerEstablished"`
@@ -317,6 +383,7 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 		&i.ID,
 		&i.TenantId,
 		&i.DispatcherId,
+		&i.LastHeartbeatAt,
 		&i.DispatcherLastHeartbeatAt,
 		&i.IsActive,
 		&i.LastListenerEstablished,

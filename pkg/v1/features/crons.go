@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -11,41 +13,24 @@ import (
 
 // Deprecated: CronsClient is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// CronsClient provides methods for interacting with cron workflow triggers
-// in the Hatchet platform.
 type CronsClient interface {
-	// Create creates a new cron workflow trigger.
 	Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error)
 
-	// Delete removes a cron workflow trigger.
 	Delete(ctx context.Context, cronId string) error
 
-	// List retrieves a collection of cron workflow triggers based on the provided parameters.
 	List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error)
 
-	// Get retrieves a specific cron workflow trigger by its ID.
 	Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error)
 }
 
 // Deprecated: CreateCronTrigger is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// CreateCronTrigger contains the configuration for creating a cron trigger.
 type CreateCronTrigger struct {
-	// Name is the unique identifier for the cron trigger.
-	Name string `json:"name"`
-
-	// Expression is the cron expression that defines the schedule.
-	Expression string `json:"expression"`
-
-	// Input is the optional input data for the workflow.
-	Input map[string]interface{} `json:"input,omitempty"`
-
-	// AdditionalMetadata is optional metadata to associate with the cron trigger.
+	Name               string                 `json:"name"`
+	Expression         string                 `json:"expression"`
+	Input              map[string]interface{} `json:"input,omitempty"`
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
-
-	Priority *int32 `json:"priority,omitempty"`
+	Priority           *int32                 `json:"priority,omitempty"`
 }
 
 // cronsClientImpl implements the CronsClient interface.
@@ -56,8 +41,6 @@ type cronsClientImpl struct {
 
 // Deprecated: NewCronsClient is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// NewCronsClient creates a new client for interacting with cron workflow triggers.
 func NewCronsClient(
 	api *rest.ClientWithResponses,
 	tenantId *string,
@@ -72,8 +55,6 @@ func NewCronsClient(
 
 // Deprecated: ValidateCronExpression is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// ValidateCronExpression validates that a string is a valid cron expression.
 func ValidateCronExpression(expression string) bool {
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	_, err := parser.Parse(expression)
@@ -81,6 +62,9 @@ func ValidateCronExpression(expression string) bool {
 	return err == nil
 }
 
+// Deprecated: Create is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Create creates a new cron workflow trigger.
 func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error) {
 	// Validate cron expression
@@ -119,6 +103,9 @@ func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron 
 	return resp.JSON200, nil
 }
 
+// Deprecated: Delete is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Delete removes a cron workflow trigger.
 func (c *cronsClientImpl) Delete(ctx context.Context, cronId string) error {
 	cronIdUUID, err := uuid.Parse(cronId)
@@ -134,6 +121,9 @@ func (c *cronsClientImpl) Delete(ctx context.Context, cronId string) error {
 	return err
 }
 
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // List retrieves a collection of cron workflow triggers based on the provided parameters.
 func (c *cronsClientImpl) List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error) {
 	resp, err := c.api.CronWorkflowListWithResponse(
@@ -148,6 +138,9 @@ func (c *cronsClientImpl) List(ctx context.Context, opts rest.CronWorkflowListPa
 	return resp.JSON200, nil
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Get retrieves a specific cron workflow trigger by its ID.
 func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error) {
 	cronIdUUID, err := uuid.Parse(cronId)
@@ -169,12 +162,12 @@ func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWor
 
 // Deprecated: InvalidCronExpressionError is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-//
-// InvalidCronExpressionError represents an error when an invalid cron expression is provided.
 type InvalidCronExpressionError struct {
 	Expression string
 }
 
+// Deprecated: Error is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (e *InvalidCronExpressionError) Error() string {
 	return "invalid cron expression: " + e.Expression
 }
