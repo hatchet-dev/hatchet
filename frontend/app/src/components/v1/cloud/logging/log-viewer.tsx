@@ -26,9 +26,9 @@ const LEVEL_STYLES: Record<string, { bg: string; text: string; dot: string }> =
       dot: 'bg-yellow-500',
     },
     info: {
-      bg: 'bg-blue-500/10',
-      text: 'text-blue-600 dark:text-blue-400',
-      dot: 'bg-blue-500',
+      bg: 'bg-green-500/10',
+      text: 'text-green-600 dark:text-green-400',
+      dot: 'bg-green-500',
     },
     debug: {
       bg: 'bg-gray-500/10',
@@ -174,7 +174,7 @@ export function LogViewer({
     '160px', // timestamp
     '72px', // level
     hasInstance && 'minmax(100px, 200px)',
-    hasAttempt && '60px',
+    hasAttempt && 'auto',
     'minmax(0, 1fr)', // message
   ]
     .filter(Boolean)
