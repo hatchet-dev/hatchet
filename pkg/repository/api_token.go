@@ -83,7 +83,7 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 }
 
 func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id uuid.UUID) (*sqlcv1.APIToken, error) {
-	return cache.MakeCacheable[sqlcv1.APIToken](a.c, id.String(), func() (*sqlcv1.APIToken, error) {
+	return cache.MakeCacheable(a.c, id.String(), func() (*sqlcv1.APIToken, error) {
 		return a.queries.GetAPITokenById(ctx, a.pool, id)
 	})
 }

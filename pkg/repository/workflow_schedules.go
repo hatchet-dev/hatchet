@@ -168,11 +168,9 @@ func (w *workflowScheduleRepository) RegisterCreateCallback(callback TenantScope
 }
 
 func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*sqlcv1.ListScheduledWorkflowsRow, error) {
-	if err := w.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
 	var err error
+
+	err = w.v.Validate(opts)
 
 	if err != nil {
 		return nil, err

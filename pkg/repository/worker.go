@@ -353,8 +353,6 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		}
 	}
 
-	var worker *sqlcv1.Worker
-
 	if opts.RuntimeInfo != nil {
 		if opts.RuntimeInfo.SdkVersion != nil {
 			createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
@@ -391,12 +389,10 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		}
 	}
 
-	if worker == nil {
-		worker, err = w.queries.CreateWorker(ctx, tx, createParams)
+	worker, err := w.queries.CreateWorker(ctx, tx, createParams)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not create worker: %w", err)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("could not create worker: %w", err)
 	}
 
 	svcUUIDs := make([]uuid.UUID, len(opts.Services))

@@ -133,7 +133,7 @@ type TriggerDecision struct {
 	FilterId      *uuid.UUID
 }
 
-func (r *sharedRepository) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
+func (r *sharedRepository) makeTriggerDecisions(filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
 	celEvaluationFailures := make([]CELEvaluationFailure, 0)
 
 	// Cases to handle:
@@ -181,7 +181,7 @@ func (r *sharedRepository) makeTriggerDecisions(ctx context.Context, filters []*
 				FilterId:      &filterId,
 			})
 		} else {
-			shouldTrigger, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
+			shouldTrigger, err := r.processWorkflowExpression(filter.Expression, opt, filter.Payload)
 
 			if err != nil {
 				r.l.Error().
@@ -1720,7 +1720,7 @@ func orderSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.List
 	return steps
 }
 
-func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expression string, opt EventTriggerOpts, filterPayload []byte) (bool, error) {
+func (r *sharedRepository) processWorkflowExpression(expression string, opt EventTriggerOpts, filterPayload []byte) (bool, error) {
 	var inputData map[string]interface{}
 	if opt.Data != nil {
 		err := json.Unmarshal(opt.Data, &inputData)
@@ -2020,7 +2020,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 				filters = workflowIdAndScopeToFilters[key]
 			}
 
-			triggerDecisions, evalFailures := r.makeTriggerDecisions(ctx, filters, hasAnyFilters, opt)
+			triggerDecisions, evalFailures := r.makeTriggerDecisions(filters, hasAnyFilters, opt)
 
 			celEvaluationFailures = append(celEvaluationFailures, evalFailures...)
 
