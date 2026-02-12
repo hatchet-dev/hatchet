@@ -11,7 +11,7 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 from warnings import warn
 
 import grpc
@@ -227,7 +227,7 @@ class Worker:
             error_days=180,
         )
 
-    async def _check_engine_version(self) -> Optional[str]:
+    async def _check_engine_version(self) -> str | None:
         """Returns the engine version string, or None if engine is legacy (pre-slot-config).
 
         Compares the engine's semantic version against the minimum required
