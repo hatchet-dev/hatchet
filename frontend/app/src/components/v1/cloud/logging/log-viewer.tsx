@@ -1,6 +1,7 @@
 import { LogLine } from './log-search/use-logs';
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import Convert from 'ansi-to-html';
 import { useMemo, useCallback, useRef } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -12,6 +13,19 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   second: '2-digit',
   hour12: false,
 };
+
+const ansiConverter = new Convert({
+  newline: true,
+  escapeXML: true,
+  colors: {
+    1: 'var(--terminal-red)',
+    2: 'var(--terminal-green)',
+    3: 'var(--terminal-yellow)',
+    4: 'var(--terminal-blue)',
+    5: 'var(--terminal-magenta)',
+    6: 'var(--terminal-cyan)',
+  },
+});
 
 const LEVEL_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   {
@@ -225,7 +239,7 @@ export function LogViewer({
       >
         {/* Header row */}
         <div
-          className="col-span-full grid grid-cols-subgrid sticky top-0 z-1 bg-gradient-to-b from-background/95 to-background/0 from-75%"
+          className="col-span-full grid grid-cols-subgrid sticky top-0 z-10 bg-gradient-to-b from-background/95 to-background/0 from-75%"
           style={{ gridColumn: `1 / span ${colCount}` }}
         >
           <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -276,9 +290,12 @@ export function LogViewer({
                 {log.attempt ?? '—'}
               </div>
             )}
-            <div className="px-3 py-1.5 font-mono text-xs text-foreground truncate group-hover:whitespace-normal group-hover:break-words">
-              {log.line || ''}
-            </div>
+            <div
+              className="px-3 py-1.5 font-mono text-xs text-foreground truncate group-hover:whitespace-normal group-hover:break-words [&_span]:inline"
+              dangerouslySetInnerHTML={{
+                __html: ansiConverter.toHtml(log.line || ''),
+              }}
+            />
           </div>
         ))}
       </div>
