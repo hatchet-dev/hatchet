@@ -1,4 +1,3 @@
-import { Button } from '@/components/v1/ui/button';
 import {
   Command,
   CommandGroup,
@@ -92,8 +91,8 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
   applySuggestion,
   autocompleteContext,
   renderSuggestion,
-  filterChips,
-  onFilterChipClick,
+  // filterChips,
+  // onFilterChipClick,
   placeholder = 'Search...',
   className,
   searchIcon,
@@ -152,27 +151,27 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
     }
   }, [localValue, onChange, onSubmit]);
 
-  const handleFilterChipClick = useCallback(
-    (filterKey: string) => {
-      if (onFilterChipClick) {
-        onFilterChipClick(filterKey);
-        return;
-      }
+  // const handleFilterChipClick = useCallback(
+  //   (filterKey: string) => {
+  //     if (onFilterChipClick) {
+  //       onFilterChipClick(filterKey);
+  //       return;
+  //     }
 
-      const newValue = localValue ? `${localValue} ${filterKey}` : filterKey;
-      setLocalValue(newValue);
-      // Don't call onChange - user is still building the filter
-      setIsOpen(true);
-      setTimeout(() => {
-        const input = inputRef.current;
-        if (input) {
-          input.focus();
-          input.setSelectionRange(newValue.length, newValue.length);
-        }
-      }, 0);
-    },
-    [localValue, onFilterChipClick],
-  );
+  //     const newValue = localValue ? `${localValue} ${filterKey}` : filterKey;
+  //     setLocalValue(newValue);
+  //     // Don't call onChange - user is still building the filter
+  //     setIsOpen(true);
+  //     setTimeout(() => {
+  //       const input = inputRef.current;
+  //       if (input) {
+  //         input.focus();
+  //         input.setSelectionRange(newValue.length, newValue.length);
+  //       }
+  //     }, 0);
+  //   },
+  //   [localValue, onFilterChipClick],
+  // );
 
   const handleSelect = useCallback(
     (index: number) => {
@@ -409,7 +408,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               </CommandList>
             </Command>
           )}
-          {filterChips && filterChips.length > 0 && (
+          {/* {filterChips && filterChips.length > 0 && (
             <div
               className={cn(
                 'flex flex-col gap-2 px-3 py-2 text-xs',
@@ -441,7 +440,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
                 </div>
               </div>
             </div>
-          )}
+          )} */}
         </PopoverContent>
       </Popover>
     </div>
