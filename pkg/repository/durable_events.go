@@ -323,22 +323,39 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 	defer rollback()
 
-	// todo: maybe acquire an exclusive lock on the row before incrementing the node id here
-	logFile, err := r.queries.GetOrCreateEventLogFile(ctx, tx, sqlcv1.GetOrCreateEventLogFileParams{
-		Tenantid:              opts.TenantId,
+	// take a lock of the log file so nothing else can concurrently write to it and e.g. increment the node id or branch
+	// id while this tx is running
+	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
-		Invocationcount:       opts.InvocationCount,
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to get or create event log file: %w", err)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to lock log file: %w", err)
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		logFile, err = r.queries.CreateEventLogFile(ctx, tx, sqlcv1.CreateEventLogFileParams{
+			Tenantid:              opts.TenantId,
+			Durabletaskid:         task.ID,
+			Durabletaskinsertedat: task.InsertedAt,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get or create event log file: %w", err)
+		}
+	}
+
+	isNewInvocation := false
+	if logFile.LatestInvocationCount < opts.InvocationCount {
+		isNewInvocation = true
 	}
 
 	var nodeId int64
-	if logFile.IsNewInvocation {
-		newNode, err := r.queries.SetLatestNodeId(ctx, tx, sqlcv1.SetLatestNodeIdParams{
+	if isNewInvocation {
+		newNode, err := r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
 			Nodeid:                1,
+			Invocationcount:       opts.InvocationCount,
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
 		})
@@ -562,7 +579,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	_, err = r.queries.SetLatestNodeId(ctx, tx, sqlcv1.SetLatestNodeIdParams{
+	_, err = r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
 		Nodeid:                nodeId,
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,

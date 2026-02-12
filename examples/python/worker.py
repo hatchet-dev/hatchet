@@ -27,7 +27,6 @@ from examples.dependency_injection.worker import (
     async_task_with_dependencies,
     di_workflow,
     durable_async_task_with_dependencies,
-    durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
 )
 from examples.dict_input.worker import say_hello_unsafely
@@ -102,7 +101,6 @@ def main() -> None:
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_sync_task_with_dependencies,
             say_hello,
             say_hello_unsafely,
             serde_workflow,
