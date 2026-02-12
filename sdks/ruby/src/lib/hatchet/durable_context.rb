@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "securerandom"
 
 module Hatchet
   # Extended context for durable tasks that supports sleep and event-waiting
@@ -36,7 +37,8 @@ module Hatchet
       sleep_condition = ::V1::SleepMatchCondition.new(
         base: ::V1::BaseMatchCondition.new(
           readable_data_key: signal_key,
-          action: :QUEUE
+          action: :QUEUE,
+          or_group_id: SecureRandom.uuid
         ),
         sleep_for: duration_str
       )
@@ -173,7 +175,8 @@ module Hatchet
       elsif condition.is_a?(Hash)
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: key,
-          action: :QUEUE
+          action: :QUEUE,
+          or_group_id: SecureRandom.uuid
         )
 
         if condition[:sleep_for]
@@ -192,7 +195,8 @@ module Hatchet
         if condition.respond_to?(:event_key) && condition.event_key
           base = ::V1::BaseMatchCondition.new(
             readable_data_key: key,
-            action: :QUEUE
+            action: :QUEUE,
+            or_group_id: SecureRandom.uuid
           )
           user_event_conditions << ::V1::UserEventMatchCondition.new(
             base: base,
@@ -201,7 +205,8 @@ module Hatchet
         elsif condition.respond_to?(:sleep_for) && condition.sleep_for
           base = ::V1::BaseMatchCondition.new(
             readable_data_key: key,
-            action: :QUEUE
+            action: :QUEUE,
+            or_group_id: SecureRandom.uuid
           )
           sleep_conditions << ::V1::SleepMatchCondition.new(
             base: base,

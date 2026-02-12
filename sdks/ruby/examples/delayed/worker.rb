@@ -16,7 +16,7 @@ PRINT_SCHEDULE_WF.task(:schedule) do |input, ctx|
   PRINT_PRINTER_WF.schedule(future_time, input: input)
 end
 
-PRINT_SCHEDULE_WF.task(:step1) do |input, ctx|
+PRINT_PRINTER_WF.task(:step1) do |input, ctx|
   now = Time.now.utc
   puts "printed at \t #{now.strftime('%H:%M:%S')}"
   puts "message \t #{input['message']}"

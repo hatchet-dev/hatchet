@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "securerandom"
+
 module Hatchet
   # Represents a task within a workflow (or a standalone task).
   #
@@ -321,29 +323,29 @@ module Hatchet
 
     # Convert a RateLimit to a V1::CreateTaskRateLimit proto
     def rate_limit_to_proto(rl)
+      duration_map = {
+        second: :SECOND, minute: :MINUTE, hour: :HOUR,
+        day: :DAY, week: :WEEK, month: :MONTH, year: :YEAR
+      }
+
       args = {}
 
       if rl.respond_to?(:static_key) && rl.static_key
         args[:key] = rl.static_key
-      end
-
-      if rl.respond_to?(:dynamic_key) && rl.dynamic_key
+      elsif rl.respond_to?(:dynamic_key) && rl.dynamic_key
+        args[:key] = rl.dynamic_key
         args[:key_expr] = rl.dynamic_key
       end
 
       args[:units] = rl.units if rl.respond_to?(:units)
 
-      if rl.respond_to?(:duration) && rl.duration
-        duration_map = {
-          second: :SECOND, minute: :MINUTE, hour: :HOUR,
-          day: :DAY, week: :WEEK, month: :MONTH, year: :YEAR
-        }
-        args[:duration] = duration_map[rl.duration] || :SECOND
-      end
+      # Always set duration (default MINUTE), matching Python SDK behavior
+      dur = rl.respond_to?(:duration) && rl.duration ? rl.duration : :minute
+      args[:duration] = duration_map[dur] || :SECOND
 
-      if rl.respond_to?(:limit) && rl.limit
-        args[:limit_values_expr] = rl.limit.to_s
-      end
+      # Always set limit_values_expr (default "-1"), matching Python SDK behavior
+      limit_val = rl.respond_to?(:limit) && rl.limit ? rl.limit : -1
+      args[:limit_values_expr] = limit_val.to_s
 
       ::V1::CreateTaskRateLimit.new(**args)
     end
@@ -418,7 +420,8 @@ module Hatchet
       elsif cond.is_a?(Hatchet::SleepCondition)
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: "sleep_#{cond.duration}",
-          action: action
+          action: action,
+          or_group_id: SecureRandom.uuid
         )
         sleep_conditions << ::V1::SleepMatchCondition.new(
           base: base,
@@ -428,6 +431,7 @@ module Hatchet
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: cond.event_key,
           action: action,
+          or_group_id: SecureRandom.uuid,
           expression: cond.expression || ""
         )
         user_event_conditions << ::V1::UserEventMatchCondition.new(
@@ -438,7 +442,7 @@ module Hatchet
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: cond[:readable_data_key] || cond[:key] || "",
           action: action,
-          or_group_id: cond[:or_group_id] || "",
+          or_group_id: cond[:or_group_id] || SecureRandom.uuid,
           expression: cond[:expression] || ""
         )
 
@@ -456,7 +460,8 @@ module Hatchet
       elsif cond.respond_to?(:event_key) && cond.event_key
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: cond.event_key,
-          action: action
+          action: action,
+          or_group_id: SecureRandom.uuid
         )
         user_event_conditions << ::V1::UserEventMatchCondition.new(
           base: base,
@@ -465,7 +470,8 @@ module Hatchet
       elsif cond.respond_to?(:duration) && cond.duration
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: "sleep_#{cond.duration}",
-          action: action
+          action: action,
+          or_group_id: SecureRandom.uuid
         )
         sleep_conditions << ::V1::SleepMatchCondition.new(
           base: base,
