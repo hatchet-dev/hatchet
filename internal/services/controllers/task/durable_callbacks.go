@@ -32,6 +32,7 @@ func (tc *TasksControllerImpl) processSingleSatisfiedCallback(ctx context.Contex
 		tenantId,
 		cb.DurableTaskExternalId,
 		cb.NodeId,
+		// todo: fix this - need the real invocation count here
 		0,
 		cb.Data,
 	)
