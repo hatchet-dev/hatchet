@@ -474,6 +474,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		DispatcherId:      d.dispatcherId,
 		WaitForConditions: req.WaitForConditions,
 		InvocationCount:   req.InvocationCount,
+		TriggerOpts:       req.TriggerOpts,
 	})
 
 	if err != nil {
