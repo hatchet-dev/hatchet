@@ -65,7 +65,7 @@ FROM input_values iv
 ON CONFLICT ("tenantId", "resource") DO UPDATE SET
     "limitValue" = EXCLUDED."limitValue",
     "alarmValue" = EXCLUDED."alarmValue",
-    "window" = NULLIF(EXCLUDED."window", ''),
+    "window" = COALESCE(NULLIF(EXCLUDED."window", ''), "TenantResourceLimit"."window"),
     "lastRefill" = CURRENT_TIMESTAMP,
     "updatedAt" = CURRENT_TIMESTAMP;
 
