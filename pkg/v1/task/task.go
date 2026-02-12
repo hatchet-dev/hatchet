@@ -117,6 +117,9 @@ type DurableTaskDeclaration[I any] struct {
 
 // Deprecated: OnFailureTaskDeclaration is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// OnFailureTaskDeclaration represents a task that will be executed if
+// any tasks in the workflow fail.
 type OnFailureTaskDeclaration[I any] struct {
 	TaskBase
 	TaskShared
@@ -281,6 +284,8 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 
 // Deprecated: Dump is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Dump converts the task declaration into a protobuf request.
 func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
@@ -346,6 +351,8 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *crea
 
 // Deprecated: Dump is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Dump converts the on failure task declaration into a protobuf request.
 func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 

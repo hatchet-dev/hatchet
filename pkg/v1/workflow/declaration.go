@@ -117,6 +117,8 @@ type WorkflowDeclaration[I, O any] interface {
 
 // Deprecated: TaskWithSpecificOutput is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// TaskWithSpecificOutput defines a TaskDeclaration with specific output type
 type TaskWithSpecificOutput[I any, T any] struct {
 	Name string
 	Fn   func(ctx worker.HatchetContext, input I) (*T, error)
@@ -160,6 +162,9 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 // Deprecated: NewWorkflowDeclaration is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
+// The workflow will have input type I and output type O.
 func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 v0Client.Client) WorkflowDeclaration[I, O] {
 
 	api := v0.API()
@@ -226,6 +231,8 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 
 // Deprecated: Task is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Task registers a standard (non-durable) task with the workflow
 func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I] {
 	name := opts.Name
 
@@ -337,6 +344,8 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 
 // Deprecated: DurableTask is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// DurableTask registers a durable task with the workflow
 func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, O], fn func(ctx worker.DurableHatchetContext, input I) (interface{}, error)) *task.DurableTaskDeclaration[I] {
 	name := opts.Name
 
@@ -444,6 +453,8 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 
 // Deprecated: OnFailure is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// OnFailure registers a task that will be executed if the workflow fails.
 func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I] {
 
 	// Use reflection to validate the function type
@@ -516,6 +527,9 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 
 // Deprecated: RunBulkNoWait is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
+// Instead it returns a list of run IDs that can be used to check the status of the workflows.
 func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input []I, opts ...v0Client.RunOptFunc) ([]string, error) {
 
 	toRun := make([]*v0Client.WorkflowRun, len(input))
@@ -538,6 +552,9 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 
 // Deprecated: RunNoWait is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// RunNoWait executes the workflow with the provided input without waiting for it to complete.
+// Instead it returns a run ID that can be used to check the status of the workflow.
 func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error) {
 	run, err := w.v0.Admin().RunWorkflow(w.Name, input, opts...)
 	if err != nil {
@@ -549,6 +566,8 @@ func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, 
 
 // Deprecated: RunAsChild is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// RunAsChild executes the workflow as a child workflow with the provided input.
 func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, input I, opts RunAsChildOpts) (*O, error) {
 	var additionalMetaOpt *map[string]string
 
@@ -630,6 +649,10 @@ func (w *workflowDeclarationImpl[I, O]) getOutputFromWorkflowResult(workflowResu
 
 // Deprecated: Run is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Run executes the workflow with the provided input.
+// It triggers a workflow run via the Hatchet client and waits for the result.
+// Returns the workflow output and any error encountered during execution.
 func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error) {
 	run, err := w.RunNoWait(ctx, input, opts...)
 
@@ -671,6 +694,8 @@ func getStructFields(t reflect.Type) map[string]reflect.Type {
 
 // Deprecated: Cron is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Cron schedules the workflow to run on a regular basis using a cron expression.
 func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, cronExpr string, input I, opts ...v0Client.RunOptFunc) (*rest.CronWorkflows, error) {
 
 	var inputMap map[string]interface{}
@@ -713,6 +738,8 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 
 // Deprecated: Schedule is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Schedule schedules the workflow to run at a specific time.
 func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt time.Time, input I, opts ...v0Client.RunOptFunc) (*rest.ScheduledWorkflows, error) {
 	var inputMap map[string]interface{}
 	inputBytes, err := json.Marshal(input)
@@ -754,6 +781,10 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 
 // Deprecated: Dump is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Dump converts the workflow declaration into a protobuf request and function mappings.
+// This is used to serialize the workflow for transmission to the Hatchet server.
+// Returns the workflow definition as a protobuf request, the task functions, and the on-failure task function.
 func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersionRequest, []NamedFunction, []NamedFunction, WrappedTaskFn) {
 	taskOpts := make([]*contracts.CreateTaskOpts, len(w.tasks))
 	for i, task := range w.tasks {
@@ -904,6 +935,8 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 // Deprecated: Get is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Get retrieves the current state of the workflow.
 func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow, error) {
 	workflow, err := w.workflows.Get(ctx, w.Name)
 	if err != nil {
@@ -945,6 +978,8 @@ func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow
 
 // Deprecated: Metrics is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Metrics retrieves metrics for this workflow.
 func (w *workflowDeclarationImpl[I, O]) Metrics(ctx context.Context, opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
 	var options rest.WorkflowGetMetricsParams
 	if len(opts) > 0 {
@@ -961,6 +996,8 @@ func (w *workflowDeclarationImpl[I, O]) Metrics(ctx context.Context, opts ...res
 
 // Deprecated: QueueMetrics is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// QueueMetrics retrieves queue metrics for this workflow.
 func (w *workflowDeclarationImpl[I, O]) QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error) {
 	var options rest.TenantGetQueueMetricsParams
 	if len(opts) > 0 {
@@ -994,6 +1031,10 @@ func (w *workflowDeclarationImpl[I, O]) QueueMetrics(ctx context.Context, opts .
 
 // Deprecated: RunChildWorkflow is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// RunChildWorkflow is a helper function to run a child workflow with full type safety
+// It takes the parent context, the child workflow declaration, and input
+// Returns the typed output of the child workflow
 func RunChildWorkflow[I any, O any](
 	ctx worker.HatchetContext,
 	workflow WorkflowDeclaration[I, O],

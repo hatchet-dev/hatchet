@@ -67,6 +67,9 @@ func NewWorkflowsClient(
 	}
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Get retrieves a workflow by its ID or name.
 func (w *workflowsClientImpl) Get(ctx context.Context, workflowName string) (*rest.Workflow, error) {
 	// Try to get the workflow from cache first
@@ -101,6 +104,9 @@ func (w *workflowsClientImpl) Get(ctx context.Context, workflowName string) (*re
 	return &workflow, nil
 }
 
+// Deprecated: GetId is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // GetId retrieves a workflow by its name.
 func (w *workflowsClientImpl) GetId(ctx context.Context, workflowName string) (uuid.UUID, error) {
 	workflow, err := w.Get(ctx, workflowName)
@@ -111,6 +117,9 @@ func (w *workflowsClientImpl) GetId(ctx context.Context, workflowName string) (u
 	return uuid.MustParse(workflow.Metadata.Id), nil
 }
 
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // List retrieves all workflows for the tenant with optional filtering parameters.
 func (w *workflowsClientImpl) List(ctx context.Context, opts *rest.WorkflowListParams) (*rest.WorkflowList, error) {
 	resp, err := w.api.WorkflowListWithResponse(
@@ -125,6 +134,9 @@ func (w *workflowsClientImpl) List(ctx context.Context, opts *rest.WorkflowListP
 	return resp.JSON200, nil
 }
 
+// Deprecated: Delete is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Delete removes a workflow by its ID or name.
 func (w *workflowsClientImpl) Delete(ctx context.Context, workflowName string) (*rest.WorkflowDeleteResponse, error) {
 	// FIXME: this is a hack to get the workflow by name

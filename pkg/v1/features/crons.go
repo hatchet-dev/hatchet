@@ -64,6 +64,8 @@ func ValidateCronExpression(expression string) bool {
 
 // Deprecated: Create is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Create creates a new cron workflow trigger.
 func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error) {
 	// Validate cron expression
 	if !ValidateCronExpression(cron.Expression) {
@@ -103,6 +105,8 @@ func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron 
 
 // Deprecated: Delete is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Delete removes a cron workflow trigger.
 func (c *cronsClientImpl) Delete(ctx context.Context, cronId string) error {
 	cronIdUUID, err := uuid.Parse(cronId)
 	if err != nil {
@@ -119,6 +123,8 @@ func (c *cronsClientImpl) Delete(ctx context.Context, cronId string) error {
 
 // Deprecated: List is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// List retrieves a collection of cron workflow triggers based on the provided parameters.
 func (c *cronsClientImpl) List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error) {
 	resp, err := c.api.CronWorkflowListWithResponse(
 		ctx,
@@ -134,6 +140,8 @@ func (c *cronsClientImpl) List(ctx context.Context, opts rest.CronWorkflowListPa
 
 // Deprecated: Get is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Get retrieves a specific cron workflow trigger by its ID.
 func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error) {
 	cronIdUUID, err := uuid.Parse(cronId)
 	if err != nil {

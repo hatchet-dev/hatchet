@@ -101,12 +101,16 @@ func (c *v1HatchetClientImpl) Metrics() features.MetricsClient {
 
 // Deprecated: V0 is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// V0 returns the underlying V0 client for backward compatibility.
 func (c *v1HatchetClientImpl) V0() v0Client.Client {
 	return c.v0
 }
 
 // Deprecated: Workflow is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Workflow creates a new workflow declaration with the provided options.
 func (c *v1HatchetClientImpl) Workflow(opts create.WorkflowCreateOpts[any]) workflow.WorkflowDeclaration[any, any] {
 	return workflow.NewWorkflowDeclaration[any, any](opts, c.v0)
 }
@@ -119,6 +123,8 @@ func (c *v1HatchetClientImpl) Events() v0Client.EventClient {
 
 // Deprecated: Worker is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Worker creates and configures a new worker with the provided options and optional configuration functions.
 func (c *v1HatchetClientImpl) Worker(opts worker.WorkerOpts) (worker.Worker, error) {
 	return worker.NewWorker(c.workers, c.v0, opts)
 }

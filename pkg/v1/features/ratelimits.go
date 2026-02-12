@@ -52,7 +52,10 @@ func NewRateLimitsClient(
 	}
 }
 
-// upsert creates or updates a rate limit with the provided options.
+// Deprecated: Upsert is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// Upsert creates or updates a rate limit with the provided options.
 func (c *rlClientImpl) Upsert(opts CreateRatelimitOpts) error {
 	return (*c.admin).PutRateLimit(opts.Key, &types.RateLimitOpts{
 		Max:      opts.Limit,
@@ -60,7 +63,10 @@ func (c *rlClientImpl) Upsert(opts CreateRatelimitOpts) error {
 	})
 }
 
-// list retrieves rate limits based on the provided parameters (optional).
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// List retrieves rate limits based on the provided parameters (optional).
 func (c *rlClientImpl) List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitListResponse, error) {
 	return c.api.RateLimitListWithResponse(
 		ctx,
