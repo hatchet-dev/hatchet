@@ -129,7 +129,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		}
 	}
 
-	logger := logger.NewDefaultLogger("client")
+	logger := logger.NewStdErr(&clientConfig.Logger, "client")
 
 	return &ClientOpts{
 		tenantId:               clientConfig.TenantId,

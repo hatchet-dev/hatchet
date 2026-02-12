@@ -21,6 +21,8 @@ type ClientConfigFile struct {
 	// corresponding to the gRPC engine service.
 	ServerURL string `mapstructure:"serverURL" json:"serverURL,omitempty"`
 
+	Logger shared.LoggerConfigFile `mapstructure:"log" json:"log,omitempty"`
+
 	TLS ClientTLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
 	Namespace string `mapstructure:"namespace" json:"namespace,omitempty"`
@@ -50,6 +52,8 @@ type ClientConfig struct {
 	ServerURL            string
 	GRPCBroadcastAddress string
 
+	Logger shared.LoggerConfigFile
+
 	// TLSConfig will be nil if the strategy is "none"
 	TLSConfig *tls.Config
 
@@ -69,6 +73,13 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("hostPort", "HATCHET_CLIENT_HOST_PORT")
 	_ = v.BindEnv("serverURL", "HATCHET_CLIENT_SERVER_URL")
 	_ = v.BindEnv("namespace", "HATCHET_CLIENT_NAMESPACE")
+
+	// logger options
+	_ = v.BindEnv("log.level", "HATCHET_CLIENT_LOG_LEVEL")
+	_ = v.BindEnv("log.format", "HATCHET_CLIENT_LOG_FORMAT")
+	// to ensure backwards compatability with previous log settings
+	v.SetDefault("log.level", "debug")
+	v.SetDefault("log.format", "json")
 
 	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLOUD_REGISTER_ID")
 	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
