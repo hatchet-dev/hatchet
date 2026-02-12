@@ -1,6 +1,7 @@
 import asyncio
 import time
 from datetime import timedelta
+from typing import Any
 from uuid import uuid4
 
 from hatchet_sdk import (
@@ -145,10 +146,27 @@ async def wait_for_sleep_twice(
         return {"runtime": -1}
 
 
+@hatchet.task()
+def spawn_child_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {"message": "hello from child"}
+
+
+@hatchet.durable_task()
+async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+    child_result = await ctx.spawn_child(spawn_child_task)
+    return {"child_output": child_result}
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
-        workflows=[durable_workflow, ephemeral_workflow, wait_for_sleep_twice],
+        workflows=[
+            durable_workflow,
+            ephemeral_workflow,
+            wait_for_sleep_twice,
+            spawn_child_task,
+            durable_with_spawn,
+        ],
     )
     worker.start()
 

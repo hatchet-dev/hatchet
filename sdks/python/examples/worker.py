@@ -31,7 +31,12 @@ from examples.dependency_injection.worker import (
     sync_task_with_dependencies,
 )
 from examples.dict_input.worker import say_hello_unsafely
-from examples.durable.worker import durable_workflow, wait_for_sleep_twice
+from examples.durable.worker import (
+    durable_with_spawn,
+    durable_workflow,
+    spawn_child_task,
+    wait_for_sleep_twice,
+)
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
@@ -99,6 +104,8 @@ def main() -> None:
             webhook_with_static_payload,
             return_exceptions_task,
             wait_for_sleep_twice,
+            spawn_child_task,
+            durable_with_spawn,
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
