@@ -20,6 +20,27 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+func (t *V1WorkflowRunsService) checkTaskRunLimit(ctx echo.Context, tenantId uuid.UUID) (gen.V1WorkflowRunCreateResponseObject, error) {
+	canCreate, trLimit, err := t.config.V1.TenantLimit().CanCreate(
+		ctx.Request().Context(),
+		sqlcv1.LimitResourceTASKRUN,
+		tenantId,
+		1,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check tenant limit: %w", err)
+	}
+
+	if !canCreate {
+		return gen.V1WorkflowRunCreate429JSONResponse(
+			apierrors.NewAPIErrors(fmt.Sprintf("tenant has reached %d%% of its task runs limit", trLimit)),
+		), nil
+	}
+
+	return nil, nil
+}
+
 func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request gen.V1WorkflowRunCreateRequestObject) (gen.V1WorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
@@ -56,6 +77,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 
 		newPrio := int32(*request.Body.Priority)
 		priority = &newPrio
+	}
+
+	if limitResp, limitErr := t.checkTaskRunLimit(ctx, tenantId); limitResp != nil || limitErr != nil {
+		return limitResp, limitErr
 	}
 
 	grpcReq := &contracts.TriggerWorkflowRunRequest{
@@ -118,18 +143,8 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	}
 
 	if rawWorkflowRun == nil || rawWorkflowRun.WorkflowRun == nil {
-		// check if the tenant has hit its resource limit, which would explain why the run was not created
-		canCreate, trLimit, limitErr := t.config.V1.TenantLimit().CanCreate(
-			ctx.Request().Context(),
-			sqlcv1.LimitResourceTASKRUN,
-			tenantId,
-			1,
-		)
-
-		if limitErr == nil && !canCreate {
-			return gen.V1WorkflowRunCreate429JSONResponse(
-				apierrors.NewAPIErrors(fmt.Sprintf("tenant has reached %d%% of its task runs limit", trLimit)),
-			), nil
+		if limitResp, _ := t.checkTaskRunLimit(ctx, tenantId); limitResp != nil {
+			return limitResp, nil
 		}
 
 		return nil, fmt.Errorf("rawWorkflowRun not populated, we are likely seeing high latency in creating tasks")
