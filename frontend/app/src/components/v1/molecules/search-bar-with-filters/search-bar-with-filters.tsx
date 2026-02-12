@@ -504,7 +504,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               }
             >
               <CommandList
-                className="max-h-[300px]"
+                className="max-h-[300px] bg-muted/50"
                 data-cy="search-bar-suggestions"
               >
                 <CommandGroup>
@@ -514,7 +514,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
                       value={suggestion.value}
                       onSelect={() => handleSelect(index)}
                       className={cn(
-                        'flex items-center justify-between aria-selected:bg-primary/10',
+                        'flex items-center justify-between aria-selected:bg-primary/5 text-primary/60',
                         selectedIndex !== undefined &&
                           index === selectedIndex &&
                           'text-accent-foreground',
