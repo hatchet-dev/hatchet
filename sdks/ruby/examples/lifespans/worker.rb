@@ -15,6 +15,8 @@ LIFESPAN_TASK = HATCHET.task(name: "LifespanWorkflow") do |input, ctx|
   ctx.lifespan
 end
 
+# !!
+
 def main
   worker = HATCHET.worker(
     "test-worker", slots: 1, workflows: [LIFESPAN_TASK], lifespan: LIFESPAN_PROC

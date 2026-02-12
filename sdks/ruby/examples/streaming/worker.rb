@@ -23,6 +23,8 @@ STREAM_TASK = HATCHET.task(name: "stream_task") do |input, ctx|
   end
 end
 
+# !!
+
 def main
   worker = HATCHET.worker("test-worker", workflows: [STREAM_TASK])
   worker.start

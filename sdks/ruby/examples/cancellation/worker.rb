@@ -18,6 +18,8 @@ CANCELLATION_WORKFLOW.task(:self_cancel) do |input, ctx|
   { "error" => "Task should have been cancelled" }
 end
 
+# !!
+
 # > Checking exit flag
 CANCELLATION_WORKFLOW.task(:check_flag) do |input, ctx|
   3.times do
@@ -33,6 +35,8 @@ CANCELLATION_WORKFLOW.task(:check_flag) do |input, ctx|
 
   { "error" => "Task should have been cancelled" }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker("cancellation-worker", workflows: [CANCELLATION_WORKFLOW])

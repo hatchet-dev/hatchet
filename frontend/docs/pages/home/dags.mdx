@@ -13,7 +13,7 @@ Start by declaring a workflow with a name. The workflow object can declare addit
 
 The returned object is an instance of the `Workflow` class, which is the primary interface for interacting with the workflow (i.e. [running](./run-with-results.mdx), [enqueuing](./run-no-wait.mdx), [scheduling](./scheduled-runs.mdx), etc).
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.dag.worker.define_a_dag} />
@@ -29,6 +29,9 @@ The returned object is an instance of the `Workflow` class, which is the primary
 <Snippet src={snippets.go.dag.main.declaring_a_workflow} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.dag.worker.define_a_dag} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 <Callout variant="info">
@@ -43,7 +46,7 @@ Now that we have a workflow, we can define a task to be executed as part of the 
 
 The `task` method takes a name and a function that defines the task's behavior. The function will receive the workflow's input and return the task's output. Tasks also accept a number of other configuration options, which are covered elsewhere in our documentation.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
   In Python, the `task` method is a decorator, which is used like this to wrap a function:
 
@@ -74,13 +77,16 @@ asynchronous.
 <Snippet src={snippets.go.dag.main.defining_a_task} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.dag.worker.first_task} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Building a DAG with Task Dependencies
 
 The power of Hatchet's workflow design comes from connecting tasks into a DAG structure. Tasks can specify dependencies (parents) which must complete successfully before the task can start.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.dag.worker.task_with_parents} />
@@ -96,13 +102,16 @@ The power of Hatchet's workflow design comes from connecting tasks into a DAG st
 <Snippet src={snippets.go.dag.main.adding_a_task_with_a_parent} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.dag.worker.task_with_parents} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Accessing Parent Task Outputs
 
 As shown in the examples above, tasks can access outputs from their parent tasks using the context object:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.dag.worker.task_with_parents} />
@@ -123,13 +132,16 @@ if err != nil {
 }
 ```
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.dag.worker.task_with_parents} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Running a Workflow
 
 You can run workflows directly or enqueue them for asynchronous execution. All the same methods for running a task are available for workflows!
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.dag.trigger.trigger_the_dag} />
@@ -153,4 +165,7 @@ runID, err := simple.RunNoWait(ctx, input)
 ```
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.dag.trigger.trigger_the_dag} />
+  </Tabs.Tab>
 </UniversalTabs>

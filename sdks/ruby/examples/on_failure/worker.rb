@@ -28,6 +28,8 @@ ON_FAILURE_WF.on_failure_task do |input, ctx|
   { "status" => "success" }
 end
 
+# !!
+
 # > OnFailure With Details
 # We can access the failure details in the onFailure step
 # via the context method
@@ -58,6 +60,8 @@ ON_FAILURE_WF_WITH_DETAILS.on_failure_task do |input, ctx|
 
   raise "unexpected failure"
 end
+
+# !!
 
 def main
   worker = HATCHET.worker(

@@ -21,7 +21,7 @@ In some cases, you may have a task in your workflow that is resource-intensive a
 
 You can manually release a slot in from within a running task in your workflow using the Hatchet context method `release_slot`:
 
-<UniversalTabs items={['Python']}>
+<UniversalTabs items={['Python', "Ruby"]}>
 <Tabs.Tab>
 <Snippet src={snippets.python.manual_slot_release.worker.slot_release} />
 
@@ -44,6 +44,9 @@ func StepOne(ctx worker.HatchetContext) (result \*taskOneOutput, err error) {
 ```
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.manual_slot_release.worker.slot_release} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 In the above examples, the `release_slot()` method is called after the resource-intensive process has completed. This allows other tasks in the workflow to start executing while the current task continues with non-resource-intensive tasks.

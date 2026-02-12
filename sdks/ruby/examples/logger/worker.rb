@@ -23,6 +23,8 @@ LOGGING_WORKFLOW.task(:root_logger) do |input, ctx|
   { "status" => "success" }
 end
 
+# !!
+
 # > ContextLogger
 LOGGING_WORKFLOW.task(:context_logger) do |input, ctx|
   12.times do |i|
@@ -34,6 +36,8 @@ LOGGING_WORKFLOW.task(:context_logger) do |input, ctx|
 
   { "status" => "success" }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker("logger-worker", slots: 5, workflows: [LOGGING_WORKFLOW])

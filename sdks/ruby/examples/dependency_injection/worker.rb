@@ -26,6 +26,8 @@ async_cm_dep = lambda { |_input, _ctx, deps|
 chained_dep = ->(_input, _ctx, deps) { "chained_#{CHAINED_CM_VALUE}" }
 chained_async_dep = ->(_input, _ctx, deps) { "chained_#{CHAINED_ASYNC_CM_VALUE}" }
 
+# !!
+
 # > Inject dependencies
 ASYNC_TASK_WITH_DEPS = HATCHET.task(
   name: "async_task_with_dependencies",
@@ -120,6 +122,8 @@ DI_WORKFLOW.task(:wf_task_with_dependencies) do |input, ctx|
     "async_dep" => ASYNC_DEPENDENCY_VALUE
   }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker(

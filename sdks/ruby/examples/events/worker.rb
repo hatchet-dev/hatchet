@@ -14,6 +14,8 @@ EVENT_WORKFLOW = HATCHET.workflow(
   on_events: [EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY]
 )
 
+# !!
+
 # > Event trigger with filter
 EVENT_WORKFLOW_WITH_FILTER = HATCHET.workflow(
   name: "EventWorkflow",
@@ -36,10 +38,14 @@ EVENT_WORKFLOW.task(:task) do |input, ctx|
   ctx.filter_payload
 end
 
+# !!
+
 # > Accessing the filter payload
 EVENT_WORKFLOW_WITH_FILTER.task(:filtered_task) do |input, ctx|
   puts ctx.filter_payload.inspect
 end
+
+# !!
 
 def main
   worker = HATCHET.worker(name: "EventWorker", workflows: [EVENT_WORKFLOW])

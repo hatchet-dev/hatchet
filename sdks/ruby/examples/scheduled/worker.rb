@@ -17,6 +17,8 @@ def schedule_workflow
   SCHEDULED_WORKFLOW.schedule(future_time, input: { "message" => "scheduled run" })
 end
 
+# !!
+
 def main
   worker = HATCHET.worker("scheduled-worker", workflows: [SCHEDULED_WORKFLOW])
   worker.start

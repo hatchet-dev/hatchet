@@ -13,6 +13,8 @@ CHILD_TASK_WF.task(:step1) do |input, ctx|
   { "transformed_message" => input["message"].upcase }
 end
 
+# !!
+
 def main
   worker = HATCHET.worker("test-worker", slots: 1, workflows: [CHILD_TASK_WF])
   worker.start

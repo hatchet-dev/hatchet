@@ -28,6 +28,8 @@ FANOUT_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
   { "results" => result }
 end
 
+# !!
+
 # > FanoutChild
 FANOUT_CHILD_PROCESS = FANOUT_CHILD_WF.task(:process) do |input, ctx|
   puts "child process #{input['a']}"
@@ -39,6 +41,8 @@ FANOUT_CHILD_WF.task(:process2, parents: [FANOUT_CHILD_PROCESS]) do |input, ctx|
   a = process_output["status"]
   { "status2" => "#{a}2" }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker("fanout-worker", slots: 40, workflows: [FANOUT_PARENT_WF, FANOUT_CHILD_WF])

@@ -19,6 +19,8 @@ STEP1B = STICKY_WORKFLOW.task(:step1b) do |input, ctx|
   { "worker" => ctx.worker.id }
 end
 
+# !!
+
 # > StickyChild
 STICKY_CHILD_WORKFLOW = HATCHET.workflow(
   name: "StickyChildWorkflow",
@@ -38,6 +40,8 @@ end
 STICKY_CHILD_WORKFLOW.task(:child) do |input, ctx|
   { "worker" => ctx.worker.id }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker(

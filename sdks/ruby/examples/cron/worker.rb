@@ -15,6 +15,8 @@ CRON_WORKFLOW.task(:cron_task) do |input, ctx|
   { "status" => "success" }
 end
 
+# !!
+
 # > Programmatic Cron Creation
 def create_cron
   HATCHET.cron.create(
@@ -24,6 +26,8 @@ def create_cron
     input: { "message" => "hello from cron" }
   )
 end
+
+# !!
 
 def main
   worker = HATCHET.worker("cron-worker", workflows: [CRON_WORKFLOW])

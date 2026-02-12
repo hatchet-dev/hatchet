@@ -21,6 +21,8 @@ SERDE_WORKFLOW.task(:read_result, parents: [GENERATE_RESULT]) do |input, ctx|
   { "final_result" => decoded }
 end
 
+# !!
+
 def main
   worker = HATCHET.worker("test-worker", workflows: [SERDE_WORKFLOW])
   worker.start

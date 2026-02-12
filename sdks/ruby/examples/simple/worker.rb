@@ -15,6 +15,8 @@ SIMPLE_DURABLE = HATCHET.durable_task(name: "simple_durable") do |input, ctx|
   { "result" => result["result"] }
 end
 
+# !!
+
 def main
   worker = HATCHET.worker("test-worker", workflows: [SIMPLE, SIMPLE_DURABLE])
   worker.start

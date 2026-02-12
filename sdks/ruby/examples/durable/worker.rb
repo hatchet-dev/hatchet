@@ -8,6 +8,8 @@ HATCHET = Hatchet::Client.new(debug: true)
 DURABLE_WORKFLOW = HATCHET.workflow(name: "DurableWorkflow")
 EPHEMERAL_WORKFLOW = HATCHET.workflow(name: "EphemeralWorkflow")
 
+# !!
+
 # > Add durable task
 DURABLE_EVENT_KEY = "durable-example:event"
 DURABLE_SLEEP_TIME = 5
@@ -30,6 +32,8 @@ DURABLE_WORKFLOW.durable_task(:durable_task, execution_timeout: 60) do |input, c
 
   { "status" => "success" }
 end
+
+# !!
 
 # > Add durable tasks that wait for or groups
 DURABLE_WORKFLOW.durable_task(:wait_for_or_group_1, execution_timeout: 60) do |input, ctx|
@@ -93,6 +97,8 @@ WAIT_FOR_SLEEP_TWICE = HATCHET.durable_task(name: "wait_for_sleep_twice", execut
 
   { "runtime" => (Time.now - start).to_i }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker(

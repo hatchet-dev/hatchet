@@ -10,6 +10,8 @@ TIMEOUT_WF = HATCHET.workflow(
   task_defaults: { execution_timeout: 120 } # 2 minutes
 )
 
+# !!
+
 # > ExecutionTimeout
 # Specify an execution timeout on a task
 TIMEOUT_WF.task(:timeout_task, execution_timeout: 5, schedule_timeout: 600) do |input, ctx|
@@ -19,6 +21,8 @@ end
 
 REFRESH_TIMEOUT_WF = HATCHET.workflow(name: "RefreshTimeoutWorkflow")
 
+# !!
+
 # > RefreshTimeout
 REFRESH_TIMEOUT_WF.task(:refresh_task, execution_timeout: 4) do |input, ctx|
   ctx.refresh_timeout(10)
@@ -26,6 +30,8 @@ REFRESH_TIMEOUT_WF.task(:refresh_task, execution_timeout: 4) do |input, ctx|
 
   { "status" => "success" }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker(

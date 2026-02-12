@@ -12,12 +12,16 @@ SIMPLE_RETRY_WORKFLOW.task(:always_fail, retries: 3) do |input, ctx|
   raise "simple task failed"
 end
 
+# !!
+
 # > Retries with Count
 SIMPLE_RETRY_WORKFLOW.task(:fail_twice, retries: 3) do |input, ctx|
   raise "simple task failed" if ctx.retry_count < 2
 
   { "status" => "success" }
 end
+
+# !!
 
 # > Retries with Backoff
 BACKOFF_WORKFLOW.task(
@@ -33,6 +37,8 @@ BACKOFF_WORKFLOW.task(
 
   { "status" => "success" }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker("backoff-worker", slots: 4, workflows: [BACKOFF_WORKFLOW])

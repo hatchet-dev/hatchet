@@ -7,6 +7,8 @@ HATCHET = Hatchet::Client.new(debug: true)
 # > Workflow
 RATE_LIMIT_WORKFLOW = HATCHET.workflow(name: "RateLimitWorkflow")
 
+# !!
+
 # > Static
 RATE_LIMIT_KEY = "test-limit"
 
@@ -16,6 +18,8 @@ RATE_LIMIT_WORKFLOW.task(
 ) do |input, ctx|
   puts "executed step_1"
 end
+
+# !!
 
 # > Dynamic
 RATE_LIMIT_WORKFLOW.task(
@@ -32,8 +36,10 @@ RATE_LIMIT_WORKFLOW.task(
   puts "executed step_2"
 end
 
+# !!
+
+# > Create a rate limit
 def main
-  # > Create a rate limit
   HATCHET.rate_limits.put(RATE_LIMIT_KEY, 2, :second)
 
   worker = HATCHET.worker(
@@ -41,5 +47,7 @@ def main
   )
   worker.start
 end
+
+# !!
 
 main if __FILE__ == $PROGRAM_NAME

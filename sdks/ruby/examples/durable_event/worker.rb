@@ -17,6 +17,8 @@ DURABLE_EVENT_TASK = HATCHET.durable_task(name: "DurableEventTask") do |input, c
 end
 
 DURABLE_EVENT_TASK_WITH_FILTER = HATCHET.durable_task(name: "DurableEventWithFilterTask") do |input, ctx|
+
+# !!
   # > Durable Event With Filter
   res = ctx.wait_for(
     "event",
@@ -28,6 +30,8 @@ DURABLE_EVENT_TASK_WITH_FILTER = HATCHET.durable_task(name: "DurableEventWithFil
 
   puts "got event #{res}"
 end
+
+# !!
 
 def main
   worker = HATCHET.worker(

@@ -19,6 +19,8 @@ NON_RETRYABLE_WORKFLOW.task(:should_not_retry_successful_task, retries: 1) do |i
   # no-op
 end
 
+# !!
+
 def main
   worker = HATCHET.worker("non-retry-worker", workflows: [NON_RETRYABLE_WORKFLOW])
   worker.start

@@ -38,6 +38,8 @@ BULK_CHILD_WF.task(:process2) do |input, ctx|
   { "status2" => "success" }
 end
 
+# !!
+
 def main
   worker = HATCHET.worker(
     "fanout-worker", slots: 40, workflows: [BULK_PARENT_WF, BULK_CHILD_WF]

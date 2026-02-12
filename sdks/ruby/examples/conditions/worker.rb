@@ -8,10 +8,14 @@ HATCHET = Hatchet::Client.new(debug: true)
 
 TASK_CONDITION_WORKFLOW = HATCHET.workflow(name: "TaskConditionWorkflow")
 
+# !!
+
 # > Add base task
 COND_START = TASK_CONDITION_WORKFLOW.task(:start) do |input, ctx|
   { "random_number" => rand(1..100) }
 end
+
+# !!
 
 # > Add wait for sleep
 WAIT_FOR_SLEEP = TASK_CONDITION_WORKFLOW.task(
@@ -22,6 +26,8 @@ WAIT_FOR_SLEEP = TASK_CONDITION_WORKFLOW.task(
   { "random_number" => rand(1..100) }
 end
 
+# !!
+
 # > Add skip condition override
 TASK_CONDITION_WORKFLOW.task(
   :skip_with_multiple_parents,
@@ -30,6 +36,8 @@ TASK_CONDITION_WORKFLOW.task(
 ) do |input, ctx|
   { "random_number" => rand(1..100) }
 end
+
+# !!
 
 # > Add skip on event
 SKIP_ON_EVENT = TASK_CONDITION_WORKFLOW.task(
@@ -40,6 +48,8 @@ SKIP_ON_EVENT = TASK_CONDITION_WORKFLOW.task(
 ) do |input, ctx|
   { "random_number" => rand(1..100) }
 end
+
+# !!
 
 # > Add branching
 LEFT_BRANCH = TASK_CONDITION_WORKFLOW.task(
@@ -68,6 +78,8 @@ RIGHT_BRANCH = TASK_CONDITION_WORKFLOW.task(
   { "random_number" => rand(1..100) }
 end
 
+# !!
+
 # > Add wait for event
 WAIT_FOR_EVENT = TASK_CONDITION_WORKFLOW.task(
   :wait_for_event,
@@ -81,6 +93,8 @@ WAIT_FOR_EVENT = TASK_CONDITION_WORKFLOW.task(
 ) do |input, ctx|
   { "random_number" => rand(1..100) }
 end
+
+# !!
 
 # > Add sum
 TASK_CONDITION_WORKFLOW.task(
@@ -96,6 +110,8 @@ TASK_CONDITION_WORKFLOW.task(
 
   { "sum" => one + two + three + four + five + six }
 end
+
+# !!
 
 def main
   worker = HATCHET.worker("dag-worker", workflows: [TASK_CONDITION_WORKFLOW])

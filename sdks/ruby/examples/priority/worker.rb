@@ -18,6 +18,8 @@ PRIORITY_WORKFLOW.task(:priority_task) do |input, ctx|
   sleep SLEEP_TIME
 end
 
+# !!
+
 def main
   worker = HATCHET.worker(
     "priority-worker",

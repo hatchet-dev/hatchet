@@ -7,6 +7,8 @@ HATCHET = Hatchet::Client.new(debug: true)
 # > AffinityWorkflow
 AFFINITY_WORKER_WORKFLOW = HATCHET.workflow(name: "AffinityWorkflow")
 
+# !!
+
 # > AffinityTask
 AFFINITY_WORKER_WORKFLOW.task(
   :step,
@@ -28,8 +30,10 @@ AFFINITY_WORKER_WORKFLOW.task(
   { "worker" => ctx.worker.id }
 end
 
+# !!
+
+# > AffinityWorker
 def main
-  # > AffinityWorker
   worker = HATCHET.worker(
     "affinity-worker",
     slots: 10,
@@ -41,5 +45,7 @@ def main
   )
   worker.start
 end
+
+# !!
 
 main if __FILE__ == $PROGRAM_NAME

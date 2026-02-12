@@ -10,6 +10,8 @@ SAY_HELLO = HATCHET.task(name: "say_hello") do |input, ctx|
   { "message" => "Hello, #{input['name']}!" }
 end
 
+# !!
+
 def main
   worker = HATCHET.worker("test-worker", workflows: [SAY_HELLO])
   worker.start
