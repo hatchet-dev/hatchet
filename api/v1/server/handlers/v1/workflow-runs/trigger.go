@@ -79,7 +79,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 					apierrors.NewAPIErrors(e.Message()),
 				), nil
 			case codes.ResourceExhausted:
-				return gen.V1WorkflowRunCreate400JSONResponse(
+				return gen.V1WorkflowRunCreate429JSONResponse(
 					apierrors.NewAPIErrors(e.Message()),
 				), nil
 			}
@@ -118,6 +118,20 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	}
 
 	if rawWorkflowRun == nil || rawWorkflowRun.WorkflowRun == nil {
+		// check if the tenant has hit its resource limit, which would explain why the run was not created
+		canCreate, trLimit, limitErr := t.config.V1.TenantLimit().CanCreate(
+			ctx.Request().Context(),
+			sqlcv1.LimitResourceTASKRUN,
+			tenantId,
+			1,
+		)
+
+		if limitErr == nil && !canCreate {
+			return gen.V1WorkflowRunCreate429JSONResponse(
+				apierrors.NewAPIErrors(fmt.Sprintf("tenant has reached %d%% of its task runs limit", trLimit)),
+			), nil
+		}
+
 		return nil, fmt.Errorf("rawWorkflowRun not populated, we are likely seeing high latency in creating tasks")
 	}
 
