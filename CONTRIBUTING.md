@@ -12,7 +12,7 @@ Then, before contributing, check out the following sections:
 - [Pull Requests](#pull-requests)
 - [Testing](#testing)
 - [Running Locally](#running-locally)
-   - [Example Workflow](#example-workflow)
+  - [Example Workflow](#example-workflow)
 
 ## Development Environment Setup
 
@@ -20,7 +20,7 @@ Ensure all prerequisite dependencies are installed:
 
 - [Go 1.25+](https://go.dev/doc/install)
 - [Node.js v18+](https://nodejs.org/en/download)
-   - We recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions to match the version defined in [`.nvmrc`](.nvmrc)
+  - We recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions to match the version defined in [`.nvmrc`](.nvmrc)
 - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
 - [Docker](https://docs.docker.com/engine/install/)
 - [task](https://taskfile.dev/docs/installation)
@@ -28,7 +28,7 @@ Ensure all prerequisite dependencies are installed:
 - [Caddy](https://caddyserver.com/docs/install)
 - [goose](https://pressly.github.io/goose/installation/)
 - [pre-commit](https://pre-commit.com/)
-   - You can install this in a virtual environment with `task pre-commit-install`
+  - You can install this in a virtual environment with `task pre-commit-install`
 
 We recommend installing these tools individually using your preferred package manager (e.g., Homebrew).
 
@@ -52,6 +52,7 @@ For configuration changes, see [Updating Configuration](docs/development/updatin
 ## Testing
 
 Hatchet uses Go build tags to categorize tests into different test suites. For example, these build tags mark a test as unit-only:
+
 ```go
 //go:build !e2e && !load && !rampup && !integration
 
@@ -61,11 +62,13 @@ func TestMyUnitOfCode() { ... }
 Most contributors should familiarize themselves with **unit testing** and **integration testing**.
 
 **Unit tests** verify individual functions without external dependencies:
+
 ```sh
 task test
 ```
 
 **Integration tests** verify components working together with real dependencies (normally spun up via `docker compose`):
+
 ```sh
 task test-integration
 ```
@@ -75,11 +78,13 @@ Note: **manual testing** is acceptable for cases where automated testing is impr
 ## Running locally
 
 1. Start the Postgres Database and RabbitMQ services:
+
 ```sh
 task start-db
 ```
 
 2. Install Go & Node.js dependencies, run migrations, generate encryption keys, and seed the database:
+
 ```sh
 task setup
 ```
@@ -87,24 +92,30 @@ task setup
 **Note:** You might need to run this with `sudo` to install certificates.
 
 3. Start the Hatchet engine, API server, and frontend:
+
 ```sh
 task start-dev # or task start-dev-tmux if you want to use tmux panes
 ```
 
+Once started, you should be able to access the Hatchet UI at [https://app.dev.hatchet-tools.com](https://app.dev.hatchet-tools.com).
+
 ### Example Workflow
 
 1. Generate client credentials:
+
 ```sh
 task init-dev-env | tee ./examples/go/simple/.env
 ```
 
 2. Run the simple workflow by loading the environment variables from `./examples/go/simple/.env`:
+
 ```sh
 cd ./examples/go/simple
 env $(cat .env | xargs) go run main.go
 ```
 
 You should see the following logs if the workflow was started against your local instance successfully:
+
 ```log
 {"level":"debug","service":"client","message":"connecting to 127.0.0.1:7070 without TLS"}
 {"level":"info","service":"client","message":"gzip compression enabled for gRPC client"}

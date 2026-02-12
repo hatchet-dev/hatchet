@@ -7,6 +7,7 @@ tasks:
       - task: set-env-db
       - task: migrate
       - task: generate-local-encryption-keys
+      - task: generate-docs
       - task: set-env-all
       - task: seed-dev
   set-env-db:
@@ -31,7 +32,7 @@ tasks:
         SERVER_URL=http://localhost:8080
 
         SERVER_AUTH_COOKIE_SECRETS="$(randstring 16) $(randstring 16)"
-        SERVER_AUTH_COOKIE_DOMAIN=localhost
+        SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
         SERVER_AUTH_COOKIE_INSECURE=true
         SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
@@ -145,16 +146,25 @@ tasks:
       - task: generate-api
       - task: generate-proto
       - task: generate-sqlc
+      - task: generate-docs
       - task: pre-commit-run
   install-dependencies:
+    deps: [venv]
     cmds:
       - go mod download
       - cd frontend/app/ && pnpm install
       - cd frontend/docs/ && pnpm install
+      - source .venv/bin/activate && pip install pre-commit
   generate-api:
     cmds:
       - task: generate-api-server
       - task: generate-api-client
+  generate-docs:
+    deps: [venv]
+    dir: frontend/snippets
+    cmds:
+      - "source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py"
+      - task: fmt
   generate-certs:
     cmds:
       - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
@@ -214,14 +224,11 @@ tasks:
     status: [test -d .venv]
     cmd: python3 -m venv .venv
   pre-commit-install:
-    status: [source .venv/bin/activate && pre-commit -V]
     deps: [venv]
-    cmds:
-      - 'source .venv/bin/activate && pip install pre-commit'
-      - 'source .venv/bin/activate && pre-commit install'
+    cmd: source .venv/bin/activate && pre-commit install
   pre-commit-run:
-    deps: [pre-commit-install]
-    cmd: 'source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files'
+    deps: [venv]
+    cmd: "source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files"
   docs:
     cmds:
       - |
