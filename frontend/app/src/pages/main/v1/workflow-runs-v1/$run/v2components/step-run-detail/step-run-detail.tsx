@@ -1,6 +1,7 @@
 import { V1RunIndicator } from '../../../components/run-statuses';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
+import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
@@ -20,14 +21,13 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
@@ -59,13 +59,13 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
   if (showViewTaskRunButton) {
     return (
       <Link
         to={appRoutes.tenantRunRoute.to}
-        params={{ tenant: tenantId, run: taskRun.metadata.id }}
+        params={{ tenant: tenant, run: taskRun.metadata.id }}
       >
         <Button
           size={'sm'}
@@ -84,7 +84,7 @@ const TaskRunPermalinkOrBacklink = ({
     return (
       <Link
         to={appRoutes.tenantRunRoute.to}
-        params={{ tenant: tenantId, run: taskRun.workflowRunExternalId }}
+        params={{ tenant: tenant, run: taskRun.workflowRunExternalId }}
       >
         <Button
           size={'sm'}
@@ -133,6 +133,7 @@ export const TaskRunDetail = ({
     },
   });
 
+  const { isSkipped } = useIsTaskRunSkipped({ taskRunId });
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -152,7 +153,9 @@ export const TaskRunDetail = ({
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
-            {taskRun.status && <V1RunIndicator status={taskRun.status} />}
+            {taskRun.status && (
+              <V1RunIndicator status={taskRun.status} isSkipped={isSkipped} />
+            )}
             <h3 className="flex flex-row items-center gap-4 font-mono text-lg font-semibold leading-tight tracking-tight text-foreground">
               {taskRun.displayName || 'Task Run Detail'}
             </h3>
@@ -162,7 +165,7 @@ export const TaskRunDetail = ({
 
       {taskRun.parentTaskExternalId && (
         <TriggeringParentWorkflowRunSection
-          tenantId={taskRun.tenantId}
+          tenant={taskRun.tenantId}
           parentTaskExternalId={taskRun.parentTaskExternalId}
         />
       )}
@@ -329,9 +332,9 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
   });
+  const { isSkipped: hasSkippedEvent } = useIsTaskRunSkipped({ taskRunId });
 
   const timings = [];
-
   const data = taskRunQuery.data;
 
   if (taskRunQuery.isLoading || !data) {
@@ -359,7 +362,7 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   if (data.status === V1TaskStatus.COMPLETED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
-        {'Succeeded '}
+        {hasSkippedEvent ? 'Skipped ' : 'Succeeded '}
         <RelativeDate date={data.finishedAt} />
       </div>,
     );
@@ -393,10 +396,10 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
 };
 
 function TriggeringParentWorkflowRunSection({
-  tenantId,
+  tenant,
   parentTaskExternalId,
 }: {
-  tenantId: string;
+  tenant: string;
   parentTaskExternalId: string;
 }) {
   // Get the parent task to find the parent workflow run
@@ -428,7 +431,7 @@ function TriggeringParentWorkflowRunSection({
       <Link
         to={appRoutes.tenantRunRoute.to}
         params={{
-          tenant: tenantId,
+          tenant: tenant,
           run: parentWorkflowRun.workflowRunExternalId,
         }}
         className="font-semibold text-indigo-500 hover:underline dark:text-indigo-200"

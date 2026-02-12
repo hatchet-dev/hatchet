@@ -228,7 +228,7 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 	}()
 
 	cleanupQueue, err := tq.Subscribe(staticQueue, func(receivedMessage *msgqueue.Message) error {
-		for _ = range receivedMessage.Payloads {
+		for range receivedMessage.Payloads {
 			wg.Done()
 		}
 

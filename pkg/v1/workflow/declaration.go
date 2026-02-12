@@ -1,6 +1,5 @@
-// Package workflow provides functionality for defining, managing, and executing
-// workflows in Hatchet. A workflow is a collection of tasks with defined
-// dependencies and execution logic.
+// Deprecated: This package is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package workflow
 
 import (
@@ -24,40 +23,46 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
-// WrappedTaskFn represents a task function that can be executed by the Hatchet worker.
-// It takes a HatchetContext and returns an interface{} result and an error.
+// Deprecated: WrappedTaskFn is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WrappedTaskFn func(ctx worker.HatchetContext) (interface{}, error)
 
-// DurableWrappedTaskFn represents a durable task function that can be executed by the Hatchet worker.
-// It takes a DurableHatchetContext and returns an interface{} result and an error.
+// Deprecated: DurableWrappedTaskFn is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type DurableWrappedTaskFn func(ctx worker.DurableHatchetContext) (interface{}, error)
 
-// NamedFunction represents a function with its associated action ID
+// Deprecated: NamedFunction is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type NamedFunction struct {
 	ActionID string
 	Fn       WrappedTaskFn
 }
 
-// WorkflowBase defines the common interface for all workflow types.
+// Deprecated: WorkflowBase is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowBase interface {
 	// Dump converts the workflow declaration into a protobuf request and function mappings.
 	// Returns the workflow definition, regular task functions, durable task functions, and the on failure task function.
 	Dump() (*contracts.CreateWorkflowVersionRequest, []NamedFunction, []NamedFunction, WrappedTaskFn)
 }
 
+// Deprecated: RunOpts is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
 	Priority           *int32
 }
 
+// Deprecated: RunAsChildOpts is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type RunAsChildOpts struct {
 	RunOpts
 	Sticky *bool
 	Key    *string
 }
 
-// WorkflowDeclaration represents a workflow with input type I and output type O.
-// It provides methods to define tasks, specify dependencies, and execute the workflow.
+// Deprecated: WorkflowDeclaration is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowDeclaration[I, O any] interface {
 	WorkflowBase
 

@@ -7,6 +7,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: WorkersClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // WorkersClient provides methods for interacting with workers
 // in the Hatchet platform.
 type WorkersClient interface {
@@ -32,6 +35,9 @@ type workersClientImpl struct {
 	tenantId uuid.UUID
 }
 
+// Deprecated: NewWorkersClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // NewWorkersClient creates a new client for interacting with workers.
 func NewWorkersClient(
 	api *rest.ClientWithResponses,

@@ -8,6 +8,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
 
+// Deprecated: Config is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Config struct {
 	TenantId           uuid.UUID
 	Token              string
@@ -22,6 +24,8 @@ type Config struct {
 	Logger             *zerolog.Logger
 }
 
+// Deprecated: TLSConfig is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type TLSConfig struct {
 	Base          *shared.TLSConfigFile
 	TLSServerName string

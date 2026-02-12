@@ -50,6 +50,16 @@ func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, l
 	return args.Error(0)
 }
 
+func (m *mockLeaseRepo) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*v1.ListActiveWorkersResult, error) {
+	args := m.Called(ctx, tenantId, workerId)
+	return args.Get(0).(*v1.ListActiveWorkersResult), args.Error(1)
+}
+
+func (m *mockLeaseRepo) GetConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, id int64) (*sqlcv1.V1StepConcurrency, error) {
+	args := m.Called(ctx, tenantId, id)
+	return args.Get(0).(*sqlcv1.V1StepConcurrency), args.Error(1)
+}
+
 func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	l := zerolog.Nop()
 	tenantId := uuid.UUID{}
@@ -106,7 +116,7 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 
 func TestLeaseManager_SendWorkerIds(t *testing.T) {
 	tenantId := uuid.UUID{}
-	workersCh := make(chan []*v1.ListActiveWorkersResult)
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
 		workersCh: workersCh,
@@ -116,15 +126,15 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 		{ID: uuid.New(), Labels: nil},
 	}
 
-	go leaseManager.sendWorkerIds(mockWorkers)
+	go leaseManager.sendWorkerIds(mockWorkers, false)
 
 	result := <-workersCh
-	assert.Equal(t, mockWorkers, result)
+	assert.Equal(t, mockWorkers, result.items)
 }
 
 func TestLeaseManager_SendQueues(t *testing.T) {
 	tenantId := uuid.UUID{}
-	queuesCh := make(chan []string)
+	queuesCh := make(notifierCh[string])
 	leaseManager := &LeaseManager{
 		tenantId: tenantId,
 		queuesCh: queuesCh,
@@ -132,15 +142,15 @@ func TestLeaseManager_SendQueues(t *testing.T) {
 
 	mockQueues := []string{"queue-1", "queue-2"}
 
-	go leaseManager.sendQueues(mockQueues)
+	go leaseManager.sendQueues(mockQueues, false)
 
 	result := <-queuesCh
-	assert.Equal(t, mockQueues, result)
+	assert.Equal(t, mockQueues, result.items)
 }
 
 func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
 	tenantId := uuid.UUID{}
-	workersCh := make(chan []*v1.ListActiveWorkersResult)
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
 		workersCh: workersCh,
@@ -155,14 +165,15 @@ func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
 	}
 
 	// Send workers before listener is ready
-	go leaseManager.sendWorkerIds(mockWorkers1)
+	go leaseManager.sendWorkerIds(mockWorkers1, false)
 	time.Sleep(100 * time.Millisecond)
 	resultCh := make(chan []*v1.ListActiveWorkersResult)
 	go func() {
-		resultCh <- <-workersCh
+		msg := <-workersCh
+		resultCh <- msg.items
 	}()
 	time.Sleep(100 * time.Millisecond)
-	go leaseManager.sendWorkerIds(mockWorkers2)
+	go leaseManager.sendWorkerIds(mockWorkers2, false)
 	time.Sleep(100 * time.Millisecond)
 
 	// Ensure only the latest workers are sent over the channel
