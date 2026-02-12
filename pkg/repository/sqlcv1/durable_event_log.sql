@@ -1,4 +1,4 @@
--- name: ResetLatestNodeId :one
+-- name: SetLatestNodeId :one
 UPDATE v1_durable_event_log_file
 SET latest_node_id = @nodeId::BIGINT
 WHERE durable_task_id = @durableTaskId::BIGINT
@@ -27,7 +27,7 @@ WITH existing_log_file AS (
         @durableTaskInsertedAt::TIMESTAMPTZ,
         @invocationCount::BIGINT,
         NOW(),
-        0,
+        1,
         1,
         0
     )
@@ -54,47 +54,34 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND node_id = @nodeId::BIGINT;
 
 -- name: CreateDurableEventLogEntry :one
-WITH ins AS (
-    INSERT INTO v1_durable_event_log_entry (
-        tenant_id,
-        external_id,
-        durable_task_id,
-        durable_task_inserted_at,
-        inserted_at,
-        kind,
-        node_id,
-        parent_node_id,
-        branch_id,
-        data_hash,
-        data_hash_alg
-    )
-    VALUES (
-        @tenantId::UUID,
-        @externalId::UUID,
-        @durableTaskId::BIGINT,
-        @durableTaskInsertedAt::TIMESTAMPTZ,
-        NOW(),
-        @kind::v1_durable_event_log_entry_kind,
-        @nodeId::BIGINT,
-        sqlc.narg('parentNodeId')::BIGINT,
-        @branchId::BIGINT,
-        @dataHash::BYTEA,
-        @dataHashAlg::TEXT
-    )
-    ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
-    RETURNING *
-), node_id_update AS (
-    -- todo: this should probably be figured out at the repo level
-    UPDATE v1_durable_event_log_file AS f
-    SET latest_node_id = GREATEST(f.latest_node_id, i.node_id)
-    FROM ins i
-    WHERE
-        f.durable_task_id = i.durable_task_id
-        AND f.durable_task_inserted_at = i.durable_task_inserted_at
+INSERT INTO v1_durable_event_log_entry (
+    tenant_id,
+    external_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    inserted_at,
+    kind,
+    node_id,
+    parent_node_id,
+    branch_id,
+    data_hash,
+    data_hash_alg
 )
-
-SELECT *
-FROM ins
+VALUES (
+    @tenantId::UUID,
+    @externalId::UUID,
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    NOW(),
+    @kind::v1_durable_event_log_entry_kind,
+    @nodeId::BIGINT,
+    sqlc.narg('parentNodeId')::BIGINT,
+    @branchId::BIGINT,
+    @dataHash::BYTEA,
+    @dataHashAlg::TEXT
+)
+ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
+RETURNING *
 ;
 
 -- name: GetDurableEventLogCallback :one

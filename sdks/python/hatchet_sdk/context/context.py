@@ -549,7 +549,7 @@ class DurableContext(Context):
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            invocation_count=self.retry_count + 1,
+            invocation_count=self.attempt_number,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
             workflow_name=workflow.config.name,
