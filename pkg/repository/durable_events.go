@@ -337,7 +337,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	var nodeId int64
 	if logFile.IsNewInvocation {
-		newNode, err := r.queries.ResetLatestNodeId(ctx, tx, sqlcv1.ResetLatestNodeIdParams{
+		newNode, err := r.queries.SetLatestNodeId(ctx, tx, sqlcv1.SetLatestNodeIdParams{
 			Nodeid:                1,
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
@@ -560,6 +560,16 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		default:
 			return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 		}
+	}
+
+	_, err = r.queries.SetLatestNodeId(ctx, tx, sqlcv1.SetLatestNodeIdParams{
+		Nodeid:                nodeId,
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update latest node id: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {

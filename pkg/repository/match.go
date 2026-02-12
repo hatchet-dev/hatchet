@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -701,7 +703,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				Issatisfied:           true,
 			})
 
-			if err != nil {
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				m.l.Error().Err(err).Msgf("failed to update callback %d as satisfied in tx", cb.NodeId)
 				continue
 			}
@@ -1060,10 +1062,10 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		signalTaskIds := make([]int64, len(signalMatches))
 		signalTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
 		signalKeys := make([]string, len(signalMatches))
-		callbackTaskIds := make([]int64, len(signalMatches))
+		callbackTaskIds := make([]*int64, len(signalMatches))
 		callbackTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
-		callbackNodeIds := make([]int64, len(signalMatches))
-		callbackDurableTaskExternalIds := make([]uuid.UUID, len(signalMatches))
+		callbackNodeIds := make([]*int64, len(signalMatches))
+		callbackDurableTaskExternalIds := make([]*uuid.UUID, len(signalMatches))
 
 		for i, match := range signalMatches {
 			signalTenantIds[i] = tenantId
@@ -1072,15 +1074,10 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			signalTaskInsertedAts[i] = match.SignalTaskInsertedAt
 			signalKeys[i] = *match.SignalKey
 
-			if match.DurableCallbackTaskId != nil && match.DurableCallbackTaskInsertedAt.Valid && match.DurableCallbackNodeId != nil {
-				callbackTaskIds[i] = *match.DurableCallbackTaskId
-				callbackTaskInsertedAts[i] = match.DurableCallbackTaskInsertedAt
-				callbackNodeIds[i] = *match.DurableCallbackNodeId
-			}
-
-			if match.DurableCallbackTaskExternalId != nil {
-				callbackDurableTaskExternalIds[i] = *match.DurableCallbackTaskExternalId
-			}
+			callbackTaskIds[i] = match.DurableCallbackTaskId
+			callbackTaskInsertedAts[i] = match.DurableCallbackTaskInsertedAt
+			callbackNodeIds[i] = match.DurableCallbackNodeId
+			callbackDurableTaskExternalIds[i] = match.DurableCallbackTaskExternalId
 		}
 
 		// Create matches in the database
