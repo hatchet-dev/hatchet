@@ -90,10 +90,10 @@ export interface SearchBarWithFiltersProps<
 // ============================================================================
 
 /** Colour for the filter key prefix (e.g. "level" in level:error) */
-const FILTER_KEY_COLOR =
-  'color-mix(in srgb, hsl(var(--brand)) 70%, hsl(var(--background)))';
+const FILTER_KEY_COLOR = 'hsl(var(--brand))';
 /** Colour for the filter value suffix (e.g. "error" in level:error) */
-const FILTER_VALUE_COLOR = 'hsl(var(--brand))';
+const FILTER_VALUE_COLOR =
+  'color-mix(in srgb, hsl(var(--brand)) 70%, hsl(var(--foreground)))';
 
 interface TextSegment {
   text: string;
@@ -349,7 +349,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
       <div
         className={cn(
           'flex items-center justify-between w-full',
-          isSelected && 'bg-accent text-accent-foreground',
+          isSelected && 'text-accent-foreground',
         )}
       >
         <div className="flex items-center gap-2">
@@ -359,11 +359,11 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
             />
           )}
           {suggestion.type === 'key' ? (
-            <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
+            <code className="py-0.5 text-xs font-mono">
               {suggestion.label}:
             </code>
           ) : (
-            <span className="font-mono text-sm">{suggestion.label}</span>
+            <span className="py-0.5 font-mono text-xs">{suggestion.label}</span>
           )}
         </div>
         {suggestion.description && (
@@ -514,10 +514,10 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
                       value={suggestion.value}
                       onSelect={() => handleSelect(index)}
                       className={cn(
-                        'flex items-center justify-between',
+                        'flex items-center justify-between aria-selected:bg-primary/10',
                         selectedIndex !== undefined &&
                           index === selectedIndex &&
-                          'bg-accent text-accent-foreground',
+                          'text-accent-foreground',
                       )}
                       onMouseEnter={() => setSelectedIndex(index)}
                       data-cy={`search-bar-suggestion-${index}`}
