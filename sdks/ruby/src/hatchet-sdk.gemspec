@@ -37,6 +37,13 @@ Gem::Specification.new do |spec|
     rest_files = Dir.glob("#{rest_client_dir}/**/*.rb").select { |f| File.file?(f) }
     spec.files.concat(rest_files)
   end
+
+  # Add generated protobuf/gRPC contract files to the gem
+  contracts_dir = "lib/hatchet/contracts"
+  if Dir.exist?(contracts_dir)
+    contract_files = Dir.glob("#{contracts_dir}/**/*.rb").select { |f| File.file?(f) }
+    spec.files.concat(contract_files)
+  end
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
@@ -47,9 +54,15 @@ Gem::Specification.new do |spec|
   spec.add_dependency "marcel"
   spec.add_dependency "json", "~> 2.0"
 
+  # Runtime dependencies for gRPC
+  spec.add_dependency "grpc", "~> 1.60"
+  spec.add_dependency "google-protobuf", "~> 4.0"
+  spec.add_dependency "concurrent-ruby", ">= 1.1"
+
   # Development dependencies
   spec.add_development_dependency "gem-release", "~> 2.2"
   spec.add_development_dependency "rspec", "~> 3.0"
+  spec.add_development_dependency "grpc-tools", "~> 1.60"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html

@@ -132,23 +132,56 @@ class ApiGenerator
   end
 
   def patch_cookie_auth
-    puts "  🍪 Enhancing cookie auth..."
-    # find the auth_settings hash in the configuration.rb file
+    puts "  🍪 Patching cookie auth..."
     output_path = File.expand_path(OUTPUT_DIR, @root_dir)
-    config_file = File.join(output_path, "lib/hatchet-sdk-rest/configuration.rb")
-    if not File.exist?(config_file)
-      puts "config_file does not exist"
-      return false
-    end
-    content = File.read(config_file)
 
-    # Apply the fix - replace 'in: ,' with 'in: 'header','
-    if content.gsub!(/in:\s*,/, "in: 'header',")
-      puts "    ✅ Successfully applied cookie auth patch"
-      File.write(config_file, content)
-      @patches_applied += 1
+    # 1. Fix configuration.rb: replace empty 'in: ,' with 'in: 'cookie','
+    config_file = File.join(output_path, "lib/hatchet-sdk-rest/configuration.rb")
+    if File.exist?(config_file)
+      content = File.read(config_file)
+      if content.gsub!(/in:\s*,/, "in: 'cookie',")
+        puts "    ✅ Patched configuration.rb: cookie auth 'in' value"
+        File.write(config_file, content)
+        @patches_applied += 1
+      else
+        puts "    ⏭️  configuration.rb: no empty 'in:' values found (already patched?)"
+      end
     else
-      puts "    ❌ Failed to apply cookie auth patch - no matches found"
+      puts "    ❌ configuration.rb not found"
+    end
+
+    # 2. Fix api_client.rb: add 'cookie' support and skip nil auth values
+    api_client_file = File.join(output_path, "lib/hatchet-sdk-rest/api_client.rb")
+    if File.exist?(api_client_file)
+      content = File.read(api_client_file)
+
+      # Add nil/empty value guard and cookie support to update_params_for_auth!
+      old_auth = <<~RUBY
+        case auth_setting[:in]
+              when 'header' then header_params[auth_setting[:key]] = auth_setting[:value]
+              when 'query'  then query_params[auth_setting[:key]] = auth_setting[:value]
+              else fail ArgumentError, 'Authentication token must be in `query` or `header`'
+              end
+      RUBY
+      new_auth = <<~RUBY
+        next if auth_setting[:value].nil? || auth_setting[:value].to_s.empty?
+              case auth_setting[:in]
+              when 'header' then header_params[auth_setting[:key]] = auth_setting[:value]
+              when 'query'  then query_params[auth_setting[:key]] = auth_setting[:value]
+              when 'cookie' then header_params['Cookie'] = "\#{auth_setting[:key]}=\#{auth_setting[:value]}"
+              else next # skip unsupported auth locations
+              end
+      RUBY
+
+      if content.sub!(old_auth.strip, new_auth.strip)
+        puts "    ✅ Patched api_client.rb: cookie auth + nil value guard"
+        File.write(api_client_file, content)
+        @patches_applied += 1
+      else
+        puts "    ⏭️  api_client.rb: auth patch not needed (already patched?)"
+      end
+    else
+      puts "    ❌ api_client.rb not found"
     end
   end
 

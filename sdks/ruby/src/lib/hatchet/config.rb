@@ -352,6 +352,13 @@ module Hatchet
       }
     end
 
+    # Returns authentication metadata for gRPC calls.
+    #
+    # @return [Hash<String, String>] Metadata hash with authorization bearer token
+    def auth_metadata
+      { "authorization" => "bearer #{token}" }
+    end
+
     private
 
     def valid_jwt_token?
