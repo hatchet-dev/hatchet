@@ -20,12 +20,40 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *V1WorkflowRunsService) checkTaskRunLimit(ctx echo.Context, tenantId uuid.UUID) (gen.V1WorkflowRunCreateResponseObject, error) {
+func (t *V1WorkflowRunsService) getTaskCount(ctx echo.Context, tenantId uuid.UUID, workflowName string) (int32, error) {
+	workflow, err := t.config.V1.Workflows().GetWorkflowByName(ctx.Request().Context(), tenantId, workflowName)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not get workflow by name: %w", err)
+	}
+
+	version, err := t.config.V1.Workflows().GetLatestWorkflowVersion(ctx.Request().Context(), tenantId, workflow.ID)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not get latest workflow version: %w", err)
+	}
+
+	shape, err := t.config.V1.Workflows().GetWorkflowShape(ctx.Request().Context(), version.WorkflowVersion.ID)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not get workflow shape: %w", err)
+	}
+
+	return int32(len(shape)), nil
+}
+
+func (t *V1WorkflowRunsService) checkTaskRunLimit(ctx echo.Context, tenantId uuid.UUID, workflowName string) (gen.V1WorkflowRunCreateResponseObject, error) {
+	numberOfTasks, err := t.getTaskCount(ctx, tenantId, workflowName)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get task count: %w", err)
+	}
+
 	canCreate, trLimit, err := t.config.V1.TenantLimit().CanCreate(
 		ctx.Request().Context(),
 		sqlcv1.LimitResourceTASKRUN,
 		tenantId,
-		1,
+		numberOfTasks,
 	)
 
 	if err != nil {
@@ -79,7 +107,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		priority = &newPrio
 	}
 
-	if limitResp, limitErr := t.checkTaskRunLimit(ctx, tenantId); limitResp != nil || limitErr != nil {
+	if limitResp, limitErr := t.checkTaskRunLimit(ctx, tenantId, request.Body.WorkflowName); limitResp != nil || limitErr != nil {
 		return limitResp, limitErr
 	}
 
@@ -143,7 +171,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	}
 
 	if rawWorkflowRun == nil || rawWorkflowRun.WorkflowRun == nil {
-		if limitResp, _ := t.checkTaskRunLimit(ctx, tenantId); limitResp != nil {
+		if limitResp, _ := t.checkTaskRunLimit(ctx, tenantId, request.Body.WorkflowName); limitResp != nil {
 			return limitResp, nil
 		}
 
