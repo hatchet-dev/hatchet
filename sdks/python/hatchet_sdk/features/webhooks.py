@@ -140,8 +140,6 @@ class WebhooksClient(BaseRestClient):
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
     ) -> V1Webhook:
-        if event_key_expression is None:
-            event_key_expression = self.get(webhook_name).event_key_expression
         with self.client() as client:
             return self._wa(client).v1_webhook_update(
                 tenant=self.tenant_id,

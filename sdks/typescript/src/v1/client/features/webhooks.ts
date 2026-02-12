@@ -53,13 +53,8 @@ export class WebhooksClient {
     webhookName: string,
     options: Partial<V1UpdateWebhookRequest> = {}
   ): Promise<V1Webhook> {
-    const eventKeyExpression =
-      options.eventKeyExpression !== undefined
-        ? options.eventKeyExpression
-        : (await this.get(webhookName)).eventKeyExpression;
-
     const response = await this.api.v1WebhookUpdate(this.tenantId, webhookName, {
-      eventKeyExpression,
+      eventKeyExpression: options.eventKeyExpression,
       scopeExpression: options.scopeExpression,
       staticPayload: options.staticPayload,
     });
