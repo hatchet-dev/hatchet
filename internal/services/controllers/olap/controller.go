@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -748,7 +749,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 				event.Output = []byte(eventPayloads[i])
 			}
 		case sqlcv1.V1EventTypeOlapFAILED:
-			event.ErrorMessage = sqlchelpers.TextFromStr(eventPayloads[i])
+			errorMsg := strings.ReplaceAll(eventPayloads[i], "\x00", " ")
+			event.ErrorMessage = sqlchelpers.TextFromStr(errorMsg)
 		case sqlcv1.V1EventTypeOlapCANCELLED:
 			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
 		}
