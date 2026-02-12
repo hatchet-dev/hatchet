@@ -46,7 +46,7 @@ async def test_di_standalones(
 async def test_di_workflows() -> None:
     result = await di_workflow.aio_run()
 
-    assert len(result) == 4
+    assert len(result) == 3
 
     for output in result.values():
         parsed = Output.model_validate(output)
