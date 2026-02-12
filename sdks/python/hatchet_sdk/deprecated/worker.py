@@ -132,7 +132,7 @@ async def legacy_aio_start(worker: Worker) -> None:
         worker.durable_action_listener_process = durable_action_listener_process
         worker.durable_action_queue = durable_action_queue
         worker.durable_event_queue = durable_event_queue
-        worker._legacy_durable_action_runner = durable_action_runner  # type: ignore[attr-defined]
+        worker._legacy_durable_action_runner = durable_action_runner
 
         worker._lifespan_cleanup_complete = asyncio.Event()
         worker.action_listener_health_check = worker.loop.create_task(

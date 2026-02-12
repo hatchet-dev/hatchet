@@ -11,7 +11,7 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, TypeVar
+from typing import Any, Optional, TypeVar
 from warnings import warn
 
 import grpc
@@ -97,6 +97,7 @@ class Worker:
         self.action_listener_health_check: asyncio.Task[None]
 
         self.action_runner: WorkerActionRunLoopManager | None = None
+        self._legacy_durable_action_runner: WorkerActionRunLoopManager | None = None
 
         self.ctx = multiprocessing.get_context("spawn")
 
@@ -226,11 +227,12 @@ class Worker:
             error_days=180,
         )
 
-    async def _check_engine_version(self) -> bool:
-        """Returns True if engine is legacy (pre-slot-config).
+    async def _check_engine_version(self) -> Optional[str]:
+        """Returns the engine version string, or None if engine is legacy (pre-slot-config).
 
         Compares the engine's semantic version against the minimum required
-        version for slot_config support.
+        version for slot_config support. Returns the version string for modern
+        engines so callers can branch on specific versions.
         """
         from hatchet_sdk.deprecated.deprecation import semver_less_than
 
@@ -243,13 +245,13 @@ class Worker:
             # Empty version or older than minimum → legacy
             if not version or semver_less_than(version, self._MIN_SLOT_CONFIG_VERSION):
                 self._emit_legacy_deprecation()
-                return True
+                return None
 
-            return False  # new engine
+            return version  # new engine
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.UNIMPLEMENTED:
                 self._emit_legacy_deprecation()
-                return True  # old engine
+                return None  # old engine
             raise
 
     async def _aio_start(self) -> None:
@@ -267,8 +269,8 @@ class Worker:
             )
 
         # Check engine version and fall back to legacy dual-worker mode if needed
-        is_legacy = await self._check_engine_version()
-        if is_legacy:
+        engine_version = await self._check_engine_version()
+        if engine_version is None:
             await legacy_aio_start(self)
             return
 
@@ -485,11 +487,8 @@ class Worker:
             self.action_runner.cleanup()
 
         # Also clean up the durable action runner (legacy mode)
-        durable_runner: WorkerActionRunLoopManager | None = getattr(
-            self, "_legacy_durable_action_runner", None
-        )
-        if durable_runner is not None:
-            durable_runner.cleanup()
+        if self._legacy_durable_action_runner is not None:
+            self._legacy_durable_action_runner.cleanup()
 
         await self.action_listener_health_check
 
@@ -508,12 +507,9 @@ class Worker:
             await self.action_runner.exit_gracefully()
 
         # Also clean up the durable action runner (legacy mode)
-        durable_runner: WorkerActionRunLoopManager | None = getattr(
-            self, "_legacy_durable_action_runner", None
-        )
-        if durable_runner:
-            await durable_runner.wait_for_tasks()
-            await durable_runner.exit_gracefully()
+        if self._legacy_durable_action_runner:
+            await self._legacy_durable_action_runner.wait_for_tasks()
+            await self._legacy_durable_action_runner.exit_gracefully()
 
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
