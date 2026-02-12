@@ -749,7 +749,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 				event.Output = []byte(eventPayloads[i])
 			}
 		case sqlcv1.V1EventTypeOlapFAILED:
-			errorMsg := strings.ReplaceAll(eventPayloads[i], "\x00", " ")
+			errorMsg := strings.ReplaceAll(eventPayloads[i], "\x00", "")
 			event.ErrorMessage = sqlchelpers.TextFromStr(errorMsg)
 		case sqlcv1.V1EventTypeOlapCANCELLED:
 			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
