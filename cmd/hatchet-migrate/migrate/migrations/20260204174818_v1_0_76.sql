@@ -110,6 +110,8 @@ CREATE TABLE v1_durable_event_log_callback (
     -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+
+    dispatcher_id UUID,
     -- Access patterns:
     -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied
@@ -124,9 +126,6 @@ ALTER TABLE v1_match
     ADD COLUMN durable_event_log_callback_node_id BIGINT,
     ADD COLUMN durable_event_log_callback_durable_task_id BIGINT,
     ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ;
-
-ALTER TABLE v1_durable_event_log_callback
-    ADD COLUMN dispatcher_id UUID;
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_CALLBACK_RESULT_DATA';
