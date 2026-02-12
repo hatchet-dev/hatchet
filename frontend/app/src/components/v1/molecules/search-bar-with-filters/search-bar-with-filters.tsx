@@ -212,9 +212,17 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        // Enter always submits search
-        submitSearch();
-        setIsOpen(false);
+        // If the dropdown is open with suggestions, Enter autocompletes (like Tab)
+        // Otherwise, Enter submits the search
+        if (isOpen && suggestions.length > 0) {
+          const indexToApply = selectedIndex !== undefined ? selectedIndex : 0;
+          if (suggestions[indexToApply]) {
+            handleSelect(indexToApply);
+          }
+        } else {
+          submitSearch();
+          setIsOpen(false);
+        }
         return;
       }
 
@@ -428,8 +436,8 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               </div>
               <div className="text-muted-foreground space-y-1">
                 <div>
-                  Arrow keys to navigate, tab to autocomplete. Type any text for
-                  full-text search.
+                  Arrow keys to navigate, tab or enter to autocomplete. Type any
+                  text for full-text search.
                 </div>
               </div>
             </div>
