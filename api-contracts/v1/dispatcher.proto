@@ -53,10 +53,9 @@ message DurableTaskEventAckResponse {
 }
 
 message DurableTaskCallbackCompletedResponse {
-    int64 invocation_count = 1;
-    string durable_task_external_id = 2;
-    int64 node_id = 3;
-    bytes payload = 4;
+    string durable_task_external_id = 1;
+    int64 node_id = 2;
+    bytes payload = 3;
 }
 
 message DurableTaskEvictInvocationRequest {

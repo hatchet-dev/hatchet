@@ -34,7 +34,6 @@ class DurableTaskEventAck(BaseModel):
 
 
 class DurableTaskCallbackResult(BaseModel):
-    invocation_count: int
     durable_task_external_id: str
     node_id: int
     payload: JSONSerializableMapping | None
@@ -46,7 +45,6 @@ class DurableTaskCallbackResult(BaseModel):
             payload = json.loads(proto.payload.decode("utf-8"))
 
         return cls(
-            invocation_count=proto.invocation_count,
             durable_task_external_id=proto.durable_task_external_id,
             node_id=proto.node_id,
             payload=payload,

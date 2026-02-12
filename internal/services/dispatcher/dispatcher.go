@@ -50,7 +50,7 @@ type DispatcherImpl struct {
 	workers      *workers
 	a            *hatcheterrors.Wrapped
 
-	durableCallbackFn func(taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte) error
+	durableCallbackFn func(taskExternalId uuid.UUID, nodeId int64, payload []byte) error
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -388,7 +388,7 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 	return d.dispatcherId
 }
 
-func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int64, int64, []byte) error) {
+func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int64, []byte) error) {
 	d.durableCallbackFn = fn
 }
 
@@ -403,7 +403,6 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		err := d.durableCallbackFn(
 			payload.TaskExternalId,
 			payload.NodeId,
-			payload.InvocationCount,
 			payload.Payload,
 		)
 

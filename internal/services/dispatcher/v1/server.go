@@ -505,7 +505,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		err := d.DeliverCallbackCompletion(
 			taskExternalId,
 			ingestionResult.NodeId,
-			req.InvocationCount,
 			ingestionResult.Callback.Result,
 		)
 
@@ -576,7 +575,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	return nil
 }
 
-func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
@@ -585,7 +584,6 @@ func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UU
 	return inv.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_CallbackCompleted{
 			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
-				InvocationCount:       invocationCount,
 				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
 				Payload:               payload,
