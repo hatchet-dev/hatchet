@@ -336,6 +336,14 @@ func (h *hatchetContext) WorkflowVersionId() *string {
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) Log(message string) {
 	infoLevel := "INFO"
+
+	runes := []rune(message)
+
+	if len(runes) > 10_000 {
+		h.l.Warn().Msg("log message is too long, truncating to the first 10,000 characters")
+		message = string(runes[:10_000])
+	}
+
 	err := h.c.Event().PutLog(h, h.a.StepRunId, message, &infoLevel, &h.a.RetryCount)
 
 	if err != nil {

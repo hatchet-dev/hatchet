@@ -87,21 +87,202 @@ def patch_grpc_init_signature(content: str) -> str:
     )
 
 
+def patch_rest_transport_exceptions(content: str) -> str:
+    """Insert typed REST transport exception classes into exceptions.py.
+
+    Adds exception classes above render_path function, idempotently.
+    """
+    # Check if already patched
+    if "class RestTransportError" in content:
+        return content
+
+    new_exceptions = '''\
+
+class RestTransportError(ApiException):
+    """Base exception for REST transport-level errors (network, timeout, TLS)."""
+
+    pass
+
+
+class RestTimeoutError(RestTransportError):
+    """Raised when a REST request times out (connect or read timeout)."""
+
+    pass
+
+
+class RestConnectionError(RestTransportError):
+    """Raised when a REST request fails to establish a connection."""
+
+    pass
+
+
+class RestTLSError(RestTransportError):
+    """Raised when a REST request fails due to SSL/TLS errors."""
+
+    pass
+
+
+class RestProtocolError(RestTransportError):
+    """Raised when a REST request fails due to protocol-level errors."""
+
+    pass
+
+
+'''
+
+    # Insert before render_path function (match any arguments)
+    pattern = r"(\ndef render_path\([^)]*\):)"
+    replacement = new_exceptions + r"\1"
+
+    return re.sub(pattern, replacement, content)
+
+
+def patch_rest_imports(content: str) -> str:
+    """Update rest.py imports to include typed transport exceptions.
+
+    Handles both single-line and parenthesized import formats. Idempotent.
+    """
+    # The exceptions we need to ensure are imported
+    required_exceptions = [
+        "RestConnectionError",
+        "RestProtocolError",
+        "RestTimeoutError",
+        "RestTLSError",
+    ]
+
+    # Idempotency check: if RestTLSError is already imported from this module, do nothing.
+    if re.search(
+        r"(?m)^from\s+hatchet_sdk\.clients\.rest\.exceptions\s+import[^\n]*\bRestTLSError\b",
+        content,
+    ):
+        return content
+
+    # Parenthesized import block includes RestTLSError
+    if re.search(
+        r"^from\s+hatchet_sdk\.clients\.rest\.exceptions\s+import\s*\(\s*.*?\bRestTLSError\b.*?\)\s*$",
+        content,
+        flags=re.MULTILINE | re.DOTALL,
+    ):
+        return content
+
+    # The target import statement we want with trailing newline to preserve spacing
+    new_import = (
+        "from hatchet_sdk.clients.rest.exceptions import (\n"
+        "    ApiException,\n"
+        "    ApiValueError,\n"
+        "    RestConnectionError,\n"
+        "    RestProtocolError,\n"
+        "    RestTimeoutError,\n"
+        "    RestTLSError,\n"
+        ")\n"
+    )
+
+    # Single line import
+    # Matches: from hatchet_sdk.clients.rest.exceptions import ApiException, ApiValueError
+    single_line_pattern = (
+        r"^from\s+hatchet_sdk\.clients\.rest\.exceptions\s+import\s+"
+        r"ApiException\s*,\s*ApiValueError\s*$"
+    )
+
+    modified = re.sub(single_line_pattern, new_import, content, flags=re.MULTILINE)
+    if modified != content:
+        return modified
+
+    # More flexible parenthesized import which matches any order, with or without trailing comma
+    # This handles cases where ApiException and ApiValueError might be in different orders
+    flexible_paren_pattern = (
+        r"^from\s+hatchet_sdk\.clients\.rest\.exceptions\s+import\s*\("
+        r"[^)]*?"  # Non-greedy match of contents (only ApiException/ApiValueError expected)
+        r"\)"
+    )
+
+    # Only apply if the block contains just ApiException and/or ApiValueError (no Rest* yet)
+    match = re.search(flexible_paren_pattern, content, flags=re.MULTILINE | re.DOTALL)
+    if match:
+        block = match.group(0)
+        # Verify it only has ApiException/ApiValueError, not our new exceptions
+        if not any(exc in block for exc in required_exceptions):
+            if "ApiException" in block or "ApiValueError" in block:
+                modified = (
+                    content[: match.start()] + new_import + content[match.end() :]
+                )
+                return modified
+
+    return content
+
+
 def patch_rest_error_diagnostics(content: str) -> str:
-    pattern = (
+    """Patch rest.py exception handlers to use typed exceptions.
+
+    Replaces the generic ApiException handler with typed exception handlers.
+    Handler ordering is critical: NewConnectionError must be caught before
+    ConnectTimeoutError because it inherits from ConnectTimeoutError in urllib3.
+    """
+    # This pattern matches either the original SSLError only handler or
+    # the previously patched multi-exception handler raising ApiException
+    pattern_original = (
         r"(?ms)^([ \t]*)except urllib3\.exceptions\.SSLError as e:\s*\n"
         r"^\1[ \t]*msg = \"\\n\"\.join\(\[type\(e\)\.__name__, str\(e\)\]\)\s*\n"
         r"^\1[ \t]*raise ApiException\(status=0, reason=msg\)\s*\n"
     )
 
+    pattern_expanded = (
+        r"(?ms)^([ \t]*)except \(\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.SSLError,\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.ConnectTimeoutError,\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.ReadTimeoutError,\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.MaxRetryError,\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.NewConnectionError,\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.ProtocolError,\s*\n"
+        r"^\1\) as e:\s*\n"
+        r'^\1[ \t]*msg = "\\n"\.join\(\s*\n'
+        r"^\1[ \t]*\[\s*\n"
+        r"^\1[ \t]*type\(e\)\.__name__,\s*\n"
+        r"^\1[ \t]*str\(e\),\s*\n"
+        r'^\1[ \t]*f"method=\{method\}",\s*\n'
+        r'^\1[ \t]*f"url=\{url\}",\s*\n'
+        r'^\1[ \t]*f"timeout=\{_request_timeout\}",\s*\n'
+        r"^\1[ \t]*\]\s*\n"
+        r"^\1[ \t]*\)\s*\n"
+        r"^\1[ \t]*raise ApiException\(status=0, reason=msg\)\s*\n"
+    )
+
+    # Check if already using typed exceptions
+    if "raise RestTLSError" in content:
+        return content
+
+    # Build typed replacement with proper handler ordering
+    # NewConnectionError inherits from ConnectTimeoutError, so must be caught first
     replacement = (
+        r"\1except urllib3.exceptions.SSLError as e:\n"
+        r'\1    msg = "\\n".join(\n'
+        r"\1        [\n"
+        r"\1            type(e).__name__,\n"
+        r"\1            str(e),\n"
+        r'\1            f"method={method}",\n'
+        r'\1            f"url={url}",\n'
+        r'\1            f"timeout={_request_timeout}",\n'
+        r"\1        ]\n"
+        r"\1    )\n"
+        r"\1    raise RestTLSError(status=0, reason=msg) from e\n"
         r"\1except (\n"
-        r"\1    urllib3.exceptions.SSLError,\n"
-        r"\1    urllib3.exceptions.ConnectTimeoutError,\n"
-        r"\1    urllib3.exceptions.ReadTimeoutError,\n"
         r"\1    urllib3.exceptions.MaxRetryError,\n"
         r"\1    urllib3.exceptions.NewConnectionError,\n"
-        r"\1    urllib3.exceptions.ProtocolError,\n"
+        r"\1) as e:\n"
+        r"\1    # NewConnectionError inherits from ConnectTimeoutError, so must be caught first\n"
+        r'\1    msg = "\\n".join(\n'
+        r"\1        [\n"
+        r"\1            type(e).__name__,\n"
+        r"\1            str(e),\n"
+        r'\1            f"method={method}",\n'
+        r'\1            f"url={url}",\n'
+        r'\1            f"timeout={_request_timeout}",\n'
+        r"\1        ]\n"
+        r"\1    )\n"
+        r"\1    raise RestConnectionError(status=0, reason=msg) from e\n"
+        r"\1except (\n"
+        r"\1    urllib3.exceptions.ConnectTimeoutError,\n"
+        r"\1    urllib3.exceptions.ReadTimeoutError,\n"
         r"\1) as e:\n"
         r'\1    msg = "\\n".join(\n'
         r"\1        [\n"
@@ -112,10 +293,27 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise ApiException(status=0, reason=msg)\n"
+        r"\1    raise RestTimeoutError(status=0, reason=msg) from e\n"
+        r"\1except urllib3.exceptions.ProtocolError as e:\n"
+        r'\1    msg = "\\n".join(\n'
+        r"\1        [\n"
+        r"\1            type(e).__name__,\n"
+        r"\1            str(e),\n"
+        r'\1            f"method={method}",\n'
+        r'\1            f"url={url}",\n'
+        r'\1            f"timeout={_request_timeout}",\n'
+        r"\1        ]\n"
+        r"\1    )\n"
+        r"\1    raise RestProtocolError(status=0, reason=msg) from e\n"
     )
 
-    return apply_patch(content, pattern, replacement)
+    # Try expanded pattern first. Relevant if previously patched with ApiException
+    modified = re.sub(pattern_expanded, replacement, content)
+    if modified != content:
+        return modified
+
+    # Otherwise try original pattern
+    return re.sub(pattern_original, replacement, content)
 
 
 def apply_patches_to_matching_files(
@@ -164,7 +362,12 @@ if __name__ == "__main__":
     )
 
     atomically_patch_file(
-        "hatchet_sdk/clients/rest/rest.py", [patch_rest_error_diagnostics]
+        "hatchet_sdk/clients/rest/exceptions.py",
+        [patch_rest_transport_exceptions],
+    )
+    atomically_patch_file(
+        "hatchet_sdk/clients/rest/rest.py",
+        [patch_rest_imports, patch_rest_error_diagnostics],
     )
 
     grpc_patches: list[Callable[[str], str]] = [

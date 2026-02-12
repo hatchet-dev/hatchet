@@ -757,6 +757,15 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			return nil, err
 		}
 
+		// upsert the queue based on the action
+		// note: we don't use the postCommit func, it just sets the queue in the cache which is not necessary for writing a
+		// workflow version, only when we're inserting a bunch of tasks for that queue
+		_, err = r.upsertQueues(ctx, tx, tenantId, []string{createStepParams.Actionid})
+
+		if err != nil {
+			return nil, err
+		}
+
 		if len(stepOpts.DesiredWorkerLabels) > 0 {
 			for i := range stepOpts.DesiredWorkerLabels {
 				key := (stepOpts.DesiredWorkerLabels)[i].Key
