@@ -706,6 +706,14 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				continue
 			}
 
+			if callback.Kind.Valid && callback.Kind.V1DurableEventLogCallbackKind == sqlcv1.V1DurableEventLogCallbackKindRUNCOMPLETED {
+				if extracted, extractErr := ExtractOutputFromMatchData(cb.Data); extractErr != nil {
+					m.l.Error().Err(extractErr).Msgf("failed to extract output from RUN_COMPLETED match data for callback %d", cb.NodeId)
+				} else {
+					cb.Data = extracted
+				}
+			}
+
 			if len(cb.Data) > 0 {
 				err = m.payloadStore.Store(ctx, tx, StorePayloadOpts{
 					Id:         callback.ID,
@@ -1080,15 +1088,15 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForSignalTriggersParams{
-				Tenantids:                          signalTenantIds,
-				Kinds:                              signalKinds,
-				Signaltaskids:                      signalTaskIds,
-				Signaltaskinsertedats:              signalTaskInsertedAts,
-				Signalkeys:                         signalKeys,
-				Callbackdurabletaskids:             callbackTaskIds,
-				Callbackdurabletaskinsertedats:     callbackTaskInsertedAts,
-				Callbacknodeids:                    callbackNodeIds,
-				Callbackdurabletaskexternalids:     callbackDurableTaskExternalIds,
+				Tenantids:                      signalTenantIds,
+				Kinds:                          signalKinds,
+				Signaltaskids:                  signalTaskIds,
+				Signaltaskinsertedats:          signalTaskInsertedAts,
+				Signalkeys:                     signalKeys,
+				Callbackdurabletaskids:         callbackTaskIds,
+				Callbackdurabletaskinsertedats: callbackTaskInsertedAts,
+				Callbacknodeids:                callbackNodeIds,
+				Callbackdurabletaskexternalids: callbackDurableTaskExternalIds,
 			},
 		)
 
