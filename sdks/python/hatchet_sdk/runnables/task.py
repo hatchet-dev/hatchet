@@ -574,3 +574,11 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
         return await self.aio_call(ctx, dependencies)
+
+    @property
+    def output_validator(self) -> TypeAdapter[R]:
+        return cast(TypeAdapter[R], self.validators.step_output)
+
+    @property
+    def output_validator_type(self) -> type[R]:
+        return cast(type[R], self.validators.step_output._type)
