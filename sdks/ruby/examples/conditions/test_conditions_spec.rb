@@ -10,7 +10,7 @@ RSpec.describe "TaskConditionWorkflow" do
     # Wait for the sleep conditions, then push events
     sleep 2
 
-    hatchet.events.create(key: "wait_for_event:start", data: {})
+    HATCHET.events.create(key: "wait_for_event:start", data: {})
 
     result = ref.result
     expect(result["sum"]["sum"]).to be_a(Integer)

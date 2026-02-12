@@ -6,7 +6,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-TASK_CONDITION_WORKFLOW = hatchet.workflow(name: "TaskConditionWorkflow")
+TASK_CONDITION_WORKFLOW = HATCHET.workflow(name: "TaskConditionWorkflow")
 
 # > Add base task
 COND_START = TASK_CONDITION_WORKFLOW.task(:start) do |input, ctx|
@@ -98,7 +98,7 @@ TASK_CONDITION_WORKFLOW.task(
 end
 
 def main
-  worker = hatchet.worker("dag-worker", workflows: [TASK_CONDITION_WORKFLOW])
+  worker = HATCHET.worker("dag-worker", workflows: [TASK_CONDITION_WORKFLOW])
   worker.start
 end
 

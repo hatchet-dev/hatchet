@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-RUN_DETAIL_TEST_WORKFLOW = hatchet.workflow(name: "RunDetailTest")
+RUN_DETAIL_TEST_WORKFLOW = HATCHET.workflow(name: "RunDetailTest")
 
 DETAIL_STEP1 = RUN_DETAIL_TEST_WORKFLOW.task(:step1) do |input, ctx|
   { "random_number" => rand(1..100) }
@@ -44,7 +44,7 @@ RUN_DETAIL_TEST_WORKFLOW.task(:step4, parents: [DETAIL_STEP1, :step3]) do |input
 end
 
 def main
-  worker = hatchet.worker("run-detail-worker", workflows: [RUN_DETAIL_TEST_WORKFLOW])
+  worker = HATCHET.worker("run-detail-worker", workflows: [RUN_DETAIL_TEST_WORKFLOW])
   worker.start
 end
 

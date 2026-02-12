@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > StickyWorker
-STICKY_WORKFLOW = hatchet.workflow(
+STICKY_WORKFLOW = HATCHET.workflow(
   name: "StickyWorkflow",
   # Specify a sticky strategy when declaring the workflow
   sticky: :soft
@@ -20,7 +20,7 @@ STEP1B = STICKY_WORKFLOW.task(:step1b) do |input, ctx|
 end
 
 # > StickyChild
-STICKY_CHILD_WORKFLOW = hatchet.workflow(
+STICKY_CHILD_WORKFLOW = HATCHET.workflow(
   name: "StickyChildWorkflow",
   sticky: :soft
 )
@@ -40,7 +40,7 @@ STICKY_CHILD_WORKFLOW.task(:child) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "sticky-worker", slots: 10, workflows: [STICKY_WORKFLOW, STICKY_CHILD_WORKFLOW]
   )
   worker.start

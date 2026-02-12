@@ -27,7 +27,7 @@ chained_dep = ->(_input, _ctx, deps) { "chained_#{CHAINED_CM_VALUE}" }
 chained_async_dep = ->(_input, _ctx, deps) { "chained_#{CHAINED_ASYNC_CM_VALUE}" }
 
 # > Inject dependencies
-ASYNC_TASK_WITH_DEPS = hatchet.task(
+ASYNC_TASK_WITH_DEPS = HATCHET.task(
   name: "async_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
@@ -48,7 +48,7 @@ ASYNC_TASK_WITH_DEPS = hatchet.task(
   }
 end
 
-SYNC_TASK_WITH_DEPS = hatchet.task(
+SYNC_TASK_WITH_DEPS = HATCHET.task(
   name: "sync_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
@@ -69,7 +69,7 @@ SYNC_TASK_WITH_DEPS = hatchet.task(
   }
 end
 
-DURABLE_ASYNC_TASK_WITH_DEPS = hatchet.durable_task(
+DURABLE_ASYNC_TASK_WITH_DEPS = HATCHET.durable_task(
   name: "durable_async_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
@@ -90,7 +90,7 @@ DURABLE_ASYNC_TASK_WITH_DEPS = hatchet.durable_task(
   }
 end
 
-DURABLE_SYNC_TASK_WITH_DEPS = hatchet.durable_task(
+DURABLE_SYNC_TASK_WITH_DEPS = HATCHET.durable_task(
   name: "durable_sync_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
@@ -111,7 +111,7 @@ DURABLE_SYNC_TASK_WITH_DEPS = hatchet.durable_task(
   }
 end
 
-DI_WORKFLOW = hatchet.workflow(name: "dependency-injection-workflow")
+DI_WORKFLOW = HATCHET.workflow(name: "dependency-injection-workflow")
 
 # Workflow tasks with dependencies follow the same pattern
 DI_WORKFLOW.task(:wf_task_with_dependencies) do |input, ctx|
@@ -122,7 +122,7 @@ DI_WORKFLOW.task(:wf_task_with_dependencies) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "dependency-injection-worker",
     workflows: [
       ASYNC_TASK_WITH_DEPS,

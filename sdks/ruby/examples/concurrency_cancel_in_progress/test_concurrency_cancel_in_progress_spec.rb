@@ -28,7 +28,7 @@ RSpec.describe "ConcurrencyCancelInProgress" do
     # Wait for the OLAP repo to catch up
     sleep 5
 
-    runs = hatchet.runs.list(additional_metadata: { "test_run_id" => test_run_id }).rows
+    runs = HATCHET.runs.list(additional_metadata: { "test_run_id" => test_run_id }).rows
     runs.sort_by! { |r| (r.additional_metadata || {})["i"].to_i }
 
     expect(runs.length).to eq(10)

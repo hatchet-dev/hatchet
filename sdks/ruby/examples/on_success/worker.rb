@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-ON_SUCCESS_WORKFLOW = hatchet.workflow(name: "OnSuccessWorkflow")
+ON_SUCCESS_WORKFLOW = HATCHET.workflow(name: "OnSuccessWorkflow")
 
 FIRST_TASK = ON_SUCCESS_WORKFLOW.task(:first_task) do |input, ctx|
   puts "First task completed successfully"
@@ -27,7 +27,7 @@ ON_SUCCESS_WORKFLOW.on_success_task do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker("on-success-worker", workflows: [ON_SUCCESS_WORKFLOW])
+  worker = HATCHET.worker("on-success-worker", workflows: [ON_SUCCESS_WORKFLOW])
   worker.start
 end
 

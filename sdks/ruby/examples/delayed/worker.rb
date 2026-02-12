@@ -4,8 +4,8 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-PRINT_SCHEDULE_WF = hatchet.workflow(name: "PrintScheduleWorkflow")
-PRINT_PRINTER_WF = hatchet.workflow(name: "PrintPrinterWorkflow")
+PRINT_SCHEDULE_WF = HATCHET.workflow(name: "PrintScheduleWorkflow")
+PRINT_PRINTER_WF = HATCHET.workflow(name: "PrintPrinterWorkflow")
 
 PRINT_SCHEDULE_WF.task(:schedule) do |input, ctx|
   now = Time.now.utc
@@ -23,7 +23,7 @@ PRINT_SCHEDULE_WF.task(:step1) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "delayed-worker", slots: 4, workflows: [PRINT_SCHEDULE_WF, PRINT_PRINTER_WF]
   )
   worker.start

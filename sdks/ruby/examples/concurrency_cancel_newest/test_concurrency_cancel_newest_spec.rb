@@ -34,10 +34,10 @@ RSpec.describe "ConcurrencyCancelNewest" do
     # Wait for the OLAP repo to catch up
     sleep 5
 
-    successful_run = hatchet.runs.get(to_run.workflow_run_id)
+    successful_run = HATCHET.runs.get(to_run.workflow_run_id)
     expect(successful_run.run.status).to eq("COMPLETED")
 
-    all_runs = hatchet.runs.list(
+    all_runs = HATCHET.runs.list(
       additional_metadata: { "test_run_id" => test_run_id }
     ).rows
 

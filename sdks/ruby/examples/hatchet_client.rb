@@ -6,7 +6,7 @@ require 'hatchet-sdk'
 # Initialize the Hatchet client
 HATCHET = Hatchet::Client.new()
 
-result = hatchet.events.create(
+result = HATCHET.events.create(
   key: "test-event",
   data: {
     message: "test"
@@ -15,7 +15,7 @@ result = hatchet.events.create(
 puts "Event created: #{result.inspect}"
 
 
-run = hatchet.runs.create(
+run = HATCHET.runs.create(
   name: "simple",
   input: {
     Message: "test workflow run"
@@ -24,7 +24,7 @@ run = hatchet.runs.create(
 
 puts "TriggeredRun ID: #{run.metadata.id}"
 
-result = hatchet.runs.poll(run.metadata.id)
+result = HATCHET.runs.poll(run.metadata.id)
 
 puts "Runs client initialized: #{result.inspect}"
 puts "Run status: #{result.run.status}"

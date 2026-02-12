@@ -4,8 +4,8 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-SIMPLE_RETRY_WORKFLOW = hatchet.workflow(name: "SimpleRetryWorkflow")
-BACKOFF_WORKFLOW = hatchet.workflow(name: "BackoffWorkflow")
+SIMPLE_RETRY_WORKFLOW = HATCHET.workflow(name: "SimpleRetryWorkflow")
+BACKOFF_WORKFLOW = HATCHET.workflow(name: "BackoffWorkflow")
 
 # > Simple Step Retries
 SIMPLE_RETRY_WORKFLOW.task(:always_fail, retries: 3) do |input, ctx|
@@ -35,7 +35,7 @@ BACKOFF_WORKFLOW.task(
 end
 
 def main
-  worker = hatchet.worker("backoff-worker", slots: 4, workflows: [BACKOFF_WORKFLOW])
+  worker = HATCHET.worker("backoff-worker", slots: 4, workflows: [BACKOFF_WORKFLOW])
   worker.start
 end
 

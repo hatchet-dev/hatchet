@@ -9,13 +9,13 @@ EVENT_KEY = "user:create"
 SECONDARY_KEY = "foobarbaz"
 WILDCARD_KEY = "subscription:*"
 
-EVENT_WORKFLOW = hatchet.workflow(
+EVENT_WORKFLOW = HATCHET.workflow(
   name: "EventWorkflow",
   on_events: [EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY]
 )
 
 # > Event trigger with filter
-EVENT_WORKFLOW_WITH_FILTER = hatchet.workflow(
+EVENT_WORKFLOW_WITH_FILTER = HATCHET.workflow(
   name: "EventWorkflow",
   on_events: [EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
   default_filters: [
@@ -42,7 +42,7 @@ EVENT_WORKFLOW_WITH_FILTER.task(:filtered_task) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(name: "EventWorker", workflows: [EVENT_WORKFLOW])
+  worker = HATCHET.worker(name: "EventWorker", workflows: [EVENT_WORKFLOW])
   worker.start
 end
 

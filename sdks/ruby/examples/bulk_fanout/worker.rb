@@ -5,8 +5,8 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > BulkFanoutParent
-BULK_PARENT_WF = hatchet.workflow(name: "BulkFanoutParent")
-BULK_CHILD_WF = hatchet.workflow(name: "BulkFanoutChild")
+BULK_PARENT_WF = HATCHET.workflow(name: "BulkFanoutParent")
+BULK_CHILD_WF = HATCHET.workflow(name: "BulkFanoutChild")
 
 BULK_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
   n = input["n"] || 100
@@ -39,7 +39,7 @@ BULK_CHILD_WF.task(:process2) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "fanout-worker", slots: 40, workflows: [BULK_PARENT_WF, BULK_CHILD_WF]
   )
   worker.start

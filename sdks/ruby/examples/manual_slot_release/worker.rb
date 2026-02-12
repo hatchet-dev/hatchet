@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new
 
 # > SlotRelease
-SLOT_RELEASE_WORKFLOW = hatchet.workflow(name: "SlotReleaseWorkflow")
+SLOT_RELEASE_WORKFLOW = HATCHET.workflow(name: "SlotReleaseWorkflow")
 
 SLOT_RELEASE_WORKFLOW.task(:step1) do |input, ctx|
   puts "RESOURCE INTENSIVE PROCESS"

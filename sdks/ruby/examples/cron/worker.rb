@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > Cron Workflow Definition
-CRON_WORKFLOW = hatchet.workflow(
+CRON_WORKFLOW = HATCHET.workflow(
   name: "CronWorkflow",
   on_crons: ["*/5 * * * *"]
 )
@@ -17,7 +17,7 @@ end
 
 # > Programmatic Cron Creation
 def create_cron
-  hatchet.cron.create(
+  HATCHET.cron.create(
     workflow_name: "CronWorkflow",
     cron_name: "my-programmatic-cron",
     expression: "*/10 * * * *",
@@ -26,7 +26,7 @@ def create_cron
 end
 
 def main
-  worker = hatchet.worker("cron-worker", workflows: [CRON_WORKFLOW])
+  worker = HATCHET.worker("cron-worker", workflows: [CRON_WORKFLOW])
   worker.start
 end
 

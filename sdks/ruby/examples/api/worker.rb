@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 def main
-  workflow_list = hatchet.workflows.list
+  workflow_list = HATCHET.workflows.list
   rows = workflow_list.rows || []
 
   rows.each do |workflow|

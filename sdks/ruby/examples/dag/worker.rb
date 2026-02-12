@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > Define a DAG
-DAG_WORKFLOW = hatchet.workflow(name: "DAGWorkflow")
+DAG_WORKFLOW = HATCHET.workflow(name: "DAGWorkflow")
 
 # > First task
 STEP1 = DAG_WORKFLOW.task(:step1, execution_timeout: 5) do |input, ctx|
@@ -38,7 +38,7 @@ end
 
 # > Declare a worker
 def main
-  worker = hatchet.worker("dag-worker", workflows: [DAG_WORKFLOW])
+  worker = HATCHET.worker("dag-worker", workflows: [DAG_WORKFLOW])
   worker.start
 end
 

@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new
 
-RETURN_EXCEPTIONS_TASK = hatchet.task(name: "return_exceptions_task") do |input, ctx|
+RETURN_EXCEPTIONS_TASK = HATCHET.task(name: "return_exceptions_task") do |input, ctx|
   if input["index"].to_i.even?
     raise "error in task with index #{input['index']}"
   end

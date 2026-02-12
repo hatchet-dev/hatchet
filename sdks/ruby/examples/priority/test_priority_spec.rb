@@ -39,13 +39,13 @@ RSpec.describe "PriorityWorkflow" do
     # Wait for all runs to complete
     run_refs.each(&:result)
 
-    workflows = hatchet.workflows.list(workflow_name: PRIORITY_WORKFLOW.name)
+    workflows = HATCHET.workflows.list(workflow_name: PRIORITY_WORKFLOW.name)
     expect(workflows.rows).not_to be_empty
 
     workflow = workflows.rows.find { |w| w.name == PRIORITY_WORKFLOW.name }
     expect(workflow).not_to be_nil
 
-    runs = hatchet.runs.list(
+    runs = HATCHET.runs.list(
       workflow_ids: [workflow.metadata.id],
       additional_metadata: { "test_run_id" => test_run_id },
       limit: 1000

@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-WEBHOOK_WITH_SCOPE = hatchet.task(
+WEBHOOK_WITH_SCOPE = HATCHET.task(
   name: "webhook_with_scope",
   on_events: ["webhook-scope:test"],
   default_filters: [
@@ -18,7 +18,7 @@ WEBHOOK_WITH_SCOPE = hatchet.task(
   input
 end
 
-WEBHOOK_WITH_STATIC_PAYLOAD = hatchet.task(
+WEBHOOK_WITH_STATIC_PAYLOAD = HATCHET.task(
   name: "webhook_with_static_payload",
   on_events: ["webhook-static:test"]
 ) do |input, ctx|
@@ -26,7 +26,7 @@ WEBHOOK_WITH_STATIC_PAYLOAD = hatchet.task(
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "webhook-scope-worker",
     workflows: [WEBHOOK_WITH_SCOPE, WEBHOOK_WITH_STATIC_PAYLOAD]
   )

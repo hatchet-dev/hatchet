@@ -13,7 +13,7 @@ TEXT
 
 STREAM_CHUNKS = ANNA_KARENINA.scan(/.{1,10}/)
 
-STREAM_TASK = hatchet.task(name: "stream_task") do |input, ctx|
+STREAM_TASK = HATCHET.task(name: "stream_task") do |input, ctx|
   # Sleeping to avoid race conditions
   sleep 2
 
@@ -24,7 +24,7 @@ STREAM_TASK = hatchet.task(name: "stream_task") do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker("test-worker", workflows: [STREAM_TASK])
+  worker = HATCHET.worker("test-worker", workflows: [STREAM_TASK])
   worker.start
 end
 

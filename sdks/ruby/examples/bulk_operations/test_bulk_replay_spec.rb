@@ -49,7 +49,7 @@ RSpec.describe "BulkReplay" do
     workflow_ids = [BULK_REPLAY_TEST_1.id, BULK_REPLAY_TEST_2.id, BULK_REPLAY_TEST_3.id]
 
     # Should result in two batches of replays
-    hatchet.runs.bulk_replay(
+    HATCHET.runs.bulk_replay(
       filters: {
         workflow_ids: workflow_ids,
         additional_metadata: { "test_run_id" => test_run_id }
@@ -58,7 +58,7 @@ RSpec.describe "BulkReplay" do
 
     sleep 10
 
-    runs = hatchet.runs.list(
+    runs = HATCHET.runs.list(
       workflow_ids: workflow_ids,
       additional_metadata: { "test_run_id" => test_run_id },
       limit: 1000

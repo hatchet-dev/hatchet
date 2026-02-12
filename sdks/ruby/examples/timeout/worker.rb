@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > ScheduleTimeout
-TIMEOUT_WF = hatchet.workflow(
+TIMEOUT_WF = HATCHET.workflow(
   name: "TimeoutWorkflow",
   task_defaults: { execution_timeout: 120 } # 2 minutes
 )
@@ -17,7 +17,7 @@ TIMEOUT_WF.task(:timeout_task, execution_timeout: 5, schedule_timeout: 600) do |
   { "status" => "success" }
 end
 
-REFRESH_TIMEOUT_WF = hatchet.workflow(name: "RefreshTimeoutWorkflow")
+REFRESH_TIMEOUT_WF = HATCHET.workflow(name: "RefreshTimeoutWorkflow")
 
 # > RefreshTimeout
 REFRESH_TIMEOUT_WF.task(:refresh_task, execution_timeout: 4) do |input, ctx|
@@ -28,7 +28,7 @@ REFRESH_TIMEOUT_WF.task(:refresh_task, execution_timeout: 4) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "timeout-worker", slots: 4, workflows: [TIMEOUT_WF, REFRESH_TIMEOUT_WF]
   )
   worker.start

@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > AffinityWorkflow
-AFFINITY_WORKER_WORKFLOW = hatchet.workflow(name: "AffinityWorkflow")
+AFFINITY_WORKER_WORKFLOW = HATCHET.workflow(name: "AffinityWorkflow")
 
 # > AffinityTask
 AFFINITY_WORKER_WORKFLOW.task(
@@ -30,7 +30,7 @@ end
 
 def main
   # > AffinityWorker
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "affinity-worker",
     slots: 10,
     labels: {

@@ -6,7 +6,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-WEBHOOK_TASK = hatchet.task(
+WEBHOOK_TASK = HATCHET.task(
   name: "webhook",
   on_events: ["webhook:test"]
 ) do |input, ctx|
@@ -17,7 +17,7 @@ WEBHOOK_TASK = hatchet.task(
 end
 
 def main
-  worker = hatchet.worker("webhook-worker", workflows: [WEBHOOK_TASK])
+  worker = HATCHET.worker("webhook-worker", workflows: [WEBHOOK_TASK])
   worker.start
 end
 

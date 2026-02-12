@@ -10,7 +10,7 @@ logger.level = Logger::INFO
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-LOGGING_WORKFLOW = hatchet.workflow(name: "LoggingWorkflow")
+LOGGING_WORKFLOW = HATCHET.workflow(name: "LoggingWorkflow")
 
 LOGGING_WORKFLOW.task(:root_logger) do |input, ctx|
   12.times do |i|
@@ -36,7 +36,7 @@ LOGGING_WORKFLOW.task(:context_logger) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker("logger-worker", slots: 5, workflows: [LOGGING_WORKFLOW])
+  worker = HATCHET.worker("logger-worker", slots: 5, workflows: [LOGGING_WORKFLOW])
   worker.start
 end
 

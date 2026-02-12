@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-CANCELLATION_WORKFLOW = hatchet.workflow(name: "CancelWorkflow")
+CANCELLATION_WORKFLOW = HATCHET.workflow(name: "CancelWorkflow")
 
 # > Self-cancelling task
 CANCELLATION_WORKFLOW.task(:self_cancel) do |input, ctx|
@@ -35,7 +35,7 @@ CANCELLATION_WORKFLOW.task(:check_flag) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker("cancellation-worker", workflows: [CANCELLATION_WORKFLOW])
+  worker = HATCHET.worker("cancellation-worker", workflows: [CANCELLATION_WORKFLOW])
   worker.start
 end
 

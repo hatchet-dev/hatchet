@@ -5,7 +5,7 @@ require_relative "worker"
 
 RSpec.describe "EventWorkflow" do
   it "pushes an event" do
-    e = hatchet.events.create(key: EVENT_KEY, data: { "should_skip" => false })
+    e = HATCHET.events.create(key: EVENT_KEY, data: { "should_skip" => false })
     expect(e).not_to be_nil
   end
 
@@ -19,7 +19,7 @@ RSpec.describe "EventWorkflow" do
         additional_metadata: { "source" => "test", "user_id" => "user789" } }
     ]
 
-    result = hatchet.events.bulk_push(events)
+    result = HATCHET.events.bulk_push(events)
     expect(result.length).to eq(3)
   end
 end

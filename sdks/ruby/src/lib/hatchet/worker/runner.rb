@@ -214,7 +214,8 @@ module Hatchet
         raw = action.respond_to?(:action_payload) ? action.action_payload : nil
         return {} if raw.nil? || raw.to_s.empty?
 
-        JSON.parse(raw)
+        parsed = JSON.parse(raw)
+        parsed.is_a?(Hash) && parsed.key?("parents") ? parsed["parents"] : {}
       rescue JSON::ParserError
         {}
       end

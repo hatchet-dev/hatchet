@@ -11,7 +11,7 @@ RSpec.describe "CancelWorkflow" do
     sleep 10
 
     30.times do
-      run = hatchet.runs.get(ref.workflow_run_id)
+      run = HATCHET.runs.get(ref.workflow_run_id)
 
       if run.status == "RUNNING"
         sleep 1

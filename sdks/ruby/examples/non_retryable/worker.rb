@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-NON_RETRYABLE_WORKFLOW = hatchet.workflow(name: "NonRetryableWorkflow")
+NON_RETRYABLE_WORKFLOW = HATCHET.workflow(name: "NonRetryableWorkflow")
 
 # > Non-retryable task
 NON_RETRYABLE_WORKFLOW.task(:should_not_retry, retries: 1) do |input, ctx|
@@ -20,7 +20,7 @@ NON_RETRYABLE_WORKFLOW.task(:should_not_retry_successful_task, retries: 1) do |i
 end
 
 def main
-  worker = hatchet.worker("non-retry-worker", workflows: [NON_RETRYABLE_WORKFLOW])
+  worker = HATCHET.worker("non-retry-worker", workflows: [NON_RETRYABLE_WORKFLOW])
   worker.start
 end
 

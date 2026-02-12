@@ -9,7 +9,7 @@ DIGIT_MAX_RUNS = 8
 NAME_MAX_RUNS = 3
 
 # > Concurrency Strategy With Key
-CONCURRENCY_MULTIPLE_KEYS_WORKFLOW = hatchet.workflow(
+CONCURRENCY_MULTIPLE_KEYS_WORKFLOW = HATCHET.workflow(
   name: "ConcurrencyWorkflowManyKeys"
 )
 
@@ -32,7 +32,7 @@ CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.task(
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "concurrency-worker-multiple-keys",
     slots: 10,
     workflows: [CONCURRENCY_MULTIPLE_KEYS_WORKFLOW]

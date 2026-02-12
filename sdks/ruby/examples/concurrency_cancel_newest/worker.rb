@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-CONCURRENCY_CANCEL_NEWEST_WORKFLOW = hatchet.workflow(
+CONCURRENCY_CANCEL_NEWEST_WORKFLOW = HATCHET.workflow(
   name: "ConcurrencyCancelNewest",
   concurrency: Hatchet::ConcurrencyExpression.new(
     expression: "input.group",

@@ -4,8 +4,8 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-DEDUPE_PARENT_WF = hatchet.workflow(name: "DedupeParent")
-DEDUPE_CHILD_WF = hatchet.workflow(name: "DedupeChild")
+DEDUPE_PARENT_WF = HATCHET.workflow(name: "DedupeParent")
+DEDUPE_CHILD_WF = HATCHET.workflow(name: "DedupeChild")
 
 DEDUPE_PARENT_WF.task(:spawn, execution_timeout: 60) do |input, ctx|
   puts "spawning child"
@@ -42,7 +42,7 @@ DEDUPE_CHILD_WF.task(:process2) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "fanout-worker", slots: 100, workflows: [DEDUPE_PARENT_WF, DEDUPE_CHILD_WF]
   )
   worker.start

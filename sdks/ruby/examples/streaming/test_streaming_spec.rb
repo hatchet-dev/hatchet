@@ -8,7 +8,7 @@ RSpec.describe "StreamTask" do
     ref = STREAM_TASK.run_no_wait
 
     received_chunks = []
-    hatchet.runs.subscribe_to_stream(ref.workflow_run_id) do |chunk|
+    HATCHET.runs.subscribe_to_stream(ref.workflow_run_id) do |chunk|
       received_chunks << chunk
     end
 

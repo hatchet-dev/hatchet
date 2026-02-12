@@ -52,7 +52,7 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
 
     run_refs.each(&:result)
 
-    workflows = hatchet.workflows.list(
+    workflows = HATCHET.workflows.list(
       workflow_name: CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.name,
       limit: 1000
     ).rows
@@ -62,7 +62,7 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
     workflow = workflows.find { |w| w.name == CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.name }
     expect(workflow).not_to be_nil
 
-    runs = hatchet.runs.list(
+    runs = HATCHET.runs.list(
       workflow_ids: [workflow.metadata.id],
       additional_metadata: { "test_run_id" => test_run_id },
       limit: 1000

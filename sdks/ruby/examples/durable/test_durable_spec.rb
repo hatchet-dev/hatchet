@@ -11,7 +11,7 @@ RSpec.describe "DurableWorkflow" do
     sleep(DURABLE_SLEEP_TIME + 2)
 
     # Push the event to unblock the durable task
-    hatchet.events.create(key: DURABLE_EVENT_KEY, data: { "test" => true })
+    HATCHET.events.create(key: DURABLE_EVENT_KEY, data: { "test" => true })
 
     result = ref.result
     expect(result["durable_task"]["status"]).to eq("success")

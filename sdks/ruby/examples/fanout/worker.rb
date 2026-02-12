@@ -5,8 +5,8 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > FanoutParent
-FANOUT_PARENT_WF = hatchet.workflow(name: "FanoutParent")
-FANOUT_CHILD_WF = hatchet.workflow(name: "FanoutChild")
+FANOUT_PARENT_WF = HATCHET.workflow(name: "FanoutParent")
+FANOUT_CHILD_WF = HATCHET.workflow(name: "FanoutChild")
 
 FANOUT_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
   puts "spawning child"
@@ -41,7 +41,7 @@ FANOUT_CHILD_WF.task(:process2, parents: [FANOUT_CHILD_PROCESS]) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker("fanout-worker", slots: 40, workflows: [FANOUT_PARENT_WF, FANOUT_CHILD_WF])
+  worker = HATCHET.worker("fanout-worker", slots: 40, workflows: [FANOUT_PARENT_WF, FANOUT_CHILD_WF])
   worker.start
 end
 

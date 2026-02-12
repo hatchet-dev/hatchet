@@ -8,7 +8,7 @@ HATCHET = Hatchet::Client.new(debug: true)
 DEFAULT_PRIORITY = 1
 SLEEP_TIME = 0.25
 
-PRIORITY_WORKFLOW = hatchet.workflow(
+PRIORITY_WORKFLOW = HATCHET.workflow(
   name: "PriorityWorkflow",
   default_priority: DEFAULT_PRIORITY
 )
@@ -19,7 +19,7 @@ PRIORITY_WORKFLOW.task(:priority_task) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "priority-worker",
     slots: 1,
     workflows: [PRIORITY_WORKFLOW]

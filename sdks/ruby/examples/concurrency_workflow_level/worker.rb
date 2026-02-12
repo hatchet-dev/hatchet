@@ -9,7 +9,7 @@ DIGIT_MAX_RUNS_WL = 8
 NAME_MAX_RUNS_WL = 3
 
 # > Multiple Concurrency Keys
-CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW = hatchet.workflow(
+CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW = HATCHET.workflow(
   name: "ConcurrencyWorkflowLevel",
   concurrency: [
     Hatchet::ConcurrencyExpression.new(
@@ -34,7 +34,7 @@ CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.task(:task_2) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "concurrency-worker-workflow-level",
     slots: 10,
     workflows: [CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW]

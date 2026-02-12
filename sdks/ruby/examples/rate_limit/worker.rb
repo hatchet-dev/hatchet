@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > Workflow
-RATE_LIMIT_WORKFLOW = hatchet.workflow(name: "RateLimitWorkflow")
+RATE_LIMIT_WORKFLOW = HATCHET.workflow(name: "RateLimitWorkflow")
 
 # > Static
 RATE_LIMIT_KEY = "test-limit"
@@ -34,9 +34,9 @@ end
 
 def main
   # > Create a rate limit
-  hatchet.rate_limits.put(RATE_LIMIT_KEY, 2, :second)
+  HATCHET.rate_limits.put(RATE_LIMIT_KEY, 2, :second)
 
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "rate-limit-worker", slots: 10, workflows: [RATE_LIMIT_WORKFLOW]
   )
   worker.start

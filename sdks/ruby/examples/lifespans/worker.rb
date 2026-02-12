@@ -11,12 +11,12 @@ LIFESPAN_PROC = proc do
   { foo: "bar", pi: 3.14 }
 end
 
-LIFESPAN_TASK = hatchet.task(name: "LifespanWorkflow") do |input, ctx|
+LIFESPAN_TASK = HATCHET.task(name: "LifespanWorkflow") do |input, ctx|
   ctx.lifespan
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "test-worker", slots: 1, workflows: [LIFESPAN_TASK], lifespan: LIFESPAN_PROC
   )
   worker.start

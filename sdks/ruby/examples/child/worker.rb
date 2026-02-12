@@ -6,7 +6,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true)
 
-CHILD_TASK_WF = hatchet.workflow(name: "SimpleWorkflow")
+CHILD_TASK_WF = HATCHET.workflow(name: "SimpleWorkflow")
 
 CHILD_TASK_WF.task(:step1) do |input, ctx|
   puts "executed step1: #{input['message']}"
@@ -14,7 +14,7 @@ CHILD_TASK_WF.task(:step1) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker("test-worker", slots: 1, workflows: [CHILD_TASK_WF])
+  worker = HATCHET.worker("test-worker", slots: 1, workflows: [CHILD_TASK_WF])
   worker.start
 end
 

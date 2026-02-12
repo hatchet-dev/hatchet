@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true)
 
 # > Concurrency Strategy With Key
-CONCURRENCY_LIMIT_RR_WORKFLOW = hatchet.workflow(
+CONCURRENCY_LIMIT_RR_WORKFLOW = HATCHET.workflow(
   name: "ConcurrencyDemoWorkflowRR",
   concurrency: Hatchet::ConcurrencyExpression.new(
     expression: "input.group",
@@ -21,7 +21,7 @@ CONCURRENCY_LIMIT_RR_WORKFLOW.task(:step1) do |input, ctx|
 end
 
 def main
-  worker = hatchet.worker(
+  worker = HATCHET.worker(
     "concurrency-demo-worker-rr",
     slots: 10,
     workflows: [CONCURRENCY_LIMIT_RR_WORKFLOW]

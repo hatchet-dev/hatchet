@@ -11,7 +11,7 @@ RSpec.describe "OnFailureWorkflow" do
 
     sleep 5 # Wait for the on_failure job to finish
 
-    details = hatchet.runs.get(ref.workflow_run_id)
+    details = HATCHET.runs.get(ref.workflow_run_id)
 
     expect(details.tasks.length).to eq(2)
 

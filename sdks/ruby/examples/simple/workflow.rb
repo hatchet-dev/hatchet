@@ -5,4 +5,4 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new
 
 # > Define a workflow
-EXAMPLE_WORKFLOW = hatchet.workflow(name: "example-workflow")
+EXAMPLE_WORKFLOW = HATCHET.workflow(name: "example-workflow")
