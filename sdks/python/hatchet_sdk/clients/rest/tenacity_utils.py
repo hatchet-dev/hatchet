@@ -21,7 +21,7 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 # Pattern to extract HTTP method from exception reason
-_METHOD_PATTERN = re.compile(r"method=(\w+)", re.IGNORECASE)
+_METHOD_PATTERN = re.compile(r"\bmethod=(\w+)\b", re.IGNORECASE)
 
 
 def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, R]:
