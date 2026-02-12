@@ -354,8 +354,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	var nodeId int64
 	if isNewInvocation {
 		newNode, err := r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
-			Nodeid:                1,
-			Invocationcount:       opts.InvocationCount,
+			NodeId:                sqlchelpers.ToBigInt(1),
+			InvocationCount:       sqlchelpers.ToBigInt(opts.InvocationCount),
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
 		})
@@ -579,8 +579,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	_, err = r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
-		Nodeid:                nodeId,
+	logFile, err = r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
+		NodeId:                sqlchelpers.ToBigInt(nodeId),
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 	})

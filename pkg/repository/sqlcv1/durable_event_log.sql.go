@@ -415,16 +415,16 @@ RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocatio
 `
 
 type UpdateLogFileNodeIdInvocationCountParams struct {
-	Nodeid                int64              `json:"nodeid"`
-	Invocationcount       int64              `json:"invocationcount"`
+	NodeId                pgtype.Int8        `json:"nodeId"`
+	InvocationCount       pgtype.Int8        `json:"invocationCount"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }
 
 func (q *Queries) UpdateLogFileNodeIdInvocationCount(ctx context.Context, db DBTX, arg UpdateLogFileNodeIdInvocationCountParams) (*V1DurableEventLogFile, error) {
 	row := db.QueryRow(ctx, updateLogFileNodeIdInvocationCount,
-		arg.Nodeid,
-		arg.Invocationcount,
+		arg.NodeId,
+		arg.InvocationCount,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 	)
