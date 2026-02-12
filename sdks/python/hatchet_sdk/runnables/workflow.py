@@ -1556,3 +1556,11 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         run_ref = self.get_run_ref(run_id)
 
         return run_ref.result()
+
+    @property
+    def output_validator(self) -> TypeAdapter[R]:
+        return cast(TypeAdapter[R], self._output_validator)
+
+    @property
+    def output_validator_type(self) -> type[R]:
+        return cast(type[R], self._output_validator._type)
