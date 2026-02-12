@@ -157,6 +157,27 @@ async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str
     return {"child_output": child_result}
 
 
+@hatchet.durable_task()
+async def durable_sleep_event_spawn(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
+    start = time.time()
+
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    await ctx.aio_wait_for(
+        "event",
+        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    )
+
+    child_result = await spawn_child_task.aio_run()
+
+    return {
+        "runtime": int(time.time() - start),
+        "child_output": child_result,
+    }
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
@@ -166,6 +187,7 @@ def main() -> None:
             wait_for_sleep_twice,
             spawn_child_task,
             durable_with_spawn,
+            durable_sleep_event_spawn,
         ],
     )
     worker.start()

@@ -32,6 +32,7 @@ from examples.dependency_injection.worker import (
 )
 from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import (
+    durable_sleep_event_spawn,
     durable_with_spawn,
     durable_workflow,
     spawn_child_task,
@@ -106,6 +107,7 @@ def main() -> None:
             wait_for_sleep_twice,
             spawn_child_task,
             durable_with_spawn,
+            durable_sleep_event_spawn,
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,

@@ -6,6 +6,7 @@ import pytest
 from examples.durable.worker import (
     EVENT_KEY,
     SLEEP_TIME,
+    durable_sleep_event_spawn,
     durable_with_spawn,
     durable_workflow,
     wait_for_sleep_twice,
@@ -81,6 +82,30 @@ async def test_durable_child_spawn() -> None:
     result = await durable_with_spawn.aio_run()
 
     assert result["child_output"] == {"message": "hello from child"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
+    start = time.time()
+    ref = durable_sleep_event_spawn.run_no_wait()
+
+    await asyncio.sleep(SLEEP_TIME + 5)
+    hatchet.event.push(EVENT_KEY, {"test": "test"})
+
+    result = await ref.aio_result()
+    first_elapsed = time.time() - start
+
+    assert result["child_output"] == {"message": "hello from child"}
+    assert first_elapsed >= SLEEP_TIME
+    assert result["runtime"] >= SLEEP_TIME
+
+    replay_start = time.time()
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+    replayed_result = await ref.aio_result()
+    replay_elapsed = time.time() - replay_start
+
+    assert replayed_result["child_output"] == {"message": "hello from child"}
+    assert replay_elapsed < SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")
