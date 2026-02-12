@@ -13,6 +13,16 @@ end
 require_relative "hatchet/clients"
 require_relative "hatchet/features/events"
 require_relative "hatchet/features/runs"
+require_relative "hatchet/features/tenant"
+require_relative "hatchet/features/logs"
+require_relative "hatchet/features/workers"
+require_relative "hatchet/features/cel"
+require_relative "hatchet/features/workflows"
+require_relative "hatchet/features/filters"
+require_relative "hatchet/features/metrics"
+require_relative "hatchet/features/rate_limits"
+require_relative "hatchet/features/cron"
+require_relative "hatchet/features/scheduled"
 
 # Core classes
 require_relative "hatchet/exceptions"
@@ -107,13 +117,73 @@ module Hatchet
     # Feature Client for interacting with Hatchet events
     # @return [Hatchet::Features::Events]
     def events
-      @events ||= Hatchet::Features::Events.new(rest_client, @config)
+      @events ||= Hatchet::Features::Events.new(rest_client, event_grpc, @config)
     end
 
     # Feature Client for interacting with Hatchet workflow runs
     # @return [Hatchet::Features::Runs]
     def runs
-      @runs ||= Hatchet::Features::Runs.new(rest_client, @config)
+      @runs ||= Hatchet::Features::Runs.new(rest_client, @config, client: self)
+    end
+
+    # Feature Client for interacting with the current tenant
+    # @return [Hatchet::Features::Tenant]
+    def tenant
+      @tenant ||= Hatchet::Features::Tenant.new(rest_client, @config)
+    end
+
+    # Feature Client for interacting with Hatchet logs
+    # @return [Hatchet::Features::Logs]
+    def logs
+      @logs ||= Hatchet::Features::Logs.new(rest_client, @config)
+    end
+
+    # Feature Client for managing workers
+    # @return [Hatchet::Features::Workers]
+    def workers
+      @workers ||= Hatchet::Features::Workers.new(rest_client, @config)
+    end
+
+    # Feature Client for debugging CEL expressions
+    # @return [Hatchet::Features::CEL]
+    def cel
+      @cel ||= Hatchet::Features::CEL.new(rest_client, @config)
+    end
+
+    # Feature Client for managing workflow definitions
+    # @return [Hatchet::Features::Workflows]
+    def workflows
+      @workflows ||= Hatchet::Features::Workflows.new(rest_client, @config)
+    end
+
+    # Feature Client for managing filters
+    # @return [Hatchet::Features::Filters]
+    def filters
+      @filters ||= Hatchet::Features::Filters.new(rest_client, @config)
+    end
+
+    # Feature Client for reading metrics
+    # @return [Hatchet::Features::Metrics]
+    def metrics
+      @metrics ||= Hatchet::Features::Metrics.new(rest_client, @config)
+    end
+
+    # Feature Client for managing rate limits
+    # @return [Hatchet::Features::RateLimits]
+    def rate_limits
+      @rate_limits ||= Hatchet::Features::RateLimits.new(admin_grpc, @config)
+    end
+
+    # Feature Client for managing cron workflows
+    # @return [Hatchet::Features::Cron]
+    def cron
+      @cron ||= Hatchet::Features::Cron.new(rest_client, @config)
+    end
+
+    # Feature Client for managing scheduled workflows
+    # @return [Hatchet::Features::Scheduled]
+    def scheduled
+      @scheduled ||= Hatchet::Features::Scheduled.new(rest_client, @config)
     end
 
     # Create a new workflow definition
@@ -283,17 +353,24 @@ module Hatchet
     # @return [Array] Results or exceptions
     def trigger_workflow_many(workflow_or_task, items, return_exceptions: false)
       refs = trigger_workflow_many_no_wait(workflow_or_task, items)
-      refs.map do |ref|
-        if return_exceptions
-          begin
+
+      # Collect results concurrently using threads so that all subscriptions
+      # are sent at once rather than serially waiting for each one.
+      threads = refs.map do |ref|
+        Thread.new do
+          if return_exceptions
+            begin
+              ref.result
+            rescue => e
+              e
+            end
+          else
             ref.result
-          rescue => e
-            e
           end
-        else
-          ref.result
         end
       end
+
+      threads.map(&:value)
     end
 
     # Trigger many workflow runs without waiting.

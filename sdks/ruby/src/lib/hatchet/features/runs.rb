@@ -94,11 +94,13 @@ module Hatchet
       #
       # @param rest_client [Object] The configured REST client for API communication
       # @param config [Hatchet::Config] The Hatchet configuration containing tenant_id and other settings
+      # @param client [Hatchet::Client, nil] The parent Hatchet client (used for get_run_ref)
       # @return [void]
       # @since 0.1.0
-      def initialize(rest_client, config)
+      def initialize(rest_client, config, client: nil)
         @rest_client = rest_client
         @config = config
+        @client = client
         @workflow_runs_api = HatchetSdkRest::WorkflowRunsApi.new(rest_client)
         @task_api = HatchetSdkRest::TaskApi.new(rest_client)
       end
@@ -143,6 +145,7 @@ module Hatchet
       # @param worker_id [String, nil] The worker ID to filter task runs by
       # @param parent_task_external_id [String, nil] The parent task external ID to filter task runs by
       # @param triggering_event_external_id [String, nil] The event id that triggered the task run
+      # @param include_payloads [Boolean] Whether to include payloads in the response (default: true)
       # @return [Array<HatchetSdkRest::V1TaskSummary>] A list of task runs matching the specified filters
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def list_with_pagination(
@@ -156,7 +159,8 @@ module Hatchet
         workflow_ids: nil,
         worker_id: nil,
         parent_task_external_id: nil,
-        triggering_event_external_id: nil
+        triggering_event_external_id: nil,
+        include_payloads: true
       )
         date_ranges = partition_date_range(
           since: since || (Time.now - DEFAULT_SINCE_DAYS * 24 * 60 * 60),
@@ -177,7 +181,8 @@ module Hatchet
               workflow_ids: workflow_ids,
               worker_id: worker_id,
               parent_task_external_id: parent_task_external_id,
-              triggering_event_external_id: triggering_event_external_id
+              triggering_event_external_id: triggering_event_external_id,
+              include_payloads: include_payloads
             }
           )
         end
@@ -206,6 +211,7 @@ module Hatchet
       # @param worker_id [String, nil] The worker ID to filter task runs by
       # @param parent_task_external_id [String, nil] The parent task external ID to filter task runs by
       # @param triggering_event_external_id [String, nil] The event id that triggered the task run
+      # @param include_payloads [Boolean] Whether to include payloads in the response (default: true)
       # @return [HatchetSdkRest::V1TaskSummaryList] A list of task runs matching the specified filters
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def list(
@@ -219,7 +225,8 @@ module Hatchet
         workflow_ids: nil,
         worker_id: nil,
         parent_task_external_id: nil,
-        triggering_event_external_id: nil
+        triggering_event_external_id: nil,
+        include_payloads: true
       )
         since = since || (Time.now - DEFAULT_SINCE_DAYS * 24 * 60 * 60)
         until_time = until_time || Time.now
@@ -242,7 +249,8 @@ module Hatchet
             workflow_ids: workflow_ids,
             worker_id: worker_id,
             parent_task_external_id: parent_task_external_id,
-            triggering_event_external_id: triggering_event_external_id
+            triggering_event_external_id: triggering_event_external_id,
+            include_payloads: include_payloads
           }
         )
       end
@@ -333,6 +341,76 @@ module Hatchet
         details.run.output
       end
 
+      # Replay runs matching the specified filters in chunks
+      #
+      # This method provides an easy way to perform bulk replay operations by filters
+      # over a larger number of runs than the API would normally handle, with automatic
+      # pagination and chunking to limit pressure on the API.
+      #
+      # @param sleep_time [Integer] The time to sleep between processing chunks, in seconds (default: 3)
+      # @param chunk_size [Integer] The maximum number of run IDs to process in each chunk (default: 500)
+      # @param since [Time, nil] The start time for filtering runs
+      # @param until_time [Time, nil] The end time for filtering runs
+      # @param statuses [Array, nil] The statuses to filter runs by (default: FAILED, CANCELLED)
+      # @param additional_metadata [Hash, nil] Additional metadata to filter runs by
+      # @param workflow_ids [Array<String>, nil] The workflow IDs to filter runs by
+      # @return [void]
+      # @raise [Hatchet::Error] If the API request fails or returns an error
+      def bulk_replay_by_filters_with_pagination(sleep_time: 3, chunk_size: 500, since: nil, until_time: nil,
+                                                  statuses: nil, additional_metadata: nil, workflow_ids: nil)
+        perform_action_with_pagination(
+          action: :replay,
+          statuses: statuses || ['FAILED', 'CANCELLED'],
+          sleep_time: sleep_time,
+          chunk_size: chunk_size,
+          since: since,
+          until_time: until_time,
+          additional_metadata: additional_metadata,
+          workflow_ids: workflow_ids
+        )
+      end
+
+      # Cancel runs matching the specified filters in chunks
+      #
+      # This method provides an easy way to perform bulk cancel operations by filters
+      # over a larger number of runs than the API would normally handle, with automatic
+      # pagination and chunking to limit pressure on the API.
+      #
+      # @param sleep_time [Integer] The time to sleep between processing chunks, in seconds (default: 3)
+      # @param chunk_size [Integer] The maximum number of run IDs to process in each chunk (default: 500)
+      # @param since [Time, nil] The start time for filtering runs
+      # @param until_time [Time, nil] The end time for filtering runs
+      # @param statuses [Array, nil] The statuses to filter runs by (default: RUNNING, QUEUED)
+      # @param additional_metadata [Hash, nil] Additional metadata to filter runs by
+      # @param workflow_ids [Array<String>, nil] The workflow IDs to filter runs by
+      # @return [void]
+      # @raise [Hatchet::Error] If the API request fails or returns an error
+      def bulk_cancel_by_filters_with_pagination(sleep_time: 3, chunk_size: 500, since: nil, until_time: nil,
+                                                  statuses: nil, additional_metadata: nil, workflow_ids: nil)
+        perform_action_with_pagination(
+          action: :cancel,
+          statuses: statuses || ['RUNNING', 'QUEUED'],
+          sleep_time: sleep_time,
+          chunk_size: chunk_size,
+          since: since,
+          until_time: until_time,
+          additional_metadata: additional_metadata,
+          workflow_ids: workflow_ids
+        )
+      end
+
+      # Get a reference to a workflow run
+      #
+      # @param workflow_run_id [String] The ID of the workflow run to get a reference to
+      # @return [Hatchet::WorkflowRunRef] A reference to the specified workflow run
+      def get_run_ref(workflow_run_id)
+        Hatchet::WorkflowRunRef.new(
+          workflow_run_id: workflow_run_id,
+          client: @client,
+          listener: @client&.workflow_run_listener
+        )
+      end
+
       # Poll for workflow run completion with configurable interval and timeout
       #
       # This method repeatedly calls `get` until the workflow run reaches a terminal state
@@ -373,6 +451,44 @@ module Hatchet
       end
 
       private
+
+      # Perform a bulk action (cancel or replay) on runs matching filters in chunks
+      #
+      # @param action [Symbol] The action to perform (:cancel or :replay)
+      # @param statuses [Array] The statuses to filter runs by
+      # @param sleep_time [Integer] The time to sleep between processing chunks
+      # @param chunk_size [Integer] The maximum number of run IDs per chunk
+      # @param since [Time, nil] The start time for filtering runs
+      # @param until_time [Time, nil] The end time for filtering runs
+      # @param additional_metadata [Hash, nil] Additional metadata to filter runs by
+      # @param workflow_ids [Array<String>, nil] The workflow IDs to filter runs by
+      # @return [void]
+      def perform_action_with_pagination(action:, statuses:, sleep_time: 3, chunk_size: 500,
+                                         since: nil, until_time: nil, additional_metadata: nil, workflow_ids: nil)
+        until_time = until_time || Time.now
+        since = since || (until_time - 24 * 60 * 60)
+
+        external_ids = @workflow_runs_api.v1_workflow_run_external_ids_list(
+          @config.tenant_id,
+          since.utc.iso8601,
+          {
+            statuses: statuses,
+            _until: until_time.utc.iso8601,
+            additional_metadata: maybe_additional_metadata_to_kv(additional_metadata),
+            workflow_ids: workflow_ids
+          }
+        )
+
+        chunks = external_ids.each_slice(chunk_size).to_a
+        func = action == :cancel ? method(:bulk_cancel) : method(:bulk_replay)
+
+        chunks.each_with_index do |chunk, ix|
+          @config.logger.info("processing chunk #{ix + 1}/#{chunks.length} of #{chunk.length} ids")
+          opts = BulkCancelReplayOpts.new(ids: chunk)
+          func.call(opts)
+          sleep(sleep_time)
+        end
+      end
 
       # Check if a workflow run status is terminal (completed)
       #

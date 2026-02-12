@@ -33,8 +33,9 @@ module Hatchet
         # @param additional_metadata [Hash, nil] Additional metadata
         # @param priority [Integer, nil] Event priority
         # @param scope [String, nil] Event scope
+        # @param namespace [String, nil] Optional namespace override
         # @return [Event] Push response
-        def push(key:, payload:, additional_metadata: nil, priority: nil, scope: nil)
+        def push(key:, payload:, additional_metadata: nil, priority: nil, scope: nil, namespace: nil)
           ensure_connected!
 
           now = Time.now
@@ -43,7 +44,7 @@ module Hatchet
             nanos: now.nsec
           )
 
-          namespaced_key = @config.apply_namespace(key)
+          namespaced_key = @config.apply_namespace(key, namespace_override: namespace)
 
           request_args = {
             key: namespaced_key,
@@ -69,8 +70,9 @@ module Hatchet
         # Push multiple events via gRPC.
         #
         # @param events [Array<Hash>] Array of event hashes with :key, :payload, :additional_metadata, :priority, :scope
+        # @param namespace [String, nil] Optional namespace override applied to all events
         # @return [Events] Bulk push response
-        def bulk_push(events)
+        def bulk_push(events, namespace: nil)
           ensure_connected!
 
           now = Time.now
@@ -81,7 +83,7 @@ module Hatchet
 
           items = events.map do |e|
             request_args = {
-              key: @config.apply_namespace(e[:key]),
+              key: @config.apply_namespace(e[:key], namespace_override: namespace),
               payload: JSON.generate(e[:payload] || {}),
               event_timestamp: timestamp
             }

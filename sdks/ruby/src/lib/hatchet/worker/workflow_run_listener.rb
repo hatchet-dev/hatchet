@@ -98,7 +98,7 @@ module Hatchet
           return event
         rescue ThreadError
           # Queue is empty, sleep briefly and retry
-          sleep(0.1)
+          sleep(0.01)
         end
       end
     ensure

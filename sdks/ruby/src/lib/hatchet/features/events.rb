@@ -7,8 +7,8 @@ module Hatchet
     # Events client for interacting with Hatchet event management API
     #
     # This class provides a high-level interface for creating and managing events
-    # in the Hatchet system. It wraps the generated REST API client with a more
-    # convenient Ruby interface.
+    # in the Hatchet system. It uses gRPC for event creation (push/bulk_push) and
+    # the REST API for read operations (list, get, etc.).
     #
     # @example Creating an event
     #   response = events.push(
@@ -27,20 +27,21 @@ module Hatchet
       # Initializes a new Events client instance
       #
       # @param rest_client [Object] The configured REST client for API communication
+      # @param event_grpc [Hatchet::Clients::Grpc::EventClient] The gRPC event client for push operations
       # @param config [Hatchet::Config] The Hatchet configuration containing tenant_id and other settings
       # @return [void]
       # @since 0.1.0
-      def initialize(rest_client, config)
+      def initialize(rest_client, event_grpc, config)
         @rest_client = rest_client
+        @event_grpc = event_grpc
         @config = config
         @event_api = HatchetSdkRest::EventApi.new(rest_client)
       end
 
       # Creates a new event in the Hatchet system
       #
-      # This method sends an event creation request to the Hatchet API using the
-      # configured tenant ID. The event will be processed and made available for
-      # workflow triggers and event-driven automation.
+      # This method sends an event creation request via gRPC. The event will be
+      # processed and made available for workflow triggers and event-driven automation.
       #
       # @param key [String] The event key/name
       # @param data [Hash] The event payload data
@@ -48,7 +49,7 @@ module Hatchet
       # @param priority [Integer, nil] Event priority
       # @param scope [String, nil] The scope for event filtering
       # @param namespace [String, nil] Override namespace for this event
-      # @return [Object] The API response containing the created event details
+      # @return [Object] The gRPC response containing the created event details
       # @raise [ArgumentError] If required parameters are missing
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Creating a simple event
@@ -59,17 +60,14 @@ module Hatchet
       #   )
       # @since 0.1.0
       def create(key:, data:, additional_metadata: nil, priority: nil, scope: nil, namespace: nil)
-        event_key = apply_namespace(key, namespace)
-
-        event_request = HatchetSdkRest::CreateEventRequest.new(
-          key: event_key,
-          data: data,
+        @event_grpc.push(
+          key: key,
+          payload: data,
           additional_metadata: additional_metadata,
           priority: priority,
-          scope: scope
+          scope: scope,
+          namespace: namespace
         )
-
-        @event_api.event_create(@config.tenant_id, event_request)
       end
 
       # Push a single event to Hatchet
@@ -79,7 +77,7 @@ module Hatchet
       # @param additional_metadata [Hash, nil] Additional metadata for the event
       # @param namespace [String, nil] Override namespace for this event
       # @param priority [Integer, nil] Event priority
-      # @return [Object] The API response containing the created event details
+      # @return [Object] The gRPC response containing the created event details
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Push a simple event
       #   response = events.push(
@@ -101,7 +99,7 @@ module Hatchet
       #
       # @param events [Array<Hash>] Array of event hashes, each containing :key, :data, and optionally :additional_metadata and :priority
       # @param namespace [String, nil] Override namespace for all events
-      # @return [Object] The API response containing the created events
+      # @return [Object] The gRPC response containing the created events
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Bulk create events
       #   events_data = [
@@ -110,22 +108,16 @@ module Hatchet
       #   ]
       #   response = events.bulk_push(events_data)
       def bulk_push(events, namespace: nil)
-        events_requests = events.map do |event|
-          event_key = apply_namespace(event[:key], namespace)
-
-          HatchetSdkRest::CreateEventRequest.new(
-            key: event_key,
-            data: event[:data] || {},
+        grpc_events = events.map do |event|
+          {
+            key: event[:key],
+            payload: event[:data] || {},
             additional_metadata: event[:additional_metadata],
             priority: event[:priority]
-          )
+          }
         end
 
-        bulk_request = HatchetSdkRest::BulkCreateEventRequest.new(
-          events: events_requests
-        )
-
-        @event_api.event_create_bulk(@config.tenant_id, bulk_request)
+        @event_grpc.bulk_push(grpc_events, namespace: namespace)
       end
 
       # List events with filtering options

@@ -119,7 +119,8 @@ RSpec.describe Hatchet::Features::Runs do
           workflow_ids: nil,
           worker_id: nil,
           parent_task_external_id: nil,
-          triggering_event_external_id: nil
+          triggering_event_external_id: nil,
+          include_payloads: true
         )
       )
     end
@@ -154,7 +155,8 @@ RSpec.describe Hatchet::Features::Runs do
           workflow_ids: ["workflow-1"],
           worker_id: "worker-123",
           parent_task_external_id: "parent-task-456",
-          triggering_event_external_id: "event-789"
+          triggering_event_external_id: "event-789",
+          include_payloads: true
         }
       )
     end
@@ -346,6 +348,67 @@ RSpec.describe Hatchet::Features::Runs do
     end
   end
 
+
+  describe "#bulk_replay_by_filters_with_pagination" do
+    let(:external_ids) { (1..10).map { |i| "run-#{i}" } }
+
+    before do
+      allow(workflow_runs_api).to receive(:v1_workflow_run_external_ids_list).and_return(external_ids)
+      allow(task_api).to receive(:v1_task_replay)
+      allow_any_instance_of(Hatchet::Features::BulkCancelReplayOpts).to receive(:to_replay_request)
+        .and_return(instance_double("HatchetSdkRest::V1ReplayTaskRequest"))
+    end
+
+    it "replays runs in chunks" do
+      runs_client.bulk_replay_by_filters_with_pagination(
+        sleep_time: 0,
+        chunk_size: 5,
+        since: Time.now - 3600,
+        until_time: Time.now
+      )
+
+      expect(workflow_runs_api).to have_received(:v1_workflow_run_external_ids_list)
+      expect(task_api).to have_received(:v1_task_replay).twice
+    end
+
+    it "uses default FAILED and CANCELLED statuses" do
+      runs_client.bulk_replay_by_filters_with_pagination(sleep_time: 0)
+
+      expect(workflow_runs_api).to have_received(:v1_workflow_run_external_ids_list).with(
+        "test-tenant",
+        kind_of(String),
+        hash_including(statuses: ['FAILED', 'CANCELLED'])
+      )
+    end
+  end
+
+  describe "#bulk_cancel_by_filters_with_pagination" do
+    let(:external_ids) { (1..3).map { |i| "run-#{i}" } }
+
+    before do
+      allow(workflow_runs_api).to receive(:v1_workflow_run_external_ids_list).and_return(external_ids)
+      allow(task_api).to receive(:v1_task_cancel)
+      allow_any_instance_of(Hatchet::Features::BulkCancelReplayOpts).to receive(:to_cancel_request)
+        .and_return(instance_double("HatchetSdkRest::V1CancelTaskRequest"))
+    end
+
+    it "cancels runs in chunks" do
+      runs_client.bulk_cancel_by_filters_with_pagination(sleep_time: 0, chunk_size: 2)
+
+      expect(workflow_runs_api).to have_received(:v1_workflow_run_external_ids_list)
+      expect(task_api).to have_received(:v1_task_cancel).twice
+    end
+
+    it "uses default RUNNING and QUEUED statuses" do
+      runs_client.bulk_cancel_by_filters_with_pagination(sleep_time: 0)
+
+      expect(workflow_runs_api).to have_received(:v1_workflow_run_external_ids_list).with(
+        "test-tenant",
+        kind_of(String),
+        hash_including(statuses: ['RUNNING', 'QUEUED'])
+      )
+    end
+  end
 
   describe "private methods" do
     describe "#partition_date_range" do

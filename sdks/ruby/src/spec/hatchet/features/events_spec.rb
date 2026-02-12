@@ -6,8 +6,9 @@ RSpec.describe Hatchet::Features::Events do
   let(:valid_token) { "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXRlbmFudCJ9.signature" }
   let(:config) { Hatchet::Config.new(token: valid_token) }
   let(:rest_client) { instance_double("ApiClient") }
+  let(:event_grpc) { instance_double("Hatchet::Clients::Grpc::EventClient") }
   let(:event_api) { instance_double("HatchetSdkRest::EventApi") }
-  let(:events_client) { described_class.new(rest_client, config) }
+  let(:events_client) { described_class.new(rest_client, event_grpc, config) }
 
   before do
     allow(HatchetSdkRest::EventApi).to receive(:new).with(rest_client).and_return(event_api)
@@ -32,10 +33,11 @@ RSpec.describe Hatchet::Features::Events do
       expect(events_client).to be_a(described_class)
       expect(events_client.instance_variable_get(:@config)).to eq(config)
       expect(events_client.instance_variable_get(:@rest_client)).to eq(rest_client)
+      expect(events_client.instance_variable_get(:@event_grpc)).to eq(event_grpc)
     end
 
     it "initializes event API client" do
-      described_class.new(rest_client, config)
+      described_class.new(rest_client, event_grpc, config)
       expect(HatchetSdkRest::EventApi).to have_received(:new).with(rest_client)
     end
   end
@@ -46,26 +48,24 @@ RSpec.describe Hatchet::Features::Events do
     let(:additional_metadata) { { "source" => "test" } }
     let(:priority) { 1 }
     let(:scope) { "test-scope" }
-    let(:event_request) { instance_double("HatchetSdkRest::CreateEventRequest") }
-    let(:api_response) { instance_double("Object") }
+    let(:grpc_response) { instance_double("Object") }
 
     before do
-      allow(HatchetSdkRest::CreateEventRequest).to receive(:new).and_return(event_request)
-      allow(event_api).to receive(:event_create).and_return(api_response)
+      allow(event_grpc).to receive(:push).and_return(grpc_response)
     end
 
     it "creates an event with required parameters" do
       result = events_client.create(key: event_key, data: event_data)
 
-      expect(result).to eq(api_response)
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "test-event", # namespaced key
-        data: event_data,
+      expect(result).to eq(grpc_response)
+      expect(event_grpc).to have_received(:push).with(
+        key: "test-event",
+        payload: event_data,
         additional_metadata: nil,
         priority: nil,
-        scope: nil
+        scope: nil,
+        namespace: nil
       )
-      expect(event_api).to have_received(:event_create).with("test-tenant", event_request)
     end
 
     it "creates an event with all optional parameters" do
@@ -77,15 +77,15 @@ RSpec.describe Hatchet::Features::Events do
         scope: scope
       )
 
-      expect(result).to eq(api_response)
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "test-event", # namespaced key
-        data: event_data,
+      expect(result).to eq(grpc_response)
+      expect(event_grpc).to have_received(:push).with(
+        key: "test-event",
+        payload: event_data,
         additional_metadata: additional_metadata,
         priority: priority,
-        scope: scope
+        scope: scope,
+        namespace: nil
       )
-      expect(event_api).to have_received(:event_create).with("test-tenant", event_request)
     end
   end
 
@@ -93,71 +93,67 @@ RSpec.describe Hatchet::Features::Events do
     let(:event_key) { "test-event" }
     let(:payload) { { "message" => "test" } }
     let(:additional_metadata) { { "source" => "test" } }
-    let(:event_request) { instance_double("HatchetSdkRest::CreateEventRequest") }
-    let(:api_response) { instance_double("Object") }
+    let(:grpc_response) { instance_double("Object") }
 
     before do
-      allow(HatchetSdkRest::CreateEventRequest).to receive(:new).and_return(event_request)
-      allow(event_api).to receive(:event_create).and_return(api_response)
+      allow(event_grpc).to receive(:push).and_return(grpc_response)
     end
 
     it "pushes a single event with basic parameters" do
       events_client.push(event_key, payload)
 
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
+      expect(event_grpc).to have_received(:push).with(
         key: event_key,
-        data: payload,
+        payload: payload,
         additional_metadata: nil,
         priority: nil,
-        scope: nil
+        scope: nil,
+        namespace: nil
       )
-      expect(event_api).to have_received(:event_create).with("test-tenant", event_request)
     end
 
     it "pushes a single event with all parameters" do
       events_client.push(event_key, payload, additional_metadata: additional_metadata, priority: 1)
 
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
+      expect(event_grpc).to have_received(:push).with(
         key: event_key,
-        data: payload,
+        payload: payload,
         additional_metadata: additional_metadata,
         priority: 1,
-        scope: nil
+        scope: nil,
+        namespace: nil
       )
     end
 
-    it "applies namespace to event key" do
-      config_with_namespace = Hatchet::Config.new(token: valid_token, namespace: "test_")
-      events_client_with_ns = described_class.new(rest_client, config_with_namespace)
+    it "applies namespace via gRPC client" do
+      events_client.push(event_key, payload)
 
-      allow(HatchetSdkRest::EventApi).to receive(:new).with(rest_client).and_return(event_api)
-
-      events_client_with_ns.push(event_key, payload)
-
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "test_test-event",
-        data: payload,
+      expect(event_grpc).to have_received(:push).with(
+        key: event_key,
+        payload: payload,
         additional_metadata: nil,
         priority: nil,
-        scope: nil
+        scope: nil,
+        namespace: nil
       )
     end
 
-    it "applies namespace override" do
+    it "passes namespace override to gRPC client" do
       events_client.push(event_key, payload, namespace: "override_")
 
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "override_test-event",
-        data: payload,
+      expect(event_grpc).to have_received(:push).with(
+        key: event_key,
+        payload: payload,
         additional_metadata: nil,
         priority: nil,
-        scope: nil
+        scope: nil,
+        namespace: "override_"
       )
     end
 
-    it "returns the API response" do
+    it "returns the gRPC response" do
       result = events_client.push(event_key, payload)
-      expect(result).to eq(api_response)
+      expect(result).to eq(grpc_response)
     end
   end
 
@@ -168,52 +164,33 @@ RSpec.describe Hatchet::Features::Events do
         { key: "event-2", data: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 }
       ]
     end
-    let(:event_request_1) { instance_double("HatchetSdkRest::CreateEventRequest") }
-    let(:event_request_2) { instance_double("HatchetSdkRest::CreateEventRequest") }
-    let(:bulk_request) { instance_double("HatchetSdkRest::BulkCreateEventRequest") }
-    let(:api_response) { instance_double("Object") }
+    let(:grpc_response) { instance_double("Object") }
 
     before do
-      allow(HatchetSdkRest::CreateEventRequest).to receive(:new).and_return(event_request_1, event_request_2)
-      allow(HatchetSdkRest::BulkCreateEventRequest).to receive(:new).and_return(bulk_request)
-      allow(event_api).to receive(:event_create_bulk).and_return(api_response)
+      allow(event_grpc).to receive(:bulk_push).and_return(grpc_response)
     end
 
     it "creates bulk events" do
       events_client.bulk_push(events_data)
 
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "event-1",
-        data: { "message" => "first" },
-        additional_metadata: nil,
-        priority: nil
+      expect(event_grpc).to have_received(:bulk_push).with(
+        [
+          { key: "event-1", payload: { "message" => "first" }, additional_metadata: nil, priority: nil },
+          { key: "event-2", payload: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 }
+        ],
+        namespace: nil
       )
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "event-2",
-        data: { "message" => "second" },
-        additional_metadata: { "type" => "test" },
-        priority: 1
-      )
-      expect(HatchetSdkRest::BulkCreateEventRequest).to have_received(:new).with(
-        events: [event_request_1, event_request_2]
-      )
-      expect(event_api).to have_received(:event_create_bulk).with("test-tenant", bulk_request)
     end
 
-    it "applies namespace to all events" do
+    it "passes namespace to gRPC client" do
       events_client.bulk_push(events_data, namespace: "bulk_")
 
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "bulk_event-1",
-        data: { "message" => "first" },
-        additional_metadata: nil,
-        priority: nil
-      )
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "bulk_event-2",
-        data: { "message" => "second" },
-        additional_metadata: { "type" => "test" },
-        priority: 1
+      expect(event_grpc).to have_received(:bulk_push).with(
+        [
+          { key: "event-1", payload: { "message" => "first" }, additional_metadata: nil, priority: nil },
+          { key: "event-2", payload: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 }
+        ],
+        namespace: "bulk_"
       )
     end
 
@@ -222,17 +199,15 @@ RSpec.describe Hatchet::Features::Events do
 
       events_client.bulk_push(events_data)
 
-      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
-        key: "event-1",
-        data: {},
-        additional_metadata: nil,
-        priority: nil
+      expect(event_grpc).to have_received(:bulk_push).with(
+        [{ key: "event-1", payload: {}, additional_metadata: nil, priority: nil }],
+        namespace: nil
       )
     end
 
-    it "returns the API response" do
+    it "returns the gRPC response" do
       result = events_client.bulk_push(events_data)
-      expect(result).to eq(api_response)
+      expect(result).to eq(grpc_response)
     end
   end
 
@@ -427,7 +402,7 @@ RSpec.describe Hatchet::Features::Events do
     describe "#apply_namespace" do
       it "applies default namespace from config" do
         config_with_namespace = Hatchet::Config.new(token: valid_token, namespace: "test_")
-        events_client_with_ns = described_class.new(rest_client, config_with_namespace)
+        events_client_with_ns = described_class.new(rest_client, event_grpc, config_with_namespace)
 
         result = events_client_with_ns.send(:apply_namespace, "event-key")
         expect(result).to eq("test_event-key")

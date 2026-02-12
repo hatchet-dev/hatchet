@@ -80,7 +80,7 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
     it "returns a task status when getting status" do
       result = runs_client.get_status(test_workflow_run_id)
       expect(result).to be_a(String)
-      expect(result).to match(/PENDING|RUNNING|SUCCEEDED|FAILED|CANCELLED|COMPLETED/)
+      expect(result).to match(/PENDING|QUEUED|RUNNING|SUCCEEDED|FAILED|CANCELLED|COMPLETED/)
     end
 
     it "can get workflow run result" do

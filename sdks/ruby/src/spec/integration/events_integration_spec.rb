@@ -159,8 +159,10 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         additional_metadata: { "source" => "retrieval-test" }
       )
 
-      # Try to extract event ID from the response
-      if result.respond_to?(:id)
+      # Try to extract event ID from the response (gRPC Event has event_id)
+      if result.respond_to?(:event_id) && result.event_id && !result.event_id.empty?
+        result.event_id
+      elsif result.respond_to?(:id)
         result.id
       elsif result.respond_to?(:metadata) && result.metadata.respond_to?(:id)
         result.metadata.id
@@ -175,16 +177,17 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       end
     end
 
-    it "can get a specific event by ID (expects 404 for now)" do
-      expect { events_client.get(test_event_id) }.to raise_error(HatchetSdkRest::ApiError)
+    it "can get a specific event by ID" do
+      expect { events_client.get(test_event_id) }.not_to raise_error
     end
 
-    it "returns event details when getting by ID (expects 404 for now)" do
-      expect { events_client.get(test_event_id) }.to raise_error(HatchetSdkRest::ApiError)
+    it "returns event details when getting by ID" do
+      result = events_client.get(test_event_id)
+      expect(result).not_to be_nil
     end
 
-    it "can get event data by ID (expects 404 for now)" do
-      expect { events_client.get_data(test_event_id) }.to raise_error(HatchetSdkRest::ApiError)
+    it "can get event data by ID" do
+      expect { events_client.get_data(test_event_id) }.not_to raise_error
     end
 
     it "handles invalid event IDs gracefully" do
@@ -223,11 +226,11 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
   end
 
   describe "error handling" do
-    it "raises appropriate errors for invalid event data" do
-      # Test with invalid event request
+    it "handles nil event key gracefully via gRPC" do
+      # gRPC accepts nil keys (converted to empty string) without raising
       expect do
         events_client.push(nil, {})
-      end.to raise_error(StandardError)
+      end.not_to raise_error
     end
 
     it "handles invalid date ranges gracefully" do
