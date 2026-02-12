@@ -225,26 +225,26 @@ export function LogViewer({
       >
         {/* Header row */}
         <div
-          className="col-span-full grid grid-cols-subgrid sticky top-0 z-10 bg-muted/50 backdrop-blur-sm border-b"
+          className="col-span-full grid grid-cols-subgrid sticky top-0 z-1 bg-gradient-to-b from-background/95 to-background/0 from-75%"
           style={{ gridColumn: `1 / span ${colCount}` }}
         >
-          <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Timestamp
           </div>
-          <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Level
           </div>
           {hasInstance && (
-            <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Instance
             </div>
           )}
           {hasAttempt && (
-            <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Attempt
             </div>
           )}
-          <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Message
           </div>
         </div>
