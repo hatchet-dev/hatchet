@@ -523,7 +523,7 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
-	// TODO: Clean up any state associated with this invocation
+	// todo: implement eviction here
 
 	return nil
 }
