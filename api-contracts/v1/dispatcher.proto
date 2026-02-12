@@ -65,8 +65,8 @@ message DurableTaskEvictInvocationRequest {
 }
 
 message DurableTaskAwaitedCallback {
-    string durable_task_external_id = 2;
-    int64 node_id = 3;
+    string durable_task_external_id = 1;
+    int64 node_id = 2;
 }
 
 message DurableTaskWorkerStatusRequest {
@@ -80,8 +80,8 @@ message DurableTaskRequest {
     oneof message {
         DurableTaskRequestRegisterWorker register_worker = 1;
         DurableTaskEventRequest event = 2;
-        DurableTaskEvictInvocationRequest evict_invocation = 4;
-        DurableTaskWorkerStatusRequest worker_status = 5;
+        DurableTaskEvictInvocationRequest evict_invocation = 3;
+        DurableTaskWorkerStatusRequest worker_status = 4;
     }
 }
 
@@ -89,7 +89,7 @@ message DurableTaskResponse {
     oneof message {
         DurableTaskResponseRegisterWorker register_worker = 1;
         DurableTaskEventAckResponse trigger_ack = 2;
-        DurableTaskCallbackCompletedResponse callback_completed = 4;
+        DurableTaskCallbackCompletedResponse callback_completed = 3;
     }
 }
 
