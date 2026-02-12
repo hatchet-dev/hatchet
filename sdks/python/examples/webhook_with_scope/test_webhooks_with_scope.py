@@ -120,10 +120,10 @@ async def webhook_with_scope_expression(
         )
 
     webhook_request = CreateWebhookRequest(
-        source_name=V1WebhookSourceName.GENERIC,
+        sourceName=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-scope-{test_run_id}",
-        event_key_expression=event_key_expression,
-        scope_expression=scope_expression,
+        eventKeyExpression=event_key_expression,
+        scopeExpression=scope_expression,
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
@@ -155,10 +155,10 @@ async def webhook_with_static_payload(
         )
 
     webhook_request = CreateWebhookRequest(
-        source_name=V1WebhookSourceName.GENERIC,
+        sourceName=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-static-{test_run_id}",
-        event_key_expression=event_key_expression,
-        static_payload=static_payload,
+        eventKeyExpression=event_key_expression,
+        staticPayload=static_payload,
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
@@ -191,11 +191,11 @@ async def webhook_with_scope_and_static(
         )
 
     webhook_request = CreateWebhookRequest(
-        source_name=V1WebhookSourceName.GENERIC,
+        sourceName=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-both-{test_run_id}",
-        event_key_expression=event_key_expression,
-        scope_expression=scope_expression,
-        static_payload=static_payload,
+        eventKeyExpression=event_key_expression,
+        scopeExpression=scope_expression,
+        staticPayload=static_payload,
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,

@@ -57,14 +57,15 @@ class CreateWebhookRequest(V1CreateWebhookRequestBase):
     def _to_api_payload(self) -> V1CreateWebhookRequest:
         payload = self.model_dump(by_alias=True, exclude_none=True)
         payload["auth"] = self.auth.model_dump(by_alias=True)
-        if self.auth_type == "BASIC":
-            inner = V1CreateWebhookRequestBasicAuth.from_dict(payload)
-        elif self.auth_type == "API_KEY":
-            inner = V1CreateWebhookRequestAPIKey.from_dict(payload)
-        elif self.auth_type == "HMAC":
-            inner = V1CreateWebhookRequestHMAC.from_dict(payload)
-        assert inner is not None
-        return V1CreateWebhookRequest(actual_instance=inner)
+        builders = {
+            "BASIC": V1CreateWebhookRequestBasicAuth.from_dict,
+            "API_KEY": V1CreateWebhookRequestAPIKey.from_dict,
+            "HMAC": V1CreateWebhookRequestHMAC.from_dict,
+        }
+        request_payload = builders[self.auth_type](payload)
+        if request_payload is None:
+            raise ValueError("failed to build create webhook request from payload")
+        return V1CreateWebhookRequest(request_payload)
 
 
 class WebhooksClient(BaseRestClient):
@@ -79,6 +80,17 @@ class WebhooksClient(BaseRestClient):
 
     def _wa(self, client: ApiClient) -> WebhookApi:
         return WebhookApi(client)
+
+    async def aio_list(
+        self,
+        limit: int | None = None,
+        offset: int | None = None,
+        webhook_names: list[str] | None = None,
+        source_names: list[V1WebhookSourceName] | None = None,
+    ) -> V1WebhookList:
+        return await asyncio.to_thread(
+            self.list, limit, offset, webhook_names, source_names
+        )
 
     def list(
         self,
@@ -98,17 +110,6 @@ class WebhooksClient(BaseRestClient):
                 webhook_names=webhook_names,
                 source_names=source_names,
             )
-
-    async def aio_list(
-        self,
-        limit: int | None = None,
-        offset: int | None = None,
-        webhook_names: list[str] | None = None,
-        source_names: list[V1WebhookSourceName] | None = None,
-    ) -> V1WebhookList:
-        return await asyncio.to_thread(
-            self.list, limit, offset, webhook_names, source_names
-        )
 
     def get(self, webhook_name: str) -> V1Webhook:
         with self.client() as client:

@@ -162,9 +162,9 @@ async def basic_auth_webhook(
 ) -> AsyncGenerator[V1Webhook, None]:
 
     webhook_request = CreateWebhookRequest(
-        source_name=source_name,
+        sourceName=source_name,
         name=f"test-webhook-basic-{test_run_id}",
-        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(username=username, password=password),
     )
@@ -187,13 +187,13 @@ async def api_key_webhook(
 ) -> AsyncGenerator[V1Webhook, None]:
 
     webhook_request = CreateWebhookRequest(
-        source_name=source_name,
+        sourceName=source_name,
         name=f"test-webhook-apikey-{test_run_id}",
-        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth_type="API_KEY",
         auth=V1WebhookAPIKeyAuth(
-            header_name=header_name,
-            api_key=api_key,
+            headerName=header_name,
+            apiKey=api_key,
         ),
     )
 
@@ -217,15 +217,15 @@ async def hmac_webhook(
 ) -> AsyncGenerator[V1Webhook, None]:
 
     webhook_request = CreateWebhookRequest(
-        source_name=source_name,
+        sourceName=source_name,
         name=f"test-webhook-hmac-{test_run_id}",
-        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth_type="HMAC",
         auth=V1WebhookHMACAuth(
             algorithm=algorithm,
             encoding=encoding,
-            signature_header_name=signature_header_name,
-            signing_secret=signing_secret,
+            signatureHeaderName=signature_header_name,
+            signingSecret=signing_secret,
         ),
     )
 
