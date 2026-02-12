@@ -6,7 +6,7 @@ name: Create prerelease w/ binaries and static assets
 jobs:
   build-push-hatchet-api-amd:
     name: hatchet-api
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -31,7 +31,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-api-arm:
     name: hatchet-api
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -56,7 +56,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-api:
     name: Combine hatchet-api
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-api-amd
       - build-push-hatchet-api-arm
@@ -83,7 +83,7 @@ jobs:
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-admin-amd:
     name: hatchet-admin
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -108,7 +108,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-admin-arm:
     name: hatchet-admin
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -133,7 +133,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-admin:
     name: Combine hatchet-admin
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-admin-amd
       - build-push-hatchet-admin-arm
@@ -160,7 +160,7 @@ jobs:
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-engine-amd:
     name: hatchet-engine
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -185,7 +185,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-engine-arm:
     name: hatchet-engine
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -210,7 +210,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-engine:
     name: Combine hatchet-engine
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-engine-amd
       - build-push-hatchet-engine-arm
@@ -237,7 +237,7 @@ jobs:
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-migrate-amd:
     name: hatchet-migrate
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -262,7 +262,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-migrate-arm:
     name: hatchet-migrate
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -287,7 +287,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-migrate:
     name: Combine hatchet-migrate
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-migrate-amd
       - build-push-hatchet-migrate-arm
@@ -314,7 +314,7 @@ jobs:
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-frontend-amd:
     name: hatchet-frontend
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -343,7 +343,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-frontend-arm:
     name: hatchet-frontend
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -372,7 +372,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-frontend:
     name: Combine hatchet-frontend
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-frontend-amd
       - build-push-hatchet-frontend-arm
@@ -399,7 +399,7 @@ jobs:
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-lite-amd:
     name: hatchet-lite-amd
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -458,7 +458,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-lite-arm:
     name: hatchet-lite-arm
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -517,7 +517,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-lite:
     name: Combine hatchet-lite
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-lite-arm
@@ -544,7 +544,7 @@ jobs:
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-dashboard-amd:
     name: hatchet-dashboard-amd
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -585,7 +585,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-dashboard-arm:
     name: hatchet-dashboard-arm
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -626,7 +626,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-dashboard:
     name: Combine hatchet-dashboard
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-dashboard-amd
       - build-push-hatchet-dashboard-arm
@@ -653,7 +653,7 @@ jobs:
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-loadtest-amd:
     name: hatchet-loadtest
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Get tag name
         id: tag_name
@@ -676,7 +676,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-loadtest-arm:
     name: hatchet-loadtest
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Get tag name
         id: tag_name
@@ -699,7 +699,7 @@ jobs:
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-loadtest:
     name: Combine hatchet-loadtest
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     needs:
       - build-push-hatchet-loadtest-amd
       - build-push-hatchet-loadtest-arm

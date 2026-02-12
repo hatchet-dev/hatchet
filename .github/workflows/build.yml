@@ -9,7 +9,7 @@ on:
 
 jobs:
   frontend:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -23,7 +23,7 @@ jobs:
         run: docker build -f ./build/package/frontend.dockerfile .
 
   api:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -31,7 +31,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   api-arm:
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -39,7 +39,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   engine:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -47,7 +47,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   engine-arm:
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -55,7 +55,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   admin:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -63,7 +63,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   admin-arm:
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -71,7 +71,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   migrate:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -79,7 +79,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   migrate-arm:
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -87,7 +87,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -127,7 +127,7 @@ jobs:
             .
 
   lite-amd:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -167,7 +167,7 @@ jobs:
             .
 
   dashboard-arm:
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -191,7 +191,7 @@ jobs:
             .
 
   dashboard-amd:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -215,7 +215,7 @@ jobs:
             .
 
   loadtest:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -223,7 +223,7 @@ jobs:
         run: docker build -f ./build/package/loadtest.dockerfile .
 
   loadtest-arm:
-    runs-on: ubicloud-standard-6-arm
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6

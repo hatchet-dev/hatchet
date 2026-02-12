@@ -55,7 +55,7 @@ jobs:
         working-directory: frontend/app
         run: npm run build
   cypress:
-    runs-on: ubicloud-standard-6
+    runs-on: ubicloud-standard-4
     timeout-minutes: 30
 
     steps:
