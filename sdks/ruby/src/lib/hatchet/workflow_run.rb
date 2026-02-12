@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 module Hatchet
   # Reference to a running workflow, returned by `Workflow#run_no_wait`
   #
@@ -14,40 +16,81 @@ module Hatchet
     attr_reader :workflow_run_id
 
     # @param workflow_run_id [String] The workflow run ID
-    # @param client [Hatchet::Client] The Hatchet client for fetching results
-    def initialize(workflow_run_id:, client: nil)
+    # @param client [Hatchet::Client] The Hatchet client (used as fallback)
+    # @param listener [Hatchet::WorkflowRunListener, nil] Pooled gRPC listener
+    def initialize(workflow_run_id:, client: nil, listener: nil)
       @workflow_run_id = workflow_run_id
       @client = client
+      @listener = listener
       @result = nil
       @resolved = false
     end
 
-    # Block until the workflow run completes and return the result
+    # Block until the workflow run completes and return the result.
+    #
+    # Uses the pooled gRPC `SubscribeToWorkflowRuns` listener when available.
+    # Falls back to gRPC `GetRunDetails` polling otherwise.
     #
     # @param timeout [Integer] Maximum seconds to wait (default: 300)
-    # @return [Hash] The workflow run output
+    # @return [Hash] The workflow run output keyed by task readable_id
     # @raise [Hatchet::FailedRunError] if the workflow run failed
     # @raise [Timeout::Error] if the timeout is exceeded
     def result(timeout: 300)
       return @result if @resolved
 
+      if @listener
+        @result = @listener.result(@workflow_run_id, timeout: timeout)
+      else
+        @result = poll_result_via_grpc(timeout)
+      end
+
+      @resolved = true
+      @result
+    end
+
+    private
+
+    # Fallback: poll via gRPC GetRunDetails (like Python SDK's sync path).
+    def poll_result_via_grpc(timeout)
       deadline = Time.now + timeout
+      retries = 0
 
       loop do
         raise Timeout::Error, "Timed out waiting for workflow run #{@workflow_run_id}" if Time.now > deadline
 
-        run = @client.runs.get(@workflow_run_id)
-        status = run.respond_to?(:run) ? run.run.status : run.status
+        begin
+          response = @client.admin_grpc.get_run_details(external_id: @workflow_run_id)
+        rescue => e
+          retries += 1
+          raise if retries > 10
 
-        case status.to_s
-        when "COMPLETED"
-          @result = run.respond_to?(:run) ? run.run.output : run.output
-          @resolved = true
-          return @result
-        when "FAILED"
-          error_msg = run.respond_to?(:run) ? run.run.error : (run.respond_to?(:error) ? run.error : "Workflow run failed")
-          raise FailedRunError.new([TaskRunError.new(error_msg.to_s)])
-        when "CANCELLED"
+          sleep 1
+          next
+        end
+
+        status = response.status
+
+        if !response.done && status != :COMPLETED && status != :FAILED && status != :CANCELLED
+          sleep 1
+          next
+        end
+
+        case status
+        when :COMPLETED
+          # Build result hash keyed by task readable_id (matching listener format)
+          result = {}
+          response.task_runs.each do |readable_id, detail|
+            if detail.output && !detail.output.empty?
+              result[readable_id] = JSON.parse(detail.output)
+            end
+          end
+          return result
+        when :FAILED
+          errors = response.task_runs
+            .select { |_, d| d.respond_to?(:error) && d.error && !d.error.empty? }
+            .map { |_, d| TaskRunError.new(d.error, task_run_external_id: d.external_id) }
+          raise FailedRunError.new(errors.empty? ? [TaskRunError.new("Workflow run failed")] : errors)
+        when :CANCELLED
           raise Error, "Workflow run #{@workflow_run_id} was cancelled"
         end
 

@@ -54,6 +54,7 @@ require_relative "hatchet/clients/grpc/event_client"
 
 # Worker runtime
 require_relative "hatchet/worker/action_listener"
+require_relative "hatchet/worker/workflow_run_listener"
 require_relative "hatchet/worker/runner"
 
 # Ruby SDK for Hatchet workflow engine
@@ -214,6 +215,16 @@ module Hatchet
       @event_grpc ||= Clients::Grpc::EventClient.new(config: @config, channel: channel)
     end
 
+    # Pooled gRPC listener for workflow run completion events (lazy-initialized).
+    #
+    # Maintains a single bidi stream to `Dispatcher.SubscribeToWorkflowRuns`
+    # shared by all callers of `WorkflowRunRef#result`.
+    #
+    # @return [Hatchet::WorkflowRunListener]
+    def workflow_run_listener
+      @workflow_run_listener ||= WorkflowRunListener.new(config: @config, channel: channel)
+    end
+
     # High-level admin client for workflow triggering.
     # Delegates to the gRPC admin client with context variable propagation.
     #
@@ -257,7 +268,11 @@ module Hatchet
       opts = build_trigger_options(options)
 
       run_id = @client.admin_grpc.trigger_workflow(name, input: input, options: opts)
-      WorkflowRunRef.new(workflow_run_id: run_id, client: @client)
+      WorkflowRunRef.new(
+        workflow_run_id: run_id,
+        client: @client,
+        listener: @client.workflow_run_listener
+      )
     end
 
     # Trigger many workflow runs and wait for all results.
@@ -299,7 +314,13 @@ module Hatchet
       end
 
       run_ids = @client.admin_grpc.bulk_trigger_workflow(name, trigger_items)
-      run_ids.map { |run_id| WorkflowRunRef.new(workflow_run_id: run_id, client: @client) }
+      run_ids.map do |run_id|
+        WorkflowRunRef.new(
+          workflow_run_id: run_id,
+          client: @client,
+          listener: @client.workflow_run_listener
+        )
+      end
     end
 
     # Schedule a workflow for future execution.

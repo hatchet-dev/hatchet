@@ -202,6 +202,20 @@ module Hatchet
           @stub.upsert_worker_labels(request, metadata: @config.auth_metadata)
         end
 
+        # Open a bidirectional streaming subscription for workflow run events.
+        #
+        # The caller provides an Enumerable (typically an Enumerator backed by
+        # a Queue) of SubscribeToWorkflowRunsRequest messages. The server
+        # streams back WorkflowRunEvent messages as workflow runs complete.
+        #
+        # @param request_enum [Enumerable<SubscribeToWorkflowRunsRequest>] Outgoing request stream
+        # @return [Enumerator<WorkflowRunEvent>] Incoming response stream
+        def subscribe_to_workflow_runs(request_enum)
+          ensure_connected!
+
+          @stub.subscribe_to_workflow_runs(request_enum, metadata: @config.auth_metadata)
+        end
+
         # Close the gRPC channel.
         def close
           @stub = nil
