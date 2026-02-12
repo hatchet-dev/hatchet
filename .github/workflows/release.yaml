@@ -9,7 +9,7 @@ on:
 name: Release
 jobs:
   load:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-6
     timeout-minutes: 30
     strategy:
       matrix:
