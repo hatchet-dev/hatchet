@@ -413,7 +413,7 @@ class GetVersionRequest(_message.Message):
     def __init__(self) -> None: ...
 
 class GetVersionResponse(_message.Message):
-    __slots__ = ("dispatcher_version",)
-    DISPATCHER_VERSION_FIELD_NUMBER: _ClassVar[int]
-    dispatcher_version: int
-    def __init__(self, dispatcher_version: _Optional[int] = ...) -> None: ...
+    __slots__ = ("version",)
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    version: str
+    def __init__(self, version: _Optional[str] = ...) -> None: ...

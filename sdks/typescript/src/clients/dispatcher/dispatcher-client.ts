@@ -88,12 +88,12 @@ export class DispatcherClient {
   }
 
   /**
-   * Calls the GetVersion RPC. Returns the dispatcher protocol version as a number.
+   * Calls the GetVersion RPC. Returns the engine semantic version string.
    * Throws a gRPC error with code UNIMPLEMENTED on older engines.
    */
-  async getVersion(): Promise<number> {
+  async getVersion(): Promise<string> {
     const response = await this.client.getVersion({});
-    return response.dispatcherVersion;
+    return response.version;
   }
 
   async sendStepActionEvent(in_: StepActionEventInput) {

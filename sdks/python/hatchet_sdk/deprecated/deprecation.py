@@ -23,6 +23,26 @@ class DeprecationError(Exception):
     """Raised when a deprecation grace period has expired."""
 
 
+def parse_semver(v: str) -> tuple[int, int, int]:
+    """Parse a semver string like ``"v0.78.23"`` into ``(major, minor, patch)``.
+
+    Returns ``(0, 0, 0)`` if parsing fails.
+    """
+    v = v.lstrip("v").split("-", 1)[0]
+    parts = v.split(".")
+    if len(parts) != 3:
+        return (0, 0, 0)
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return (0, 0, 0)
+
+
+def semver_less_than(a: str, b: str) -> bool:
+    """Return ``True`` if semver string *a* is strictly less than *b*."""
+    return parse_semver(a) < parse_semver(b)
+
+
 def emit_deprecation_notice(
     feature: str,
     message: str,

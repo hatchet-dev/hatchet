@@ -92,8 +92,8 @@ class DispatcherClient:
 
         return ActionListener(self.config, response.worker_id)
 
-    async def get_version(self) -> int:
-        """Call GetVersion RPC. Returns the dispatcher protocol version as an int.
+    async def get_version(self) -> str:
+        """Call GetVersion RPC. Returns the engine semantic version string.
 
         Raises grpc.RpcError with UNIMPLEMENTED on older engines.
         """
@@ -110,7 +110,7 @@ class DispatcherClient:
             ),
         )
 
-        return response.dispatcher_version
+        return response.version
 
     async def send_step_action_event(
         self,

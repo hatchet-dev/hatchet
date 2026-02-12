@@ -25,9 +25,9 @@ import (
 type DispatcherClient interface {
 	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
-	// GetVersion calls the GetVersion RPC. Returns the dispatcher protocol version.
+	// GetVersion calls the GetVersion RPC. Returns the engine semantic version string.
 	// Old engines that do not implement this will return codes.Unimplemented.
-	GetVersion(ctx context.Context) (int32, error)
+	GetVersion(ctx context.Context) (string, error)
 
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
@@ -546,12 +546,12 @@ func (a *actionListenerImpl) Unregister() error {
 	return nil
 }
 
-func (d *dispatcherClientImpl) GetVersion(ctx context.Context) (int32, error) {
+func (d *dispatcherClientImpl) GetVersion(ctx context.Context) (string, error) {
 	resp, err := d.client.GetVersion(d.ctx.newContext(ctx), &dispatchercontracts.GetVersionRequest{})
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return resp.DispatcherVersion, nil
+	return resp.Version, nil
 }
 
 func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {

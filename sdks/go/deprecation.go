@@ -12,6 +12,8 @@ package hatchet
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,4 +106,35 @@ func EmitDeprecationNotice(feature, message string, start time.Time, logger *zer
 	}
 
 	return nil
+}
+
+// ParseSemver extracts major, minor, patch from a version string like "v0.78.23".
+// Returns (0,0,0) if parsing fails.
+func ParseSemver(v string) (int, int, int) {
+	v = strings.TrimPrefix(v, "v")
+	// Strip any pre-release suffix (e.g. "-alpha.0")
+	if idx := strings.Index(v, "-"); idx != -1 {
+		v = v[:idx]
+	}
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return 0, 0, 0
+	}
+	major, _ := strconv.Atoi(parts[0])
+	minor, _ := strconv.Atoi(parts[1])
+	patch, _ := strconv.Atoi(parts[2])
+	return major, minor, patch
+}
+
+// SemverLessThan returns true if version a is strictly less than version b.
+func SemverLessThan(a, b string) bool {
+	aMaj, aMin, aPat := ParseSemver(a)
+	bMaj, bMin, bPat := ParseSemver(b)
+	if aMaj != bMaj {
+		return aMaj < bMaj
+	}
+	if aMin != bMin {
+		return aMin < bMin
+	}
+	return aPat < bPat
 }

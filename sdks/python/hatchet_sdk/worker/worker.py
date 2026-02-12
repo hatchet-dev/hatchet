@@ -207,32 +207,48 @@ class Worker:
         if self.handle_kill:
             sys.exit(0)
 
+    # Minimum engine version that supports multiple slot types.
+    _MIN_SLOT_CONFIG_VERSION = "v0.78.23"
+
+    def _emit_legacy_deprecation(self) -> None:
+        from datetime import datetime, timezone
+
+        from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice
+
+        emit_deprecation_notice(
+            feature="legacy-engine",
+            message=(
+                "Connected to an older Hatchet engine that does not support "
+                "multiple slot types. Falling back to legacy worker registration. "
+                "Please upgrade your Hatchet engine to the latest version."
+            ),
+            start=datetime(2026, 2, 12, tzinfo=timezone.utc),
+            error_days=180,
+        )
+
     async def _check_engine_version(self) -> bool:
-        """Returns True if engine is legacy (pre-slot-config)."""
+        """Returns True if engine is legacy (pre-slot-config).
+
+        Compares the engine's semantic version against the minimum required
+        version for slot_config support.
+        """
+        from hatchet_sdk.deprecated.deprecation import semver_less_than
+
         try:
             from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 
             dispatcher = DispatcherClient(self.config)
-            await dispatcher.get_version()
+            version = await dispatcher.get_version()
+
+            # Empty version or older than minimum → legacy
+            if not version or semver_less_than(version, self._MIN_SLOT_CONFIG_VERSION):
+                self._emit_legacy_deprecation()
+                return True
+
             return False  # new engine
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.UNIMPLEMENTED:
-                from datetime import datetime, timezone
-
-                from hatchet_sdk.deprecated.deprecation import (
-                    emit_deprecation_notice,
-                )
-
-                emit_deprecation_notice(
-                    feature="legacy-engine",
-                    message=(
-                        "Connected to an older Hatchet engine that does not support "
-                        "multiple slot types. Falling back to legacy worker registration. "
-                        "Please upgrade your Hatchet engine to the latest version."
-                    ),
-                    start=datetime(2026, 2, 12, tzinfo=timezone.utc),
-                    error_days=180,
-                )
+                self._emit_legacy_deprecation()
                 return True  # old engine
             raise
 

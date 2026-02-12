@@ -592,7 +592,7 @@ export interface ReleaseSlotResponse {}
 export interface GetVersionRequest {}
 
 export interface GetVersionResponse {
-  dispatcherVersion: number;
+  version: string;
 }
 
 function createBaseWorkerLabels(): WorkerLabels {
@@ -3861,13 +3861,13 @@ export const GetVersionRequest: MessageFns<GetVersionRequest> = {
 };
 
 function createBaseGetVersionResponse(): GetVersionResponse {
-  return { dispatcherVersion: 0 };
+  return { version: '' };
 }
 
 export const GetVersionResponse: MessageFns<GetVersionResponse> = {
   encode(message: GetVersionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.dispatcherVersion !== 0) {
-      writer.uint32(8).int32(message.dispatcherVersion);
+    if (message.version !== '') {
+      writer.uint32(18).string(message.version);
     }
     return writer;
   },
@@ -3879,11 +3879,11 @@ export const GetVersionResponse: MessageFns<GetVersionResponse> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
+        case 2: {
+          if (tag !== 18) {
             break;
           }
-          message.dispatcherVersion = reader.int32();
+          message.version = reader.string();
           continue;
         }
         default:
@@ -3896,16 +3896,14 @@ export const GetVersionResponse: MessageFns<GetVersionResponse> = {
 
   fromJSON(object: any): GetVersionResponse {
     return {
-      dispatcherVersion: isSet(object.dispatcherVersion)
-        ? globalThis.Number(object.dispatcherVersion)
-        : 0,
+      version: isSet(object.version) ? globalThis.String(object.version) : '',
     };
   },
 
   toJSON(message: GetVersionResponse): unknown {
     const obj: any = {};
-    if (message.dispatcherVersion !== 0) {
-      obj.dispatcherVersion = globalThis.Math.round(message.dispatcherVersion);
+    if (message.version !== '') {
+      obj.version = message.version;
     }
     return obj;
   },
@@ -3915,7 +3913,7 @@ export const GetVersionResponse: MessageFns<GetVersionResponse> = {
   },
   fromPartial(object: DeepPartial<GetVersionResponse>): GetVersionResponse {
     const message = createBaseGetVersionResponse();
-    message.dispatcherVersion = object.dispatcherVersion ?? 0;
+    message.version = object.version ?? '';
     return message;
   },
 };

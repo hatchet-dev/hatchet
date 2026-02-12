@@ -16,6 +16,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
+// minSlotConfigVersion is the minimum engine version that supports multiple slot types.
+const minSlotConfigVersion = "v0.78.23"
+
 // legacyEngineDeprecationStart is the date when slot_config support was released.
 var legacyEngineDeprecationStart = time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC)
 
@@ -23,13 +26,13 @@ const legacyEngineMessage = "Connected to an older Hatchet engine that does not 
 	"Falling back to legacy worker registration. " +
 	"Please upgrade your Hatchet engine to the latest version."
 
-// isLegacyEngine checks whether the engine supports the new slot_config registration.
-// Returns true if the engine is legacy (does not implement GetVersion).
-// Returns an error if the deprecation grace period has expired and the random
-// check fires (phase 3).
+// isLegacyEngine checks whether the engine supports the new slot_config registration
+// by comparing the engine's semantic version against the minimum required version.
+// Returns true if the engine is legacy (does not implement GetVersion or reports
+// a version older than minSlotConfigVersion).
 func (c *Client) isLegacyEngine() (bool, error) {
 	ctx := context.Background()
-	_, err := c.legacyClient.Dispatcher().GetVersion(ctx)
+	version, err := c.legacyClient.Dispatcher().GetVersion(ctx)
 	if err != nil {
 		if status.Code(err) == codes.Unimplemented {
 			l := c.legacyClient.Logger()
@@ -43,6 +46,18 @@ func (c *Client) isLegacyEngine() (bool, error) {
 		// For other errors (e.g., connectivity), assume new engine and let registration fail naturally
 		return false, nil
 	}
+
+	// If the version is empty or older than the minimum, treat as legacy
+	if version == "" || SemverLessThan(version, minSlotConfigVersion) {
+		l := c.legacyClient.Logger()
+		if depErr := EmitDeprecationNotice("legacy-engine", legacyEngineMessage, legacyEngineDeprecationStart, l, &DeprecationOpts{
+			ErrorWindow: 180 * 24 * time.Hour,
+		}); depErr != nil {
+			return false, fmt.Errorf("legacy engine deprecated: %w", depErr)
+		}
+		return true, nil
+	}
+
 	return false, nil
 }
 

@@ -415,5 +415,6 @@ message ReleaseSlotResponse {}
 message GetVersionRequest {}
 
 message GetVersionResponse {
-    int32 dispatcher_version = 1;
+    reserved 1;
+    string version = 2;
 }

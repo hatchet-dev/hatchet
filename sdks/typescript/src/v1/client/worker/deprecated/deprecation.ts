@@ -47,6 +47,30 @@ export interface DeprecationOpts {
  * @param opts    - Optional configuration for time windows.
  * @throws DeprecationError after the errorDays window (~20% chance).
  */
+/**
+ * Parses a semver string like "v0.78.23" into [major, minor, patch].
+ * Returns [0, 0, 0] if parsing fails.
+ */
+export function parseSemver(v: string): [number, number, number] {
+  let s = v.startsWith('v') ? v.slice(1) : v;
+  const dashIdx = s.indexOf('-');
+  if (dashIdx !== -1) s = s.slice(0, dashIdx);
+  const parts = s.split('.');
+  if (parts.length !== 3) return [0, 0, 0];
+  return [parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, parseInt(parts[2], 10) || 0];
+}
+
+/**
+ * Returns true if semver string a is strictly less than b.
+ */
+export function semverLessThan(a: string, b: string): boolean {
+  const [aMaj, aMin, aPat] = parseSemver(a);
+  const [bMaj, bMin, bPat] = parseSemver(b);
+  if (aMaj !== bMaj) return aMaj < bMaj;
+  if (aMin !== bMin) return aMin < bMin;
+  return aPat < bPat;
+}
+
 export function emitDeprecationNotice(
   feature: string,
   message: string,
