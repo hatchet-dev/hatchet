@@ -12,7 +12,13 @@ import {
 } from '@/components/v1/ui/popover';
 import { cn } from '@/lib/utils';
 import { MagnifyingGlassIcon, Cross2Icon } from '@radix-ui/react-icons';
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
 
 export interface SearchSuggestion<TType extends string = string> {
   type: TType;
@@ -80,6 +86,53 @@ export interface SearchBarWithFiltersProps<
 }
 
 // ============================================================================
+// Filter highlight helpers
+// ============================================================================
+
+/** Colour for the filter key prefix (e.g. "level" in level:error) */
+const FILTER_KEY_COLOR =
+  'color-mix(in srgb, hsl(var(--brand)) 70%, hsl(var(--background)))';
+/** Colour for the filter value suffix (e.g. "error" in level:error) */
+const FILTER_VALUE_COLOR = 'hsl(var(--brand))';
+
+interface TextSegment {
+  text: string;
+  isFilter: boolean;
+}
+
+/**
+ * Splits the input value into segments, tagging recognised filter tokens
+ * (e.g. `level:error`) so they can be rendered with custom colours.
+ */
+const parseFilterSegments = (
+  value: string,
+  filterChips: FilterChip[],
+): TextSegment[] => {
+  if (!value) {
+    return [];
+  }
+
+  const segments: TextSegment[] = [];
+  // Split on whitespace runs while preserving them
+  const parts = value.split(/(\s+)/);
+
+  for (const part of parts) {
+    if (/^\s+$/.test(part)) {
+      segments.push({ text: part, isFilter: false });
+      continue;
+    }
+
+    const isFilter = filterChips.some((chip) =>
+      part.toLowerCase().startsWith(chip.key.toLowerCase()),
+    );
+
+    segments.push({ text: part, isFilter });
+  }
+
+  return segments;
+};
+
+// ============================================================================
 // Component
 // ============================================================================
 
@@ -91,7 +144,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
   applySuggestion,
   autocompleteContext,
   renderSuggestion,
-  // filterChips,
+  filterChips,
   // onFilterChipClick,
   placeholder = 'Search...',
   className,
@@ -107,10 +160,38 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
   const [localValue, setLocalValue] = useState(value);
   const prevSuggestionsRef = useRef<TSuggestion[]>([]);
   const prevLocalValueRef = useRef(value);
+  const overlayInnerRef = useRef<HTMLDivElement>(null);
+
+  const hasColoredFilters = !!filterChips?.length;
 
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
+
+  const segments = useMemo(
+    () =>
+      hasColoredFilters ? parseFilterSegments(localValue, filterChips) : [],
+    [localValue, filterChips, hasColoredFilters],
+  );
+
+  // Keep the highlight overlay horizontally in sync with the native input scroll
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || !hasColoredFilters) {
+      return;
+    }
+
+    const syncScroll = () => {
+      if (overlayInnerRef.current) {
+        overlayInnerRef.current.style.transform = `translateX(-${input.scrollLeft}px)`;
+      }
+    };
+
+    input.addEventListener('scroll', syncScroll);
+    syncScroll();
+
+    return () => input.removeEventListener('scroll', syncScroll);
+  }, [localValue, hasColoredFilters]);
 
   const { suggestions } = getAutocomplete(localValue, autocompleteContext);
 
@@ -346,9 +427,52 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
                 }, 200);
               }}
               placeholder={placeholder}
-              className="pl-9 pr-8"
+              className={cn(
+                'pl-9 pr-8',
+                hasColoredFilters && 'text-transparent',
+              )}
+              style={
+                hasColoredFilters
+                  ? { caretColor: 'hsl(var(--foreground))' }
+                  : undefined
+              }
               data-cy="search-bar-input"
             />
+            {/* Coloured highlight overlay – mirrors input text with filter colours */}
+            {hasColoredFilters && localValue && (
+              <div
+                className="absolute inset-[1px] pointer-events-none overflow-hidden flex items-center pl-9 pr-8"
+                aria-hidden="true"
+              >
+                <div
+                  ref={overlayInnerRef}
+                  className="text-sm text-foreground whitespace-pre"
+                >
+                  {segments.map((segment, i) => {
+                    if (!segment.isFilter) {
+                      return <span key={i}>{segment.text}</span>;
+                    }
+
+                    const colonIdx = segment.text.indexOf(':');
+                    const prefix = segment.text.slice(0, colonIdx + 1);
+                    const suffix = segment.text.slice(colonIdx + 1);
+
+                    return (
+                      <span key={i}>
+                        <span style={{ color: FILTER_KEY_COLOR }}>
+                          {prefix}
+                        </span>
+                        {suffix && (
+                          <span style={{ color: FILTER_VALUE_COLOR }}>
+                            {suffix}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {localValue && (
               <button
                 type="button"
