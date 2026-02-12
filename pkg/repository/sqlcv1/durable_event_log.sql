@@ -97,7 +97,8 @@ INSERT INTO v1_durable_event_log_callback (
     kind,
     node_id,
     is_satisfied,
-    external_id
+    external_id,
+    dispatcher_id
 )
 VALUES (
     @tenantId::UUID,
@@ -107,7 +108,8 @@ VALUES (
     @kind::v1_durable_event_log_callback_kind,
     @nodeId::BIGINT,
     @isSatisfied::BOOLEAN,
-    @externalId::UUID
+    @externalId::UUID,
+    @dispatcherId::UUID
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
 RETURNING *

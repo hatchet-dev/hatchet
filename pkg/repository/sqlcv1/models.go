@@ -3113,6 +3113,7 @@ type V1DurableEventLogCallback struct {
 	Kind                  NullV1DurableEventLogCallbackKind `json:"kind"`
 	NodeID                int64                             `json:"node_id"`
 	IsSatisfied           bool                              `json:"is_satisfied"`
+	DispatcherID          *uuid.UUID                        `json:"dispatcher_id"`
 }
 
 type V1DurableEventLogEntry struct {
