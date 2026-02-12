@@ -124,15 +124,23 @@ module Hatchet
     end
 
     def register_workflows
-      # Register each workflow definition via gRPC admin (v1 PutWorkflow)
-      @workflows.each do |wf|
+      # Build protos for all workflows
+      registrations = @workflows.filter_map do |wf|
         if wf.is_a?(Workflow) || (wf.is_a?(Task) && wf.workflow)
           workflow = wf.is_a?(Workflow) ? wf : wf.workflow
-          proto = workflow.to_proto(@client.config)
-          @client.admin_grpc.put_workflow(proto)
-          @client.config.logger.info("  - Registered workflow: #{workflow.name}")
+          { workflow: workflow, proto: workflow.to_proto(@client.config) }
         end
       end
+
+      # Register all workflows concurrently via gRPC admin (v1 PutWorkflow)
+      threads = registrations.map do |reg|
+        Thread.new do
+          @client.admin_grpc.put_workflow(reg[:proto])
+          @client.config.logger.info("  - Registered workflow: #{reg[:workflow].name}")
+        end
+      end
+
+      threads.each(&:join)
 
       # Collect all action IDs (service_name:task_name)
       action_ids = collect_action_ids
