@@ -287,8 +287,13 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.
 	for i, limit := range limits {
 		resources[i] = string(limit.Resource)
 		limitValues[i] = limit.Limit
-		alarmValues[i] = int32(float64(limit.Limit) * 0.8) // nolint: gosec
 		customValueMeters[i] = limit.CustomValueMeter
+
+		if limit.Alarm != nil {
+			alarmValues[i] = *limit.Alarm
+		} else {
+			alarmValues[i] = int32(float64(limit.Limit) * 0.8) // nolint: gosec
+		}
 
 		if limit.Window != nil {
 			windows[i] = limit.Window.String()
