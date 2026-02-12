@@ -125,9 +125,6 @@ ALTER TABLE v1_match
     ADD COLUMN durable_event_log_callback_durable_task_id BIGINT,
     ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ;
 
-ALTER TABLE v1_durable_event_log_callback
-    ADD COLUMN dispatcher_id UUID;
-
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_CALLBACK_RESULT_DATA';
 -- +goose StatementEnd

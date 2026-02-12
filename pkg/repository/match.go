@@ -732,7 +732,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				}
 			}
 
-			cb.DispatcherId = callback.DispatcherID
 			satisfiedCallbacks = append(satisfiedCallbacks, cb)
 		}
 	}

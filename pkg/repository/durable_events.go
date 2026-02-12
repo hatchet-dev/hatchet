@@ -207,7 +207,6 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 			Kind:                  params.Kind,
 			Nodeid:                params.Nodeid,
 			Issatisfied:           params.Issatisfied,
-			Dispatcherid:          params.Dispatcherid,
 		})
 
 		if err != nil {
@@ -239,7 +238,7 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 			Kind:                  newCallback.Kind,
 			NodeID:                newCallback.NodeID,
 			IsSatisfied:           newCallback.IsSatisfied,
-			DispatcherID:          newCallback.DispatcherID,
+			// DispatcherID:          newCallback.DispatcherID,
 		}
 	}
 
@@ -369,7 +368,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		// if it's not a new invocation, we need to increment the latest node id (of the current invocation)
 		nodeId = logFile.LatestNodeID + 1
 	}
-
 	now := sqlchelpers.TimestamptzFromTime(time.Now().UTC())
 
 	// todo: real logic here for figuring out the parent
@@ -430,7 +428,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			Nodeid:                nodeId,
 			Issatisfied:           isSatisfied,
 			Externalid:            uuid.New(),
-			Dispatcherid:          opts.DispatcherId,
 		},
 		callbackPayload,
 	)

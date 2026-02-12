@@ -21,8 +21,7 @@ INSERT INTO v1_durable_event_log_callback (
     kind,
     node_id,
     is_satisfied,
-    external_id,
-    dispatcher_id
+    external_id
 )
 VALUES (
     $1::UUID,
@@ -32,11 +31,10 @@ VALUES (
     $5::v1_durable_event_log_callback_kind,
     $6::BIGINT,
     $7::BOOLEAN,
-    $8::UUID,
-    $9::UUID
+    $8::UUID
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied
 `
 
 type CreateDurableEventLogCallbackParams struct {
@@ -48,7 +46,6 @@ type CreateDurableEventLogCallbackParams struct {
 	Nodeid                int64                         `json:"nodeid"`
 	Issatisfied           bool                          `json:"issatisfied"`
 	Externalid            uuid.UUID                     `json:"externalid"`
-	Dispatcherid          uuid.UUID                     `json:"dispatcherid"`
 }
 
 func (q *Queries) CreateDurableEventLogCallback(ctx context.Context, db DBTX, arg CreateDurableEventLogCallbackParams) (*V1DurableEventLogCallback, error) {
@@ -61,7 +58,6 @@ func (q *Queries) CreateDurableEventLogCallback(ctx context.Context, db DBTX, ar
 		arg.Nodeid,
 		arg.Issatisfied,
 		arg.Externalid,
-		arg.Dispatcherid,
 	)
 	var i V1DurableEventLogCallback
 	err := row.Scan(
@@ -74,7 +70,6 @@ func (q *Queries) CreateDurableEventLogCallback(ctx context.Context, db DBTX, ar
 		&i.Kind,
 		&i.NodeID,
 		&i.IsSatisfied,
-		&i.DispatcherID,
 	)
 	return &i, err
 }
@@ -234,7 +229,7 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 }
 
 const getDurableEventLogCallback = `-- name: GetDurableEventLogCallback :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied
 FROM v1_durable_event_log_callback
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -260,7 +255,6 @@ func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg G
 		&i.Kind,
 		&i.NodeID,
 		&i.IsSatisfied,
-		&i.DispatcherID,
 	)
 	return &i, err
 }
@@ -300,7 +294,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 }
 
 const getSatisfiedCallbacks = `-- name: GetSatisfiedCallbacks :many
-SELECT cb.tenant_id, cb.external_id, cb.inserted_at, cb.id, cb.durable_task_id, cb.durable_task_inserted_at, cb.kind, cb.node_id, cb.is_satisfied, cb.dispatcher_id, t.external_id AS task_external_id
+SELECT cb.tenant_id, cb.external_id, cb.inserted_at, cb.id, cb.durable_task_id, cb.durable_task_inserted_at, cb.kind, cb.node_id, cb.is_satisfied, t.external_id AS task_external_id
 FROM v1_durable_event_log_callback cb
 JOIN v1_task t ON t.id = cb.durable_task_id
     AND t.inserted_at = cb.durable_task_inserted_at
@@ -329,7 +323,6 @@ type GetSatisfiedCallbacksRow struct {
 	Kind                  NullV1DurableEventLogCallbackKind `json:"kind"`
 	NodeID                int64                             `json:"node_id"`
 	IsSatisfied           bool                              `json:"is_satisfied"`
-	DispatcherID          *uuid.UUID                        `json:"dispatcher_id"`
 	TaskExternalID        uuid.UUID                         `json:"task_external_id"`
 }
 
@@ -352,7 +345,6 @@ func (q *Queries) GetSatisfiedCallbacks(ctx context.Context, db DBTX, arg GetSat
 			&i.Kind,
 			&i.NodeID,
 			&i.IsSatisfied,
-			&i.DispatcherID,
 			&i.TaskExternalID,
 		); err != nil {
 			return nil, err
@@ -371,7 +363,7 @@ SET is_satisfied = $1::BOOLEAN
 WHERE durable_task_id = $2::BIGINT
   AND durable_task_inserted_at = $3::TIMESTAMPTZ
   AND node_id = $4::BIGINT
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied
 `
 
 type UpdateDurableEventLogCallbackSatisfiedParams struct {
@@ -399,7 +391,6 @@ func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db
 		&i.Kind,
 		&i.NodeID,
 		&i.IsSatisfied,
-		&i.DispatcherID,
 	)
 	return &i, err
 }
