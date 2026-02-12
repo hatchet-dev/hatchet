@@ -40,6 +40,7 @@ func Lower(client *hatchet.Client) *hatchet.StandaloneTask {
 	)
 }
 
+
 // > Accessing the filter payload
 func accessFilterPayload(ctx hatchet.Context, input EventInput) (*LowerTaskOutput, error) {
 	fmt.Println(ctx.FilterPayload())
@@ -47,6 +48,7 @@ func accessFilterPayload(ctx hatchet.Context, input EventInput) (*LowerTaskOutpu
 		TransformedMessage: strings.ToLower(input.Message),
 	}, nil
 }
+
 
 // > Declare with filter
 func LowerWithFilter(client *hatchet.Client) *hatchet.StandaloneTask {
@@ -63,6 +65,7 @@ func LowerWithFilter(client *hatchet.Client) *hatchet.StandaloneTask {
 		}),
 	)
 }
+
 
 func Upper(client *hatchet.Client) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask(
