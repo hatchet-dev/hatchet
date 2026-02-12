@@ -487,7 +487,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
         </PopoverTrigger>
         <PopoverContent
           className={cn(
-            'w-[var(--radix-popover-trigger-width)] min-w-[320px] p-0',
+            'w-[var(--radix-popover-trigger-width)] min-w-[320px] p-0 lg:max-w-[560px]',
             popoverClassName,
           )}
           align="start"
