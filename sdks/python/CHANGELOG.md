@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Fixes cases where raising exception classes or exceptions with no message would cause the whole error including stack trace to be converted to an empty string. 
+- Fixes cases where raising exception classes or exceptions with no message would cause the whole error including stack trace to be converted to an empty string.
 - When an error is raised because a workflow has no tasks it now includes the workflows name.
 
 ## [1.23.3] - 2026-02-12

@@ -34,41 +34,42 @@ WHERE "tenantId" = @tenantId::uuid
     AND "resource" = sqlc.narg('resource')::"LimitResource"
     AND NOT EXISTS (SELECT 1 FROM updated);
 
--- name: SelectOrInsertTenantResourceLimit :one
-WITH existing AS (
-  SELECT *
-  FROM "TenantResourceLimit"
-  WHERE "tenantId" = @tenantId::uuid AND "resource" = sqlc.narg('resource')::"LimitResource"
-), insert_row AS (
-  INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill", "customValueMeter")
-  SELECT gen_random_uuid(), @tenantId::uuid, sqlc.narg('resource')::"LimitResource", 0, sqlc.narg('limitValue')::int, sqlc.narg('alarmValue')::int, sqlc.narg('window')::text, CURRENT_TIMESTAMP, COALESCE(sqlc.narg('customValueMeter')::boolean, false)
-  WHERE NOT EXISTS (SELECT 1 FROM existing)
-  RETURNING *
+-- name: UpsertTenantResourceLimits :exec
+WITH input_values AS (
+    SELECT
+        "resource",
+        "limitValue",
+        "alarmValue",
+        "window",
+        "customValueMeter"
+    FROM (
+        SELECT
+            unnest(cast(@resources::text[] AS "LimitResource"[])) AS "resource",
+            unnest(@limitValues::int[]) AS "limitValue",
+            unnest(@alarmValues::int[]) AS "alarmValue",
+            unnest(@windows::text[]) AS "window",
+            unnest(@customValueMeters::boolean[]) AS "customValueMeter"
+    ) AS subquery
 )
-SELECT * FROM insert_row
-UNION ALL
-SELECT * FROM existing
-LIMIT 1;
-
--- name: UpsertTenantResourceLimit :one
-INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill", "customValueMeter")
-VALUES (
-  gen_random_uuid(),
-  @tenantId::uuid,
-  sqlc.narg('resource')::"LimitResource",
-  0,
-  sqlc.narg('limitValue')::int,
-  sqlc.narg('alarmValue')::int,
-  sqlc.narg('window')::text,
-  CURRENT_TIMESTAMP,
-  COALESCE(sqlc.narg('customValueMeter')::boolean, false)
-)
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "customValueMeter", "lastRefill")
+SELECT
+    gen_random_uuid(),
+    @tenantId::uuid,
+    iv."resource",
+    0,
+    iv."limitValue",
+    NULLIF(iv."alarmValue", 0),
+    NULLIF(iv."window", ''),
+    iv."customValueMeter",
+    CURRENT_TIMESTAMP
+FROM input_values iv
 ON CONFLICT ("tenantId", "resource") DO UPDATE SET
-  "limitValue" = sqlc.narg('limitValue')::int,
-  "alarmValue" = sqlc.narg('alarmValue')::int,
-  "window" = sqlc.narg('window')::text,
-  "customValueMeter" = COALESCE(sqlc.narg('customValueMeter')::boolean, false)
-RETURNING *;
+    "limitValue" = EXCLUDED."limitValue",
+    "alarmValue" = EXCLUDED."alarmValue",
+    "window" = COALESCE(NULLIF(EXCLUDED."window", ''), "TenantResourceLimit"."window"),
+    "customValueMeter" = EXCLUDED."customValueMeter",
+    "lastRefill" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP;
 
 -- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
