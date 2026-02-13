@@ -154,7 +154,7 @@ export default class WorkflowRunRef<T> {
             const result = event.results.reduce(
               (acc, r) => ({
                 ...acc,
-                [r.stepReadableId]: JSON.parse(r.output || '{}'),
+                [r.taskName]: JSON.parse(r.output || '{}'),
               }),
               {} as T
             );

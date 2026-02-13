@@ -1228,6 +1228,7 @@ const (
 	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
 	V1IncomingWebhookSourceNameSLACK   V1IncomingWebhookSourceName = "SLACK"
 	V1IncomingWebhookSourceNameLINEAR  V1IncomingWebhookSourceName = "LINEAR"
+	V1IncomingWebhookSourceNameSVIX    V1IncomingWebhookSourceName = "SVIX"
 )
 
 func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {

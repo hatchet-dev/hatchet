@@ -59,9 +59,9 @@ class GetActionListenerRequest(BaseModel):
 
         for key, value in self.raw_labels.items():
             if isinstance(value, int):
-                self.labels[key] = WorkerLabels(intValue=value)
+                self.labels[key] = WorkerLabels(int_value=value)
             else:
-                self.labels[key] = WorkerLabels(strValue=str(value))
+                self.labels[key] = WorkerLabels(str_value=str(value))
 
         return self
 
@@ -107,10 +107,11 @@ class ActionListener:
 
             try:
                 logger.debug("sending heartbeat")
-                await self.aio_client.Heartbeat(
+                # fixme: figure out how to get typing right here
+                await self.aio_client.Heartbeat(  # type: ignore[misc]
                     HeartbeatRequest(
-                        workerId=self.worker_id,
-                        heartbeatAt=proto_timestamp_now(),
+                        worker_id=self.worker_id,
+                        heartbeat_at=proto_timestamp_now(),
                     ),
                     timeout=5,
                     metadata=get_metadata(self.token),
@@ -217,9 +218,9 @@ class ActionListener:
                     try:
                         action_payload = (
                             ActionPayload()
-                            if not assigned_action.actionPayload
+                            if not assigned_action.action_payload
                             else ActionPayload.model_validate_json(
-                                assigned_action.actionPayload
+                                assigned_action.action_payload
                             )
                         )
                     except (ValueError, json.JSONDecodeError):
@@ -228,22 +229,22 @@ class ActionListener:
                         action_payload = ActionPayload()
 
                     action = Action(
-                        tenant_id=assigned_action.tenantId,
+                        tenant_id=assigned_action.tenant_id,
                         worker_id=self.worker_id,
-                        workflow_run_id=assigned_action.workflowRunId,
-                        job_id=assigned_action.jobId,
-                        job_name=assigned_action.jobName,
-                        job_run_id=assigned_action.jobRunId,
-                        step_id=assigned_action.stepId,
-                        step_run_id=assigned_action.stepRunId,
-                        action_id=assigned_action.actionId,
+                        workflow_run_id=assigned_action.workflow_run_id,
+                        job_id=assigned_action.job_id,
+                        job_name=assigned_action.job_name,
+                        job_run_id=assigned_action.job_run_id,
+                        step_id=assigned_action.task_id,
+                        step_run_id=assigned_action.task_run_external_id,
+                        action_id=assigned_action.action_id,
                         action_payload=action_payload,
                         action_type=convert_proto_enum_to_python(
-                            assigned_action.actionType,
+                            assigned_action.action_type,
                             ActionType,
                             ActionTypeProto,
                         ),
-                        retry_count=assigned_action.retryCount,
+                        retry_count=assigned_action.retry_count,
                         additional_metadata=parse_additional_metadata(
                             assigned_action.additional_metadata
                         ),
@@ -251,8 +252,8 @@ class ActionListener:
                         child_workflow_key=assigned_action.child_workflow_key,
                         parent_workflow_run_id=assigned_action.parent_workflow_run_id,
                         priority=assigned_action.priority,
-                        workflow_version_id=assigned_action.workflowVersionId,
-                        workflow_id=assigned_action.workflowId,
+                        workflow_version_id=assigned_action.workflow_version_id,
+                        workflow_id=assigned_action.workflow_id,
                     )
 
                     yield action
@@ -319,7 +320,7 @@ class ActionListener:
             # we should await for the listener to be established before
             # starting the heartbeater
             listener = self.aio_client.ListenV2(
-                WorkerListenRequest(workerId=self.worker_id),
+                WorkerListenRequest(worker_id=self.worker_id),
                 timeout=self.config.listener_v2_timeout,
                 metadata=get_metadata(self.token),
             )
@@ -327,7 +328,7 @@ class ActionListener:
         else:
             # if ListenV2 is not available, fallback to Listen
             listener = self.aio_client.Listen(
-                WorkerListenRequest(workerId=self.worker_id),
+                WorkerListenRequest(worker_id=self.worker_id),
                 timeout=DEFAULT_ACTION_TIMEOUT,
                 metadata=get_metadata(self.token),
             )
@@ -359,7 +360,7 @@ class ActionListener:
 
         try:
             req = self.aio_client.Unsubscribe(
-                WorkerUnsubscribeRequest(workerId=self.worker_id),
+                WorkerUnsubscribeRequest(worker_id=self.worker_id),
                 timeout=5,
                 metadata=get_metadata(self.token),
             )
