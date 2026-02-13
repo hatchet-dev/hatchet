@@ -120,12 +120,11 @@ WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+        UNNEST(@nodeIds::BIGINT[]) AS node_id
 )
 
 UPDATE v1_durable_event_log_callback
-SET is_satisfied = inputs.is_satisfied
+SET is_satisfied = true
 FROM inputs
 WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at

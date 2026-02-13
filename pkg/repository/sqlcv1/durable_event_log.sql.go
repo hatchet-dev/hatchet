@@ -371,12 +371,11 @@ WITH inputs AS (
     SELECT
         UNNEST($1::BIGINT[]) AS durable_task_id,
         UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::BIGINT[]) AS node_id,
-        UNNEST($4::BOOLEAN[]) AS is_satisfied
+        UNNEST($3::BIGINT[]) AS node_id
 )
 
 UPDATE v1_durable_event_log_callback
-SET is_satisfied = inputs.is_satisfied
+SET is_satisfied = true
 FROM inputs
 WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at
@@ -388,16 +387,10 @@ type UpdateDurableEventLogCallbacksSatisfiedParams struct {
 	Durabletaskids         []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Nodeids                []int64              `json:"nodeids"`
-	Issatisfieds           []bool               `json:"issatisfieds"`
 }
 
 func (q *Queries) UpdateDurableEventLogCallbacksSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogCallbacksSatisfiedParams) ([]*V1DurableEventLogCallback, error) {
-	rows, err := db.Query(ctx, updateDurableEventLogCallbacksSatisfied,
-		arg.Durabletaskids,
-		arg.Durabletaskinsertedats,
-		arg.Nodeids,
-		arg.Issatisfieds,
-	)
+	rows, err := db.Query(ctx, updateDurableEventLogCallbacksSatisfied, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Nodeids)
 	if err != nil {
 		return nil, err
 	}

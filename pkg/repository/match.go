@@ -355,9 +355,9 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	return res, nil
 }
 
-type IdInsertedAtNodeIdTuple struct {
+type DurableTaskNodeIdKey struct {
 	DurableTaskId         int64
-	DurableTaskInsertedAt pgtype.Timestamptz
+	DurableTaskInsertedAt time.Time
 	NodeId                int64
 }
 
@@ -687,20 +687,18 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	res.CreatedTasks = tasks
 
-	durableTaskExternalIds := make([]uuid.UUID, 0)
 	durableTaskIds := make([]int64, 0)
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	durableTaskNodeIds := make([]int64, 0)
-	durableTaskIsSatisfieds := make([]bool, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
-	idInsertedAtNodeIdToSatisfiedCallback := make(map[IdInsertedAtNodeIdTuple]SatisfiedCallback)
+	idInsertedAtNodeIdToSatisfiedCallback := make(map[DurableTaskNodeIdKey]SatisfiedCallback)
 
 	for _, match := range satisfiedMatches {
 		if match.DurableEventLogCallbackNodeID.Valid && match.DurableEventLogCallbackDurableTaskID.Valid && match.DurableEventLogCallbackDurableTaskExternalID != nil {
 			durableTaskId := match.DurableEventLogCallbackDurableTaskID.Int64
-			key := IdInsertedAtNodeIdTuple{
+			key := DurableTaskNodeIdKey{
 				DurableTaskId:         durableTaskId,
-				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt,
+				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt.Time,
 				NodeId:                match.DurableEventLogCallbackNodeID.Int64,
 			}
 
@@ -717,14 +715,11 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			durableTaskIds = append(durableTaskIds, match.DurableEventLogCallbackDurableTaskID.Int64)
 			durableTaskInsertedAts = append(durableTaskInsertedAts, match.DurableEventLogCallbackDurableTaskInsertedAt)
 			durableTaskNodeIds = append(durableTaskNodeIds, match.DurableEventLogCallbackNodeID.Int64)
-			durableTaskIsSatisfieds = append(durableTaskIsSatisfieds, true)
-			durableTaskExternalIds = append(durableTaskExternalIds, *match.DurableEventLogCallbackDurableTaskExternalID)
 		}
 	}
 
 	callbacks, err := m.queries.UpdateDurableEventLogCallbacksSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbacksSatisfiedParams{
 		Nodeids:                durableTaskNodeIds,
-		Issatisfieds:           durableTaskIsSatisfieds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
 	})
@@ -736,10 +731,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	satisfiedCallbacks := make([]SatisfiedCallback, 0)
 
 	for _, cb := range callbacks {
-		key := IdInsertedAtNodeIdTuple{
-			NodeId:                cb.NodeID,
+		key := DurableTaskNodeIdKey{
 			DurableTaskId:         cb.DurableTaskID,
-			DurableTaskInsertedAt: cb.DurableTaskInsertedAt,
+			DurableTaskInsertedAt: cb.DurableTaskInsertedAt.Time,
+			NodeId:                cb.NodeID,
 		}
 
 		predeterminedCallback, ok := idInsertedAtNodeIdToSatisfiedCallback[key]
