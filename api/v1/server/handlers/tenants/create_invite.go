@@ -34,7 +34,6 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		return gen.TenantInviteCreate400JSONResponse(*apiErrors), nil
 	}
 
-	// check restricted email group
 	if err := t.config.Auth.CheckEmailRestrictions(request.Body.Email); err != nil {
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("invitee email is not in the allowed domain group"),
