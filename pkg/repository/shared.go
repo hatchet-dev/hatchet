@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"log"
 	"time"
 
@@ -57,7 +56,6 @@ func newSharedRepository(
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
-	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
 	cacheDuration time.Duration,
 	enableDurableUserEventLog bool,
 ) (*sharedRepository, func() error) {
@@ -109,7 +107,7 @@ func newSharedRepository(
 		enableDurableUserEventLog:   enableDurableUserEventLog,
 	}
 
-	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, enforceLimitsFunc, cacheDuration)
+	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
 
 	s.m = tenantLimitRepository
 

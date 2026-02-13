@@ -128,9 +128,8 @@ class Worker:
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         if not workflow.tasks:
-            raise ValueError(
-                "workflow must have at least one task registered before registering"
-            )
+            msg = f"failed to register workflow: {workflow.name}. Workflows must have at least one task registered before registering"
+            raise ValueError(msg)
 
         try:
             self.client.admin.put_workflow(workflow.to_proto())
