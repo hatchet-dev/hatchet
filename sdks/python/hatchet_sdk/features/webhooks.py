@@ -124,15 +124,51 @@ class WebhooksClient(BaseRestClient):
     async def aio_get(self, webhook_name: str) -> V1Webhook:
         return await asyncio.to_thread(self.get, webhook_name)
 
-    def create(self, request: CreateWebhookRequest) -> V1Webhook:
+    def create(
+        self,
+        source_name: V1WebhookSourceName,
+        name: str,
+        event_key_expression: str,
+        auth_type: Literal["BASIC", "API_KEY", "HMAC"],
+        auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
+        scope_expression: str | None = None,
+        static_payload: dict[str, Any] | None = None,
+    ) -> V1Webhook:
+        validated_payload = CreateWebhookRequest(
+            sourceName=source_name,
+            name=name,
+            eventKeyExpression=event_key_expression,
+            scopeExpression=scope_expression,
+            staticPayload=static_payload,
+            auth_type=auth_type,
+            auth=auth,
+        )
         with self.client() as client:
             return self._wa(client).v1_webhook_create(
                 tenant=self.tenant_id,
-                v1_create_webhook_request=request._to_api_payload(),
+                v1_create_webhook_request=validated_payload._to_api_payload(),
             )
 
-    async def aio_create(self, request: CreateWebhookRequest) -> V1Webhook:
-        return await asyncio.to_thread(self.create, request)
+    async def aio_create(
+        self,
+        source_name: V1WebhookSourceName,
+        name: str,
+        event_key_expression: str,
+        auth_type: Literal["BASIC", "API_KEY", "HMAC"],
+        auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
+        scope_expression: str | None = None,
+        static_payload: dict[str, Any] | None = None,
+    ) -> V1Webhook:
+        return await asyncio.to_thread(
+            self.create,
+            source_name,
+            name,
+            event_key_expression,
+            auth_type,
+            auth,
+            scope_expression,
+            static_payload,
+        )
 
     def update(
         self,

@@ -161,15 +161,13 @@ async def basic_auth_webhook(
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
 
-    webhook_request = CreateWebhookRequest(
-        sourceName=source_name,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=source_name,
         name=f"test-webhook-basic-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(username=username, password=password),
     )
-
-    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
@@ -186,18 +184,16 @@ async def api_key_webhook(
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
 
-    webhook_request = CreateWebhookRequest(
-        sourceName=source_name,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=source_name,
         name=f"test-webhook-apikey-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth_type="API_KEY",
         auth=V1WebhookAPIKeyAuth(
             headerName=header_name,
             apiKey=api_key,
         ),
     )
-
-    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
@@ -216,10 +212,10 @@ async def hmac_webhook(
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
 
-    webhook_request = CreateWebhookRequest(
-        sourceName=source_name,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=source_name,
         name=f"test-webhook-hmac-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth_type="HMAC",
         auth=V1WebhookHMACAuth(
             algorithm=algorithm,
@@ -228,8 +224,6 @@ async def hmac_webhook(
             signingSecret=signing_secret,
         ),
     )
-
-    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook

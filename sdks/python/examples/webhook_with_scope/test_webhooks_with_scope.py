@@ -119,19 +119,17 @@ async def webhook_with_scope_expression(
             f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
         )
 
-    webhook_request = CreateWebhookRequest(
-        sourceName=V1WebhookSourceName.GENERIC,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-scope-{test_run_id}",
-        eventKeyExpression=event_key_expression,
-        scopeExpression=scope_expression,
+        event_key_expression=event_key_expression,
+        scope_expression=scope_expression,
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
         ),
     )
-
-    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
@@ -154,19 +152,17 @@ async def webhook_with_static_payload(
             f"'{hatchet.config.apply_namespace('webhook-static')}:' + input.type"
         )
 
-    webhook_request = CreateWebhookRequest(
-        sourceName=V1WebhookSourceName.GENERIC,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-static-{test_run_id}",
-        eventKeyExpression=event_key_expression,
-        staticPayload=static_payload,
+        event_key_expression=event_key_expression,
+        static_payload=static_payload,
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
         ),
     )
-
-    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
@@ -190,20 +186,18 @@ async def webhook_with_scope_and_static(
             f"'{hatchet.config.apply_namespace('webhook-scope')}:' + input.type"
         )
 
-    webhook_request = CreateWebhookRequest(
-        sourceName=V1WebhookSourceName.GENERIC,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=V1WebhookSourceName.GENERIC,
         name=f"test-webhook-both-{test_run_id}",
-        eventKeyExpression=event_key_expression,
-        scopeExpression=scope_expression,
-        staticPayload=static_payload,
+        event_key_expression=event_key_expression,
+        scope_expression=scope_expression,
+        static_payload=static_payload,
         auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
         ),
     )
-
-    incoming_webhook = hatchet.webhooks.create(webhook_request)
 
     try:
         yield incoming_webhook
