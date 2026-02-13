@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -80,7 +79,7 @@ type IngestDurableTaskEventOpts struct {
 	Kind              sqlcv1.V1DurableEventLogKind
 	Payload           []byte
 	DispatcherId      uuid.UUID
-	WaitForConditions *v1.DurableEventListenerConditions
+	WaitForConditions []CreateExternalSignalConditionOpt
 	InvocationCount   int64
 	TriggerOpts       *WorkflowNameTriggerOpts
 }
@@ -449,41 +448,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				externalId := opts.Task.ExternalID
 				signalKey := getDurableTaskSignalKey(externalId, nodeId)
 
-				createConditionOpts := make([]CreateExternalSignalConditionOpt, 0)
-
-				for _, condition := range opts.WaitForConditions.SleepConditions {
-					orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-					if err != nil {
-						return nil, fmt.Errorf("or group id is not a valid uuid: %w", err)
-					}
-
-					createConditionOpts = append(createConditionOpts, CreateExternalSignalConditionOpt{
-						Kind:            CreateExternalSignalConditionKindSLEEP,
-						ReadableDataKey: condition.Base.ReadableDataKey,
-						OrGroupId:       orGroupId,
-						SleepFor:        &condition.SleepFor,
-					})
-				}
-
-				for _, condition := range opts.WaitForConditions.UserEventConditions {
-					orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-					if err != nil {
-						return nil, fmt.Errorf("or group id is not a valid uuid: %w", err)
-					}
-
-					createConditionOpts = append(createConditionOpts, CreateExternalSignalConditionOpt{
-						Kind:            CreateExternalSignalConditionKindUSEREVENT,
-						ReadableDataKey: condition.Base.ReadableDataKey,
-						OrGroupId:       orGroupId,
-						UserEventKey:    &condition.UserEventKey,
-						Expression:      condition.Base.Expression,
-					})
-				}
-
-				if len(createConditionOpts) > 0 {
+				if len(opts.WaitForConditions) > 0 {
 					taskExternalId := task.ExternalID
 					createMatchOpts := []ExternalCreateSignalMatchOpts{{
-						Conditions:                    createConditionOpts,
+						Conditions:                    opts.WaitForConditions,
 						SignalTaskId:                  task.ID,
 						SignalTaskInsertedAt:          task.InsertedAt,
 						SignalExternalId:              task.ExternalID,
