@@ -415,6 +415,5 @@ message ReleaseSlotResponse {}
 message GetVersionRequest {}
 
 message GetVersionResponse {
-    reserved 1;
-    string version = 2;
+    string version = 1;
 }

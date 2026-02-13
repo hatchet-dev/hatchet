@@ -341,7 +341,10 @@ export interface WorkerRegisterRequest {
   actions: string[];
   /** (optional) the services for this worker */
   services: string[];
-  /** (optional) the number of default slots this worker can handle */
+  /**
+   * (optional) the number of default slots this worker can handle
+   * deprecated: use slot_config instead
+   */
   slots?: number | undefined;
   /** (optional) worker labels (i.e. state or other metadata) */
   labels: { [key: string]: WorkerLabels };
@@ -349,8 +352,6 @@ export interface WorkerRegisterRequest {
   webhookId?: string | undefined;
   /** (optional) information regarding the runtime environment of the worker */
   runtimeInfo?: RuntimeInfo | undefined;
-  /** (optional) the max number of durable slots this worker can handle */
-  durableSlots?: number | undefined;
   /** (optional) slot config for this worker (slot_type -> units) */
   slotConfig: { [key: string]: number };
 }
@@ -812,7 +813,6 @@ function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
     labels: {},
     webhookId: undefined,
     runtimeInfo: undefined,
-    durableSlots: undefined,
     slotConfig: {},
   };
 }
@@ -842,9 +842,6 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     }
     if (message.runtimeInfo !== undefined) {
       RuntimeInfo.encode(message.runtimeInfo, writer.uint32(58).fork()).join();
-    }
-    if (message.durableSlots !== undefined) {
-      writer.uint32(64).int32(message.durableSlots);
     }
     Object.entries(message.slotConfig).forEach(([key, value]) => {
       WorkerRegisterRequest_SlotConfigEntry.encode(
@@ -921,14 +918,6 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
           message.runtimeInfo = RuntimeInfo.decode(reader, reader.uint32());
           continue;
         }
-        case 8: {
-          if (tag !== 64) {
-            break;
-          }
-
-          message.durableSlots = reader.int32();
-          continue;
-        }
         case 9: {
           if (tag !== 74) {
             break;
@@ -970,7 +959,6 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
         : {},
       webhookId: isSet(object.webhookId) ? globalThis.String(object.webhookId) : undefined,
       runtimeInfo: isSet(object.runtimeInfo) ? RuntimeInfo.fromJSON(object.runtimeInfo) : undefined,
-      durableSlots: isSet(object.durableSlots) ? globalThis.Number(object.durableSlots) : undefined,
       slotConfig: isObject(object.slotConfig)
         ? Object.entries(object.slotConfig).reduce<{ [key: string]: number }>(
             (acc, [key, value]) => {
@@ -1012,9 +1000,6 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.runtimeInfo !== undefined) {
       obj.runtimeInfo = RuntimeInfo.toJSON(message.runtimeInfo);
     }
-    if (message.durableSlots !== undefined) {
-      obj.durableSlots = Math.round(message.durableSlots);
-    }
     if (message.slotConfig) {
       const entries = Object.entries(message.slotConfig);
       if (entries.length > 0) {
@@ -1050,7 +1035,6 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       object.runtimeInfo !== undefined && object.runtimeInfo !== null
         ? RuntimeInfo.fromPartial(object.runtimeInfo)
         : undefined;
-    message.durableSlots = object.durableSlots ?? undefined;
     message.slotConfig = Object.entries(object.slotConfig ?? {}).reduce<{ [key: string]: number }>(
       (acc, [key, value]) => {
         if (value !== undefined) {
@@ -3834,10 +3818,11 @@ export const GetVersionRequest: MessageFns<GetVersionRequest> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        default:
-          reader.skip(tag & 7);
-          break;
       }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
     }
     return message;
   },
@@ -3867,7 +3852,7 @@ function createBaseGetVersionResponse(): GetVersionResponse {
 export const GetVersionResponse: MessageFns<GetVersionResponse> = {
   encode(message: GetVersionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.version !== '') {
-      writer.uint32(18).string(message.version);
+      writer.uint32(10).string(message.version);
     }
     return writer;
   },
@@ -3879,25 +3864,25 @@ export const GetVersionResponse: MessageFns<GetVersionResponse> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 2: {
-          if (tag !== 18) {
+        case 1: {
+          if (tag !== 10) {
             break;
           }
+
           message.version = reader.string();
           continue;
         }
-        default:
-          reader.skip(tag & 7);
-          break;
       }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
     }
     return message;
   },
 
   fromJSON(object: any): GetVersionResponse {
-    return {
-      version: isSet(object.version) ? globalThis.String(object.version) : '',
-    };
+    return { version: isSet(object.version) ? globalThis.String(object.version) : '' };
   },
 
   toJSON(message: GetVersionResponse): unknown {
@@ -4033,8 +4018,9 @@ export const DispatcherDefinition = {
       options: {},
     },
     /**
-     * GetVersion returns the engine version. SDKs use this to determine whether to use
-     * the new slot_config registration or fall back to the legacy slots-based registration.
+     * GetVersion returns the dispatcher protocol version as a simple integer.
+     * SDKs use this to determine feature support (e.g. slot_config registration).
+     * Old engines that do not implement this RPC will return UNIMPLEMENTED.
      */
     getVersion: {
       name: 'GetVersion',
@@ -4105,6 +4091,11 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
     request: UpsertWorkerLabelsRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<UpsertWorkerLabelsResponse>>;
+  /**
+   * GetVersion returns the dispatcher protocol version as a simple integer.
+   * SDKs use this to determine feature support (e.g. slot_config registration).
+   * Old engines that do not implement this RPC will return UNIMPLEMENTED.
+   */
   getVersion(
     request: GetVersionRequest,
     context: CallContext & CallContextExt
@@ -4169,6 +4160,11 @@ export interface DispatcherClient<CallOptionsExt = {}> {
     request: DeepPartial<UpsertWorkerLabelsRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<UpsertWorkerLabelsResponse>;
+  /**
+   * GetVersion returns the dispatcher protocol version as a simple integer.
+   * SDKs use this to determine feature support (e.g. slot_config registration).
+   * Old engines that do not implement this RPC will return UNIMPLEMENTED.
+   */
   getVersion(
     request: DeepPartial<GetVersionRequest>,
     options?: CallOptions & CallOptionsExt

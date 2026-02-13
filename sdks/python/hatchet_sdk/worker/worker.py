@@ -19,6 +19,7 @@ import grpc
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
+from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.deprecated.worker import legacy_aio_start
 from hatchet_sdk.exceptions import LifespanSetupError, LoopAlreadyRunningError
 from hatchet_sdk.logger import logger
@@ -234,13 +235,9 @@ class Worker:
         version for slot_config support. Returns the version string for modern
         engines so callers can branch on specific versions.
         """
-        from hatchet_sdk.deprecated.deprecation import semver_less_than
 
         try:
-            from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
-
-            dispatcher = DispatcherClient(self.config)
-            version = await dispatcher.get_version()
+            version = await self.client.dispatcher.get_version()
 
             # Empty version or older than minimum → legacy
             if not version or semver_less_than(version, self._MIN_SLOT_CONFIG_VERSION):
