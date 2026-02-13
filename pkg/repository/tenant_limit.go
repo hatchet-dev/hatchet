@@ -67,11 +67,7 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 
 func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
 	switch resource {
-	case sqlcv1.LimitResourceWORKER:
-		return true
-	case sqlcv1.LimitResourceWORKERSLOT:
-		return true
-	case sqlcv1.LimitResourceINCOMINGWEBHOOK:
+	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK:
 		return true
 	}
 
