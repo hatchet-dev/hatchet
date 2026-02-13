@@ -811,6 +811,8 @@ export interface RejectOrganizationInviteRequest {
   id: string;
 }
 
+export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
+
 export interface AutumnCustomerProductsUpdatedEvent {
   data: AutumnCustomerProductsUpdatedEventData;
   type: string;

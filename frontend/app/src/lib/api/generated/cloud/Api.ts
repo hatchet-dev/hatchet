@@ -16,6 +16,7 @@ import {
   APIError,
   APIErrors,
   APITokenList,
+  AutumnWebhookEvent,
   Build,
   CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
@@ -734,6 +735,22 @@ export class Api<
       method: "POST",
       body: data,
       secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Receive a webhook message from Autumn
+   *
+   * @tags Billing
+   * @name AutumnEventCreate
+   * @summary Receive a webhook message from Autumn
+   * @request POST:/api/v1/billing/autumn/webhook
+   */
+  autumnEventCreate = (data: AutumnWebhookEvent, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/billing/autumn/webhook`,
+      method: "POST",
+      body: data,
       type: ContentType.Json,
       ...params,
     });

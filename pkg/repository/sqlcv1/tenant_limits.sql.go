@@ -259,7 +259,7 @@ WITH input_values AS (
             unnest($6::boolean[]) AS "customValueMeter"
     ) AS subquery
 )
-INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill")
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "customValueMeter", "lastRefill")
 SELECT
     gen_random_uuid(),
     $1::uuid,
@@ -268,12 +268,14 @@ SELECT
     iv."limitValue",
     NULLIF(iv."alarmValue", 0),
     NULLIF(iv."window", ''),
+    iv."customValueMeter",
     CURRENT_TIMESTAMP
 FROM input_values iv
 ON CONFLICT ("tenantId", "resource") DO UPDATE SET
     "limitValue" = EXCLUDED."limitValue",
     "alarmValue" = EXCLUDED."alarmValue",
     "window" = COALESCE(NULLIF(EXCLUDED."window", ''), "TenantResourceLimit"."window"),
+    "customValueMeter" = EXCLUDED."customValueMeter",
     "lastRefill" = CURRENT_TIMESTAMP,
     "updatedAt" = CURRENT_TIMESTAMP
 `
