@@ -31,7 +31,7 @@ type CreateEventLogEntryOpts struct {
 	DurableTaskId          int64
 	DurableTaskInsertedAt  pgtype.Timestamptz
 	InsertedAt             pgtype.Timestamptz
-	Kind                   sqlcv1.V1DurableEventLogEntryKind
+	Kind                   sqlcv1.V1DurableEventLogKind
 	NodeId                 int64
 	ParentNodeId           int64
 	BranchId               int64
@@ -45,7 +45,7 @@ type CreateEventLogCallbackOpts struct {
 	DurableTaskInsertedAt pgtype.Timestamptz
 	InsertedAt            pgtype.Timestamptz
 	ExternalId            uuid.UUID
-	Kind                  sqlcv1.V1DurableEventLogCallbackKind
+	Kind                  sqlcv1.V1DurableEventLogKind
 	NodeId                int64
 	IsSatisfied           bool
 	DispatcherId          uuid.UUID
@@ -77,7 +77,7 @@ type SatisfiedCallbackWithPayload struct {
 type IngestDurableTaskEventOpts struct {
 	TenantId          uuid.UUID
 	Task              *sqlcv1.FlattenExternalIdsRow
-	Kind              sqlcv1.V1DurableEventLogEntryKind
+	Kind              sqlcv1.V1DurableEventLogKind
 	Payload           []byte
 	DispatcherId      uuid.UUID
 	WaitForConditions *v1.DurableEventListenerConditions
@@ -267,6 +267,7 @@ func (r *durableEventsRepository) GetSatisfiedCallbacks(ctx context.Context, ten
 
 	taskExternalIds := make([]uuid.UUID, len(callbacks))
 	nodeIds := make([]int64, len(callbacks))
+	isSatisfieds := make([]bool, len(callbacks))
 
 	for i, cb := range callbacks {
 		taskId, err := uuid.Parse(cb.TaskExternalId)
@@ -275,12 +276,13 @@ func (r *durableEventsRepository) GetSatisfiedCallbacks(ctx context.Context, ten
 		}
 		taskExternalIds[i] = taskId
 		nodeIds[i] = cb.NodeId
+		isSatisfieds[i] = true
 	}
 
-	rows, err := r.queries.GetSatisfiedCallbacks(ctx, r.pool, sqlcv1.GetSatisfiedCallbacksParams{
-		Tenantid:        tenantId,
+	rows, err := r.queries.ListCallbacks(ctx, r.pool, sqlcv1.ListCallbacksParams{
 		Taskexternalids: taskExternalIds,
 		Nodeids:         nodeIds,
+		Issatisfieds:    isSatisfieds,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get and claim satisfied callbacks: %w", err)
@@ -400,18 +402,16 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
 	}
 
-	var kind sqlcv1.V1DurableEventLogCallbackKind
+	var kind sqlcv1.V1DurableEventLogKind
 	var callbackPayload []byte
 	isSatisfied := false
 
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED:
-		kind = sqlcv1.V1DurableEventLogCallbackKindWAITFORCOMPLETED
-	case sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED:
-		kind = sqlcv1.V1DurableEventLogCallbackKindRUNCOMPLETED
-	case sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED:
-		kind = sqlcv1.V1DurableEventLogCallbackKindMEMOCOMPLETED
-
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		// do nothing
+	case sqlcv1.V1DurableEventLogKindRUN:
+		// do nothing
+	case sqlcv1.V1DurableEventLogKindMEMO:
 		// for memoization, we don't need to wait for anything before marking the callback as satisfied since it's just a cache entry
 		isSatisfied = true
 		callbackPayload = opts.Payload
@@ -446,7 +446,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	if !logEntry.AlreadyExisted {
 		switch opts.Kind {
-		case sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED:
+		case sqlcv1.V1DurableEventLogKindWAITFOR:
 			if opts.WaitForConditions != nil {
 				externalId := opts.Task.ExternalID
 				signalKey := getDurableTaskSignalKey(externalId, nodeId)
@@ -502,7 +502,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 					}
 				}
 			}
-		case sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED:
+		case sqlcv1.V1DurableEventLogKindRUN:
 			triggerOpt, err := r.NewTriggerOpt(ctx, opts.TenantId, opts.TriggerOpts, task)
 
 			if err != nil {
@@ -574,7 +574,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			spawnedTasks = createdTasks
 			spawnedDAGs = createdDAGs
 
-		case sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED:
+		case sqlcv1.V1DurableEventLogKindMEMO:
 			// todo: memo here
 		default:
 			return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)

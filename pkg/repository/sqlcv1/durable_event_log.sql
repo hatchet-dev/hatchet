@@ -69,7 +69,7 @@ VALUES (
     @durableTaskId::BIGINT,
     @durableTaskInsertedAt::TIMESTAMPTZ,
     NOW(),
-    @kind::v1_durable_event_log_entry_kind,
+    @kind::v1_durable_event_log_kind,
     @nodeId::BIGINT,
     sqlc.narg('parentNodeId')::BIGINT,
     @branchId::BIGINT,
@@ -105,7 +105,7 @@ VALUES (
     @durableTaskId::BIGINT,
     @durableTaskInsertedAt::TIMESTAMPTZ,
     @insertedAt::TIMESTAMPTZ,
-    @kind::v1_durable_event_log_callback_kind,
+    @kind::v1_durable_event_log_kind,
     @nodeId::BIGINT,
     @isSatisfied::BOOLEAN,
     @externalId::UUID,
@@ -116,24 +116,40 @@ RETURNING *
 ;
 
 -- name: UpdateDurableEventLogCallbackSatisfied :one
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+)
+
 UPDATE v1_durable_event_log_callback
-SET is_satisfied = @isSatisfied::BOOLEAN
-WHERE durable_task_id = @durableTaskId::BIGINT
-  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-  AND node_id = @nodeId::BIGINT
+SET is_satisfied = inputs.is_satisfied
+FROM inputs
+WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
+  AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at
+  AND v1_durable_event_log_callback.node_id = inputs.node_id
 RETURNING *
 ;
 
--- name: GetSatisfiedCallbacks :many
+-- name: ListCallbacks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+), tasks AS (
+    SELECT t.*
+    FROM v1_lookup_table lt
+    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
+    WHERE lt.external_id = ANY(@taskExternalIds::UUID[])
+)
+
 SELECT cb.*, t.external_id AS task_external_id
 FROM v1_durable_event_log_callback cb
-JOIN v1_task t ON t.id = cb.durable_task_id
-    AND t.inserted_at = cb.durable_task_inserted_at
-    AND t.tenant_id = @tenantId::UUID
-WHERE (t.external_id, cb.node_id) IN (
-    SELECT
-        unnest(@taskExternalIds::uuid[]),
-        unnest(@nodeIds::bigint[])
+JOIN tasks t ON (t.id, t.inserted_at) = (cb.durable_task_id, cb.durable_task_inserted_at)
+WHERE (cb.node_id, cb.is_satisfied) IN (
+    SELECT node_id, is_satisfied
+    FROM inputs
 )
-  AND cb.is_satisfied = TRUE
 ;

@@ -3,11 +3,9 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -357,6 +355,12 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	return res, nil
 }
 
+type IdInsertedAtNodeIdTuple struct {
+	DurableTaskId         int64
+	DurableTaskInsertedAt pgtype.Timestamptz
+	NodeId                int64
+}
+
 func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
 	start := time.Now()
 
@@ -683,10 +687,23 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	res.CreatedTasks = tasks
 
-	satisfiedCallbacks := make([]SatisfiedCallback, 0)
+	durableTaskExternalIds := make([]uuid.UUID, 0)
+	durableTaskIds := make([]int64, 0)
+	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+	durableTaskNodeIds := make([]int64, 0)
+	durableTaskIsSatisfieds := make([]bool, 0)
+	payloadsToStore := make([]StorePayloadOpts, 0)
+	idInsertedAtNodeIdToSatisfiedCallback := make(map[IdInsertedAtNodeIdTuple]SatisfiedCallback)
+
 	for _, match := range satisfiedMatches {
 		if match.DurableEventLogCallbackNodeID.Valid && match.DurableEventLogCallbackDurableTaskID.Valid && match.DurableEventLogCallbackDurableTaskExternalID != nil {
 			durableTaskId := match.DurableEventLogCallbackDurableTaskID.Int64
+			key := IdInsertedAtNodeIdTuple{
+				DurableTaskId:         durableTaskId,
+				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt,
+				NodeId:                match.DurableEventLogCallbackNodeID.Int64,
+			}
+
 			cb := SatisfiedCallback{
 				DurableTaskExternalId: *match.DurableEventLogCallbackDurableTaskExternalID,
 				DurableTaskId:         &durableTaskId,
@@ -695,46 +712,65 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				Data:                  match.McAggregatedData,
 			}
 
-			callback, err := m.queries.UpdateDurableEventLogCallbackSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbackSatisfiedParams{
-				Durabletaskid:         *cb.DurableTaskId,
-				Durabletaskinsertedat: cb.DurableTaskInsertedAt,
-				Nodeid:                cb.NodeId,
-				Issatisfied:           true,
-			})
+			idInsertedAtNodeIdToSatisfiedCallback[key] = cb
 
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				m.l.Error().Err(err).Msgf("failed to update callback %d as satisfied in tx", cb.NodeId)
-				continue
-			}
-
-			if callback.Kind.Valid && callback.Kind.V1DurableEventLogCallbackKind == sqlcv1.V1DurableEventLogCallbackKindRUNCOMPLETED {
-				if extracted, extractErr := ExtractOutputFromMatchData(cb.Data); extractErr != nil {
-					m.l.Error().Err(extractErr).Msgf("failed to extract output from RUN_COMPLETED match data for callback %d", cb.NodeId)
-				} else {
-					cb.Data = extracted
-				}
-			}
-
-			if len(cb.Data) > 0 {
-				err = m.payloadStore.Store(ctx, tx, StorePayloadOpts{
-					Id:         callback.ID,
-					InsertedAt: callback.InsertedAt,
-					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
-					Payload:    cb.Data,
-					ExternalId: callback.ExternalID,
-					TenantId:   tenantId,
-				})
-
-				if err != nil {
-					m.l.Error().Err(err).Msgf("failed to store callback result for %d", cb.NodeId)
-					continue
-				}
-			}
-
-			cb.DispatcherId = callback.DispatcherID
-			satisfiedCallbacks = append(satisfiedCallbacks, cb)
+			durableTaskIds = append(durableTaskIds, match.DurableEventLogCallbackDurableTaskID.Int64)
+			durableTaskInsertedAts = append(durableTaskInsertedAts, match.DurableEventLogCallbackDurableTaskInsertedAt)
+			durableTaskNodeIds = append(durableTaskNodeIds, match.DurableEventLogCallbackNodeID.Int64)
+			durableTaskIsSatisfieds = append(durableTaskIsSatisfieds, true)
+			durableTaskExternalIds = append(durableTaskExternalIds, *match.DurableEventLogCallbackDurableTaskExternalID)
 		}
 	}
+
+	callbacks, err := m.queries.ListCallbacks(ctx, tx, sqlcv1.ListCallbacksParams{
+		Nodeids:         durableTaskNodeIds,
+		Issatisfieds:    durableTaskIsSatisfieds,
+		Taskexternalids: durableTaskExternalIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list satisfied callbacks: %w", err)
+	}
+
+	satisfiedCallbacks := make([]SatisfiedCallback, 0)
+
+	for _, cb := range callbacks {
+		key := IdInsertedAtNodeIdTuple{
+			NodeId:                cb.NodeID,
+			DurableTaskId:         cb.DurableTaskID,
+			DurableTaskInsertedAt: cb.DurableTaskInsertedAt,
+		}
+
+		predeterminedCallback, ok := idInsertedAtNodeIdToSatisfiedCallback[key]
+
+		if !ok {
+			m.l.Error().Msgf("no predetermined callback found for satisfied callback with node id %d, durable task id %d and durable task inserted at %s", cb.NodeID, cb.DurableTaskID, cb.DurableTaskInsertedAt)
+			continue
+		}
+
+		if cb.Kind == sqlcv1.V1DurableEventLogKindRUN {
+			if extracted, extractErr := ExtractOutputFromMatchData(predeterminedCallback.Data); extractErr != nil {
+				m.l.Error().Err(extractErr).Msgf("failed to extract output from RUN_COMPLETED match data for callback %d", cb.NodeID)
+			} else {
+				predeterminedCallback.Data = extracted
+			}
+		}
+
+		if len(predeterminedCallback.Data) > 0 {
+			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
+				Id:         cb.ID,
+				InsertedAt: cb.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+				Payload:    predeterminedCallback.Data,
+				ExternalId: cb.ExternalID,
+				TenantId:   tenantId,
+			})
+		}
+
+		predeterminedCallback.DispatcherId = cb.DispatcherID
+		satisfiedCallbacks = append(satisfiedCallbacks, predeterminedCallback)
+	}
+
 	res.SatisfiedCallbacks = satisfiedCallbacks
 
 	if len(signalIds) > 0 {

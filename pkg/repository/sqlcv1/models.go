@@ -987,90 +987,47 @@ func (ns NullV1ConcurrencyStrategy) Value() (driver.Value, error) {
 	return string(ns.V1ConcurrencyStrategy), nil
 }
 
-type V1DurableEventLogCallbackKind string
+type V1DurableEventLogKind string
 
 const (
-	V1DurableEventLogCallbackKindRUNCOMPLETED     V1DurableEventLogCallbackKind = "RUN_COMPLETED"
-	V1DurableEventLogCallbackKindWAITFORCOMPLETED V1DurableEventLogCallbackKind = "WAIT_FOR_COMPLETED"
-	V1DurableEventLogCallbackKindMEMOCOMPLETED    V1DurableEventLogCallbackKind = "MEMO_COMPLETED"
+	V1DurableEventLogKindRUN     V1DurableEventLogKind = "RUN"
+	V1DurableEventLogKindWAITFOR V1DurableEventLogKind = "WAIT_FOR"
+	V1DurableEventLogKindMEMO    V1DurableEventLogKind = "MEMO"
 )
 
-func (e *V1DurableEventLogCallbackKind) Scan(src interface{}) error {
+func (e *V1DurableEventLogKind) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V1DurableEventLogCallbackKind(s)
+		*e = V1DurableEventLogKind(s)
 	case string:
-		*e = V1DurableEventLogCallbackKind(s)
+		*e = V1DurableEventLogKind(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V1DurableEventLogCallbackKind: %T", src)
+		return fmt.Errorf("unsupported scan type for V1DurableEventLogKind: %T", src)
 	}
 	return nil
 }
 
-type NullV1DurableEventLogCallbackKind struct {
-	V1DurableEventLogCallbackKind V1DurableEventLogCallbackKind `json:"v1_durable_event_log_callback_kind"`
-	Valid                         bool                          `json:"valid"` // Valid is true if V1DurableEventLogCallbackKind is not NULL
+type NullV1DurableEventLogKind struct {
+	V1DurableEventLogKind V1DurableEventLogKind `json:"v1_durable_event_log_kind"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1DurableEventLogKind is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV1DurableEventLogCallbackKind) Scan(value interface{}) error {
+func (ns *NullV1DurableEventLogKind) Scan(value interface{}) error {
 	if value == nil {
-		ns.V1DurableEventLogCallbackKind, ns.Valid = "", false
+		ns.V1DurableEventLogKind, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V1DurableEventLogCallbackKind.Scan(value)
+	return ns.V1DurableEventLogKind.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV1DurableEventLogCallbackKind) Value() (driver.Value, error) {
+func (ns NullV1DurableEventLogKind) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V1DurableEventLogCallbackKind), nil
-}
-
-type V1DurableEventLogEntryKind string
-
-const (
-	V1DurableEventLogEntryKindRUNTRIGGERED   V1DurableEventLogEntryKind = "RUN_TRIGGERED"
-	V1DurableEventLogEntryKindWAITFORSTARTED V1DurableEventLogEntryKind = "WAIT_FOR_STARTED"
-	V1DurableEventLogEntryKindMEMOSTARTED    V1DurableEventLogEntryKind = "MEMO_STARTED"
-)
-
-func (e *V1DurableEventLogEntryKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1DurableEventLogEntryKind(s)
-	case string:
-		*e = V1DurableEventLogEntryKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1DurableEventLogEntryKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1DurableEventLogEntryKind struct {
-	V1DurableEventLogEntryKind V1DurableEventLogEntryKind `json:"v1_durable_event_log_entry_kind"`
-	Valid                      bool                       `json:"valid"` // Valid is true if V1DurableEventLogEntryKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1DurableEventLogEntryKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1DurableEventLogEntryKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1DurableEventLogEntryKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1DurableEventLogEntryKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1DurableEventLogEntryKind), nil
+	return string(ns.V1DurableEventLogKind), nil
 }
 
 type V1EventType string
@@ -3104,31 +3061,31 @@ type V1DagsOlap struct {
 }
 
 type V1DurableEventLogCallback struct {
-	TenantID              uuid.UUID                         `json:"tenant_id"`
-	ExternalID            uuid.UUID                         `json:"external_id"`
-	InsertedAt            pgtype.Timestamptz                `json:"inserted_at"`
-	ID                    int64                             `json:"id"`
-	DurableTaskID         int64                             `json:"durable_task_id"`
-	DurableTaskInsertedAt pgtype.Timestamptz                `json:"durable_task_inserted_at"`
-	Kind                  NullV1DurableEventLogCallbackKind `json:"kind"`
-	NodeID                int64                             `json:"node_id"`
-	IsSatisfied           bool                              `json:"is_satisfied"`
-	DispatcherID          *uuid.UUID                        `json:"dispatcher_id"`
+	TenantID              uuid.UUID             `json:"tenant_id"`
+	ExternalID            uuid.UUID             `json:"external_id"`
+	InsertedAt            pgtype.Timestamptz    `json:"inserted_at"`
+	ID                    int64                 `json:"id"`
+	DurableTaskID         int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                  V1DurableEventLogKind `json:"kind"`
+	NodeID                int64                 `json:"node_id"`
+	IsSatisfied           bool                  `json:"is_satisfied"`
+	DispatcherID          *uuid.UUID            `json:"dispatcher_id"`
 }
 
 type V1DurableEventLogEntry struct {
-	TenantID              uuid.UUID                      `json:"tenant_id"`
-	ExternalID            uuid.UUID                      `json:"external_id"`
-	InsertedAt            pgtype.Timestamptz             `json:"inserted_at"`
-	ID                    int64                          `json:"id"`
-	DurableTaskID         int64                          `json:"durable_task_id"`
-	DurableTaskInsertedAt pgtype.Timestamptz             `json:"durable_task_inserted_at"`
-	Kind                  NullV1DurableEventLogEntryKind `json:"kind"`
-	NodeID                int64                          `json:"node_id"`
-	ParentNodeID          pgtype.Int8                    `json:"parent_node_id"`
-	BranchID              int64                          `json:"branch_id"`
-	DataHash              []byte                         `json:"data_hash"`
-	DataHashAlg           pgtype.Text                    `json:"data_hash_alg"`
+	TenantID              uuid.UUID             `json:"tenant_id"`
+	ExternalID            uuid.UUID             `json:"external_id"`
+	InsertedAt            pgtype.Timestamptz    `json:"inserted_at"`
+	ID                    int64                 `json:"id"`
+	DurableTaskID         int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                  V1DurableEventLogKind `json:"kind"`
+	NodeID                int64                 `json:"node_id"`
+	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
+	BranchID              int64                 `json:"branch_id"`
+	DataHash              []byte                `json:"data_hash"`
+	DataHashAlg           pgtype.Text           `json:"data_hash_alg"`
 }
 
 type V1DurableEventLogFile struct {

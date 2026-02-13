@@ -433,14 +433,14 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	})
 }
 
-func getDurableTaskEventKind(eventKind contracts.DurableTaskEventKind) (sqlcv1.V1DurableEventLogEntryKind, error) {
+func getDurableTaskEventKind(eventKind contracts.DurableTaskEventKind) (sqlcv1.V1DurableEventLogKind, error) {
 	switch eventKind {
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
-		return sqlcv1.V1DurableEventLogEntryKindWAITFORSTARTED, nil
+		return sqlcv1.V1DurableEventLogKindWAITFOR, nil
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_RUN:
-		return sqlcv1.V1DurableEventLogEntryKindRUNTRIGGERED, nil
+		return sqlcv1.V1DurableEventLogKindRUN, nil
 	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO:
-		return sqlcv1.V1DurableEventLogEntryKindMEMOSTARTED, nil
+		return sqlcv1.V1DurableEventLogKindMEMO, nil
 	default:
 		return "", fmt.Errorf("unsupported event kind: %v", eventKind)
 	}

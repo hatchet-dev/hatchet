@@ -28,10 +28,10 @@ CREATE TABLE v1_durable_event_log_file (
 SELECT create_v1_range_partition('v1_durable_event_log_file', NOW()::DATE);
 SELECT create_v1_range_partition('v1_durable_event_log_file', (NOW() + INTERVAL '1 day')::DATE);
 
-CREATE TYPE v1_durable_event_log_entry_kind AS ENUM (
-    'RUN_TRIGGERED',
-    'WAIT_FOR_STARTED',
-    'MEMO_STARTED'
+CREATE TYPE v1_durable_event_log_kind AS ENUM (
+    'RUN',
+    'WAIT_FOR',
+    'MEMO'
 );
 
 CREATE TABLE v1_durable_event_log_entry (
@@ -47,7 +47,7 @@ CREATE TABLE v1_durable_event_log_entry (
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
 
-    kind v1_durable_event_log_entry_kind,
+    kind v1_durable_event_log_kind NOT NULL,
     -- The node number in the durable event log. This represents a monotonically increasing
     -- sequence value generated from v1_durable_event_log_file.latest_node_id
     node_id BIGINT NOT NULL,
@@ -74,14 +74,6 @@ CREATE TABLE v1_durable_event_log_entry (
 SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE);
 SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE);
 
-CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
-    'RUN_COMPLETED',
-    -- WAIT_FOR_COMPLETED can represent a durable sleep, an event, or some boolean combination of
-    -- these.
-    'WAIT_FOR_COMPLETED',
-    'MEMO_COMPLETED'
-);
-
 -- v1_durable_event_log_callback stores callbacks that complete a durable event log entry. This needs to be stateful
 -- so that it persists across worker restarts for the same durable task.
 --
@@ -103,7 +95,7 @@ CREATE TABLE v1_durable_event_log_callback (
 
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
-    kind v1_durable_event_log_callback_kind,
+    kind v1_durable_event_log_kind NOT NULL,
 
     -- The associated log node id that this callback references.
     node_id BIGINT NOT NULL,
