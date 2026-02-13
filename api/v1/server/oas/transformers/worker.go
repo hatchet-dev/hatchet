@@ -79,14 +79,14 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 	}
 
 	res := &gen.Worker{
-		Metadata:       *toAPIMetadata(worker.ID, worker.CreatedAt.Time, worker.UpdatedAt.Time),
-		Name:           worker.Name,
-		Type:           gen.WorkerType(worker.Type),
-		Status:         &status,
-		DispatcherId:   dispatcherId,
-		SlotConfig:     slotConfigInt,
-		RuntimeInfo:    ToWorkerRuntimeInfo(worker),
-		WebhookId:      worker.WebhookId,
+		Metadata:     *toAPIMetadata(worker.ID, worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Name:         worker.Name,
+		Type:         gen.WorkerType(worker.Type),
+		Status:       &status,
+		DispatcherId: dispatcherId,
+		SlotConfig:   slotConfigInt,
+		RuntimeInfo:  ToWorkerRuntimeInfo(worker),
+		WebhookId:    worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

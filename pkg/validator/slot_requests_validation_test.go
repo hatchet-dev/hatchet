@@ -49,7 +49,7 @@ func TestSlotRequests_AllowsPositiveUnits(t *testing.T) {
 				Action:     "svc:do",
 				SlotRequests: map[string]int32{
 					repository.SlotTypeDefault: 1,
-					"gpu":                     2,
+					"gpu":                      2,
 				},
 			},
 		},

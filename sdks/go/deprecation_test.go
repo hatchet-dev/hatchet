@@ -4,7 +4,7 @@ import "testing"
 
 func TestParseSemver(t *testing.T) {
 	tests := []struct {
-		input              string
+		input               string
 		major, minor, patch int
 	}{
 		{"v0.78.23", 0, 78, 23},

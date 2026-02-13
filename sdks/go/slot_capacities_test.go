@@ -12,7 +12,7 @@ func TestResolveWorkerSlotConfig_NoDurable(t *testing.T) {
 			req: &v1.CreateWorkflowVersionRequest{
 				Tasks: []*v1.CreateTaskOpts{
 					{
-						IsDurable:        false,
+						IsDurable:    false,
 						SlotRequests: map[string]int32{"default": 1},
 					},
 				},
@@ -36,7 +36,7 @@ func TestResolveWorkerSlotConfig_OnlyDurable(t *testing.T) {
 			req: &v1.CreateWorkflowVersionRequest{
 				Tasks: []*v1.CreateTaskOpts{
 					{
-						IsDurable:        true,
+						IsDurable:    true,
 						SlotRequests: map[string]int32{"durable": 1},
 					},
 				},
@@ -60,11 +60,11 @@ func TestResolveWorkerSlotConfig_Mixed(t *testing.T) {
 			req: &v1.CreateWorkflowVersionRequest{
 				Tasks: []*v1.CreateTaskOpts{
 					{
-						IsDurable:        false,
+						IsDurable:    false,
 						SlotRequests: map[string]int32{"default": 1},
 					},
 					{
-						IsDurable:        true,
+						IsDurable:    true,
 						SlotRequests: map[string]int32{"durable": 1},
 					},
 				},
@@ -88,11 +88,11 @@ func TestResolveWorkerSlotConfig_UserConfiguredSlots(t *testing.T) {
 			req: &v1.CreateWorkflowVersionRequest{
 				Tasks: []*v1.CreateTaskOpts{
 					{
-						IsDurable:        false,
+						IsDurable:    false,
 						SlotRequests: map[string]int32{"default": 1},
 					},
 					{
-						IsDurable:        true,
+						IsDurable:    true,
 						SlotRequests: map[string]int32{"durable": 1},
 					},
 				},
@@ -121,11 +121,11 @@ func TestResolveWorkerSlotConfig_UserConfiguredPartial(t *testing.T) {
 			req: &v1.CreateWorkflowVersionRequest{
 				Tasks: []*v1.CreateTaskOpts{
 					{
-						IsDurable:        false,
+						IsDurable:    false,
 						SlotRequests: map[string]int32{"default": 1},
 					},
 					{
-						IsDurable:        true,
+						IsDurable:    true,
 						SlotRequests: map[string]int32{"durable": 1},
 					},
 				},

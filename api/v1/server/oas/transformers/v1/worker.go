@@ -88,13 +88,13 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 			CreatedAt: worker.CreatedAt.Time,
 			UpdatedAt: worker.UpdatedAt.Time,
 		},
-		Name:           worker.Name,
-		Type:           gen.WorkerType(worker.Type),
-		Status:         &status,
-		DispatcherId:   dispatcherId,
-		SlotConfig:     slotConfigInt,
-		RuntimeInfo:    ToWorkerRuntimeInfo(worker),
-		WebhookId:      worker.WebhookId,
+		Name:         worker.Name,
+		Type:         gen.WorkerType(worker.Type),
+		Status:       &status,
+		DispatcherId: dispatcherId,
+		SlotConfig:   slotConfigInt,
+		RuntimeInfo:  ToWorkerRuntimeInfo(worker),
+		WebhookId:    worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {
