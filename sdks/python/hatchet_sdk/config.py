@@ -100,7 +100,7 @@ class TenacityConfig(BaseSettings):
     )
     retry_transport_methods: list[str] = Field(
         default_factory=lambda: ["GET", "DELETE"],
-        description="HTTP methods to retry on transport errors when retry_transport_errors is enabled.",
+        description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
 
 
