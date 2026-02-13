@@ -466,6 +466,18 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.InvalidArgument, "invalid event kind: %v", err)
 	}
 
+	var triggerOpts *v1.WorkflowNameTriggerOpts
+
+	if kind == sqlcv1.V1DurableEventLogKindRUN {
+		to, err := d.repo.Triggers().NewTriggerOpt(ctx, invocation.tenantId, req.TriggerOpts, task)
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
+		}
+
+		triggerOpts = to
+	}
+
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		TenantId:          invocation.tenantId,
 		Task:              task,
@@ -474,7 +486,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		DispatcherId:      d.dispatcherId,
 		WaitForConditions: req.WaitForConditions,
 		InvocationCount:   req.InvocationCount,
-		TriggerOpts:       req.TriggerOpts,
+		TriggerOpts:       triggerOpts,
 	})
 
 	if err != nil {

@@ -82,7 +82,7 @@ type IngestDurableTaskEventOpts struct {
 	DispatcherId      uuid.UUID
 	WaitForConditions *v1.DurableEventListenerConditions
 	InvocationCount   int64
-	TriggerOpts       *v1.TriggerWorkflowRequest
+	TriggerOpts       *WorkflowNameTriggerOpts
 }
 
 type IngestDurableTaskEventResult struct {
@@ -501,13 +501,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				}
 			}
 		case sqlcv1.V1DurableEventLogKindRUN:
-			triggerOpt, err := r.NewTriggerOpt(ctx, opts.TenantId, opts.TriggerOpts, task)
-
-			if err != nil {
-				return nil, fmt.Errorf("failed to create trigger options: %w", err)
-			}
-
-			createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, optTx, opts.TenantId, []*WorkflowNameTriggerOpts{triggerOpt})
+			createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, optTx, opts.TenantId, []*WorkflowNameTriggerOpts{opts.TriggerOpts})
 
 			if err != nil {
 				return nil, fmt.Errorf("failed to trigger workflows: %w", err)
