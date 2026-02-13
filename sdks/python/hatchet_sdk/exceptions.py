@@ -2,6 +2,13 @@ import json
 import traceback
 from typing import cast
 
+class HatchetError(Exception):
+    """Base exception for Hatchet Python SDK."""
+
+
+class HatchetConfigurationError(HatchetError):
+    """Raised when required configuration is missing or invalid."""
+
 
 class InvalidDependencyError(Exception):
     pass
