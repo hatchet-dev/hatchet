@@ -860,6 +860,45 @@ func (v *RunDetailsView) fetchWorkflowRun() tea.Cmd {
 	}
 }
 
+// calculateAvailableDAGHeight dynamically calculates how much vertical space is available for the DAG
+// by measuring the actual rendered chrome elements
+func (v *RunDetailsView) calculateAvailableDAGHeight() int {
+	if v.Height == 0 {
+		return 10 // Fallback minimum
+	}
+
+	title := "Run Details"
+	if v.details != nil {
+		if v.details.Run.DisplayName != "" {
+			title = fmt.Sprintf("Run Details: %s", v.details.Run.DisplayName)
+		} else if len(v.details.Tasks) > 0 && v.details.Tasks[0].WorkflowName != nil && *v.details.Tasks[0].WorkflowName != "" {
+			title = fmt.Sprintf("Run Details: %s", *v.details.Tasks[0].WorkflowName)
+		}
+	}
+	header := RenderHeader(title, v.Ctx.ProfileName, v.Width)
+	headerHeight := lipgloss.Height(header) + 2 // +2 for spacing after header
+
+	statusSection := v.renderStatusSection()
+	statusHeight := lipgloss.Height(statusSection) + 2 // +2 for spacing after status
+
+	tabs := v.renderTabs()
+	tabsHeight := lipgloss.Height(tabs) + 2 // +2 for spacing after tabs
+
+	footerHeight := 3 // Footer typically has border + padding + content
+
+	// Account for DAG border and padding (from renderDAG style)
+	// Border: 2 lines (top + bottom), Padding(1, 2): 2 lines (top + bottom)
+	dagBorderPadding := 4
+
+	usedHeight := headerHeight + statusHeight + tabsHeight + footerHeight + dagBorderPadding
+	availableHeight := max(v.Height-usedHeight, 10) // Ensure minimum height of 10
+
+	v.debugLogger.Log("DAG height calculation: total=%d, header=%d, status=%d, tabs=%d, footer=%d, border=%d, available=%d",
+		v.Height, headerHeight, statusHeight, tabsHeight, footerHeight, dagBorderPadding, availableHeight)
+
+	return availableHeight
+}
+
 // buildDAG builds and renders the DAG visualization
 func (v *RunDetailsView) buildDAG() {
 	if v.details == nil || len(v.details.Shape) == 0 {
@@ -869,8 +908,7 @@ func (v *RunDetailsView) buildDAG() {
 		return
 	}
 
-	// Reserve space for DAG (height of border box minus padding/chrome)
-	dagHeight := 10          // Approximate height for DAG area
+	dagHeight := v.calculateAvailableDAGHeight()
 	dagWidth := v.Width - 10 // Account for border and padding
 
 	v.debugLogger.Log("Building DAG graph: nodes=%d, dagWidth=%d, dagHeight=%d", len(v.details.Shape), dagWidth, dagHeight)
@@ -960,16 +998,10 @@ func (v *RunDetailsView) navigateDAG(direction string) {
 	switch direction {
 	case "left":
 		// Move to previous node in visual order
-		newIndex = currentIndex - 1
-		if newIndex < 0 {
-			newIndex = 0
-		}
+		newIndex = max(currentIndex-1, 0)
 	case "right":
 		// Move to next node in visual order
-		newIndex = currentIndex + 1
-		if newIndex >= len(navigableNodes) {
-			newIndex = len(navigableNodes) - 1
-		}
+		newIndex = min(currentIndex+1, len(navigableNodes)-1)
 	default:
 		return
 	}
@@ -1085,18 +1117,18 @@ func (v *RunDetailsView) exportDAGData() (string, error) {
 		b.WriteString(separator)
 		b.WriteString("\n\n")
 
-		b.WriteString(fmt.Sprintf("Nodes: %d\n", v.dagGraph.NodeCount()))
-		b.WriteString(fmt.Sprintf("Edges: %d\n", v.dagGraph.EdgeCount()))
-		b.WriteString(fmt.Sprintf("Components: %d\n", v.dagGraph.ComponentCount()))
-		b.WriteString(fmt.Sprintf("Actual Width: %d\n", v.dagGraph.ActualWidth))
-		b.WriteString(fmt.Sprintf("Actual Height: %d\n", v.dagGraph.ActualHeight))
+		fmt.Fprintf(&b, "Nodes: %d\n", v.dagGraph.NodeCount())
+		fmt.Fprintf(&b, "Edges: %d\n", v.dagGraph.EdgeCount())
+		fmt.Fprintf(&b, "Components: %d\n", v.dagGraph.ComponentCount())
+		fmt.Fprintf(&b, "Actual Width: %d\n", v.dagGraph.ActualWidth)
+		fmt.Fprintf(&b, "Actual Height: %d\n", v.dagGraph.ActualHeight)
 		b.WriteString("\n")
 
 		stats := v.dagGraph.GetComponentStats()
-		b.WriteString(fmt.Sprintf("Total Components: %d\n", stats.TotalComponents))
-		b.WriteString(fmt.Sprintf("Largest Component: %d nodes\n", stats.LargestComponent))
-		b.WriteString(fmt.Sprintf("Smallest Component: %d nodes\n", stats.SmallestComponent))
-		b.WriteString(fmt.Sprintf("Isolated Nodes: %d\n", stats.IsolatedNodes))
+		fmt.Fprintf(&b, "Total Components: %d\n", stats.TotalComponents)
+		fmt.Fprintf(&b, "Largest Component: %d nodes\n", stats.LargestComponent)
+		fmt.Fprintf(&b, "Smallest Component: %d nodes\n", stats.SmallestComponent)
+		fmt.Fprintf(&b, "Isolated Nodes: %d\n", stats.IsolatedNodes)
 		b.WriteString("\n")
 	}
 
