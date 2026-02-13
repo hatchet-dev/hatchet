@@ -574,10 +574,6 @@ func (a *AuthConfig) CheckEmailRestrictions(email string) error {
 
 	domain := strings.Split(email, "@")[1]
 
-	if len(a.ConfigFile.RestrictedEmailDomains) == 0 {
-		return nil
-	}
-
 	if slices.Contains(a.RestrictedEmailDomains, domain) {
 		return nil
 	}
