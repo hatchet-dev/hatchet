@@ -45,6 +45,11 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		return nil, err
 	}
 
+	err = u.config.Auth.CheckEmailRestrictions(user.Email)
+	if err != nil {
+		return gen.TenantInviteAccept400JSONResponse(apierrors.NewAPIErrors("email is not in the allowed domain group")), nil
+	}
+
 	// ensure the invite belongs to the user
 	if invite.InviteeEmail != user.Email {
 		return gen.TenantInviteAccept400JSONResponse(apierrors.NewAPIErrors("wrong email for invite")), nil

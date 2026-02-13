@@ -36,7 +36,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// check restricted email group
-	if err := u.checkUserRestrictionsForEmail(u.config, string(request.Body.Email)); err != nil {
+	if err := u.config.Auth.CheckEmailRestrictions(string(request.Body.Email)); err != nil {
 		return nil, err
 	}
 

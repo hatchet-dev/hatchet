@@ -2,7 +2,11 @@ package server
 
 import (
 	"crypto/tls"
+	"slices"
+	"strings"
 	"time"
+
+	goerrors "errors"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -540,6 +544,9 @@ type CustomAuthenticator interface {
 	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
 }
 
+// ErrNotInRestrictedDomain is returned when an email or domain is not in the restricted domain group.
+var ErrNotInRestrictedDomain = goerrors.New("email is not in the restricted domain group")
+
 type AuthConfig struct {
 	RestrictedEmailDomains []string
 
@@ -552,6 +559,30 @@ type AuthConfig struct {
 	JWTManager token.JWTManager
 
 	CustomAuthenticator CustomAuthenticator
+}
+
+// CheckEmailRestrictions checks whether the given email address belongs to an allowed domain.
+// Returns nil if no restrictions are configured or the email's domain is allowed.
+func (a *AuthConfig) CheckEmailRestrictions(email string) error {
+	if len(a.RestrictedEmailDomains) == 0 {
+		return nil
+	}
+
+	if strings.Count(email, "@") != 1 {
+		return goerrors.New("invalid email")
+	}
+
+	domain := strings.Split(email, "@")[1]
+
+	if len(a.ConfigFile.RestrictedEmailDomains) == 0 {
+		return nil
+	}
+
+	if slices.Contains(a.RestrictedEmailDomains, domain) {
+		return nil
+	}
+
+	return ErrNotInRestrictedDomain
 }
 
 type PylonConfig struct {

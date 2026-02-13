@@ -39,7 +39,7 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	user, err := u.upsertGithubUserFromToken(ctx.Request().Context(), u.config, token)
 
 	if err != nil {
-		if errors.Is(err, ErrNotInRestrictedDomain) {
+		if errors.Is(err, server.ErrNotInRestrictedDomain) {
 			return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Email is not in the restricted domain group.")
 		}
 
@@ -74,7 +74,8 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 		return nil, err
 	}
 
-	if err := u.checkUserRestrictionsForEmail(config, gInfo.Email); err != nil {
+	err = config.Auth.CheckEmailRestrictions(gInfo.Email)
+	if err != nil {
 		return nil, err
 	}
 

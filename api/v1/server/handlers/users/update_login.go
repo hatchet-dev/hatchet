@@ -28,7 +28,7 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		return gen.UserUpdateLogin400JSONResponse(*apiErrors), nil
 	}
 
-	if err := u.checkUserRestrictionsForEmail(u.config, string(request.Body.Email)); err != nil {
+	if err := u.config.Auth.CheckEmailRestrictions(string(request.Body.Email)); err != nil {
 		u.config.Logger.Err(err).Msg("email not in restricted domain")
 		return gen.UserUpdateLogin400JSONResponse(
 			apierrors.NewAPIErrors(ErrInvalidCredentials),

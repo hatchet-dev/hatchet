@@ -34,6 +34,13 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		return gen.TenantInviteCreate400JSONResponse(*apiErrors), nil
 	}
 
+	// check restricted email group
+	if err := t.config.Auth.CheckEmailRestrictions(request.Body.Email); err != nil {
+		return gen.TenantInviteCreate400JSONResponse(
+			apierrors.NewAPIErrors("invitee email is not in the allowed domain group"),
+		), nil
+	}
+
 	// ensure that this user isn't already a member of the tenant
 	if _, err := t.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), tenantId, request.Body.Email); err == nil {
 		t.config.Logger.Warn().Msg("this user is already a member of this tenant")
