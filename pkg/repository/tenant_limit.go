@@ -65,6 +65,7 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 	return err
 }
 
+// FIXME(mnafees): WE NEED TO GET RID OF CUSTOM VALUE METERS
 func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
 	switch resource {
 	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK:
