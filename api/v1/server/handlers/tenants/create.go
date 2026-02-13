@@ -79,6 +79,11 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	tenantId := tenant.ID
 
+	err = t.config.V1.TenantLimit().UpdateLimits(ctx.Request().Context(), tenantId, t.config.V1.TenantLimit().DefaultLimits())
+	if err != nil {
+		return nil, err
+	}
+
 	// add the user as an owner of the tenant
 	_, err = t.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &v1.CreateTenantMemberOpts{
 		UserId: user.ID,

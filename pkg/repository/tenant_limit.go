@@ -38,6 +38,8 @@ type TenantLimitRepository interface {
 	// Resolve all tenant resource limits
 	ResolveAllTenantResourceLimits(ctx context.Context) error
 
+	DefaultLimits() []Limit
+
 	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
 
 	Stop()
@@ -64,7 +66,7 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 	return err
 }
 
-func (t *tenantLimitRepository) defaultLimits() []Limit {
+func (t *tenantLimitRepository) DefaultLimits() []Limit {
 	return []Limit{
 		{
 			Resource:         sqlcv1.LimitResourceTASKRUN,
@@ -152,7 +154,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
 
-		err = t.UpdateLimits(ctx, tenantId, t.defaultLimits())
+		err = t.UpdateLimits(ctx, tenantId, t.DefaultLimits())
 
 		if err != nil {
 			return false, 0, err
