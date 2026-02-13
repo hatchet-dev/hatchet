@@ -40,27 +40,26 @@ class TaskRunError(Exception):
         return str(self)
 
     def serialize(self, include_metadata: bool) -> str:
-        if not self.exc_type or not self.exc:
-            return ""
-
-        metadata = json.dumps(
-            {
-                TASK_RUN_ERROR_METADATA_KEY: {
-                    "task_run_external_id": self.task_run_external_id,
-                }
-            },
-            indent=None,
-        )
-
+        exc_type = self.exc_type.replace(": ", ":::")
+        exc = self.exc.replace("\n", "\\\n")
+        header = f"{exc_type}: {exc}" if exc_type and exc else f"{exc_type}{exc}"
         result = (
-            self.exc_type.replace(": ", ":::")
-            + ": "
-            + self.exc.replace("\n", "\\\n")
-            + "\n"
-            + self.trace
+            f"{header}\n{self.trace}"
+            if header and self.trace
+            else f"{header}{self.trace}"
         )
+        if result == "":
+            return result
 
         if include_metadata:
+            metadata = json.dumps(
+                {
+                    TASK_RUN_ERROR_METADATA_KEY: {
+                        "task_run_external_id": self.task_run_external_id,
+                    }
+                },
+                indent=None,
+            )
             return result + "\n\n" + metadata
 
         return result
