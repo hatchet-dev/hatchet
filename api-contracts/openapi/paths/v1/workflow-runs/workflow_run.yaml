@@ -469,6 +469,12 @@ trigger:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
     summary: Create workflow run
     tags:
       - Workflow Runs

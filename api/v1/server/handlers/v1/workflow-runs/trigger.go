@@ -20,6 +20,55 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+func (t *V1WorkflowRunsService) getTaskCount(ctx echo.Context, tenantId uuid.UUID, workflowName string) (int32, error) {
+	workflow, err := t.config.V1.Workflows().GetWorkflowByName(ctx.Request().Context(), tenantId, workflowName)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not get workflow by name: %w", err)
+	}
+
+	version, err := t.config.V1.Workflows().GetLatestWorkflowVersion(ctx.Request().Context(), tenantId, workflow.ID)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not get latest workflow version: %w", err)
+	}
+
+	shape, err := t.config.V1.Workflows().GetWorkflowShape(ctx.Request().Context(), version.WorkflowVersion.ID)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not get workflow shape: %w", err)
+	}
+
+	return int32(len(shape)), nil
+}
+
+func (t *V1WorkflowRunsService) checkTaskRunLimit(ctx echo.Context, tenantId uuid.UUID, workflowName string) (gen.V1WorkflowRunCreateResponseObject, error) {
+	numberOfTasks, err := t.getTaskCount(ctx, tenantId, workflowName)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get task count: %w", err)
+	}
+
+	canCreate, trLimit, err := t.config.V1.TenantLimit().CanCreate(
+		ctx.Request().Context(),
+		sqlcv1.LimitResourceTASKRUN,
+		tenantId,
+		numberOfTasks,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check tenant limit: %w", err)
+	}
+
+	if !canCreate {
+		return gen.V1WorkflowRunCreate429JSONResponse(
+			apierrors.NewAPIErrors(fmt.Sprintf("tenant has reached %d%% of its task runs limit", trLimit)),
+		), nil
+	}
+
+	return nil, nil
+}
+
 func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request gen.V1WorkflowRunCreateRequestObject) (gen.V1WorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
@@ -58,6 +107,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		priority = &newPrio
 	}
 
+	if limitResp, limitErr := t.checkTaskRunLimit(ctx, tenantId, request.Body.WorkflowName); limitResp != nil || limitErr != nil {
+		return limitResp, limitErr
+	}
+
 	grpcReq := &contracts.TriggerWorkflowRunRequest{
 		WorkflowName:       request.Body.WorkflowName,
 		Input:              inputBytes,
@@ -79,7 +132,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 					apierrors.NewAPIErrors(e.Message()),
 				), nil
 			case codes.ResourceExhausted:
-				return gen.V1WorkflowRunCreate400JSONResponse(
+				return gen.V1WorkflowRunCreate429JSONResponse(
 					apierrors.NewAPIErrors(e.Message()),
 				), nil
 			}
@@ -118,6 +171,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	}
 
 	if rawWorkflowRun == nil || rawWorkflowRun.WorkflowRun == nil {
+		if limitResp, _ := t.checkTaskRunLimit(ctx, tenantId, request.Body.WorkflowName); limitResp != nil {
+			return limitResp, nil
+		}
+
 		return nil, fmt.Errorf("rawWorkflowRun not populated, we are likely seeing high latency in creating tasks")
 	}
 
