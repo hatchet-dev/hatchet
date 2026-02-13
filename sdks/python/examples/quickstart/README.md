@@ -22,7 +22,6 @@ cd hatchet-python-quickstart
 
 For most users, this token is the only required configuration — no server URL or additional settings are needed.
 
-
 ```bash
 export HATCHET_CLIENT_TOKEN=<token>
 ```
