@@ -5,7 +5,7 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [Unreleased] - 2026-02-13
+### [1.23.4] - 2026-02-13
 
 #### Changed
 - Python SDK `ClientConfig` token validation now raises `HatchetConfigurationError` instead of `ValueError` for invalid or missing configuration.
