@@ -225,7 +225,7 @@ tasks:
     cmd: python3 -m venv .venv
   pre-commit-install:
     deps: [venv]
-    cmd: source .venv/bin/activate && pre-commit install
+    cmd: source .venv/bin/activate && pip install pre-commit && pre-commit install
   pre-commit-run:
     deps: [venv]
     cmd: 'source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files'
