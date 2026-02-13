@@ -279,13 +279,13 @@ func (r *durableEventsRepository) GetSatisfiedCallbacks(ctx context.Context, ten
 		isSatisfieds[i] = true
 	}
 
-	rows, err := r.queries.ListCallbacks(ctx, r.pool, sqlcv1.ListCallbacksParams{
+	rows, err := r.queries.ListSatisfiedCallbacks(ctx, r.pool, sqlcv1.ListSatisfiedCallbacksParams{
 		Taskexternalids: taskExternalIds,
 		Nodeids:         nodeIds,
-		Issatisfieds:    isSatisfieds,
 	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get and claim satisfied callbacks: %w", err)
+		return nil, fmt.Errorf("failed to list satisfied callbacks: %w", err)
 	}
 
 	result := make([]*SatisfiedCallbackWithPayload, 0, len(rows))

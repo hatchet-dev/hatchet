@@ -299,34 +299,28 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 	return &i, err
 }
 
-const listCallbacks = `-- name: ListCallbacks :many
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS node_id,
-        UNNEST($2::BOOLEAN[]) AS is_satisfied
-), tasks AS (
+const listSatisfiedCallbacks = `-- name: ListSatisfiedCallbacks :many
+WITH tasks AS (
     SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff
     FROM v1_lookup_table lt
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
-    WHERE lt.external_id = ANY($3::UUID[])
+    WHERE lt.external_id = ANY($2::UUID[])
 )
 
 SELECT cb.tenant_id, cb.external_id, cb.inserted_at, cb.id, cb.durable_task_id, cb.durable_task_inserted_at, cb.kind, cb.node_id, cb.is_satisfied, cb.dispatcher_id, t.external_id AS task_external_id
 FROM v1_durable_event_log_callback cb
 JOIN tasks t ON (t.id, t.inserted_at) = (cb.durable_task_id, cb.durable_task_inserted_at)
-WHERE (cb.node_id, cb.is_satisfied) IN (
-    SELECT node_id, is_satisfied
-    FROM inputs
-)
+WHERE
+    cb.node_id = ANY($1::BIGINT[])
+    AND cb.is_satisfied
 `
 
-type ListCallbacksParams struct {
+type ListSatisfiedCallbacksParams struct {
 	Nodeids         []int64     `json:"nodeids"`
-	Issatisfieds    []bool      `json:"issatisfieds"`
 	Taskexternalids []uuid.UUID `json:"taskexternalids"`
 }
 
-type ListCallbacksRow struct {
+type ListSatisfiedCallbacksRow struct {
 	TenantID              uuid.UUID             `json:"tenant_id"`
 	ExternalID            uuid.UUID             `json:"external_id"`
 	InsertedAt            pgtype.Timestamptz    `json:"inserted_at"`
@@ -340,15 +334,15 @@ type ListCallbacksRow struct {
 	TaskExternalID        uuid.UUID             `json:"task_external_id"`
 }
 
-func (q *Queries) ListCallbacks(ctx context.Context, db DBTX, arg ListCallbacksParams) ([]*ListCallbacksRow, error) {
-	rows, err := db.Query(ctx, listCallbacks, arg.Nodeids, arg.Issatisfieds, arg.Taskexternalids)
+func (q *Queries) ListSatisfiedCallbacks(ctx context.Context, db DBTX, arg ListSatisfiedCallbacksParams) ([]*ListSatisfiedCallbacksRow, error) {
+	rows, err := db.Query(ctx, listSatisfiedCallbacks, arg.Nodeids, arg.Taskexternalids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListCallbacksRow
+	var items []*ListSatisfiedCallbacksRow
 	for rows.Next() {
-		var i ListCallbacksRow
+		var i ListSatisfiedCallbacksRow
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.ExternalID,
@@ -372,7 +366,7 @@ func (q *Queries) ListCallbacks(ctx context.Context, db DBTX, arg ListCallbacksP
 	return items, nil
 }
 
-const updateDurableEventLogCallbackSatisfied = `-- name: UpdateDurableEventLogCallbackSatisfied :one
+const updateDurableEventLogCallbacksSatisfied = `-- name: UpdateDurableEventLogCallbacksSatisfied :many
 WITH inputs AS (
     SELECT
         UNNEST($1::BIGINT[]) AS durable_task_id,
@@ -387,58 +381,50 @@ FROM inputs
 WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at
   AND v1_durable_event_log_callback.node_id = inputs.node_id
-RETURNING inputs.durable_task_id, inputs.durable_task_inserted_at, inputs.node_id, inputs.is_satisfied, tenant_id, external_id, inserted_at, id, v1_durable_event_log_callback.durable_task_id, v1_durable_event_log_callback.durable_task_inserted_at, kind, v1_durable_event_log_callback.node_id, v1_durable_event_log_callback.is_satisfied, dispatcher_id
+RETURNING v1_durable_event_log_callback.tenant_id, v1_durable_event_log_callback.external_id, v1_durable_event_log_callback.inserted_at, v1_durable_event_log_callback.id, v1_durable_event_log_callback.durable_task_id, v1_durable_event_log_callback.durable_task_inserted_at, v1_durable_event_log_callback.kind, v1_durable_event_log_callback.node_id, v1_durable_event_log_callback.is_satisfied, v1_durable_event_log_callback.dispatcher_id
 `
 
-type UpdateDurableEventLogCallbackSatisfiedParams struct {
+type UpdateDurableEventLogCallbacksSatisfiedParams struct {
 	Durabletaskids         []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Nodeids                []int64              `json:"nodeids"`
 	Issatisfieds           []bool               `json:"issatisfieds"`
 }
 
-type UpdateDurableEventLogCallbackSatisfiedRow struct {
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	NodeID                  int64                 `json:"node_id"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID_2         int64                 `json:"durable_task_id_2"`
-	DurableTaskInsertedAt_2 pgtype.Timestamptz    `json:"durable_task_inserted_at_2"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID_2                int64                 `json:"node_id_2"`
-	IsSatisfied_2           bool                  `json:"is_satisfied_2"`
-	DispatcherID            *uuid.UUID            `json:"dispatcher_id"`
-}
-
-func (q *Queries) UpdateDurableEventLogCallbackSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogCallbackSatisfiedParams) (*UpdateDurableEventLogCallbackSatisfiedRow, error) {
-	row := db.QueryRow(ctx, updateDurableEventLogCallbackSatisfied,
+func (q *Queries) UpdateDurableEventLogCallbacksSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogCallbacksSatisfiedParams) ([]*V1DurableEventLogCallback, error) {
+	rows, err := db.Query(ctx, updateDurableEventLogCallbacksSatisfied,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Nodeids,
 		arg.Issatisfieds,
 	)
-	var i UpdateDurableEventLogCallbackSatisfiedRow
-	err := row.Scan(
-		&i.DurableTaskID,
-		&i.DurableTaskInsertedAt,
-		&i.NodeID,
-		&i.IsSatisfied,
-		&i.TenantID,
-		&i.ExternalID,
-		&i.InsertedAt,
-		&i.ID,
-		&i.DurableTaskID_2,
-		&i.DurableTaskInsertedAt_2,
-		&i.Kind,
-		&i.NodeID_2,
-		&i.IsSatisfied_2,
-		&i.DispatcherID,
-	)
-	return &i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1DurableEventLogCallback
+	for rows.Next() {
+		var i V1DurableEventLogCallback
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.InsertedAt,
+			&i.ID,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.Kind,
+			&i.NodeID,
+			&i.IsSatisfied,
+			&i.DispatcherID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateLogFileNodeIdInvocationCount = `-- name: UpdateLogFileNodeIdInvocationCount :one

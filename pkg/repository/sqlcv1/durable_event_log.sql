@@ -115,7 +115,7 @@ ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
 RETURNING *
 ;
 
--- name: UpdateDurableEventLogCallbackSatisfied :one
+-- name: UpdateDurableEventLogCallbacksSatisfied :many
 WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
@@ -130,15 +130,11 @@ FROM inputs
 WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at
   AND v1_durable_event_log_callback.node_id = inputs.node_id
-RETURNING *
+RETURNING v1_durable_event_log_callback.*
 ;
 
--- name: ListCallbacks :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
-), tasks AS (
+-- name: ListSatisfiedCallbacks :many
+WITH tasks AS (
     SELECT t.*
     FROM v1_lookup_table lt
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
@@ -148,8 +144,7 @@ WITH inputs AS (
 SELECT cb.*, t.external_id AS task_external_id
 FROM v1_durable_event_log_callback cb
 JOIN tasks t ON (t.id, t.inserted_at) = (cb.durable_task_id, cb.durable_task_inserted_at)
-WHERE (cb.node_id, cb.is_satisfied) IN (
-    SELECT node_id, is_satisfied
-    FROM inputs
-)
+WHERE
+    cb.node_id = ANY(@nodeIds::BIGINT[])
+    AND cb.is_satisfied
 ;

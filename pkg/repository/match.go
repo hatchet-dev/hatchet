@@ -722,10 +722,11 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
-	callbacks, err := m.queries.ListCallbacks(ctx, tx, sqlcv1.ListCallbacksParams{
-		Nodeids:         durableTaskNodeIds,
-		Issatisfieds:    durableTaskIsSatisfieds,
-		Taskexternalids: durableTaskExternalIds,
+	callbacks, err := m.queries.UpdateDurableEventLogCallbacksSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbacksSatisfiedParams{
+		Nodeids:                durableTaskNodeIds,
+		Issatisfieds:           durableTaskIsSatisfieds,
+		Durabletaskids:         durableTaskIds,
+		Durabletaskinsertedats: durableTaskInsertedAts,
 	})
 
 	if err != nil {
