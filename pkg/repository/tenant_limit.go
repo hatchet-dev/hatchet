@@ -19,11 +19,10 @@ type TenantLimitConfig struct {
 }
 
 type Limit struct {
-	Resource         sqlcv1.LimitResource
-	Limit            int32
-	Alarm            *int32
-	Window           *time.Duration
-	CustomValueMeter bool
+	Resource sqlcv1.LimitResource
+	Limit    int32
+	Alarm    *int32
+	Window   *time.Duration
 }
 
 type TenantLimitRepository interface {
@@ -66,39 +65,44 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 	return err
 }
 
+// FIXME(mnafees): WE NEED TO GET RID OF CUSTOM VALUE METERS
+func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
+	switch resource {
+	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK:
+		return true
+	}
+
+	return false
+}
+
 func (t *tenantLimitRepository) DefaultLimits() []Limit {
 	return []Limit{
 		{
-			Resource:         sqlcv1.LimitResourceTASKRUN,
-			Limit:            t.config.DefaultTaskRunLimit,                // nolint: gosec
-			Alarm:            Int32Ptr(t.config.DefaultTaskRunAlarmLimit), // nolint: gosec
-			Window:           &t.config.DefaultTaskRunWindow,
-			CustomValueMeter: false,
+			Resource: sqlcv1.LimitResourceTASKRUN,
+			Limit:    t.config.DefaultTaskRunLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultTaskRunAlarmLimit), // nolint: gosec
+			Window:   &t.config.DefaultTaskRunWindow,
 		},
 		{
-			Resource:         sqlcv1.LimitResourceEVENT,
-			Limit:            t.config.DefaultEventLimit,                // nolint: gosec
-			Alarm:            Int32Ptr(t.config.DefaultEventAlarmLimit), // nolint: gosec
-			Window:           &t.config.DefaultEventWindow,
-			CustomValueMeter: false,
+			Resource: sqlcv1.LimitResourceEVENT,
+			Limit:    t.config.DefaultEventLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultEventAlarmLimit), // nolint: gosec
+			Window:   &t.config.DefaultEventWindow,
 		},
 		{
-			Resource:         sqlcv1.LimitResourceWORKER,
-			Limit:            t.config.DefaultWorkerLimit,                // nolint: gosec
-			Alarm:            Int32Ptr(t.config.DefaultWorkerAlarmLimit), // nolint: gosec
-			CustomValueMeter: true,
+			Resource: sqlcv1.LimitResourceWORKER,
+			Limit:    t.config.DefaultWorkerLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultWorkerAlarmLimit), // nolint: gosec
 		},
 		{
-			Resource:         sqlcv1.LimitResourceWORKERSLOT,
-			Limit:            t.config.DefaultWorkerSlotLimit,                // nolint: gosec
-			Alarm:            Int32Ptr(t.config.DefaultWorkerSlotAlarmLimit), // nolint: gosec
-			CustomValueMeter: true,
+			Resource: sqlcv1.LimitResourceWORKERSLOT,
+			Limit:    t.config.DefaultWorkerSlotLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultWorkerSlotAlarmLimit), // nolint: gosec
 		},
 		{
-			Resource:         sqlcv1.LimitResourceINCOMINGWEBHOOK,
-			Limit:            t.config.DefaultIncomingWebhookLimit,                // nolint: gosec
-			Alarm:            Int32Ptr(t.config.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
-			CustomValueMeter: true,
+			Resource: sqlcv1.LimitResourceINCOMINGWEBHOOK,
+			Limit:    t.config.DefaultIncomingWebhookLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
 		},
 	}
 }
@@ -175,7 +179,6 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 		if err != nil {
 			return false, 0, err
 		}
-
 	}
 
 	// subtract 1 for backwards compatibility
@@ -289,7 +292,7 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.
 	for i, limit := range limits {
 		resources[i] = string(limit.Resource)
 		limitValues[i] = limit.Limit
-		customValueMeters[i] = limit.CustomValueMeter
+		customValueMeters[i] = hasCustomValueMeter(limit.Resource)
 
 		if limit.Alarm != nil {
 			alarmValues[i] = *limit.Alarm
