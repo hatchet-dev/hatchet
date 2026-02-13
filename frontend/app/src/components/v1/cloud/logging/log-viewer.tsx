@@ -1,8 +1,9 @@
 import { LogLine } from './log-search/use-logs';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import Convert from 'ansi-to-html';
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   year: 'numeric',
@@ -108,6 +109,7 @@ export function LogViewer({
   isLoading,
   taskStatus,
 }: LogViewerProps) {
+  const [showRelativeTime, setShowRelativeTime] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastScrollTopRef = useRef(0);
   const wasAtTopRef = useRef(true);
@@ -185,7 +187,7 @@ export function LogViewer({
 
   // Build dynamic grid-template-columns
   const gridCols = [
-    '160px', // timestamp
+    'auto', // timestamp
     '72px', // level
     hasInstance && 'minmax(100px, 200px)',
     hasAttempt && 'auto',
@@ -242,7 +244,10 @@ export function LogViewer({
           className="col-span-full grid grid-cols-subgrid sticky top-0 z-10 bg-gradient-to-b from-background/95 to-background/0 from-75%"
           style={{ gridColumn: `1 / span ${colCount}` }}
         >
-          <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div
+            className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+            onClick={() => setShowRelativeTime((prev) => !prev)}
+          >
             Timestamp
           </div>
           <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -271,7 +276,15 @@ export function LogViewer({
             style={{ gridColumn: `1 / span ${colCount}` }}
           >
             <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-              {log.timestamp ? formatTimestamp(log.timestamp) : '—'}
+              {log.timestamp ? (
+                showRelativeTime ? (
+                  <RelativeDate date={log.timestamp} />
+                ) : (
+                  formatTimestamp(log.timestamp)
+                )
+              ) : (
+                '—'
+              )}
             </div>
             <div className="px-3 py-1.5 flex items-center">
               {log.level ? (
