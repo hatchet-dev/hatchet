@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -45,7 +47,7 @@ type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
 	Actions    []string
-	MaxRuns    *int
+	Slots      *int
 	Labels     map[string]interface{}
 	WebhookId  *string
 }
@@ -268,9 +270,9 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.MaxRuns != nil {
-		mr := int32(*req.MaxRuns) // nolint: gosec
-		registerReq.MaxRuns = &mr
+	if req.Slots != nil {
+		mr := int32(*req.Slots) // nolint: gosec
+		registerReq.Slots = &mr
 	}
 
 	// register the worker
@@ -311,18 +313,20 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
 	go func() {
+		heartbeatInterval := 4 * time.Second
 		timer := time.NewTicker(100 * time.Millisecond)
 		defer timer.Stop()
 
 		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
 		lastHeartbeat := time.Now().Add(-5 * time.Second)
+		firstHeartbeat := true
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
+				if now := time.Now().UTC(); lastHeartbeat.Add(heartbeatInterval).Before(now) {
 					a.l.Debug().Msgf("updating worker %s heartbeat", a.workerId)
 
 					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
@@ -339,7 +343,21 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						}
 					}
 
-					lastHeartbeat = time.Now().UTC()
+					// detect heartbeat delays caused by CPU contention or other scheduling issues,
+					// but skip the first heartbeat since lastHeartbeat is artificially backdated
+					if !firstHeartbeat {
+						actualInterval := now.Sub(lastHeartbeat)
+						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
+						if actualInterval > heartbeatInterval+1*time.Second {
+							a.l.Warn().Msgf(
+								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
+								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
+							)
+						}
+					}
+
+					firstHeartbeat = false
+					lastHeartbeat = now
 				}
 			}
 		}
@@ -436,9 +454,9 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				JobId:               assignedAction.JobId,
 				JobName:             assignedAction.JobName,
 				JobRunId:            assignedAction.JobRunId,
-				StepId:              assignedAction.StepId,
-				StepName:            assignedAction.StepName,
-				StepRunId:           assignedAction.StepRunId,
+				StepId:              assignedAction.TaskId,
+				StepName:            assignedAction.TaskName,
+				StepRunId:           assignedAction.TaskRunExternalId,
 				ActionId:            assignedAction.ActionId,
 				ActionType:          actionType,
 				ActionPayload:       []byte(unquoted),
@@ -546,17 +564,17 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 	}
 
 	resp, err := d.client.SendStepActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.StepActionEvent{
-		WorkerId:       in.WorkerId,
-		JobId:          in.JobId,
-		JobRunId:       in.JobRunId,
-		StepId:         in.StepId,
-		StepRunId:      in.StepRunId,
-		ActionId:       in.ActionId,
-		EventTimestamp: timestamppb.New(*in.EventTimestamp),
-		EventType:      actionEventType,
-		EventPayload:   string(payloadBytes),
-		RetryCount:     &in.RetryCount,
-		ShouldNotRetry: in.ShouldNotRetry,
+		WorkerId:          in.WorkerId,
+		JobId:             in.JobId,
+		JobRunId:          in.JobRunId,
+		TaskId:            in.StepId,
+		TaskRunExternalId: in.StepRunId,
+		ActionId:          in.ActionId,
+		EventTimestamp:    timestamppb.New(*in.EventTimestamp),
+		EventType:         actionEventType,
+		EventPayload:      string(payloadBytes),
+		RetryCount:        &in.RetryCount,
+		ShouldNotRetry:    in.ShouldNotRetry,
 	})
 
 	if err != nil {
@@ -616,7 +634,7 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 
 func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
-		StepRunId: stepRunId,
+		TaskRunExternalId: stepRunId,
 	})
 
 	if err != nil {
@@ -628,7 +646,7 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 
 func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
 	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
-		StepRunId:          stepRunId,
+		TaskRunExternalId:  stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,
 	})
 

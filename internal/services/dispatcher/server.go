@@ -15,10 +15,13 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 )
 
 func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.WorkerRegisterRequest) (*contracts.WorkerRegisterResponse, error) {
@@ -50,8 +53,8 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	if request.MaxRuns != nil {
-		mr := int(*request.MaxRuns)
+	if request.Slots != nil {
+		mr := int(*request.Slots)
 		opts.MaxRuns = &mr
 	}
 
@@ -409,6 +412,33 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		}
 
 		return nil, err
+	}
+
+	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
+	// new worker is available
+	if !worker.LastHeartbeatAt.Valid || worker.LastHeartbeatAt.Time.Before(heartbeatAt.Add(-30*time.Second)) {
+		if tenant.SchedulerPartitionId.Valid {
+			go func() {
+				notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				msg, err := tasktypes.NotifyNewWorker(tenantId, worker.ID)
+
+				if err != nil {
+					s.l.Err(err).Msg("could not create message for notifying new worker")
+				} else {
+					err = s.mqv1.SendMessage(
+						notifyCtx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msg,
+					)
+
+					if err != nil {
+						s.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
+				}
+			}()
+		}
 	}
 
 	return &contracts.HeartbeatResponse{}, nil

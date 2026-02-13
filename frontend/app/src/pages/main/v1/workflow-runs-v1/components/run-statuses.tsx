@@ -1,5 +1,6 @@
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { CircleMinus } from 'lucide-react';
 
 function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
   switch (eventType) {
@@ -20,9 +21,15 @@ function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
 
 export function V1RunIndicator({
   status,
+  isSkipped,
 }: {
   status: V1TaskStatus | undefined;
+  isSkipped?: boolean;
 }) {
+  if (isSkipped) {
+    return <CircleMinus className="h-3 w-3 text-muted-foreground" />;
+  }
+
   const indicator = createV2IndicatorVariant(status);
 
   return <div className={cn(indicator, 'h-[6px] w-[6px] rounded-full')} />;
