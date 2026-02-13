@@ -6,6 +6,7 @@ from typing import overload
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hatchet_sdk.exceptions import HatchetConfigurationError
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
@@ -48,7 +49,6 @@ class HealthcheckConfig(BaseSettings):
     def validate_event_loop_block_threshold_seconds(
         cls, value: timedelta | int | float | str
     ) -> timedelta:
-        # Settings env vars are strings; interpret as seconds.
         if isinstance(value, timedelta):
             return value
 
@@ -56,7 +56,6 @@ class HealthcheckConfig(BaseSettings):
             return timedelta(seconds=float(value))
 
         v = value.strip()
-        # Allow a small convenience suffix, but keep "seconds" as the contract.
         if v.endswith("s"):
             v = v[:-1].strip()
 
@@ -138,11 +137,15 @@ class ClientConfig(BaseSettings):
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
         if not self.token:
-            raise ValueError("Token must be set")
+            raise HatchetConfigurationError(
+                "HATCHET_CLIENT_TOKEN must be set. "
+                "Provide it via environment variable or pass token=... to ClientConfig."
+            )
 
         if not self.token.startswith("ey"):
-            raise ValueError(
-                f"Token must be a valid JWT. Hint: These are the first few characters of the token provided: {self.token[:5]}"
+            raise HatchetConfigurationError(
+                "HATCHET_CLIENT_TOKEN must be a valid JWT. "
+                f"Received token starting with: '{self.token[:5]}...'"
             )
 
         if not self.tenant_id:
@@ -152,8 +155,6 @@ class ClientConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_addresses(self) -> "ClientConfig":
-        ## If nothing is set, read from the token
-        ## If either is set, override what's in the JWT
         server_url_from_jwt, grpc_broadcast_address_from_jwt = get_addresses_from_jwt(
             self.token
         )
