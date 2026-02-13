@@ -3,6 +3,7 @@ import {
   V1CreateWebhookRequestBase,
   V1UpdateWebhookRequest,
   V1Webhook,
+  V1WebhookAuthType,
   V1WebhookList,
   V1WebhookSourceName,
   V1WebhookAPIKeyAuth,
@@ -15,20 +16,18 @@ export type CreateWebhookOptions = V1CreateWebhookRequestBase & {
   auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth;
 };
 
-type WebhookAuthType = 'BASIC' | 'API_KEY' | 'HMAC';
-
 function getAuthType(
   auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth
-): WebhookAuthType {
-  if ('username' in auth && 'password' in auth) return 'BASIC';
-  if ('headerName' in auth && 'apiKey' in auth) return 'API_KEY';
+): V1WebhookAuthType {
+  if ('username' in auth && 'password' in auth) return V1WebhookAuthType.BASIC;
+  if ('headerName' in auth && 'apiKey' in auth) return V1WebhookAuthType.API_KEY;
   if (
     'signingSecret' in auth &&
     'signatureHeaderName' in auth &&
     'algorithm' in auth &&
     'encoding' in auth
   ) {
-    return 'HMAC';
+    return V1WebhookAuthType.HMAC;
   }
   throw new Error('Invalid webhook auth');
 }

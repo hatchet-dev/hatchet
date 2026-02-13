@@ -25,6 +25,7 @@ from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
 )
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
@@ -46,13 +47,13 @@ class CreateWebhookRequest(V1CreateWebhookRequestBase):
             | None
         ) = None
         if isinstance(self.auth, V1WebhookBasicAuth):
-            payload["authType"] = "BASIC"
+            payload["authType"] = V1WebhookAuthType.BASIC
             request_payload = V1CreateWebhookRequestBasicAuth.from_dict(payload)
         elif isinstance(self.auth, V1WebhookAPIKeyAuth):
-            payload["authType"] = "API_KEY"
+            payload["authType"] = V1WebhookAuthType.API_KEY
             request_payload = V1CreateWebhookRequestAPIKey.from_dict(payload)
         else:
-            payload["authType"] = "HMAC"
+            payload["authType"] = V1WebhookAuthType.HMAC
             request_payload = V1CreateWebhookRequestHMAC.from_dict(payload)
         if request_payload is None:
             raise ValueError("failed to build create webhook request from payload")
