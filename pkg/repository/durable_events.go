@@ -317,11 +317,13 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	task := opts.Task
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
 	}
-	defer rollback()
+	defer optTx.Rollback()
+
+	tx := optTx.tx
 
 	// take a lock of the log file so nothing else can concurrently write to it and e.g. increment the node id or branch
 	// id while this tx is running
@@ -507,7 +509,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				return nil, fmt.Errorf("failed to create trigger options: %w", err)
 			}
 
-			createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, tx, opts.TenantId, []*WorkflowNameTriggerOpts{triggerOpt})
+			createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, optTx, opts.TenantId, []*WorkflowNameTriggerOpts{triggerOpt})
 
 			if err != nil {
 				return nil, fmt.Errorf("failed to trigger workflows: %w", err)
@@ -589,7 +591,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to update latest node id: %w", err)
 	}
 
-	if err := commit(ctx); err != nil {
+	if err := optTx.Commit(ctx); err != nil {
 		return nil, err
 	}
 

@@ -332,18 +332,36 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 	return eventExternalIdToRuns
 }
 
-func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx, tenantId, opts)
+func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	return s.triggerWorkflows(ctx, nil, tenantId, triggerOpts, nil)
+	return s.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	return r.triggerFromWorkflowNames(ctx, r.pool, tenantId, opts)
+	tx, err := r.PrepareOptimisticTx(ctx)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
+	}
+
+	defer tx.Rollback()
+
+	tasks, dags, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	return tasks, dags, nil
 }
 
 type ErrNamesNotFound struct {
