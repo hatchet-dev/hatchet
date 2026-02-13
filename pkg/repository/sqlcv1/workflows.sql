@@ -322,6 +322,7 @@ SELECT
     unnest(@units::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
+-- NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
 ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING;
 
 -- name: AddStepParents :exec

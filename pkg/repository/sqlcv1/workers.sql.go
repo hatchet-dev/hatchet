@@ -117,6 +117,7 @@ type CreateWorkerSlotConfigsParams struct {
 	Maxunits  []int32   `json:"maxunits"`
 }
 
+// NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
 func (q *Queries) CreateWorkerSlotConfigs(ctx context.Context, db DBTX, arg CreateWorkerSlotConfigsParams) error {
 	_, err := db.Exec(ctx, createWorkerSlotConfigs,
 		arg.Tenantid,

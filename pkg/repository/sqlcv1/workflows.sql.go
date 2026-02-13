@@ -474,6 +474,7 @@ type CreateStepSlotRequestsParams struct {
 	Units     []int32   `json:"units"`
 }
 
+// NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
 func (q *Queries) CreateStepSlotRequests(ctx context.Context, db DBTX, arg CreateStepSlotRequestsParams) error {
 	_, err := db.Exec(ctx, createStepSlotRequests,
 		arg.Tenantid,
