@@ -36,7 +36,8 @@ SELECT
     unnest(@slotTypes::text[]),
     unnest(@maxUnits::integer[]),
     CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP;
+    CURRENT_TIMESTAMP
+ON CONFLICT (tenant_id, worker_id, slot_type) DO NOTHING;
 
 -- name: ListAvailableSlotsForWorkers :many
 WITH worker_capacities AS (

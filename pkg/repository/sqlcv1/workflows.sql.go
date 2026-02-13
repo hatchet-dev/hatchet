@@ -464,6 +464,7 @@ SELECT
     unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
+ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING
 `
 
 type CreateStepSlotRequestsParams struct {

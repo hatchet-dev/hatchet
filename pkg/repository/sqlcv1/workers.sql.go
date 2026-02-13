@@ -107,6 +107,7 @@ SELECT
     unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
+ON CONFLICT (tenant_id, worker_id, slot_type) DO NOTHING
 `
 
 type CreateWorkerSlotConfigsParams struct {

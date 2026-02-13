@@ -322,7 +322,7 @@ SELECT
     unnest(@units::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-;
+ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING;
 
 -- name: AddStepParents :exec
 INSERT INTO "_StepOrder" ("A", "B")
