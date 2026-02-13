@@ -171,6 +171,8 @@ type TenantRepository interface {
 	RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error
 
 	DeleteTenant(ctx context.Context, id uuid.UUID) error
+
+	GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error)
 }
 
 type tenantRepository struct {
@@ -788,6 +790,10 @@ func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Cont
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
 	return r.queries.DeleteTenant(ctx, r.pool, id)
+}
+
+func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error) {
+	return r.queries.GetTenantUsageData(ctx, r.pool, tenantId)
 }
 
 func getPartitionName() pgtype.Text {
