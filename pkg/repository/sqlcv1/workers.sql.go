@@ -107,7 +107,9 @@ SELECT
     unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-ON CONFLICT (tenant_id, worker_id, slot_type) DO NOTHING
+ON CONFLICT (tenant_id, worker_id, slot_type) DO UPDATE SET
+    max_units = EXCLUDED.max_units,
+    updated_at = CURRENT_TIMESTAMP
 `
 
 type CreateWorkerSlotConfigsParams struct {
