@@ -35,6 +35,9 @@ export class Worker {
   /** Set when connected to a legacy engine that needs dual-worker architecture */
   private _legacyWorker: LegacyDualWorker | undefined;
 
+  /** Tracks all workflows registered after construction (via registerWorkflow/registerWorkflows) */
+  private _registeredWorkflows: Array<BaseWorkflowDeclaration<any, any> | V0Workflow> = [];
+
   /**
    * Creates a new HatchetWorker instance
    * @param nonDurable - The V0 worker implementation
@@ -84,6 +87,8 @@ export class Worker {
    */
   async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>) {
     for (const wf of workflows || []) {
+      this._registeredWorkflows.push(wf);
+
       if (wf instanceof BaseWorkflowDeclaration) {
         // TODO check if tenant is V1
         await this._internal.registerWorkflowV1(wf);
@@ -115,7 +120,15 @@ export class Worker {
   async start() {
     // Check engine version and fall back to legacy dual-worker mode if needed
     if (await isLegacyEngine(this._v1)) {
-      this._legacyWorker = await LegacyDualWorker.create(this._v1, this.name, this.config);
+      // Include workflows registered after construction (via registerWorkflow/registerWorkflows)
+      // so the legacy worker picks them up.
+      const legacyConfig: CreateWorkerOpts = {
+        ...this.config,
+        workflows: this._registeredWorkflows.length
+          ? (this._registeredWorkflows as BaseWorkflowDeclaration<any, any>[])
+          : this.config.workflows,
+      };
+      this._legacyWorker = await LegacyDualWorker.create(this._v1, this.name, legacyConfig);
       return this._legacyWorker.start();
     }
     return this._internal.start();
