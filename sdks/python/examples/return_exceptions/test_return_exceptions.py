@@ -2,7 +2,13 @@ import asyncio
 
 import pytest
 
-from examples.return_exceptions.worker import Input, return_exceptions_task
+from examples.return_exceptions.worker import (
+    Input,
+    exception_parsing_workflow,
+    return_exceptions_task,
+)
+from hatchet_sdk.exceptions import TaskRunError
+from hatchet_sdk.runnables.types import EmptyModel
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -38,3 +44,18 @@ def test_return_exceptions_sync() -> None:
             assert f"error in task with index {i}" in str(result)
         else:
             assert result == {"message": "this is a successful task."}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_exceptions_parsing() -> None:
+    try:
+        await exception_parsing_workflow.aio_run(
+            EmptyModel(),
+        )
+        pytest.fail("Workflow run should have raised an exception")
+    except* Exception as e:
+        for exception in e.exceptions:
+            assert isinstance(exception, TaskRunError)
+            # Test that we don't get empty error messages
+            assert exception.serialize(include_metadata=True)
+            assert exception.serialize(include_metadata=False)
