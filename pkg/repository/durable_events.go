@@ -14,41 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-type CreateEventLogFileOpts struct {
-	TenantId                      uuid.UUID
-	DurableTaskId                 int64
-	DurableTaskInsertedAt         pgtype.Timestamptz
-	LatestInsertedAt              pgtype.Timestamptz
-	LatestNodeId                  int64
-	LatestBranchId                int64
-	LatestBranchFirstParentNodeId int64
-}
-
-type CreateEventLogEntryOpts struct {
-	TenantId               uuid.UUID
-	ExternalId             uuid.UUID
-	DurableTaskId          int64
-	DurableTaskInsertedAt  pgtype.Timestamptz
-	InsertedAt             pgtype.Timestamptz
-	Kind                   sqlcv1.V1DurableEventLogKind
-	NodeId                 int64
-	ParentNodeId           int64
-	BranchId               int64
-	Data                   []byte
-	TriggeredRunExternalId *uuid.UUID
-}
-
-type CreateEventLogCallbackOpts struct {
-	TenantId              uuid.UUID
-	DurableTaskId         int64
-	DurableTaskInsertedAt pgtype.Timestamptz
-	InsertedAt            pgtype.Timestamptz
-	ExternalId            uuid.UUID
-	Kind                  sqlcv1.V1DurableEventLogKind
-	NodeId                int64
-	IsSatisfied           bool
-	DispatcherId          uuid.UUID
-}
 
 type EventLogCallbackWithPayload struct {
 	Callback       *sqlcv1.V1DurableEventLogCallback
