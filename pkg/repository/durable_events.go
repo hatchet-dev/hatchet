@@ -402,13 +402,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
 	}
 
-	var kind sqlcv1.V1DurableEventLogKind
 	var callbackPayload []byte
 	isSatisfied := false
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
-		// do nothing
 	case sqlcv1.V1DurableEventLogKindRUN:
 		// do nothing
 	case sqlcv1.V1DurableEventLogKindMEMO:
@@ -428,7 +426,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
 			Insertedat:            now,
-			Kind:                  kind,
+			Kind:                  opts.Kind,
 			Nodeid:                nodeId,
 			Issatisfied:           isSatisfied,
 			Externalid:            uuid.New(),
