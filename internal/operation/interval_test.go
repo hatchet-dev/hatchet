@@ -6,12 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/stretchr/testify/assert"
 )
 
+var testResourceID = uuid.New().String()
+
 func TestInterval_RunInterval_BasicTiming(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       0,
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
@@ -44,6 +48,7 @@ func TestInterval_RunInterval_BasicTiming(t *testing.T) {
 
 func TestInterval_RunInterval_WithJitter(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       20 * time.Millisecond,
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
@@ -82,6 +87,7 @@ func TestInterval_RunInterval_WithJitter(t *testing.T) {
 
 func TestInterval_RunInterval_ContextCancellation(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       0,
 		startInterval:   100 * time.Millisecond,
 		currInterval:    100 * time.Millisecond,
@@ -106,6 +112,7 @@ func TestInterval_RunInterval_ContextCancellation(t *testing.T) {
 
 func TestInterval_SetIntervalGauge_ResetOnRowsModified(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       0,
 		startInterval:   50 * time.Millisecond,
 		currInterval:    200 * time.Millisecond,
@@ -123,6 +130,7 @@ func TestInterval_SetIntervalGauge_ResetOnRowsModified(t *testing.T) {
 
 func TestInterval_SetIntervalGauge_BackoffMechanism(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       0,
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
@@ -152,6 +160,7 @@ func TestInterval_SetIntervalGauge_BackoffMechanism(t *testing.T) {
 
 func TestInterval_SetIntervalGauge_ConcurrentAccess(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       0,
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
@@ -186,6 +195,7 @@ func TestInterval_SetIntervalGauge_ConcurrentAccess(t *testing.T) {
 
 func TestInterval_GetNextTrigger_ReturnsChannel(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       10 * time.Millisecond,
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,
@@ -207,6 +217,7 @@ func TestInterval_GetNextTrigger_ReturnsChannel(t *testing.T) {
 
 func TestInterval_GetNextTrigger_ConcurrentAccess(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       5 * time.Millisecond,
 		startInterval:   20 * time.Millisecond,
 		currInterval:    20 * time.Millisecond,
@@ -241,6 +252,7 @@ func TestInterval_GetNextTrigger_ConcurrentAccess(t *testing.T) {
 
 func TestInterval_RunInterval_Integration(t *testing.T) {
 	interval := &Interval{
+		resourceId:      testResourceID,
 		maxJitter:       10 * time.Millisecond,
 		startInterval:   50 * time.Millisecond,
 		currInterval:    50 * time.Millisecond,

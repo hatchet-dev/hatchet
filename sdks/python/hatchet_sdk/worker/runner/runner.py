@@ -367,18 +367,18 @@ class Runner:
 
     @overload
     def create_context(
-        self, action: Action, max_attempts: int, is_durable: Literal[True] = True
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[True] = True
     ) -> DurableContext: ...
 
     @overload
     def create_context(
-        self, action: Action, max_attempts: int, is_durable: Literal[False] = False
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[False] = False
     ) -> Context: ...
 
     def create_context(
         self,
         action: Action,
-        max_attempts: int,
+        task: Task[Any, Any],
         is_durable: bool = True,
     ) -> Context | DurableContext:
         constructor = DurableContext if is_durable else Context
@@ -393,7 +393,9 @@ class Runner:
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
             log_sender=self.log_sender,
-            max_attempts=max_attempts,
+            max_attempts=task.retries + 1,
+            task_name=task.name,
+            workflow_name=task.workflow.name,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -406,7 +408,7 @@ class Runner:
         if action_func:
             context = self.create_context(
                 action=action,
-                max_attempts=action_func.retries + 1,
+                task=action_func,
                 is_durable=True if action_func.is_durable else False,  # noqa: SIM210
             )
 
@@ -415,7 +417,7 @@ class Runner:
                 ActionEvent(
                     action=action,
                     type=STEP_EVENT_TYPE_STARTED,
-                    payload="",
+                    payload=None,
                     should_not_retry=False,
                 )
             )
@@ -503,9 +505,9 @@ class Runner:
         finally:
             self.cleanup_run_id(key)
 
-    def serialize_output(self, output: Any) -> str:
+    def serialize_output(self, output: Any) -> str | None:
         if not output:
-            return ""
+            return None
 
         if isinstance(output, BaseModel):
             try:
@@ -527,7 +529,7 @@ class Runner:
             )
 
         if output is None:
-            return ""
+            return None
 
         try:
             serialized_output = json.dumps(output, default=str)
@@ -538,18 +540,14 @@ class Runner:
             ) from e
 
         if "\\u0000" in serialized_output:
-            raise IllegalTaskOutputError(
-                dedent(
-                    f"""
+            raise IllegalTaskOutputError(dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """
-                )
-            )
+                """))
 
         return serialized_output
 

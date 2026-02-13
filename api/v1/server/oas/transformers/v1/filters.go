@@ -3,7 +3,6 @@ package transformers
 import (
 	"math"
 
-	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -25,7 +24,7 @@ func ToV1Filter(filter *sqlcv1.V1Filter) gen.V1Filter {
 		Payload:       payload,
 		Scope:         filter.Scope,
 		TenantId:      filter.TenantID.String(),
-		WorkflowId:    uuid.MustParse(filter.WorkflowID.String()),
+		WorkflowId:    filter.WorkflowID,
 		IsDeclarative: &filter.IsDeclarative,
 	}
 }

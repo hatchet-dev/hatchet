@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -46,11 +47,11 @@ INSERT INTO "Worker" (
 `
 
 type CreateWorkerParams struct {
-	Tenantid        pgtype.UUID    `json:"tenantid"`
+	Tenantid        uuid.UUID      `json:"tenantid"`
 	Name            string         `json:"name"`
-	Dispatcherid    pgtype.UUID    `json:"dispatcherid"`
+	Dispatcherid    uuid.UUID      `json:"dispatcherid"`
 	MaxRuns         pgtype.Int4    `json:"maxRuns"`
-	WebhookId       pgtype.UUID    `json:"webhookId"`
+	WebhookId       *uuid.UUID     `json:"webhookId"`
 	Type            NullWorkerType `json:"type"`
 	SdkVersion      pgtype.Text    `json:"sdkVersion"`
 	Language        NullWorkerSDKS `json:"language"`
@@ -131,7 +132,7 @@ RETURNING
 `
 
 type DeleteOldWorkersParams struct {
-	Tenantid            pgtype.UUID      `json:"tenantid"`
+	Tenantid            uuid.UUID        `json:"tenantid"`
 	Lastheartbeatbefore pgtype.Timestamp `json:"lastheartbeatbefore"`
 	Limit               interface{}      `json:"limit"`
 }
@@ -151,7 +152,7 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
-func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*Worker, error) {
+func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Worker, error) {
 	row := db.QueryRow(ctx, deleteWorker, id)
 	var i Worker
 	err := row.Scan(
@@ -178,6 +179,70 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 	return &i, err
 }
 
+const getActiveWorkerById = `-- name: GetActiveWorkerById :one
+SELECT
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
+    ww."url" AS "webhookUrl",
+    w."maxRuns" - (
+        SELECT COUNT(*)
+        FROM v1_task_runtime runtime
+        WHERE
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
+    ) AS "remainingSlots"
+FROM
+    "Worker" w
+LEFT JOIN
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
+WHERE
+    w."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+`
+
+type GetActiveWorkerByIdParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
+
+type GetActiveWorkerByIdRow struct {
+	Worker         Worker      `json:"worker"`
+	WebhookUrl     pgtype.Text `json:"webhookUrl"`
+	RemainingSlots int32       `json:"remainingSlots"`
+}
+
+func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiveWorkerByIdParams) (*GetActiveWorkerByIdRow, error) {
+	row := db.QueryRow(ctx, getActiveWorkerById, arg.ID, arg.Tenantid)
+	var i GetActiveWorkerByIdRow
+	err := row.Scan(
+		&i.Worker.ID,
+		&i.Worker.CreatedAt,
+		&i.Worker.UpdatedAt,
+		&i.Worker.DeletedAt,
+		&i.Worker.TenantId,
+		&i.Worker.LastHeartbeatAt,
+		&i.Worker.Name,
+		&i.Worker.DispatcherId,
+		&i.Worker.MaxRuns,
+		&i.Worker.IsActive,
+		&i.Worker.LastListenerEstablished,
+		&i.Worker.IsPaused,
+		&i.Worker.Type,
+		&i.Worker.WebhookId,
+		&i.Worker.Language,
+		&i.Worker.LanguageVersion,
+		&i.Worker.Os,
+		&i.Worker.RuntimeExtra,
+		&i.Worker.SdkVersion,
+		&i.WebhookUrl,
+		&i.RemainingSlots,
+	)
+	return &i, err
+}
+
 const getWorkerActionsByWorkerId = `-- name: GetWorkerActionsByWorkerId :many
 WITH inputs AS (
     SELECT UNNEST($2::UUID[]) AS "workerId"
@@ -195,12 +260,12 @@ WHERE
 `
 
 type GetWorkerActionsByWorkerIdParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
 }
 
 type GetWorkerActionsByWorkerIdRow struct {
-	WorkerId pgtype.UUID `json:"workerId"`
+	WorkerId uuid.UUID   `json:"workerId"`
 	Actionid pgtype.Text `json:"actionid"`
 }
 
@@ -249,7 +314,7 @@ type GetWorkerByIdRow struct {
 	RemainingSlots int32       `json:"remainingSlots"`
 }
 
-func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkerByIdRow, error) {
+func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkerByIdRow, error) {
 	row := db.QueryRow(ctx, getWorkerById, id)
 	var i GetWorkerByIdRow
 	err := row.Scan(
@@ -283,6 +348,7 @@ SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
     w."dispatcherId" AS "dispatcherId",
+    w."lastHeartbeatAt" AS "lastHeartbeatAt",
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
     w."lastListenerEstablished" AS "lastListenerEstablished"
@@ -296,14 +362,15 @@ WHERE
 `
 
 type GetWorkerForEngineParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
 }
 
 type GetWorkerForEngineRow struct {
-	ID                        pgtype.UUID      `json:"id"`
-	TenantId                  pgtype.UUID      `json:"tenantId"`
-	DispatcherId              pgtype.UUID      `json:"dispatcherId"`
+	ID                        uuid.UUID        `json:"id"`
+	TenantId                  uuid.UUID        `json:"tenantId"`
+	DispatcherId              *uuid.UUID       `json:"dispatcherId"`
+	LastHeartbeatAt           pgtype.Timestamp `json:"lastHeartbeatAt"`
 	DispatcherLastHeartbeatAt pgtype.Timestamp `json:"dispatcherLastHeartbeatAt"`
 	IsActive                  bool             `json:"isActive"`
 	LastListenerEstablished   pgtype.Timestamp `json:"lastListenerEstablished"`
@@ -316,6 +383,7 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 		&i.ID,
 		&i.TenantId,
 		&i.DispatcherId,
+		&i.LastHeartbeatAt,
 		&i.DispatcherLastHeartbeatAt,
 		&i.IsActive,
 		&i.LastListenerEstablished,
@@ -338,8 +406,8 @@ WHERE
 `
 
 type GetWorkerWorkflowsByWorkerIdParams struct {
-	Workerid pgtype.UUID `json:"workerid"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Workerid uuid.UUID `json:"workerid"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) GetWorkerWorkflowsByWorkerId(ctx context.Context, db DBTX, arg GetWorkerWorkflowsByWorkerIdParams) ([]*Workflow, error) {
@@ -382,8 +450,8 @@ ON CONFLICT DO NOTHING
 `
 
 type LinkActionsToWorkerParams struct {
-	Actionids []pgtype.UUID `json:"actionids"`
-	Workerid  pgtype.UUID   `json:"workerid"`
+	Actionids []uuid.UUID `json:"actionids"`
+	Workerid  uuid.UUID   `json:"workerid"`
 }
 
 func (q *Queries) LinkActionsToWorker(ctx context.Context, db DBTX, arg LinkActionsToWorkerParams) error {
@@ -404,8 +472,8 @@ ON CONFLICT DO NOTHING
 `
 
 type LinkServicesToWorkerParams struct {
-	Services []pgtype.UUID `json:"services"`
-	Workerid pgtype.UUID   `json:"workerid"`
+	Services []uuid.UUID `json:"services"`
+	Workerid uuid.UUID   `json:"workerid"`
 }
 
 func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkServicesToWorkerParams) error {
@@ -431,12 +499,12 @@ GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
 `
 
 type ListActiveSDKsPerTenantRow struct {
-	TenantId        pgtype.UUID `json:"tenantId"`
-	Language        string      `json:"language"`
-	LanguageVersion string      `json:"languageVersion"`
-	SdkVersion      string      `json:"sdkVersion"`
-	Os              string      `json:"os"`
-	Count           int64       `json:"count"`
+	TenantId        uuid.UUID `json:"tenantId"`
+	Language        string    `json:"language"`
+	LanguageVersion string    `json:"languageVersion"`
+	SdkVersion      string    `json:"sdkVersion"`
+	Os              string    `json:"os"`
+	Count           int64     `json:"count"`
 }
 
 func (q *Queries) ListActiveSDKsPerTenant(ctx context.Context, db DBTX) ([]*ListActiveSDKsPerTenantRow, error) {
@@ -478,8 +546,8 @@ GROUP BY "tenantId"
 `
 
 type ListActiveWorkersPerTenantRow struct {
-	TenantId pgtype.UUID `json:"tenantId"`
-	Count    int64       `json:"count"`
+	TenantId uuid.UUID `json:"tenantId"`
+	Count    int64     `json:"count"`
 }
 
 func (q *Queries) ListActiveWorkersPerTenant(ctx context.Context, db DBTX) ([]*ListActiveWorkersPerTenantRow, error) {
@@ -514,13 +582,13 @@ WHERE
 `
 
 type ListDispatcherIdsForWorkersParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
 }
 
 type ListDispatcherIdsForWorkersRow struct {
-	WorkerId     pgtype.UUID `json:"workerId"`
-	DispatcherId pgtype.UUID `json:"dispatcherId"`
+	WorkerId     uuid.UUID  `json:"workerId"`
+	DispatcherId *uuid.UUID `json:"dispatcherId"`
 }
 
 func (q *Queries) ListDispatcherIdsForWorkers(ctx context.Context, db DBTX, arg ListDispatcherIdsForWorkersParams) ([]*ListDispatcherIdsForWorkersRow, error) {
@@ -563,10 +631,10 @@ type ListManyWorkerLabelsRow struct {
 	StrValue  pgtype.Text      `json:"strValue"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	WorkerId  pgtype.UUID      `json:"workerId"`
+	WorkerId  uuid.UUID        `json:"workerId"`
 }
 
-func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids []pgtype.UUID) ([]*ListManyWorkerLabelsRow, error) {
+func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids []uuid.UUID) ([]*ListManyWorkerLabelsRow, error) {
 	rows, err := db.Query(ctx, listManyWorkerLabels, workerids)
 	if err != nil {
 		return nil, err
@@ -609,8 +677,8 @@ LIMIT
 `
 
 type ListSemaphoreSlotsWithStateForWorkerParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Workerid uuid.UUID   `json:"workerid"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
@@ -618,25 +686,25 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	TaskID                       int64              `json:"task_id"`
 	TaskInsertedAt               pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount                   int32              `json:"retry_count"`
-	WorkerID                     pgtype.UUID        `json:"worker_id"`
-	TenantID                     pgtype.UUID        `json:"tenant_id"`
+	WorkerID                     *uuid.UUID         `json:"worker_id"`
+	TenantID                     uuid.UUID          `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
-	TenantID_2                   pgtype.UUID        `json:"tenant_id_2"`
+	TenantID_2                   uuid.UUID          `json:"tenant_id_2"`
 	Queue                        string             `json:"queue"`
 	ActionID                     string             `json:"action_id"`
-	StepID                       pgtype.UUID        `json:"step_id"`
+	StepID                       uuid.UUID          `json:"step_id"`
 	StepReadableID               string             `json:"step_readable_id"`
-	WorkflowID                   pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID            pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID                pgtype.UUID        `json:"workflow_run_id"`
+	WorkflowID                   uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID            uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID                uuid.UUID          `json:"workflow_run_id"`
 	ScheduleTimeout              string             `json:"schedule_timeout"`
 	StepTimeout                  pgtype.Text        `json:"step_timeout"`
 	Priority                     pgtype.Int4        `json:"priority"`
 	Sticky                       V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID              pgtype.UUID        `json:"desired_worker_id"`
-	ExternalID                   pgtype.UUID        `json:"external_id"`
+	DesiredWorkerID              *uuid.UUID         `json:"desired_worker_id"`
+	ExternalID                   uuid.UUID          `json:"external_id"`
 	DisplayName                  string             `json:"display_name"`
 	Input                        []byte             `json:"input"`
 	RetryCount_2                 int32              `json:"retry_count_2"`
@@ -646,7 +714,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	AdditionalMetadata           []byte             `json:"additional_metadata"`
 	DagID                        pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt                pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskExternalID         pgtype.UUID        `json:"parent_task_external_id"`
+	ParentTaskExternalID         *uuid.UUID         `json:"parent_task_external_id"`
 	ParentTaskID                 pgtype.Int8        `json:"parent_task_id"`
 	ParentTaskInsertedAt         pgtype.Timestamptz `json:"parent_task_inserted_at"`
 	ChildIndex                   pgtype.Int8        `json:"child_index"`
@@ -736,8 +804,8 @@ GROUP BY "tenantId"
 `
 
 type ListTotalActiveSlotsPerTenantRow struct {
-	TenantId         pgtype.UUID `json:"tenantId"`
-	TotalActiveSlots int64       `json:"totalActiveSlots"`
+	TenantId         uuid.UUID `json:"tenantId"`
+	TotalActiveSlots int64     `json:"totalActiveSlots"`
 }
 
 func (q *Queries) ListTotalActiveSlotsPerTenant(ctx context.Context, db DBTX) ([]*ListTotalActiveSlotsPerTenantRow, error) {
@@ -781,7 +849,7 @@ type ListWorkerLabelsRow struct {
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 }
 
-func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*ListWorkerLabelsRow, error) {
+func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.UUID) ([]*ListWorkerLabelsRow, error) {
 	rows, err := db.Query(ctx, listWorkerLabels, workerid)
 	if err != nil {
 		return nil, err
@@ -853,7 +921,7 @@ GROUP BY
 `
 
 type ListWorkersWithSlotCountParams struct {
-	Tenantid           pgtype.UUID      `json:"tenantid"`
+	Tenantid           uuid.UUID        `json:"tenantid"`
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
@@ -862,7 +930,7 @@ type ListWorkersWithSlotCountParams struct {
 type ListWorkersWithSlotCountRow struct {
 	Worker         Worker      `json:"worker"`
 	WebhookUrl     pgtype.Text `json:"webhookUrl"`
-	WebhookId      pgtype.UUID `json:"webhookId"`
+	WebhookId      *uuid.UUID  `json:"webhookId"`
 	RemainingSlots int32       `json:"remainingSlots"`
 }
 
@@ -930,12 +998,12 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatA
 `
 
 type UpdateWorkerParams struct {
-	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
+	DispatcherId    *uuid.UUID       `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	IsActive        pgtype.Bool      `json:"isActive"`
 	IsPaused        pgtype.Bool      `json:"isPaused"`
-	ID              pgtype.UUID      `json:"id"`
+	ID              uuid.UUID        `json:"id"`
 }
 
 func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerParams) (*Worker, error) {
@@ -989,7 +1057,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatA
 type UpdateWorkerActiveStatusParams struct {
 	Isactive                bool             `json:"isactive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
-	ID                      pgtype.UUID      `json:"id"`
+	ID                      uuid.UUID        `json:"id"`
 }
 
 func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg UpdateWorkerActiveStatusParams) (*Worker, error) {
@@ -1032,7 +1100,7 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatA
 
 type UpdateWorkerHeartbeatParams struct {
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	ID              pgtype.UUID      `json:"id"`
+	ID              uuid.UUID        `json:"id"`
 }
 
 func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg UpdateWorkerHeartbeatParams) (*Worker, error) {
@@ -1086,8 +1154,8 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", name, description, "tenantI
 `
 
 type UpsertServiceParams struct {
-	Name     string      `json:"name"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Name     string    `json:"name"`
+	Tenantid uuid.UUID `json:"tenantid"`
 }
 
 func (q *Queries) UpsertService(ctx context.Context, db DBTX, arg UpsertServiceParams) (*Service, error) {
@@ -1129,7 +1197,7 @@ RETURNING id, "createdAt", "updatedAt", "workerId", key, "strValue", "intValue"
 `
 
 type UpsertWorkerLabelParams struct {
-	Workerid pgtype.UUID `json:"workerid"`
+	Workerid uuid.UUID   `json:"workerid"`
 	Key      string      `json:"key"`
 	IntValue pgtype.Int4 `json:"intValue"`
 	StrValue pgtype.Text `json:"strValue"`

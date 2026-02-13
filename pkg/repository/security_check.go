@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 type SecurityCheckRepository interface {
@@ -27,5 +25,5 @@ func (a *securityCheckRepository) GetIdent() (string, error) {
 		return "", err
 	}
 
-	return sqlchelpers.UUIDToStr(id), nil
+	return id.String(), nil
 }

@@ -296,6 +296,7 @@ const (
 	LINEAR  V1WebhookSourceName = "LINEAR"
 	SLACK   V1WebhookSourceName = "SLACK"
 	STRIPE  V1WebhookSourceName = "STRIPE"
+	SVIX    V1WebhookSourceName = "SVIX"
 )
 
 // Defines values for V1WorkflowType.
@@ -1452,8 +1453,14 @@ type V1CreateWebhookRequestAPIKey struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestAPIKeyAuthType The type of authentication to use for the webhook
@@ -1465,8 +1472,14 @@ type V1CreateWebhookRequestBase struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestBasicAuth defines model for V1CreateWebhookRequestBasicAuth.
@@ -1480,8 +1493,14 @@ type V1CreateWebhookRequestBasicAuth struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestBasicAuthAuthType The type of authentication to use for the webhook
@@ -1498,8 +1517,14 @@ type V1CreateWebhookRequestHMAC struct {
 	EventKeyExpression string `json:"eventKeyExpression"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1CreateWebhookRequestHMACAuthType The type of authentication to use for the webhook
@@ -1869,6 +1894,12 @@ type V1UpdateFilterRequest struct {
 type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string `json:"scopeExpression,omitempty"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
 // V1Webhook defines model for V1Webhook.
@@ -1880,8 +1911,14 @@ type V1Webhook struct {
 	Metadata           APIResourceMeta `json:"metadata"`
 
 	// Name The name of the webhook
-	Name       string              `json:"name"`
-	SourceName V1WebhookSourceName `json:"sourceName"`
+	Name string `json:"name"`
+
+	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
+	ScopeExpression *string             `json:"scopeExpression,omitempty"`
+	SourceName      V1WebhookSourceName `json:"sourceName"`
+
+	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
+	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 
 	// TenantId The ID of the tenant associated with this webhook.
 	TenantId string `json:"tenantId"`

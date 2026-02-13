@@ -6,13 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -23,7 +22,7 @@ const rateLimitedRequeueAfterThreshold = 2 * time.Second
 // This is tenant-scoped, so each tenant will have its own scheduler.
 type Scheduler struct {
 	repo     v1.AssignmentRepository
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	l *zerolog.Logger
 
@@ -32,7 +31,7 @@ type Scheduler struct {
 	replenishMu mutex
 
 	workersMu mutex
-	workers   map[string]*worker
+	workers   map[uuid.UUID]*worker
 
 	assignedCount   int
 	assignedCountMu mutex
@@ -46,8 +45,8 @@ type Scheduler struct {
 	exts *Extensions
 }
 
-func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
-	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
+func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
+	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
 		repo:            cf.repo.Assignment(),
@@ -58,6 +57,7 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts 
 		rl:              rl,
 		actionsMu:       newRWMu(cf.l),
 		replenishMu:     newMu(cf.l),
+		workers:         map[uuid.UUID]*worker{},
 		workersMu:       newMu(cf.l),
 		assignedCountMu: newMu(cf.l),
 		unackedMu:       newMu(cf.l),
@@ -93,7 +93,7 @@ func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
-	newWorkers := make(map[string]*worker, len(workers))
+	newWorkers := make(map[uuid.UUID]*worker, len(workers))
 
 	for i := range workers {
 		newWorkers[workers[i].ID] = &worker{
@@ -104,11 +104,26 @@ func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 	s.workers = newWorkers
 }
 
-func (s *Scheduler) getWorkers() map[string]*worker {
+func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
-	return s.workers
+	s.workers[newWorker.ID] = &worker{
+		ListActiveWorkersResult: newWorker,
+	}
+}
+
+func (s *Scheduler) copyWorkers() map[uuid.UUID]*worker {
+	s.workersMu.Lock()
+	defer s.workersMu.Unlock()
+
+	copied := make(map[uuid.UUID]*worker, len(s.workers))
+
+	for k, v := range s.workers {
+		copied[k] = v
+	}
+
+	return copied
 }
 
 // replenish loads new slots from the database.
@@ -136,11 +151,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	s.l.Debug().Msg("replenishing slots")
 
-	workers := s.getWorkers()
-	workerIds := make([]pgtype.UUID, 0)
+	workers := s.copyWorkers()
+	workerIds := make([]uuid.UUID, 0)
 
-	for workerIdStr := range workers {
-		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
+	for workerId := range workers {
+		workerIds = append(workerIds, workerId)
 	}
 
 	start := time.Now()
@@ -160,8 +175,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	checkpoint = time.Now()
 
-	actionsToWorkerIds := make(map[string][]string)
-	workerIdsToActions := make(map[string][]string)
+	actionsToWorkerIds := make(map[string][]uuid.UUID)
+	workerIdsToActions := make(map[uuid.UUID][]string)
 
 	for _, workerActionTuple := range workersToActiveActions {
 		if !workerActionTuple.ActionId.Valid {
@@ -169,7 +184,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		actionId := workerActionTuple.ActionId.String
-		workerId := sqlchelpers.UUIDToStr(workerActionTuple.WorkerId)
+		workerId := workerActionTuple.WorkerId
 
 		actionsToWorkerIds[actionId] = append(actionsToWorkerIds[actionId], workerId)
 		workerIdsToActions[workerId] = append(workerIdsToActions[workerId], actionId)
@@ -241,7 +256,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	checkpoint = time.Now()
 
 	// FUNCTION 2: for each action which should be replenished, load the available slots
-	uniqueWorkerIds := make(map[string]bool)
+	uniqueWorkerIds := make(map[uuid.UUID]bool)
 
 	for actionId := range actionsToReplenish {
 		workerIds := actionsToWorkerIds[actionId]
@@ -251,10 +266,10 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
-	workerUUIDs := make([]pgtype.UUID, 0, len(uniqueWorkerIds))
+	workerUUIDs := make([]uuid.UUID, 0, len(uniqueWorkerIds))
 
 	for workerId := range uniqueWorkerIds {
-		workerUUIDs = append(workerUUIDs, sqlchelpers.UUIDFromStr(workerId))
+		workerUUIDs = append(workerUUIDs, workerId)
 	}
 
 	orderedLock(actionsToReplenish)
@@ -276,7 +291,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.l.Debug().Msgf("loading available slots took %s", time.Since(checkpoint))
 
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
-	workersToUnackedSlots := make(map[string][]*slot)
+	workersToUnackedSlots := make(map[uuid.UUID][]*slot)
 
 	for _, unackedSlot := range s.unackedSlots {
 		s := unackedSlot
@@ -294,7 +309,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToTotalSlots := make(map[string]int)
 
 	for _, worker := range availableSlots {
-		workerId := sqlchelpers.UUIDToStr(worker.ID)
+		workerId := worker.ID
 		actions := workerIdsToActions[workerId]
 		unackedSlots := workersToUnackedSlots[workerId]
 
@@ -411,7 +426,7 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 				continue
 			}
 
-			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+			s.exts.ReportSnapshot(s.tenantId, in)
 
 			count++
 		}
@@ -445,7 +460,7 @@ func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 type assignSingleResult struct {
 	qi *sqlcv1.V1QueueItem
 
-	workerId pgtype.UUID
+	workerId uuid.UUID
 	ackId    int
 
 	noSlots   bool
@@ -463,7 +478,7 @@ func (s *Scheduler) tryAssignBatch(
 	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
 	// slots concurrently.
 	ringOffset int,
-	stepIdsToLabels map[string][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
@@ -582,7 +597,7 @@ func (s *Scheduler) tryAssignBatch(
 			qi,
 			candidateSlots,
 			childRingOffset,
-			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepID)],
+			stepIdsToLabels[qi.StepID],
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -671,7 +686,7 @@ func (s *Scheduler) tryAssignSingleton(
 	s.unackedSlots[res.ackId] = assignedSlot
 	s.unackedMu.Unlock()
 
-	res.workerId = sqlchelpers.UUIDFromStr(assignedSlot.getWorkerId())
+	res.workerId = assignedSlot.getWorkerId()
 	res.succeeded = true
 
 	return res, nil
@@ -679,7 +694,7 @@ func (s *Scheduler) tryAssignSingleton(
 
 type assignedQueueItem struct {
 	AckId    int
-	WorkerId pgtype.UUID
+	WorkerId uuid.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
 }
@@ -695,7 +710,7 @@ type assignResults struct {
 func (s *Scheduler) tryAssign(
 	ctx context.Context,
 	qis []*sqlcv1.V1QueueItem,
-	stepIdsToLabels map[string][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
@@ -831,7 +846,7 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		s.exts.PostAssign(sqlchelpers.UUIDToStr(s.tenantId), s.getExtensionInput(extensionResults))
+		s.exts.PostAssign(s.tenantId, s.getExtensionInput(extensionResults))
 
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")
@@ -864,10 +879,10 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 	defer s.actionsMu.RUnlock()
 
-	workers := s.getWorkers()
+	workers := s.copyWorkers()
 
 	res := &SnapshotInput{
-		Workers: make(map[string]*WorkerCp),
+		Workers: make(map[uuid.UUID]*WorkerCp),
 	}
 
 	for workerId, worker := range workers {
@@ -889,7 +904,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 	uniqueSlots := make(map[*slot]bool)
 
-	workerSlotUtilization := make(map[string]*SlotUtilization)
+	workerSlotUtilization := make(map[uuid.UUID]*SlotUtilization)
 
 	for workerId := range workers {
 		workerSlotUtilization[workerId] = &SlotUtilization{

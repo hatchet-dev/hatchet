@@ -1,5 +1,5 @@
-// package worker provides functionality for creating and managing hatchet workers.
-// workers are responsible for executing workflow tasks and communicating with the hatchet API.
+// Deprecated: This package is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package worker
 
 import (
@@ -15,7 +15,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Worker defines the interface for interacting with a hatchet worker.
+// Deprecated: Worker is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Worker interface {
 	// Start begins worker execution in a non-blocking manner and returns a cleanup function.
 	// the cleanup function should be called when the worker needs to be stopped.
@@ -37,11 +38,12 @@ type Worker interface {
 	Unpause(ctx context.Context) error
 }
 
-// WorkerLabels represents a map of labels that can be assigned to a worker
-// for filtering and identification purposes.
+// Deprecated: WorkerLabels is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerLabels map[string]interface{}
 
-// CreateOpts defines the options for creating a new worker.
+// Deprecated: WorkerOpts is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerOpts struct {
 	// (required) the friendly name of the worker
 	Name string
@@ -65,7 +67,8 @@ type WorkerOpts struct {
 	DurableSlots int
 }
 
-// WorkerImpl is the concrete implementation of the Worker interface.
+// Deprecated: WorkerImpl is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkerImpl struct {
 	// v0 is the client used to communicate with the hatchet API.
 	v0 v0Client.Client
@@ -101,9 +104,8 @@ type WorkerImpl struct {
 	labels WorkerLabels
 }
 
-// NewWorker creates and configures a new Worker with the provided client and options.
-// additional functional options can be provided to further customize the worker configuration.
-// returns the created Worker interface and any error encountered during creation.
+// Deprecated: NewWorker is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts WorkerOpts) (Worker, error) {
 	w := &WorkerImpl{
 		v0:        v0,
@@ -138,12 +140,16 @@ func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts Wo
 	return w, nil
 }
 
-// NamedFunction represents a function with its associated action ID
+// Deprecated: NamedFunction is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type NamedFunction struct {
 	ActionID string
 	Fn       workflow.WrappedTaskFn
 }
 
+// Deprecated: RegisterWorkflows is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // RegisterWorkflows registers one or more workflows with the worker.
 // it converts the workflows to the format expected by the underlying worker implementation
 // and registers both the workflow definitions and their action functions.
@@ -256,6 +262,9 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 	return nil
 }
 
+// Deprecated: Start is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Start begins worker execution in a non-blocking manner.
 // returns a cleanup function to be called when the worker should be stopped,
 // and any error encountered during startup.
@@ -321,6 +330,9 @@ func (w *WorkerImpl) Start() (func() error, error) {
 	}, nil
 }
 
+// Deprecated: StartBlocking is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // StartBlocking begins worker execution and blocks until the process is interrupted.
 // this method handles graceful shutdown via interrupt signals.
 // returns any error encountered during startup or shutdown.
@@ -339,6 +351,9 @@ func (w *WorkerImpl) StartBlocking(ctx context.Context) error {
 	return nil
 }
 
+// Deprecated: IsPaused is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // IsPaused checks if all worker instances are paused
 func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
 	// Create slice of worker IDs to check
@@ -376,6 +391,9 @@ func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// Deprecated: Pause is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Pause pauses all worker instances
 func (w *WorkerImpl) Pause(ctx context.Context) error {
 	// Pause main worker if it exists
@@ -397,6 +415,9 @@ func (w *WorkerImpl) Pause(ctx context.Context) error {
 	return nil
 }
 
+// Deprecated: Unpause is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Unpause resumes all paused worker instances
 func (w *WorkerImpl) Unpause(ctx context.Context) error {
 	// Unpause main worker if it exists

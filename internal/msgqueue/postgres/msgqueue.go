@@ -168,7 +168,7 @@ func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Qu
 		p.l.Error().Err(err).Msgf("error notifying queue %s", queue.Name())
 	}
 
-	if task.TenantID != "" {
+	if task.TenantID != uuid.Nil {
 		return p.addTenantExchangeMessage(ctx, queue, task)
 	}
 
@@ -258,7 +258,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		return eg.Wait()
 	}
 
-	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod[string](func(ctx context.Context, id string) (bool, error) {
+	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, _ string) (bool, error) {
 		messages, err := p.repo.ReadMessages(subscribeCtx, queue.Name(), p.qos)
 
 		if err != nil {
@@ -334,7 +334,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	}, nil
 }
 
-func (p *PostgresMessageQueue) RegisterTenant(ctx context.Context, tenantId string) error {
+func (p *PostgresMessageQueue) RegisterTenant(ctx context.Context, tenantId uuid.UUID) error {
 	return p.upsertQueue(ctx, msgqueue.TenantEventConsumerQueue(tenantId))
 }
 

@@ -9,13 +9,13 @@ on:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -23,7 +23,7 @@ jobs:
         run: docker build -f ./build/package/frontend.dockerfile .
 
   api:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -31,7 +31,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   api-arm:
-    runs-on: hatchet-arm64-2
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -39,7 +39,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   engine:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -47,7 +47,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   engine-arm:
-    runs-on: hatchet-arm64-2
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -55,7 +55,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   admin:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -63,7 +63,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   admin-arm:
-    runs-on: hatchet-arm64-2
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -71,7 +71,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   migrate:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -79,7 +79,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   migrate-arm:
-    runs-on: hatchet-arm64-2
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -87,13 +87,13 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
-    runs-on: hatchet-arm64-2
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -127,13 +127,13 @@ jobs:
             .
 
   lite-amd:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -167,13 +167,13 @@ jobs:
             .
 
   dashboard-arm:
-    runs-on: hatchet-arm64-2
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -191,13 +191,13 @@ jobs:
             .
 
   dashboard-amd:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -215,7 +215,7 @@ jobs:
             .
 
   loadtest:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
@@ -223,7 +223,7 @@ jobs:
         run: docker build -f ./build/package/loadtest.dockerfile .
 
   loadtest-arm:
-    runs-on: hatchet-arm64-2
+    runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
         uses: actions/checkout@v6

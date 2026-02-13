@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.22.13"
+version = "1.23.3"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 authors = [
   "Alexander Belanger <alexander@hatchet.run>",
@@ -16,7 +16,7 @@ license = "MIT"
 python = "^3.10"
 grpcio = "^1.76.0"
 grpcio-tools = "^1.76.0"
-protobuf = "^6.30.0"
+protobuf = "^6.30.2"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 aiohttp = "^3.10.5"
@@ -35,15 +35,14 @@ urllib3 = "^2.6.0"
 
 
 [tool.poetry.group.lint.dependencies]
-mypy = "^1.14.0"
+mypy = "==1.19.1"
 types-protobuf = "^5.28.3.20241030"
-black = "^24.10.0"
-isort = "^5.13.2"
+black = "==26.1.0"
 types-psutil = "^6.1.0.20241221"
-ruff = "^0.9.7"
+ruff = "==0.15.0"
 types-requests = "^2.32.0.20241016"
 psutil = "^6.0.0"
-grpc-stubs = "^1.53.0.5"
+types-grpcio = "^1.0.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.5"
@@ -85,21 +84,6 @@ log_cli = true
 env = ["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
-
-[tool.isort]
-profile = "black"
-known_third_party = [
-  "grpcio",
-  "grpcio_tools",
-  "loguru",
-  "protobuf",
-  "pydantic",
-  "python_dotenv",
-  "python_dateutil",
-  "pyyaml",
-  "urllib3",
-]
-extend_skip = ["hatchet_sdk/contracts/", "hatchet_sdk/v0/contracts/"]
 
 [tool.black]
 extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"

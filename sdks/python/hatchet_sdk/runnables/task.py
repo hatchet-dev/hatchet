@@ -495,6 +495,8 @@ class Task(Generic[TWorkflowInput, R]):
             lifespan_context=lifespan_context,
             log_sender=AsyncLogSender(self.workflow.client._client.event),
             max_attempts=self.retries + 1,
+            task_name=self.name,
+            workflow_name=self.workflow.name,
         )
 
     def mock_run(
@@ -572,3 +574,11 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
         return await self.aio_call(ctx, dependencies)
+
+    @property
+    def output_validator(self) -> TypeAdapter[R]:
+        return cast(TypeAdapter[R], self.validators.step_output)
+
+    @property
+    def output_validator_type(self) -> type[R]:
+        return cast(type[R], self.validators.step_output._type)

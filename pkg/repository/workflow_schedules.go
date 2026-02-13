@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -26,13 +27,13 @@ type ListScheduledWorkflowsOpts struct {
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
 
 	// (optional) the workflow id
-	WorkflowId *string `validate:"omitempty,uuid"`
+	WorkflowId *uuid.UUID `validate:"omitempty"`
 
 	// (optional) the parent workflow run id
-	ParentWorkflowRunId *string `validate:"omitempty,uuid"`
+	ParentWorkflowRunId *uuid.UUID `validate:"omitempty"`
 
 	// (optional) the parent step run id
-	ParentStepRunId *string `validate:"omitempty,uuid"`
+	ParentStepRunId *uuid.UUID `validate:"omitempty"`
 
 	// (optional) statuses to filter by
 	Statuses *[]sqlcv1.WorkflowRunStatus
@@ -46,21 +47,21 @@ type ListScheduledWorkflowsOpts struct {
 
 type CreateScheduledWorkflowRunForWorkflowOpts struct {
 	ScheduledTrigger   time.Time
-	Priority           *int32 `validate:"omitempty,min=1,max=3"`
-	WorkflowId         string `validate:"required,uuid"`
+	Priority           *int32    `validate:"omitempty,min=1,max=3"`
+	WorkflowId         uuid.UUID `validate:"required"`
 	Input              []byte
 	AdditionalMetadata []byte
 }
 
 type ScheduledWorkflowMeta struct {
-	Id              string
+	Id              uuid.UUID
 	Method          sqlcv1.WorkflowTriggerScheduledRefMethods
 	HasTriggeredRun bool
 }
 
 type ScheduledWorkflowUpdate struct {
 	TriggerAt time.Time
-	Id        string
+	Id        uuid.UUID
 }
 
 type UpdateCronOpts struct {
@@ -82,7 +83,7 @@ type ListCronWorkflowsOpts struct {
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
 
 	// (optional) the workflow id
-	WorkflowId *string `validate:"omitempty,uuid"`
+	WorkflowId *uuid.UUID `validate:"omitempty"`
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
@@ -97,53 +98,53 @@ type ListCronWorkflowsOpts struct {
 type CreateCronWorkflowTriggerOpts struct {
 	Input              map[string]interface{}
 	AdditionalMetadata map[string]interface{}
-	Priority           *int32 `validate:"omitempty,min=1,max=3"`
-	WorkflowId         string `validate:"required,uuid"`
-	Name               string `validate:"required"`
-	Cron               string `validate:"required,cron"`
+	Priority           *int32    `validate:"omitempty,min=1,max=3"`
+	WorkflowId         uuid.UUID `validate:"required"`
+	Name               string    `validate:"required"`
+	Cron               string    `validate:"required,cron"`
 }
 
 type WorkflowScheduleRepository interface {
 	// List ScheduledWorkflows lists workflows by scheduled trigger
-	ListScheduledWorkflows(ctx context.Context, tenantId string, opts *ListScheduledWorkflowsOpts) ([]*sqlcv1.ListScheduledWorkflowsRow, int64, error)
+	ListScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, opts *ListScheduledWorkflowsOpts) ([]*sqlcv1.ListScheduledWorkflowsRow, int64, error)
 
 	// DeleteScheduledWorkflow deletes a scheduled workflow run
-	DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error
+	DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID) error
 
 	// GetScheduledWorkflow gets a scheduled workflow run
-	GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) (*sqlcv1.ListScheduledWorkflowsRow, error)
+	GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID) (*sqlcv1.ListScheduledWorkflowsRow, error)
 
 	// UpdateScheduledWorkflow updates a scheduled workflow run
-	UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error
+	UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID, triggerAt time.Time) error
 
 	// ScheduledWorkflowMetaByIds returns minimal metadata for scheduled workflows by id.
 	// Intended for bulk operations to avoid N+1 DB calls.
-	ScheduledWorkflowMetaByIds(ctx context.Context, tenantId string, scheduledWorkflowIds []string) (map[string]ScheduledWorkflowMeta, error)
+	ScheduledWorkflowMetaByIds(ctx context.Context, tenantId uuid.UUID, scheduledWorkflowIds []uuid.UUID) (map[uuid.UUID]ScheduledWorkflowMeta, error)
 
 	// BulkDeleteScheduledWorkflows deletes scheduled workflows in bulk and returns deleted ids.
-	BulkDeleteScheduledWorkflows(ctx context.Context, tenantId string, scheduledWorkflowIds []string) ([]string, error)
+	BulkDeleteScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, scheduledWorkflowIds []uuid.UUID) ([]uuid.UUID, error)
 
 	// BulkUpdateScheduledWorkflows updates scheduled workflows in bulk and returns updated ids.
-	BulkUpdateScheduledWorkflows(ctx context.Context, tenantId string, updates []ScheduledWorkflowUpdate) ([]string, error)
+	BulkUpdateScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, updates []ScheduledWorkflowUpdate) ([]uuid.UUID, error)
 
-	CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*sqlcv1.ListScheduledWorkflowsRow, error)
+	CreateScheduledWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*sqlcv1.ListScheduledWorkflowsRow, error)
 
 	// CreateCronWorkflow creates a cron trigger
-	CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error)
+	CreateCronWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error)
 
 	// List ScheduledWorkflows lists workflows by scheduled trigger
-	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*sqlcv1.ListCronWorkflowsRow, int64, error)
+	ListCronWorkflows(ctx context.Context, tenantId uuid.UUID, opts *ListCronWorkflowsOpts) ([]*sqlcv1.ListCronWorkflowsRow, int64, error)
 
 	// GetCronWorkflow gets a cron workflow run
-	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*sqlcv1.ListCronWorkflowsRow, error)
+	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId uuid.UUID) (*sqlcv1.ListCronWorkflowsRow, error)
 
 	// DeleteCronWorkflow deletes a cron workflow run
-	DeleteCronWorkflow(ctx context.Context, tenantId, id string) error
+	DeleteCronWorkflow(ctx context.Context, tenantId, id uuid.UUID) error
 
 	// UpdateCronWorkflow updates a cron workflow
-	UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *UpdateCronOpts) error
+	UpdateCronWorkflow(ctx context.Context, tenantId, id uuid.UUID, opts *UpdateCronOpts) error
 
-	DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error
+	DeleteInvalidCron(ctx context.Context, id uuid.UUID) error
 }
 
 type workflowScheduleRepository struct {
@@ -166,7 +167,7 @@ func (w *workflowScheduleRepository) RegisterCreateCallback(callback TenantScope
 	w.createCallbacks = append(w.createCallbacks, callback)
 }
 
-func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*sqlcv1.ListScheduledWorkflowsRow, error) {
+func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*sqlcv1.ListScheduledWorkflowsRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -184,7 +185,7 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 	}
 
 	createParams := sqlcv1.CreateWorkflowTriggerScheduledRefForWorkflowParams{
-		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
+		Workflowid:         opts.WorkflowId,
 		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
 		Input:              opts.Input,
 		Additionalmetadata: opts.AdditionalMetadata,
@@ -202,8 +203,8 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 	}
 
 	scheduled, err := w.queries.ListScheduledWorkflows(ctx, w.pool, sqlcv1.ListScheduledWorkflowsParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Scheduleid: created.ID,
+		Tenantid:   tenantId,
+		ScheduleId: &created.ID,
 	})
 
 	if err != nil {
@@ -213,7 +214,7 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 	return scheduled[0], nil
 }
 
-func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context, tenantId string, opts *ListScheduledWorkflowsOpts) ([]*sqlcv1.ListScheduledWorkflowsRow, int64, error) {
+func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, opts *ListScheduledWorkflowsOpts) ([]*sqlcv1.ListScheduledWorkflowsRow, int64, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
@@ -222,18 +223,16 @@ func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context,
 	defer cancel()
 
 	listOpts := sqlcv1.ListScheduledWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 	}
 
 	countParams := sqlcv1.CountScheduledWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 	}
 
 	if opts.WorkflowId != nil {
-		pgWorkflowId := sqlchelpers.UUIDFromStr(*opts.WorkflowId)
-
-		listOpts.Workflowid = pgWorkflowId
-		countParams.Workflowid = pgWorkflowId
+		listOpts.WorkflowId = opts.WorkflowId
+		countParams.WorkflowId = opts.WorkflowId
 	}
 
 	if opts.AdditionalMetadata != nil {
@@ -247,17 +246,13 @@ func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context,
 	}
 
 	if opts.ParentWorkflowRunId != nil {
-		pgParentId := sqlchelpers.UUIDFromStr(*opts.ParentWorkflowRunId)
-
-		listOpts.Parentworkflowrunid = pgParentId
-		countParams.Parentworkflowrunid = pgParentId
+		listOpts.ParentWorkflowRunId = opts.ParentWorkflowRunId
+		countParams.ParentWorkflowRunId = opts.ParentWorkflowRunId
 	}
 
 	if opts.ParentStepRunId != nil {
-		pgParentStepRunId := sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
-
-		listOpts.Parentsteprunid = pgParentStepRunId
-		countParams.Parentsteprunid = pgParentStepRunId
+		listOpts.ParentStepRunId = opts.ParentStepRunId
+		countParams.ParentStepRunId = opts.ParentStepRunId
 	}
 
 	if opts.Statuses != nil {
@@ -319,15 +314,15 @@ func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context,
 	return scheduledWorkflows, count, nil
 }
 
-func (w *workflowScheduleRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error {
-	return w.queries.DeleteScheduledWorkflow(ctx, w.pool, sqlchelpers.UUIDFromStr(scheduledWorkflowId))
+func (w *workflowScheduleRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID) error {
+	return w.queries.DeleteScheduledWorkflow(ctx, w.pool, scheduledWorkflowId)
 }
 
-func (w *workflowScheduleRepository) GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) (*sqlcv1.ListScheduledWorkflowsRow, error) {
+func (w *workflowScheduleRepository) GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID) (*sqlcv1.ListScheduledWorkflowsRow, error) {
 
 	listOpts := sqlcv1.ListScheduledWorkflowsParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
+		Tenantid:   tenantId,
+		ScheduleId: &scheduledWorkflowId,
 	}
 
 	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
@@ -343,36 +338,30 @@ func (w *workflowScheduleRepository) GetScheduledWorkflow(ctx context.Context, t
 
 }
 
-func (w *workflowScheduleRepository) UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error {
+func (w *workflowScheduleRepository) UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID, triggerAt time.Time) error {
 	return w.queries.UpdateScheduledWorkflow(ctx, w.pool, sqlcv1.UpdateScheduledWorkflowParams{
-		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
+		Scheduleid: scheduledWorkflowId,
 		Triggerat:  sqlchelpers.TimestampFromTime(triggerAt),
 	})
 }
 
-func (w *workflowScheduleRepository) ScheduledWorkflowMetaByIds(ctx context.Context, tenantId string, scheduledWorkflowIds []string) (map[string]ScheduledWorkflowMeta, error) {
+func (w *workflowScheduleRepository) ScheduledWorkflowMetaByIds(ctx context.Context, tenantId uuid.UUID, scheduledWorkflowIds []uuid.UUID) (map[uuid.UUID]ScheduledWorkflowMeta, error) {
 	if len(scheduledWorkflowIds) == 0 {
-		return map[string]ScheduledWorkflowMeta{}, nil
-	}
-
-	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
-	for _, id := range scheduledWorkflowIds {
-		ids = append(ids, sqlchelpers.UUIDFromStr(id))
+		return map[uuid.UUID]ScheduledWorkflowMeta{}, nil
 	}
 
 	rows, err := w.queries.GetScheduledWorkflowMetaByIds(ctx, w.pool, sqlcv1.GetScheduledWorkflowMetaByIdsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Ids:      ids,
+		Tenantid: tenantId,
+		Ids:      scheduledWorkflowIds,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	out := make(map[string]ScheduledWorkflowMeta, len(scheduledWorkflowIds))
+	out := make(map[uuid.UUID]ScheduledWorkflowMeta, len(scheduledWorkflowIds))
 	for _, row := range rows {
-		idStr := sqlchelpers.UUIDToStr(row.ID)
-		out[idStr] = ScheduledWorkflowMeta{
-			Id:              idStr,
+		out[row.ID] = ScheduledWorkflowMeta{
+			Id:              row.ID,
 			Method:          row.Method,
 			HasTriggeredRun: row.HasTriggeredRun,
 		}
@@ -381,62 +370,37 @@ func (w *workflowScheduleRepository) ScheduledWorkflowMetaByIds(ctx context.Cont
 	return out, nil
 }
 
-func (w *workflowScheduleRepository) BulkDeleteScheduledWorkflows(ctx context.Context, tenantId string, scheduledWorkflowIds []string) ([]string, error) {
+func (w *workflowScheduleRepository) BulkDeleteScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, scheduledWorkflowIds []uuid.UUID) ([]uuid.UUID, error) {
 	if len(scheduledWorkflowIds) == 0 {
-		return []string{}, nil
+		return []uuid.UUID{}, nil
 	}
 
-	ids := make([]pgtype.UUID, 0, len(scheduledWorkflowIds))
-	for _, id := range scheduledWorkflowIds {
-		ids = append(ids, sqlchelpers.UUIDFromStr(id))
-	}
-
-	deletedIds, err := w.queries.BulkDeleteScheduledWorkflows(ctx, w.pool, sqlcv1.BulkDeleteScheduledWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Ids:      ids,
+	return w.queries.BulkDeleteScheduledWorkflows(ctx, w.pool, sqlcv1.BulkDeleteScheduledWorkflowsParams{
+		Tenantid: tenantId,
+		Ids:      scheduledWorkflowIds,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	deleted := make([]string, 0, len(scheduledWorkflowIds))
-	for _, id := range deletedIds {
-		deleted = append(deleted, sqlchelpers.UUIDToStr(id))
-	}
-
-	return deleted, nil
 }
 
-func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Context, tenantId string, updates []ScheduledWorkflowUpdate) ([]string, error) {
+func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, updates []ScheduledWorkflowUpdate) ([]uuid.UUID, error) {
 	if len(updates) == 0 {
-		return []string{}, nil
+		return []uuid.UUID{}, nil
 	}
 
-	ids := make([]pgtype.UUID, 0, len(updates))
+	ids := make([]uuid.UUID, 0, len(updates))
 	triggerAts := make([]pgtype.Timestamp, 0, len(updates))
 	for _, u := range updates {
-		ids = append(ids, sqlchelpers.UUIDFromStr(u.Id))
+		ids = append(ids, u.Id)
 		triggerAts = append(triggerAts, sqlchelpers.TimestampFromTime(u.TriggerAt))
 	}
 
-	updatedIds, err := w.queries.BulkUpdateScheduledWorkflows(ctx, w.pool, sqlcv1.BulkUpdateScheduledWorkflowsParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+	return w.queries.BulkUpdateScheduledWorkflows(ctx, w.pool, sqlcv1.BulkUpdateScheduledWorkflowsParams{
+		Tenantid:   tenantId,
 		Ids:        ids,
 		Triggerats: triggerAts,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	updated := make([]string, 0, len(updates))
-	for _, id := range updatedIds {
-		updated = append(updated, sqlchelpers.UUIDToStr(id))
-	}
-
-	return updated, nil
 }
 
-func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*sqlcv1.ListCronWorkflowsRow, int64, error) {
+func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tenantId uuid.UUID, opts *ListCronWorkflowsOpts) ([]*sqlcv1.ListCronWorkflowsRow, int64, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
@@ -444,14 +408,14 @@ func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tena
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
 	listOpts := sqlcv1.ListCronWorkflowsParams{
-		Tenantid: pgTenantId,
+		Tenantid:   tenantId,
+		WorkflowId: opts.WorkflowId,
 	}
 
 	countOpts := sqlcv1.CountCronWorkflowsParams{
-		Tenantid: pgTenantId,
+		Tenantid:   tenantId,
+		WorkflowId: opts.WorkflowId,
 	}
 
 	if opts.Limit != nil {
@@ -492,11 +456,6 @@ func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tena
 		countOpts.AdditionalMetadata = additionalMetadataBytes
 	}
 
-	if opts.WorkflowId != nil {
-		listOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
-		countOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
-	}
-
 	if opts.CronName != nil {
 		listOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
 		countOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
@@ -522,10 +481,10 @@ func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tena
 	return cronWorkflows, count, nil
 }
 
-func (w *workflowScheduleRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*sqlcv1.ListCronWorkflowsRow, error) {
+func (w *workflowScheduleRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId uuid.UUID) (*sqlcv1.ListCronWorkflowsRow, error) {
 	listOpts := sqlcv1.ListCronWorkflowsParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Crontriggerid: sqlchelpers.UUIDFromStr(cronWorkflowId),
+		Tenantid:      tenantId,
+		CronTriggerId: &cronWorkflowId,
 	}
 
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
@@ -541,13 +500,13 @@ func (w *workflowScheduleRepository) GetCronWorkflow(ctx context.Context, tenant
 	return cronWorkflows[0], nil
 }
 
-func (w *workflowScheduleRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id string) error {
-	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, sqlchelpers.UUIDFromStr(id))
+func (w *workflowScheduleRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id uuid.UUID) error {
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id)
 }
 
-func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *UpdateCronOpts) error {
+func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id uuid.UUID, opts *UpdateCronOpts) error {
 	params := sqlcv1.UpdateCronTriggerParams{
-		Crontriggerid: sqlchelpers.UUIDFromStr(id),
+		Crontriggerid: id,
 	}
 
 	if opts.Enabled != nil {
@@ -557,7 +516,7 @@ func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, ten
 	return w.queries.UpdateCronTrigger(ctx, w.pool, params)
 }
 
-func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error) {
+func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error) {
 
 	var input, additionalMetadata []byte
 	var err error
@@ -585,7 +544,7 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 	}
 
 	createParams := sqlcv1.CreateWorkflowTriggerCronRefForWorkflowParams{
-		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
+		Workflowid:         opts.WorkflowId,
 		Crontrigger:        opts.Cron,
 		Name:               sqlchelpers.TextFromStr(opts.Name),
 		Input:              input,
@@ -604,8 +563,8 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 	}
 
 	row, err := w.queries.ListCronWorkflows(ctx, w.pool, sqlcv1.ListCronWorkflowsParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Crontriggerid: cronTrigger.ID,
+		Tenantid:      tenantId,
+		CronTriggerId: &cronTrigger.ID,
 		Limit:         1,
 	})
 
@@ -620,6 +579,6 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 	return row[0], nil
 }
 
-func (w *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error {
+func (w *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id uuid.UUID) error {
 	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id)
 }

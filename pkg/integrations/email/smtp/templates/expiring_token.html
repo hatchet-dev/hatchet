@@ -1,0 +1,30 @@
+{{ define "content" }}
+Hi there,
+<br>
+<br>
+We are reaching out to let you know that you have a Hatchet token expiring soon:
+<br>
+<br>
+<table class="attributes" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="attributes_content">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td class="attributes_item"><a href="{{.TokenSettings}}">{{.TokenName}}</a> expires {{.ExpiresAtRelativeDate}}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+If you are using this token for a client or worker, please generate a new token and revoke the old one <a href="{{.TokenSettings}}">here.</a>
+
+<br>
+<br>
+Best,
+<br>
+<br>
+The Hatchet Team
+<br>
+<br>
+<small>If you'd like to change your notification settings, you can do so <a href="{{.SettingsLink}}">here.</a></small>
+{{end}}

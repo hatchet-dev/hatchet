@@ -4,10 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -34,29 +31,22 @@ func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *
 		workflowRunStatus = &status
 	}
 
-	var workflowRunIdPtr *uuid.UUID
-
-	if scheduled.WorkflowRunId.Valid {
-		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(scheduled.WorkflowRunId))
-		workflowRunIdPtr = &workflowRunId
-	}
-
 	input := make(map[string]interface{})
 	if scheduled.Input != nil {
 		json.Unmarshal(scheduled.Input, &input)
 	}
 
 	res := &gen.ScheduledWorkflows{
-		Metadata:             *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
-		WorkflowVersionId:    sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
-		WorkflowId:           sqlchelpers.UUIDToStr(scheduled.WorkflowId),
+		Metadata:             *toAPIMetadata(scheduled.ID, scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
+		WorkflowVersionId:    scheduled.WorkflowVersionId.String(),
+		WorkflowId:           scheduled.WorkflowId.String(),
 		WorkflowName:         scheduled.Name,
-		TenantId:             sqlchelpers.UUIDToStr(scheduled.TenantId),
+		TenantId:             scheduled.TenantId.String(),
 		TriggerAt:            scheduled.TriggerAt.Time,
 		AdditionalMetadata:   &additionalMetadata,
 		WorkflowRunCreatedAt: &scheduled.WorkflowRunCreatedAt.Time,
 		WorkflowRunStatus:    workflowRunStatus,
-		WorkflowRunId:        workflowRunIdPtr,
+		WorkflowRunId:        scheduled.WorkflowRunId,
 		WorkflowRunName:      &scheduled.WorkflowRunName.String,
 		Method:               gen.ScheduledWorkflowsMethod(scheduled.Method),
 		Priority:             &scheduled.Priority,
@@ -77,11 +67,11 @@ func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow) *gen.CronWorkflo
 	}
 
 	res := &gen.CronWorkflows{
-		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(cron.ID_2), cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
-		WorkflowVersionId:  sqlchelpers.UUIDToStr(cron.WorkflowVersionId),
-		WorkflowId:         sqlchelpers.UUIDToStr(cron.WorkflowId),
+		Metadata:           *toAPIMetadata(cron.ID_2, cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
+		WorkflowVersionId:  cron.WorkflowVersionId.String(),
+		WorkflowId:         cron.WorkflowId.String(),
 		WorkflowName:       cron.WorkflowName,
-		TenantId:           sqlchelpers.UUIDToStr(cron.TenantId),
+		TenantId:           cron.TenantId.String(),
 		Cron:               cron.Cron,
 		AdditionalMetadata: &additionalMetadata,
 		Name:               &cron.Name.String,

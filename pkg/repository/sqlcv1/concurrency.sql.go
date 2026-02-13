@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -88,10 +89,10 @@ SELECT COALESCE((SELECT "isActive" FROM is_active), FALSE)::bool AS "isActive"
 `
 
 type CheckStrategyActiveParams struct {
-	Workflowid        pgtype.UUID `json:"workflowid"`
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
-	Strategyid        int64       `json:"strategyid"`
+	Workflowid        uuid.UUID `json:"workflowid"`
+	Tenantid          uuid.UUID `json:"tenantid"`
+	Workflowversionid uuid.UUID `json:"workflowversionid"`
+	Strategyid        int64     `json:"strategyid"`
 }
 
 // A strategy is active if the workflow is not deleted, and it is attached to the latest workflow version or it has
@@ -106,6 +107,39 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	var isActive bool
 	err := row.Scan(&isActive)
 	return isActive, err
+}
+
+const getConcurrencyStrategyById = `-- name: GetConcurrencyStrategyById :one
+SELECT
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+FROM
+    v1_step_concurrency sc
+WHERE
+    sc.tenant_id = $1::uuid AND
+    sc.id = $2::bigint
+`
+
+type GetConcurrencyStrategyByIdParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       int64     `json:"id"`
+}
+
+func (q *Queries) GetConcurrencyStrategyById(ctx context.Context, db DBTX, arg GetConcurrencyStrategyByIdParams) (*V1StepConcurrency, error) {
+	row := db.QueryRow(ctx, getConcurrencyStrategyById, arg.Tenantid, arg.ID)
+	var i V1StepConcurrency
+	err := row.Scan(
+		&i.ID,
+		&i.ParentStrategyID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.StepID,
+		&i.IsActive,
+		&i.Strategy,
+		&i.Expression,
+		&i.TenantID,
+		&i.MaxConcurrency,
+	)
+	return &i, err
 }
 
 const getWorkflowConcurrencyQueueCounts = `-- name: GetWorkflowConcurrencyQueueCounts :many
@@ -131,7 +165,7 @@ type GetWorkflowConcurrencyQueueCountsRow struct {
 	Count        int64  `json:"count"`
 }
 
-func (q *Queries) GetWorkflowConcurrencyQueueCounts(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetWorkflowConcurrencyQueueCountsRow, error) {
+func (q *Queries) GetWorkflowConcurrencyQueueCounts(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetWorkflowConcurrencyQueueCountsRow, error) {
 	rows, err := db.Query(ctx, getWorkflowConcurrencyQueueCounts, tenantid)
 	if err != nil {
 		return nil, err
@@ -163,7 +197,7 @@ WHERE
     sc.is_active = TRUE
 `
 
-func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*V1StepConcurrency, error) {
+func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*V1StepConcurrency, error) {
 	rows, err := db.Query(ctx, listActiveConcurrencyStrategies, tenantid)
 	if err != nil {
 		return nil, err
@@ -205,8 +239,8 @@ WHERE
 `
 
 type ListConcurrencyStrategiesByStepIdParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Stepids  []pgtype.UUID `json:"stepids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Stepids  []uuid.UUID `json:"stepids"`
 }
 
 func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX, arg ListConcurrencyStrategiesByStepIdParams) ([]*V1StepConcurrency, error) {
@@ -259,21 +293,21 @@ WHERE
 `
 
 type ListConcurrencyStrategiesByWorkflowVersionIdParams struct {
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
-	Workflowid        pgtype.UUID `json:"workflowid"`
+	Tenantid          uuid.UUID `json:"tenantid"`
+	Workflowversionid uuid.UUID `json:"workflowversionid"`
+	Workflowid        uuid.UUID `json:"workflowid"`
 }
 
 type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
 	ID                int64                 `json:"id"`
 	ParentStrategyID  pgtype.Int8           `json:"parent_strategy_id"`
-	WorkflowID        pgtype.UUID           `json:"workflow_id"`
-	WorkflowVersionID pgtype.UUID           `json:"workflow_version_id"`
-	StepID            pgtype.UUID           `json:"step_id"`
+	WorkflowID        uuid.UUID             `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
+	StepID            uuid.UUID             `json:"step_id"`
 	IsActive          bool                  `json:"is_active"`
 	Strategy          V1ConcurrencyStrategy `json:"strategy"`
 	Expression        string                `json:"expression"`
-	TenantID          pgtype.UUID           `json:"tenant_id"`
+	TenantID          uuid.UUID             `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
 	StepReadableID    pgtype.Text           `json:"step_readable_id"`
 }
@@ -477,19 +511,19 @@ FROM
 `
 
 type RunCancelInProgressParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 type RunCancelInProgressRow struct {
 	TaskID          int64              `json:"task_id"`
 	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount  int32              `json:"task_retry_count"`
-	TenantID        pgtype.UUID        `json:"tenant_id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
 	NextStrategyIds []int64            `json:"next_strategy_ids"`
-	ExternalID      pgtype.UUID        `json:"external_id"`
-	WorkflowRunID   pgtype.UUID        `json:"workflow_run_id"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	WorkflowRunID   uuid.UUID          `json:"workflow_run_id"`
 	QueueToNotify   string             `json:"queue_to_notify"`
 	Operation       string             `json:"operation"`
 }
@@ -691,19 +725,19 @@ FROM
 `
 
 type RunCancelNewestParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 type RunCancelNewestRow struct {
 	TaskID          int64              `json:"task_id"`
 	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount  int32              `json:"task_retry_count"`
-	TenantID        pgtype.UUID        `json:"tenant_id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
 	NextStrategyIds []int64            `json:"next_strategy_ids"`
-	ExternalID      pgtype.UUID        `json:"external_id"`
-	WorkflowRunID   pgtype.UUID        `json:"workflow_run_id"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	WorkflowRunID   uuid.UUID          `json:"workflow_run_id"`
 	QueueToNotify   string             `json:"queue_to_notify"`
 	Operation       string             `json:"operation"`
 }
@@ -849,19 +883,19 @@ FROM
 `
 
 type RunGroupRoundRobinParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 type RunGroupRoundRobinRow struct {
 	TaskID          int64              `json:"task_id"`
 	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount  int32              `json:"task_retry_count"`
-	TenantID        pgtype.UUID        `json:"tenant_id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
 	NextStrategyIds []int64            `json:"next_strategy_ids"`
-	ExternalID      pgtype.UUID        `json:"external_id"`
-	WorkflowRunID   pgtype.UUID        `json:"workflow_run_id"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	WorkflowRunID   uuid.UUID          `json:"workflow_run_id"`
 	QueueToNotify   string             `json:"queue_to_notify"`
 	Operation       string             `json:"operation"`
 }
@@ -972,9 +1006,9 @@ WHERE
 `
 
 type RunParentCancelInProgressParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 func (q *Queries) RunParentCancelInProgress(ctx context.Context, db DBTX, arg RunParentCancelInProgressParams) error {
@@ -1057,9 +1091,9 @@ WHERE
 `
 
 type RunParentCancelNewestParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 func (q *Queries) RunParentCancelNewest(ctx context.Context, db DBTX, arg RunParentCancelNewestParams) error {
@@ -1119,9 +1153,9 @@ WHERE
 `
 
 type RunParentGroupRoundRobinParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
 }
 
 func (q *Queries) RunParentGroupRoundRobin(ctx context.Context, db DBTX, arg RunParentGroupRoundRobinParams) error {
@@ -1142,10 +1176,10 @@ WHERE
 `
 
 type SetConcurrencyStrategyInactiveParams struct {
-	Workflowid        pgtype.UUID `json:"workflowid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
-	Stepid            pgtype.UUID `json:"stepid"`
-	Strategyid        int64       `json:"strategyid"`
+	Workflowid        uuid.UUID `json:"workflowid"`
+	Workflowversionid uuid.UUID `json:"workflowversionid"`
+	Stepid            uuid.UUID `json:"stepid"`
+	Strategyid        int64     `json:"strategyid"`
 }
 
 func (q *Queries) SetConcurrencyStrategyInactive(ctx context.Context, db DBTX, arg SetConcurrencyStrategyInactiveParams) error {

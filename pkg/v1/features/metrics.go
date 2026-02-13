@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -7,16 +9,13 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
-// MetricsClient provides methods for retrieving metrics data
-// in the Hatchet platform.
+// Deprecated: MetricsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type MetricsClient interface {
-	// GetWorkflowMetrics retrieves metrics for a specific workflow.
 	GetWorkflowMetrics(ctx context.Context, workflowId string, opts *rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
 
-	// GetQueueMetrics retrieves tenant-wide queue metrics.
 	GetQueueMetrics(ctx context.Context, opts *rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error)
 
-	// GetTaskQueueMetrics retrieves tenant-wide step run queue metrics.
 	GetTaskQueueMetrics(ctx context.Context) (*rest.TenantGetStepRunQueueMetricsResponse, error)
 }
 
@@ -27,7 +26,8 @@ type metricsClientImpl struct {
 	workflows *WorkflowsClient
 }
 
-// NewMetricsClient creates a new client for interacting with metrics.
+// Deprecated: NewMetricsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewMetricsClient(
 	api *rest.ClientWithResponses,
 	tenantId *string,
@@ -42,6 +42,9 @@ func NewMetricsClient(
 	}
 }
 
+// Deprecated: GetWorkflowMetrics is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // GetWorkflowMetrics retrieves metrics for a specific workflow.
 func (m *metricsClientImpl) GetWorkflowMetrics(ctx context.Context, workflowName string, opts *rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
 
@@ -64,6 +67,9 @@ func (m *metricsClientImpl) GetWorkflowMetrics(ctx context.Context, workflowName
 	return resp.JSON200, nil
 }
 
+// Deprecated: GetQueueMetrics is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // GetQueueMetrics retrieves tenant-wide queue metrics.
 func (m *metricsClientImpl) GetQueueMetrics(ctx context.Context, opts *rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error) {
 	return m.api.TenantGetQueueMetricsWithResponse(
@@ -73,6 +79,9 @@ func (m *metricsClientImpl) GetQueueMetrics(ctx context.Context, opts *rest.Tena
 	)
 }
 
+// Deprecated: GetTaskQueueMetrics is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // GetTaskQueueMetrics retrieves tenant-wide step run queue metrics.
 func (m *metricsClientImpl) GetTaskQueueMetrics(ctx context.Context) (*rest.TenantGetStepRunQueueMetricsResponse, error) {
 	return m.api.TenantGetStepRunQueueMetricsWithResponse(

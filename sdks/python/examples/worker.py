@@ -44,6 +44,10 @@ from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
 from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
+from examples.webhook_with_scope.worker import (
+    webhook_with_scope,
+    webhook_with_static_payload,
+)
 from examples.webhooks.worker import webhook
 from hatchet_sdk import Hatchet
 
@@ -91,6 +95,8 @@ def main() -> None:
             bulk_replay_test_2,
             bulk_replay_test_3,
             webhook,
+            webhook_with_scope,
+            webhook_with_static_payload,
             return_exceptions_task,
             wait_for_sleep_twice,
             async_task_with_dependencies,

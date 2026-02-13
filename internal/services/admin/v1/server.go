@@ -9,25 +9,35 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+
+	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
 func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.CancelTasksRequest) (*contracts.CancelTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	externalIds := req.ExternalIds
+	externalIds := make([]uuid.UUID, 0)
+
+	for _, idStr := range req.ExternalIds {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid external id")
+		}
+		externalIds = append(externalIds, id)
+	}
 
 	if len(externalIds) != 0 && req.Filter != nil {
 		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
@@ -59,7 +69,12 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
-				workflowIds = append(workflowIds, uuid.MustParse(id))
+				parsedId, err := uuid.Parse(id)
+				if err != nil {
+					return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+				}
+
+				workflowIds = append(workflowIds, parsedId)
 			}
 		}
 
@@ -93,22 +108,22 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			IncludePayloads:    false,
 		}
 
-		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)
+		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID, opts)
 
 		if err != nil {
 			return nil, err
 		}
 
-		runExternalIds := make([]string, len(runs))
+		runExternalIds := make([]uuid.UUID, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = sqlchelpers.UUIDToStr(run.ExternalID)
+			runExternalIds[i] = run.ExternalID
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
 	}
 
-	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID, externalIds)
 
 	if err != nil {
 		return nil, err
@@ -130,7 +145,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}
 
 	msg, err := msgqueue.NewTenantMessage(
-		sqlchelpers.UUIDToStr(tenant.ID),
+		tenant.ID,
 		msgqueue.MsgIDCancelTasks,
 		false,
 		true,
@@ -147,15 +162,28 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		return nil, err
 	}
 
+	externalIdsToReturn := make([]string, len(externalIds))
+	for i, id := range externalIds {
+		externalIdsToReturn[i] = id.String()
+	}
+
 	return &contracts.CancelTasksResponse{
-		CancelledTasks: externalIds,
+		CancelledTasks: externalIdsToReturn,
 	}, nil
 }
 
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	externalIds := req.ExternalIds
+	externalIds := make([]uuid.UUID, 0)
+	for _, idStr := range req.ExternalIds {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid external id")
+		}
+
+		externalIds = append(externalIds, id)
+	}
 
 	if len(externalIds) != 0 && req.Filter != nil {
 		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
@@ -187,7 +215,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
-				workflowIds = append(workflowIds, uuid.MustParse(id))
+				parsedId, err := uuid.Parse(id)
+				if err != nil {
+					return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+				}
+				workflowIds = append(workflowIds, parsedId)
 			}
 		}
 
@@ -221,16 +253,16 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			IncludePayloads:    false,
 		}
 
-		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)
+		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, tenant.ID, opts)
 
 		if err != nil {
 			return nil, err
 		}
 
-		runExternalIds := make([]string, len(runs))
+		runExternalIds := make([]uuid.UUID, len(runs))
 
 		for i, run := range runs {
-			runExternalIds[i] = sqlchelpers.UUIDToStr(run.ExternalID)
+			runExternalIds[i] = run.ExternalID
 		}
 
 		externalIds = append(externalIds, runExternalIds...)
@@ -238,7 +270,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 	tasksToReplay := []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{}
 
-	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, tenant.ID, externalIds)
 
 	if err != nil {
 		return nil, err
@@ -266,7 +298,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		tasksToReplay = append(tasksToReplay, record)
 	}
 
-	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId)
+	workflowRunIdToTasksToReplay := make(map[uuid.UUID][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId)
 	for _, item := range tasksToReplay {
 		workflowRunIdToTasksToReplay[item.WorkflowRunExternalId] = append(
 			workflowRunIdToTasksToReplay[item.WorkflowRunExternalId],
@@ -310,7 +342,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		}
 
 		msg, err := msgqueue.NewTenantMessage(
-			sqlchelpers.UUIDToStr(tenant.ID),
+			tenant.ID,
 			msgqueue.MsgIDReplayTasks,
 			false,
 			true,
@@ -341,7 +373,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	canCreateTR, trLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
@@ -386,13 +418,13 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}
 
 	return &contracts.TriggerWorkflowRunResponse{
-		ExternalId: opt.ExternalId,
+		ExternalId: opt.ExternalId.String(),
 	}, nil
 }
 
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	externalId, err := uuid.Parse(req.ExternalId)
 
@@ -400,7 +432,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		return nil, status.Error(codes.InvalidArgument, "invalid external id")
 	}
 
-	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId.String())
+	details, err := a.repo.Tasks().GetWorkflowRunResultDetails(ctx, tenantId, externalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run result details: %w", err)
@@ -428,7 +460,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 			Error:      details.Error,
 			Output:     details.OutputPayload,
 			ReadableId: string(readableId),
-			ExternalId: details.ExternalId,
+			ExternalId: details.ExternalId.String(),
 		}
 	}
 
@@ -456,7 +488,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 
 func (i *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	req *contracts.TriggerWorkflowRunRequest,
 ) (*v1.WorkflowNameTriggerOpts, error) {
 	t := &v1.TriggerTaskData{
@@ -477,11 +509,11 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}, nil
 }
 
-func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts) error {
+func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
 	return i.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 }
 
-func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) error {
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {
@@ -492,36 +524,95 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 		optsToSend = append(optsToSend, opt)
 	}
 
-	if len(optsToSend) > 0 {
-		verifyErr := i.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+	if len(optsToSend) == 0 {
+		return nil
+	}
 
-		if verifyErr != nil {
-			namesNotFound := &v1.ErrNamesNotFound{}
+	if i.localScheduler != nil {
+		localWorkerIds := map[uuid.UUID]struct{}{}
 
-			if errors.As(verifyErr, &namesNotFound) {
-				return status.Error(
-					codes.InvalidArgument,
-					verifyErr.Error(),
-				)
+		if i.localDispatcher != nil {
+			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()
+		}
+
+		localAssigned, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+
+		// if we have a scheduling error, we'll fall back to normal ingestion
+		if schedulingErr != nil {
+			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
+				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+			}
+		}
+
+		if i.localDispatcher != nil && len(localAssigned) > 0 {
+			eg := errgroup.Group{}
+
+			for workerId, assignedItems := range localAssigned {
+				eg.Go(func() error {
+					err := i.localDispatcher.HandleLocalAssignments(ctx, tenantId, workerId, assignedItems)
+
+					if err != nil {
+						return fmt.Errorf("could not dispatch assigned items: %w", err)
+					}
+
+					return nil
+				})
 			}
 
-			return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+			dispatcherErr := eg.Wait()
+
+			if dispatcherErr != nil {
+				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+			}
+
+			// we return nil because the failed assignments would have been requeued by the local dispatcher,
+			// and we have already written the tasks to the database
+			return nil
 		}
 
-		msg, err := tasktypes.TriggerTaskMessage(
-			tenantId,
-			optsToSend...,
-		)
+		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
+		if schedulingErr == nil {
+			return nil
+		}
+	} else if i.tw != nil {
+		triggerErr := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
 
-		if err != nil {
-			return fmt.Errorf("could not create event task: %w", err)
+		// if we fail to trigger via gRPC, we fall back to normal ingestion
+		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
+			i.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+		} else if triggerErr == nil {
+			return nil
+		}
+	}
+
+	verifyErr := i.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+
+	if verifyErr != nil {
+		namesNotFound := &v1.ErrNamesNotFound{}
+
+		if errors.As(verifyErr, &namesNotFound) {
+			return status.Error(
+				codes.InvalidArgument,
+				verifyErr.Error(),
+			)
 		}
 
-		err = i.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+		return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+	}
 
-		if err != nil {
-			return fmt.Errorf("could not add event to task queue: %w", err)
-		}
+	msg, err := tasktypes.TriggerTaskMessage(
+		tenantId,
+		optsToSend...,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create event task: %w", err)
+	}
+
+	err = i.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+	if err != nil {
+		return fmt.Errorf("could not add event to task queue: %w", err)
 	}
 
 	return nil
@@ -529,7 +620,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -563,14 +654,62 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		&tenantId,
 		nil,
 		map[string]interface{}{
-			"workflow_id": sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+			"workflow_id": currWorkflow.WorkflowVersion.WorkflowId.String(),
 		},
 	)
 
+	// notify that a new set of queues have been created
+	// important: this assumes that actions correspond 1:1 with queues, which they do at the moment
+	// but might not in the future
+	actions, err := getActionsForTasks(req.Tasks)
+
+	if tenant.SchedulerPartitionId.Valid && err == nil {
+		go func() {
+			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			for _, action := range actions {
+				msg, err := tasktypes.NotifyNewQueue(tenantId, action)
+
+				if err != nil {
+					a.l.Err(err).Msg("could not create message for notifying new queue")
+				} else {
+					err = a.mq.SendMessage(
+						notifyCtx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msg,
+					)
+
+					if err != nil {
+						a.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
+				}
+			}
+		}()
+	}
+
 	return &contracts.CreateWorkflowVersionResponse{
-		Id:         sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID),
-		WorkflowId: sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+		Id:         currWorkflow.WorkflowVersion.ID.String(),
+		WorkflowId: currWorkflow.WorkflowVersion.WorkflowId.String(),
 	}, nil
+}
+
+func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {
+	actions := make([]string, len(tasks))
+
+	for i, task := range tasks {
+		if task == nil {
+			return nil, fmt.Errorf("task at index %d is nil", i)
+		}
+
+		if task.Action == "" {
+			return nil, fmt.Errorf("task at index %d is missing required field 'Action'", i)
+		}
+
+		actions[i] = task.Action
+	}
+
+	return actions, nil
 }
 
 func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionOpts, error) {
@@ -838,13 +977,24 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						continue
 					}
 
+					orGroupIdStr := userEventCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in UserEventCondition for step %s: %w", stepCp.ReadableId, err)
+					}
+
 					eventKey := userEventCondition.UserEventKey
 
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "USER_EVENT",
 						ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
 						Action:             userEventCondition.Base.Action.String(),
-						OrGroupId:          userEventCondition.Base.OrGroupId,
+						OrGroupId:          orGroupId,
 						Expression:         userEventCondition.Base.Expression,
 						EventKey:           &eventKey,
 					})
@@ -861,11 +1011,22 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 					duration := sleepCondition.SleepFor
 
+					orGroupIdStr := sleepCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in SleepCondition for step %s: %w", stepCp.ReadableId, err)
+					}
+
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "SLEEP",
 						ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
 						Action:             sleepCondition.Base.Action.String(),
-						OrGroupId:          sleepCondition.Base.OrGroupId,
+						OrGroupId:          orGroupId,
 						SleepDuration:      &duration,
 					})
 				}
@@ -881,12 +1042,24 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 					parentReadableId := parentOverrideCondition.ParentReadableId
 
+					orGroupIdStr := parentOverrideCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
+
+					if err != nil {
+						return nil, fmt.Errorf("invalid OrGroupId in ParentOverrideCondition for step %s: %w", stepCp.ReadableId, err)
+					}
+
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "PARENT_OVERRIDE",
 						ReadableDataKey:    parentReadableId,
 						Action:             parentOverrideCondition.Base.Action.String(),
 						Expression:         parentOverrideCondition.Base.Expression,
-						OrGroupId:          parentOverrideCondition.Base.OrGroupId,
+						OrGroupId:          orGroupId,
 						ParentReadableId:   &parentReadableId,
 					})
 				}

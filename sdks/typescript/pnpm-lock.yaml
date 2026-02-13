@@ -6,7 +6,7 @@ settings:
 
 overrides:
   diff: 8.0.3
-  tar: 7.5.4
+  tar: ^7.5.7
   js-yaml: ^4.1.1
 
 importers:
@@ -52,10 +52,6 @@ importers:
       zod-to-json-schema:
         specifier: ^3.24.1
         version: 3.25.1(zod@3.25.76)
-    optionalDependencies:
-      prom-client:
-        specifier: ^15.1.3
-        version: 15.1.3
     devDependencies:
       '@tsd/typescript':
         specifier: ^5.8.2
@@ -156,6 +152,10 @@ importers:
       typescript:
         specifier: ^5.8.2
         version: 5.9.2
+    optionalDependencies:
+      prom-client:
+        specifier: ^15.1.3
+        version: 15.1.3
 
 packages:
 
@@ -2710,8 +2710,8 @@ packages:
     resolution: {integrity: sha512-MeQTA1r0litLUf0Rp/iisCaL8761lKAZHaimlbGK4j0HysC4PLfqygQj9srcs0m2RdtDYnF8UuYyKpbjHYp7Jw==}
     engines: {node: ^14.18.0 || >=16.0.0}
 
-  tar@7.5.4:
-    resolution: {integrity: sha512-AN04xbWGrSTDmVwlI4/GTlIIwMFk/XEv7uL8aa57zuvRy6s4hdBed+lVq2fAZ89XDa7Us3ANXcE3Tvqvja1kTA==}
+  tar@7.5.7:
+    resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
     engines: {node: '>=18'}
 
   tdigest@0.1.2:
@@ -3482,7 +3482,7 @@ snapshots:
       npmlog: 5.0.1
       rimraf: 3.0.2
       semver: 7.7.2
-      tar: 7.5.4
+      tar: 7.5.7
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -6107,7 +6107,7 @@ snapshots:
     dependencies:
       '@pkgr/core': 0.2.9
 
-  tar@7.5.4:
+  tar@7.5.7:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0

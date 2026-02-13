@@ -86,29 +86,29 @@ RESOURCE_EVENT_TYPE_STREAM: ResourceEventType
 WORKFLOW_RUN_EVENT_TYPE_FINISHED: WorkflowRunEventType
 
 class WorkerLabels(_message.Message):
-    __slots__ = ("strValue", "intValue")
-    STRVALUE_FIELD_NUMBER: _ClassVar[int]
-    INTVALUE_FIELD_NUMBER: _ClassVar[int]
-    strValue: str
-    intValue: int
-    def __init__(self, strValue: _Optional[str] = ..., intValue: _Optional[int] = ...) -> None: ...
+    __slots__ = ("str_value", "int_value")
+    STR_VALUE_FIELD_NUMBER: _ClassVar[int]
+    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
+    str_value: str
+    int_value: int
+    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ...) -> None: ...
 
 class RuntimeInfo(_message.Message):
-    __slots__ = ("sdkVersion", "language", "languageVersion", "os", "extra")
-    SDKVERSION_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("sdk_version", "language", "language_version", "os", "extra")
+    SDK_VERSION_FIELD_NUMBER: _ClassVar[int]
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
-    LANGUAGEVERSION_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_VERSION_FIELD_NUMBER: _ClassVar[int]
     OS_FIELD_NUMBER: _ClassVar[int]
     EXTRA_FIELD_NUMBER: _ClassVar[int]
-    sdkVersion: str
+    sdk_version: str
     language: SDKS
-    languageVersion: str
+    language_version: str
     os: str
     extra: str
-    def __init__(self, sdkVersion: _Optional[str] = ..., language: _Optional[_Union[SDKS, str]] = ..., languageVersion: _Optional[str] = ..., os: _Optional[str] = ..., extra: _Optional[str] = ...) -> None: ...
+    def __init__(self, sdk_version: _Optional[str] = ..., language: _Optional[_Union[SDKS, str]] = ..., language_version: _Optional[str] = ..., os: _Optional[str] = ..., extra: _Optional[str] = ...) -> None: ...
 
 class WorkerRegisterRequest(_message.Message):
-    __slots__ = ("workerName", "actions", "services", "maxRuns", "labels", "webhookId", "runtimeInfo")
+    __slots__ = ("worker_name", "actions", "services", "slots", "labels", "webhook_id", "runtime_info")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -116,34 +116,34 @@ class WorkerRegisterRequest(_message.Message):
         key: str
         value: WorkerLabels
         def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[WorkerLabels, _Mapping]] = ...) -> None: ...
-    WORKERNAME_FIELD_NUMBER: _ClassVar[int]
+    WORKER_NAME_FIELD_NUMBER: _ClassVar[int]
     ACTIONS_FIELD_NUMBER: _ClassVar[int]
     SERVICES_FIELD_NUMBER: _ClassVar[int]
-    MAXRUNS_FIELD_NUMBER: _ClassVar[int]
+    SLOTS_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
-    WEBHOOKID_FIELD_NUMBER: _ClassVar[int]
-    RUNTIMEINFO_FIELD_NUMBER: _ClassVar[int]
-    workerName: str
+    WEBHOOK_ID_FIELD_NUMBER: _ClassVar[int]
+    RUNTIME_INFO_FIELD_NUMBER: _ClassVar[int]
+    worker_name: str
     actions: _containers.RepeatedScalarFieldContainer[str]
     services: _containers.RepeatedScalarFieldContainer[str]
-    maxRuns: int
+    slots: int
     labels: _containers.MessageMap[str, WorkerLabels]
-    webhookId: str
-    runtimeInfo: RuntimeInfo
-    def __init__(self, workerName: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ..., maxRuns: _Optional[int] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ..., webhookId: _Optional[str] = ..., runtimeInfo: _Optional[_Union[RuntimeInfo, _Mapping]] = ...) -> None: ...
+    webhook_id: str
+    runtime_info: RuntimeInfo
+    def __init__(self, worker_name: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ..., slots: _Optional[int] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ..., webhook_id: _Optional[str] = ..., runtime_info: _Optional[_Union[RuntimeInfo, _Mapping]] = ...) -> None: ...
 
 class WorkerRegisterResponse(_message.Message):
-    __slots__ = ("tenantId", "workerId", "workerName")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    WORKERNAME_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
-    workerId: str
-    workerName: str
-    def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ..., workerName: _Optional[str] = ...) -> None: ...
+    __slots__ = ("tenant_id", "worker_id", "worker_name")
+    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKER_NAME_FIELD_NUMBER: _ClassVar[int]
+    tenant_id: str
+    worker_id: str
+    worker_name: str
+    def __init__(self, tenant_id: _Optional[str] = ..., worker_id: _Optional[str] = ..., worker_name: _Optional[str] = ...) -> None: ...
 
 class UpsertWorkerLabelsRequest(_message.Message):
-    __slots__ = ("workerId", "labels")
+    __slots__ = ("worker_id", "labels")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -151,249 +151,249 @@ class UpsertWorkerLabelsRequest(_message.Message):
         key: str
         value: WorkerLabels
         def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[WorkerLabels, _Mapping]] = ...) -> None: ...
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
-    workerId: str
+    worker_id: str
     labels: _containers.MessageMap[str, WorkerLabels]
-    def __init__(self, workerId: _Optional[str] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ...) -> None: ...
+    def __init__(self, worker_id: _Optional[str] = ..., labels: _Optional[_Mapping[str, WorkerLabels]] = ...) -> None: ...
 
 class UpsertWorkerLabelsResponse(_message.Message):
-    __slots__ = ("tenantId", "workerId")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
-    workerId: str
-    def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
+    __slots__ = ("tenant_id", "worker_id")
+    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    tenant_id: str
+    worker_id: str
+    def __init__(self, tenant_id: _Optional[str] = ..., worker_id: _Optional[str] = ...) -> None: ...
 
 class AssignedAction(_message.Message):
-    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload", "stepName", "retryCount", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflowId", "workflowVersionId")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
-    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
-    GETGROUPKEYRUNID_FIELD_NUMBER: _ClassVar[int]
-    JOBID_FIELD_NUMBER: _ClassVar[int]
-    JOBNAME_FIELD_NUMBER: _ClassVar[int]
-    JOBRUNID_FIELD_NUMBER: _ClassVar[int]
-    STEPID_FIELD_NUMBER: _ClassVar[int]
-    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
-    ACTIONID_FIELD_NUMBER: _ClassVar[int]
-    ACTIONTYPE_FIELD_NUMBER: _ClassVar[int]
-    ACTIONPAYLOAD_FIELD_NUMBER: _ClassVar[int]
-    STEPNAME_FIELD_NUMBER: _ClassVar[int]
-    RETRYCOUNT_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("tenant_id", "workflow_run_id", "get_group_key_run_id", "job_id", "job_name", "job_run_id", "task_id", "task_run_external_id", "action_id", "action_type", "action_payload", "task_name", "retry_count", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflow_id", "workflow_version_id")
+    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    GET_GROUP_KEY_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    JOB_ID_FIELD_NUMBER: _ClassVar[int]
+    JOB_NAME_FIELD_NUMBER: _ClassVar[int]
+    JOB_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ACTION_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    TASK_NAME_FIELD_NUMBER: _ClassVar[int]
+    RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
     CHILD_WORKFLOW_INDEX_FIELD_NUMBER: _ClassVar[int]
     CHILD_WORKFLOW_KEY_FIELD_NUMBER: _ClassVar[int]
     PARENT_WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
-    WORKFLOWID_FIELD_NUMBER: _ClassVar[int]
-    WORKFLOWVERSIONID_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
-    workflowRunId: str
-    getGroupKeyRunId: str
-    jobId: str
-    jobName: str
-    jobRunId: str
-    stepId: str
-    stepRunId: str
-    actionId: str
-    actionType: ActionType
-    actionPayload: str
-    stepName: str
-    retryCount: int
+    WORKFLOW_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOW_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
+    tenant_id: str
+    workflow_run_id: str
+    get_group_key_run_id: str
+    job_id: str
+    job_name: str
+    job_run_id: str
+    task_id: str
+    task_run_external_id: str
+    action_id: str
+    action_type: ActionType
+    action_payload: str
+    task_name: str
+    retry_count: int
     additional_metadata: str
     child_workflow_index: int
     child_workflow_key: str
     parent_workflow_run_id: str
     priority: int
-    workflowId: str
-    workflowVersionId: str
-    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ..., stepName: _Optional[str] = ..., retryCount: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflowId: _Optional[str] = ..., workflowVersionId: _Optional[str] = ...) -> None: ...
+    workflow_id: str
+    workflow_version_id: str
+    def __init__(self, tenant_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., action_type: _Optional[_Union[ActionType, str]] = ..., action_payload: _Optional[str] = ..., task_name: _Optional[str] = ..., retry_count: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflow_id: _Optional[str] = ..., workflow_version_id: _Optional[str] = ...) -> None: ...
 
 class WorkerListenRequest(_message.Message):
-    __slots__ = ("workerId",)
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    workerId: str
-    def __init__(self, workerId: _Optional[str] = ...) -> None: ...
+    __slots__ = ("worker_id",)
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    def __init__(self, worker_id: _Optional[str] = ...) -> None: ...
 
 class WorkerUnsubscribeRequest(_message.Message):
-    __slots__ = ("workerId",)
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    workerId: str
-    def __init__(self, workerId: _Optional[str] = ...) -> None: ...
+    __slots__ = ("worker_id",)
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    def __init__(self, worker_id: _Optional[str] = ...) -> None: ...
 
 class WorkerUnsubscribeResponse(_message.Message):
-    __slots__ = ("tenantId", "workerId")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
-    workerId: str
-    def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
+    __slots__ = ("tenant_id", "worker_id")
+    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    tenant_id: str
+    worker_id: str
+    def __init__(self, tenant_id: _Optional[str] = ..., worker_id: _Optional[str] = ...) -> None: ...
 
 class GroupKeyActionEvent(_message.Message):
-    __slots__ = ("workerId", "workflowRunId", "getGroupKeyRunId", "actionId", "eventTimestamp", "eventType", "eventPayload")
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
-    GETGROUPKEYRUNID_FIELD_NUMBER: _ClassVar[int]
-    ACTIONID_FIELD_NUMBER: _ClassVar[int]
-    EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
-    EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
-    EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
-    workerId: str
-    workflowRunId: str
-    getGroupKeyRunId: str
-    actionId: str
-    eventTimestamp: _timestamp_pb2.Timestamp
-    eventType: GroupKeyActionEventType
-    eventPayload: str
-    def __init__(self, workerId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[GroupKeyActionEventType, str]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
+    __slots__ = ("worker_id", "workflow_run_id", "get_group_key_run_id", "action_id", "event_timestamp", "event_type", "event_payload")
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    GET_GROUP_KEY_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    workflow_run_id: str
+    get_group_key_run_id: str
+    action_id: str
+    event_timestamp: _timestamp_pb2.Timestamp
+    event_type: GroupKeyActionEventType
+    event_payload: str
+    def __init__(self, worker_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[GroupKeyActionEventType, str]] = ..., event_payload: _Optional[str] = ...) -> None: ...
 
 class StepActionEvent(_message.Message):
-    __slots__ = ("workerId", "jobId", "jobRunId", "stepId", "stepRunId", "actionId", "eventTimestamp", "eventType", "eventPayload", "retryCount", "shouldNotRetry")
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    JOBID_FIELD_NUMBER: _ClassVar[int]
-    JOBRUNID_FIELD_NUMBER: _ClassVar[int]
-    STEPID_FIELD_NUMBER: _ClassVar[int]
-    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
-    ACTIONID_FIELD_NUMBER: _ClassVar[int]
-    EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
-    EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
-    EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
-    RETRYCOUNT_FIELD_NUMBER: _ClassVar[int]
-    SHOULDNOTRETRY_FIELD_NUMBER: _ClassVar[int]
-    workerId: str
-    jobId: str
-    jobRunId: str
-    stepId: str
-    stepRunId: str
-    actionId: str
-    eventTimestamp: _timestamp_pb2.Timestamp
-    eventType: StepActionEventType
-    eventPayload: str
-    retryCount: int
-    shouldNotRetry: bool
-    def __init__(self, workerId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[StepActionEventType, str]] = ..., eventPayload: _Optional[str] = ..., retryCount: _Optional[int] = ..., shouldNotRetry: bool = ...) -> None: ...
+    __slots__ = ("worker_id", "job_id", "job_run_id", "task_id", "task_run_external_id", "action_id", "event_timestamp", "event_type", "event_payload", "retry_count", "should_not_retry")
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    JOB_ID_FIELD_NUMBER: _ClassVar[int]
+    JOB_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
+    SHOULD_NOT_RETRY_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    job_id: str
+    job_run_id: str
+    task_id: str
+    task_run_external_id: str
+    action_id: str
+    event_timestamp: _timestamp_pb2.Timestamp
+    event_type: StepActionEventType
+    event_payload: str
+    retry_count: int
+    should_not_retry: bool
+    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
 
 class ActionEventResponse(_message.Message):
-    __slots__ = ("tenantId", "workerId")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
-    workerId: str
-    def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
+    __slots__ = ("tenant_id", "worker_id")
+    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    tenant_id: str
+    worker_id: str
+    def __init__(self, tenant_id: _Optional[str] = ..., worker_id: _Optional[str] = ...) -> None: ...
 
 class SubscribeToWorkflowEventsRequest(_message.Message):
-    __slots__ = ("workflowRunId", "additionalMetaKey", "additionalMetaValue")
-    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
-    ADDITIONALMETAKEY_FIELD_NUMBER: _ClassVar[int]
-    ADDITIONALMETAVALUE_FIELD_NUMBER: _ClassVar[int]
-    workflowRunId: str
-    additionalMetaKey: str
-    additionalMetaValue: str
-    def __init__(self, workflowRunId: _Optional[str] = ..., additionalMetaKey: _Optional[str] = ..., additionalMetaValue: _Optional[str] = ...) -> None: ...
+    __slots__ = ("workflow_run_id", "additional_meta_key", "additional_meta_value")
+    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_META_KEY_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_META_VALUE_FIELD_NUMBER: _ClassVar[int]
+    workflow_run_id: str
+    additional_meta_key: str
+    additional_meta_value: str
+    def __init__(self, workflow_run_id: _Optional[str] = ..., additional_meta_key: _Optional[str] = ..., additional_meta_value: _Optional[str] = ...) -> None: ...
 
 class SubscribeToWorkflowRunsRequest(_message.Message):
-    __slots__ = ("workflowRunId",)
-    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
-    workflowRunId: str
-    def __init__(self, workflowRunId: _Optional[str] = ...) -> None: ...
+    __slots__ = ("workflow_run_id",)
+    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    workflow_run_id: str
+    def __init__(self, workflow_run_id: _Optional[str] = ...) -> None: ...
 
 class WorkflowEvent(_message.Message):
-    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload", "hangup", "stepRetries", "retryCount", "eventIndex")
-    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
-    RESOURCETYPE_FIELD_NUMBER: _ClassVar[int]
-    EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
-    RESOURCEID_FIELD_NUMBER: _ClassVar[int]
-    EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
-    EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workflow_run_id", "resource_type", "event_type", "resource_id", "event_timestamp", "event_payload", "hangup", "task_retries", "retry_count", "event_index")
+    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    RESOURCE_TYPE_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    RESOURCE_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     HANGUP_FIELD_NUMBER: _ClassVar[int]
-    STEPRETRIES_FIELD_NUMBER: _ClassVar[int]
-    RETRYCOUNT_FIELD_NUMBER: _ClassVar[int]
-    EVENTINDEX_FIELD_NUMBER: _ClassVar[int]
-    workflowRunId: str
-    resourceType: ResourceType
-    eventType: ResourceEventType
-    resourceId: str
-    eventTimestamp: _timestamp_pb2.Timestamp
-    eventPayload: str
+    TASK_RETRIES_FIELD_NUMBER: _ClassVar[int]
+    RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
+    EVENT_INDEX_FIELD_NUMBER: _ClassVar[int]
+    workflow_run_id: str
+    resource_type: ResourceType
+    event_type: ResourceEventType
+    resource_id: str
+    event_timestamp: _timestamp_pb2.Timestamp
+    event_payload: str
     hangup: bool
-    stepRetries: int
-    retryCount: int
-    eventIndex: int
-    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ..., hangup: bool = ..., stepRetries: _Optional[int] = ..., retryCount: _Optional[int] = ..., eventIndex: _Optional[int] = ...) -> None: ...
+    task_retries: int
+    retry_count: int
+    event_index: int
+    def __init__(self, workflow_run_id: _Optional[str] = ..., resource_type: _Optional[_Union[ResourceType, str]] = ..., event_type: _Optional[_Union[ResourceEventType, str]] = ..., resource_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_payload: _Optional[str] = ..., hangup: bool = ..., task_retries: _Optional[int] = ..., retry_count: _Optional[int] = ..., event_index: _Optional[int] = ...) -> None: ...
 
 class WorkflowRunEvent(_message.Message):
-    __slots__ = ("workflowRunId", "eventType", "eventTimestamp", "results")
-    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
-    EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
-    EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workflow_run_id", "event_type", "event_timestamp", "results")
+    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     RESULTS_FIELD_NUMBER: _ClassVar[int]
-    workflowRunId: str
-    eventType: WorkflowRunEventType
-    eventTimestamp: _timestamp_pb2.Timestamp
+    workflow_run_id: str
+    event_type: WorkflowRunEventType
+    event_timestamp: _timestamp_pb2.Timestamp
     results: _containers.RepeatedCompositeFieldContainer[StepRunResult]
-    def __init__(self, workflowRunId: _Optional[str] = ..., eventType: _Optional[_Union[WorkflowRunEventType, str]] = ..., eventTimestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., results: _Optional[_Iterable[_Union[StepRunResult, _Mapping]]] = ...) -> None: ...
+    def __init__(self, workflow_run_id: _Optional[str] = ..., event_type: _Optional[_Union[WorkflowRunEventType, str]] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., results: _Optional[_Iterable[_Union[StepRunResult, _Mapping]]] = ...) -> None: ...
 
 class StepRunResult(_message.Message):
-    __slots__ = ("stepRunId", "stepReadableId", "jobRunId", "error", "output")
-    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
-    STEPREADABLEID_FIELD_NUMBER: _ClassVar[int]
-    JOBRUNID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("task_run_external_id", "task_name", "job_run_id", "error", "output")
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    TASK_NAME_FIELD_NUMBER: _ClassVar[int]
+    JOB_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
-    stepRunId: str
-    stepReadableId: str
-    jobRunId: str
+    task_run_external_id: str
+    task_name: str
+    job_run_id: str
     error: str
     output: str
-    def __init__(self, stepRunId: _Optional[str] = ..., stepReadableId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ...) -> None: ...
+    def __init__(self, task_run_external_id: _Optional[str] = ..., task_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ...) -> None: ...
 
 class OverridesData(_message.Message):
-    __slots__ = ("stepRunId", "path", "value", "callerFilename")
-    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("task_run_external_id", "path", "value", "caller_filename")
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    CALLERFILENAME_FIELD_NUMBER: _ClassVar[int]
-    stepRunId: str
+    CALLER_FILENAME_FIELD_NUMBER: _ClassVar[int]
+    task_run_external_id: str
     path: str
     value: str
-    callerFilename: str
-    def __init__(self, stepRunId: _Optional[str] = ..., path: _Optional[str] = ..., value: _Optional[str] = ..., callerFilename: _Optional[str] = ...) -> None: ...
+    caller_filename: str
+    def __init__(self, task_run_external_id: _Optional[str] = ..., path: _Optional[str] = ..., value: _Optional[str] = ..., caller_filename: _Optional[str] = ...) -> None: ...
 
 class OverridesDataResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class HeartbeatRequest(_message.Message):
-    __slots__ = ("workerId", "heartbeatAt")
-    WORKERID_FIELD_NUMBER: _ClassVar[int]
-    HEARTBEATAT_FIELD_NUMBER: _ClassVar[int]
-    workerId: str
-    heartbeatAt: _timestamp_pb2.Timestamp
-    def __init__(self, workerId: _Optional[str] = ..., heartbeatAt: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    __slots__ = ("worker_id", "heartbeat_at")
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    HEARTBEAT_AT_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    heartbeat_at: _timestamp_pb2.Timestamp
+    def __init__(self, worker_id: _Optional[str] = ..., heartbeat_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class HeartbeatResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class RefreshTimeoutRequest(_message.Message):
-    __slots__ = ("stepRunId", "incrementTimeoutBy")
-    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
-    INCREMENTTIMEOUTBY_FIELD_NUMBER: _ClassVar[int]
-    stepRunId: str
-    incrementTimeoutBy: str
-    def __init__(self, stepRunId: _Optional[str] = ..., incrementTimeoutBy: _Optional[str] = ...) -> None: ...
+    __slots__ = ("task_run_external_id", "increment_timeout_by")
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    INCREMENT_TIMEOUT_BY_FIELD_NUMBER: _ClassVar[int]
+    task_run_external_id: str
+    increment_timeout_by: str
+    def __init__(self, task_run_external_id: _Optional[str] = ..., increment_timeout_by: _Optional[str] = ...) -> None: ...
 
 class RefreshTimeoutResponse(_message.Message):
-    __slots__ = ("timeoutAt",)
-    TIMEOUTAT_FIELD_NUMBER: _ClassVar[int]
-    timeoutAt: _timestamp_pb2.Timestamp
-    def __init__(self, timeoutAt: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    __slots__ = ("timeout_at",)
+    TIMEOUT_AT_FIELD_NUMBER: _ClassVar[int]
+    timeout_at: _timestamp_pb2.Timestamp
+    def __init__(self, timeout_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ReleaseSlotRequest(_message.Message):
-    __slots__ = ("stepRunId",)
-    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
-    stepRunId: str
-    def __init__(self, stepRunId: _Optional[str] = ...) -> None: ...
+    __slots__ = ("task_run_external_id",)
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    task_run_external_id: str
+    def __init__(self, task_run_external_id: _Optional[str] = ...) -> None: ...
 
 class ReleaseSlotResponse(_message.Message):
     __slots__ = ()

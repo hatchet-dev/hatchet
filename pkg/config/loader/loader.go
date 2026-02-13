@@ -37,10 +37,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email/smtp"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
@@ -300,6 +300,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		scf.Runtime.Limits,
 		scf.Runtime.EnforceLimits,
 		scf.Runtime.EnforceLimitsFunc,
+		scf.Runtime.EnableDurableUserEventLog,
 	)
 
 	if readReplicaPool != nil {
@@ -497,7 +498,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		analyticsEmitter.Enqueue(
 			"user:create",
-			sqlchelpers.UUIDToStr(opts.ID),
+			opts.ID.String(),
 			nil,
 			map[string]interface{}{
 				"email":    opts.Email,
@@ -510,7 +511,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	})
 
 	dc.V1.Tenant().RegisterCreateCallback(func(tenant *sqlcv1.Tenant) error {
-		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+		tenantId := tenant.ID
 
 		analyticsEmitter.Tenant(tenantId, map[string]interface{}{
 			"name": tenant.Name,
@@ -604,13 +605,35 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	var emailSvc email.EmailService = &email.NoOpService{}
 
-	if cf.Email.Postmark.Enabled {
+	switch strings.ToLower(cf.Email.Kind) {
+	case "postmark":
+		if !cf.Email.Postmark.Enabled {
+			break
+		}
 		emailSvc = postmark.NewPostmarkClient(
 			cf.Email.Postmark.ServerKey,
 			cf.Email.Postmark.FromEmail,
 			cf.Email.Postmark.FromName,
 			cf.Email.Postmark.SupportEmail,
 		)
+
+	case "smtp":
+		if !cf.Email.SMTP.Enabled {
+			break
+		}
+		emailSvc, err = smtp.NewSMTPService(
+			cf.Email.SMTP.ServerAddr,
+			cf.Email.SMTP.BasicAuth.Username,
+			cf.Email.SMTP.BasicAuth.Password,
+			cf.Email.SMTP.FromEmail,
+			cf.Email.SMTP.FromName,
+			cf.Email.SMTP.SupportEmail,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create SMTP service: %w", err)
+		}
+	default:
+		return nil, nil, fmt.Errorf("invalid email provider of type %s, must be 'postmark' or 'smtp'", cf.Email.Kind)
 	}
 
 	additionalOAuthConfigs := make(map[string]*oauth2.Config)
@@ -633,6 +656,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerConcurrencyRateLimit,
 		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
 		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+		cf.Runtime.OptimisticSchedulingEnabled,
+		cf.Runtime.OptimisticSchedulingSlots,
 	)
 
 	if err != nil {

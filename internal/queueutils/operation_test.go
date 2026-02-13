@@ -30,7 +30,7 @@ func TestSerialOperation_RunOrContinue_NoConcurrentExecution(t *testing.T) {
 		return false, nil
 	}
 
-	operation := &SerialOperation[string]{
+	operation := &SerialOperation{
 		id:          "1234",
 		description: "Test operation",
 		timeout:     2 * time.Second,
@@ -68,7 +68,7 @@ func TestSerialOperation_RunOrContinue_ShouldRunAfterCompletion(t *testing.T) {
 		return false, nil
 	}
 
-	operation := &SerialOperation[string]{
+	operation := &SerialOperation{
 		id:          "1234",
 		description: "Test operation",
 		timeout:     2 * time.Second,
@@ -101,7 +101,7 @@ func TestSerialOperation_RunOrContinue_ShouldRunOnContinues(t *testing.T) {
 		return runCount < 5, nil
 	}
 
-	operation := &SerialOperation[string]{
+	operation := &SerialOperation{
 		id:          "1234",
 		description: "Test operation",
 		timeout:     2 * time.Second,
