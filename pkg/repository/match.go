@@ -772,6 +772,14 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		satisfiedCallbacks = append(satisfiedCallbacks, predeterminedCallback)
 	}
 
+	if len(payloadsToStore) > 0 {
+		err = m.payloadStore.Store(ctx, tx, payloadsToStore...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store callback result payloads for satisfied callbacks: %w", err)
+		}
+	}
+
 	res.SatisfiedCallbacks = satisfiedCallbacks
 
 	if len(signalIds) > 0 {
