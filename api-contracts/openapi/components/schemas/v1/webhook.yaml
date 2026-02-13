@@ -212,5 +212,3 @@ V1UpdateWebhookRequest:
     staticPayload:
       type: object
       description: The static payload to use for the webhook. This is used to send a static payload with the webhook.
-  required:
-    - eventKeyExpression
