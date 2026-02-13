@@ -158,7 +158,6 @@ type GroupMatchCondition struct {
 }
 
 type SatisfiedCallback struct {
-	// need to figure out if we want the id + inserted at, external id, or both here - seems like we might need both
 	DurableTaskExternalId uuid.UUID
 	DurableTaskId         *int64
 	DurableTaskInsertedAt pgtype.Timestamptz
