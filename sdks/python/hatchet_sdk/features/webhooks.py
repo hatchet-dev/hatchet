@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Literal
-
-from pydantic import Field, model_validator
+from typing import Any
 
 from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
@@ -36,33 +34,26 @@ from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 
 class CreateWebhookRequest(V1CreateWebhookRequestBase):
-    auth_type: Literal["BASIC", "API_KEY", "HMAC"] = Field(
-        serialization_alias="authType"
-    )
     auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth
-
-    @model_validator(mode="after")
-    def auth_matches_type(self) -> CreateWebhookRequest:
-        expected = {
-            "BASIC": V1WebhookBasicAuth,
-            "API_KEY": V1WebhookAPIKeyAuth,
-            "HMAC": V1WebhookHMACAuth,
-        }
-        if type(self.auth) is not expected[self.auth_type]:
-            raise ValueError(
-                f"auth type={self.auth_type!r} does not match auth payload {type(self.auth).__name__}"
-            )
-        return self
 
     def _to_api_payload(self) -> V1CreateWebhookRequest:
         payload = self.model_dump(by_alias=True, exclude_none=True)
         payload["auth"] = self.auth.model_dump(by_alias=True)
-        builders = {
-            "BASIC": V1CreateWebhookRequestBasicAuth.from_dict,
-            "API_KEY": V1CreateWebhookRequestAPIKey.from_dict,
-            "HMAC": V1CreateWebhookRequestHMAC.from_dict,
-        }
-        request_payload = builders[self.auth_type](payload)
+        request_payload: (
+            V1CreateWebhookRequestBasicAuth
+            | V1CreateWebhookRequestAPIKey
+            | V1CreateWebhookRequestHMAC
+            | None
+        ) = None
+        if isinstance(self.auth, V1WebhookBasicAuth):
+            payload["authType"] = "BASIC"
+            request_payload = V1CreateWebhookRequestBasicAuth.from_dict(payload)
+        elif isinstance(self.auth, V1WebhookAPIKeyAuth):
+            payload["authType"] = "API_KEY"
+            request_payload = V1CreateWebhookRequestAPIKey.from_dict(payload)
+        else:
+            payload["authType"] = "HMAC"
+            request_payload = V1CreateWebhookRequestHMAC.from_dict(payload)
         if request_payload is None:
             raise ValueError("failed to build create webhook request from payload")
         return V1CreateWebhookRequest(request_payload)
@@ -129,7 +120,6 @@ class WebhooksClient(BaseRestClient):
         source_name: V1WebhookSourceName,
         name: str,
         event_key_expression: str,
-        auth_type: Literal["BASIC", "API_KEY", "HMAC"],
         auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
@@ -140,7 +130,6 @@ class WebhooksClient(BaseRestClient):
             eventKeyExpression=event_key_expression,
             scopeExpression=scope_expression,
             staticPayload=static_payload,
-            auth_type=auth_type,
             auth=auth,
         )
         with self.client() as client:
@@ -154,7 +143,6 @@ class WebhooksClient(BaseRestClient):
         source_name: V1WebhookSourceName,
         name: str,
         event_key_expression: str,
-        auth_type: Literal["BASIC", "API_KEY", "HMAC"],
         auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
@@ -164,7 +152,6 @@ class WebhooksClient(BaseRestClient):
             source_name,
             name,
             event_key_expression,
-            auth_type,
             auth,
             scope_expression,
             static_payload,

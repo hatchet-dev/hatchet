@@ -28,7 +28,6 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
     V1WebhookHMACEncoding,
 )
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
-from hatchet_sdk.features.webhooks import CreateWebhookRequest
 
 TEST_BASIC_USERNAME = "test_user"
 TEST_BASIC_PASSWORD = "test_password"
@@ -165,7 +164,6 @@ async def basic_auth_webhook(
         source_name=source_name,
         name=f"test-webhook-basic-{test_run_id}",
         event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        auth_type="BASIC",
         auth=V1WebhookBasicAuth(username=username, password=password),
     )
 
@@ -188,7 +186,6 @@ async def api_key_webhook(
         source_name=source_name,
         name=f"test-webhook-apikey-{test_run_id}",
         event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        auth_type="API_KEY",
         auth=V1WebhookAPIKeyAuth(
             headerName=header_name,
             apiKey=api_key,
@@ -216,7 +213,6 @@ async def hmac_webhook(
         source_name=source_name,
         name=f"test-webhook-hmac-{test_run_id}",
         event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        auth_type="HMAC",
         auth=V1WebhookHMACAuth(
             algorithm=algorithm,
             encoding=encoding,

@@ -19,7 +19,6 @@ from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
-from hatchet_sdk.features.webhooks import CreateWebhookRequest
 
 TEST_BASIC_USERNAME = "test_user"
 TEST_BASIC_PASSWORD = "test_password"
@@ -124,7 +123,6 @@ async def webhook_with_scope_expression(
         name=f"test-webhook-scope-{test_run_id}",
         event_key_expression=event_key_expression,
         scope_expression=scope_expression,
-        auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
@@ -157,7 +155,6 @@ async def webhook_with_static_payload(
         name=f"test-webhook-static-{test_run_id}",
         event_key_expression=event_key_expression,
         static_payload=static_payload,
-        auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
@@ -192,7 +189,6 @@ async def webhook_with_scope_and_static(
         event_key_expression=event_key_expression,
         scope_expression=scope_expression,
         static_payload=static_payload,
-        auth_type="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
             password=password,
