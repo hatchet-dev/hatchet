@@ -53,8 +53,14 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
+	re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
+
 	if err != nil {
-		return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		if isInvalidArgument {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+		} else {
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		}
 	}
 
 	if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
@@ -111,8 +117,14 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	for i, workflow := range req.Workflows {
 		opt, err := a.newTriggerOpt(ctx, tenantId, workflow)
 
+		re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
+
 		if err != nil {
-			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+			if isInvalidArgument {
+				return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+			} else {
+				return nil, fmt.Errorf("could not create trigger opt: %w", err)
+			}
 		}
 
 		if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
@@ -201,7 +213,13 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	t, err := i.repov1.Triggers().NewTriggerOpt(ctx, tenantId, req, parentTask)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create trigger task data: %w", err)
+		re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
+
+		if isInvalidArgument {
+			return nil, re
+		} else {
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		}
 	}
 
 	return &v1.WorkflowNameTriggerOpts{

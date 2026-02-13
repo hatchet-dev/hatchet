@@ -12,8 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -2196,6 +2194,14 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	return triggerOpts, nil
 }
 
+type TriggerOptInvalidArgumentError struct {
+	Err error
+}
+
+func (r *TriggerOptInvalidArgumentError) Error() string {
+	return fmt.Sprintf("err %v", r.Err)
+}
+
 func (r *sharedRepository) NewTriggerOpt(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -2222,7 +2228,9 @@ func (r *sharedRepository) NewTriggerOpt(
 		if *req.DesiredWorkerId != "" {
 			workerId, err := uuid.Parse(*req.DesiredWorkerId)
 			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
+				return nil, &TriggerOptInvalidArgumentError{
+					Err: fmt.Errorf("desiredWorkerId must be a valid UUID: %w", err),
+				}
 			}
 			desiredWorkerId = &workerId
 		}
@@ -2238,7 +2246,9 @@ func (r *sharedRepository) NewTriggerOpt(
 
 	if req.Priority != nil {
 		if *req.Priority < 1 || *req.Priority > 3 {
-			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+			return nil, &TriggerOptInvalidArgumentError{
+				Err: fmt.Errorf("priority must be between 1 and 3, got %d", *req.Priority),
+			}
 		}
 		t.Priority = req.Priority
 	}
