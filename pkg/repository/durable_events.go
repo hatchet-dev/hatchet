@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-
 type EventLogCallbackWithPayload struct {
 	Callback       *sqlcv1.V1DurableEventLogCallback
 	Result         []byte
@@ -94,7 +93,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		return nil, err
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExisted = false
-		newEntry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
+		entry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
 			Tenantid:              params.Tenantid,
 			Externalid:            params.Externalid,
 			Durabletaskid:         params.Durabletaskid,
@@ -109,21 +108,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 
 		if err != nil {
 			return nil, err
-		}
-
-		entry = &sqlcv1.V1DurableEventLogEntry{
-			TenantID:              newEntry.TenantID,
-			ExternalID:            newEntry.ExternalID,
-			InsertedAt:            newEntry.InsertedAt,
-			ID:                    newEntry.ID,
-			DurableTaskID:         newEntry.DurableTaskID,
-			DurableTaskInsertedAt: newEntry.DurableTaskInsertedAt,
-			Kind:                  newEntry.Kind,
-			NodeID:                newEntry.NodeID,
-			ParentNodeID:          newEntry.ParentNodeID,
-			BranchID:              newEntry.BranchID,
-			DataHash:              newEntry.DataHash,
-			DataHashAlg:           newEntry.DataHashAlg,
 		}
 
 		if len(payload) > 0 {
@@ -162,7 +146,7 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 		return nil, err
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExists = false
-		newCallback, err := r.queries.CreateDurableEventLogCallback(ctx, tx, sqlcv1.CreateDurableEventLogCallbackParams{
+		callback, err := r.queries.CreateDurableEventLogCallback(ctx, tx, sqlcv1.CreateDurableEventLogCallbackParams{
 			Tenantid:              params.Tenantid,
 			Durabletaskid:         params.Durabletaskid,
 			Durabletaskinsertedat: params.Durabletaskinsertedat,
@@ -180,9 +164,9 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 
 		if len(payload) > 0 {
 			err = r.payloadStore.Store(ctx, tx, StorePayloadOpts{
-				Id:         newCallback.ID,
-				InsertedAt: newCallback.InsertedAt,
-				ExternalId: newCallback.ExternalID,
+				Id:         callback.ID,
+				InsertedAt: callback.InsertedAt,
+				ExternalId: callback.ExternalID,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
 				Payload:    payload,
 				TenantId:   tenantId,
@@ -191,19 +175,6 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 			if err != nil {
 				return nil, err
 			}
-		}
-
-		callback = &sqlcv1.V1DurableEventLogCallback{
-			TenantID:              newCallback.TenantID,
-			DurableTaskID:         newCallback.DurableTaskID,
-			DurableTaskInsertedAt: newCallback.DurableTaskInsertedAt,
-			InsertedAt:            newCallback.InsertedAt,
-			ID:                    newCallback.ID,
-			ExternalID:            newCallback.ExternalID,
-			Kind:                  newCallback.Kind,
-			NodeID:                newCallback.NodeID,
-			IsSatisfied:           newCallback.IsSatisfied,
-			DispatcherID:          newCallback.DispatcherID,
 		}
 	}
 
@@ -521,18 +492,9 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	return &IngestDurableTaskEventResult{
-		NodeId:   nodeId,
-		Callback: callbackResult,
-		EventLogFile: &sqlcv1.V1DurableEventLogFile{
-			TenantID:                      logFile.TenantID,
-			DurableTaskID:                 logFile.DurableTaskID,
-			DurableTaskInsertedAt:         logFile.DurableTaskInsertedAt,
-			LatestInvocationCount:         logFile.LatestInvocationCount,
-			LatestInsertedAt:              logFile.LatestInsertedAt,
-			LatestNodeID:                  logFile.LatestNodeID,
-			LatestBranchID:                logFile.LatestBranchID,
-			LatestBranchFirstParentNodeID: logFile.LatestBranchFirstParentNodeID,
-		},
+		NodeId:        nodeId,
+		Callback:      callbackResult,
+		EventLogFile:  logFile,
 		EventLogEntry: logEntry,
 		CreatedTasks:  spawnedTasks,
 		CreatedDAGs:   spawnedDAGs,
