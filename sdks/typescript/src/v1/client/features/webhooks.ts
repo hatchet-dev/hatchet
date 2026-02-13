@@ -1,11 +1,43 @@
 import {
   V1CreateWebhookRequest,
+  V1CreateWebhookRequestBase,
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
   V1WebhookSourceName,
+  V1WebhookAPIKeyAuth,
+  V1WebhookBasicAuth,
+  V1WebhookHMACAuth,
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { HatchetClient } from '../client';
+
+export type CreateWebhookOptions = V1CreateWebhookRequestBase & {
+  auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth;
+};
+
+type WebhookAuthType = 'BASIC' | 'API_KEY' | 'HMAC';
+
+function getAuthType(
+  auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth
+): WebhookAuthType {
+  if ('username' in auth && 'password' in auth) return 'BASIC';
+  if ('headerName' in auth && 'apiKey' in auth) return 'API_KEY';
+  if (
+    'signingSecret' in auth &&
+    'signatureHeaderName' in auth &&
+    'algorithm' in auth &&
+    'encoding' in auth
+  ) {
+    return 'HMAC';
+  }
+  throw new Error('Invalid webhook auth');
+}
+
+function toCreateWebhookRequest(options: CreateWebhookOptions): V1CreateWebhookRequest {
+  const { auth, ...base } = options;
+  const authType = getAuthType(auth);
+  return { ...base, authType, auth } as V1CreateWebhookRequest;
+}
 
 /**
  * Client for managing incoming webhooks in Hatchet.
@@ -44,8 +76,9 @@ export class WebhooksClient {
     return response.data;
   }
 
-  async create(request: V1CreateWebhookRequest): Promise<V1Webhook> {
-    const response = await this.api.v1WebhookCreate(this.tenantId, request);
+  async create(request: CreateWebhookOptions): Promise<V1Webhook> {
+    const payload = toCreateWebhookRequest(request);
+    const response = await this.api.v1WebhookCreate(this.tenantId, payload);
     return response.data;
   }
 

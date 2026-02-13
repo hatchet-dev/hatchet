@@ -13,7 +13,6 @@ async function main() {
     eventKeyExpression: `'${namespace}/webhook:' + input.type`,
     scopeExpression: 'input.customer_id',
     staticPayload: { customer_id: 'cust-123', environment: 'production' },
-    authType: 'BASIC',
     auth: { username: 'test_user', password: 'test_password' },
   });
   console.log('Created webhook:', webhook.name, webhook.scopeExpression, webhook.staticPayload);
