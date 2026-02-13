@@ -21,6 +21,7 @@ from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.features.stubs import StubsClient
+from hatchet_sdk.features.webhooks import WebhooksClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
@@ -121,6 +122,13 @@ class Hatchet:
         The scheduled client is a client for managing scheduled workflows within Hatchet.
         """
         return self._client.scheduled
+
+    @property
+    def webhooks(self) -> WebhooksClient:
+        """
+        The webhooks client provides methods for managing webhook endpoints in Hatchet.
+        """
+        return self._client.webhooks
 
     @property
     def workers(self) -> WorkersClient:

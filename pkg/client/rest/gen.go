@@ -1893,7 +1893,7 @@ type V1UpdateFilterRequest struct {
 // V1UpdateWebhookRequest defines model for V1UpdateWebhookRequest.
 type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
-	EventKeyExpression string `json:"eventKeyExpression"`
+	EventKeyExpression *string `json:"eventKeyExpression,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string `json:"scopeExpression,omitempty"`

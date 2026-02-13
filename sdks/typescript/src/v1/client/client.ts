@@ -44,6 +44,7 @@ import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
 import { CELClient } from './features/cel';
 import { TenantClient } from './features/tenant';
+import { WebhooksClient } from './features/webhooks';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -448,6 +449,19 @@ export class HatchetClient implements IHatchetClient {
     return this._tenant;
   }
 
+  private _webhooks: WebhooksClient | undefined;
+
+  /**
+   * Get the webhooks client for creating and managing webhooks
+   * @returns A webhooks client instance
+   */
+  get webhooks() {
+    if (!this._webhooks) {
+      this._webhooks = new WebhooksClient(this);
+    }
+    return this._webhooks;
+  }
+
   private _ratelimits: RatelimitsClient | undefined;
 
   /**
@@ -551,7 +565,7 @@ export class HatchetClient implements IHatchetClient {
    * @param workflows - The workflows to register on the webhooks
    * @returns A promise that resolves when the webhook is registered
    */
-  webhooks(workflows: V0Workflow[]) {
+  v0webhooks(workflows: V0Workflow[]) {
     return this._v0.webhooks(workflows);
   }
 
