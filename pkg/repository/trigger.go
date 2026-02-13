@@ -2208,13 +2208,13 @@ func (r *sharedRepository) NewTriggerOpt(
 	req *v1contracts.TriggerWorkflowRequest,
 	parentTask *sqlcv1.FlattenExternalIdsRow,
 ) (*WorkflowNameTriggerOpts, error) {
-	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
+	ctx, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerOpt")
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
-		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
-		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
+		attribute.String("sharedRepository.NewTriggerOpt.workflow_name", req.Name),
+		attribute.Int("sharedRepository.NewTriggerOpt.payload_size", len(req.Input)),
+		attribute.Bool("sharedRepository.NewTriggerOpt.is_child_workflow", req.ParentTaskRunExternalId != nil),
 	)
 
 	additionalMeta := ""
