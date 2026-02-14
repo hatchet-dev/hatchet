@@ -2,6 +2,7 @@ import json
 import traceback
 from typing import cast
 
+
 class HatchetConfigurationError(ValueError):
     """Raised when required configuration is missing or invalid."""
 
