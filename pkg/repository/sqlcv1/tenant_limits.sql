@@ -66,9 +66,6 @@ FROM input_values iv
 ON CONFLICT ("tenantId", "resource") DO UPDATE SET
     "limitValue" = EXCLUDED."limitValue",
     "alarmValue" = EXCLUDED."alarmValue",
-    "window" = COALESCE(NULLIF(EXCLUDED."window", ''), "TenantResourceLimit"."window"),
-    "customValueMeter" = EXCLUDED."customValueMeter",
-    "lastRefill" = CURRENT_TIMESTAMP,
     "updatedAt" = CURRENT_TIMESTAMP;
 
 -- name: MeterTenantResource :one

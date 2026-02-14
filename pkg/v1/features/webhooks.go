@@ -99,7 +99,7 @@ type CreateWebhookOpts struct {
 // Deprecated: UpdateWebhookOpts is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type UpdateWebhookOpts struct {
-	EventKeyExpression string
+	EventKeyExpression *string
 }
 
 // Deprecated: WebhooksClient is part of the old generics-based v1 Go SDK.
