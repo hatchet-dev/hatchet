@@ -6,6 +6,12 @@ export default {
   index: "🪓 Welcome",
   architecture: "Architecture",
   "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
+  "--patterns-and-use-cases": {
+    title: "Patterns and Use Cases",
+    type: "separator",
+  },
+  patterns: "Patterns",
+  "use-cases": "Use Cases",
   "--quickstart": {
     title: "Quickstart",
     type: "separator",
@@ -68,22 +74,6 @@ export default {
   },
   "additional-metadata": {
     title: "Additional Metadata",
-  },
-  "--durable-execution": {
-    title: "Durable Execution",
-    type: "separator",
-  },
-  "durable-execution": {
-    title: "Durable Execution",
-  },
-  "durable-events": {
-    title: "Durable Events",
-  },
-  "durable-sleep": {
-    title: "Durable Sleep",
-  },
-  "durable-best-practices": {
-    title: "Best Practices",
   },
   "--error-handling": {
     title: "Error Handling",
