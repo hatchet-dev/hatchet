@@ -1,11 +1,11 @@
 import os
-from typing import Literal, cast, overload, Callable, TypeVar
+from collections.abc import Callable
+from typing import Literal, TypeVar, cast, overload
 
 import grpc
 
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.exceptions import HatchetError
-
 
 T = TypeVar("T")
 
