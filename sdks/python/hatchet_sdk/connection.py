@@ -1,9 +1,13 @@
 import os
-from typing import Literal, cast, overload
+from typing import Literal, cast, overload, Callable, TypeVar
 
 import grpc
 
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.exceptions import HatchetError
+
+
+T = TypeVar("T")
 
 
 @overload
@@ -26,6 +30,7 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
                 root = f.read()
 
         credentials = grpc.ssl_channel_credentials(root_certificates=root)
+
     elif config.tls_config.strategy == "mtls":
         assert config.tls_config.root_ca_file
         assert config.tls_config.key_file
@@ -59,13 +64,9 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         ("grpc.default_compression_algorithm", grpc.Compression.Gzip),
     ]
 
-    # Set environment variable to disable fork support. Reference: https://github.com/grpc/grpc/issues/28557
-    # When steps execute via os.fork, we see `TSI_DATA_CORRUPTED` errors.
-    # needs to be the string "True" or "False"
     os.environ["GRPC_ENABLE_FORK_SUPPORT"] = str(config.grpc_enable_fork_support)
 
     if config.grpc_enable_fork_support:
-        # See discussion: https://github.com/hatchet-dev/hatchet/pull/2057#discussion_r2243233357
         os.environ["GRPC_POLL_STRATEGY"] = "poll"
 
     if config.tls_config.strategy == "none":
@@ -88,3 +89,61 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         grpc.Channel | grpc.aio.Channel,
         conn,
     )
+
+
+# -------------------------------------------------------------------
+# gRPC execution + transport error normalization (no behavior change)
+# -------------------------------------------------------------------
+
+
+def _execute_grpc_call(
+    fn: Callable[..., T],
+    *args,
+    **kwargs,
+) -> T:
+    """
+    Executes a gRPC stub call and normalizes transport-level errors.
+
+    Does NOT change retry behavior.
+    Only translates grpc.RpcError into clearer SDK-level exceptions.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except grpc.RpcError as e:
+        raise _translate_grpc_error(e) from e
+
+
+def _translate_grpc_error(e: grpc.RpcError) -> Exception:
+    """
+    Translate grpc.RpcError into more specific SDK exceptions.
+
+    No retry behavior changes.
+    """
+    code = e.code()
+
+    # Transport-level / connectivity issues
+    if code == grpc.StatusCode.DEADLINE_EXCEEDED:
+        return GRPCTimeoutError(str(e))
+
+    if code == grpc.StatusCode.UNAVAILABLE:
+        return GRPCUnavailableError(str(e))
+
+    # Fallback: preserve original behavior
+    return e
+
+
+# -------------------------------------------------------------------
+# Transport exception types (minimal, incremental)
+# -------------------------------------------------------------------
+
+
+class GRPCTransportError(HatchetError):
+    """Base class for gRPC transport-level failures."""
+
+
+class GRPCTimeoutError(GRPCTransportError):
+    """Raised when a gRPC call exceeds its deadline."""
+
+
+class GRPCUnavailableError(GRPCTransportError):
+    """Raised when the gRPC server is unavailable."""
