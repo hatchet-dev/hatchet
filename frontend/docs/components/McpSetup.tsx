@@ -116,7 +116,7 @@ export function CursorDeeplinkButton() {
           posthog.capture("mcp_install_click", {
             editor: "cursor",
             method: "deeplink_button",
-            page: "ai-editor-setup",
+            page: "install-docs-mcp",
           })
         }
       >

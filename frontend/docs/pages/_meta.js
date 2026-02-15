@@ -1,6 +1,6 @@
 export default {
   home: {
-    title: "User Guide",
+    title: "Guide",
     type: "page",
     theme: {
       toc: false,

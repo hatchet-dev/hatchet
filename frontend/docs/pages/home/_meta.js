@@ -12,7 +12,7 @@ export default {
   },
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   setup: "Advanced Setup",
-  "ai-editor-setup": "Add to Your AI Editor",
+  "install-docs-mcp": "Install Docs MCP",
   "--guide": {
     title: "Fundamentals",
     type: "separator",
