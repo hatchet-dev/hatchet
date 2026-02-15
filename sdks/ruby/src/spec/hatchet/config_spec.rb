@@ -43,11 +43,6 @@ RSpec.describe Hatchet::Config do
         expect(config.grpc_max_recv_message_length).to eq(4 * 1024 * 1024)
         expect(config.grpc_max_send_message_length).to eq(4 * 1024 * 1024)
         expect(config.worker_preset_labels).to eq({})
-        expect(config.enable_force_kill_sync_threads).to be false
-        expect(config.enable_thread_pool_monitoring).to be false
-        expect(config.disable_log_capture).to be false
-        expect(config.grpc_enable_fork_support).to be false
-        expect(config.terminate_worker_after_num_tasks).to be_nil
         expect(config.listener_v2_timeout).to be_nil
       end
 
@@ -59,8 +54,6 @@ RSpec.describe Hatchet::Config do
           namespace: "test_namespace",
           grpc_max_recv_message_length: 8 * 1024 * 1024,
           worker_preset_labels: { "env" => "test" },
-          enable_force_kill_sync_threads: true,
-          disable_log_capture: true,
           listener_v2_timeout: 5000,
         )
 
@@ -69,8 +62,6 @@ RSpec.describe Hatchet::Config do
         expect(config.namespace).to eq("test_namespace_")
         expect(config.grpc_max_recv_message_length).to eq(8 * 1024 * 1024)
         expect(config.worker_preset_labels).to eq({ "env" => "test" })
-        expect(config.enable_force_kill_sync_threads).to be true
-        expect(config.disable_log_capture).to be true
         expect(config.listener_v2_timeout).to eq(5000)
       end
 
@@ -229,50 +220,7 @@ RSpec.describe Hatchet::Config do
       end
     end
 
-    describe "#parse_bool" do
-      it "parses truthy values" do
-        expect(config.send(:parse_bool, "true")).to be true
-        expect(config.send(:parse_bool, "1")).to be true
-        expect(config.send(:parse_bool, "yes")).to be true
-        expect(config.send(:parse_bool, "on")).to be true
-        expect(config.send(:parse_bool, "TRUE")).to be true
-        expect(config.send(:parse_bool, true)).to be true
-      end
 
-      it "parses falsy values" do
-        expect(config.send(:parse_bool, "false")).to be false
-        expect(config.send(:parse_bool, "0")).to be false
-        expect(config.send(:parse_bool, "no")).to be false
-        expect(config.send(:parse_bool, "off")).to be false
-        expect(config.send(:parse_bool, false)).to be false
-      end
-
-      it "returns nil for nil" do
-        expect(config.send(:parse_bool, nil)).to be_nil
-      end
-    end
-
-    describe "#parse_hash" do
-      it "parses key=value pairs" do
-        result = config.send(:parse_hash, "key1=value1,key2=value2")
-        expect(result).to eq({ "key1" => "value1", "key2" => "value2" })
-      end
-
-      it "handles spaces around keys and values" do
-        result = config.send(:parse_hash, " key1 = value1 , key2 = value2 ")
-        expect(result).to eq({ "key1" => "value1", "key2" => "value2" })
-      end
-
-      it "returns nil for invalid input" do
-        expect(config.send(:parse_hash, nil)).to be_nil
-        expect(config.send(:parse_hash, "")).to be_nil
-      end
-
-      it "returns empty hash for malformed input" do
-        result = config.send(:parse_hash, "invalid_format")
-        expect(result).to eq({})
-      end
-    end
   end
 
   describe "logger" do

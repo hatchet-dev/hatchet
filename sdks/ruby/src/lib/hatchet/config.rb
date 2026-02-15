@@ -98,41 +98,6 @@ module Hatchet
     end
   end
 
-  # OpenTelemetry configuration for observability
-  #
-  # @example Exclude sensitive attributes from telemetry
-  #   otel = OpenTelemetryConfig.new(excluded_attributes: ["password", "api_key"])
-  class OpenTelemetryConfig
-    # @!attribute excluded_attributes
-    #   @return [Array<String>] List of attribute names to exclude from telemetry
-    attr_accessor :excluded_attributes
-
-    # Initialize OpenTelemetry configuration
-    #
-    # @param options [Hash] OpenTelemetry configuration options
-    # @option options [Array<String>] :excluded_attributes List of attribute names to exclude from telemetry
-    def initialize(**options)
-      @excluded_attributes = options[:excluded_attributes] ||
-                             parse_json_array(
-                               env_var("HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES"),
-                             ) || []
-    end
-
-    private
-
-    def env_var(name)
-      ENV.fetch(name, nil)
-    end
-
-    def parse_json_array(value)
-      return nil if value.nil? || value.empty?
-
-      JSON.parse(value)
-    rescue JSON::ParserError
-      nil
-    end
-  end
-
   # Configuration class for Hatchet client settings
   #
   # This class manages all configuration options for the Hatchet client, including
@@ -182,29 +147,15 @@ module Hatchet
     # @!attribute grpc_max_send_message_length
     #   @return [Integer] Maximum gRPC send message length in bytes
     # @!attribute worker_preset_labels
-    #   @return [Hash<String, String>] Hash of preset labels for workers
-    # @!attribute enable_force_kill_sync_threads
-    #   @return [Boolean] Enable force killing of sync threads
-    # @!attribute enable_thread_pool_monitoring
-    #   @return [Boolean] Enable thread pool monitoring
-    # @!attribute terminate_worker_after_num_tasks
-    #   @return [Integer, nil] Terminate worker after this many tasks
-    # @!attribute disable_log_capture
-    #   @return [Boolean] Disable log capture
-    # @!attribute grpc_enable_fork_support
-    #   @return [Boolean] Enable gRPC fork support
+    #   @return [Hash<String, String>] Default labels applied to all workers
     # @!attribute tls_config
     #   @return [TLSConfig] TLS configuration
     # @!attribute healthcheck
     #   @return [HealthcheckConfig] Healthcheck configuration
-    # @!attribute otel
-    #   @return [OpenTelemetryConfig] OpenTelemetry configuration
     attr_accessor :token, :host_port, :server_url, :namespace,
                   :logger, :listener_v2_timeout, :grpc_max_recv_message_length,
                   :grpc_max_send_message_length, :worker_preset_labels,
-                  :enable_force_kill_sync_threads, :enable_thread_pool_monitoring,
-                  :terminate_worker_after_num_tasks, :disable_log_capture,
-                  :grpc_enable_fork_support, :tls_config, :healthcheck, :otel
+                  :tls_config, :healthcheck
 
     attr_reader :tenant_id
 
@@ -225,15 +176,9 @@ module Hatchet
     # @option options [Integer] :listener_v2_timeout Timeout for listener v2 in milliseconds
     # @option options [Integer] :grpc_max_recv_message_length Maximum gRPC receive message length in bytes (default: 4MB)
     # @option options [Integer] :grpc_max_send_message_length Maximum gRPC send message length in bytes (default: 4MB)
-    # @option options [Hash<String, String>] :worker_preset_labels Hash of preset labels for workers
-    # @option options [Boolean] :enable_force_kill_sync_threads Enable force killing of sync threads (default: false)
-    # @option options [Boolean] :enable_thread_pool_monitoring Enable thread pool monitoring (default: false)
-    # @option options [Integer] :terminate_worker_after_num_tasks Terminate worker after this many tasks
-    # @option options [Boolean] :disable_log_capture Disable log capture (default: false)
-    # @option options [Boolean] :grpc_enable_fork_support Enable gRPC fork support (default: false)
+    # @option options [Hash<String, String>] :worker_preset_labels Default labels applied to all workers (default: {})
     # @option options [TLSConfig] :tls_config Custom TLS configuration
     # @option options [HealthcheckConfig] :healthcheck Custom healthcheck configuration
-    # @option options [OpenTelemetryConfig] :otel Custom OpenTelemetry configuration
     #
     # @raise [Error] if token is missing, empty, or not a valid JWT
     def initialize(**options)
@@ -258,31 +203,10 @@ module Hatchet
 
       @worker_preset_labels = options[:worker_preset_labels] ||
                               parse_hash(env_var("HATCHET_CLIENT_WORKER_PRESET_LABELS")) || {}
-      @enable_force_kill_sync_threads = parse_bool(
-        options[:enable_force_kill_sync_threads] ||
-        env_var("HATCHET_CLIENT_ENABLE_FORCE_KILL_SYNC_THREADS"),
-      ) || false
-      @enable_thread_pool_monitoring = parse_bool(
-        options[:enable_thread_pool_monitoring] ||
-        env_var("HATCHET_CLIENT_ENABLE_THREAD_POOL_MONITORING"),
-      ) || false
-      @terminate_worker_after_num_tasks = parse_int(
-        options[:terminate_worker_after_num_tasks] ||
-        env_var("HATCHET_CLIENT_TERMINATE_WORKER_AFTER_NUM_TASKS"),
-      )
-      @disable_log_capture = parse_bool(
-        options[:disable_log_capture] ||
-        env_var("HATCHET_CLIENT_DISABLE_LOG_CAPTURE"),
-      ) || false
-      @grpc_enable_fork_support = parse_bool(
-        options[:grpc_enable_fork_support] ||
-        env_var("HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT"),
-      ) || false
 
       # Initialize nested configurations
       @tls_config = options[:tls_config] || TLSConfig.new
       @healthcheck = options[:healthcheck] || HealthcheckConfig.new
-      @otel = options[:otel] || OpenTelemetryConfig.new
 
       # Initialize tenant_id from JWT token
       @tenant_id = ""
@@ -344,11 +268,6 @@ module Hatchet
         grpc_max_recv_message_length: grpc_max_recv_message_length,
         grpc_max_send_message_length: grpc_max_send_message_length,
         worker_preset_labels: worker_preset_labels,
-        enable_force_kill_sync_threads: enable_force_kill_sync_threads,
-        enable_thread_pool_monitoring: enable_thread_pool_monitoring,
-        terminate_worker_after_num_tasks: terminate_worker_after_num_tasks,
-        disable_log_capture: disable_log_capture,
-        grpc_enable_fork_support: grpc_enable_fork_support,
       }
     end
 
@@ -420,17 +339,9 @@ module Hatchet
       nil
     end
 
-    def parse_bool(value)
-      return nil if value.nil?
-      return value if [true, false].include?(value)
-
-      %w[true 1 yes on].include?(value.to_s.downcase)
-    end
-
     def parse_hash(value)
       return nil if value.nil? || value.empty?
 
-      # Simple key=value,key2=value2 parsing
       result = {}
       value.split(",").each do |pair|
         key, val = pair.split("=", 2)

@@ -20,14 +20,8 @@ module Hatchet
       ?grpc_max_recv_message_length: Integer,
       ?grpc_max_send_message_length: Integer,
       ?worker_preset_labels: Hash[String, String],
-      ?enable_force_kill_sync_threads: bool,
-      ?enable_thread_pool_monitoring: bool,
-      ?terminate_worker_after_num_tasks: Integer,
-      ?disable_log_capture: bool,
-      ?grpc_enable_fork_support: bool,
       ?tls_config: TLSConfig,
-      ?healthcheck: HealthcheckConfig,
-      ?otel: OpenTelemetryConfig
+      ?healthcheck: HealthcheckConfig
     ) -> void
 
     def rest_client: () -> untyped

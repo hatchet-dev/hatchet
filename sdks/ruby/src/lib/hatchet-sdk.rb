@@ -102,7 +102,7 @@ module Hatchet
     # @option options [String] :server_url Server URL for HTTP requests
     # @option options [String] :namespace Namespace prefix for resource names (default: "")
     # @option options [Logger] :logger Custom logger instance
-    # @option options [Hash] :worker_preset_labels Hash of preset labels for workers
+    # @option options [Hash] :worker_preset_labels Default labels applied to all workers
     #
     # @raise [Error] if token or configuration is missing or invalid
     def initialize(**options)

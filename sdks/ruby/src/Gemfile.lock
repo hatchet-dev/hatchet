@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    hatchet-sdk (0.1.0.pre.alpha)
+    hatchet-sdk (0.1.0)
       concurrent-ruby (>= 1.1)
       faraday (~> 2.0)
       faraday-multipart

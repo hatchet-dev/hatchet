@@ -40,7 +40,7 @@ module Hatchet
       @client = client
       @workflows = workflows
       @slots = slots
-      @labels = labels
+      @labels = client.config.worker_preset_labels.merge(labels)
       @worker_id = nil
       @shutdown = false
     end
