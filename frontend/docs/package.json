@@ -37,6 +37,7 @@
     "js-yaml": "^4.1.1",
     "loops": "^5.0.1",
     "lucide-react": "^0.459.0",
+    "minisearch": "^7.2.0",
     "next": "^14.2.35",
     "nextra": "^3.3.1",
     "nextra-theme-docs": "^3.3.1",

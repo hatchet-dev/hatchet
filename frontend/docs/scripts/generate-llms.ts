@@ -562,6 +562,46 @@ function convertMdxToMarkdown(
 }
 
 // ---------------------------------------------------------------------------
+// MiniSearch index generation
+// ---------------------------------------------------------------------------
+import MiniSearch from "minisearch";
+
+interface SearchDoc {
+  id: string;
+  title: string;
+  content: string;
+}
+
+/** MiniSearch configuration — must match between generation and loading. */
+const MINISEARCH_OPTIONS = {
+  fields: ["title", "content"] as string[],
+  storeFields: ["title"] as string[],
+};
+
+function buildSearchIndex(
+  pages: DocPage[],
+  snippetTree: SnippetNode,
+  languages: string[] | null,
+): string {
+  const miniSearch = new MiniSearch<SearchDoc>(MINISEARCH_OPTIONS);
+
+  const docs: SearchDoc[] = [];
+  for (const page of pages) {
+    const raw = fs.readFileSync(page.filepath, "utf-8");
+    const md = convertMdxToMarkdown(raw, snippetTree, languages, page.filepath);
+    const urlPath = page.href.replace(DOCS_BASE_URL + "/", "");
+    docs.push({
+      id: `hatchet://docs/${urlPath}`,
+      title: page.title,
+      content: md,
+    });
+  }
+
+  miniSearch.addAll(docs);
+  return JSON.stringify(miniSearch);
+}
+
+// ---------------------------------------------------------------------------
 // Output generation
 // ---------------------------------------------------------------------------
 function generateLlmsTxt(pages: DocPage[]): string {
@@ -686,6 +726,9 @@ function main(): void {
   console.log("Generating per-page markdown files...");
   generatePerPageMarkdown(pages, snippetTree, languages);
 
+  console.log("Building MiniSearch index...");
+  const searchIndexJson = buildSearchIndex(pages, snippetTree, languages);
+
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
   const llmsTxtPath = path.join(OUTPUT_DIR, "llms.txt");
@@ -695,6 +738,12 @@ function main(): void {
   const llmsFullPath = path.join(OUTPUT_DIR, "llms-full.txt");
   fs.writeFileSync(llmsFullPath, llmsFullTxt);
   console.log(`  Wrote ${llmsFullPath} (${llmsFullTxt.length} bytes)`);
+
+  const searchIndexPath = path.join(OUTPUT_DIR, "llms-search-index.json");
+  fs.writeFileSync(searchIndexPath, searchIndexJson);
+  console.log(
+    `  Wrote ${searchIndexPath} (${searchIndexJson.length} bytes)`,
+  );
 
   if (languages) {
     console.log(`  Languages: ${languages.join(", ")}`);
