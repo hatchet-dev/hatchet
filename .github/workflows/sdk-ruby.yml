@@ -127,9 +127,12 @@ jobs:
       - name: Run integration tests
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
-      - name: Install example dependencies
-        working-directory: ./sdks/ruby/examples
-        run: bundle install
+      - name: Set up Ruby for examples
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+          working-directory: ./sdks/ruby/examples
 
       - name: Start example worker
         working-directory: ./sdks/ruby/examples
