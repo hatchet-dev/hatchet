@@ -188,7 +188,7 @@ RSpec.describe Hatchet::Features::Cron do
           offset: 10,
           limit: 50,
           workflow_id: "wf-1",
-          additional_metadata: [{ key: "env", value: "prod" }],
+          additional_metadata: ["env:prod"],
           workflow_name: "my-workflow",
           cron_name: "daily",
         ),

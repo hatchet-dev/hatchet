@@ -230,7 +230,7 @@ RSpec.describe Hatchet::Features::Scheduled do
           offset: 10,
           limit: 50,
           workflow_id: "wf-1",
-          additional_metadata: [{ key: "env", value: "prod" }],
+          additional_metadata: ["env:prod"],
           statuses: ["PENDING"],
         ),
       )

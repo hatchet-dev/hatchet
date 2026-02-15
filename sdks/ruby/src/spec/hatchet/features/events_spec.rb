@@ -230,7 +230,7 @@ RSpec.describe Hatchet::Features::Events do
           limit: nil,
           keys: nil,
           since: nil,
-          until: nil,
+          _until: nil,
           workflow_ids: nil,
           workflow_run_statuses: nil,
           event_ids: nil,
@@ -261,11 +261,11 @@ RSpec.describe Hatchet::Features::Events do
           limit: 50,
           keys: %w[event-1 event-2],
           since: since_time.utc.iso8601,
-          until: until_time.utc.iso8601,
+          _until: until_time.utc.iso8601,
           workflow_ids: ["workflow-1"],
           workflow_run_statuses: ["RUNNING"],
           event_ids: ["event-id-1"],
-          additional_metadata: [{ key: "source", value: "test" }],
+          additional_metadata: ["source:test"],
           scopes: ["scope-1"],
         },
       )
@@ -334,9 +334,6 @@ RSpec.describe Hatchet::Features::Events do
 
       expect(HatchetSdkRest::CancelEventRequest).to have_received(:new).with(
         event_ids: %w[event-1 event-2],
-        keys: nil,
-        since: nil,
-        until: nil,
       )
       expect(event_api).to have_received(:event_update_cancel).with("test-tenant", cancel_request)
     end
@@ -346,9 +343,6 @@ RSpec.describe Hatchet::Features::Events do
 
       expect(HatchetSdkRest::CancelEventRequest).to have_received(:new).with(
         event_ids: nil,
-        keys: ["event-key"],
-        since: since_time.utc.iso8601,
-        until: until_time.utc.iso8601,
       )
     end
 
@@ -374,9 +368,6 @@ RSpec.describe Hatchet::Features::Events do
 
       expect(HatchetSdkRest::ReplayEventRequest).to have_received(:new).with(
         event_ids: %w[event-1 event-2],
-        keys: nil,
-        since: nil,
-        until: nil,
       )
       expect(event_api).to have_received(:event_update_replay).with("test-tenant", replay_request)
     end
@@ -386,9 +377,6 @@ RSpec.describe Hatchet::Features::Events do
 
       expect(HatchetSdkRest::ReplayEventRequest).to have_received(:new).with(
         event_ids: nil,
-        keys: ["event-key"],
-        since: since_time.utc.iso8601,
-        until: until_time.utc.iso8601,
       )
     end
 
@@ -425,10 +413,7 @@ RSpec.describe Hatchet::Features::Events do
 
         result = events_client.send(:maybe_additional_metadata_to_kv, metadata)
 
-        expect(result).to eq([
-          { key: "env", value: "test" },
-          { key: "version", value: "1.0" },
-        ])
+        expect(result).to eq(["env:test", "version:1.0"])
       end
 
       it "returns nil for nil input" do
@@ -441,7 +426,7 @@ RSpec.describe Hatchet::Features::Events do
 
         result = events_client.send(:maybe_additional_metadata_to_kv, metadata)
 
-        expect(result).to eq([{ key: "123", value: "456" }])
+        expect(result).to eq(["123:456"])
       end
     end
   end

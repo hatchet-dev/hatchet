@@ -129,7 +129,7 @@ RSpec.describe Hatchet::Features::Runs do
           offset: nil,
           limit: nil,
           statuses: nil,
-          until: kind_of(String),
+          _until: kind_of(String),
           additional_metadata: nil,
           workflow_ids: nil,
           worker_id: nil,
@@ -165,8 +165,8 @@ RSpec.describe Hatchet::Features::Runs do
           offset: 10,
           limit: 50,
           statuses: ["RUNNING"],
-          until: until_time.utc.iso8601,
-          additional_metadata: [{ key: "env", value: "test" }],
+          _until: until_time.utc.iso8601,
+          additional_metadata: ["env:test"],
           workflow_ids: ["workflow-1"],
           worker_id: "worker-123",
           parent_task_external_id: "parent-task-456",
@@ -455,10 +455,7 @@ RSpec.describe Hatchet::Features::Runs do
 
         result = runs_client.send(:maybe_additional_metadata_to_kv, metadata)
 
-        expect(result).to eq([
-          { key: "env", value: "test" },
-          { key: "version", value: "1.0" },
-        ])
+        expect(result).to eq(["env:test", "version:1.0"])
       end
 
       it "returns nil for nil input" do
@@ -472,7 +469,7 @@ RSpec.describe Hatchet::Features::Runs do
 
         result = runs_client.send(:maybe_additional_metadata_to_kv, metadata)
 
-        expect(result).to eq([{ key: "123", value: "456" }])
+        expect(result).to eq(["123:456"])
       end
     end
   end
@@ -577,11 +574,11 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
 
       expect(result).to eq(task_filter)
       expect(HatchetSdkRest::V1TaskFilter).to have_received(:new).with(
-        since: since_time,
-        until: until_time,
+        since: since_time.utc.iso8601,
+        _until: until_time.utc.iso8601,
         statuses: statuses,
         workflow_ids: workflow_ids,
-        additional_metadata: [{ key: "env", value: "test" }],
+        additional_metadata: ["env:test"],
       )
     end
   end
