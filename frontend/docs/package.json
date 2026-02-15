@@ -4,15 +4,16 @@
   "description": "Nextra docs template",
   "packageManager": "pnpm@10.16.1",
   "scripts": {
-    "taskfile-dev": "pnpm run generate-examples && next dev",
-    "dev": "next dev",
-    "build": "pnpm run generate-examples && pnpm run generate-llms && next build",
+    "taskfile-dev": "pnpm run generate-examples && pnpm run generate-llms && pnpm run test-search -- --warn && next dev",
+    "dev": "pnpm run generate-llms && pnpm run test-search -- --warn && next dev",
+    "build": "pnpm run generate-examples && pnpm run generate-llms && pnpm run test-search && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --list-different",
     "prettier:fix": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --write",
     "generate-llms": "tsx scripts/generate-llms.ts",
+    "test-search": "tsx scripts/test-search-quality.ts",
     "generate-examples": "cd ../snippets/ && python3 generate.py "
   },
   "repository": {

@@ -566,17 +566,134 @@ function convertMdxToMarkdown(
 // ---------------------------------------------------------------------------
 import MiniSearch from "minisearch";
 
+import { MINISEARCH_OPTIONS } from "../lib/search-config.js";
+
 interface SearchDoc {
   id: string;
   title: string;
   content: string;
+  codeIdentifiers: string;
+  pageTitle: string;
+  pageRoute: string;
 }
 
-/** MiniSearch configuration — must match between generation and loading. */
-const MINISEARCH_OPTIONS = {
-  fields: ["title", "content"] as string[],
-  storeFields: ["title"] as string[],
-};
+/**
+ * Extract compound code identifiers from fenced code blocks in markdown.
+ * Finds dotted identifiers (e.g. hatchet.task, ctx.spawn, hatchet.workflow)
+ * and other notable code patterns, returning them as a space-separated string.
+ */
+function extractCodeIdentifiers(markdown: string): string {
+  const identifiers = new Set<string>();
+  const lines = markdown.split("\n");
+  let inFence = false;
+  let fenceMarker: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trimStart();
+    const backtickMatch = trimmed.match(/^(`{3,})/);
+    if (backtickMatch) {
+      if (fenceMarker === null) {
+        fenceMarker = backtickMatch[1];
+        inFence = true;
+      } else if (backtickMatch[1].length >= fenceMarker.length) {
+        fenceMarker = null;
+        inFence = false;
+      }
+      continue;
+    }
+
+    if (!inFence) continue;
+
+    // Dotted identifiers: hatchet.task, ctx.spawn, hatchet.workflow, etc.
+    const dottedPattern = /[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)+/g;
+    let m: RegExpExecArray | null;
+    while ((m = dottedPattern.exec(line)) !== null) {
+      identifiers.add(m[0].toLowerCase());
+    }
+
+    // Decorated identifiers: @hatchet.task, @hatchet.workflow
+    const decoratorPattern = /@([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)/g;
+    while ((m = decoratorPattern.exec(line)) !== null) {
+      identifiers.add(m[1].toLowerCase());
+    }
+  }
+
+  return Array.from(identifiers).join(" ");
+}
+
+/**
+ * Convert heading text to a URL-friendly slug (matching Nextra's anchor generation).
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
+ * Split markdown content into sections by h2 headings.
+ * Returns an array of { heading, slug, content } objects.
+ * The first element has heading="" for content before the first h2.
+ */
+function splitByH2(
+  markdown: string,
+): Array<{ heading: string; slug: string; content: string }> {
+  const lines = markdown.split("\n");
+  const sections: Array<{ heading: string; slug: string; content: string }> = [];
+  let currentHeading = "";
+  let currentSlug = "";
+  let currentLines: string[] = [];
+  let fenceMarker: string | null = null; // tracks the opening fence (e.g. "```" or "````")
+
+  for (const line of lines) {
+    // Track fenced code blocks so we don't split on ## inside them.
+    // A fence opens with 3+ backticks and closes only when we see at
+    // least the same number of backticks (CommonMark spec).
+    const trimmed = line.trimStart();
+    const backtickMatch = trimmed.match(/^(`{3,})/);
+    if (backtickMatch) {
+      if (fenceMarker === null) {
+        fenceMarker = backtickMatch[1]; // open fence
+      } else if (backtickMatch[1].length >= fenceMarker.length) {
+        fenceMarker = null; // close fence
+      }
+      // else: fewer backticks than the opening fence — just content
+    }
+
+    const h2Match = fenceMarker === null && line.match(/^## (.+)$/);
+    if (h2Match) {
+      // Flush the previous section
+      const content = currentLines.join("\n").trim();
+      if (content || currentHeading) {
+        sections.push({
+          heading: currentHeading,
+          slug: currentSlug,
+          content,
+        });
+      }
+      currentHeading = h2Match[1].trim();
+      currentSlug = slugify(currentHeading);
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+
+  // Flush the last section
+  const content = currentLines.join("\n").trim();
+  if (content || currentHeading) {
+    sections.push({
+      heading: currentHeading,
+      slug: currentSlug,
+      content,
+    });
+  }
+
+  return sections;
+}
 
 function buildSearchIndex(
   pages: DocPage[],
@@ -590,11 +707,27 @@ function buildSearchIndex(
     const raw = fs.readFileSync(page.filepath, "utf-8");
     const md = convertMdxToMarkdown(raw, snippetTree, languages, page.filepath);
     const urlPath = page.href.replace(DOCS_BASE_URL + "/", "");
-    docs.push({
-      id: `hatchet://docs/${urlPath}`,
-      title: page.title,
-      content: md,
-    });
+    const pageRoute = `hatchet://docs/${urlPath}`;
+
+    const sections = splitByH2(md);
+
+    for (const section of sections) {
+      if (!section.content.trim()) continue;
+
+      const id = section.slug
+        ? `${pageRoute}#${section.slug}`
+        : pageRoute;
+      const title = section.heading || page.title;
+
+      docs.push({
+        id,
+        title,
+        content: section.content,
+        codeIdentifiers: extractCodeIdentifiers(section.content),
+        pageTitle: page.title,
+        pageRoute,
+      });
+    }
   }
 
   miniSearch.addAll(docs);

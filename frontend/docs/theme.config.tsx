@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useConfig, useTheme } from "nextra-theme-docs";
 import { useRouter } from "next/router";
 import posthog from "posthog-js";
+import Search from "@/components/Search";
 
 const CursorIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -166,6 +167,9 @@ const config = {
   sidebar: {
     defaultMenuCollapseLevel: 2,
     toggleButton: true,
+  },
+  search: {
+    component: Search,
   },
   darkMode: true,
   nextThemes: {
