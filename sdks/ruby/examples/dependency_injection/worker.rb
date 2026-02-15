@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: false)
+HATCHET = Hatchet::Client.new(debug: false) unless defined?(HATCHET)
 
 SYNC_DEPENDENCY_VALUE = "sync_dependency_value"
 ASYNC_DEPENDENCY_VALUE = "async_dependency_value"

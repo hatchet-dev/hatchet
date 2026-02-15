@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new
+HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # > Event trigger
 EVENT_KEY = "user:create"

@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new
+HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # > Event trigger
 HATCHET.event.push("user:create", { "should_skip" => false })

@@ -50,7 +50,7 @@ require_relative "webhooks/worker"
 require_relative "webhook_with_scope/worker"
 require_relative "unit_testing/worker"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 ALL_WORKFLOWS = [
   # Tier 1

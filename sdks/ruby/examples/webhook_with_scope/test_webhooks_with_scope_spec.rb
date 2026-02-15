@@ -7,8 +7,8 @@ require_relative "../spec_helper"
 require_relative "worker"
 
 RSpec.describe "WebhookWithScope" do
-  TEST_BASIC_USERNAME = "test_user"
-  TEST_BASIC_PASSWORD = "test_password"
+  TEST_BASIC_USERNAME = "test_user" unless defined?(TEST_BASIC_USERNAME)
+  TEST_BASIC_PASSWORD = "test_password" unless defined?(TEST_BASIC_PASSWORD)
 
   def send_webhook_request(url, body, username: TEST_BASIC_USERNAME, password: TEST_BASIC_PASSWORD)
     uri = URI(url)

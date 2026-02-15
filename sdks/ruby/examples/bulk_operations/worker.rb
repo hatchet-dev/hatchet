@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 BULK_REPLAY_TEST_1 = HATCHET.task(name: "bulk_replay_test_1") do |input, ctx|
   puts "retrying bulk replay test task #{ctx.retry_count}"

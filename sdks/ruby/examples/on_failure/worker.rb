@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: false)
+HATCHET = Hatchet::Client.new(debug: false) unless defined?(HATCHET)
 
 ERROR_TEXT = "step1 failed"
 

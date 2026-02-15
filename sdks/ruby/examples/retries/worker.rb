@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 SIMPLE_RETRY_WORKFLOW = HATCHET.workflow(name: "SimpleRetryWorkflow")
 BACKOFF_WORKFLOW = HATCHET.workflow(name: "BackoffWorkflow")

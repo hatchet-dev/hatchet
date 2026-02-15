@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new
+HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # > Simple task
 FIRST_TASK = HATCHET.task(name: "first-task") do |input, ctx|

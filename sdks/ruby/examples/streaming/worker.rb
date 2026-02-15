@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: false)
+HATCHET = Hatchet::Client.new(debug: false) unless defined?(HATCHET)
 
 # > Streaming
 ANNA_KARENINA = <<~TEXT

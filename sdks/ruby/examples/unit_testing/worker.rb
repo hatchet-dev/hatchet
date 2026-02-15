@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new
+HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # Unit test workflow definitions
 SYNC_STANDALONE = HATCHET.task(name: "sync_standalone") do |input, ctx|

@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Concurrency Strategy With Key
 CONCURRENCY_LIMIT_RR_WORKFLOW = HATCHET.workflow(

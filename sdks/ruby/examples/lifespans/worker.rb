@@ -4,7 +4,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # Ruby lifespan uses a block with yield for setup/teardown
 LIFESPAN_PROC = proc do

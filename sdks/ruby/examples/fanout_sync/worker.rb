@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 SYNC_FANOUT_PARENT = HATCHET.workflow(name: "SyncFanoutParent")
 SYNC_FANOUT_CHILD = HATCHET.workflow(name: "SyncFanoutChild")
