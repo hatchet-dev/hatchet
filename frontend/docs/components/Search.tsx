@@ -92,13 +92,7 @@ function useIsMac() {
 // ---------------------------------------------------------------------------
 // Highlight matches in text
 // ---------------------------------------------------------------------------
-function HighlightMatches({
-  text,
-  query,
-}: {
-  text: string;
-  query: string;
-}) {
+function HighlightMatches({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
 
   try {
@@ -186,7 +180,11 @@ export default function Search({ className }: { className?: string }) {
   // ---------------------------------------------------------------------------
   // Mutable ref tracks the current search session without triggering re-renders.
   // We capture events when the dropdown closes (isOpen → false).
-  const searchSessionRef = useRef({ query: "", resultCount: 0, clicked: false });
+  const searchSessionRef = useRef({
+    query: "",
+    resultCount: 0,
+    clicked: false,
+  });
   const prevIsOpenRef = useRef(false);
 
   // Fire PostHog events when the search dropdown closes
@@ -248,7 +246,9 @@ export default function Search({ className }: { className?: string }) {
       return;
     }
 
-    loadIndex().then(runSearch).catch(() => {});
+    loadIndex()
+      .then(runSearch)
+      .catch(() => {});
   }, [query, indexReady]);
 
   // Global keyboard shortcut: / or Cmd/Ctrl+K
@@ -489,10 +489,7 @@ export default function Search({ className }: { className?: string }) {
                 <li key={group.pageRoute} className="_mt-1 first:_mt-0">
                   {/* Page title header */}
                   <div className="_mx-2.5 _mb-1 _mt-2 _select-none _border-b _border-black/10 _px-2.5 _pb-1.5 _text-xs _font-semibold _uppercase _tracking-wider _text-gray-500 dark:_border-white/20 dark:_text-gray-400 first:_mt-0">
-                    <HighlightMatches
-                      text={group.pageTitle}
-                      query={query}
-                    />
+                    <HighlightMatches text={group.pageTitle} query={query} />
                   </div>
                   {/* Section items */}
                   <ul>
@@ -519,9 +516,7 @@ export default function Search({ className }: { className?: string }) {
                           >
                             <div className="_text-base _font-semibold _leading-5">
                               <HighlightMatches
-                                text={
-                                  (result.title as string) || result.id
-                                }
+                                text={(result.title as string) || result.id}
                                 query={query}
                               />
                             </div>
