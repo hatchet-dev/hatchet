@@ -1,12 +1,9 @@
-import datetime
-
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from collections.abc import Iterable as _Iterable, Mapping as _Mapping
-from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
+from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -16,6 +13,7 @@ class SDKS(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     GO: _ClassVar[SDKS]
     PYTHON: _ClassVar[SDKS]
     TYPESCRIPT: _ClassVar[SDKS]
+    RUBY: _ClassVar[SDKS]
 
 class ActionType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -61,6 +59,7 @@ UNKNOWN: SDKS
 GO: SDKS
 PYTHON: SDKS
 TYPESCRIPT: SDKS
+RUBY: SDKS
 START_STEP_RUN: ActionType
 CANCEL_STEP_RUN: ActionType
 START_GET_GROUP_KEY: ActionType
@@ -245,7 +244,7 @@ class GroupKeyActionEvent(_message.Message):
     event_timestamp: _timestamp_pb2.Timestamp
     event_type: GroupKeyActionEventType
     event_payload: str
-    def __init__(self, worker_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[GroupKeyActionEventType, str]] = ..., event_payload: _Optional[str] = ...) -> None: ...
+    def __init__(self, worker_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[GroupKeyActionEventType, str]] = ..., event_payload: _Optional[str] = ...) -> None: ...
 
 class StepActionEvent(_message.Message):
     __slots__ = ("worker_id", "job_id", "job_run_id", "task_id", "task_run_external_id", "action_id", "event_timestamp", "event_type", "event_payload", "retry_count", "should_not_retry")
@@ -271,7 +270,7 @@ class StepActionEvent(_message.Message):
     event_payload: str
     retry_count: int
     should_not_retry: bool
-    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
 
 class ActionEventResponse(_message.Message):
     __slots__ = ("tenant_id", "worker_id")
@@ -319,7 +318,7 @@ class WorkflowEvent(_message.Message):
     task_retries: int
     retry_count: int
     event_index: int
-    def __init__(self, workflow_run_id: _Optional[str] = ..., resource_type: _Optional[_Union[ResourceType, str]] = ..., event_type: _Optional[_Union[ResourceEventType, str]] = ..., resource_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_payload: _Optional[str] = ..., hangup: bool = ..., task_retries: _Optional[int] = ..., retry_count: _Optional[int] = ..., event_index: _Optional[int] = ...) -> None: ...
+    def __init__(self, workflow_run_id: _Optional[str] = ..., resource_type: _Optional[_Union[ResourceType, str]] = ..., event_type: _Optional[_Union[ResourceEventType, str]] = ..., resource_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., event_payload: _Optional[str] = ..., hangup: bool = ..., task_retries: _Optional[int] = ..., retry_count: _Optional[int] = ..., event_index: _Optional[int] = ...) -> None: ...
 
 class WorkflowRunEvent(_message.Message):
     __slots__ = ("workflow_run_id", "event_type", "event_timestamp", "results")
@@ -331,7 +330,7 @@ class WorkflowRunEvent(_message.Message):
     event_type: WorkflowRunEventType
     event_timestamp: _timestamp_pb2.Timestamp
     results: _containers.RepeatedCompositeFieldContainer[StepRunResult]
-    def __init__(self, workflow_run_id: _Optional[str] = ..., event_type: _Optional[_Union[WorkflowRunEventType, str]] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., results: _Optional[_Iterable[_Union[StepRunResult, _Mapping]]] = ...) -> None: ...
+    def __init__(self, workflow_run_id: _Optional[str] = ..., event_type: _Optional[_Union[WorkflowRunEventType, str]] = ..., event_timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., results: _Optional[_Iterable[_Union[StepRunResult, _Mapping]]] = ...) -> None: ...
 
 class StepRunResult(_message.Message):
     __slots__ = ("task_run_external_id", "task_name", "job_run_id", "error", "output")
@@ -369,7 +368,7 @@ class HeartbeatRequest(_message.Message):
     HEARTBEAT_AT_FIELD_NUMBER: _ClassVar[int]
     worker_id: str
     heartbeat_at: _timestamp_pb2.Timestamp
-    def __init__(self, worker_id: _Optional[str] = ..., heartbeat_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, worker_id: _Optional[str] = ..., heartbeat_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class HeartbeatResponse(_message.Message):
     __slots__ = ()
@@ -387,7 +386,7 @@ class RefreshTimeoutResponse(_message.Message):
     __slots__ = ("timeout_at",)
     TIMEOUT_AT_FIELD_NUMBER: _ClassVar[int]
     timeout_at: _timestamp_pb2.Timestamp
-    def __init__(self, timeout_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, timeout_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ReleaseSlotRequest(_message.Message):
     __slots__ = ("task_run_external_id",)

@@ -29,6 +29,7 @@ const (
 	SDKS_GO         SDKS = 1
 	SDKS_PYTHON     SDKS = 2
 	SDKS_TYPESCRIPT SDKS = 3
+	SDKS_RUBY       SDKS = 4
 )
 
 // Enum value maps for SDKS.
@@ -38,12 +39,14 @@ var (
 		1: "GO",
 		2: "PYTHON",
 		3: "TYPESCRIPT",
+		4: "RUBY",
 	}
 	SDKS_value = map[string]int32{
 		"UNKNOWN":    0,
 		"GO":         1,
 		"PYTHON":     2,
 		"TYPESCRIPT": 3,
+		"RUBY":       4,
 	}
 )
 

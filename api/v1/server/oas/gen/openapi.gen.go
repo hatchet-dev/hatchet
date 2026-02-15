@@ -320,6 +320,7 @@ const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
 	PYTHON     WorkerRuntimeSDKs = "PYTHON"
 	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
+	RUBY       WorkerRuntimeSDKs = "RUBY"
 )
 
 // Defines values for WorkerType.

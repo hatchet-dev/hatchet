@@ -51,7 +51,7 @@ module Hatchet
           end
 
           runtime_info = ::RuntimeInfo.new(
-            language: :PYTHON, # TODO-RUBY: Use available SDK enum -- RUBY not in proto yet
+            language: :RUBY,
             sdk_version: Hatchet::VERSION,
             language_version: RUBY_VERSION,
             os: RUBY_PLATFORM,

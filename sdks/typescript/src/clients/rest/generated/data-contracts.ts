@@ -33,6 +33,7 @@ export enum WorkerRuntimeSDKs {
   GOLANG = 'GOLANG',
   PYTHON = 'PYTHON',
   TYPESCRIPT = 'TYPESCRIPT',
+  RUBY = 'RUBY',
 }
 
 export enum WorkerType {

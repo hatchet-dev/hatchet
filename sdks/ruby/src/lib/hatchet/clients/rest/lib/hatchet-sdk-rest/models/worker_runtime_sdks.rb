@@ -18,9 +18,10 @@ module HatchetSdkRest
     GOLANG = "GOLANG".freeze
     PYTHON = "PYTHON".freeze
     TYPESCRIPT = "TYPESCRIPT".freeze
+    RUBY = "RUBY".freeze
 
     def self.all_vars
-      @all_vars ||= [GOLANG, PYTHON, TYPESCRIPT].freeze
+      @all_vars ||= [GOLANG, PYTHON, TYPESCRIPT, RUBY].freeze
     end
 
     # Builds the enum from string
