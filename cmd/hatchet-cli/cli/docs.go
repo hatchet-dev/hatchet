@@ -60,9 +60,6 @@ for AI editors like Cursor and Claude Code.`,
   hatchet docs install cursor
 
   # Configure for Claude Code
-  hatchet docs install claude-code
-
-  # Configure for Claude Code
   hatchet docs install claude-code`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Interactive mode: let user pick their editor
