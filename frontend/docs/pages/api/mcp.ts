@@ -1,0 +1,508 @@
+/**
+ * MCP (Model Context Protocol) server for Hatchet documentation.
+ *
+ * Implements the Streamable HTTP transport (stateless mode) so that
+ * AI editors like Cursor, Claude Code, and Claude Desktop can query
+ * Hatchet docs as MCP resources.
+ *
+ * Endpoint: POST /api/mcp   (JSON-RPC 2.0)
+ *           GET  /api/mcp   (returns server metadata)
+ */
+import type { NextApiRequest, NextApiResponse } from "next";
+import fs from "node:fs";
+import path from "node:path";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id?: string | number | null;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+interface JsonRpcResponse {
+  jsonrpc: "2.0";
+  id: string | number | null;
+  result?: unknown;
+  error?: { code: number; message: string; data?: unknown };
+}
+
+interface McpResource {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+}
+
+interface DocEntry {
+  uri: string;
+  name: string;
+  description: string;
+  filePath: string;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const PROTOCOL_VERSION = "2024-11-05";
+const SERVER_NAME = "hatchet-docs";
+const SERVER_VERSION = "1.0.0";
+
+const LLMS_DIR = path.join(process.cwd(), "public", "llms");
+const LLMS_TXT_PATH = path.join(process.cwd(), "public", "llms.txt");
+
+// ---------------------------------------------------------------------------
+// Build the resource catalogue from public/llms/
+// ---------------------------------------------------------------------------
+let cachedDocs: DocEntry[] | null = null;
+
+function collectDocs(): DocEntry[] {
+  if (cachedDocs) return cachedDocs;
+
+  const entries: DocEntry[] = [];
+
+  // Parse llms.txt to get titles and URLs
+  const titleMap = new Map<string, string>();
+  if (fs.existsSync(LLMS_TXT_PATH)) {
+    const llmsTxt = fs.readFileSync(LLMS_TXT_PATH, "utf-8");
+    const linkPattern = /- \[([^\]]+)\]\(https:\/\/docs\.hatchet\.run\/([^)]+)\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = linkPattern.exec(llmsTxt)) !== null) {
+      titleMap.set(m[2], m[1]);
+    }
+  }
+
+  function walk(dir: string, prefix: string): void {
+    if (!fs.existsSync(dir)) return;
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of items) {
+      if (item.isDirectory()) {
+        walk(path.join(dir, item.name), prefix ? `${prefix}/${item.name}` : item.name);
+      } else if (item.name.endsWith(".md")) {
+        const slug = item.name.replace(/\.md$/, "");
+        const docPath = prefix ? `${prefix}/${slug}` : slug;
+
+        // Skip duplicates (e.g. home.md vs home/index.md)
+        if (slug === "index" && entries.some((e) => e.uri === `hatchet://docs/${prefix}`)) {
+          continue;
+        }
+        const lookupKey = slug === "index" ? `${prefix}/index` : docPath;
+        const title = titleMap.get(lookupKey) || titleMap.get(docPath) || slug;
+
+        const uri = `hatchet://docs/${docPath}`;
+        if (entries.some((e) => e.uri === uri)) continue;
+
+        entries.push({
+          uri,
+          name: title,
+          description: `Hatchet documentation: ${title}`,
+          filePath: path.join(dir, item.name),
+        });
+      }
+    }
+  }
+
+  walk(LLMS_DIR, "");
+  cachedDocs = entries;
+  return entries;
+}
+
+// ---------------------------------------------------------------------------
+// MCP method handlers
+// ---------------------------------------------------------------------------
+function handleInitialize(id: string | number | null): JsonRpcResponse {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      protocolVersion: PROTOCOL_VERSION,
+      capabilities: {
+        resources: { listChanged: false },
+        tools: {},
+      },
+      serverInfo: {
+        name: SERVER_NAME,
+        version: SERVER_VERSION,
+      },
+    },
+  };
+}
+
+function handleResourcesList(id: string | number | null): JsonRpcResponse {
+  const docs = collectDocs();
+  const resources: McpResource[] = docs.map((d) => ({
+    uri: d.uri,
+    name: d.name,
+    description: d.description,
+    mimeType: "text/markdown",
+  }));
+
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: { resources },
+  };
+}
+
+function handleResourcesRead(
+  id: string | number | null,
+  params: Record<string, unknown>,
+): JsonRpcResponse {
+  const uri = params.uri as string | undefined;
+  if (!uri) {
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32602, message: "Missing required parameter: uri" },
+    };
+  }
+
+  const docs = collectDocs();
+  const doc = docs.find((d) => d.uri === uri);
+  if (!doc) {
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32602, message: `Resource not found: ${uri}` },
+    };
+  }
+
+  let content = "";
+  try {
+    content = fs.readFileSync(doc.filePath, "utf-8");
+  } catch {
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32603, message: `Failed to read resource: ${uri}` },
+    };
+  }
+
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      contents: [
+        {
+          uri: doc.uri,
+          mimeType: "text/markdown",
+          text: content,
+        },
+      ],
+    },
+  };
+}
+
+function handleToolsList(id: string | number | null): JsonRpcResponse {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      tools: [
+        {
+          name: "search_docs",
+          description:
+            "Search Hatchet documentation by keyword. Returns matching page titles and URIs.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "Search query (keywords to match against page titles and content)",
+              },
+              max_results: {
+                type: "number",
+                description: "Maximum number of results to return (default: 10)",
+              },
+            },
+            required: ["query"],
+          },
+        },
+        {
+          name: "get_full_docs",
+          description:
+            "Get the complete Hatchet documentation as a single document. Useful for comprehensive context.",
+          inputSchema: {
+            type: "object",
+            properties: {},
+          },
+        },
+      ],
+    },
+  };
+}
+
+function handleToolsCall(
+  id: string | number | null,
+  params: Record<string, unknown>,
+): JsonRpcResponse {
+  const toolName = params.name as string | undefined;
+  const args = (params.arguments || {}) as Record<string, unknown>;
+
+  if (toolName === "search_docs") {
+    return handleSearchDocs(id, args);
+  }
+
+  if (toolName === "get_full_docs") {
+    return handleGetFullDocs(id);
+  }
+
+  return {
+    jsonrpc: "2.0",
+    id,
+    error: { code: -32602, message: `Unknown tool: ${toolName}` },
+  };
+}
+
+function handleSearchDocs(
+  id: string | number | null,
+  args: Record<string, unknown>,
+): JsonRpcResponse {
+  const query = (args.query as string || "").toLowerCase();
+  const maxResults = (args.max_results as number) || 10;
+
+  if (!query) {
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32602, message: "Missing required argument: query" },
+    };
+  }
+
+  const docs = collectDocs();
+  const keywords = query.split(/\s+/);
+
+  // Score each document by keyword matches in title and content
+  const scored: Array<{ doc: DocEntry; score: number; snippet: string }> = [];
+  for (const doc of docs) {
+    let score = 0;
+    const nameLower = doc.name.toLowerCase();
+    const uriLower = doc.uri.toLowerCase();
+
+    for (const kw of keywords) {
+      if (nameLower.includes(kw)) score += 10;
+      if (uriLower.includes(kw)) score += 5;
+    }
+
+    // Check content for keyword matches
+    let content = "";
+    try {
+      content = fs.readFileSync(doc.filePath, "utf-8");
+    } catch {
+      continue;
+    }
+    const contentLower = content.toLowerCase();
+    for (const kw of keywords) {
+      const idx = contentLower.indexOf(kw);
+      if (idx !== -1) score += 1;
+    }
+
+    if (score > 0) {
+      // Extract a snippet around the first match
+      const firstKw = keywords.find((kw) => contentLower.includes(kw));
+      let snippet = "";
+      if (firstKw) {
+        const idx = contentLower.indexOf(firstKw);
+        const start = Math.max(0, idx - 80);
+        const end = Math.min(content.length, idx + firstKw.length + 80);
+        snippet = (start > 0 ? "..." : "") + content.slice(start, end).trim() + (end < content.length ? "..." : "");
+      }
+      scored.push({ doc, score, snippet });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const results = scored.slice(0, maxResults);
+
+  const text = results.length === 0
+    ? `No results found for "${query}".`
+    : results
+        .map(
+          (r, i) =>
+            `${i + 1}. **${r.doc.name}** (${r.doc.uri})\n   ${r.snippet}`,
+        )
+        .join("\n\n");
+
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      content: [{ type: "text", text }],
+    },
+  };
+}
+
+function handleGetFullDocs(id: string | number | null): JsonRpcResponse {
+  const fullDocsPath = path.join(process.cwd(), "public", "llms-full.txt");
+  let content = "";
+  try {
+    content = fs.readFileSync(fullDocsPath, "utf-8");
+  } catch {
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32603, message: "Failed to read full documentation file" },
+    };
+  }
+
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      content: [{ type: "text", text: content }],
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (no response needed)
+// ---------------------------------------------------------------------------
+const NOTIFICATION_METHODS = new Set([
+  "notifications/initialized",
+  "notifications/cancelled",
+  "notifications/progress",
+]);
+
+// ---------------------------------------------------------------------------
+// Route JSON-RPC request to handler
+// ---------------------------------------------------------------------------
+function routeRequest(req: JsonRpcRequest): JsonRpcResponse | null {
+  const { id, method, params } = req;
+
+  // Notifications have no id and expect no response
+  if (id === undefined || id === null) {
+    if (NOTIFICATION_METHODS.has(method)) return null;
+    // Unknown notification — ignore
+    return null;
+  }
+
+  switch (method) {
+    case "initialize":
+      return handleInitialize(id);
+    case "resources/list":
+      return handleResourcesList(id);
+    case "resources/read":
+      return handleResourcesRead(id, params || {});
+    case "tools/list":
+      return handleToolsList(id);
+    case "tools/call":
+      return handleToolsCall(id, params || {});
+    case "ping":
+      return { jsonrpc: "2.0", id, result: {} };
+    default:
+      return {
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32601, message: `Method not found: ${method}` },
+      };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Next.js API handler
+// ---------------------------------------------------------------------------
+
+export const config = {
+  // Disable body size limit and response size limit for SSE / large docs
+  api: { responseLimit: false },
+};
+
+export default function handler(req: NextApiRequest, res: NextApiResponse): void {
+  // CORS headers for cross-origin MCP clients
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id");
+  res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // GET — Streamable HTTP SSE endpoint for server-to-client notifications.
+  // mcp-remote establishes this connection first before sending POST.
+  // For a stateless server we just keep the stream open.
+  // -----------------------------------------------------------------------
+  if (req.method === "GET") {
+    const accept = (req.headers.accept || "").toLowerCase();
+
+    if (accept.includes("text/event-stream")) {
+      // SSE stream — required by MCP Streamable HTTP transport
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      });
+
+      // Send a keep-alive comment so the client knows the connection is alive
+      res.write(": connected\n\n");
+
+      // Keep the connection open; the client closes when it's done
+      const keepAlive = setInterval(() => {
+        res.write(": ping\n\n");
+      }, 15_000);
+
+      req.on("close", () => {
+        clearInterval(keepAlive);
+        res.end();
+      });
+      return;
+    }
+
+    // Plain GET returns server metadata (useful for browser discovery)
+    res.status(200).json({
+      name: SERVER_NAME,
+      version: SERVER_VERSION,
+      protocolVersion: PROTOCOL_VERSION,
+      description:
+        "MCP server for Hatchet documentation. Send JSON-RPC 2.0 POST requests to interact.",
+    });
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // DELETE — session termination (no-op for stateless server)
+  // -----------------------------------------------------------------------
+  if (req.method === "DELETE") {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // POST — JSON-RPC 2.0 request handling
+  // -----------------------------------------------------------------------
+  const body = req.body;
+
+  // Handle batch requests (array of JSON-RPC messages)
+  if (Array.isArray(body)) {
+    const responses: JsonRpcResponse[] = [];
+    for (const item of body) {
+      const result = routeRequest(item as JsonRpcRequest);
+      if (result) responses.push(result);
+    }
+    if (responses.length === 0) {
+      res.status(204).end();
+    } else {
+      res.status(200).json(responses);
+    }
+    return;
+  }
+
+  // Single request
+  const result = routeRequest(body as JsonRpcRequest);
+  if (!result) {
+    // Notification — no response
+    res.status(204).end();
+    return;
+  }
+
+  res.status(200).json(result);
+}

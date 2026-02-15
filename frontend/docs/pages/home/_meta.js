@@ -11,6 +11,7 @@ export default {
     type: "separator",
   },
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
+  "ai-editor-setup": "Add to Your AI Editor",
   "--guide": {
     title: "Walkthrough",
     type: "separator",
