@@ -90,6 +90,10 @@ module Hatchet
             response.workflow_run_id
           rescue ::GRPC::AlreadyExists => e
             raise DedupeViolationError, "Deduplication violation: #{e.message}"
+          rescue ::GRPC::ResourceExhausted => e
+            raise ResourceExhaustedError, e.message
+          rescue ::GRPC::BadStatus => e
+            raise Error, "gRPC error triggering workflow: #{e.class}: #{e.message}"
           end
         end
 
@@ -134,10 +138,16 @@ module Hatchet
 
           # Batch in groups of BULK_TRIGGER_BATCH_SIZE
           all_run_ids = []
-          requests.each_slice(BULK_TRIGGER_BATCH_SIZE) do |batch|
-            bulk_request = ::BulkTriggerWorkflowRequest.new(workflows: batch)
-            response = @v0_stub.bulk_trigger_workflow(bulk_request, metadata: @config.auth_metadata)
-            all_run_ids.concat(response.workflow_run_ids.to_a)
+          begin
+            requests.each_slice(BULK_TRIGGER_BATCH_SIZE) do |batch|
+              bulk_request = ::BulkTriggerWorkflowRequest.new(workflows: batch)
+              response = @v0_stub.bulk_trigger_workflow(bulk_request, metadata: @config.auth_metadata)
+              all_run_ids.concat(response.workflow_run_ids.to_a)
+            end
+          rescue ::GRPC::ResourceExhausted => e
+            raise ResourceExhaustedError, e.message
+          rescue ::GRPC::BadStatus => e
+            raise Error, "gRPC error triggering bulk workflow: #{e.class}: #{e.message}"
           end
 
           all_run_ids
@@ -187,6 +197,10 @@ module Hatchet
             @v0_stub.schedule_workflow(request, metadata: @config.auth_metadata)
           rescue ::GRPC::AlreadyExists => e
             raise DedupeViolationError, "Deduplication violation: #{e.message}"
+          rescue ::GRPC::ResourceExhausted => e
+            raise ResourceExhaustedError, e.message
+          rescue ::GRPC::BadStatus => e
+            raise Error, "gRPC error scheduling workflow: #{e.class}: #{e.message}"
           end
         end
 

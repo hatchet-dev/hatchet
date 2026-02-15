@@ -3,6 +3,10 @@ module Hatchet
     def initialize: (?String message) -> void
   end
 
+  class ResourceExhaustedError < Error
+    def initialize: (?String message) -> void
+  end
+
   class DedupeViolationError < Error
     def initialize: (?String message) -> void
   end

@@ -10,6 +10,13 @@ module Hatchet
     end
   end
 
+  # Raised when the tenant has exceeded its resource limits (e.g. task run quota)
+  class ResourceExhaustedError < Error
+    def initialize(message = "Resource exhausted: tenant has reached its task runs limit")
+      super
+    end
+  end
+
   # Raised when a dedupe violation occurs (duplicate key)
   class DedupeViolationError < Error
     def initialize(message = "Dedupe violation: a run with this key already exists")

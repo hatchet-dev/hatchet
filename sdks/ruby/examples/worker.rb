@@ -27,7 +27,6 @@ require_relative "concurrency_workflow_level/worker"
 require_relative "rate_limit/worker"
 require_relative "child/worker"
 require_relative "fanout/worker"
-require_relative "fanout_sync/worker"
 require_relative "bulk_fanout/worker"
 require_relative "durable/worker"
 require_relative "durable_event/worker"
@@ -80,7 +79,6 @@ ALL_WORKFLOWS = [
   # Tier 3
   CHILD_TASK_WF,
   FANOUT_PARENT_WF, FANOUT_CHILD_WF,
-  SYNC_FANOUT_PARENT, SYNC_FANOUT_CHILD,
   BULK_PARENT_WF, BULK_CHILD_WF,
   DURABLE_WORKFLOW, EPHEMERAL_WORKFLOW, WAIT_FOR_SLEEP_TWICE,
   DURABLE_EVENT_TASK, DURABLE_EVENT_TASK_WITH_FILTER,
