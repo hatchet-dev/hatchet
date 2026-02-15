@@ -34,12 +34,18 @@ GEM
     google-protobuf (4.33.5-arm64-darwin)
       bigdecimal
       rake (>= 13)
+    google-protobuf (4.33.5-x86_64-linux-gnu)
+      bigdecimal
+      rake (>= 13)
     googleapis-common-protos-types (1.22.0)
       google-protobuf (~> 4.26)
     grpc (1.78.0)
       google-protobuf (>= 3.25, < 5.0)
       googleapis-common-protos-types (~> 1.0)
     grpc (1.78.0-arm64-darwin)
+      google-protobuf (>= 3.25, < 5.0)
+      googleapis-common-protos-types (~> 1.0)
+    grpc (1.78.0-x86_64-linux-gnu)
       google-protobuf (>= 3.25, < 5.0)
       googleapis-common-protos-types (~> 1.0)
     grpc-tools (1.78.0)
@@ -113,6 +119,7 @@ GEM
 PLATFORMS
   arm64-darwin-24
   ruby
+  x86_64-linux
 
 DEPENDENCIES
   faraday (~> 2.0)
