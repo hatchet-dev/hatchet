@@ -1,5 +1,6 @@
 name: ruby
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - ".github/**"
@@ -45,7 +46,7 @@ jobs:
     runs-on: ubicloud-standard-4
     strategy:
       matrix:
-        ruby-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.2"]') || fromJSON('["3.1", "3.2", "3.3"]') }}
+        ruby-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.2"]') || fromJSON('["3.2", "3.3"]') }}
         optimistic-scheduling: ["true", "false"]
     timeout-minutes: 20
     steps:
