@@ -48,6 +48,7 @@ func StickyDag(client *hatchet.Client) *hatchet.Workflow {
 	return stickyDag
 }
 
+
 type ChildInput struct {
 	N int `json:"n"`
 }
@@ -90,3 +91,4 @@ func Sticky(client *hatchet.Client) *hatchet.StandaloneTask {
 
 	return sticky
 }
+
