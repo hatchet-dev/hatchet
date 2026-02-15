@@ -104,8 +104,8 @@ function HighlightMatches({ text, query }: { text: string; query: string }) {
       .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     if (words.length === 0) return <>{text}</>;
 
-    const re = new RegExp(`(${words.join("|")})`, "ig");
-    const parts = text.split(re);
+    const re = new RegExp(`(${words.join("|")})`, "i");
+    const parts = text.split(new RegExp(`(${words.join("|")})`, "ig"));
     return (
       <>
         {parts.map((part, i) =>
@@ -311,7 +311,9 @@ export default function Search({ className }: { className?: string }) {
   // Scroll active item into view
   useEffect(() => {
     if (activeIndex >= 0 && listRef.current) {
-      const item = listRef.current.children[activeIndex] as HTMLElement;
+      const item = listRef.current.querySelector(
+        `[data-result-index="${activeIndex}"]`,
+      ) as HTMLElement;
       item?.scrollIntoView({ block: "nearest" });
     }
   }, [activeIndex]);
@@ -496,7 +498,7 @@ export default function Search({ className }: { className?: string }) {
                     {group.items.map((result) => {
                       const idx = flatIdx++;
                       return (
-                        <li key={result.id}>
+                        <li key={result.id} data-result-index={idx}>
                           <a
                             href={idToRoute(result.id)}
                             onClick={(e) => {
