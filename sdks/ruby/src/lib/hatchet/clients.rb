@@ -28,9 +28,7 @@ module Hatchet
       #   rest_client = Hatchet::Clients.rest_client(config)
       #   workflows_api = Hatchet::Clients::Rest::WorkflowApi.new(rest_client)
       def rest_client(config)
-        unless rest_available?
-          raise LoadError, "REST client not available. Run `rake api:generate` to generate it from the OpenAPI spec."
-        end
+        raise LoadError, "REST client not available. Run `rake api:generate` to generate it from the OpenAPI spec." unless rest_available?
 
         rest_config = Rest::Configuration.from_hatchet_config(config)
         Rest::ApiClient.new(rest_config)

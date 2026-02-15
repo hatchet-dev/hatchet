@@ -64,7 +64,7 @@ RSpec.describe Hatchet::Features::Events do
         additional_metadata: nil,
         priority: nil,
         scope: nil,
-        namespace: nil
+        namespace: nil,
       )
     end
 
@@ -74,7 +74,7 @@ RSpec.describe Hatchet::Features::Events do
         data: event_data,
         additional_metadata: additional_metadata,
         priority: priority,
-        scope: scope
+        scope: scope,
       )
 
       expect(result).to eq(grpc_response)
@@ -84,7 +84,7 @@ RSpec.describe Hatchet::Features::Events do
         additional_metadata: additional_metadata,
         priority: priority,
         scope: scope,
-        namespace: nil
+        namespace: nil,
       )
     end
   end
@@ -108,7 +108,7 @@ RSpec.describe Hatchet::Features::Events do
         additional_metadata: nil,
         priority: nil,
         scope: nil,
-        namespace: nil
+        namespace: nil,
       )
     end
 
@@ -121,7 +121,7 @@ RSpec.describe Hatchet::Features::Events do
         additional_metadata: additional_metadata,
         priority: 1,
         scope: nil,
-        namespace: nil
+        namespace: nil,
       )
     end
 
@@ -134,7 +134,7 @@ RSpec.describe Hatchet::Features::Events do
         additional_metadata: nil,
         priority: nil,
         scope: nil,
-        namespace: nil
+        namespace: nil,
       )
     end
 
@@ -147,7 +147,7 @@ RSpec.describe Hatchet::Features::Events do
         additional_metadata: nil,
         priority: nil,
         scope: nil,
-        namespace: "override_"
+        namespace: "override_",
       )
     end
 
@@ -161,7 +161,7 @@ RSpec.describe Hatchet::Features::Events do
     let(:events_data) do
       [
         { key: "event-1", data: { "message" => "first" } },
-        { key: "event-2", data: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 }
+        { key: "event-2", data: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 },
       ]
     end
     let(:grpc_response) { instance_double("Object") }
@@ -176,9 +176,9 @@ RSpec.describe Hatchet::Features::Events do
       expect(event_grpc).to have_received(:bulk_push).with(
         [
           { key: "event-1", payload: { "message" => "first" }, additional_metadata: nil, priority: nil },
-          { key: "event-2", payload: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 }
+          { key: "event-2", payload: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 },
         ],
-        namespace: nil
+        namespace: nil,
       )
     end
 
@@ -188,9 +188,9 @@ RSpec.describe Hatchet::Features::Events do
       expect(event_grpc).to have_received(:bulk_push).with(
         [
           { key: "event-1", payload: { "message" => "first" }, additional_metadata: nil, priority: nil },
-          { key: "event-2", payload: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 }
+          { key: "event-2", payload: { "message" => "second" }, additional_metadata: { "type" => "test" }, priority: 1 },
         ],
-        namespace: "bulk_"
+        namespace: "bulk_",
       )
     end
 
@@ -201,7 +201,7 @@ RSpec.describe Hatchet::Features::Events do
 
       expect(event_grpc).to have_received(:bulk_push).with(
         [{ key: "event-1", payload: {}, additional_metadata: nil, priority: nil }],
-        namespace: nil
+        namespace: nil,
       )
     end
 
@@ -235,8 +235,8 @@ RSpec.describe Hatchet::Features::Events do
           workflow_run_statuses: nil,
           event_ids: nil,
           additional_metadata: nil,
-          scopes: nil
-        }
+          scopes: nil,
+        },
       )
     end
 
@@ -244,14 +244,14 @@ RSpec.describe Hatchet::Features::Events do
       events_client.list(
         offset: 10,
         limit: 50,
-        keys: ["event-1", "event-2"],
+        keys: %w[event-1 event-2],
         since: since_time,
         until_time: until_time,
         workflow_ids: ["workflow-1"],
         workflow_run_statuses: ["RUNNING"],
         event_ids: ["event-id-1"],
         additional_metadata: { "source" => "test" },
-        scopes: ["scope-1"]
+        scopes: ["scope-1"],
       )
 
       expect(event_api).to have_received(:v1_event_list).with(
@@ -259,15 +259,15 @@ RSpec.describe Hatchet::Features::Events do
         {
           offset: 10,
           limit: 50,
-          keys: ["event-1", "event-2"],
+          keys: %w[event-1 event-2],
           since: since_time.utc.iso8601,
           until: until_time.utc.iso8601,
           workflow_ids: ["workflow-1"],
           workflow_run_statuses: ["RUNNING"],
           event_ids: ["event-id-1"],
           additional_metadata: [{ key: "source", value: "test" }],
-          scopes: ["scope-1"]
-        }
+          scopes: ["scope-1"],
+        },
       )
     end
 
@@ -330,13 +330,13 @@ RSpec.describe Hatchet::Features::Events do
     end
 
     it "cancels events with event IDs" do
-      events_client.cancel(event_ids: ["event-1", "event-2"])
+      events_client.cancel(event_ids: %w[event-1 event-2])
 
       expect(HatchetSdkRest::CancelEventRequest).to have_received(:new).with(
-        event_ids: ["event-1", "event-2"],
+        event_ids: %w[event-1 event-2],
         keys: nil,
         since: nil,
-        until: nil
+        until: nil,
       )
       expect(event_api).to have_received(:event_update_cancel).with("test-tenant", cancel_request)
     end
@@ -348,7 +348,7 @@ RSpec.describe Hatchet::Features::Events do
         event_ids: nil,
         keys: ["event-key"],
         since: since_time.utc.iso8601,
-        until: until_time.utc.iso8601
+        until: until_time.utc.iso8601,
       )
     end
 
@@ -370,13 +370,13 @@ RSpec.describe Hatchet::Features::Events do
     end
 
     it "replays events with event IDs" do
-      events_client.replay(event_ids: ["event-1", "event-2"])
+      events_client.replay(event_ids: %w[event-1 event-2])
 
       expect(HatchetSdkRest::ReplayEventRequest).to have_received(:new).with(
-        event_ids: ["event-1", "event-2"],
+        event_ids: %w[event-1 event-2],
         keys: nil,
         since: nil,
-        until: nil
+        until: nil,
       )
       expect(event_api).to have_received(:event_update_replay).with("test-tenant", replay_request)
     end
@@ -388,7 +388,7 @@ RSpec.describe Hatchet::Features::Events do
         event_ids: nil,
         keys: ["event-key"],
         since: since_time.utc.iso8601,
-        until: until_time.utc.iso8601
+        until: until_time.utc.iso8601,
       )
     end
 
@@ -427,7 +427,7 @@ RSpec.describe Hatchet::Features::Events do
 
         expect(result).to eq([
           { key: "env", value: "test" },
-          { key: "version", value: "1.0" }
+          { key: "version", value: "1.0" },
         ])
       end
 

@@ -51,17 +51,17 @@ RSpec.describe Hatchet::Features::Scheduled do
         workflow_name: "my-workflow",
         trigger_at: trigger_at,
         input: { key: "value" },
-        additional_metadata: { source: "api" }
+        additional_metadata: { source: "api" },
       )
 
       expect(result).to eq(created_scheduled)
       expect(HatchetSdkRest::ScheduleWorkflowRunRequest).to have_received(:new).with(
         trigger_at: trigger_at.utc.iso8601,
         input: { key: "value" },
-        additional_metadata: { source: "api" }
+        additional_metadata: { source: "api" },
       )
       expect(workflow_run_api).to have_received(:scheduled_workflow_run_create).with(
-        "test-tenant", "my-workflow", schedule_request
+        "test-tenant", "my-workflow", schedule_request,
       )
     end
 
@@ -71,11 +71,11 @@ RSpec.describe Hatchet::Features::Scheduled do
 
       client_with_ns.create(
         workflow_name: "my-workflow",
-        trigger_at: trigger_at
+        trigger_at: trigger_at,
       )
 
       expect(workflow_run_api).to have_received(:scheduled_workflow_run_create).with(
-        "test-tenant", "prod_my-workflow", schedule_request
+        "test-tenant", "prod_my-workflow", schedule_request,
       )
     end
   end
@@ -103,10 +103,10 @@ RSpec.describe Hatchet::Features::Scheduled do
 
       expect(result).to eq(updated_scheduled)
       expect(HatchetSdkRest::UpdateScheduledWorkflowRunRequest).to have_received(:new).with(
-        trigger_at: new_trigger_at.utc.iso8601
+        trigger_at: new_trigger_at.utc.iso8601,
       )
       expect(workflow_api).to have_received(:workflow_scheduled_update).with(
-        "test-tenant", "scheduled-123", update_request
+        "test-tenant", "scheduled-123", update_request,
       )
     end
   end
@@ -123,12 +123,12 @@ RSpec.describe Hatchet::Features::Scheduled do
     it "bulk deletes by scheduled IDs" do
       allow(HatchetSdkRest::ScheduledWorkflowsBulkDeleteRequest).to receive(:new).and_return(bulk_delete_request)
 
-      result = scheduled_client.bulk_delete(scheduled_ids: ["s-1", "s-2"])
+      result = scheduled_client.bulk_delete(scheduled_ids: %w[s-1 s-2])
 
       expect(result).to eq(bulk_delete_response)
       expect(HatchetSdkRest::ScheduledWorkflowsBulkDeleteRequest).to have_received(:new).with(
-        scheduled_workflow_run_ids: ["s-1", "s-2"],
-        filter: nil
+        scheduled_workflow_run_ids: %w[s-1 s-2],
+        filter: nil,
       )
     end
 
@@ -142,17 +142,17 @@ RSpec.describe Hatchet::Features::Scheduled do
         workflow_id: "wf-1",
         parent_workflow_run_id: nil,
         parent_step_run_id: nil,
-        additional_metadata: nil
+        additional_metadata: nil,
       )
       expect(HatchetSdkRest::ScheduledWorkflowsBulkDeleteRequest).to have_received(:new).with(
         scheduled_workflow_run_ids: nil,
-        filter: filter_obj
+        filter: filter_obj,
       )
     end
 
     it "raises error when neither IDs nor filters provided" do
       expect { scheduled_client.bulk_delete }.to raise_error(
-        ArgumentError, 'bulk_delete requires either scheduled_ids or at least one filter field.'
+        ArgumentError, "bulk_delete requires either scheduled_ids or at least one filter field.",
       )
     end
 
@@ -176,7 +176,7 @@ RSpec.describe Hatchet::Features::Scheduled do
 
       updates = [
         { id: "s-1", trigger_at: trigger_at_1 },
-        { id: "s-2", trigger_at: trigger_at_2 }
+        { id: "s-2", trigger_at: trigger_at_2 },
       ]
 
       result = scheduled_client.bulk_update(updates)
@@ -184,7 +184,7 @@ RSpec.describe Hatchet::Features::Scheduled do
       expect(result).to eq(bulk_update_response)
       expect(HatchetSdkRest::ScheduledWorkflowsBulkUpdateItem).to have_received(:new).twice
       expect(HatchetSdkRest::ScheduledWorkflowsBulkUpdateRequest).to have_received(:new).with(
-        updates: [update_item, update_item]
+        updates: [update_item, update_item],
       )
     end
   end
@@ -210,8 +210,8 @@ RSpec.describe Hatchet::Features::Scheduled do
           workflow_id: nil,
           additional_metadata: nil,
           parent_workflow_run_id: nil,
-          statuses: nil
-        }
+          statuses: nil,
+        },
       )
     end
 
@@ -221,7 +221,7 @@ RSpec.describe Hatchet::Features::Scheduled do
         limit: 50,
         workflow_id: "wf-1",
         additional_metadata: { "env" => "prod" },
-        statuses: ["PENDING"]
+        statuses: ["PENDING"],
       )
 
       expect(workflow_api).to have_received(:workflow_scheduled_list).with(
@@ -231,8 +231,8 @@ RSpec.describe Hatchet::Features::Scheduled do
           limit: 50,
           workflow_id: "wf-1",
           additional_metadata: [{ key: "env", value: "prod" }],
-          statuses: ["PENDING"]
-        )
+          statuses: ["PENDING"],
+        ),
       )
     end
   end

@@ -44,7 +44,7 @@ RSpec.describe Hatchet::Features::Filters do
       expect(result).to eq(filter_list)
       expect(filter_api).to have_received(:v1_filter_list).with(
         "test-tenant",
-        { limit: nil, offset: nil, workflow_ids: nil, scopes: nil }
+        { limit: nil, offset: nil, workflow_ids: nil, scopes: nil },
       )
     end
 
@@ -53,7 +53,7 @@ RSpec.describe Hatchet::Features::Filters do
 
       expect(filter_api).to have_received(:v1_filter_list).with(
         "test-tenant",
-        { limit: 10, offset: 5, workflow_ids: ["wf-1"], scopes: ["scope-1"] }
+        { limit: 10, offset: 5, workflow_ids: ["wf-1"], scopes: ["scope-1"] },
       )
     end
   end
@@ -84,7 +84,7 @@ RSpec.describe Hatchet::Features::Filters do
       result = filters_client.create(
         workflow_id: "wf-1",
         expression: "input.value > 10",
-        scope: "my-scope"
+        scope: "my-scope",
       )
 
       expect(result).to eq(created_filter)
@@ -92,7 +92,7 @@ RSpec.describe Hatchet::Features::Filters do
         workflow_id: "wf-1",
         expression: "input.value > 10",
         scope: "my-scope",
-        payload: nil
+        payload: nil,
       )
       expect(filter_api).to have_received(:v1_filter_create).with("test-tenant", create_request)
     end
@@ -102,14 +102,14 @@ RSpec.describe Hatchet::Features::Filters do
         workflow_id: "wf-1",
         expression: "input.value > 10",
         scope: "my-scope",
-        payload: { threshold: 10 }
+        payload: { threshold: 10 },
       )
 
       expect(HatchetSdkRest::V1CreateFilterRequest).to have_received(:new).with(
         workflow_id: "wf-1",
         expression: "input.value > 10",
         scope: "my-scope",
-        payload: { threshold: 10 }
+        payload: { threshold: 10 },
       )
     end
   end

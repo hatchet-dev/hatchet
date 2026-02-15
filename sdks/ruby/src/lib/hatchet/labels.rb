@@ -48,7 +48,7 @@ module Hatchet
         value: @value,
         weight: @weight,
         required: @required,
-        comparator: @comparator.to_s.upcase
+        comparator: @comparator.to_s.upcase,
       }
     end
   end

@@ -112,7 +112,7 @@ RSpec.describe Hatchet::Features::Runs do
 
   describe "#list" do
     let(:task_summary_list) { instance_double("HatchetSdkRest::V1TaskSummaryList") }
-    let(:since_time) { Time.now - 24 * 60 * 60 }
+    let(:since_time) { Time.now - (24 * 60 * 60) }
     let(:until_time) { Time.now }
 
     it "lists workflow runs with default parameters" do
@@ -135,8 +135,8 @@ RSpec.describe Hatchet::Features::Runs do
           worker_id: nil,
           parent_task_external_id: nil,
           triggering_event_external_id: nil,
-          include_payloads: true
-        )
+          include_payloads: true,
+        ),
       )
     end
 
@@ -154,7 +154,7 @@ RSpec.describe Hatchet::Features::Runs do
         workflow_ids: ["workflow-1"],
         worker_id: "worker-123",
         parent_task_external_id: "parent-task-456",
-        triggering_event_external_id: "event-789"
+        triggering_event_external_id: "event-789",
       )
 
       expect(workflow_runs_api).to have_received(:v1_workflow_run_list).with(
@@ -171,13 +171,13 @@ RSpec.describe Hatchet::Features::Runs do
           worker_id: "worker-123",
           parent_task_external_id: "parent-task-456",
           triggering_event_external_id: "event-789",
-          include_payloads: true
-        }
+          include_payloads: true,
+        },
       )
     end
 
     it "warns for large date ranges" do
-      large_since = Time.now - 10 * 24 * 60 * 60  # 10 days ago
+      large_since = Time.now - (10 * 24 * 60 * 60) # 10 days ago
       allow(workflow_runs_api).to receive(:v1_workflow_run_list).and_return(task_summary_list)
 
       expect { runs_client.list(since: large_since) }.to output(/performance issues/).to_stderr
@@ -191,7 +191,7 @@ RSpec.describe Hatchet::Features::Runs do
     let(:task_summary_list_2) { instance_double("HatchetSdkRest::V1TaskSummaryList", rows: [task_summary_2]) }
 
     it "paginates through date ranges and returns sorted unique results" do
-      since_time = Time.now - 2 * 24 * 60 * 60  # 2 days ago
+      since_time = Time.now - (2 * 24 * 60 * 60) # 2 days ago
       until_time = Time.now
 
       allow(workflow_runs_api).to receive(:v1_workflow_run_list)
@@ -201,7 +201,7 @@ RSpec.describe Hatchet::Features::Runs do
 
       expect(result).to be_an(Array)
       expect(result.length).to eq(2)
-      expect(result.first).to eq(task_summary_1)  # Most recent first
+      expect(result.first).to eq(task_summary_1) # Most recent first
       expect(result.last).to eq(task_summary_2)
 
       # Should make multiple API calls for date range partitioning
@@ -210,14 +210,15 @@ RSpec.describe Hatchet::Features::Runs do
 
     it "handles duplicate runs across date ranges" do
       # Same run appears in multiple date ranges
-      duplicate_summary = instance_double("HatchetSdkRest::V1TaskSummary", metadata: double(id: "duplicate-run"), created_at: Time.now - 500)
+      duplicate_summary = instance_double("HatchetSdkRest::V1TaskSummary", metadata: double(id: "duplicate-run"),
+                                                                           created_at: Time.now - 500,)
       list_with_duplicate_1 = instance_double("HatchetSdkRest::V1TaskSummaryList", rows: [duplicate_summary])
       list_with_duplicate_2 = instance_double("HatchetSdkRest::V1TaskSummaryList", rows: [duplicate_summary])
 
       allow(workflow_runs_api).to receive(:v1_workflow_run_list)
         .and_return(list_with_duplicate_1, list_with_duplicate_2)
 
-      result = runs_client.list_with_pagination(since: Time.now - 2 * 24 * 60 * 60)
+      result = runs_client.list_with_pagination(since: Time.now - (2 * 24 * 60 * 60))
 
       expect(result.length).to eq(1)
       expect(result.first).to eq(duplicate_summary)
@@ -243,7 +244,7 @@ RSpec.describe Hatchet::Features::Runs do
         workflow_name: workflow_name,
         input: input,
         additional_metadata: nil,
-        priority: nil
+        priority: nil,
       )
       expect(workflow_runs_api).to have_received(:v1_workflow_run_create).with("test-tenant", trigger_request)
     end
@@ -263,7 +264,7 @@ RSpec.describe Hatchet::Features::Runs do
         workflow_name: workflow_name,
         input: input,
         additional_metadata: additional_metadata,
-        priority: priority
+        priority: priority,
       )
     end
 
@@ -285,7 +286,7 @@ RSpec.describe Hatchet::Features::Runs do
         workflow_name: "prod_test-workflow",
         input: input,
         additional_metadata: nil,
-        priority: nil
+        priority: nil,
       )
     end
   end
@@ -305,7 +306,7 @@ RSpec.describe Hatchet::Features::Runs do
   end
 
   describe "#bulk_replay" do
-    let(:ids) { ["run-1", "run-2"] }
+    let(:ids) { %w[run-1 run-2] }
     let(:opts) { Hatchet::Features::BulkCancelReplayOpts.new(ids: ids) }
     let(:replay_request) { instance_double("HatchetSdkRest::V1ReplayTaskRequest") }
 
@@ -334,7 +335,7 @@ RSpec.describe Hatchet::Features::Runs do
   end
 
   describe "#bulk_cancel" do
-    let(:ids) { ["run-1", "run-2"] }
+    let(:ids) { %w[run-1 run-2] }
     let(:opts) { Hatchet::Features::BulkCancelReplayOpts.new(ids: ids) }
     let(:cancel_request) { instance_double("HatchetSdkRest::V1CancelTaskRequest") }
 
@@ -363,7 +364,6 @@ RSpec.describe Hatchet::Features::Runs do
     end
   end
 
-
   describe "#bulk_replay_by_filters_with_pagination" do
     let(:external_ids) { (1..10).map { |i| "run-#{i}" } }
 
@@ -379,7 +379,7 @@ RSpec.describe Hatchet::Features::Runs do
         sleep_time: 0,
         chunk_size: 5,
         since: Time.now - 3600,
-        until_time: Time.now
+        until_time: Time.now,
       )
 
       expect(workflow_runs_api).to have_received(:v1_workflow_run_external_ids_list)
@@ -392,7 +392,7 @@ RSpec.describe Hatchet::Features::Runs do
       expect(workflow_runs_api).to have_received(:v1_workflow_run_external_ids_list).with(
         "test-tenant",
         kind_of(String),
-        hash_including(statuses: ['FAILED', 'CANCELLED'])
+        hash_including(statuses: %w[FAILED CANCELLED]),
       )
     end
   end
@@ -420,7 +420,7 @@ RSpec.describe Hatchet::Features::Runs do
       expect(workflow_runs_api).to have_received(:v1_workflow_run_external_ids_list).with(
         "test-tenant",
         kind_of(String),
-        hash_including(statuses: ['RUNNING', 'QUEUED'])
+        hash_including(statuses: %w[RUNNING QUEUED]),
       )
     end
   end
@@ -457,7 +457,7 @@ RSpec.describe Hatchet::Features::Runs do
 
         expect(result).to eq([
           { key: "env", value: "test" },
-          { key: "version", value: "1.0" }
+          { key: "version", value: "1.0" },
         ])
       end
 
@@ -494,8 +494,8 @@ RSpec.describe Hatchet::Features::RunFilter do
 
     it "creates a filter with all parameters" do
       until_time = Time.now
-      statuses = ["RUNNING", "COMPLETED"]
-      workflow_ids = ["workflow-1", "workflow-2"]
+      statuses = %w[RUNNING COMPLETED]
+      workflow_ids = %w[workflow-1 workflow-2]
       additional_metadata = { "env" => "test" }
 
       filter = described_class.new(
@@ -503,7 +503,7 @@ RSpec.describe Hatchet::Features::RunFilter do
         until_time: until_time,
         statuses: statuses,
         workflow_ids: workflow_ids,
-        additional_metadata: additional_metadata
+        additional_metadata: additional_metadata,
       )
 
       expect(filter.since).to eq(since_time)
@@ -518,7 +518,7 @@ end
 RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
   describe "#initialize" do
     it "creates options with IDs" do
-      ids = ["run-1", "run-2"]
+      ids = %w[run-1 run-2]
       opts = described_class.new(ids: ids)
 
       expect(opts.ids).to eq(ids)
@@ -541,7 +541,7 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
       expect do
         described_class.new(
           ids: ["run-1"],
-          filters: Hatchet::Features::RunFilter.new(since: Time.now - 3600)
+          filters: Hatchet::Features::RunFilter.new(since: Time.now - 3600),
         )
       end.to raise_error(ArgumentError, "ids and filters cannot both be set")
     end
@@ -566,7 +566,7 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
         until_time: until_time,
         statuses: statuses,
         workflow_ids: workflow_ids,
-        additional_metadata: additional_metadata
+        additional_metadata: additional_metadata,
       )
       opts = described_class.new(filters: filter)
 
@@ -581,14 +581,14 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
         until: until_time,
         statuses: statuses,
         workflow_ids: workflow_ids,
-        additional_metadata: [{ key: "env", value: "test" }]
+        additional_metadata: [{ key: "env", value: "test" }],
       )
     end
   end
 
   describe "#to_cancel_request" do
     it "creates cancel request with IDs" do
-      ids = ["run-1", "run-2"]
+      ids = %w[run-1 run-2]
       opts = described_class.new(ids: ids)
 
       cancel_request = instance_double("HatchetSdkRest::V1CancelTaskRequest")
@@ -599,7 +599,7 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
       expect(result).to eq(cancel_request)
       expect(HatchetSdkRest::V1CancelTaskRequest).to have_received(:new).with(
         external_ids: ids,
-        filter: nil
+        filter: nil,
       )
     end
 
@@ -618,14 +618,14 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
       expect(result).to eq(cancel_request)
       expect(HatchetSdkRest::V1CancelTaskRequest).to have_received(:new).with(
         external_ids: nil,
-        filter: task_filter
+        filter: task_filter,
       )
     end
   end
 
   describe "#to_replay_request" do
     it "creates replay request with IDs" do
-      ids = ["run-1", "run-2"]
+      ids = %w[run-1 run-2]
       opts = described_class.new(ids: ids)
 
       replay_request = instance_double("HatchetSdkRest::V1ReplayTaskRequest")
@@ -636,7 +636,7 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
       expect(result).to eq(replay_request)
       expect(HatchetSdkRest::V1ReplayTaskRequest).to have_received(:new).with(
         external_ids: ids,
-        filter: nil
+        filter: nil,
       )
     end
 
@@ -655,7 +655,7 @@ RSpec.describe Hatchet::Features::BulkCancelReplayOpts do
       expect(result).to eq(replay_request)
       expect(HatchetSdkRest::V1ReplayTaskRequest).to have_received(:new).with(
         external_ids: nil,
-        filter: task_filter
+        filter: task_filter,
       )
     end
   end

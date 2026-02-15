@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'time'
+require "time"
 
 module Hatchet
   module Features
@@ -54,13 +54,13 @@ module Hatchet
         request = HatchetSdkRest::ScheduleWorkflowRunRequest.new(
           trigger_at: trigger_at.utc.iso8601,
           input: input,
-          additional_metadata: additional_metadata
+          additional_metadata: additional_metadata,
         )
 
         @workflow_run_api.scheduled_workflow_run_create(
           @config.tenant_id,
           @config.apply_namespace(workflow_name),
-          request
+          request,
         )
       end
 
@@ -88,7 +88,7 @@ module Hatchet
       #   scheduled_client.update("scheduled-123", trigger_at: Time.now + 7200)
       def update(scheduled_id, trigger_at:)
         request = HatchetSdkRest::UpdateScheduledWorkflowRunRequest.new(
-          trigger_at: trigger_at.utc.iso8601
+          trigger_at: trigger_at.utc.iso8601,
         )
 
         @workflow_api.workflow_scheduled_update(@config.tenant_id, scheduled_id, request)
@@ -109,15 +109,11 @@ module Hatchet
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       def bulk_delete(scheduled_ids: nil, workflow_id: nil, parent_workflow_run_id: nil,
                       parent_step_run_id: nil, statuses: nil, additional_metadata: nil)
-        if statuses
-          warn "The 'statuses' filter is not supported for bulk delete and will be ignored."
-        end
+        warn "The 'statuses' filter is not supported for bulk delete and will be ignored." if statuses
 
         has_filter = [workflow_id, parent_workflow_run_id, parent_step_run_id, additional_metadata].any? { |v| !v.nil? }
 
-        unless scheduled_ids || has_filter
-          raise ArgumentError, 'bulk_delete requires either scheduled_ids or at least one filter field.'
-        end
+        raise ArgumentError, "bulk_delete requires either scheduled_ids or at least one filter field." unless scheduled_ids || has_filter
 
         filter_obj = nil
         if has_filter
@@ -125,13 +121,13 @@ module Hatchet
             workflow_id: workflow_id,
             parent_workflow_run_id: parent_workflow_run_id,
             parent_step_run_id: parent_step_run_id,
-            additional_metadata: maybe_additional_metadata_to_kv(additional_metadata)
+            additional_metadata: maybe_additional_metadata_to_kv(additional_metadata),
           )
         end
 
         request = HatchetSdkRest::ScheduledWorkflowsBulkDeleteRequest.new(
           scheduled_workflow_run_ids: scheduled_ids,
-          filter: filter_obj
+          filter: filter_obj,
         )
 
         @workflow_api.workflow_scheduled_bulk_delete(@config.tenant_id, request)
@@ -151,12 +147,12 @@ module Hatchet
         update_items = updates.map do |u|
           HatchetSdkRest::ScheduledWorkflowsBulkUpdateItem.new(
             id: u[:id],
-            trigger_at: u[:trigger_at].utc.iso8601
+            trigger_at: u[:trigger_at].utc.iso8601,
           )
         end
 
         request = HatchetSdkRest::ScheduledWorkflowsBulkUpdateRequest.new(
-          updates: update_items
+          updates: update_items,
         )
 
         @workflow_api.workflow_scheduled_bulk_update(@config.tenant_id, request)
@@ -188,8 +184,8 @@ module Hatchet
             workflow_id: workflow_id,
             additional_metadata: maybe_additional_metadata_to_kv(additional_metadata),
             parent_workflow_run_id: parent_workflow_run_id,
-            statuses: statuses
-          }
+            statuses: statuses,
+          },
         )
       end
 

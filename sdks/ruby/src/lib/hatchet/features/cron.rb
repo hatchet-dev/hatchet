@@ -60,13 +60,13 @@ module Hatchet
           cron_expression: validated_expression,
           input: input,
           additional_metadata: additional_metadata,
-          priority: priority
+          priority: priority,
         )
 
         @workflow_run_api.cron_workflow_trigger_create(
           @config.tenant_id,
           @config.apply_namespace(workflow_name),
-          request
+          request,
         )
       end
 
@@ -107,8 +107,8 @@ module Hatchet
             order_by_field: order_by_field,
             order_by_direction: order_by_direction,
             workflow_name: workflow_name,
-            cron_name: cron_name
-          }
+            cron_name: cron_name,
+          },
         )
       end
 
@@ -131,7 +131,7 @@ module Hatchet
       # @return [String] The validated cron expression
       # @raise [ArgumentError] If the expression is invalid
       def validate_cron_expression(expression)
-        raise ArgumentError, 'Cron expression is required' if expression.nil? || expression.empty?
+        raise ArgumentError, "Cron expression is required" if expression.nil? || expression.empty?
 
         stripped = expression.strip
 
@@ -139,12 +139,10 @@ module Hatchet
         return stripped if CRON_ALIASES.include?(stripped)
 
         parts = stripped.split
-        unless parts.length == 5
-          raise ArgumentError, 'Cron expression must have 5 parts: minute hour day month weekday'
-        end
+        raise ArgumentError, "Cron expression must have 5 parts: minute hour day month weekday" unless parts.length == 5
 
         parts.each do |part|
-          unless part == '*' || part.gsub('*/', '').gsub('-', '').gsub(',', '').match?(/\A\d+\z/)
+          unless part == "*" || part.gsub("*/", "").gsub("-", "").gsub(",", "").match?(/\A\d+\z/)
             raise ArgumentError, "Invalid cron expression part: #{part}"
           end
         end

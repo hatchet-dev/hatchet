@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'time'
+require "time"
 
 module Hatchet
   module Features
@@ -83,7 +83,7 @@ module Hatchet
       #   )
       #   puts "Completed: #{metrics.completed}, Failed: #{metrics.failed}"
       def get_task_metrics(since: nil, until_time: nil, workflow_ids: nil, parent_task_external_id: nil, triggering_event_external_id: nil)
-        since_time = since || (Time.now - 24 * 60 * 60)
+        since_time = since || (Time.now - (24 * 60 * 60))
         until_val = until_time || Time.now
 
         result = @task_api.v1_task_list_status_metrics(
@@ -93,8 +93,8 @@ module Hatchet
             _until: until_val.utc.iso8601,
             workflow_ids: workflow_ids,
             parent_task_external_id: parent_task_external_id,
-            triggering_event_external_id: triggering_event_external_id
-          }
+            triggering_event_external_id: triggering_event_external_id,
+          },
         )
 
         # Build metrics hash from the status metric objects

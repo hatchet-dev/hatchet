@@ -110,7 +110,7 @@ RSpec.describe Hatchet::Features::Metrics do
         until_time: until_time,
         workflow_ids: ["wf-1"],
         parent_task_external_id: "parent-123",
-        triggering_event_external_id: "event-456"
+        triggering_event_external_id: "event-456",
       )
 
       expect(task_api).to have_received(:v1_task_list_status_metrics).with(
@@ -120,8 +120,8 @@ RSpec.describe Hatchet::Features::Metrics do
           _until: until_time.utc.iso8601,
           workflow_ids: ["wf-1"],
           parent_task_external_id: "parent-123",
-          triggering_event_external_id: "event-456"
-        }
+          triggering_event_external_id: "event-456",
+        },
       )
     end
 

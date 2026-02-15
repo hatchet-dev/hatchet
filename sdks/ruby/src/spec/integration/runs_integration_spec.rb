@@ -20,12 +20,12 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
     end
 
     it "can list runs with pagination without error" do
-      since_time = Time.now - 7 * 24 * 60 * 60  # 7 days ago
+      since_time = Time.now - (7 * 24 * 60 * 60) # 7 days ago
       expect { runs_client.list_with_pagination(since: since_time, limit: 10) }.not_to raise_error
     end
 
     it "returns an array when using list_with_pagination" do
-      since_time = Time.now - 24 * 60 * 60  # 1 day ago
+      since_time = Time.now - (24 * 60 * 60) # 1 day ago
       result = runs_client.list_with_pagination(since: since_time, limit: 5)
       expect(result).to be_an(Array)
       # Each item should be a task summary
@@ -35,14 +35,14 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
     end
 
     it "can filter runs by various parameters" do
-      since_time = Time.now - 24 * 60 * 60  # 1 day ago
+      since_time = Time.now - (24 * 60 * 60) # 1 day ago
 
       expect do
         runs_client.list(
           since: since_time,
           only_tasks: true,
           limit: 5,
-          additional_metadata: { "test" => "integration" }
+          additional_metadata: { "test" => "integration" },
         )
       end.not_to raise_error
     end
@@ -142,7 +142,7 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
       expect(opts_with_filters.ids).to be_nil
     end
 
-    # Note: We don't actually test bulk cancel/replay operations in integration tests
+    # NOTE: We don't actually test bulk cancel/replay operations in integration tests
     # as they could affect real workflow runs. The structure validation above
     # combined with unit tests should be sufficient.
   end
@@ -162,8 +162,8 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
 
     it "handles invalid date ranges gracefully" do
       # Future date range should return empty results, not error
-      future_since = Time.now + 24 * 60 * 60
-      future_until = Time.now + 48 * 60 * 60
+      future_since = Time.now + (24 * 60 * 60)
+      future_until = Time.now + (48 * 60 * 60)
 
       expect do
         result = runs_client.list(since: future_since, until_time: future_until, limit: 1)

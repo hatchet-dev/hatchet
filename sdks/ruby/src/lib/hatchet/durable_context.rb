@@ -38,20 +38,20 @@ module Hatchet
         base: ::V1::BaseMatchCondition.new(
           readable_data_key: signal_key,
           action: :QUEUE,
-          or_group_id: SecureRandom.uuid
+          or_group_id: SecureRandom.uuid,
         ),
-        sleep_for: duration_str
+        sleep_for: duration_str,
       )
 
       conditions = ::V1::DurableEventListenerConditions.new(
-        sleep_conditions: [sleep_condition]
+        sleep_conditions: [sleep_condition],
       )
 
       # Register the durable event
       register_request = ::V1::RegisterDurableEventRequest.new(
         task_id: @step_run_id,
         signal_key: signal_key,
-        conditions: conditions
+        conditions: conditions,
       )
 
       v1_dispatcher_stub.register_durable_event(register_request, metadata: @client.config.auth_metadata)
@@ -73,7 +73,7 @@ module Hatchet
       register_request = ::V1::RegisterDurableEventRequest.new(
         task_id: @step_run_id,
         signal_key: key,
-        conditions: conditions
+        conditions: conditions,
       )
 
       v1_dispatcher_stub.register_durable_event(register_request, metadata: @client.config.auth_metadata)
@@ -82,7 +82,7 @@ module Hatchet
       result = listen_for_event(key)
 
       # Parse the result data
-      if result && result.respond_to?(:data) && !result.data.to_s.empty?
+      if result.respond_to?(:data) && !result.data.to_s.empty?
         begin
           JSON.parse(result.data)
         rescue JSON::ParserError
@@ -100,7 +100,7 @@ module Hatchet
       @v1_dispatcher_stub ||= ::V1::V1Dispatcher::Stub.new(
         @client.config.host_port,
         nil,
-        channel_override: @client.channel
+        channel_override: @client.channel,
       )
     end
 
@@ -118,7 +118,7 @@ module Hatchet
         # Send initial request
         yielder << ::V1::ListenForDurableEventRequest.new(
           task_id: @step_run_id,
-          signal_key: signal_key
+          signal_key: signal_key,
         )
 
         # Keep the stream alive until we get a response
@@ -133,7 +133,7 @@ module Hatchet
       # Start the bidi stream
       response_stream = v1_dispatcher_stub.listen_for_durable_event(
         request_enum,
-        metadata: @client.config.auth_metadata
+        metadata: @client.config.auth_metadata,
       )
 
       # Wait for the first matching response
@@ -149,8 +149,12 @@ module Hatchet
       request_queue << :done
 
       result
-    rescue => e
-      request_queue << :done rescue nil
+    rescue StandardError => e
+      begin
+        request_queue << :done
+      rescue StandardError
+        nil
+      end
       raise e
     end
 
@@ -176,48 +180,46 @@ module Hatchet
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: key,
           action: :QUEUE,
-          or_group_id: SecureRandom.uuid
+          or_group_id: SecureRandom.uuid,
         )
 
         if condition[:sleep_for]
           sleep_conditions << ::V1::SleepMatchCondition.new(
             base: base,
-            sleep_for: condition[:sleep_for].to_s
+            sleep_for: condition[:sleep_for].to_s,
           )
         elsif condition[:event_key]
           user_event_conditions << ::V1::UserEventMatchCondition.new(
             base: base,
-            user_event_key: condition[:event_key]
+            user_event_key: condition[:event_key],
           )
         end
-      else
+      elsif condition.respond_to?(:event_key) && condition.event_key
         # Try to determine condition type from the object
-        if condition.respond_to?(:event_key) && condition.event_key
-          base = ::V1::BaseMatchCondition.new(
-            readable_data_key: key,
-            action: :QUEUE,
-            or_group_id: SecureRandom.uuid
-          )
-          user_event_conditions << ::V1::UserEventMatchCondition.new(
-            base: base,
-            user_event_key: condition.event_key
-          )
-        elsif condition.respond_to?(:sleep_for) && condition.sleep_for
-          base = ::V1::BaseMatchCondition.new(
-            readable_data_key: key,
-            action: :QUEUE,
-            or_group_id: SecureRandom.uuid
-          )
-          sleep_conditions << ::V1::SleepMatchCondition.new(
-            base: base,
-            sleep_for: condition.sleep_for.to_s
-          )
-        end
+        base = ::V1::BaseMatchCondition.new(
+          readable_data_key: key,
+          action: :QUEUE,
+          or_group_id: SecureRandom.uuid,
+        )
+        user_event_conditions << ::V1::UserEventMatchCondition.new(
+          base: base,
+          user_event_key: condition.event_key,
+        )
+      elsif condition.respond_to?(:sleep_for) && condition.sleep_for
+        base = ::V1::BaseMatchCondition.new(
+          readable_data_key: key,
+          action: :QUEUE,
+          or_group_id: SecureRandom.uuid,
+        )
+        sleep_conditions << ::V1::SleepMatchCondition.new(
+          base: base,
+          sleep_for: condition.sleep_for.to_s,
+        )
       end
 
       ::V1::DurableEventListenerConditions.new(
         sleep_conditions: sleep_conditions,
-        user_event_conditions: user_event_conditions
+        user_event_conditions: user_event_conditions,
       )
     end
   end

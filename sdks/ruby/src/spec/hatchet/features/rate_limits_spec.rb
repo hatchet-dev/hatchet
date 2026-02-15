@@ -31,7 +31,7 @@ RSpec.describe Hatchet::Features::RateLimits do
       expect(admin_grpc).to have_received(:put_rate_limit).with(
         key: "api-calls",
         limit: 100,
-        duration: :SECOND
+        duration: :SECOND,
       )
     end
 
@@ -43,7 +43,7 @@ RSpec.describe Hatchet::Features::RateLimits do
       expect(admin_grpc).to have_received(:put_rate_limit).with(
         key: "api-calls",
         limit: 1000,
-        duration: :MINUTE
+        duration: :MINUTE,
       )
     end
   end

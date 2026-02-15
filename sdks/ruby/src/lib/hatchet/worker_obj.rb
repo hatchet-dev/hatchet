@@ -77,7 +77,7 @@ module Hatchet
     rescue Interrupt
       @shutdown = true
       @client.config.logger.info("Worker '#{@name}' interrupted, shutting down...")
-    rescue => e
+    rescue StandardError => e
       @client.config.logger.error("Worker error: #{e.message}")
       raise
     ensure
@@ -93,7 +93,7 @@ module Hatchet
     #
     # @return [WorkerContext]
     def context
-      @worker_context ||= WorkerContext.new(worker: self)
+      @context ||= WorkerContext.new(worker: self)
     end
 
     private
@@ -120,7 +120,7 @@ module Hatchet
 
     def cleanup_lifespan
       # If lifespan data responds to close/shutdown, call it
-      @lifespan_data&.respond_to?(:close) && @lifespan_data.close
+      @lifespan_data.respond_to?(:close) && @lifespan_data.close
     end
 
     def register_workflows
@@ -150,7 +150,7 @@ module Hatchet
         name: @name,
         actions: action_ids,
         slots: @slots,
-        labels: @labels
+        labels: @labels,
       )
 
       @worker_id = response.worker_id
@@ -173,14 +173,18 @@ module Hatchet
             client_socket.puts response
             client_socket.close
           rescue IO::WaitReadable
-            IO.select([server], nil, nil, 1)
+            server.wait_readable(1)
             retry unless @shutdown
-          rescue => e
+          rescue StandardError => e
             @client.config.logger.debug("Health check error: #{e.message}")
           end
         end
 
-        server.close rescue nil
+        begin
+          server.close
+        rescue StandardError
+          nil
+        end
       end
     end
 
@@ -192,7 +196,7 @@ module Hatchet
 
         service_name = @client.config.apply_namespace(workflow.name.downcase)
 
-        workflow.tasks.each do |name, _task|
+        workflow.tasks.each_key do |name|
           ids << "#{service_name}:#{name}"
         end
 
@@ -213,14 +217,14 @@ module Hatchet
         event_client: @client.event_grpc,
         logger: @client.config.logger,
         client: @client,
-        lifespan_data: @lifespan_data
+        lifespan_data: @lifespan_data,
       )
 
       # Create the action listener with retry/reconnect logic
       listener = WorkerRuntime::ActionListener.new(
         dispatcher_client: @client.dispatcher_grpc,
         worker_id: @worker_id,
-        logger: @client.config.logger
+        logger: @client.config.logger,
       )
 
       listener.start do |action|
@@ -259,12 +263,12 @@ module Hatchet
     def upsert_labels(new_labels)
       @worker.labels.merge!(new_labels)
 
-      if @worker.worker_id && @worker.client
-        @worker.client.dispatcher_grpc.upsert_worker_labels(
-          worker_id: @worker.worker_id,
-          labels: new_labels
-        )
-      end
+      return unless @worker.worker_id && @worker.client
+
+      @worker.client.dispatcher_grpc.upsert_worker_labels(
+        worker_id: @worker.worker_id,
+        labels: new_labels,
+      )
     end
   end
 end

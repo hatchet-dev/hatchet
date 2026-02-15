@@ -88,7 +88,7 @@ module Hatchet
             @logger.info("Action listener interrupted")
             @running = false
             break
-          rescue => e
+          rescue StandardError => e
             @logger.warn("Action listener error: #{e.class}: #{e.message}")
           end
 
@@ -135,7 +135,7 @@ module Hatchet
             begin
               @dispatcher_client.heartbeat(worker_id: @worker_id)
               @missed_heartbeats = 0
-            rescue => e
+            rescue StandardError => e
               @missed_heartbeats += 1
               @logger.warn("Heartbeat failed (#{@missed_heartbeats}/#{MAX_MISSED_HEARTBEATS}): #{e.message}")
 
@@ -157,7 +157,11 @@ module Hatchet
       def stop_heartbeat_thread
         return unless @heartbeat_thread
 
-        @heartbeat_thread.kill rescue nil
+        begin
+          @heartbeat_thread.kill
+        rescue StandardError
+          nil
+        end
         @heartbeat_thread = nil
       end
     end

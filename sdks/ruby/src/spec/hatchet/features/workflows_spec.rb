@@ -59,7 +59,7 @@ RSpec.describe Hatchet::Features::Workflows do
       expect(result).to eq(workflow_list)
       expect(workflow_api).to have_received(:workflow_list).with(
         "test-tenant",
-        { limit: nil, offset: nil, name: nil }
+        { limit: nil, offset: nil, name: nil },
       )
     end
 
@@ -68,7 +68,7 @@ RSpec.describe Hatchet::Features::Workflows do
 
       expect(workflow_api).to have_received(:workflow_list).with(
         "test-tenant",
-        { limit: 10, offset: 5, name: "my-workflow" }
+        { limit: 10, offset: 5, name: "my-workflow" },
       )
     end
 
@@ -80,7 +80,7 @@ RSpec.describe Hatchet::Features::Workflows do
 
       expect(workflow_api).to have_received(:workflow_list).with(
         "test-tenant",
-        { limit: nil, offset: nil, name: "prod_my-workflow" }
+        { limit: nil, offset: nil, name: "prod_my-workflow" },
       )
     end
   end

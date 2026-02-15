@@ -83,13 +83,9 @@ module Hatchet
               map[key] = task
             end
 
-            if wf.on_failure
-              map["#{service_name}:on_failure"] = wf.on_failure
-            end
+            map["#{service_name}:on_failure"] = wf.on_failure if wf.on_failure
 
-            if wf.on_success
-              map["#{service_name}:on_success"] = wf.on_success
-            end
+            map["#{service_name}:on_success"] = wf.on_success if wf.on_success
           elsif wf.is_a?(Task)
             # Standalone task -- the workflow wrapper has the same name
             workflow = wf.workflow
@@ -111,7 +107,7 @@ module Hatchet
           worker_id: @dispatcher_client.respond_to?(:worker_id) ? @dispatcher_client.worker_id : "",
           action_key: action.action_id,
           additional_metadata: parse_metadata(action),
-          retry_count: action.retry_count
+          retry_count: action.retry_count,
         )
 
         # Send STARTED event
@@ -142,16 +138,14 @@ module Hatchet
           additional_metadata: ContextVars.additional_metadata,
           retry_count: action.retry_count,
           lifespan: @lifespan_data,
-          parent_outputs: parent_outputs
+          parent_outputs: parent_outputs,
         )
 
         # Parse input from action payload
         input = parse_input(action)
 
         # Resolve dependencies if the task has any
-        if task.deps && !task.deps.empty?
-          ctx.deps = resolve_dependencies(task.deps, input, ctx)
-        end
+        ctx.deps = resolve_dependencies(task.deps, input, ctx) if task.deps && !task.deps.empty?
 
         # Execute the task
         result = task.call(input, ctx)
@@ -161,7 +155,7 @@ module Hatchet
       rescue NonRetryableError => e
         @logger.error("Non-retryable error in task #{action.action_id}: #{e.message}")
         send_failure(action, e, retryable: false)
-      rescue => e
+      rescue StandardError => e
         @logger.error("Error in task #{action.action_id}: #{e.message}")
         send_failure(action, e, retryable: true)
       ensure
@@ -174,9 +168,9 @@ module Hatchet
         @dispatcher_client.send_step_action_event(
           action: action,
           event_type: :STEP_EVENT_TYPE_STARTED,
-          payload: "{}"
+          payload: "{}",
         )
-      rescue => e
+      rescue StandardError => e
         @logger.warn("Failed to send STARTED event: #{e.message}")
       end
 
@@ -188,7 +182,7 @@ module Hatchet
           action: action,
           event_type: :STEP_EVENT_TYPE_COMPLETED,
           payload: payload,
-          retry_count: action.retry_count
+          retry_count: action.retry_count,
         )
       end
 
@@ -201,7 +195,7 @@ module Hatchet
           event_type: :STEP_EVENT_TYPE_FAILED,
           payload: payload,
           retry_count: action.retry_count,
-          should_not_retry: !retryable
+          should_not_retry: !retryable,
         )
       end
 

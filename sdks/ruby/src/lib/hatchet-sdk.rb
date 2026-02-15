@@ -111,7 +111,7 @@ module Hatchet
     end
 
     def rest_client
-        @rest_client ||= Hatchet::Clients.rest_client(@config)
+      @rest_client ||= Hatchet::Clients.rest_client(@config)
     end
 
     # Feature Client for interacting with Hatchet events
@@ -212,9 +212,8 @@ module Hatchet
       # Create a workflow wrapper for standalone tasks
       wf = Workflow.new(name: name, client: self,
                         on_events: opts.delete(:on_events) || [],
-                        default_filters: opts.delete(:default_filters) || [])
-      t = wf.task(name, **opts, &block)
-      t
+                        default_filters: opts.delete(:default_filters) || [],)
+      wf.task(name, **opts, &block)
     end
 
     # Create a standalone durable task
@@ -226,9 +225,8 @@ module Hatchet
     def durable_task(name:, **opts, &block)
       wf = Workflow.new(name: name, client: self,
                         on_events: opts.delete(:on_events) || [],
-                        default_filters: opts.delete(:default_filters) || [])
-      t = wf.durable_task(name, **opts, &block)
-      t
+                        default_filters: opts.delete(:default_filters) || [],)
+      wf.durable_task(name, **opts, &block)
     end
 
     # Create a new worker
@@ -341,7 +339,7 @@ module Hatchet
       WorkflowRunRef.new(
         workflow_run_id: run_id,
         client: @client,
-        listener: @client.workflow_run_listener
+        listener: @client.workflow_run_listener,
       )
     end
 
@@ -361,7 +359,7 @@ module Hatchet
           if return_exceptions
             begin
               ref.result
-            rescue => e
+            rescue StandardError => e
               e
             end
           else
@@ -395,7 +393,7 @@ module Hatchet
         WorkflowRunRef.new(
           workflow_run_id: run_id,
           client: @client,
-          listener: @client.workflow_run_listener
+          listener: @client.workflow_run_listener,
         )
       end
     end
@@ -421,20 +419,16 @@ module Hatchet
       parent_step_run_id = ContextVars.step_run_id
       action_key = ContextVars.action_key
 
-      opts = user_options&.to_h || {}
+      opts = user_options.to_h
 
       if parent_workflow_run_id
         opts[:parent_id] ||= parent_workflow_run_id
         opts[:parent_task_run_external_id] ||= parent_step_run_id
 
-        if action_key
-          opts[:child_index] ||= @spawn_indices.next_index(action_key)
-        end
+        opts[:child_index] ||= @spawn_indices.next_index(action_key) if action_key
 
         parent_meta = ContextVars.additional_metadata
-        if parent_meta && !parent_meta.empty?
-          opts[:additional_metadata] = parent_meta.merge(opts[:additional_metadata] || {})
-        end
+        opts[:additional_metadata] = parent_meta.merge(opts[:additional_metadata] || {}) if parent_meta && !parent_meta.empty?
       end
 
       opts

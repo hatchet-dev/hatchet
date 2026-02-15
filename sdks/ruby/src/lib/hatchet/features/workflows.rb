@@ -53,8 +53,8 @@ module Hatchet
           {
             limit: limit,
             offset: offset,
-            name: workflow_name ? @config.apply_namespace(workflow_name) : nil
-          }
+            name: workflow_name ? @config.apply_namespace(workflow_name) : nil,
+          },
         )
       end
 

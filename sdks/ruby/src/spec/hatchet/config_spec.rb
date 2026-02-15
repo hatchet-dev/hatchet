@@ -8,7 +8,7 @@ RSpec.describe Hatchet::Config do
   let(:token_with_tenant_id) do
     # JWT with payload: {"sub": "jwt-tenant-123"}
     header = "eyJhbGciOiJIUzI1NiJ9" # {"alg":"HS256"}
-    payload = Base64.encode64('{"sub":"jwt-tenant-123"}').gsub(/\n/, "").gsub(/=+$/, "")
+    payload = Base64.encode64('{"sub":"jwt-tenant-123"}').gsub("\n", "").gsub(/=+$/, "")
     signature = "fake-signature"
     "#{header}.#{payload}.#{signature}"
   end
@@ -61,7 +61,7 @@ RSpec.describe Hatchet::Config do
           worker_preset_labels: { "env" => "test" },
           enable_force_kill_sync_threads: true,
           disable_log_capture: true,
-          listener_v2_timeout: 5000
+          listener_v2_timeout: 5000,
         )
 
         expect(config.host_port).to eq("custom.example.com:8080")
@@ -85,12 +85,12 @@ RSpec.describe Hatchet::Config do
         expect do
           described_class.new(token: "")
         end.to raise_error(Hatchet::Error,
-                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.")
+                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.",)
       end
 
       it "raises error for invalid JWT token" do
         expect { described_class.new(token: invalid_token) }.to raise_error(
-          Hatchet::Error, /Hatchet Token must be a valid JWT/
+          Hatchet::Error, /Hatchet Token must be a valid JWT/,
         )
       end
     end
@@ -100,7 +100,7 @@ RSpec.describe Hatchet::Config do
         expect do
           described_class.new
         end.to raise_error(Hatchet::Error,
-                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.")
+                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.",)
       end
     end
   end
@@ -297,7 +297,7 @@ RSpec.describe Hatchet::Config do
     end
 
     after do
-      File.delete(temp_env_file) if File.exist?(temp_env_file)
+      FileUtils.rm_f(temp_env_file)
       ENV.delete("TEST_VAR")
     end
 
@@ -305,7 +305,7 @@ RSpec.describe Hatchet::Config do
       File.write(temp_env_file, "TEST_VAR=test_value\nHATCHET_CLIENT_TOKEN=#{valid_token}")
 
       config = described_class.new
-      expect(ENV["TEST_VAR"]).to eq("test_value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("test_value")
       expect(config.token).to eq(valid_token)
     end
 
@@ -313,7 +313,7 @@ RSpec.describe Hatchet::Config do
       File.write(temp_env_file, "TEST_VAR=\"quoted_value\"\nHATCHET_CLIENT_TOKEN='#{valid_token}'")
 
       config = described_class.new
-      expect(ENV["TEST_VAR"]).to eq("quoted_value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("quoted_value")
       expect(config.token).to eq(valid_token)
     end
 
@@ -328,7 +328,7 @@ RSpec.describe Hatchet::Config do
 
       config = described_class.new
       expect(config.token).to eq(valid_token)
-      expect(ENV["TEST_VAR"]).to eq("value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("value")
     end
 
     it "does not override existing environment variables" do
@@ -336,7 +336,7 @@ RSpec.describe Hatchet::Config do
       File.write(temp_env_file, "TEST_VAR=file_value\nHATCHET_CLIENT_TOKEN=#{valid_token}")
 
       described_class.new
-      expect(ENV["TEST_VAR"]).to eq("existing_value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("existing_value")
     end
   end
 end

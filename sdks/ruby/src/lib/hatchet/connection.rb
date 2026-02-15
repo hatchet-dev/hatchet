@@ -14,7 +14,7 @@ module Hatchet
       "grpc.keepalive_timeout_ms" => 60_000,
       "grpc.client_idle_timeout_ms" => 60_000,
       "grpc.http2.max_pings_without_data" => 0,
-      "grpc.keepalive_permit_without_calls" => 1
+      "grpc.keepalive_permit_without_calls" => 1,
     }.freeze
 
     # Create a new gRPC channel for the given configuration.
@@ -26,7 +26,7 @@ module Hatchet
 
       channel_args = DEFAULT_CHANNEL_OPTIONS.merge(
         "grpc.max_send_message_length" => config.grpc_max_send_message_length,
-        "grpc.max_receive_message_length" => config.grpc_max_recv_message_length
+        "grpc.max_receive_message_length" => config.grpc_max_recv_message_length,
       )
 
       if config.tls_config.strategy == "none"

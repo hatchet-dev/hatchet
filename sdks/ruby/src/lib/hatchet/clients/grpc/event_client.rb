@@ -41,7 +41,7 @@ module Hatchet
           now = Time.now
           timestamp = Google::Protobuf::Timestamp.new(
             seconds: now.to_i,
-            nanos: now.nsec
+            nanos: now.nsec,
           )
 
           namespaced_key = @config.apply_namespace(key, namespace_override: namespace)
@@ -49,7 +49,7 @@ module Hatchet
           request_args = {
             key: namespaced_key,
             payload: JSON.generate(payload),
-            event_timestamp: timestamp
+            event_timestamp: timestamp,
           }
 
           if additional_metadata
@@ -78,14 +78,14 @@ module Hatchet
           now = Time.now
           timestamp = Google::Protobuf::Timestamp.new(
             seconds: now.to_i,
-            nanos: now.nsec
+            nanos: now.nsec,
           )
 
           items = events.map do |e|
             request_args = {
               key: @config.apply_namespace(e[:key], namespace_override: namespace),
               payload: JSON.generate(e[:payload] || {}),
-              event_timestamp: timestamp
+              event_timestamp: timestamp,
             }
 
             if e[:additional_metadata]
@@ -117,7 +117,7 @@ module Hatchet
           now = Time.now
           timestamp = Google::Protobuf::Timestamp.new(
             seconds: now.to_i,
-            nanos: now.nsec
+            nanos: now.nsec,
           )
 
           truncated_message = message.length > MAX_LOG_MESSAGE_LENGTH ? message[0...MAX_LOG_MESSAGE_LENGTH] : message
@@ -125,7 +125,7 @@ module Hatchet
           request = ::PutLogRequest.new(
             task_run_external_id: step_run_id,
             created_at: timestamp,
-            message: truncated_message
+            message: truncated_message,
           )
 
           @stub.put_log(request, metadata: @config.auth_metadata)
@@ -142,7 +142,7 @@ module Hatchet
           now = Time.now
           timestamp = Google::Protobuf::Timestamp.new(
             seconds: now.to_i,
-            nanos: now.nsec
+            nanos: now.nsec,
           )
 
           # The message field in PutStreamEventRequest is bytes
@@ -151,7 +151,7 @@ module Hatchet
           request = ::PutStreamEventRequest.new(
             task_run_external_id: step_run_id,
             created_at: timestamp,
-            message: message_bytes
+            message: message_bytes,
           )
 
           @stub.put_stream_event(request, metadata: @config.auth_metadata)
@@ -170,7 +170,7 @@ module Hatchet
           @stub = ::EventsService::Stub.new(
             @config.host_port,
             nil,
-            channel_override: @channel
+            channel_override: @channel,
           )
 
           @logger.debug("Events gRPC stub connected via shared channel")

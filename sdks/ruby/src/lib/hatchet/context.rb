@@ -121,7 +121,7 @@ module Hatchet
       if @event_client && @step_run_id
         begin
           @event_client.put_log(step_run_id: @step_run_id, message: msg)
-        rescue => e
+        rescue StandardError => e
           @client&.logger&.warn("Failed to send log to server: #{e.message}")
         end
       end
@@ -133,17 +133,19 @@ module Hatchet
     def cancel
       @cancelled = true
       @exit_flag = true
-      if @client && @workflow_run_id
-        @client.runs.cancel(@workflow_run_id) rescue nil
+      return unless @client && @workflow_run_id
+
+      begin
+        @client.runs.cancel(@workflow_run_id)
+      rescue StandardError
+        nil
       end
     end
 
     # Check if the task has been cancelled
     #
     # @return [Boolean] true if cancellation has been requested
-    def exit_flag
-      @exit_flag
-    end
+    attr_reader :exit_flag
 
     # Refresh the execution timeout for this task.
     #
@@ -153,7 +155,7 @@ module Hatchet
 
       @dispatcher_client.refresh_timeout(
         step_run_id: @step_run_id,
-        timeout_seconds: duration
+        timeout_seconds: duration,
       )
     end
 
@@ -178,7 +180,7 @@ module Hatchet
     #
     # @return [Array<TaskRunError>] Task run errors
     def task_run_errors
-      @action&.respond_to?(:task_run_errors) ? @action.task_run_errors : []
+      @action.respond_to?(:task_run_errors) ? @action.task_run_errors : []
     end
 
     # Get the error from a specific upstream task (used in on_failure tasks)

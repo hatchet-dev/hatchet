@@ -119,7 +119,7 @@ module Hatchet
       @client = client
       @deps = deps
       # Convert Proc to lambda to avoid LocalJumpError on bare `return`
-      @fn = block ? lambda(&block) : nil
+      @fn = block || nil
     end
 
     # Execute the task with the given input and context
@@ -143,28 +143,20 @@ module Hatchet
         action: "#{service_name}:#{@name}",
         inputs: "{}",
         parents: parent_names,
-        retries: @retries || 0
+        retries: @retries || 0,
       }
 
       # Timeout as duration string (e.g. "60s")
-      if @execution_timeout
-        opts[:timeout] = duration_to_expr(@execution_timeout)
-      end
+      opts[:timeout] = duration_to_expr(@execution_timeout) if @execution_timeout
 
       # Schedule timeout
-      if @schedule_timeout
-        opts[:schedule_timeout] = duration_to_expr(@schedule_timeout)
-      end
+      opts[:schedule_timeout] = duration_to_expr(@schedule_timeout) if @schedule_timeout
 
       # Rate limits
-      if @rate_limits && !@rate_limits.empty?
-        opts[:rate_limits] = @rate_limits.map { |rl| rate_limit_to_proto(rl) }
-      end
+      opts[:rate_limits] = @rate_limits.map { |rl| rate_limit_to_proto(rl) } if @rate_limits && !@rate_limits.empty?
 
       # Worker labels
-      if @desired_worker_labels && !@desired_worker_labels.empty?
-        opts[:worker_labels] = build_worker_labels_map(@desired_worker_labels)
-      end
+      opts[:worker_labels] = build_worker_labels_map(@desired_worker_labels) if @desired_worker_labels && !@desired_worker_labels.empty?
 
       # Backoff settings
       opts[:backoff_factor] = @backoff_factor if @backoff_factor
@@ -270,7 +262,7 @@ module Hatchet
         additional_metadata: additional_metadata,
         retry_count: retry_count,
         lifespan: lifespan,
-        parent_outputs: parent_outputs
+        parent_outputs: parent_outputs,
       )
 
       call(input, ctx)
@@ -322,29 +314,29 @@ module Hatchet
     end
 
     # Convert a RateLimit to a V1::CreateTaskRateLimit proto
-    def rate_limit_to_proto(rl)
+    def rate_limit_to_proto(rate_limit)
       duration_map = {
         second: :SECOND, minute: :MINUTE, hour: :HOUR,
-        day: :DAY, week: :WEEK, month: :MONTH, year: :YEAR
+        day: :DAY, week: :WEEK, month: :MONTH, year: :YEAR,
       }
 
       args = {}
 
-      if rl.respond_to?(:static_key) && rl.static_key
-        args[:key] = rl.static_key
-      elsif rl.respond_to?(:dynamic_key) && rl.dynamic_key
-        args[:key] = rl.dynamic_key
-        args[:key_expr] = rl.dynamic_key
+      if rate_limit.respond_to?(:static_key) && rate_limit.static_key
+        args[:key] = rate_limit.static_key
+      elsif rate_limit.respond_to?(:dynamic_key) && rate_limit.dynamic_key
+        args[:key] = rate_limit.dynamic_key
+        args[:key_expr] = rate_limit.dynamic_key
       end
 
-      args[:units] = rl.units if rl.respond_to?(:units)
+      args[:units] = rate_limit.units if rate_limit.respond_to?(:units)
 
       # Always set duration (default MINUTE), matching Python SDK behavior
-      dur = rl.respond_to?(:duration) && rl.duration ? rl.duration : :minute
+      dur = rate_limit.respond_to?(:duration) && rate_limit.duration ? rate_limit.duration : :minute
       args[:duration] = duration_map[dur] || :SECOND
 
       # Always set limit_values_expr (default "-1"), matching Python SDK behavior
-      limit_val = rl.respond_to?(:limit) && rl.limit ? rl.limit : -1
+      limit_val = rate_limit.respond_to?(:limit) && rate_limit.limit ? rate_limit.limit : -1
       args[:limit_values_expr] = limit_val.to_s
 
       ::V1::CreateTaskRateLimit.new(**args)
@@ -364,7 +356,7 @@ module Hatchet
                   comp_map = {
                     equal: :EQUAL, not_equal: :NOT_EQUAL,
                     greater_than: :GREATER_THAN, greater_than_or_equal: :GREATER_THAN_OR_EQUAL,
-                    less_than: :LESS_THAN, less_than_or_equal: :LESS_THAN_OR_EQUAL
+                    less_than: :LESS_THAN, less_than_or_equal: :LESS_THAN_OR_EQUAL,
                   }
                   dwl_args[:comparator] = comp_map[v[:comparator]] || :EQUAL
                 end
@@ -400,7 +392,7 @@ module Hatchet
 
       ::V1::TaskConditions.new(
         sleep_conditions: sleep_conditions,
-        user_event_conditions: user_event_conditions
+        user_event_conditions: user_event_conditions,
       )
     end
 
@@ -421,61 +413,61 @@ module Hatchet
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: "sleep_#{cond.duration}",
           action: action,
-          or_group_id: SecureRandom.uuid
+          or_group_id: SecureRandom.uuid,
         )
         sleep_conditions << ::V1::SleepMatchCondition.new(
           base: base,
-          sleep_for: "#{cond.duration}s"
+          sleep_for: "#{cond.duration}s",
         )
       elsif cond.is_a?(Hatchet::UserEventCondition)
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: cond.event_key,
           action: action,
           or_group_id: SecureRandom.uuid,
-          expression: cond.expression || ""
+          expression: cond.expression || "",
         )
         user_event_conditions << ::V1::UserEventMatchCondition.new(
           base: base,
-          user_event_key: cond.event_key
+          user_event_key: cond.event_key,
         )
       elsif cond.is_a?(Hash)
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: cond[:readable_data_key] || cond[:key] || "",
           action: action,
           or_group_id: cond[:or_group_id] || SecureRandom.uuid,
-          expression: cond[:expression] || ""
+          expression: cond[:expression] || "",
         )
 
         if cond[:sleep_for]
           sleep_conditions << ::V1::SleepMatchCondition.new(
             base: base,
-            sleep_for: cond[:sleep_for].to_s
+            sleep_for: cond[:sleep_for].to_s,
           )
         elsif cond[:event_key]
           user_event_conditions << ::V1::UserEventMatchCondition.new(
             base: base,
-            user_event_key: cond[:event_key]
+            user_event_key: cond[:event_key],
           )
         end
       elsif cond.respond_to?(:event_key) && cond.event_key
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: cond.event_key,
           action: action,
-          or_group_id: SecureRandom.uuid
+          or_group_id: SecureRandom.uuid,
         )
         user_event_conditions << ::V1::UserEventMatchCondition.new(
           base: base,
-          user_event_key: cond.event_key
+          user_event_key: cond.event_key,
         )
       elsif cond.respond_to?(:duration) && cond.duration
         base = ::V1::BaseMatchCondition.new(
           readable_data_key: "sleep_#{cond.duration}",
           action: action,
-          or_group_id: SecureRandom.uuid
+          or_group_id: SecureRandom.uuid,
         )
         sleep_conditions << ::V1::SleepMatchCondition.new(
           base: base,
-          sleep_for: "#{cond.duration}s"
+          sleep_for: "#{cond.duration}s",
         )
       end
     end

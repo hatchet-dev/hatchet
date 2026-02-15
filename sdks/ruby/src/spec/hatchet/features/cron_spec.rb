@@ -49,7 +49,7 @@ RSpec.describe Hatchet::Features::Cron do
         cron_name: "daily-run",
         expression: "0 0 * * *",
         input: { key: "value" },
-        additional_metadata: { source: "api" }
+        additional_metadata: { source: "api" },
       )
 
       expect(result).to eq(created_cron)
@@ -58,10 +58,10 @@ RSpec.describe Hatchet::Features::Cron do
         cron_expression: "0 0 * * *",
         input: { key: "value" },
         additional_metadata: { source: "api" },
-        priority: nil
+        priority: nil,
       )
       expect(workflow_run_api).to have_received(:cron_workflow_trigger_create).with(
-        "test-tenant", "my-workflow", cron_request
+        "test-tenant", "my-workflow", cron_request,
       )
     end
 
@@ -72,11 +72,11 @@ RSpec.describe Hatchet::Features::Cron do
       client_with_ns.create(
         workflow_name: "my-workflow",
         cron_name: "daily-run",
-        expression: "0 0 * * *"
+        expression: "0 0 * * *",
       )
 
       expect(workflow_run_api).to have_received(:cron_workflow_trigger_create).with(
-        "test-tenant", "prod_my-workflow", cron_request
+        "test-tenant", "prod_my-workflow", cron_request,
       )
     end
 
@@ -85,11 +85,11 @@ RSpec.describe Hatchet::Features::Cron do
         workflow_name: "my-workflow",
         cron_name: "daily-run",
         expression: "0 0 * * *",
-        priority: 5
+        priority: 5,
       )
 
       expect(HatchetSdkRest::CreateCronWorkflowTriggerRequest).to have_received(:new).with(
-        hash_including(priority: 5)
+        hash_including(priority: 5),
       )
     end
 
@@ -97,11 +97,11 @@ RSpec.describe Hatchet::Features::Cron do
       cron_client.create(
         workflow_name: "my-workflow",
         cron_name: "daily-run",
-        expression: "@daily"
+        expression: "@daily",
       )
 
       expect(HatchetSdkRest::CreateCronWorkflowTriggerRequest).to have_received(:new).with(
-        hash_including(cron_expression: "@daily")
+        hash_including(cron_expression: "@daily"),
       )
     end
 
@@ -110,9 +110,9 @@ RSpec.describe Hatchet::Features::Cron do
         cron_client.create(
           workflow_name: "my-workflow",
           cron_name: "daily-run",
-          expression: ""
+          expression: "",
         )
-      end.to raise_error(ArgumentError, 'Cron expression is required')
+      end.to raise_error(ArgumentError, "Cron expression is required")
     end
 
     it "raises error for invalid expression format" do
@@ -120,7 +120,7 @@ RSpec.describe Hatchet::Features::Cron do
         cron_client.create(
           workflow_name: "my-workflow",
           cron_name: "daily-run",
-          expression: "invalid"
+          expression: "invalid",
         )
       end.to raise_error(ArgumentError, /Cron expression must have 5 parts/)
     end
@@ -130,7 +130,7 @@ RSpec.describe Hatchet::Features::Cron do
         cron_client.create(
           workflow_name: "my-workflow",
           cron_name: "daily-run",
-          expression: "abc * * * *"
+          expression: "abc * * * *",
         )
       end.to raise_error(ArgumentError, /Invalid cron expression part/)
     end
@@ -167,8 +167,8 @@ RSpec.describe Hatchet::Features::Cron do
           order_by_field: nil,
           order_by_direction: nil,
           workflow_name: nil,
-          cron_name: nil
-        }
+          cron_name: nil,
+        },
       )
     end
 
@@ -179,7 +179,7 @@ RSpec.describe Hatchet::Features::Cron do
         workflow_id: "wf-1",
         additional_metadata: { "env" => "prod" },
         workflow_name: "my-workflow",
-        cron_name: "daily"
+        cron_name: "daily",
       )
 
       expect(workflow_api).to have_received(:cron_workflow_list).with(
@@ -190,8 +190,8 @@ RSpec.describe Hatchet::Features::Cron do
           workflow_id: "wf-1",
           additional_metadata: [{ key: "env", value: "prod" }],
           workflow_name: "my-workflow",
-          cron_name: "daily"
-        )
+          cron_name: "daily",
+        ),
       )
     end
   end

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "json"
-require "thread"
 
 module Hatchet
   # Thread-safe pooled gRPC listener for workflow run completion events.
@@ -18,7 +17,7 @@ module Hatchet
   #   result = listener.result("workflow-run-id-123")
   #   # => {"my_task" => {"value" => 42}}
   class WorkflowRunListener
-    RETRY_INTERVAL = 3   # seconds between reconnect attempts
+    RETRY_INTERVAL = 3 # seconds between reconnect attempts
     MAX_RETRIES    = 5
 
     DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
@@ -82,7 +81,7 @@ module Hatchet
 
       # Send the subscription request on the outgoing stream
       @request_queue << ::SubscribeToWorkflowRunsRequest.new(
-        workflow_run_id: workflow_run_id
+        workflow_run_id: workflow_run_id,
       )
 
       # Block until we receive the event or timeout
@@ -121,13 +120,9 @@ module Hatchet
       if errors.any?
         first_error = errors.first.error
 
-        if first_error.include?(DEDUPE_MESSAGE)
-          raise DedupeViolationError, first_error
-        end
+        raise DedupeViolationError, first_error if first_error.include?(DEDUPE_MESSAGE)
 
-        raise FailedRunError.new(
-          errors.map { |r| TaskRunError.new(r.error, task_run_external_id: r.task_run_external_id) }
-        )
+        raise(FailedRunError, errors.map { |r| TaskRunError.new(r.error, task_run_external_id: r.task_run_external_id) })
       end
 
       # Build the result hash: { task_name => parsed_output }
@@ -157,12 +152,12 @@ module Hatchet
 
       while retries < MAX_RETRIES
         begin
-          retries += 1 if retries > 0
+          retries += 1 if retries.positive?
 
           stub = ::Dispatcher::Stub.new(
             @config.host_port,
             nil,
-            channel_override: @channel
+            channel_override: @channel,
           )
 
           # Build the outgoing request enumerator.
@@ -173,7 +168,7 @@ module Hatchet
           # Open the bidi stream
           response_stream = stub.subscribe_to_workflow_runs(
             request_enum,
-            metadata: @config.auth_metadata
+            metadata: @config.auth_metadata,
           )
 
           retries = 0 # connected successfully
@@ -194,7 +189,7 @@ module Hatchet
           @logger.warn("WorkflowRunListener gRPC unknown error: #{e.message}")
         rescue StopIteration
           break # queue closed
-        rescue => e
+        rescue StandardError => e
           @logger.warn("WorkflowRunListener error: #{e.class}: #{e.message}")
         end
 

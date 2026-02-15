@@ -37,7 +37,7 @@ module Hatchet
 
             begin
               client = @server.accept_nonblock
-              request = client.gets # Read the request line
+              client.gets # Read the request line
 
               response_body = "OK"
               response = "HTTP/1.1 200 OK\r\n" \
@@ -50,23 +50,31 @@ module Hatchet
               client.print response
               client.close
             rescue IO::WaitReadable
-              IO.select([@server], nil, nil, 1)
-              retry unless !@running
-            rescue => e
+              @server.wait_readable(1)
+              retry if @running
+            rescue StandardError => e
               @logger.debug("Health check error: #{e.message}") if @running
             end
           end
-        rescue => e
+        rescue StandardError => e
           @logger.error("Health check server error: #{e.message}")
         ensure
-          @server&.close rescue nil
+          begin
+            @server&.close
+          rescue StandardError
+            nil
+          end
         end
       end
 
       # Stop the health check server
       def stop
         @running = false
-        @server&.close rescue nil
+        begin
+          @server&.close
+        rescue StandardError
+          nil
+        end
         @thread&.join(5)
       end
 

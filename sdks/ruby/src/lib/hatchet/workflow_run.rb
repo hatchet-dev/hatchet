@@ -38,11 +38,11 @@ module Hatchet
     def result(timeout: 300)
       return @result if @resolved
 
-      if @listener
-        @result = @listener.result(@workflow_run_id, timeout: timeout)
-      else
-        @result = poll_result_via_grpc(timeout)
-      end
+      @result = if @listener
+                  @listener.result(@workflow_run_id, timeout: timeout)
+                else
+                  poll_result_via_grpc(timeout)
+                end
 
       @resolved = true
       @result
@@ -60,7 +60,7 @@ module Hatchet
 
         begin
           response = @client.admin_grpc.get_run_details(external_id: @workflow_run_id)
-        rescue => e
+        rescue StandardError
           retries += 1
           raise if retries > 10
 
@@ -80,16 +80,14 @@ module Hatchet
           # Build result hash keyed by task readable_id (matching listener format)
           result = {}
           response.task_runs.each do |readable_id, detail|
-            if detail.output && !detail.output.empty?
-              result[readable_id] = JSON.parse(detail.output)
-            end
+            result[readable_id] = JSON.parse(detail.output) if detail.output && !detail.output.empty?
           end
           return result
         when :FAILED
           errors = response.task_runs
             .select { |_, d| d.respond_to?(:error) && d.error && !d.error.empty? }
             .map { |_, d| TaskRunError.new(d.error, task_run_external_id: d.external_id) }
-          raise FailedRunError.new(errors.empty? ? [TaskRunError.new("Workflow run failed")] : errors)
+          raise FailedRunError, errors.empty? ? [TaskRunError.new("Workflow run failed")] : errors
         when :CANCELLED
           raise Error, "Workflow run #{@workflow_run_id} was cancelled"
         end

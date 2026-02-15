@@ -1,8 +1,141 @@
+# frozen_string_literal: true
+
 AllCops:
   TargetRubyVersion: 3.1
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "lib/hatchet/clients/rest/**/*"
+    - "lib/hatchet/contracts/**/*"
+    - "vendor/**/*"
+    - "bin/**/*"
+    - "scripts/**/*"
+
+# ─── Style ───────────────────────────────────────────────────────────
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
 
 Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
+
+Style/FrozenStringLiteralComment:
+  EnforcedStyle: always
+
+Style/Documentation:
+  Enabled: false
+
+Style/TrailingCommaInArguments:
+  EnforcedStyleForMultiline: consistent_comma
+
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: consistent_comma
+
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: consistent_comma
+
+# ─── Metrics ─────────────────────────────────────────────────────────
+
+Metrics/MethodLength:
+  Max: 55
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+    - method_call
+
+Metrics/ClassLength:
+  Max: 300
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+    - method_call
+
+Metrics/ModuleLength:
+  Max: 300
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+    - method_call
+
+Metrics/BlockLength:
+  Max: 35
+  Exclude:
+    - "spec/**/*"
+    - "Rakefile"
+    - "*.gemspec"
+
+Metrics/AbcSize:
+  Max: 65
+
+Metrics/CyclomaticComplexity:
+  Max: 35
+
+Metrics/PerceivedComplexity:
+  Max: 35
+
+Metrics/ParameterLists:
+  Max: 10
+  CountKeywordArgs: false
+
+# ─── Layout ──────────────────────────────────────────────────────────
+
+Layout/LineLength:
+  Max: 140
+  AllowedPatterns:
+    - "^\\s*#"
+  Exclude:
+    - "*.gemspec"
+
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
+Layout/FirstHashElementIndentation:
+  EnforcedStyle: consistent
+
+Layout/FirstArrayElementIndentation:
+  EnforcedStyle: consistent
+
+# ─── Naming ──────────────────────────────────────────────────────────
+
+Naming/FileName:
+  Exclude:
+    - "lib/hatchet-sdk.rb"
+
+Naming/MethodParameterName:
+  AllowedNames:
+    - id
+    - ip
+    - to
+    - by
+    - on
+    - in
+    - at
+    - fn
+
+Naming/PredicatePrefix:
+  Enabled: false
+
+Naming/AccessorMethodName:
+  Enabled: false
+
+Naming/VariableNumber:
+  Enabled: false
+
+# ─── Gemspec ─────────────────────────────────────────────────────────
+
+Gemspec/DevelopmentDependencies:
+  Enabled: false
+
+# ─── Lint ────────────────────────────────────────────────────────────
+
+Lint/UnusedMethodArgument:
+  AllowUnusedKeywordArguments: true
+
+Lint/MissingSuper:
+  Enabled: false
+
+Lint/DuplicateBranch:
+  Enabled: false

@@ -65,7 +65,7 @@ module Hatchet
 
           request_args = {
             name: name,
-            input: JSON.generate(input)
+            input: JSON.generate(input),
           }
 
           request_args[:parent_id] = options[:parent_id] if options[:parent_id]
@@ -111,7 +111,7 @@ module Hatchet
 
             request_args = {
               name: name,
-              input: JSON.generate(input)
+              input: JSON.generate(input),
             }
 
             request_args[:parent_id] = opts[:parent_id] if opts[:parent_id]
@@ -158,13 +158,13 @@ module Hatchet
 
           schedule_timestamp = Google::Protobuf::Timestamp.new(
             seconds: run_at.to_i,
-            nanos: run_at.respond_to?(:nsec) ? run_at.nsec : 0
+            nanos: run_at.respond_to?(:nsec) ? run_at.nsec : 0,
           )
 
           request_args = {
             name: name,
             schedules: [schedule_timestamp],
-            input: JSON.generate(input)
+            input: JSON.generate(input),
           }
 
           request_args[:parent_id] = options[:parent_id] if options[:parent_id]
@@ -213,7 +213,7 @@ module Hatchet
           request = ::PutRateLimitRequest.new(
             key: key,
             limit: limit,
-            duration: duration
+            duration: duration,
           )
 
           @v0_stub.put_rate_limit(request, metadata: @config.auth_metadata)
@@ -233,13 +233,13 @@ module Hatchet
           @v0_stub = ::WorkflowService::Stub.new(
             @config.host_port,
             nil,
-            channel_override: @channel
+            channel_override: @channel,
           )
 
           @v1_stub = ::V1::AdminService::Stub.new(
             @config.host_port,
             nil,
-            channel_override: @channel
+            channel_override: @channel,
           )
 
           @logger.debug("Admin gRPC stubs (v0 + v1) connected via shared channel")

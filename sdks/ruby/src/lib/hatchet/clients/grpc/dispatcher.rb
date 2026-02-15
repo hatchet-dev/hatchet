@@ -54,7 +54,7 @@ module Hatchet
             language: :PYTHON, # TODO-RUBY: Use available SDK enum -- RUBY not in proto yet
             sdk_version: Hatchet::VERSION,
             language_version: RUBY_VERSION,
-            os: RUBY_PLATFORM
+            os: RUBY_PLATFORM,
           )
 
           request = ::WorkerRegisterRequest.new(
@@ -62,7 +62,7 @@ module Hatchet
             actions: actions,
             slots: slots,
             labels: label_map,
-            runtime_info: runtime_info
+            runtime_info: runtime_info,
           )
 
           response = @stub.register(request, metadata: @config.auth_metadata)
@@ -95,12 +95,12 @@ module Hatchet
           now = Time.now
           timestamp = Google::Protobuf::Timestamp.new(
             seconds: now.to_i,
-            nanos: now.nsec
+            nanos: now.nsec,
           )
 
           request = ::HeartbeatRequest.new(
             worker_id: worker_id,
-            heartbeat_at: timestamp
+            heartbeat_at: timestamp,
           )
 
           @stub.heartbeat(request, metadata: @config.auth_metadata)
@@ -123,7 +123,7 @@ module Hatchet
           now = Time.now
           timestamp = Google::Protobuf::Timestamp.new(
             seconds: now.to_i,
-            nanos: now.nsec
+            nanos: now.nsec,
           )
 
           event_args = {
@@ -135,7 +135,7 @@ module Hatchet
             action_id: action.action_id,
             event_timestamp: timestamp,
             event_type: event_type,
-            event_payload: payload
+            event_payload: payload,
           }
 
           event_args[:retry_count] = retry_count unless retry_count.nil?
@@ -157,7 +157,7 @@ module Hatchet
 
           request = ::RefreshTimeoutRequest.new(
             task_run_external_id: step_run_id,
-            increment_timeout_by: increment
+            increment_timeout_by: increment,
           )
 
           @stub.refresh_timeout(request, metadata: @config.auth_metadata)
@@ -171,7 +171,7 @@ module Hatchet
           ensure_connected!
 
           request = ::ReleaseSlotRequest.new(
-            task_run_external_id: step_run_id
+            task_run_external_id: step_run_id,
           )
 
           @stub.release_slot(request, metadata: @config.auth_metadata)
@@ -196,7 +196,7 @@ module Hatchet
 
           request = ::UpsertWorkerLabelsRequest.new(
             worker_id: worker_id,
-            labels: label_map
+            labels: label_map,
           )
 
           @stub.upsert_worker_labels(request, metadata: @config.auth_metadata)
@@ -229,7 +229,7 @@ module Hatchet
           @stub = ::Dispatcher::Stub.new(
             @config.host_port,
             nil,
-            channel_override: @channel
+            channel_override: @channel,
           )
 
           @logger.debug("Dispatcher gRPC stub connected via shared channel")

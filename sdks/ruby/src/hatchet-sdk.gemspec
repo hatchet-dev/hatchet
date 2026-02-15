@@ -19,6 +19,7 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/hatchet-dev/hatchet/tree/main/sdks/ruby"
   spec.metadata["changelog_uri"] = "https://github.com/hatchet-dev/hatchet/blob/main/sdks/ruby/src/CHANGELOG.md"
+  spec.metadata["rubygems_mfa_required"] = "true"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
@@ -51,18 +52,18 @@ Gem::Specification.new do |spec|
   # Runtime dependencies for REST API client
   spec.add_dependency "faraday", "~> 2.0"
   spec.add_dependency "faraday-multipart"
-  spec.add_dependency "marcel"
   spec.add_dependency "json", "~> 2.0"
+  spec.add_dependency "marcel"
 
   # Runtime dependencies for gRPC
-  spec.add_dependency "grpc", "~> 1.60"
-  spec.add_dependency "google-protobuf", "~> 4.0"
   spec.add_dependency "concurrent-ruby", ">= 1.1"
+  spec.add_dependency "google-protobuf", "~> 4.0"
+  spec.add_dependency "grpc", "~> 1.60"
 
   # Development dependencies
   spec.add_development_dependency "gem-release", "~> 2.2"
-  spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "grpc-tools", "~> 1.60"
+  spec.add_development_dependency "rspec", "~> 3.0"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html

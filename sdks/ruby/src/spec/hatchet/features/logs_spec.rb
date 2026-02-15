@@ -51,8 +51,8 @@ RSpec.describe Hatchet::Features::Logs do
         {
           limit: 1000,
           since: nil,
-          _until: nil
-        }
+          _until: nil,
+        },
       )
     end
 
@@ -67,8 +67,8 @@ RSpec.describe Hatchet::Features::Logs do
         {
           limit: 500,
           since: since_time.utc.iso8601,
-          _until: until_time.utc.iso8601
-        }
+          _until: until_time.utc.iso8601,
+        },
       )
     end
 

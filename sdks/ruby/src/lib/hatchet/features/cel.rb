@@ -5,13 +5,13 @@ module Hatchet
     # Result types for CEL expression evaluation
     CELSuccess = Struct.new(:status, :output, keyword_init: true) do
       def initialize(output:)
-        super(status: 'success', output: output)
+        super(status: "success", output: output)
       end
     end
 
     CELFailure = Struct.new(:status, :error, keyword_init: true) do
       def initialize(error:)
-        super(status: 'failure', error: error)
+        super(status: "failure", error: error)
       end
     end
 
@@ -69,18 +69,18 @@ module Hatchet
           expression: expression,
           input: input,
           additional_metadata: additional_metadata,
-          filter_payload: filter_payload
+          filter_payload: filter_payload,
         )
 
         result = @cel_api.v1_cel_debug(@config.tenant_id, request)
 
-        if result.status == 'ERROR' || result.status == :ERROR
-          raise 'No error message received from CEL debug API.' if result.error.nil?
+        if ["ERROR", :ERROR].include?(result.status)
+          raise "No error message received from CEL debug API." if result.error.nil?
 
           return CELEvaluationResult.new(result: CELFailure.new(error: result.error))
         end
 
-        raise 'No output received from CEL debug API.' if result.output.nil?
+        raise "No output received from CEL debug API." if result.output.nil?
 
         CELEvaluationResult.new(result: CELSuccess.new(output: result.output))
       end

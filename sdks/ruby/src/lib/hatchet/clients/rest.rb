@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 # typed: strict
 
-require 'fileutils'
-require 'rbconfig'
+require "fileutils"
+require "rbconfig"
 
 # Integration file for generated Hatchet REST API client
 # This file loads the generated REST client and makes it available under the Hatchet::Clients::Rest namespace
@@ -22,8 +22,8 @@ begin
   unless File.exist?(fake_gem_path)
     FileUtils.mkdir_p(File.dirname(fake_gem_path))
     # On Unix systems, create a symlink; on Windows, copy the files
-    if RbConfig::CONFIG['host_os'] =~ /mswin|mingw|cygwin/
-      require 'fileutils'
+    if RbConfig::CONFIG["host_os"] =~ /mswin|mingw|cygwin/
+      require "fileutils"
       FileUtils.cp_r(hatchet_sdk_rest_base, fake_gem_path)
     else
       File.symlink(hatchet_sdk_rest_base, fake_gem_path)
@@ -54,8 +54,8 @@ begin
 
             # Extract host from server_url
             if hatchet_config.server_url && !hatchet_config.server_url.empty?
-              config.host = hatchet_config.server_url.gsub(/^https?:\/\//, '').split('/').first
-              config.scheme = hatchet_config.server_url.start_with?('https') ? 'https' : 'http'
+              config.host = hatchet_config.server_url.gsub(%r{^https?://}, "").split("/").first
+              config.scheme = hatchet_config.server_url.start_with?("https") ? "https" : "http"
             end
 
             # Set timeout if available
@@ -86,7 +86,6 @@ begin
       end
     end
   end
-
 rescue LoadError => e
   # If the generated client files are not available, define an empty module
   # This allows the main SDK to load without errors even before generation

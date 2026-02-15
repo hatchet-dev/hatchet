@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'time'
+require "time"
 
 module Hatchet
   module Features
@@ -42,8 +42,8 @@ module Hatchet
           {
             limit: limit,
             since: since&.utc&.iso8601,
-            _until: until_time&.utc&.iso8601
-          }
+            _until: until_time&.utc&.iso8601,
+          },
         )
       end
     end

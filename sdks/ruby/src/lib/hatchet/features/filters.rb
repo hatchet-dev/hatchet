@@ -48,8 +48,8 @@ module Hatchet
             limit: limit,
             offset: offset,
             workflow_ids: workflow_ids,
-            scopes: scopes
-          }
+            scopes: scopes,
+          },
         )
       end
 
@@ -84,7 +84,7 @@ module Hatchet
           workflow_id: workflow_id,
           expression: expression,
           scope: scope,
-          payload: payload
+          payload: payload,
         )
         @filter_api.v1_filter_create(@config.tenant_id, request)
       end

@@ -20,14 +20,14 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     end
 
     it "can list events with various filters" do
-      since_time = Time.now - 24 * 60 * 60  # 1 day ago
+      since_time = Time.now - (24 * 60 * 60) # 1 day ago
 
       expect do
         events_client.list(
           since: since_time,
           limit: 5,
           keys: ["test-event"],
-          additional_metadata: { "source" => "integration-test" }
+          additional_metadata: { "source" => "integration-test" },
         )
       end.not_to raise_error
     end
@@ -62,7 +62,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         events_client.create(
           key: test_event_key,
           data: test_payload,
-          additional_metadata: test_metadata
+          additional_metadata: test_metadata,
         )
       end.not_to raise_error
     end
@@ -72,7 +72,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         events_client.push(
           test_event_key,
           test_payload,
-          additional_metadata: test_metadata
+          additional_metadata: test_metadata,
         )
       end.not_to raise_error
     end
@@ -81,7 +81,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       result = events_client.push(
         test_event_key,
         test_payload,
-        additional_metadata: test_metadata
+        additional_metadata: test_metadata,
       )
 
       # The exact structure may vary, but we expect some response
@@ -94,7 +94,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
           "#{test_event_key}-priority",
           test_payload,
           priority: 1,
-          additional_metadata: test_metadata
+          additional_metadata: test_metadata,
         )
       end.not_to raise_error
     end
@@ -102,8 +102,8 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     it "applies namespace to event keys" do
       # Test with a client that has a namespace
       config_with_namespace = Hatchet::Config.new(
-        token: ENV["HATCHET_CLIENT_TOKEN"],
-        namespace: "test_"
+        token: ENV.fetch("HATCHET_CLIENT_TOKEN", nil),
+        namespace: "test_",
       )
       client_with_ns = Hatchet::Client.new(**config_with_namespace.to_h)
 
@@ -111,7 +111,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         client_with_ns.events.push(
           "namespaced-event",
           test_payload,
-          additional_metadata: test_metadata
+          additional_metadata: test_metadata,
         )
       end.not_to raise_error
     end
@@ -123,14 +123,14 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         {
           key: "bulk-test-1-#{Time.now.to_i}",
           data: { "message" => "bulk event 1", "index" => 1 },
-          additional_metadata: { "source" => "bulk-test" }
+          additional_metadata: { "source" => "bulk-test" },
         },
         {
           key: "bulk-test-2-#{Time.now.to_i}",
           data: { "message" => "bulk event 2", "index" => 2 },
           additional_metadata: { "source" => "bulk-test" },
-          priority: 1
-        }
+          priority: 1,
+        },
       ]
     end
 
@@ -156,7 +156,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       result = events_client.push(
         "retrieval-test-#{Time.now.to_i}",
         { "message" => "test event for retrieval" },
-        additional_metadata: { "source" => "retrieval-test" }
+        additional_metadata: { "source" => "retrieval-test" },
       )
 
       # Try to extract event ID from the response (gRPC Event has event_id)
@@ -168,8 +168,12 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         result.metadata.id
       else
         # If we can't get the ID from creation, try to find it in the list
-        recent_events = events_client.list(limit: 1, keys: [(result.key rescue nil)].compact)
-        if recent_events.rows && recent_events.rows.any?
+        recent_events = events_client.list(limit: 1, keys: [begin
+          result.key
+        rescue StandardError
+          nil
+        end].compact,)
+        if recent_events.rows&.any?
           recent_events.rows.first.metadata.id
         else
           skip "Cannot determine event ID for retrieval test"
@@ -220,7 +224,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       end.not_to raise_error(ArgumentError) # Should not fail due to argument issues
     end
 
-    # Note: We don't actually test cancel/replay operations in integration tests
+    # NOTE: We don't actually test cancel/replay operations in integration tests
     # as they could affect real event data. The structure validation above
     # combined with unit tests should be sufficient.
   end
@@ -235,8 +239,8 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
 
     it "handles invalid date ranges gracefully" do
       # Future date range should return empty results, not error
-      future_since = Time.now + 24 * 60 * 60
-      future_until = Time.now + 48 * 60 * 60
+      future_since = Time.now + (24 * 60 * 60)
+      future_until = Time.now + (48 * 60 * 60)
 
       expect do
         result = events_client.list(since: future_since, until_time: future_until, limit: 1)
@@ -249,7 +253,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       expect do
         events_client.push(
           "error-test-#{Time.now.to_i}",
-          { "nested" => { "very" => { "deep" => "object" } } }
+          { "nested" => { "very" => { "deep" => "object" } } },
         )
       end.not_to raise_error # Should handle nested objects fine
     end
@@ -273,7 +277,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     it "validates event creation response structure" do
       result = events_client.push(
         "structure-test-#{Time.now.to_i}",
-        { "test" => "structure validation" }
+        { "test" => "structure validation" },
       )
 
       # The response structure may vary, but should be consistent
@@ -282,7 +286,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
 
     it "validates bulk creation response structure" do
       events_data = [
-        { key: "bulk-structure-test-#{Time.now.to_i}", data: { "test" => "bulk structure" } }
+        { key: "bulk-structure-test-#{Time.now.to_i}", data: { "test" => "bulk structure" } },
       ]
 
       result = events_client.bulk_push(events_data)
@@ -304,8 +308,8 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     end
 
     it "can filter by date ranges" do
-      since_time = Time.now - 7 * 24 * 60 * 60  # 7 days ago
-      until_time = Time.now - 6 * 24 * 60 * 60  # 6 days ago
+      since_time = Time.now - (7 * 24 * 60 * 60)  # 7 days ago
+      until_time = Time.now - (6 * 24 * 60 * 60)  # 6 days ago
 
       expect do
         result = events_client.list(since: since_time, until_time: until_time, limit: 5)
@@ -364,7 +368,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         expect do
           events_client.push(
             "namespace-test",
-            { "test" => "namespace handling" }
+            { "test" => "namespace handling" },
           )
         end.not_to raise_error
       else
@@ -377,14 +381,14 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         events_client.push(
           "override-test",
           { "test" => "namespace override" },
-          namespace: "override_"
+          namespace: "override_",
         )
       end.not_to raise_error
     end
 
     it "handles bulk events with namespace" do
       events_data = [
-        { key: "bulk-ns-test", data: { "test" => "bulk namespace" } }
+        { key: "bulk-ns-test", data: { "test" => "bulk namespace" } },
       ]
 
       expect do

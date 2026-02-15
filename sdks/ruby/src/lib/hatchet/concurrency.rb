@@ -48,7 +48,7 @@ module Hatchet
       {
         expression: @expression,
         max_runs: @max_runs,
-        limit_strategy: @limit_strategy.to_s.upcase
+        limit_strategy: @limit_strategy.to_s.upcase,
       }
     end
 
@@ -58,7 +58,7 @@ module Hatchet
       cancel_newest: :CANCEL_NEWEST,
       group_round_robin: :GROUP_ROUND_ROBIN,
       queue: :QUEUE_NEWEST,
-      drop_newest: :DROP_NEWEST
+      drop_newest: :DROP_NEWEST,
     }.freeze
 
     # Convert to a V1::Concurrency protobuf message
@@ -69,7 +69,7 @@ module Hatchet
       ::V1::Concurrency.new(
         expression: @expression,
         max_runs: @max_runs,
-        limit_strategy: proto_strategy
+        limit_strategy: proto_strategy,
       )
     end
   end

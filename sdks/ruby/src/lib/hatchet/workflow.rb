@@ -90,13 +90,13 @@ module Hatchet
     # @param opts [Hash] Task options (parents:, execution_timeout:, retries:, etc.)
     # @yield [input, ctx] The task execution block
     # @return [Task] The created task
-    def task(name, **opts, &block)
+    def task(name, **opts, &)
       t = Task.new(
         name: name,
         workflow: self,
         client: @client,
         **opts,
-        &block
+        &
       )
       @tasks[t.name] = t
       t
@@ -108,8 +108,8 @@ module Hatchet
     # @param opts [Hash] Task options
     # @yield [input, ctx] The task execution block
     # @return [Task] The created durable task
-    def durable_task(name, **opts, &block)
-      task(name, durable: true, **opts, &block)
+    def durable_task(name, **opts, &)
+      task(name, durable: true, **opts, &)
     end
 
     # Define an on_failure task for this workflow
@@ -117,13 +117,13 @@ module Hatchet
     # @param opts [Hash] Task options
     # @yield [input, ctx] The on_failure task block
     # @return [Task]
-    def on_failure_task(**opts, &block)
+    def on_failure_task(**opts, &)
       @on_failure = Task.new(
         name: :on_failure,
         workflow: self,
         client: @client,
         **opts,
-        &block
+        &
       )
     end
 
@@ -132,13 +132,13 @@ module Hatchet
     # @param opts [Hash] Task options
     # @yield [input, ctx] The on_success task block
     # @return [Task]
-    def on_success_task(**opts, &block)
+    def on_success_task(**opts, &)
       @on_success = Task.new(
         name: :on_success,
         workflow: self,
         client: @client,
         **opts,
-        &block
+        &
       )
     end
 
@@ -186,7 +186,7 @@ module Hatchet
         name: @name,
         event_triggers: event_triggers,
         cron_triggers: @on_crons || [],
-        tasks: task_protos
+        tasks: task_protos,
       }
 
       args[:concurrency] = concurrency_proto if concurrency_proto
@@ -280,7 +280,7 @@ module Hatchet
         workflow_name: @name,
         cron_name: cron_name,
         expression: expression,
-        input: input
+        input: input,
       )
     end
   end

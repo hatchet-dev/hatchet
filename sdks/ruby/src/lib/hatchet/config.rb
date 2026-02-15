@@ -49,7 +49,7 @@ module Hatchet
     private
 
     def env_var(name)
-      ENV[name]
+      ENV.fetch(name, nil)
     end
   end
 
@@ -77,7 +77,7 @@ module Hatchet
     private
 
     def env_var(name)
-      ENV[name]
+      ENV.fetch(name, nil)
     end
 
     def parse_int(value)
@@ -113,15 +113,15 @@ module Hatchet
     # @option options [Array<String>] :excluded_attributes List of attribute names to exclude from telemetry
     def initialize(**options)
       @excluded_attributes = options[:excluded_attributes] ||
-                         parse_json_array(
-                           env_var("HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES")
-                         ) || []
+                             parse_json_array(
+                               env_var("HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES"),
+                             ) || []
     end
 
     private
 
     def env_var(name)
-      ENV[name]
+      ENV.fetch(name, nil)
     end
 
     def parse_json_array(value)
@@ -249,34 +249,34 @@ module Hatchet
       @listener_v2_timeout = parse_int(options[:listener_v2_timeout] || env_var("HATCHET_CLIENT_LISTENER_V2_TIMEOUT"))
       @grpc_max_recv_message_length = parse_int(
         options[:grpc_max_recv_message_length] ||
-        env_var("HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH")
+        env_var("HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH"),
       ) || DEFAULT_GRPC_MAX_MESSAGE_LENGTH
       @grpc_max_send_message_length = parse_int(
         options[:grpc_max_send_message_length] ||
-        env_var("HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH")
+        env_var("HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH"),
       ) || DEFAULT_GRPC_MAX_MESSAGE_LENGTH
 
       @worker_preset_labels = options[:worker_preset_labels] ||
                               parse_hash(env_var("HATCHET_CLIENT_WORKER_PRESET_LABELS")) || {}
       @enable_force_kill_sync_threads = parse_bool(
         options[:enable_force_kill_sync_threads] ||
-        env_var("HATCHET_CLIENT_ENABLE_FORCE_KILL_SYNC_THREADS")
+        env_var("HATCHET_CLIENT_ENABLE_FORCE_KILL_SYNC_THREADS"),
       ) || false
       @enable_thread_pool_monitoring = parse_bool(
         options[:enable_thread_pool_monitoring] ||
-        env_var("HATCHET_CLIENT_ENABLE_THREAD_POOL_MONITORING")
+        env_var("HATCHET_CLIENT_ENABLE_THREAD_POOL_MONITORING"),
       ) || false
       @terminate_worker_after_num_tasks = parse_int(
         options[:terminate_worker_after_num_tasks] ||
-        env_var("HATCHET_CLIENT_TERMINATE_WORKER_AFTER_NUM_TASKS")
+        env_var("HATCHET_CLIENT_TERMINATE_WORKER_AFTER_NUM_TASKS"),
       )
       @disable_log_capture = parse_bool(
         options[:disable_log_capture] ||
-        env_var("HATCHET_CLIENT_DISABLE_LOG_CAPTURE")
+        env_var("HATCHET_CLIENT_DISABLE_LOG_CAPTURE"),
       ) || false
       @grpc_enable_fork_support = parse_bool(
         options[:grpc_enable_fork_support] ||
-        env_var("HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT")
+        env_var("HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT"),
       ) || false
 
       # Initialize nested configurations
@@ -348,7 +348,7 @@ module Hatchet
         enable_thread_pool_monitoring: enable_thread_pool_monitoring,
         terminate_worker_after_num_tasks: terminate_worker_after_num_tasks,
         disable_log_capture: disable_log_capture,
-        grpc_enable_fork_support: grpc_enable_fork_support
+        grpc_enable_fork_support: grpc_enable_fork_support,
       }
     end
 
@@ -407,7 +407,7 @@ module Hatchet
     end
 
     def env_var(name)
-      ENV[name]
+      ENV.fetch(name, nil)
     end
 
     def parse_int(value)
@@ -478,7 +478,7 @@ module Hatchet
       # Decode the payload (second part)
       payload_part = parts[1]
       # Add padding if needed for Base64 decoding
-      payload_part += "=" * (4 - payload_part.length % 4) if payload_part.length % 4 != 0
+      payload_part += "=" * (4 - (payload_part.length % 4)) if payload_part.length % 4 != 0
 
       decoded_payload = Base64.decode64(payload_part)
       JSON.parse(decoded_payload)

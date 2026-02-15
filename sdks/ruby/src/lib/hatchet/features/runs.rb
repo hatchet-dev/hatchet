@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'time'
-require 'timeout'
+require "time"
+require "timeout"
 
 module Hatchet
   module Features
@@ -38,21 +38,21 @@ module Hatchet
           until: @filters.until_time,
           statuses: @filters.statuses,
           workflow_ids: @filters.workflow_ids,
-          additional_metadata: maybe_additional_metadata_to_kv(@filters.additional_metadata)
+          additional_metadata: maybe_additional_metadata_to_kv(@filters.additional_metadata),
         )
       end
 
       def to_cancel_request
         HatchetSdkRest::V1CancelTaskRequest.new(
           external_ids: @ids,
-          filter: v1_task_filter
+          filter: v1_task_filter,
         )
       end
 
       def to_replay_request
         HatchetSdkRest::V1ReplayTaskRequest.new(
           external_ids: @ids,
-          filter: v1_task_filter
+          filter: v1_task_filter,
         )
       end
 
@@ -60,6 +60,7 @@ module Hatchet
 
       def maybe_additional_metadata_to_kv(metadata)
         return nil unless metadata
+
         metadata.map { |k, v| { key: k.to_s, value: v.to_s } }
       end
     end
@@ -178,8 +179,8 @@ module Hatchet
         include_payloads: true
       )
         date_ranges = partition_date_range(
-          since: since || (Time.now - DEFAULT_SINCE_DAYS * 24 * 60 * 60),
-          until_time: until_time || Time.now
+          since: since || (Time.now - (DEFAULT_SINCE_DAYS * 24 * 60 * 60)),
+          until_time: until_time || Time.now,
         )
 
         responses = date_ranges.map do |start_time, end_time|
@@ -197,8 +198,8 @@ module Hatchet
               worker_id: worker_id,
               parent_task_external_id: parent_task_external_id,
               triggering_event_external_id: triggering_event_external_id,
-              include_payloads: include_payloads
-            }
+              include_payloads: include_payloads,
+            },
           )
         end
 
@@ -243,11 +244,11 @@ module Hatchet
         triggering_event_external_id: nil,
         include_payloads: true
       )
-        since = since || (Time.now - DEFAULT_SINCE_DAYS * 24 * 60 * 60)
-        until_time = until_time || Time.now
+        since ||= (Time.now - (DEFAULT_SINCE_DAYS * 24 * 60 * 60))
+        until_time ||= Time.now
 
         if (until_time - since) / (24 * 60 * 60) >= LARGE_DATE_RANGE_WARNING_DAYS
-          warn "Listing runs with a date range longer than #{LARGE_DATE_RANGE_WARNING_DAYS} days may result in performance issues. " +
+          warn "Listing runs with a date range longer than #{LARGE_DATE_RANGE_WARNING_DAYS} days may result in performance issues. " \
                "Consider using `list_with_pagination` instead."
         end
 
@@ -265,8 +266,8 @@ module Hatchet
             worker_id: worker_id,
             parent_task_external_id: parent_task_external_id,
             triggering_event_external_id: triggering_event_external_id,
-            include_payloads: include_payloads
-          }
+            include_payloads: include_payloads,
+          },
         )
       end
 
@@ -297,7 +298,7 @@ module Hatchet
           workflow_name: @config.apply_namespace(name),
           input: input,
           additional_metadata: additional_metadata,
-          priority: priority
+          priority: priority,
         )
 
         run = @workflow_runs_api.v1_workflow_run_create(@config.tenant_id, trigger_request)
@@ -324,7 +325,7 @@ module Hatchet
         opts ||= build_bulk_opts(ids: ids, filters: filters)
         @task_api.v1_task_replay(
           @config.tenant_id,
-          opts.to_replay_request
+          opts.to_replay_request,
         )
       end
 
@@ -348,7 +349,7 @@ module Hatchet
         opts ||= build_bulk_opts(ids: ids, filters: filters)
         @task_api.v1_task_cancel(
           @config.tenant_id,
-          opts.to_cancel_request
+          opts.to_cancel_request,
         )
       end
 
@@ -378,16 +379,16 @@ module Hatchet
       # @return [void]
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def bulk_replay_by_filters_with_pagination(sleep_time: 3, chunk_size: 500, since: nil, until_time: nil,
-                                                  statuses: nil, additional_metadata: nil, workflow_ids: nil)
+                                                 statuses: nil, additional_metadata: nil, workflow_ids: nil)
         perform_action_with_pagination(
           action: :replay,
-          statuses: statuses || ['FAILED', 'CANCELLED'],
+          statuses: statuses || %w[FAILED CANCELLED],
           sleep_time: sleep_time,
           chunk_size: chunk_size,
           since: since,
           until_time: until_time,
           additional_metadata: additional_metadata,
-          workflow_ids: workflow_ids
+          workflow_ids: workflow_ids,
         )
       end
 
@@ -407,16 +408,16 @@ module Hatchet
       # @return [void]
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def bulk_cancel_by_filters_with_pagination(sleep_time: 3, chunk_size: 500, since: nil, until_time: nil,
-                                                  statuses: nil, additional_metadata: nil, workflow_ids: nil)
+                                                 statuses: nil, additional_metadata: nil, workflow_ids: nil)
         perform_action_with_pagination(
           action: :cancel,
-          statuses: statuses || ['RUNNING', 'QUEUED'],
+          statuses: statuses || %w[RUNNING QUEUED],
           sleep_time: sleep_time,
           chunk_size: chunk_size,
           since: since,
           until_time: until_time,
           additional_metadata: additional_metadata,
-          workflow_ids: workflow_ids
+          workflow_ids: workflow_ids,
         )
       end
 
@@ -428,7 +429,7 @@ module Hatchet
         Hatchet::WorkflowRunRef.new(
           workflow_run_id: workflow_run_id,
           client: @client,
-          listener: @client&.workflow_run_listener
+          listener: @client&.workflow_run_listener,
         )
       end
 
@@ -458,14 +459,10 @@ module Hatchet
 
           # Check if workflow run has reached a terminal state
           puts "Run status: #{status}"
-          if terminal_status?(status)
-            return run
-          end
+          return run if terminal_status?(status)
 
           # Check timeout
-          if timeout && (Time.now - start_time) >= timeout
-            raise Timeout::Error, "Polling timed out after #{timeout} seconds"
-          end
+          raise Timeout::Error, "Polling timed out after #{timeout} seconds" if timeout && (Time.now - start_time) >= timeout
 
           sleep(interval)
         end
@@ -480,29 +477,27 @@ module Hatchet
       # @yield [String] Each stream chunk payload
       # @return [void]
       # @raise [Hatchet::Error] If the subscription fails
-      def subscribe_to_stream(workflow_run_id, &block)
+      def subscribe_to_stream(workflow_run_id)
         return unless block_given?
 
         stub = ::Dispatcher::Stub.new(
           @config.host_port,
           nil,
-          channel_override: @client.channel
+          channel_override: @client.channel,
         )
 
         request = ::SubscribeToWorkflowEventsRequest.new(
-          workflow_run_id: workflow_run_id
+          workflow_run_id: workflow_run_id,
         )
 
         response_stream = stub.subscribe_to_workflow_events(
           request,
-          metadata: @config.auth_metadata
+          metadata: @config.auth_metadata,
         )
 
         response_stream.each do |event|
           # Filter for stream events (RESOURCE_EVENT_TYPE_STREAM = 6)
-          if event.event_type == :RESOURCE_EVENT_TYPE_STREAM
-            yield event.event_payload
-          end
+          yield event.event_payload if event.event_type == :RESOURCE_EVENT_TYPE_STREAM
 
           # Stop if we get a hangup signal
           break if event.respond_to?(:hangup) && event.hangup
@@ -519,11 +514,11 @@ module Hatchet
       def build_bulk_opts(ids: nil, filters: nil)
         if filters.is_a?(Hash)
           filter_obj = RunFilter.new(
-            since: filters[:since] || (Time.now - DEFAULT_SINCE_DAYS * 24 * 60 * 60),
+            since: filters[:since] || (Time.now - (DEFAULT_SINCE_DAYS * 24 * 60 * 60)),
             until_time: filters[:until_time],
             statuses: filters[:statuses],
             workflow_ids: filters[:workflow_ids],
-            additional_metadata: filters[:additional_metadata]
+            additional_metadata: filters[:additional_metadata],
           )
           BulkCancelReplayOpts.new(filters: filter_obj)
         elsif ids
@@ -546,8 +541,8 @@ module Hatchet
       # @return [void]
       def perform_action_with_pagination(action:, statuses:, sleep_time: 3, chunk_size: 500,
                                          since: nil, until_time: nil, additional_metadata: nil, workflow_ids: nil)
-        until_time = until_time || Time.now
-        since = since || (until_time - 24 * 60 * 60)
+        until_time ||= Time.now
+        since ||= (until_time - (24 * 60 * 60))
 
         external_ids = @workflow_runs_api.v1_workflow_run_external_ids_list(
           @config.tenant_id,
@@ -556,8 +551,8 @@ module Hatchet
             statuses: statuses,
             _until: until_time.utc.iso8601,
             additional_metadata: maybe_additional_metadata_to_kv(additional_metadata),
-            workflow_ids: workflow_ids
-          }
+            workflow_ids: workflow_ids,
+          },
         )
 
         chunks = external_ids.each_slice(chunk_size).to_a
@@ -599,7 +594,7 @@ module Hatchet
         current = since
 
         while current < until_time
-          next_day = [current + 24 * 60 * 60, until_time].min
+          next_day = [current + (24 * 60 * 60), until_time].min
           ranges << [current, next_day]
           current = next_day
         end
@@ -613,6 +608,7 @@ module Hatchet
       # @return [Array<Hash>, nil] Array of {key: string, value: string} objects
       def maybe_additional_metadata_to_kv(metadata)
         return nil unless metadata
+
         metadata.map { |k, v| { key: k.to_s, value: v.to_s } }
       end
     end

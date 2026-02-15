@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'time'
+require "time"
 
 module Hatchet
   module Features
@@ -66,7 +66,7 @@ module Hatchet
           additional_metadata: additional_metadata,
           priority: priority,
           scope: scope,
-          namespace: namespace
+          namespace: namespace,
         )
       end
 
@@ -91,7 +91,7 @@ module Hatchet
           data: payload,
           additional_metadata: additional_metadata,
           priority: priority,
-          namespace: namespace
+          namespace: namespace,
         )
       end
 
@@ -113,7 +113,7 @@ module Hatchet
             key: event[:key],
             payload: event[:data] || {},
             additional_metadata: event[:additional_metadata],
-            priority: event[:priority]
+            priority: event[:priority],
           }
         end
 
@@ -164,8 +164,8 @@ module Hatchet
             workflow_run_statuses: workflow_run_statuses,
             event_ids: event_ids,
             additional_metadata: maybe_additional_metadata_to_kv(additional_metadata),
-            scopes: scopes
-          }
+            scopes: scopes,
+          },
         )
       end
 
@@ -208,7 +208,7 @@ module Hatchet
           event_ids: event_ids,
           keys: keys,
           since: since&.utc&.iso8601,
-          until: until_time&.utc&.iso8601
+          until: until_time&.utc&.iso8601,
         )
 
         @event_api.event_update_cancel(@config.tenant_id, cancel_request)
@@ -227,7 +227,7 @@ module Hatchet
           event_ids: event_ids,
           keys: keys,
           since: since&.utc&.iso8601,
-          until: until_time&.utc&.iso8601
+          until: until_time&.utc&.iso8601,
         )
 
         @event_api.event_update_replay(@config.tenant_id, replay_request)
@@ -250,6 +250,7 @@ module Hatchet
       # @return [Array<Hash>, nil] Array of {key: string, value: string} objects
       def maybe_additional_metadata_to_kv(metadata)
         return nil unless metadata
+
         metadata.map { |k, v| { key: k.to_s, value: v.to_s } }
       end
     end

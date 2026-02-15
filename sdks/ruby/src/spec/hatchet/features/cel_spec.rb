@@ -49,7 +49,7 @@ RSpec.describe Hatchet::Features::CEL do
 
       expect(result).to be_a(Hatchet::Features::CELEvaluationResult)
       expect(result.result).to be_a(Hatchet::Features::CELSuccess)
-      expect(result.result.status).to eq('success')
+      expect(result.result.status).to eq("success")
       expect(result.result.output).to eq(true)
     end
 
@@ -61,7 +61,7 @@ RSpec.describe Hatchet::Features::CEL do
 
       expect(result).to be_a(Hatchet::Features::CELEvaluationResult)
       expect(result.result).to be_a(Hatchet::Features::CELFailure)
-      expect(result.result.status).to eq('failure')
+      expect(result.result.status).to eq("failure")
       expect(result.result.error).to eq("invalid expression")
     end
 
@@ -70,7 +70,7 @@ RSpec.describe Hatchet::Features::CEL do
       allow(cel_api).to receive(:v1_cel_debug).with("test-tenant", debug_request).and_return(result_obj)
 
       expect { cel_client.debug(expression: expression, input: input) }
-        .to raise_error(RuntimeError, 'No error message received from CEL debug API.')
+        .to raise_error(RuntimeError, "No error message received from CEL debug API.")
     end
 
     it "raises error when success status but no output" do
@@ -78,7 +78,7 @@ RSpec.describe Hatchet::Features::CEL do
       allow(cel_api).to receive(:v1_cel_debug).with("test-tenant", debug_request).and_return(result_obj)
 
       expect { cel_client.debug(expression: expression, input: input) }
-        .to raise_error(RuntimeError, 'No output received from CEL debug API.')
+        .to raise_error(RuntimeError, "No output received from CEL debug API.")
     end
 
     it "passes all parameters to the API" do
@@ -89,14 +89,14 @@ RSpec.describe Hatchet::Features::CEL do
         expression: expression,
         input: input,
         additional_metadata: { env: "prod" },
-        filter_payload: { threshold: 5 }
+        filter_payload: { threshold: 5 },
       )
 
       expect(HatchetSdkRest::V1CELDebugRequest).to have_received(:new).with(
         expression: expression,
         input: input,
         additional_metadata: { env: "prod" },
-        filter_payload: { threshold: 5 }
+        filter_payload: { threshold: 5 },
       )
     end
   end
@@ -105,7 +105,7 @@ end
 RSpec.describe Hatchet::Features::CELSuccess do
   it "creates a success result" do
     result = described_class.new(output: true)
-    expect(result.status).to eq('success')
+    expect(result.status).to eq("success")
     expect(result.output).to eq(true)
   end
 end
@@ -113,7 +113,7 @@ end
 RSpec.describe Hatchet::Features::CELFailure do
   it "creates a failure result" do
     result = described_class.new(error: "bad expression")
-    expect(result.status).to eq('failure')
+    expect(result.status).to eq("failure")
     expect(result.error).to eq("bad expression")
   end
 end
