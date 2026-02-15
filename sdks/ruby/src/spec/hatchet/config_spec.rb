@@ -219,8 +219,6 @@ RSpec.describe Hatchet::Config do
         expect(config.send(:parse_int, nil)).to be_nil
       end
     end
-
-
   end
 
   describe "logger" do
