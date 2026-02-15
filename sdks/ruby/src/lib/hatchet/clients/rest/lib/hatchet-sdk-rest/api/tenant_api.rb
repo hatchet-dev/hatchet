@@ -751,7 +751,7 @@ module HatchetSdkRest
     # Accept tenant invite
     # Accepts a tenant invite
     # @param [Hash] opts the optional parameters
-    # @option opts [AcceptInviteRequest] :accept_invite_request 
+    # @option opts [AcceptInviteRequest] :accept_invite_request
     # @return [nil]
     def tenant_invite_accept(opts = {})
       tenant_invite_accept_with_http_info(opts)
@@ -761,7 +761,7 @@ module HatchetSdkRest
     # Accept tenant invite
     # Accepts a tenant invite
     # @param [Hash] opts the optional parameters
-    # @option opts [AcceptInviteRequest] :accept_invite_request 
+    # @option opts [AcceptInviteRequest] :accept_invite_request
     # @return [Array<(nil, Integer, Hash)>] nil, response status code and response headers
     def tenant_invite_accept_with_http_info(opts = {})
       if @api_client.config.debugging
@@ -968,7 +968,7 @@ module HatchetSdkRest
     # Reject tenant invite
     # Rejects a tenant invite
     # @param [Hash] opts the optional parameters
-    # @option opts [RejectInviteRequest] :reject_invite_request 
+    # @option opts [RejectInviteRequest] :reject_invite_request
     # @return [nil]
     def tenant_invite_reject(opts = {})
       tenant_invite_reject_with_http_info(opts)
@@ -978,7 +978,7 @@ module HatchetSdkRest
     # Reject tenant invite
     # Rejects a tenant invite
     # @param [Hash] opts the optional parameters
-    # @option opts [RejectInviteRequest] :reject_invite_request 
+    # @option opts [RejectInviteRequest] :reject_invite_request
     # @return [Array<(nil, Integer, Hash)>] nil, response status code and response headers
     def tenant_invite_reject_with_http_info(opts = {})
       if @api_client.config.debugging

@@ -79,7 +79,7 @@ module HatchetSdkRest
     # Register user
     # Registers a user.
     # @param [Hash] opts the optional parameters
-    # @option opts [UserRegisterRequest] :user_register_request 
+    # @option opts [UserRegisterRequest] :user_register_request
     # @return [User]
     def user_create(opts = {})
       data, _status_code, _headers = user_create_with_http_info(opts)
@@ -89,7 +89,7 @@ module HatchetSdkRest
     # Register user
     # Registers a user.
     # @param [Hash] opts the optional parameters
-    # @option opts [UserRegisterRequest] :user_register_request 
+    # @option opts [UserRegisterRequest] :user_register_request
     # @return [Array<(User, Integer, Hash)>] User data, response status code and response headers
     def user_create_with_http_info(opts = {})
       if @api_client.config.debugging
@@ -420,7 +420,7 @@ module HatchetSdkRest
     # Login user
     # Logs in a user.
     # @param [Hash] opts the optional parameters
-    # @option opts [UserLoginRequest] :user_login_request 
+    # @option opts [UserLoginRequest] :user_login_request
     # @return [User]
     def user_update_login(opts = {})
       data, _status_code, _headers = user_update_login_with_http_info(opts)
@@ -430,7 +430,7 @@ module HatchetSdkRest
     # Login user
     # Logs in a user.
     # @param [Hash] opts the optional parameters
-    # @option opts [UserLoginRequest] :user_login_request 
+    # @option opts [UserLoginRequest] :user_login_request
     # @return [Array<(User, Integer, Hash)>] User data, response status code and response headers
     def user_update_login_with_http_info(opts = {})
       if @api_client.config.debugging
@@ -541,7 +541,7 @@ module HatchetSdkRest
     # Change user password
     # Update a user password.
     # @param [Hash] opts the optional parameters
-    # @option opts [UserChangePasswordRequest] :user_change_password_request 
+    # @option opts [UserChangePasswordRequest] :user_change_password_request
     # @return [User]
     def user_update_password(opts = {})
       data, _status_code, _headers = user_update_password_with_http_info(opts)
@@ -551,7 +551,7 @@ module HatchetSdkRest
     # Change user password
     # Update a user password.
     # @param [Hash] opts the optional parameters
-    # @option opts [UserChangePasswordRequest] :user_change_password_request 
+    # @option opts [UserChangePasswordRequest] :user_change_password_request
     # @return [Array<(User, Integer, Hash)>] User data, response status code and response headers
     def user_update_password_with_http_info(opts = {})
       if @api_client.config.debugging

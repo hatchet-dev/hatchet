@@ -69,7 +69,7 @@ HatchetSdkRest.configure do |config|
   # Configure Bearer authorization: bearerAuth
   config.access_token = 'YOUR_BEARER_TOKEN'
   # Configure a proc to get access tokens in lieu of the static access_token configuration
-  config.access_token_getter = -> { 'YOUR TOKEN GETTER PROC' } 
+  config.access_token_getter = -> { 'YOUR TOKEN GETTER PROC' }
   # Configure faraday connection
   config.configure_faraday_connection { |connection| 'YOUR CONNECTION CONFIG PROC' }
 end
@@ -77,7 +77,7 @@ end
 api_instance = HatchetSdkRest::APITokenApi.new
 tenant = '38400000-8cf0-11bd-b23e-10b96e4ef00d' # String | The tenant id
 opts = {
-  create_api_token_request: HatchetSdkRest::CreateAPITokenRequest.new({name: 'name_example'}) # CreateAPITokenRequest | 
+  create_api_token_request: HatchetSdkRest::CreateAPITokenRequest.new({name: 'name_example'}) # CreateAPITokenRequest |
 }
 
 begin
@@ -121,10 +121,10 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::EventApi* | [**v1_event_key_list**](docs/EventApi.md#v1_event_key_list) | **GET** /api/v1/stable/tenants/{tenant}/events/keys | List event keys
 *HatchetSdkRest::EventApi* | [**v1_event_list**](docs/EventApi.md#v1_event_list) | **GET** /api/v1/stable/tenants/{tenant}/events | List events
 *HatchetSdkRest::FilterApi* | [**v1_filter_create**](docs/FilterApi.md#v1_filter_create) | **POST** /api/v1/stable/tenants/{tenant}/filters | Create a filter
-*HatchetSdkRest::FilterApi* | [**v1_filter_delete**](docs/FilterApi.md#v1_filter_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} | 
+*HatchetSdkRest::FilterApi* | [**v1_filter_delete**](docs/FilterApi.md#v1_filter_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} |
 *HatchetSdkRest::FilterApi* | [**v1_filter_get**](docs/FilterApi.md#v1_filter_get) | **GET** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} | Get a filter
 *HatchetSdkRest::FilterApi* | [**v1_filter_list**](docs/FilterApi.md#v1_filter_list) | **GET** /api/v1/stable/tenants/{tenant}/filters | List filters
-*HatchetSdkRest::FilterApi* | [**v1_filter_update**](docs/FilterApi.md#v1_filter_update) | **PATCH** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} | 
+*HatchetSdkRest::FilterApi* | [**v1_filter_update**](docs/FilterApi.md#v1_filter_update) | **PATCH** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} |
 *HatchetSdkRest::GithubApi* | [**sns_update**](docs/GithubApi.md#sns_update) | **POST** /api/v1/sns/{tenant}/{event} | Github app tenant webhook
 *HatchetSdkRest::HealthcheckApi* | [**liveness_get**](docs/HealthcheckApi.md#liveness_get) | **GET** /api/live | Get liveness
 *HatchetSdkRest::HealthcheckApi* | [**readiness_get**](docs/HealthcheckApi.md#readiness_get) | **GET** /api/ready | Get readiness
@@ -186,7 +186,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::UserApi* | [**user_update_slack_oauth_callback**](docs/UserApi.md#user_update_slack_oauth_callback) | **GET** /api/v1/users/slack/callback | Complete OAuth flow
 *HatchetSdkRest::UserApi* | [**user_update_slack_oauth_start**](docs/UserApi.md#user_update_slack_oauth_start) | **GET** /api/v1/tenants/{tenant}/slack/start | Start OAuth flow
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_create**](docs/WebhookApi.md#v1_webhook_create) | **POST** /api/v1/stable/tenants/{tenant}/webhooks | Create a webhook
-*HatchetSdkRest::WebhookApi* | [**v1_webhook_delete**](docs/WebhookApi.md#v1_webhook_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} | 
+*HatchetSdkRest::WebhookApi* | [**v1_webhook_delete**](docs/WebhookApi.md#v1_webhook_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} |
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_get**](docs/WebhookApi.md#v1_webhook_get) | **GET** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} | Get a webhook
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_list**](docs/WebhookApi.md#v1_webhook_list) | **GET** /api/v1/stable/tenants/{tenant}/webhooks | List webhooks
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_receive**](docs/WebhookApi.md#v1_webhook_receive) | **POST** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} | Post a webhook message
@@ -468,9 +468,8 @@ Authentication schemes defined for the API:
 
 - **Type**: API key
 - **API key parameter name**: hatchet
-- **Location**: 
+- **Location**:
 
 ### customAuth
 
 - **Type**: Bearer authentication
-

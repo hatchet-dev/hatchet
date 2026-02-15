@@ -23,7 +23,7 @@ module HatchetSdkRest
     # Create an API token for a tenant
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
-    # @option opts [CreateAPITokenRequest] :create_api_token_request 
+    # @option opts [CreateAPITokenRequest] :create_api_token_request
     # @return [CreateAPITokenResponse]
     def api_token_create(tenant, opts = {})
       data, _status_code, _headers = api_token_create_with_http_info(tenant, opts)
@@ -34,7 +34,7 @@ module HatchetSdkRest
     # Create an API token for a tenant
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
-    # @option opts [CreateAPITokenRequest] :create_api_token_request 
+    # @option opts [CreateAPITokenRequest] :create_api_token_request
     # @return [Array<(CreateAPITokenResponse, Integer, Hash)>] CreateAPITokenResponse data, response status code and response headers
     def api_token_create_with_http_info(tenant, opts = {})
       if @api_client.config.debugging
