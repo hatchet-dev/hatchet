@@ -160,25 +160,35 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       )
 
       # Try to extract event ID from the response (gRPC Event has event_id)
-      if result.respond_to?(:event_id) && result.event_id && !result.event_id.empty?
-        result.event_id
-      elsif result.respond_to?(:id)
-        result.id
-      elsif result.respond_to?(:metadata) && result.metadata.respond_to?(:id)
-        result.metadata.id
-      else
-        # If we can't get the ID from creation, try to find it in the list
-        recent_events = events_client.list(limit: 1, keys: [begin
-          result.key
-        rescue StandardError
-          nil
-        end].compact,)
-        if recent_events.rows&.any?
-          recent_events.rows.first.metadata.id
-        else
-          skip "Cannot determine event ID for retrieval test"
-        end
+      event_id = if result.respond_to?(:event_id) && result.event_id && !result.event_id.empty?
+                   result.event_id
+                 elsif result.respond_to?(:id)
+                   result.id
+                 elsif result.respond_to?(:metadata) && result.metadata.respond_to?(:id)
+                   result.metadata.id
+                 else
+                   # If we can't get the ID from creation, try to find it in the list
+                   recent_events = events_client.list(limit: 1, keys: [begin
+                     result.key
+                   rescue StandardError
+                     nil
+                   end].compact,)
+                   if recent_events.rows&.any?
+                     recent_events.rows.first.metadata.id
+                   else
+                     skip "Cannot determine event ID for retrieval test"
+                   end
+                 end
+
+      # Wait for the event to be available via REST API (eventual consistency)
+      5.times do
+        events_client.get(event_id)
+        break
+      rescue StandardError
+        sleep 1
       end
+
+      event_id
     end
 
     it "can get a specific event by ID" do
