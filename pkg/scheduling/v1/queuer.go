@@ -161,14 +161,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		qis, err := q.refillQueue(ctx)
 
 		if err != nil {
-			span.RecordError(err)
-			span.End()
-
 			// right now, the context is only cancelled on shut down which is not a problem for the queuer.
 			if errors.Is(ctx.Err(), context.Canceled) {
+				span.End()
 				continue
 			}
 
+			span.RecordError(err)
+			span.End()
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
 		}
