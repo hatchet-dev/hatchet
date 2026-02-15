@@ -75,7 +75,8 @@ module Hatchet
               labels: label_map,
             )
             response = @stub.register(request, metadata: @config.auth_metadata)
-            @logger.warn("Registered without runtime_info — engine may not support RUBY language type. Consider upgrading your Hatchet engine.")
+            @logger.warn("Registered without runtime_info — engine may not support " \
+                         "RUBY language type. Consider upgrading your Hatchet engine.")
           end
 
           @worker_id = response.worker_id
