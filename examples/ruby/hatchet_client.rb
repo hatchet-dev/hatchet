@@ -4,7 +4,7 @@ require 'hatchet-sdk'
 # require_relative '../src/lib/hatchet-sdk'
 
 # Initialize the Hatchet client
-HATCHET = Hatchet::Client.new()
+HATCHET = Hatchet::Client.new() unless defined?(HATCHET)
 
 result = HATCHET.events.create(
   key: "test-event",

@@ -6,7 +6,7 @@ require "hatchet-sdk"
 require "base64"
 require "zlib"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 SERDE_WORKFLOW = HATCHET.workflow(name: "serde-example-workflow")
 

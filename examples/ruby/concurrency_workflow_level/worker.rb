@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 SLEEP_TIME_WL = 2
 DIGIT_MAX_RUNS_WL = 8

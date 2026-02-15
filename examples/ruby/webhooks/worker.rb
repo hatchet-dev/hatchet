@@ -4,7 +4,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 WEBHOOK_TASK = HATCHET.task(
   name: "webhook",

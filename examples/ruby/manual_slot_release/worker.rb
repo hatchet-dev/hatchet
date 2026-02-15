@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new
+HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # > SlotRelease
 SLOT_RELEASE_WORKFLOW = HATCHET.workflow(name: "SlotReleaseWorkflow")

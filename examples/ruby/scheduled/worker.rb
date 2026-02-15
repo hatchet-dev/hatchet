@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 SCHEDULED_WORKFLOW = HATCHET.workflow(name: "ScheduledWorkflow")
 

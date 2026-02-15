@@ -4,7 +4,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 SIMPLE = HATCHET.task(name: "simple") do |input, ctx|
   { "result" => "Hello, world!" }

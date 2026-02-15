@@ -2,7 +2,7 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Durable Sleep
 DURABLE_SLEEP_TASK = HATCHET.durable_task(name: "DurableSleepTask") do |input, ctx|

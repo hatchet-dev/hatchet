@@ -27,14 +27,12 @@ require_relative "concurrency_workflow_level/worker"
 require_relative "rate_limit/worker"
 require_relative "child/worker"
 require_relative "fanout/worker"
-require_relative "fanout_sync/worker"
 require_relative "bulk_fanout/worker"
 require_relative "durable/worker"
 require_relative "durable_event/worker"
 require_relative "durable_sleep/worker"
 require_relative "conditions/worker"
 require_relative "dependency_injection/worker"
-require_relative "lifespans/worker"
 require_relative "streaming/worker"
 require_relative "serde/worker"
 require_relative "dataclasses/worker"
@@ -50,7 +48,7 @@ require_relative "webhooks/worker"
 require_relative "webhook_with_scope/worker"
 require_relative "unit_testing/worker"
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 ALL_WORKFLOWS = [
   # Tier 1
@@ -80,7 +78,6 @@ ALL_WORKFLOWS = [
   # Tier 3
   CHILD_TASK_WF,
   FANOUT_PARENT_WF, FANOUT_CHILD_WF,
-  SYNC_FANOUT_PARENT, SYNC_FANOUT_CHILD,
   BULK_PARENT_WF, BULK_CHILD_WF,
   DURABLE_WORKFLOW, EPHEMERAL_WORKFLOW, WAIT_FOR_SLEEP_TWICE,
   DURABLE_EVENT_TASK, DURABLE_EVENT_TASK_WITH_FILTER,
@@ -89,7 +86,6 @@ ALL_WORKFLOWS = [
   ASYNC_TASK_WITH_DEPS, SYNC_TASK_WITH_DEPS,
   DURABLE_ASYNC_TASK_WITH_DEPS, DURABLE_SYNC_TASK_WITH_DEPS,
   DI_WORKFLOW,
-  LIFESPAN_TASK,
 
   # Tier 4-5
   STREAM_TASK,
@@ -110,5 +106,5 @@ ALL_WORKFLOWS = [
   SIMPLE_UNIT_TEST_WORKFLOW, COMPLEX_UNIT_TEST_WORKFLOW
 ].freeze
 
-worker = HATCHET.worker("all-examples-worker", slots: 40, workflows: ALL_WORKFLOWS, lifespan: LIFESPAN_PROC)
+worker = HATCHET.worker("all-examples-worker", slots: 40, workflows: ALL_WORKFLOWS)
 worker.start

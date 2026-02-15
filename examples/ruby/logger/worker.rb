@@ -8,7 +8,7 @@ require "logger"
 logger = Logger.new($stdout)
 logger.level = Logger::INFO
 
-HATCHET = Hatchet::Client.new(debug: true)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 LOGGING_WORKFLOW = HATCHET.workflow(name: "LoggingWorkflow")
 
