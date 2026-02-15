@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { CodeBlock } from "./code/CodeBlock";
+import { Button } from "./ui/button";
 
 /* ── Tab label styles ─────────────────────────────────────── */
 
@@ -48,16 +49,6 @@ export function ClaudeCodeTabLabel() {
     <span style={tabLabelStyle}>
       <ThemedIcon src="/claude-logo.svg" />
       Claude Code
-    </span>
-  );
-}
-
-/** Claude Desktop tab label with official Claude logo. */
-export function ClaudeDesktopTabLabel() {
-  return (
-    <span style={tabLabelStyle}>
-      <ThemedIcon src="/claude-logo.svg" />
-      Claude Desktop
     </span>
   );
 }
@@ -114,21 +105,12 @@ export function CursorDeeplinkButton() {
   const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=hatchet-docs&config=${encoded}`;
 
   return (
-    <a
-      href={deeplink}
-      style={{
-        display: "inline-block",
-        padding: "8px 16px",
-        background: "#3392FF",
-        color: "white",
-        borderRadius: "8px",
-        fontWeight: 600,
-        textDecoration: "none",
-        fontSize: "14px",
-      }}
-    >
-      Install MCP Server in Cursor
-    </a>
+    <Button variant="outline" size="lg" asChild>
+      <a href={deeplink} className="no-underline flex items-center gap-2">
+        <ThemedIcon src="/cursor-logo.svg" />
+        Install MCP Server in Cursor
+      </a>
+    </Button>
   );
 }
 
@@ -156,17 +138,3 @@ export function ClaudeCodeCommand() {
   );
 }
 
-/** Renders Claude Desktop JSON config with dynamic URL. */
-export function ClaudeDesktopConfig() {
-  const url = useMcpUrl();
-  const config = JSON.stringify(
-    {
-      mcpServers: {
-        "hatchet-docs": { command: "npx", args: ["-y", "mcp-remote", url] },
-      },
-    },
-    null,
-    2,
-  );
-  return <CodeBlock source={{ language: "json", raw: config }} />;
-}

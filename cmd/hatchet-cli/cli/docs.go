@@ -65,8 +65,8 @@ for AI editors like Cursor, Claude Code, and Claude Desktop.`,
   # Configure for Claude Code
   hatchet docs install claude-code
 
-  # Show Claude Desktop config
-  hatchet docs install claude-desktop`,
+  # Configure for Claude Code
+  hatchet docs install claude-code`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Interactive mode: let user pick their editor
 		var editor string
@@ -77,7 +77,6 @@ for AI editors like Cursor, Claude Code, and Claude Desktop.`,
 					Options(
 						huh.NewOption("Cursor", "cursor"),
 						huh.NewOption("Claude Code", "claude-code"),
-						huh.NewOption("Claude Desktop", "claude-desktop"),
 					).
 					Value(&editor),
 			),
@@ -93,8 +92,6 @@ for AI editors like Cursor, Claude Code, and Claude Desktop.`,
 			runDocsCursor()
 		case "claude-code":
 			runDocsClaudeCode()
-		case "claude-desktop":
-			runDocsClaudeDesktop()
 		}
 	},
 }
@@ -121,15 +118,6 @@ var docsInstallClaudeCodeCmd = &cobra.Command{
 	Long:  `Set up Hatchet documentation as an MCP server in Claude Code.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runDocsClaudeCode()
-	},
-}
-
-var docsInstallClaudeDesktopCmd = &cobra.Command{
-	Use:   "claude-desktop",
-	Short: "Show configuration for Claude Desktop",
-	Long:  `Print the JSON configuration needed to add Hatchet docs MCP server to Claude Desktop.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		runDocsClaudeDesktop()
 	},
 }
 
@@ -220,41 +208,6 @@ func runDocsClaudeCode() {
 	fmt.Println()
 }
 
-func runDocsClaudeDesktop() {
-	url := getMCPURL()
-
-	fmt.Println(styles.Title("Hatchet Docs → Claude Desktop"))
-	fmt.Println()
-	fmt.Println(styles.InfoMessage("Add this to your claude_desktop_config.json:"))
-	fmt.Println()
-
-	config := map[string]interface{}{
-		"mcpServers": map[string]interface{}{
-			"hatchet-docs": map[string]interface{}{
-				"command": "npx",
-				"args":    []string{"-y", "mcp-remote", url},
-			},
-		},
-	}
-
-	configJSON, _ := json.MarshalIndent(config, "", "  ")
-	fmt.Println(string(configJSON))
-	fmt.Println()
-
-	// Show path to config file
-	var configPath string
-	switch runtime.GOOS {
-	case "darwin":
-		configPath = "~/Library/Application Support/Claude/claude_desktop_config.json"
-	case "windows":
-		configPath = "%APPDATA%\\Claude\\claude_desktop_config.json"
-	default:
-		configPath = "~/.config/Claude/claude_desktop_config.json"
-	}
-	fmt.Println(styles.Muted.Render("Config file location: " + configPath))
-	fmt.Println()
-}
-
 func printAllOptions() {
 	url := getMCPURL()
 
@@ -276,19 +229,6 @@ func printAllOptions() {
 	// Claude Code
 	fmt.Println(styles.Section("Claude Code"))
 	fmt.Println(styles.Code.Render(fmt.Sprintf("claude mcp add --transport http hatchet-docs %s", url)))
-	fmt.Println()
-
-	// Claude Desktop
-	fmt.Println(styles.Section("Claude Desktop"))
-	config := fmt.Sprintf(`{
-  "mcpServers": {
-    "hatchet-docs": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "%s"]
-    }
-  }
-}`, url)
-	fmt.Println(config)
 	fmt.Println()
 
 	// llms.txt
@@ -362,10 +302,9 @@ func init() {
 	docsCmd.AddCommand(docsInstallCmd)
 	docsInstallCmd.AddCommand(docsInstallCursorCmd)
 	docsInstallCmd.AddCommand(docsInstallClaudeCodeCmd)
-	docsInstallCmd.AddCommand(docsInstallClaudeDesktopCmd)
 
 	// Add --url flag to install and its subcommands
-	for _, cmd := range []*cobra.Command{docsInstallCmd, docsInstallCursorCmd, docsInstallClaudeCodeCmd, docsInstallClaudeDesktopCmd} {
+	for _, cmd := range []*cobra.Command{docsInstallCmd, docsInstallCursorCmd, docsInstallClaudeCodeCmd} {
 		cmd.Flags().StringVar(&mcpURL, "url", "", "Custom MCP server URL (default: "+defaultMCPURL+")")
 	}
 }
