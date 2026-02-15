@@ -161,10 +161,10 @@ module Hatchet
       event_triggers = @on_events.map { |e| config.apply_namespace(e) }
 
       # Convert tasks to proto
-      task_protos = @tasks.values.map { |t| t.to_proto(service_name) }
+      task_protos = @tasks.values.map { |t| t.to_proto(service_name, config: config) }
 
       # On-failure task
-      on_failure_proto = @on_failure&.to_proto(service_name)
+      on_failure_proto = @on_failure&.to_proto(service_name, config: config)
 
       # Build concurrency
       concurrency_proto = nil

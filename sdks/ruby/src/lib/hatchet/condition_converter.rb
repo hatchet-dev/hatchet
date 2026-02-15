@@ -24,7 +24,7 @@ module Hatchet
     # @param proto_arg [Object, nil] Argument to pass to proto_method (action for :to_proto, key for :to_durable_proto)
     def convert_condition(cond, action:, sleep_conditions:, user_event_conditions:,
                           or_group_id: nil, readable_data_key: nil,
-                          proto_method: :to_proto, proto_arg: nil)
+                          proto_method: :to_proto, proto_arg: nil, config: nil)
       or_group_id ||= SecureRandom.uuid
 
       if cond.respond_to?(proto_method)
@@ -42,17 +42,20 @@ module Hatchet
       elsif cond.is_a?(Hatchet::UserEventCondition)
         convert_user_event_condition(cond.event_key, action: action, or_group_id: or_group_id,
                                                      expression: cond.expression || "",
-                                                     user_event_conditions: user_event_conditions,)
+                                                     user_event_conditions: user_event_conditions,
+                                                     config: config,)
       elsif cond.is_a?(Hash)
         convert_hash_condition(cond, action: action, or_group_id: or_group_id,
                                      readable_data_key: readable_data_key,
                                      sleep_conditions: sleep_conditions,
-                                     user_event_conditions: user_event_conditions,)
+                                     user_event_conditions: user_event_conditions,
+                                     config: config,)
       elsif cond.respond_to?(:event_key) && cond.event_key
         expression = cond.respond_to?(:expression) ? (cond.expression || "") : ""
         convert_user_event_condition(cond.event_key, action: action, or_group_id: or_group_id,
                                                      expression: expression,
-                                                     user_event_conditions: user_event_conditions,)
+                                                     user_event_conditions: user_event_conditions,
+                                                     config: config,)
       elsif cond.respond_to?(:duration) && cond.duration
         convert_sleep_condition(cond.duration, action: action, or_group_id: or_group_id,
                                                sleep_conditions: sleep_conditions,)
@@ -73,24 +76,30 @@ module Hatchet
     end
 
     # @param event_key [String] Event key
-    def convert_user_event_condition(event_key, action:, or_group_id:, expression:, user_event_conditions:)
+    # @param config [Hatchet::Config, nil] Config for namespace resolution
+    def convert_user_event_condition(event_key, action:, or_group_id:, expression:, user_event_conditions:, config: nil)
+      namespaced_key = config ? config.apply_namespace(event_key) : event_key
+
       base = ::V1::BaseMatchCondition.new(
-        readable_data_key: event_key,
+        readable_data_key: namespaced_key,
         action: action,
         or_group_id: or_group_id,
         expression: expression,
       )
       user_event_conditions << ::V1::UserEventMatchCondition.new(
         base: base,
-        user_event_key: event_key,
+        user_event_key: namespaced_key,
       )
     end
 
     # @param cond [Hash] Hash-based condition
+    # @param config [Hatchet::Config, nil] Config for namespace resolution
     def convert_hash_condition(cond, action:, or_group_id:, readable_data_key:,
-                               sleep_conditions:, user_event_conditions:)
+                               sleep_conditions:, user_event_conditions:, config: nil)
+      base_key = readable_data_key || cond[:readable_data_key] || cond[:key] || ""
+
       base = ::V1::BaseMatchCondition.new(
-        readable_data_key: readable_data_key || cond[:readable_data_key] || cond[:key] || "",
+        readable_data_key: base_key,
         action: action,
         or_group_id: cond[:or_group_id] || or_group_id,
         expression: cond[:expression] || "",
@@ -102,9 +111,10 @@ module Hatchet
           sleep_for: cond[:sleep_for].to_s,
         )
       elsif cond[:event_key]
+        namespaced_key = config ? config.apply_namespace(cond[:event_key]) : cond[:event_key]
         user_event_conditions << ::V1::UserEventMatchCondition.new(
           base: base,
-          user_event_key: cond[:event_key],
+          user_event_key: namespaced_key,
         )
       end
     end

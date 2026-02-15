@@ -65,7 +65,19 @@ module Hatchet
             runtime_info: runtime_info,
           )
 
-          response = @stub.register(request, metadata: @config.auth_metadata)
+          begin
+            response = @stub.register(request, metadata: @config.auth_metadata)
+          rescue ::GRPC::Internal
+            request = ::WorkerRegisterRequest.new(
+              worker_name: name,
+              actions: actions,
+              slots: slots,
+              labels: label_map,
+            )
+            response = @stub.register(request, metadata: @config.auth_metadata)
+            @logger.warn("Registered without runtime_info — engine may not support RUBY language type. Consider upgrading your Hatchet engine.")
+          end
+
           @worker_id = response.worker_id
           @logger.info("Registered worker '#{name}' with #{actions.length} action(s), worker_id=#{response.worker_id}")
           response

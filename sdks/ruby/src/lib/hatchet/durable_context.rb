@@ -201,6 +201,7 @@ module Hatchet
         readable_data_key: key,
         proto_method: :to_durable_proto,
         proto_arg: key,
+        config: @client&.config,
       )
     end
   end

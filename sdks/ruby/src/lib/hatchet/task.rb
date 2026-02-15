@@ -147,8 +147,9 @@ module Hatchet
     # Convert this task to a V1::CreateTaskOpts protobuf message.
     #
     # @param service_name [String] The workflow service name (namespaced)
+    # @param config [Hatchet::Config, nil] Config for namespace resolution in conditions
     # @return [V1::CreateTaskOpts]
-    def to_proto(service_name)
+    def to_proto(service_name, config: nil)
       opts = {
         readable_id: @name.to_s,
         action: "#{service_name}:#{@name}",
@@ -180,7 +181,7 @@ module Hatchet
       end
 
       # Conditions (wait_for, skip_if)
-      conditions_proto = conditions_to_proto
+      conditions_proto = conditions_to_proto(config)
       opts[:conditions] = conditions_proto if conditions_proto
 
       ::V1::CreateTaskOpts.new(**opts)
@@ -369,7 +370,7 @@ module Hatchet
     end
 
     # Convert wait_for and skip_if conditions to a TaskConditions proto
-    def conditions_to_proto
+    def conditions_to_proto(config = nil)
       return nil if (@wait_for.nil? || @wait_for.empty?) && (@skip_if.nil? || @skip_if.empty?)
 
       sleep_conditions = []
@@ -377,12 +378,12 @@ module Hatchet
 
       # Process wait_for conditions (action = QUEUE)
       (@wait_for || []).each do |cond|
-        process_condition(cond, :QUEUE, sleep_conditions, user_event_conditions)
+        process_condition(cond, :QUEUE, sleep_conditions, user_event_conditions, config)
       end
 
       # Process skip_if conditions (action = SKIP)
       (@skip_if || []).each do |cond|
-        process_condition(cond, :SKIP, sleep_conditions, user_event_conditions)
+        process_condition(cond, :SKIP, sleep_conditions, user_event_conditions, config)
       end
 
       return nil if sleep_conditions.empty? && user_event_conditions.empty?
@@ -395,7 +396,7 @@ module Hatchet
 
     # Process a single condition into the appropriate proto list.
     # Delegates to ConditionConverter for shared logic.
-    def process_condition(cond, action, sleep_conditions, user_event_conditions)
+    def process_condition(cond, action, sleep_conditions, user_event_conditions, config = nil)
       ConditionConverter.convert_condition(
         cond,
         action: action,
@@ -403,6 +404,7 @@ module Hatchet
         user_event_conditions: user_event_conditions,
         proto_method: :to_proto,
         proto_arg: action,
+        config: config,
       )
     end
   end
