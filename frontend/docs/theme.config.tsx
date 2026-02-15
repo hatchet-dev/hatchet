@@ -4,6 +4,18 @@ import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import Search from "@/components/Search";
 
+const DEFAULT_ORIGIN = "https://docs.hatchet.run";
+
+function safeBase64Encode(str: string): string {
+  if (typeof btoa === "function") {
+    return btoa(str);
+  }
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(str).toString("base64");
+  }
+  return "";
+}
+
 const CursorIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <path d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z" />
@@ -97,11 +109,9 @@ const config = {
   main: ({ children }) => {
     const router = useRouter();
     const { setTheme } = useTheme();
-    const [origin, setOrigin] = useState("https://docs.hatchet.run");
-
-    useEffect(() => {
-      setOrigin(window.location.origin);
-    }, []);
+    const [origin, setOrigin] = useState(() =>
+      typeof window !== "undefined" ? window.location.origin : DEFAULT_ORIGIN
+    );
 
     useEffect(() => {
       const themeParam = router.query.theme;
@@ -120,7 +130,7 @@ const config = {
       command: "npx",
       args: ["-y", "mcp-remote", mcpUrl],
     });
-    const cursorDeeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=hatchet-docs&config=${typeof window !== "undefined" ? btoa(cursorConfig) : ""}`;
+    const cursorDeeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=hatchet-docs&config=${safeBase64Encode(cursorConfig)}`;
 
     const claudeCommand = `claude mcp add --transport http hatchet-docs ${mcpUrl}`;
 
