@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -162,6 +163,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
+
+			// right now, the context is only cancelled on shut down which is not a problem for the queuer.
+			if errors.Is(ctx.Err(), context.Canceled) {
+				continue
+			}
+
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
 		}
