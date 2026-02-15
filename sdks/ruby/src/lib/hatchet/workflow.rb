@@ -191,7 +191,7 @@ module Hatchet
       filter_protos = (@default_filters || []).map(&:to_proto)
 
       args = {
-        name: @name,
+        name: config.apply_namespace(@name),
         event_triggers: event_triggers,
         cron_triggers: @on_crons || [],
         tasks: task_protos,
