@@ -26,7 +26,7 @@ CANCELLATION_WORKFLOW.task(:check_flag) do |input, ctx|
 
     # Note: Checking the status of the exit flag is mostly useful for cancelling
     # sync tasks without needing to forcibly kill the thread they're running on.
-    if ctx.exit_flag
+    if ctx.cancelled?
       puts "Task has been cancelled"
       raise "Task has been cancelled"
     end
