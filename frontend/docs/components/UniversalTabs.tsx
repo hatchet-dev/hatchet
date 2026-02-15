@@ -7,8 +7,7 @@ const EARLY_ACCESS_SDKS = ["Ruby"];
 const EarlyAccessCallout: React.FC<{ language: string }> = ({ language }) => (
   <Callout type="info">
     <span className="text-sm">
-      The {language} SDK is in early access, and may change. We&apos;d love
-      your{" "}
+      The {language} SDK is in early access, and may change. We&apos;d love your{" "}
       <a
         href="https://github.com/hatchet-dev/hatchet/issues"
         target="_blank"
@@ -56,9 +55,10 @@ export const UniversalTabs: React.FC<UniversalTabsProps> = ({
     optionKey === "language"
       ? React.Children.map(children, (child) => {
           if (
-            React.isValidElement<{ title?: string; children?: React.ReactNode }>(
-              child,
-            ) &&
+            React.isValidElement<{
+              title?: string;
+              children?: React.ReactNode;
+            }>(child) &&
             child.props.title &&
             EARLY_ACCESS_SDKS.includes(child.props.title)
           ) {
