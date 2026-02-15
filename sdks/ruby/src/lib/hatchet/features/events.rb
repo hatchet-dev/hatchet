@@ -175,7 +175,7 @@ module Hatchet
       # @return [Object] The event details
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def get(event_id)
-        @event_api.event_get(event_id)
+        @event_api.v1_event_get(@config.tenant_id, event_id)
       end
 
       # Get event data for a specific event
@@ -184,7 +184,7 @@ module Hatchet
       # @return [Object] The event data
       # @raise [Hatchet::Error] If the API request fails or returns an error
       def get_data(event_id)
-        @event_api.event_data_get(event_id)
+        @event_api.event_data_get_with_tenant(event_id, @config.tenant_id)
       end
 
       # List available event keys for the tenant

@@ -282,12 +282,12 @@ RSpec.describe Hatchet::Features::Events do
     let(:event_details) { instance_double("Object") }
 
     it "gets event by ID" do
-      allow(event_api).to receive(:event_get).with(event_id).and_return(event_details)
+      allow(event_api).to receive(:v1_event_get).with(config.tenant_id, event_id).and_return(event_details)
 
       result = events_client.get(event_id)
 
       expect(result).to eq(event_details)
-      expect(event_api).to have_received(:event_get).with(event_id)
+      expect(event_api).to have_received(:v1_event_get).with(config.tenant_id, event_id)
     end
   end
 
@@ -296,12 +296,12 @@ RSpec.describe Hatchet::Features::Events do
     let(:event_data) { instance_double("Object") }
 
     it "gets event data by ID" do
-      allow(event_api).to receive(:event_data_get).with(event_id).and_return(event_data)
+      allow(event_api).to receive(:event_data_get_with_tenant).with(event_id, config.tenant_id).and_return(event_data)
 
       result = events_client.get_data(event_id)
 
       expect(result).to eq(event_data)
-      expect(event_api).to have_received(:event_data_get).with(event_id)
+      expect(event_api).to have_received(:event_data_get_with_tenant).with(event_id, config.tenant_id)
     end
   end
 
