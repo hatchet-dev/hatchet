@@ -159,7 +159,7 @@ module Hatchet
             limit: limit,
             keys: keys,
             since: since&.utc&.iso8601,
-            until: until_time&.utc&.iso8601,
+            _until: until_time&.utc&.iso8601,
             workflow_ids: workflow_ids,
             workflow_run_statuses: workflow_run_statuses,
             event_ids: event_ids,
@@ -206,9 +206,6 @@ module Hatchet
       def cancel(event_ids: nil, keys: nil, since: nil, until_time: nil)
         cancel_request = HatchetSdkRest::CancelEventRequest.new(
           event_ids: event_ids,
-          keys: keys,
-          since: since&.utc&.iso8601,
-          until: until_time&.utc&.iso8601,
         )
 
         @event_api.event_update_cancel(@config.tenant_id, cancel_request)
@@ -225,9 +222,6 @@ module Hatchet
       def replay(event_ids: nil, keys: nil, since: nil, until_time: nil)
         replay_request = HatchetSdkRest::ReplayEventRequest.new(
           event_ids: event_ids,
-          keys: keys,
-          since: since&.utc&.iso8601,
-          until: until_time&.utc&.iso8601,
         )
 
         @event_api.event_update_replay(@config.tenant_id, replay_request)
@@ -251,7 +245,7 @@ module Hatchet
       def maybe_additional_metadata_to_kv(metadata)
         return nil unless metadata
 
-        metadata.map { |k, v| { key: k.to_s, value: v.to_s } }
+        metadata.map { |k, v| "#{k}:#{v}" }
       end
     end
   end

@@ -43,6 +43,11 @@ begin
               config.timeout = hatchet_config.listener_v2_timeout / 1000.0 # Convert ms to seconds
             end
 
+            # Use FlatParamsEncoder so array query parameters are serialized as
+            # key=val1&key=val2 instead of key[]=val1&key[]=val2, matching what
+            # the Hatchet API server expects.
+            config.params_encoder = Faraday::FlatParamsEncoder
+
             config
           end
         end

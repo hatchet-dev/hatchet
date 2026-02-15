@@ -110,5 +110,5 @@ ALL_WORKFLOWS = [
   SIMPLE_UNIT_TEST_WORKFLOW, COMPLEX_UNIT_TEST_WORKFLOW
 ].freeze
 
-worker = HATCHET.worker("all-examples-worker", slots: 40, workflows: ALL_WORKFLOWS)
+worker = HATCHET.worker("all-examples-worker", slots: 40, workflows: ALL_WORKFLOWS, lifespan: LIFESPAN_PROC)
 worker.start

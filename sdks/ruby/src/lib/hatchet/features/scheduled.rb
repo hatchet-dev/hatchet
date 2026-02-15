@@ -209,7 +209,7 @@ module Hatchet
       def maybe_additional_metadata_to_kv(metadata)
         return nil unless metadata
 
-        metadata.map { |k, v| { key: k.to_s, value: v.to_s } }
+        metadata.map { |k, v| "#{k}:#{v}" }
       end
     end
   end

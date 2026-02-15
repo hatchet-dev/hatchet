@@ -34,8 +34,8 @@ module Hatchet
         return nil unless @filters
 
         HatchetSdkRest::V1TaskFilter.new(
-          since: @filters.since,
-          until: @filters.until_time,
+          since: @filters.since&.utc&.iso8601,
+          _until: @filters.until_time&.utc&.iso8601,
           statuses: @filters.statuses,
           workflow_ids: @filters.workflow_ids,
           additional_metadata: maybe_additional_metadata_to_kv(@filters.additional_metadata),
@@ -61,7 +61,7 @@ module Hatchet
       def maybe_additional_metadata_to_kv(metadata)
         return nil unless metadata
 
-        metadata.map { |k, v| { key: k.to_s, value: v.to_s } }
+        metadata.map { |k, v| "#{k}:#{v}" }
       end
     end
 
@@ -192,7 +192,7 @@ module Hatchet
               offset: offset,
               limit: limit,
               statuses: statuses,
-              until: end_time.utc.iso8601,
+              _until: end_time.utc.iso8601,
               additional_metadata: maybe_additional_metadata_to_kv(additional_metadata),
               workflow_ids: workflow_ids,
               worker_id: worker_id,
@@ -260,7 +260,7 @@ module Hatchet
             offset: offset,
             limit: limit,
             statuses: statuses,
-            until: until_time.utc.iso8601,
+            _until: until_time.utc.iso8601,
             additional_metadata: maybe_additional_metadata_to_kv(additional_metadata),
             workflow_ids: workflow_ids,
             worker_id: worker_id,
@@ -609,7 +609,7 @@ module Hatchet
       def maybe_additional_metadata_to_kv(metadata)
         return nil unless metadata
 
-        metadata.map { |k, v| { key: k.to_s, value: v.to_s } }
+        metadata.map { |k, v| "#{k}:#{v}" }
       end
     end
   end
