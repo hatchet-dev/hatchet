@@ -1,39 +1,170 @@
 #!/bin/bash
 #
-# Generates Ruby protobuf and gRPC service stubs from Hatchet API contracts.
-# Requires: gem install grpc-tools
+# Single entry point for all Ruby SDK code generation.
 #
-# Usage: cd sdks/ruby && bash generate.sh
+# Generates:
+#   1. Protobuf/gRPC stubs  (from api-contracts/*.proto)
+#   2. REST API client       (from bin/oas/openapi.yaml via openapi-generator)
+#
+# Usage:
+#   cd sdks/ruby && bash generate.sh          # generate everything
+#   cd sdks/ruby && bash generate.sh proto     # protobuf only
+#   cd sdks/ruby && bash generate.sh rest      # REST client only
+#
+# Prerequisites:
+#   - grpc-tools gem          (gem install grpc-tools)
+#   - openapi-generator-cli   (npm install -g @openapitools/openapi-generator-cli)
 
-set -eux
+set -euo pipefail
 
-CONTRACTS_DIR="../../api-contracts"
-OUTPUT_DIR="./src/lib/hatchet/contracts"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Ensure output directories exist
-mkdir -p "$OUTPUT_DIR/dispatcher"
-mkdir -p "$OUTPUT_DIR/events"
-mkdir -p "$OUTPUT_DIR/workflows"
-mkdir -p "$OUTPUT_DIR/v1/shared"
+# ── Protobuf / gRPC generation ──────────────────────────────────────────────
 
-# Proto files to generate (proto_path proto_file)
-proto_entries=(
-  "dispatcher/dispatcher.proto"
-  "events/events.proto"
-  "workflows/workflows.proto"
-  "v1/shared/condition.proto"
-  "v1/dispatcher.proto"
-  "v1/workflows.proto"
-)
+generate_proto() {
+  echo "==> Generating protobuf/gRPC stubs..."
 
-for proto_file in "${proto_entries[@]}"; do
-  echo "Generating Ruby code for $proto_file"
+  local contracts_dir="$REPO_ROOT/api-contracts"
+  local output_dir="$SCRIPT_DIR/src/lib/hatchet/contracts"
 
-  grpc_tools_ruby_protoc \
-    --proto_path="$CONTRACTS_DIR" \
-    --ruby_out="$OUTPUT_DIR" \
-    --grpc_out="$OUTPUT_DIR" \
-    "$proto_file"
-done
+  mkdir -p "$output_dir/dispatcher"
+  mkdir -p "$output_dir/events"
+  mkdir -p "$output_dir/workflows"
+  mkdir -p "$output_dir/v1/shared"
 
-echo "Ruby protobuf generation complete. Output in $OUTPUT_DIR"
+  local proto_files=(
+    "dispatcher/dispatcher.proto"
+    "events/events.proto"
+    "workflows/workflows.proto"
+    "v1/shared/condition.proto"
+    "v1/dispatcher.proto"
+    "v1/workflows.proto"
+  )
+
+  for proto_file in "${proto_files[@]}"; do
+    echo "    $proto_file"
+    grpc_tools_ruby_protoc \
+      --proto_path="$contracts_dir" \
+      --ruby_out="$output_dir" \
+      --grpc_out="$output_dir" \
+      "$proto_file"
+  done
+
+  echo "    Done."
+}
+
+# ── REST API client generation ───────────────────────────────────────────────
+
+generate_rest() {
+  echo "==> Generating REST API client from OpenAPI spec..."
+
+  local openapi_spec="$REPO_ROOT/bin/oas/openapi.yaml"
+  local output_dir="$SCRIPT_DIR/src/lib/hatchet/clients/rest"
+  local config_file="$SCRIPT_DIR/src/config/openapi_generator_config.json"
+
+  if [ ! -f "$openapi_spec" ]; then
+    echo "ERROR: OpenAPI spec not found at $openapi_spec" >&2
+    exit 1
+  fi
+
+  # Install openapi-generator-cli if missing
+  if ! command -v openapi-generator-cli &>/dev/null; then
+    echo "    Installing openapi-generator-cli..."
+    npm install -g @openapitools/openapi-generator-cli
+  fi
+
+  # Generate
+  local additional_props="gemName=hatchet-sdk-rest,moduleName=HatchetSdkRest,gemVersion=0.0.1,gemDescription=HatchetRubySDKRestClient,gemAuthor=HatchetTeam,gemHomepage=https://github.com/hatchet-dev/hatchet,gemLicense=MIT,library=faraday"
+
+  local cmd=(
+    openapi-generator-cli generate
+    -i "$openapi_spec"
+    -g ruby
+    -o "$output_dir"
+    --skip-validate-spec
+    --global-property "apiTests=false,modelTests=false,apiDocs=true,modelDocs=true"
+    --additional-properties "$additional_props"
+  )
+
+  if [ -f "$config_file" ]; then
+    cmd+=(-c "$config_file")
+  fi
+
+  "${cmd[@]}"
+
+  # ── Post-generation patches ──────────────────────────────────────────────
+  echo "    Applying patches..."
+  apply_cookie_auth_patch "$output_dir"
+
+  echo "    Done."
+}
+
+# Patch the generated client to support cookie-based auth and skip nil values.
+apply_cookie_auth_patch() {
+  local output_dir="$1"
+
+  # 1. Fix configuration.rb: fill in empty 'in:' for cookie auth
+  local config_rb="$output_dir/lib/hatchet-sdk-rest/configuration.rb"
+  if [ -f "$config_rb" ]; then
+    sed -i.bak "s/in: ,/in: 'cookie',/g" "$config_rb" && rm -f "$config_rb.bak"
+  fi
+
+  # 2. Fix api_client.rb: add cookie support + nil guard
+  local api_client_rb="$output_dir/lib/hatchet-sdk-rest/api_client.rb"
+  if [ -f "$api_client_rb" ]; then
+    ruby -e '
+      path = ARGV[0]
+      content = File.read(path)
+
+      old_auth = <<~RUBY.strip
+        case auth_setting[:in]
+              when '\''header'\'' then header_params[auth_setting[:key]] = auth_setting[:value]
+              when '\''query'\''  then query_params[auth_setting[:key]] = auth_setting[:value]
+              else fail ArgumentError, '\''Authentication token must be in `query` or `header`'\''
+              end
+      RUBY
+
+      new_auth = <<~RUBY.strip
+        next if auth_setting[:value].nil? || auth_setting[:value].to_s.empty?
+              case auth_setting[:in]
+              when '\''header'\'' then header_params[auth_setting[:key]] = auth_setting[:value]
+              when '\''query'\''  then query_params[auth_setting[:key]] = auth_setting[:value]
+              when '\''cookie'\'' then header_params['\''Cookie'\''] = "#{auth_setting[:key]}=#{auth_setting[:value]}"
+              else next # skip unsupported auth locations
+              end
+      RUBY
+
+      if content.sub!(old_auth, new_auth)
+        File.write(path, content)
+        puts "      Patched api_client.rb"
+      else
+        puts "      api_client.rb already patched (skipping)"
+      end
+    ' "$api_client_rb"
+  fi
+}
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+case "${1:-all}" in
+  proto)  generate_proto ;;
+  rest)   generate_rest  ;;
+  all)
+    generate_proto
+    generate_rest
+    ;;
+  -h|--help)
+    echo "Usage: $0 [proto|rest|all]"
+    echo "  proto   Generate protobuf/gRPC stubs only"
+    echo "  rest    Generate REST API client only"
+    echo "  all     Generate everything (default)"
+    exit 0
+    ;;
+  *)
+    echo "Unknown command: $1. Use --help for usage." >&2
+    exit 1
+    ;;
+esac
+
+echo "==> All generation complete."
