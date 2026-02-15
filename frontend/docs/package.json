@@ -6,13 +6,14 @@
   "scripts": {
     "taskfile-dev": "pnpm run generate-examples && next dev",
     "dev": "next dev",
-    "build": "pnpm run generate-examples && next build",
+    "build": "pnpm run generate-examples && pnpm run generate-llms && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --list-different",
     "prettier:fix": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --write",
-    "generate-examples": "cd ../snippets/ && python3 generate.py"
+    "generate-llms": "tsx scripts/generate-llms.ts",
+    "generate-examples": "cd ../snippets/ && python3 generate.py "
   },
   "repository": {
     "type": "git",
@@ -58,6 +59,7 @@
     "@types/react-dom": "^18.3.7",
     "postcss-import": "^16.1.1",
     "prettier": "^3.6.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "resolutions": {

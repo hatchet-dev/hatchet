@@ -20,14 +20,20 @@ const config = {
   ),
   head: () => {
     const { title } = useConfig();
+    const router = useRouter();
 
     const fallbackTitle = "Hatchet Documentation";
+
+    // Build the path to the LLM-friendly markdown version of this page
+    const pathname = router.pathname.replace(/^\//, "").replace(/\/$/, "") || "index";
+    const llmsMarkdownHref = `/llms/${pathname}.md`;
 
     return (
       <>
         <title>{title ? `${title} - ${fallbackTitle}` : fallbackTitle}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" type="image/png" href="/favicon.ico" />
+        <link rel="alternate" type="text/markdown" href={llmsMarkdownHref} />
       </>
     );
   },
@@ -43,7 +49,29 @@ const config = {
       }
     }, [router.query.theme, setTheme]);
 
-    return <>{children}</>;
+    const pathname =
+      router.pathname.replace(/^\//, "").replace(/\/$/, "") || "index";
+    const llmsMarkdownHref = `/llms/${pathname}.md`;
+
+    return (
+      <>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
+          <a
+            href={llmsMarkdownHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: "0.75rem",
+              opacity: 0.5,
+              textDecoration: "none",
+            }}
+          >
+            View as Markdown
+          </a>
+        </div>
+        {children}
+      </>
+    );
   },
   primaryHue: {
     dark: 210,
