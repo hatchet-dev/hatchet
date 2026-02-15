@@ -220,10 +220,11 @@ FROM ruby:3.3-slim
 ENV HATCHET_ENV=production
 
 # Install system dependencies for native gems
+
 RUN apt-get update && \
  apt-get install -y build-essential && \
  apt-get clean && \
- rm -rf /var/lib/apt/lists/*
+ rm -rf /var/lib/apt/lists/\*
 
 WORKDIR /app
 
@@ -235,6 +236,7 @@ RUN bundle config set --local without 'development test' && \
 COPY . /app
 
 CMD ["bundle", "exec", "ruby", "worker.rb"]
+
 ```
 
 <Callout type="info">
@@ -243,3 +245,4 @@ CMD ["bundle", "exec", "ruby", "worker.rb"]
   </Tabs.Tab>
 
 </Tabs>
+```
