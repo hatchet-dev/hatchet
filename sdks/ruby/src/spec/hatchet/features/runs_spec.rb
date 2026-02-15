@@ -180,7 +180,8 @@ RSpec.describe Hatchet::Features::Runs do
       large_since = Time.now - (10 * 24 * 60 * 60) # 10 days ago
       allow(workflow_runs_api).to receive(:v1_workflow_run_list).and_return(task_summary_list)
 
-      expect { runs_client.list(since: large_since) }.to output(/performance issues/).to_stderr
+      expect(config.logger).to receive(:warn).with(/performance issues/)
+      runs_client.list(since: large_since)
     end
   end
 

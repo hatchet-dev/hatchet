@@ -184,6 +184,7 @@ module Hatchet
     end
 
     # Process a single condition into the appropriate proto lists.
+    # Delegates to ConditionConverter for shared logic.
     #
     # @param key [String] The signal key
     # @param condition [Object] The condition to process
@@ -191,77 +192,16 @@ module Hatchet
     # @param sleep_conditions [Array] Accumulator for sleep conditions
     # @param user_event_conditions [Array] Accumulator for user event conditions
     def process_durable_condition(key, condition, or_group_id, sleep_conditions, user_event_conditions)
-      if condition.respond_to?(:to_durable_proto)
-        # Condition object has its own conversion method
-        proto = condition.to_durable_proto(key)
-        case proto
-        when ::V1::SleepMatchCondition
-          sleep_conditions << proto
-        when ::V1::UserEventMatchCondition
-          user_event_conditions << proto
-        end
-      elsif condition.is_a?(Hatchet::SleepCondition)
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: "sleep_#{condition.duration}",
-          action: :QUEUE,
-          or_group_id: or_group_id,
-        )
-        sleep_conditions << ::V1::SleepMatchCondition.new(
-          base: base,
-          sleep_for: "#{condition.duration}s",
-        )
-      elsif condition.is_a?(Hatchet::UserEventCondition)
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: condition.event_key,
-          action: :QUEUE,
-          or_group_id: or_group_id,
-          expression: condition.expression || "",
-        )
-        user_event_conditions << ::V1::UserEventMatchCondition.new(
-          base: base,
-          user_event_key: condition.event_key,
-        )
-      elsif condition.is_a?(Hash)
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: key,
-          action: :QUEUE,
-          or_group_id: or_group_id,
-          expression: condition[:expression] || "",
-        )
-
-        if condition[:sleep_for]
-          sleep_conditions << ::V1::SleepMatchCondition.new(
-            base: base,
-            sleep_for: condition[:sleep_for].to_s,
-          )
-        elsif condition[:event_key]
-          user_event_conditions << ::V1::UserEventMatchCondition.new(
-            base: base,
-            user_event_key: condition[:event_key],
-          )
-        end
-      elsif condition.respond_to?(:event_key) && condition.event_key
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: condition.event_key,
-          action: :QUEUE,
-          or_group_id: or_group_id,
-          expression: (condition.respond_to?(:expression) ? condition.expression : nil) || "",
-        )
-        user_event_conditions << ::V1::UserEventMatchCondition.new(
-          base: base,
-          user_event_key: condition.event_key,
-        )
-      elsif condition.respond_to?(:duration) && condition.duration
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: "sleep_#{condition.duration}",
-          action: :QUEUE,
-          or_group_id: or_group_id,
-        )
-        sleep_conditions << ::V1::SleepMatchCondition.new(
-          base: base,
-          sleep_for: "#{condition.duration}s",
-        )
-      end
+      ConditionConverter.convert_condition(
+        condition,
+        action: :QUEUE,
+        sleep_conditions: sleep_conditions,
+        user_event_conditions: user_event_conditions,
+        or_group_id: or_group_id,
+        readable_data_key: key,
+        proto_method: :to_durable_proto,
+        proto_arg: key,
+      )
     end
   end
 end

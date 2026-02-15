@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# typed: strict
 
 require_relative "hatchet/version"
 require_relative "hatchet/config"
@@ -28,6 +27,7 @@ require_relative "hatchet/features/scheduled"
 require_relative "hatchet/exceptions"
 require_relative "hatchet/concurrency"
 require_relative "hatchet/conditions"
+require_relative "hatchet/condition_converter"
 require_relative "hatchet/rate_limit"
 require_relative "hatchet/labels"
 require_relative "hatchet/trigger_options"

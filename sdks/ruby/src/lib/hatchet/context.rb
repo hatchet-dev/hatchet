@@ -139,7 +139,9 @@ module Hatchet
     # Check if the task has been cancelled
     #
     # @return [Boolean] true if cancellation has been requested
-    attr_reader :exit_flag
+    def cancelled?
+      @exit_flag
+    end
 
     # Refresh the execution timeout for this task.
     #

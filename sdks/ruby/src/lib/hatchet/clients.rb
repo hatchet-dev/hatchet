@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# typed: strict
 
 # Hatchet clients module
 # This module provides access to different client types (REST, gRPC, etc.)

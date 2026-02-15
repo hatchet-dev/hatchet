@@ -15,6 +15,17 @@ module Hatchet
   # @example Standalone task
   #   task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
   class Task
+    DURATION_MAP = {
+      second: :SECOND, minute: :MINUTE, hour: :HOUR,
+      day: :DAY, week: :WEEK, month: :MONTH, year: :YEAR,
+    }.freeze
+
+    COMPARATOR_MAP = {
+      equal: :EQUAL, not_equal: :NOT_EQUAL,
+      greater_than: :GREATER_THAN, greater_than_or_equal: :GREATER_THAN_OR_EQUAL,
+      less_than: :LESS_THAN, less_than_or_equal: :LESS_THAN_OR_EQUAL,
+    }.freeze
+
     # @return [Symbol, String] Task name
     attr_reader :name
 
@@ -119,7 +130,7 @@ module Hatchet
       @client = client
       @deps = deps
       # Convert Proc to lambda to avoid LocalJumpError on bare `return`
-      @fn = block || nil
+      @fn = block
     end
 
     # Execute the task with the given input and context
@@ -313,11 +324,6 @@ module Hatchet
 
     # Convert a RateLimit to a V1::CreateTaskRateLimit proto
     def rate_limit_to_proto(rate_limit)
-      duration_map = {
-        second: :SECOND, minute: :MINUTE, hour: :HOUR,
-        day: :DAY, week: :WEEK, month: :MONTH, year: :YEAR,
-      }
-
       args = {}
 
       if rate_limit.respond_to?(:static_key) && rate_limit.static_key
@@ -331,7 +337,7 @@ module Hatchet
 
       # Always set duration (default MINUTE)
       dur = rate_limit.respond_to?(:duration) && rate_limit.duration ? rate_limit.duration : :minute
-      args[:duration] = duration_map[dur] || :SECOND
+      args[:duration] = DURATION_MAP[dur] || :SECOND
 
       # Always set limit_values_expr (default "-1")
       limit_val = rate_limit.respond_to?(:limit) && rate_limit.limit ? rate_limit.limit : -1
@@ -350,14 +356,7 @@ module Hatchet
                 dwl_args[:required] = v[:required] if v.key?(:required)
                 dwl_args[:weight] = v[:weight] if v[:weight]
 
-                if v[:comparator]
-                  comp_map = {
-                    equal: :EQUAL, not_equal: :NOT_EQUAL,
-                    greater_than: :GREATER_THAN, greater_than_or_equal: :GREATER_THAN_OR_EQUAL,
-                    less_than: :LESS_THAN, less_than_or_equal: :LESS_THAN_OR_EQUAL,
-                  }
-                  dwl_args[:comparator] = comp_map[v[:comparator]] || :EQUAL
-                end
+                dwl_args[:comparator] = COMPARATOR_MAP[v[:comparator]] || :EQUAL if v[:comparator]
 
                 ::V1::DesiredWorkerLabels.new(**dwl_args)
               elsif v.is_a?(Integer)
@@ -395,79 +394,16 @@ module Hatchet
     end
 
     # Process a single condition into the appropriate proto list.
-    # Supports Hash conditions, Hatchet condition objects (SleepCondition,
-    # UserEventCondition, ParentCondition), and objects with to_proto.
+    # Delegates to ConditionConverter for shared logic.
     def process_condition(cond, action, sleep_conditions, user_event_conditions)
-      if cond.respond_to?(:to_proto)
-        # If the condition object knows how to convert itself
-        proto = cond.to_proto(action)
-        case proto
-        when ::V1::SleepMatchCondition
-          sleep_conditions << proto
-        when ::V1::UserEventMatchCondition
-          user_event_conditions << proto
-        end
-      elsif cond.is_a?(Hatchet::SleepCondition)
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: "sleep_#{cond.duration}",
-          action: action,
-          or_group_id: SecureRandom.uuid,
-        )
-        sleep_conditions << ::V1::SleepMatchCondition.new(
-          base: base,
-          sleep_for: "#{cond.duration}s",
-        )
-      elsif cond.is_a?(Hatchet::UserEventCondition)
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: cond.event_key,
-          action: action,
-          or_group_id: SecureRandom.uuid,
-          expression: cond.expression || "",
-        )
-        user_event_conditions << ::V1::UserEventMatchCondition.new(
-          base: base,
-          user_event_key: cond.event_key,
-        )
-      elsif cond.is_a?(Hash)
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: cond[:readable_data_key] || cond[:key] || "",
-          action: action,
-          or_group_id: cond[:or_group_id] || SecureRandom.uuid,
-          expression: cond[:expression] || "",
-        )
-
-        if cond[:sleep_for]
-          sleep_conditions << ::V1::SleepMatchCondition.new(
-            base: base,
-            sleep_for: cond[:sleep_for].to_s,
-          )
-        elsif cond[:event_key]
-          user_event_conditions << ::V1::UserEventMatchCondition.new(
-            base: base,
-            user_event_key: cond[:event_key],
-          )
-        end
-      elsif cond.respond_to?(:event_key) && cond.event_key
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: cond.event_key,
-          action: action,
-          or_group_id: SecureRandom.uuid,
-        )
-        user_event_conditions << ::V1::UserEventMatchCondition.new(
-          base: base,
-          user_event_key: cond.event_key,
-        )
-      elsif cond.respond_to?(:duration) && cond.duration
-        base = ::V1::BaseMatchCondition.new(
-          readable_data_key: "sleep_#{cond.duration}",
-          action: action,
-          or_group_id: SecureRandom.uuid,
-        )
-        sleep_conditions << ::V1::SleepMatchCondition.new(
-          base: base,
-          sleep_for: "#{cond.duration}s",
-        )
-      end
+      ConditionConverter.convert_condition(
+        cond,
+        action: action,
+        sleep_conditions: sleep_conditions,
+        user_event_conditions: user_event_conditions,
+        proto_method: :to_proto,
+        proto_arg: action,
+      )
     end
   end
 end

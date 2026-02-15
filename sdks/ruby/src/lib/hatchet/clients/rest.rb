@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# typed: strict
 
 # Integration file for generated Hatchet REST API client
 # This file loads the generated REST client and makes it available under the Hatchet::Clients::Rest namespace

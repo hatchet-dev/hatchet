@@ -221,7 +221,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       rescue StandardError => e
         # It's okay if this fails - we just want to test the API call structure
         expect(e).to be_a(StandardError)
-      end.not_to raise_error(ArgumentError) # Should not fail due to argument issues
+      end.not_to raise_error
     end
 
     it "can create replay request objects" do
@@ -231,7 +231,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       rescue StandardError => e
         # It's okay if this fails - we just want to test the API call structure
         expect(e).to be_a(StandardError)
-      end.not_to raise_error(ArgumentError) # Should not fail due to argument issues
+      end.not_to raise_error
     end
 
     # NOTE: We don't actually test cancel/replay operations in integration tests

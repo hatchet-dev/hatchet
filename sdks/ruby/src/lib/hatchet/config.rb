@@ -3,6 +3,7 @@
 require "logger"
 require "json"
 require "base64"
+require "set"
 
 module Hatchet
   # TLS configuration for client connections
@@ -28,7 +29,8 @@ module Hatchet
     #   @return [String, nil] Path to root CA certificate file
     # @!attribute server_name
     #   @return [String] Server name for TLS verification
-    attr_accessor :strategy, :cert_file, :key_file, :root_ca_file, :server_name
+    attr_accessor :server_name
+    attr_reader :strategy, :cert_file, :key_file, :root_ca_file
 
     # Initialize TLS configuration
     #
@@ -62,7 +64,7 @@ module Hatchet
     #   @return [Integer] Port number for healthcheck endpoint
     # @!attribute enabled
     #   @return [Boolean] Whether healthcheck is enabled
-    attr_accessor :port, :enabled
+    attr_reader :port, :enabled
 
     # Initialize healthcheck configuration
     #
@@ -152,10 +154,10 @@ module Hatchet
     #   @return [TLSConfig] TLS configuration
     # @!attribute healthcheck
     #   @return [HealthcheckConfig] Healthcheck configuration
-    attr_accessor :token, :host_port, :server_url, :namespace,
-                  :logger, :listener_v2_timeout, :grpc_max_recv_message_length,
-                  :grpc_max_send_message_length, :worker_preset_labels,
-                  :tls_config, :healthcheck
+    attr_reader :token, :host_port, :server_url, :namespace,
+                :logger, :listener_v2_timeout, :grpc_max_recv_message_length,
+                :grpc_max_send_message_length, :worker_preset_labels,
+                :tls_config, :healthcheck
 
     attr_reader :tenant_id
 
@@ -217,15 +219,6 @@ module Hatchet
       normalize_namespace!
     end
 
-    def validate!
-      raise Error, "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment." if token.nil? || token.empty?
-
-      return if valid_jwt_token?
-
-      raise Error,
-            "Hatchet Token must be a valid JWT."
-    end
-
     # Apply namespace prefix to a resource name
     #
     # @param resource_name [String, nil] The resource name to namespace
@@ -279,6 +272,15 @@ module Hatchet
     end
 
     private
+
+    def validate!
+      raise Error, "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment." if token.nil? || token.empty?
+
+      return if valid_jwt_token?
+
+      raise Error,
+            "Hatchet Token must be a valid JWT."
+    end
 
     def valid_jwt_token?
       !token.nil? && !token.empty? && token.start_with?("ey")

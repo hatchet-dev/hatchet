@@ -5,24 +5,24 @@ module Hatchet
     DEFAULT_GRPC_MAX_MESSAGE_LENGTH: Integer
     ENV_FILE_NAMES: Array[String]
 
-    attr_accessor token: String
+    attr_reader token: String
     attr_reader tenant_id: String
-    attr_accessor host_port: String
-    attr_accessor server_url: String
-    attr_accessor namespace: String
-    attr_accessor logger: Logger
-    attr_accessor listener_v2_timeout: Integer?
-    attr_accessor grpc_max_recv_message_length: Integer
-    attr_accessor grpc_max_send_message_length: Integer
-    attr_accessor worker_preset_labels: Hash[String, String]
-    attr_accessor enable_force_kill_sync_threads: bool
-    attr_accessor enable_thread_pool_monitoring: bool
-    attr_accessor terminate_worker_after_num_tasks: Integer?
-    attr_accessor disable_log_capture: bool
-    attr_accessor grpc_enable_fork_support: bool
-    attr_accessor tls_config: TLSConfig
-    attr_accessor healthcheck: HealthcheckConfig
-    attr_accessor otel: OpenTelemetryConfig
+    attr_reader host_port: String
+    attr_reader server_url: String
+    attr_reader namespace: String
+    attr_reader logger: Logger
+    attr_reader listener_v2_timeout: Integer?
+    attr_reader grpc_max_recv_message_length: Integer
+    attr_reader grpc_max_send_message_length: Integer
+    attr_reader worker_preset_labels: Hash[String, String]
+    attr_reader enable_force_kill_sync_threads: bool
+    attr_reader enable_thread_pool_monitoring: bool
+    attr_reader terminate_worker_after_num_tasks: Integer?
+    attr_reader disable_log_capture: bool
+    attr_reader grpc_enable_fork_support: bool
+    attr_reader tls_config: TLSConfig
+    attr_reader healthcheck: HealthcheckConfig
+    attr_reader otel: OpenTelemetryConfig
 
     def initialize: (
       ?token: String,
@@ -44,7 +44,6 @@ module Hatchet
       ?otel: OpenTelemetryConfig
     ) -> void
 
-    def validate!: () -> void
     def apply_namespace: (String? resource_name, ?namespace_override: String?) -> String?
     def hash: () -> Integer
     def to_h: () -> Hash[Symbol, untyped]
@@ -52,11 +51,12 @@ module Hatchet
   end
 
   class TLSConfig
-    attr_accessor strategy: String
-    attr_accessor cert_file: String?
-    attr_accessor key_file: String?
-    attr_accessor root_ca_file: String?
-    attr_accessor server_name: String
+    attr_reader strategy: String
+    attr_reader cert_file: String?
+    attr_reader key_file: String?
+    attr_reader root_ca_file: String?
+    attr_reader server_name: String
+    attr_writer server_name: String
 
     def initialize: (
       ?strategy: String,
@@ -68,8 +68,8 @@ module Hatchet
   end
 
   class HealthcheckConfig
-    attr_accessor port: Integer
-    attr_accessor enabled: bool
+    attr_reader port: Integer
+    attr_reader enabled: bool
 
     def initialize: (?port: Integer, ?enabled: bool) -> void
   end

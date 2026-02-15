@@ -248,8 +248,9 @@ module Hatchet
         until_time ||= Time.now
 
         if (until_time - since) / (24 * 60 * 60) >= LARGE_DATE_RANGE_WARNING_DAYS
-          warn "Listing runs with a date range longer than #{LARGE_DATE_RANGE_WARNING_DAYS} days may result in performance issues. " \
-               "Consider using `list_with_pagination` instead."
+          @config.logger.warn "Listing runs with a date range longer than #{LARGE_DATE_RANGE_WARNING_DAYS} days " \
+                              "may result in performance issues. " \
+                              "Consider using `list_with_pagination` instead."
         end
 
         @workflow_runs_api.v1_workflow_run_list(
@@ -453,12 +454,9 @@ module Hatchet
         start_time = Time.now
 
         loop do
-          puts "Polling for completion of run #{workflow_run_id}"
           run = get(workflow_run_id)
           status = run.status
 
-          # Check if workflow run has reached a terminal state
-          puts "Run status: #{status}"
           return run if terminal_status?(status)
 
           # Check timeout

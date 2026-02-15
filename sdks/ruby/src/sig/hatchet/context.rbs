@@ -7,7 +7,7 @@ module Hatchet
     attr_reader attempt_number: Integer
     attr_reader priority: Integer?
     attr_reader filter_payload: Hash[String, untyped]?
-    attr_reader exit_flag: bool
+    def cancelled?: () -> bool
     attr_accessor deps: Hash[Symbol, untyped]
 
     def initialize: (
