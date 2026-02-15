@@ -5,6 +5,10 @@ import {
   CursorMcpConfig,
   ClaudeCodeCommand,
   ClaudeDesktopConfig,
+  CursorTabLabel,
+  ClaudeCodeTabLabel,
+  ClaudeDesktopTabLabel,
+  OtherAgentsTabLabel,
 } from "@/components/McpSetup";
 
 # Add Hatchet Docs to Your AI Editor
@@ -13,7 +17,7 @@ Hatchet documentation is optimized for LLMs and available as an **MCP (Model Con
 
 MCP endpoint: <McpUrl />
 
-<Tabs items={['Cursor', 'Claude Code', 'Claude Desktop', 'Other Agents']}>
+<Tabs items={[<CursorTabLabel />, <ClaudeCodeTabLabel />, <ClaudeDesktopTabLabel />, <OtherAgentsTabLabel />]}>
   <Tabs.Tab>
 
     <Tabs items={['One-Click Install', 'Hatchet CLI', 'Manual Config']}>

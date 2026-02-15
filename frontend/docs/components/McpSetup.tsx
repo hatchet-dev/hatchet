@@ -9,17 +9,34 @@ const tabLabelStyle: React.CSSProperties = {
   gap: "6px",
 };
 
-const tabIconStyle: React.CSSProperties = {
-  width: 16,
-  height: 16,
-  flexShrink: 0,
-};
+/** Renders an SVG as a CSS mask filled with currentColor (works in light + dark mode). */
+function ThemedIcon({ src }: { src: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        width: 16,
+        height: 16,
+        flexShrink: 0,
+        backgroundColor: "currentColor",
+        WebkitMaskImage: `url(${src})`,
+        WebkitMaskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskImage: `url(${src})`,
+        maskSize: "contain",
+        maskRepeat: "no-repeat",
+        maskPosition: "center",
+      } as React.CSSProperties}
+    />
+  );
+}
 
 /** Cursor IDE tab label with official logo. */
 export function CursorTabLabel() {
   return (
     <span style={tabLabelStyle}>
-      <img src="/cursor-logo.svg" alt="" style={tabIconStyle} />
+      <ThemedIcon src="/cursor-logo.svg" />
       Cursor
     </span>
   );
@@ -29,7 +46,7 @@ export function CursorTabLabel() {
 export function ClaudeCodeTabLabel() {
   return (
     <span style={tabLabelStyle}>
-      <img src="/claude-logo.svg" alt="" style={tabIconStyle} />
+      <ThemedIcon src="/claude-logo.svg" />
       Claude Code
     </span>
   );
@@ -39,7 +56,7 @@ export function ClaudeCodeTabLabel() {
 export function ClaudeDesktopTabLabel() {
   return (
     <span style={tabLabelStyle}>
-      <img src="/claude-logo.svg" alt="" style={tabIconStyle} />
+      <ThemedIcon src="/claude-logo.svg" />
       Claude Desktop
     </span>
   );
