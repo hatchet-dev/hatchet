@@ -60,7 +60,7 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
 
     expect(workflows).not_to be_empty
 
-    workflow = workflows.find { |w| w.name == CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.name }
+    workflow = workflows.find { |w| w.name == hatchet.config.apply_namespace(CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.name) }
     expect(workflow).not_to be_nil
 
     runs = HATCHET.runs.list(

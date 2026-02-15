@@ -42,7 +42,7 @@ RSpec.describe "PriorityWorkflow" do
     workflows = HATCHET.workflows.list(workflow_name: PRIORITY_WORKFLOW.name)
     expect(workflows.rows).not_to be_empty
 
-    workflow = workflows.rows.find { |w| w.name == PRIORITY_WORKFLOW.name }
+    workflow = workflows.rows.find { |w| w.name == hatchet.config.apply_namespace(PRIORITY_WORKFLOW.name) }
     expect(workflow).not_to be_nil
 
     runs = HATCHET.runs.list(

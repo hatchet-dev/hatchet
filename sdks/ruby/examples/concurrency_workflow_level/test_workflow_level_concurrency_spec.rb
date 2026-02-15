@@ -63,7 +63,7 @@ RSpec.describe "ConcurrencyWorkflowLevel" do
 
     expect(workflows).not_to be_empty
 
-    workflow = workflows.find { |w| w.name == CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.name }
+    workflow = workflows.find { |w| w.name == hatchet.config.apply_namespace(CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.name) }
     expect(workflow).not_to be_nil
 
     runs = HATCHET.runs.list(
