@@ -4,7 +4,6 @@ module Hatchet
     attr_reader workflows: Array[Workflow | Task]
     attr_reader slots: Integer
     attr_reader labels: Hash[String, String | Integer]
-    attr_reader lifespan: Proc?
     attr_reader client: Client
     attr_accessor worker_id: String?
 
@@ -13,8 +12,7 @@ module Hatchet
       client: Client,
       ?workflows: Array[Workflow | Task],
       ?slots: Integer,
-      ?labels: Hash[String, String | Integer],
-      ?lifespan: Proc?
+      ?labels: Hash[String, String | Integer]
     ) -> void
 
     def start: () -> void

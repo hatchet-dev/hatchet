@@ -6,7 +6,6 @@ require_relative "worker"
 RSpec.describe "UnitTesting" do
   let(:input) { { "key" => "test_key", "number" => 42 } }
   let(:additional_metadata) { { "meta_key" => "meta_value" } }
-  let(:lifespan) { { "mock_db_url" => "sqlite:///:memory:" } }
   let(:retry_count) { 1 }
 
   let(:expected_output) do
@@ -14,8 +13,7 @@ RSpec.describe "UnitTesting" do
       "key" => input["key"],
       "number" => input["number"],
       "additional_metadata" => additional_metadata,
-      "retry_count" => retry_count,
-      "mock_db_url" => lifespan["mock_db_url"]
+      "retry_count" => retry_count
     }
   end
 
@@ -28,7 +26,6 @@ RSpec.describe "UnitTesting" do
       result = task.mock_run(
         input: input,
         additional_metadata: additional_metadata,
-        lifespan: lifespan,
         retry_count: retry_count
       )
 
@@ -43,7 +40,6 @@ RSpec.describe "UnitTesting" do
     result = task.tasks[:sync_complex_workflow].mock_run(
       input: input,
       additional_metadata: additional_metadata,
-      lifespan: lifespan,
       retry_count: retry_count,
       parent_outputs: { "start" => parent_output }
     )

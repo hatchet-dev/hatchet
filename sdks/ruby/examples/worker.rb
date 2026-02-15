@@ -33,7 +33,6 @@ require_relative "durable_event/worker"
 require_relative "durable_sleep/worker"
 require_relative "conditions/worker"
 require_relative "dependency_injection/worker"
-require_relative "lifespans/worker"
 require_relative "streaming/worker"
 require_relative "serde/worker"
 require_relative "dataclasses/worker"
@@ -87,7 +86,6 @@ ALL_WORKFLOWS = [
   ASYNC_TASK_WITH_DEPS, SYNC_TASK_WITH_DEPS,
   DURABLE_ASYNC_TASK_WITH_DEPS, DURABLE_SYNC_TASK_WITH_DEPS,
   DI_WORKFLOW,
-  LIFESPAN_TASK,
 
   # Tier 4-5
   STREAM_TASK,

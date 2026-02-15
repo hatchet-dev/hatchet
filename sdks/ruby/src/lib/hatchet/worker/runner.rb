@@ -29,15 +29,13 @@ module Hatchet
       # @param event_client [Hatchet::Clients::Grpc::EventClient] gRPC event client
       # @param logger [Logger] Logger instance
       # @param client [Hatchet::Client] The Hatchet client
-      # @param lifespan_data [Object, nil] Shared lifespan data
-      def initialize(workflows:, slots:, dispatcher_client:, event_client:, logger:, client:, lifespan_data: nil)
+      def initialize(workflows:, slots:, dispatcher_client:, event_client:, logger:, client:)
         @workflows = workflows
         @slots = slots
         @dispatcher_client = dispatcher_client
         @event_client = event_client
         @logger = logger
         @client = client
-        @lifespan_data = lifespan_data
 
         # Thread pool with semaphore for slot management
         @pool = Concurrent::FixedThreadPool.new(slots)
@@ -137,7 +135,6 @@ module Hatchet
           event_client: @event_client,
           additional_metadata: ContextVars.additional_metadata,
           retry_count: action.retry_count,
-          lifespan: @lifespan_data,
           parent_outputs: parent_outputs,
         )
 

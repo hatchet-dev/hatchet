@@ -24,9 +24,6 @@ module Hatchet
     # @return [Hash] Worker labels for scheduling
     attr_reader :labels
 
-    # @return [Proc, nil] Lifespan setup block
-    attr_reader :lifespan
-
     # @return [Hatchet::Client] The Hatchet client
     attr_reader :client
 
@@ -38,30 +35,25 @@ module Hatchet
     # @param workflows [Array<Workflow, Task>] Workflows to register
     # @param slots [Integer] Number of concurrent task slots (default: 10)
     # @param labels [Hash] Worker labels (default: {})
-    # @param lifespan [Proc, nil] Lifespan setup block
-    def initialize(name:, client:, workflows: [], slots: 10, labels: {}, lifespan: nil)
+    def initialize(name:, client:, workflows: [], slots: 10, labels: {})
       @name = name
       @client = client
       @workflows = workflows
       @slots = slots
       @labels = labels
-      @lifespan = lifespan
       @worker_id = nil
       @shutdown = false
-      @lifespan_data = nil
     end
 
     # Start the worker. This blocks until shutdown is requested.
     #
-    # 1. Initializes lifespan resources
-    # 2. Registers workflows with the Hatchet server
-    # 3. Starts the health check server
-    # 4. Starts the action listener
-    # 5. Processes actions in the thread pool
-    # 6. Handles graceful shutdown on SIGINT/SIGTERM
+    # 1. Registers workflows with the Hatchet server
+    # 2. Starts the health check server
+    # 3. Starts the action listener
+    # 4. Processes actions in the thread pool
+    # 5. Handles graceful shutdown on SIGINT/SIGTERM
     def start
       setup_signal_handlers
-      initialize_lifespan
 
       @client.config.logger.info("Starting worker '#{@name}' with #{@slots} slots")
       @client.config.logger.info("Registering #{@workflows.length} workflow(s)")
@@ -80,8 +72,6 @@ module Hatchet
     rescue StandardError => e
       @client.config.logger.error("Worker error: #{e.message}")
       raise
-    ensure
-      cleanup_lifespan
     end
 
     # Request graceful shutdown
@@ -110,17 +100,6 @@ module Hatchet
         @shutdown = true
         @main_thread&.raise(Interrupt)
       end
-    end
-
-    def initialize_lifespan
-      return unless @lifespan
-
-      @lifespan_data = @lifespan.call
-    end
-
-    def cleanup_lifespan
-      # If lifespan data responds to close/shutdown, call it
-      @lifespan_data.respond_to?(:close) && @lifespan_data.close
     end
 
     def register_workflows
@@ -217,7 +196,6 @@ module Hatchet
         event_client: @client.event_grpc,
         logger: @client.config.logger,
         client: @client,
-        lifespan_data: @lifespan_data,
       )
 
       # Create the action listener with retry/reconnect logic

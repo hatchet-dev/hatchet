@@ -27,9 +27,6 @@ module Hatchet
     # @return [Integer] Current attempt number (retry_count + 1)
     attr_reader :attempt_number
 
-    # @return [Object, nil] Lifespan data shared across tasks in the worker
-    attr_reader :lifespan
-
     # @return [Hash] Resolved dependency values
     attr_accessor :deps
 
@@ -47,7 +44,6 @@ module Hatchet
     # @param event_client [Hatchet::Clients::Grpc::EventClient, nil] gRPC event client
     # @param additional_metadata [Hash] Additional metadata
     # @param retry_count [Integer] Current retry count
-    # @param lifespan [Object, nil] Lifespan data
     # @param parent_outputs [Hash] Hash of parent task name -> output
     # @param deps [Hash] Resolved dependency values
     # @param priority [Integer, nil] Priority
@@ -62,7 +58,6 @@ module Hatchet
       event_client: nil,
       additional_metadata: {},
       retry_count: 0,
-      lifespan: nil,
       parent_outputs: {},
       deps: {},
       priority: nil,
@@ -78,7 +73,6 @@ module Hatchet
       @additional_metadata = additional_metadata || {}
       @retry_count = retry_count
       @attempt_number = retry_count + 1
-      @lifespan = lifespan
       @parent_outputs = parent_outputs || {}
       @deps = deps || {}
       @priority = priority

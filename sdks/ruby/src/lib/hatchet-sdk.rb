@@ -232,7 +232,7 @@ module Hatchet
     # Create a new worker
     #
     # @param name [String] Worker name
-    # @param opts [Hash] Worker options (workflows:, slots:, labels:, lifespan:)
+    # @param opts [Hash] Worker options (workflows:, slots:, labels:)
     # @return [Hatchet::Worker]
     #
     # @example

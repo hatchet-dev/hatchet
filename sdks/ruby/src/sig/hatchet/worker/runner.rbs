@@ -7,8 +7,7 @@ module Hatchet
         dispatcher_client: Clients::Grpc::Dispatcher,
         event_client: Clients::Grpc::EventClient,
         logger: Logger,
-        client: Client,
-        ?lifespan_data: untyped
+        client: Client
       ) -> void
 
       def execute: (untyped action) -> void

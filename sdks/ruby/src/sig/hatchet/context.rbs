@@ -5,7 +5,6 @@ module Hatchet
     attr_reader additional_metadata: Hash[String, untyped]
     attr_reader retry_count: Integer
     attr_reader attempt_number: Integer
-    attr_reader lifespan: untyped
     attr_reader priority: Integer?
     attr_reader filter_payload: Hash[String, untyped]?
     attr_reader exit_flag: bool
@@ -20,7 +19,6 @@ module Hatchet
       ?event_client: Clients::Grpc::EventClient?,
       ?additional_metadata: Hash[String, untyped],
       ?retry_count: Integer,
-      ?lifespan: untyped,
       ?parent_outputs: Hash[String, untyped],
       ?deps: Hash[Symbol, untyped],
       ?priority: Integer?,

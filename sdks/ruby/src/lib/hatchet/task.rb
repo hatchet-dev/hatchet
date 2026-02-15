@@ -249,11 +249,10 @@ module Hatchet
     #
     # @param input [Hash] Task input
     # @param additional_metadata [Hash] Metadata for the context
-    # @param lifespan [Object, nil] Lifespan data
     # @param retry_count [Integer] Simulated retry count
     # @param parent_outputs [Hash] Mocked parent task outputs
     # @return [Object] Task output
-    def mock_run(input:, additional_metadata: {}, lifespan: nil, retry_count: 0, parent_outputs: {})
+    def mock_run(input:, additional_metadata: {}, retry_count: 0, parent_outputs: {})
       ctx = Context.new(
         workflow_run_id: "mock-run-id",
         step_run_id: "mock-step-run-id",
@@ -261,7 +260,6 @@ module Hatchet
         client: nil,
         additional_metadata: additional_metadata,
         retry_count: retry_count,
-        lifespan: lifespan,
         parent_outputs: parent_outputs,
       )
 

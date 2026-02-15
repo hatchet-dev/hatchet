@@ -44,7 +44,7 @@ module Hatchet
     def run_many: (Array[Hash[Symbol, untyped]] items, ?return_exceptions: bool) -> Array[untyped]
     def run_many_no_wait: (Array[Hash[Symbol, untyped]] items) -> Array[TaskRunRef]
     def create_bulk_run_item: (?input: Hash[String, untyped], ?key: String?, ?options: TriggerWorkflowOptions?) -> Hash[Symbol, untyped]
-    def mock_run: (input: Hash[String, untyped], ?additional_metadata: Hash[String, untyped], ?lifespan: untyped, ?retry_count: Integer, ?parent_outputs: Hash[String, untyped]) -> untyped
+    def mock_run: (input: Hash[String, untyped], ?additional_metadata: Hash[String, untyped], ?retry_count: Integer, ?parent_outputs: Hash[String, untyped]) -> untyped
     def id: () -> String
   end
 end
