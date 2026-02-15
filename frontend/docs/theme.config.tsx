@@ -133,7 +133,7 @@ const config = {
           <CopyClaudeButton command={claudeCommand} />
           <a href={llmsMarkdownHref} target="_blank" rel="noopener noreferrer" style={pageLinkStyle} onClick={() => posthog.capture("docs_view_markdown", { page: pathname })} title="View as Markdown">
             <MarkdownIcon />
-            <span className="page-action-label">View as Markdown</span>
+            <span className="page-action-label">Raw</span>
           </a>
         </div>
         {children}
