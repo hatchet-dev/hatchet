@@ -181,6 +181,9 @@ jobs:
     runs-on: ubicloud-standard-4
     needs: [lint, test]
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -194,18 +197,27 @@ jobs:
           bundler-cache: true
           working-directory: ./sdks/ruby/src
 
-      - name: Publish to RubyGems
+      - name: Check if version changed
+        id: version_check
         run: |
           NEW_VERSION=$(ruby -e "require_relative 'lib/hatchet/version'; puts Hatchet::VERSION")
           CURRENT_VERSION=$(gem info hatchet-sdk --remote --exact 2>/dev/null | grep -oP 'hatchet-sdk \(\K[^)]+' || echo "0.0.0")
 
           if [ "$CURRENT_VERSION" == "$NEW_VERSION" ]; then
             echo "Version has not changed ($NEW_VERSION). Skipping publish."
-            exit 0
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing version $NEW_VERSION (current: $CURRENT_VERSION)"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "Publishing version $NEW_VERSION (current: $CURRENT_VERSION)"
+      - name: Configure RubyGems credentials
+        if: steps.version_check.outputs.should_publish == 'true'
+        uses: rubygems/configure-rubygems-credentials@main
+
+      - name: Publish to RubyGems
+        if: steps.version_check.outputs.should_publish == 'true'
+        run: |
           gem build hatchet-sdk.gemspec
+          NEW_VERSION=$(ruby -e "require_relative 'lib/hatchet/version'; puts Hatchet::VERSION")
           gem push hatchet-sdk-${NEW_VERSION}.gem
-        env:
-          GEM_HOST_API_KEY: ${{ secrets.GEM_HOST_API_KEY }}
