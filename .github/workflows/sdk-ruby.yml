@@ -127,6 +127,38 @@ jobs:
       - name: Run integration tests
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
+      - name: Install example dependencies
+        working-directory: ./sdks/ruby/examples
+        run: bundle install
+
+      - name: Start example worker
+        working-directory: ./sdks/ruby/examples
+        run: bundle exec ruby worker.rb > worker.log 2>&1 &
+
+      - name: Wait for worker health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8001/health > /dev/null 2>&1; then
+              echo "Worker is healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Worker failed to start within 30s"
+          cat ./sdks/ruby/examples/worker.log || true
+          exit 1
+
+      - name: Run e2e tests
+        working-directory: ./sdks/ruby/examples
+        run: bundle exec rspec -f d --fail-fast
+
+      - name: Upload worker logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-worker-logs
+          path: ./sdks/ruby/examples/worker.log
+
       - name: Upload engine logs
         if: always()
         uses: actions/upload-artifact@v6
