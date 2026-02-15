@@ -46,8 +46,8 @@ module Hatchet
     # @return [Task, nil] The on_success task
     attr_reader :on_success
 
-    # @return [String, nil] The workflow ID (set after registration)
-    attr_accessor :id
+    # @return [String, nil] The workflow ID writer (set after registration)
+    attr_writer :id
 
     # @param name [String] Workflow name
     # @param on_events [Array<String>] Event trigger keys
@@ -82,6 +82,14 @@ module Hatchet
       @on_failure = nil
       @on_success = nil
       @id = nil
+    end
+
+    # Get the workflow ID (UUID). If not already set, lazily resolves it
+    # by looking up the workflow by name via the REST API.
+    #
+    # @return [String, nil] The workflow UUID
+    def id
+      @id ||= resolve_workflow_id
     end
 
     # Define a task within this workflow
@@ -282,6 +290,23 @@ module Hatchet
         expression: expression,
         input: input,
       )
+    end
+
+    private
+
+    # Resolve the workflow UUID by looking up the workflow by name via the REST API.
+    #
+    # @return [String, nil] The workflow UUID, or nil if not found or no client
+    def resolve_workflow_id
+      return nil unless @client
+
+      result = @client.workflows.list(workflow_name: @name)
+      rows = result.rows
+      return nil if rows.nil? || rows.empty?
+
+      rows.first.metadata&.id
+    rescue StandardError
+      nil
     end
   end
 end
