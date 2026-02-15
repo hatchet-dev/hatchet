@@ -23,21 +23,23 @@ const tabLabelStyle: React.CSSProperties = {
 function ThemedIcon({ src }: { src: string }) {
   return (
     <span
-      style={{
-        display: "inline-block",
-        width: 16,
-        height: 16,
-        flexShrink: 0,
-        backgroundColor: "currentColor",
-        WebkitMaskImage: `url(${src})`,
-        WebkitMaskSize: "contain",
-        WebkitMaskRepeat: "no-repeat",
-        WebkitMaskPosition: "center",
-        maskImage: `url(${src})`,
-        maskSize: "contain",
-        maskRepeat: "no-repeat",
-        maskPosition: "center",
-      } as React.CSSProperties}
+      style={
+        {
+          display: "inline-block",
+          width: 16,
+          height: 16,
+          flexShrink: 0,
+          backgroundColor: "currentColor",
+          WebkitMaskImage: `url(${src})`,
+          WebkitMaskSize: "contain",
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          maskImage: `url(${src})`,
+          maskSize: "contain",
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+        } as React.CSSProperties
+      }
     />
   );
 }

@@ -11,6 +11,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "node:fs";
 import path from "node:path";
+import { PostHog } from "posthog-node";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,43 @@ const LLMS_DIR = path.join(process.cwd(), "public", "llms");
 const LLMS_TXT_PATH = path.join(process.cwd(), "public", "llms.txt");
 
 // ---------------------------------------------------------------------------
+// PostHog server-side analytics
+// ---------------------------------------------------------------------------
+let posthogClient: PostHog | null = null;
+
+function getPostHog(): PostHog | null {
+  if (posthogClient) return posthogClient;
+  const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  if (!key) return null;
+  posthogClient = new PostHog(key, {
+    host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+    flushAt: 10,
+    flushInterval: 5000,
+  });
+  return posthogClient;
+}
+
+function trackMcpEvent(
+  req: NextApiRequest,
+  method: string,
+  properties?: Record<string, unknown>,
+): void {
+  const ph = getPostHog();
+  if (!ph) return;
+  // Use a session ID from the MCP client if available, otherwise anonymous
+  const sessionId = (req.headers["mcp-session-id"] as string) || "anonymous";
+  ph.capture({
+    distinctId: `mcp:${sessionId}`,
+    event: "mcp_request",
+    properties: {
+      method,
+      user_agent: req.headers["user-agent"] || "",
+      ...properties,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Build the resource catalogue from public/llms/
 // ---------------------------------------------------------------------------
 let cachedDocs: DocEntry[] | null = null;
@@ -67,7 +105,8 @@ function collectDocs(): DocEntry[] {
   const titleMap = new Map<string, string>();
   if (fs.existsSync(LLMS_TXT_PATH)) {
     const llmsTxt = fs.readFileSync(LLMS_TXT_PATH, "utf-8");
-    const linkPattern = /- \[([^\]]+)\]\(https:\/\/docs\.hatchet\.run\/([^)]+)\)/g;
+    const linkPattern =
+      /- \[([^\]]+)\]\(https:\/\/docs\.hatchet\.run\/([^)]+)\)/g;
     let m: RegExpExecArray | null;
     while ((m = linkPattern.exec(llmsTxt)) !== null) {
       titleMap.set(m[2], m[1]);
@@ -79,13 +118,19 @@ function collectDocs(): DocEntry[] {
     const items = fs.readdirSync(dir, { withFileTypes: true });
     for (const item of items) {
       if (item.isDirectory()) {
-        walk(path.join(dir, item.name), prefix ? `${prefix}/${item.name}` : item.name);
+        walk(
+          path.join(dir, item.name),
+          prefix ? `${prefix}/${item.name}` : item.name,
+        );
       } else if (item.name.endsWith(".md")) {
         const slug = item.name.replace(/\.md$/, "");
         const docPath = prefix ? `${prefix}/${slug}` : slug;
 
         // Skip duplicates (e.g. home.md vs home/index.md)
-        if (slug === "index" && entries.some((e) => e.uri === `hatchet://docs/${prefix}`)) {
+        if (
+          slug === "index" &&
+          entries.some((e) => e.uri === `hatchet://docs/${prefix}`)
+        ) {
           continue;
         }
         const lookupKey = slug === "index" ? `${prefix}/index` : docPath;
@@ -210,11 +255,13 @@ function handleToolsList(id: string | number | null): JsonRpcResponse {
             properties: {
               query: {
                 type: "string",
-                description: "Search query (keywords to match against page titles and content)",
+                description:
+                  "Search query (keywords to match against page titles and content)",
               },
               max_results: {
                 type: "number",
-                description: "Maximum number of results to return (default: 10)",
+                description:
+                  "Maximum number of results to return (default: 10)",
               },
             },
             required: ["query"],
@@ -260,7 +307,7 @@ function handleSearchDocs(
   id: string | number | null,
   args: Record<string, unknown>,
 ): JsonRpcResponse {
-  const query = (args.query as string || "").toLowerCase();
+  const query = ((args.query as string) || "").toLowerCase();
   const maxResults = (args.max_results as number) || 10;
 
   if (!query) {
@@ -307,7 +354,10 @@ function handleSearchDocs(
         const idx = contentLower.indexOf(firstKw);
         const start = Math.max(0, idx - 80);
         const end = Math.min(content.length, idx + firstKw.length + 80);
-        snippet = (start > 0 ? "..." : "") + content.slice(start, end).trim() + (end < content.length ? "..." : "");
+        snippet =
+          (start > 0 ? "..." : "") +
+          content.slice(start, end).trim() +
+          (end < content.length ? "..." : "");
       }
       scored.push({ doc, score, snippet });
     }
@@ -316,14 +366,15 @@ function handleSearchDocs(
   scored.sort((a, b) => b.score - a.score);
   const results = scored.slice(0, maxResults);
 
-  const text = results.length === 0
-    ? `No results found for "${query}".`
-    : results
-        .map(
-          (r, i) =>
-            `${i + 1}. **${r.doc.name}** (${r.doc.uri})\n   ${r.snippet}`,
-        )
-        .join("\n\n");
+  const text =
+    results.length === 0
+      ? `No results found for "${query}".`
+      : results
+          .map(
+            (r, i) =>
+              `${i + 1}. **${r.doc.name}** (${r.doc.uri})\n   ${r.snippet}`,
+          )
+          .join("\n\n");
 
   return {
     jsonrpc: "2.0",
@@ -343,7 +394,10 @@ function handleGetFullDocs(id: string | number | null): JsonRpcResponse {
     return {
       jsonrpc: "2.0",
       id,
-      error: { code: -32603, message: "Failed to read full documentation file" },
+      error: {
+        code: -32603,
+        message: "Failed to read full documentation file",
+      },
     };
   }
 
@@ -368,8 +422,11 @@ const NOTIFICATION_METHODS = new Set([
 // ---------------------------------------------------------------------------
 // Route JSON-RPC request to handler
 // ---------------------------------------------------------------------------
-function routeRequest(req: JsonRpcRequest): JsonRpcResponse | null {
-  const { id, method, params } = req;
+function routeRequest(
+  rpcReq: JsonRpcRequest,
+  httpReq: NextApiRequest,
+): JsonRpcResponse | null {
+  const { id, method, params } = rpcReq;
 
   // Notifications have no id and expect no response
   if (id === undefined || id === null) {
@@ -377,6 +434,18 @@ function routeRequest(req: JsonRpcRequest): JsonRpcResponse | null {
     // Unknown notification — ignore
     return null;
   }
+
+  // Track MCP usage
+  const trackProps: Record<string, unknown> = {};
+  if (method === "tools/call" && params?.name) {
+    trackProps.tool = params.name;
+    const args = params.arguments as Record<string, unknown> | undefined;
+    if (args?.query) trackProps.tool_query = args.query;
+  }
+  if (method === "resources/read" && params?.uri) {
+    trackProps.resource_uri = params.uri;
+  }
+  trackMcpEvent(httpReq, method, trackProps);
 
   switch (method) {
     case "initialize":
@@ -409,11 +478,17 @@ export const config = {
   api: { responseLimit: false },
 };
 
-export default function handler(req: NextApiRequest, res: NextApiResponse): void {
+export default function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+): void {
   // CORS headers for cross-origin MCP clients
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, Mcp-Session-Id",
+  );
   res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
   if (req.method === "OPTIONS") {
@@ -485,7 +560,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse): void
   if (Array.isArray(body)) {
     const responses: JsonRpcResponse[] = [];
     for (const item of body) {
-      const result = routeRequest(item as JsonRpcRequest);
+      const result = routeRequest(item as JsonRpcRequest, req);
       if (result) responses.push(result);
     }
     if (responses.length === 0) {
@@ -497,7 +572,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse): void
   }
 
   // Single request
-  const result = routeRequest(body as JsonRpcRequest);
+  const result = routeRequest(body as JsonRpcRequest, req);
   if (!result) {
     // Notification — no response
     res.status(204).end();

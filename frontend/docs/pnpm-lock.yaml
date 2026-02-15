@@ -66,6 +66,9 @@ importers:
       posthog-js:
         specifier: ^1.272.1
         version: 1.272.1
+      posthog-node:
+        specifier: ^5.24.15
+        version: 5.24.15
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -551,6 +554,9 @@ packages:
 
   '@posthog/core@1.2.2':
     resolution: {integrity: sha512-f16Ozx6LIigRG+HsJdt+7kgSxZTHeX5f1JlCGKI1lXcvlZgfsCR338FuMI2QRYXGl+jg/vYFzGOTQBxl90lnBg==}
+
+  '@posthog/core@1.22.0':
+    resolution: {integrity: sha512-WkmOnq95aAOu6yk6r5LWr5cfXsQdpVbWDCwOxQwxSne8YV6GuZET1ziO5toSQXgrgbdcjrSz2/GopAfiL6iiAA==}
 
   '@radix-ui/react-compose-refs@1.1.2':
     resolution: {integrity: sha512-z4eqJvfiNnFMHIIvXP3CY57y2WJs5g2v3X0zm9mEJkrkNv4rDxu+sg9Jh8EkXyeqBkB7SOcboo9dMVqhyrACIg==}
@@ -2451,6 +2457,10 @@ packages:
       rrweb-snapshot:
         optional: true
 
+  posthog-node@5.24.15:
+    resolution: {integrity: sha512-0QnWVOZAPwEAlp+r3r0jIGfk2IaNYM/2YnEJJhBMJZXs4LpHcTu7mX42l+e95o9xX87YpVuZU0kOkmtQUxgnOA==}
+    engines: {node: ^20.20.0 || >=22.22.0}
+
   preact@10.28.2:
     resolution: {integrity: sha512-lbteaWGzGHdlIuiJ0l2Jq454m6kcpI1zNje6d8MlGAFlYvP2GO4ibnat7P74Esfz4sPTdM6UxtTwh/d3pwM9JA==}
 
@@ -3529,6 +3539,10 @@ snapshots:
     optional: true
 
   '@posthog/core@1.2.2': {}
+
+  '@posthog/core@1.22.0':
+    dependencies:
+      cross-spawn: 7.0.6
 
   '@radix-ui/react-compose-refs@1.1.2(@types/react@18.3.26)(react@18.3.1)':
     dependencies:
@@ -6186,6 +6200,10 @@ snapshots:
       fflate: 0.4.8
       preact: 10.28.2
       web-vitals: 4.2.4
+
+  posthog-node@5.24.15:
+    dependencies:
+      '@posthog/core': 1.22.0
 
   preact@10.28.2: {}
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useConfig, useTheme } from "nextra-theme-docs";
 import { useRouter } from "next/router";
+import posthog from "posthog-js";
 
 const CursorIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -21,6 +22,11 @@ function CopyClaudeButton({ command }: { command: string }) {
     e.preventDefault();
     navigator.clipboard.writeText(command);
     setCopied(true);
+    posthog.capture("mcp_install_click", {
+      editor: "claude-code",
+      method: "copy_command",
+      page: window.location.pathname,
+    });
     setTimeout(() => setCopied(false), 1500);
   }, [command]);
 
@@ -110,12 +116,12 @@ const config = {
     return (
       <>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginBottom: "0.5rem" }}>
-          <a href={cursorDeeplink} style={pageLinkStyle}>
+          <a href={cursorDeeplink} style={pageLinkStyle} onClick={() => posthog.capture("mcp_install_click", { editor: "cursor", method: "deeplink", page: pathname })}>
             <CursorIcon />
             Add to Cursor
           </a>
           <CopyClaudeButton command={claudeCommand} />
-          <a href={llmsMarkdownHref} target="_blank" rel="noopener noreferrer" style={pageLinkStyle}>
+          <a href={llmsMarkdownHref} target="_blank" rel="noopener noreferrer" style={pageLinkStyle} onClick={() => posthog.capture("docs_view_markdown", { page: pathname })}>
             View as Markdown
           </a>
         </div>

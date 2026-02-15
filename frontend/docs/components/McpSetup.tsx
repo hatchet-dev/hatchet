@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 import { CodeBlock } from "./code/CodeBlock";
 import { Button } from "./ui/button";
 
@@ -14,21 +15,23 @@ const tabLabelStyle: React.CSSProperties = {
 function ThemedIcon({ src }: { src: string }) {
   return (
     <span
-      style={{
-        display: "inline-block",
-        width: 16,
-        height: 16,
-        flexShrink: 0,
-        backgroundColor: "currentColor",
-        WebkitMaskImage: `url(${src})`,
-        WebkitMaskSize: "contain",
-        WebkitMaskRepeat: "no-repeat",
-        WebkitMaskPosition: "center",
-        maskImage: `url(${src})`,
-        maskSize: "contain",
-        maskRepeat: "no-repeat",
-        maskPosition: "center",
-      } as React.CSSProperties}
+      style={
+        {
+          display: "inline-block",
+          width: 16,
+          height: 16,
+          flexShrink: 0,
+          backgroundColor: "currentColor",
+          WebkitMaskImage: `url(${src})`,
+          WebkitMaskSize: "contain",
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          maskImage: `url(${src})`,
+          maskSize: "contain",
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+        } as React.CSSProperties
+      }
     />
   );
 }
@@ -106,7 +109,17 @@ export function CursorDeeplinkButton() {
 
   return (
     <Button variant="outline" size="lg" asChild>
-      <a href={deeplink} className="no-underline flex items-center gap-2">
+      <a
+        href={deeplink}
+        className="no-underline flex items-center gap-2"
+        onClick={() =>
+          posthog.capture("mcp_install_click", {
+            editor: "cursor",
+            method: "deeplink_button",
+            page: "ai-editor-setup",
+          })
+        }
+      >
         <ThemedIcon src="/cursor-logo.svg" />
         Install MCP Server in Cursor
       </a>
@@ -137,4 +150,3 @@ export function ClaudeCodeCommand() {
     />
   );
 }
-
