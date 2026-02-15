@@ -17,6 +17,7 @@ export const workflowStepOptions = {
   profile: { value: 'profile', label: 'Set your profile' },
   quickstart: { value: 'quickstart', label: 'Project quickstart' },
   runTask: { value: 'runTask', label: 'Run a task' },
+  aiDocs: { value: 'aiDocs', label: 'Install Docs MCP (optional)' },
 } as const;
 
 export const workflowLanguageOptions = {
@@ -314,6 +315,46 @@ export function LearnWorkflowSection({
             </p>
           </div>
 
+          <Button
+            variant="outline"
+            size="default"
+            className="w-fit gap-2 bg-muted/70"
+            onClick={() =>
+              onSelectedTabChange(workflowStepOptions.aiDocs.value)
+            }
+          >
+            Continue
+            <ChevronRightIcon className="size-3 text-foreground/50" />
+          </Button>
+        </>
+      ),
+    },
+    {
+      ...workflowStepOptions.aiDocs,
+      content: (
+        <>
+          <p className="text-sm">
+            Get Hatchet documentation directly in your AI coding assistant
+            (Cursor, Claude Code, Claude Desktop, and more).
+          </p>
+          <CodeHighlighter
+            className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+            code={`hatchet docs install`}
+            language="shell"
+            copy
+          />
+          <p className="text-sm text-muted-foreground">
+            See the{' '}
+            <a
+              href="https://docs.hatchet.run/home/ai-editor-setup"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              full setup guide
+            </a>{' '}
+            for manual configuration options.
+          </p>
           <Button
             variant="outline"
             size="default"
