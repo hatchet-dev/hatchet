@@ -329,11 +329,11 @@ module Hatchet
 
       args[:units] = rate_limit.units if rate_limit.respond_to?(:units)
 
-      # Always set duration (default MINUTE), matching Python SDK behavior
+      # Always set duration (default MINUTE)
       dur = rate_limit.respond_to?(:duration) && rate_limit.duration ? rate_limit.duration : :minute
       args[:duration] = duration_map[dur] || :SECOND
 
-      # Always set limit_values_expr (default "-1"), matching Python SDK behavior
+      # Always set limit_values_expr (default "-1")
       limit_val = rate_limit.respond_to?(:limit) && rate_limit.limit ? rate_limit.limit : -1
       args[:limit_values_expr] = limit_val.to_s
 

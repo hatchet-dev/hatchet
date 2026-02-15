@@ -49,7 +49,7 @@ module Hatchet
 
     private
 
-    # Fallback: poll via gRPC GetRunDetails (like Python SDK's sync path).
+    # Fallback: poll via gRPC GetRunDetails
     def poll_result_via_grpc
       retries = 0
 
