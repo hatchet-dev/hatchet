@@ -454,7 +454,18 @@ module Hatchet
         start_time = Time.now
 
         loop do
-          run = get(workflow_run_id)
+          begin
+            run = get(workflow_run_id)
+          rescue HatchetSdkRest::ApiError => e
+            raise unless e.code == 404
+
+            # Run may not be available via REST API yet after gRPC trigger
+            raise Timeout::Error, "Polling timed out after #{timeout} seconds" if timeout && (Time.now - start_time) >= timeout
+
+            sleep(interval)
+            next
+          end
+
           status = run.status
 
           return run if terminal_status?(status)
