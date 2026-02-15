@@ -61,8 +61,8 @@ module Hatchet
       # Register workflows with the server
       register_workflows
 
-      # Start the health check server
-      start_health_check
+      # Start the health check server if enabled
+      start_health_check if @client.config.healthcheck.enabled
 
       # Start the action listener loop
       run_action_listener
