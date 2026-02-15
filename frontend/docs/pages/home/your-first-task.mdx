@@ -15,7 +15,7 @@ Start by declaring a task with a name. The task object can declare additional ta
 
 The returned object is an instance of the `Task` class, which is the primary interface for interacting with the task (i.e. [running](./run-with-results.mdx), [enqueuing](./run-no-wait.mdx), [scheduling](./scheduled-runs.mdx), etc).
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.quickstart.workflows.first_task.simple_task} />
@@ -25,6 +25,9 @@ The returned object is an instance of the `Task` class, which is the primary int
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 <Snippet src={snippets.go.simple.main.declaring_a_task} />
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+<Snippet src={snippets.ruby.quickstart.workflows.first_task.simple_task} />
 </Tabs.Tab>
 </UniversalTabs>
 
@@ -38,7 +41,7 @@ With your task defined, you can import it wherever you need to use it and invoke
   worker but it will wait indefinitely for the task to be executed.
 </Callout>
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.quickstart.run.run_a_task} />
@@ -49,6 +52,9 @@ With your task defined, you can import it wherever you need to use it and invoke
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 <Snippet src={snippets.go.simple.main.running_a_task} />
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+<Snippet src={snippets.ruby.quickstart.run.run_a_task} />
 </Tabs.Tab>
 </UniversalTabs>
 

@@ -16,6 +16,7 @@ class SDKS(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     GO: _ClassVar[SDKS]
     PYTHON: _ClassVar[SDKS]
     TYPESCRIPT: _ClassVar[SDKS]
+    RUBY: _ClassVar[SDKS]
 
 class ActionType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -61,6 +62,7 @@ UNKNOWN: SDKS
 GO: SDKS
 PYTHON: SDKS
 TYPESCRIPT: SDKS
+RUBY: SDKS
 START_STEP_RUN: ActionType
 CANCEL_STEP_RUN: ActionType
 START_GET_GROUP_KEY: ActionType

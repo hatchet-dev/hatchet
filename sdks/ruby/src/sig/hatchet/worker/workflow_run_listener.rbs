@@ -1,0 +1,11 @@
+module Hatchet
+  class WorkflowRunListener
+    RETRY_INTERVAL: Integer
+    MAX_RETRIES: Integer
+    DEDUPE_MESSAGE: String
+
+    def initialize: (config: Config, channel: untyped) -> void
+    def result: (String workflow_run_id) -> Hash[String, untyped]
+    def shutdown: () -> void
+  end
+end

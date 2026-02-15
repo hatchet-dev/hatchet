@@ -33,7 +33,7 @@ There are two strategies for setting sticky assignment for [DAG](./dags.mdx) wor
 - `SOFT`: All tasks in the workflow will attempt to be assigned to the same worker, but if that worker is unavailable, it will be assigned to another worker.
 - `HARD`: All taks in the workflow will only be assigned to the same worker. If that worker is unavailable, the workflow run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](./timeouts.mdx#task-level-timeouts))
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.sticky_workers.worker.sticky_worker} />
@@ -47,6 +47,9 @@ There are two strategies for setting sticky assignment for [DAG](./dags.mdx) wor
   <Tabs.Tab>
 
 <Snippet src={snippets.go.sticky_workers.main.sticky_dag} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.sticky_workers.worker.sticky_worker} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -63,7 +66,7 @@ However, the child task must:
 
 If either condition is not met, an error will be thrown when the child task is spawned.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.sticky_workers.worker.sticky_child} />
@@ -78,5 +81,8 @@ If either condition is not met, an error will be thrown when the child task is s
 
 <Snippet src={snippets.go.sticky_workers.main.sticky_child} />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.sticky_workers.worker.sticky_child} />
   </Tabs.Tab>
 </UniversalTabs>
