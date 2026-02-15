@@ -40,9 +40,6 @@ Use "hatchet docs install" to configure your AI editor.`,
   # Configure for Claude Code
   hatchet docs install claude-code
 
-  # Show Claude Desktop config
-  hatchet docs install claude-desktop
-
   # Use a custom MCP URL (self-hosted)
   hatchet docs install cursor --url https://my-hatchet.example.com/api/mcp`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -55,7 +52,7 @@ var docsInstallCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install Hatchet docs into an AI editor",
 	Long: `Configure Hatchet documentation as an MCP (Model Context Protocol) server
-for AI editors like Cursor, Claude Code, and Claude Desktop.`,
+for AI editors like Cursor and Claude Code.`,
 	Example: `  # Interactive — pick your editor
   hatchet docs install
 
