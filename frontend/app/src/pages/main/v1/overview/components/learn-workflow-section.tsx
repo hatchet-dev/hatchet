@@ -346,7 +346,7 @@ export function LearnWorkflowSection({
           <p className="text-sm text-muted-foreground">
             See the{' '}
             <a
-              href="https://docs.hatchet.run/home/ai-editor-setup"
+              href="https://docs.hatchet.run/home/install-docs-mcp"
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:text-foreground"

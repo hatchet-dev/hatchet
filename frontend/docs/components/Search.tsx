@@ -92,20 +92,35 @@ function useIsMac() {
 // ---------------------------------------------------------------------------
 // Highlight matches in text
 // ---------------------------------------------------------------------------
+/** Max number of words used for highlight regex (ReDoS prevention). */
+const HIGHLIGHT_MAX_WORDS = 16;
+/** Max total character length for the combined regex pattern. */
+const HIGHLIGHT_MAX_PATTERN_LEN = 256;
+
 function HighlightMatches({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
 
   try {
-    // Build regex from individual query words for better highlighting
-    const words = query
+    // Build regex from individual query words for better highlighting.
+    // Limit the number of words and total pattern length to prevent ReDoS.
+    let words = query
       .trim()
       .split(/\s+/)
       .filter((w) => w.length > 1)
-      .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .slice(0, HIGHLIGHT_MAX_WORDS);
     if (words.length === 0) return <>{text}</>;
 
-    const re = new RegExp(`(${words.join("|")})`, "i");
-    const parts = text.split(new RegExp(`(${words.join("|")})`, "ig"));
+    // Trim the word list further if the joined pattern exceeds the length cap.
+    let pattern = words.join("|");
+    while (pattern.length > HIGHLIGHT_MAX_PATTERN_LEN && words.length > 1) {
+      words = words.slice(0, -1);
+      pattern = words.join("|");
+    }
+    if (pattern.length > HIGHLIGHT_MAX_PATTERN_LEN) return <>{text}</>;
+
+    const re = new RegExp(`(${pattern})`, "i");
+    const parts = text.split(new RegExp(`(${pattern})`, "ig"));
     return (
       <>
         {parts.map((part, i) =>
@@ -207,9 +222,16 @@ export default function Search({ className }: { className?: string }) {
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
-  // Eagerly start loading the index when the component mounts
-  useEffect(() => {
-    loadIndex().then(() => setIndexReady(true));
+  // Lazy-load the search index on first interaction (focus / open) rather
+  // than on every page load.  The search-query effect below already handles
+  // the case where the index isn't ready yet, so this is purely a preload
+  // optimisation that fires as soon as the user clicks into the search box.
+  const preloadTriggered = useRef(false);
+  const preloadIndex = useCallback(() => {
+    if (!preloadTriggered.current) {
+      preloadTriggered.current = true;
+      loadIndex().then(() => setIndexReady(true));
+    }
   }, []);
 
   // Run the search when the query changes
@@ -263,16 +285,18 @@ export default function Search({ className }: { className?: string }) {
         )
       ) {
         e.preventDefault();
+        preloadIndex();
         inputRef.current?.focus();
       }
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
+        preloadIndex();
         inputRef.current?.focus();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [preloadIndex]);
 
   // Close on outside click
   useEffect(() => {
@@ -407,6 +431,7 @@ export default function Search({ className }: { className?: string }) {
           setActiveIndex(-1);
         }}
         onFocus={() => {
+          preloadIndex();
           setFocused(true);
           if (query.trim()) setIsOpen(true);
         }}

@@ -77,9 +77,22 @@ interface DocPage {
   section: string;
 }
 
+/**
+ * Parse a _meta.js file into a plain object.
+ *
+ * **Limitations:** This uses regex to convert simple JS object literals to
+ * JSON. It only supports _meta.js files that export a plain object with:
+ *   - Simple unquoted or quoted string keys (no computed `[expr]` keys)
+ *   - String or plain-object values (no function calls, template literals,
+ *     spread operators, or variable references)
+ *   - No inline or block comments
+ *
+ * If your _meta.js file uses any of these unsupported constructs, either
+ * simplify it or extend this parser (e.g. with @babel/parser + eval).
+ */
 function parseMetaJs(filepath: string): Record<string, any> {
-  let content = fs.readFileSync(filepath, "utf-8");
-  content = content.replace("export default ", "");
+  const raw = fs.readFileSync(filepath, "utf-8");
+  let content = raw.replace("export default ", "");
   // Quote unquoted object keys for JSON parsing
   const pattern = /^(\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:/gm;
   content = content.replace(pattern, '$1"$2":');
@@ -87,7 +100,20 @@ function parseMetaJs(filepath: string): Record<string, any> {
   content = content.replace(pattern, '$1"$2":');
   // Remove trailing commas before closing braces
   content = content.replace(/,(\s*\n?\s*})(\s*);?/g, "$1");
-  return JSON.parse(content);
+
+  try {
+    return JSON.parse(content);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to parse _meta.js at ${filepath}: ${message}.\n` +
+        `The regex-based parser only supports simple object literals ` +
+        `(no computed keys, spread operators, comments, or expressions). ` +
+        `Simplify the file or switch to a proper JS parser.\n` +
+        `--- transformed content ---\n${content}`,
+    );
+  }
 }
 
 function isDocPage(key: string, value: any): boolean {
@@ -475,7 +501,15 @@ function resolveMdxComponentImports(
   languages: string[] | null,
   depth: number = 0,
 ): string {
-  if (depth > 10) return text; // guard against infinite recursion
+  if (depth > 10) {
+    console.warn(
+      `[generate-llms] resolveMdxComponentImports: recursion depth limit ` +
+        `(10) reached while processing "${filepath}". This likely indicates ` +
+        `circular MDX imports. The remaining component references will not ` +
+        `be resolved.`,
+    );
+    return text;
+  }
 
   const mdxImportPattern =
     /import\s+(\w+)\s+from\s+["']([^"']*\.mdx)["']/g;
