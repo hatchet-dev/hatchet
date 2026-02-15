@@ -9,9 +9,14 @@ RSpec.describe "OnFailureWorkflow" do
 
     expect { ref.result }.to raise_error(/step1 failed/)
 
-    sleep 5 # Wait for the on_failure job to finish
+    # Poll until both tasks are in a terminal state (replaces fixed sleep 5)
+    details = nil
+    30.times do
+      details = HATCHET.runs.get_details(ref.workflow_run_id)
+      break if details.tasks.length >= 2 && details.tasks.all? { |t| %w[COMPLETED FAILED].include?(t.status) }
 
-    details = HATCHET.runs.get_details(ref.workflow_run_id)
+      sleep 0.5
+    end
 
     expect(details.tasks.length).to eq(2)
 

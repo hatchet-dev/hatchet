@@ -56,19 +56,24 @@ RSpec.describe "BulkReplay" do
       }
     )
 
-    sleep 10
-
-    runs = HATCHET.runs.list(
-      workflow_ids: workflow_ids,
-      additional_metadata: { "test_run_id" => test_run_id },
-      limit: 1000
-    )
-
     total_expected = (n + 1) + (n / 2 - 1) + (n / 2 - 2)
-    expect(runs.rows.length).to eq(total_expected)
 
-    runs.rows.each do |run|
-      expect(run.status).to eq("COMPLETED")
+    # Poll until all runs are completed instead of a fixed sleep
+    30.times do
+      runs = HATCHET.runs.list(
+        workflow_ids: workflow_ids,
+        additional_metadata: { "test_run_id" => test_run_id },
+        limit: 1000
+      )
+
+      all_completed = runs.rows.length == total_expected && runs.rows.all? { |r| r.status == "COMPLETED" }
+      if all_completed
+        expect(runs.rows.length).to eq(total_expected)
+        runs.rows.each { |run| expect(run.status).to eq("COMPLETED") }
+        break
+      end
+
+      sleep 1
     end
   end
 end

@@ -31,16 +31,20 @@ RSpec.describe "ConcurrencyCancelNewest" do
     to_run.result
     to_cancel.each { |ref| ref.result rescue nil }
 
-    # Wait for the OLAP repo to catch up
-    sleep 5
+    # Poll until the OLAP repo has caught up (replaces fixed sleep 5)
+    all_runs = nil
+    30.times do
+      all_runs = HATCHET.runs.list(
+        additional_metadata: { "test_run_id" => test_run_id },
+        limit: 100
+      ).rows
+      break if all_runs.length >= 11
+
+      sleep 0.5
+    end
 
     successful_run = HATCHET.runs.get(to_run.workflow_run_id)
     expect(successful_run.status).to eq("COMPLETED")
-
-    all_runs = HATCHET.runs.list(
-      additional_metadata: { "test_run_id" => test_run_id },
-      limit: 100
-    ).rows
 
     # Filter to workflow-level runs only
     workflow_runs = all_runs.reject { |r| r.respond_to?(:type) && r.type == "TASK" }

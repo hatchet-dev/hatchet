@@ -39,6 +39,12 @@ module Hatchet
       # Background reader thread (lazy-started)
       @reader_thread = nil
       @started = false
+
+      # Track whether we are reconnecting (so build_request_enumerator knows
+      # whether to re-subscribe active IDs).  On the initial connection the
+      # caller pushes the subscription via @request_queue, so we must NOT
+      # also yield it from the re-subscribe loop.
+      @reconnecting = false
     end
 
     # Subscribe to a workflow run and block until it finishes.
@@ -46,14 +52,14 @@ module Hatchet
     # Returns the result hash keyed by task readable_id, e.g.
     #   {"step1" => {"value" => 42}, "step2" => {...}}
     #
+    # Blocks indefinitely until the run reaches a terminal state.
+    #
     # @param workflow_run_id [String]
-    # @param timeout [Integer] Max seconds to wait (default 300)
     # @return [Hash] Task results keyed by task name
     # @raise [FailedRunError] if the run failed
     # @raise [DedupeViolationError] if a dedupe violation occurred
-    # @raise [Timeout::Error] if the timeout expires
-    def result(workflow_run_id, timeout: 300)
-      event = subscribe(workflow_run_id, timeout: timeout)
+    def result(workflow_run_id)
+      event = subscribe(workflow_run_id)
       parse_event(event)
     end
 
@@ -67,10 +73,11 @@ module Hatchet
 
     # Subscribe to a single workflow run and block until the event arrives.
     #
+    # Blocks indefinitely until the event arrives.
+    #
     # @param workflow_run_id [String]
-    # @param timeout [Integer]
     # @return [WorkflowRunEvent]
-    def subscribe(workflow_run_id, timeout: 300)
+    def subscribe(workflow_run_id)
       subscriber_queue = Queue.new
 
       @mu.synchronize do
@@ -84,22 +91,8 @@ module Hatchet
         workflow_run_id: workflow_run_id,
       )
 
-      # Block until we receive the event or timeout
-      deadline = Time.now + timeout
-      loop do
-        remaining = deadline - Time.now
-        raise Timeout::Error, "Timed out waiting for workflow run #{workflow_run_id}" if remaining <= 0
-
-        # Use pop with timeout via a polling approach (Ruby Queue#pop doesn't
-        # support timeout natively, so we use non_block + sleep)
-        begin
-          event = subscriber_queue.pop(true) # non-blocking
-          return event
-        rescue ThreadError
-          # Queue is empty, sleep briefly and retry
-          sleep(0.01)
-        end
-      end
+      # Block until we receive the event (blocking pop)
+      subscriber_queue.pop
     ensure
       # Clean up this subscription
       @mu.synchronize do
@@ -178,18 +171,23 @@ module Hatchet
             route_event(event)
           end
 
-          # Stream ended normally (server closed). Reconnect.
+          # Stream ended normally (server closed). Mark as reconnecting so
+          # that the next build_request_enumerator re-subscribes active IDs.
+          @mu.synchronize { @reconnecting = true }
           @logger.debug("WorkflowRunListener stream ended, reconnecting...")
         rescue ::GRPC::Unavailable => e
+          @mu.synchronize { @reconnecting = true }
           @logger.warn("WorkflowRunListener gRPC unavailable: #{e.message}")
         rescue ::GRPC::Cancelled => e
           @logger.debug("WorkflowRunListener gRPC cancelled: #{e.message}")
           break # intentional shutdown
         rescue ::GRPC::Unknown => e
+          @mu.synchronize { @reconnecting = true }
           @logger.warn("WorkflowRunListener gRPC unknown error: #{e.message}")
         rescue StopIteration
           break # queue closed
         rescue StandardError => e
+          @mu.synchronize { @reconnecting = true }
           @logger.warn("WorkflowRunListener error: #{e.class}: #{e.message}")
         end
 
@@ -204,17 +202,25 @@ module Hatchet
       # Close all remaining subscriptions with an error
       @mu.synchronize do
         @started = false
+        @reconnecting = false
       end
     end
 
-    # Build an Enumerator that first re-subscribes existing workflow_run_ids,
-    # then yields new requests from the queue.
+    # Build an Enumerator that yields subscription requests.
+    # On reconnect, re-subscribes all active workflow_run_ids first so they
+    # are not lost when the stream drops.  On the initial connection the
+    # caller pushes subscriptions via @request_queue, so we skip the
+    # re-subscribe step to avoid sending duplicates.
     def build_request_enumerator
       Enumerator.new do |yielder|
-        # Re-subscribe all currently active subscriptions
-        active_ids = @mu.synchronize { @subscriptions.keys.dup }
-        active_ids.each do |wfr_id|
-          yielder << ::SubscribeToWorkflowRunsRequest.new(workflow_run_id: wfr_id)
+        # Only re-subscribe on reconnect (not on initial connection)
+        reconnecting = @mu.synchronize { @reconnecting }
+        if reconnecting
+          active_ids = @mu.synchronize { @subscriptions.keys.dup }
+          active_ids.each do |wfr_id|
+            yielder << ::SubscribeToWorkflowRunsRequest.new(workflow_run_id: wfr_id)
+          end
+          @mu.synchronize { @reconnecting = false }
         end
 
         # Then yield new requests as they arrive on the queue

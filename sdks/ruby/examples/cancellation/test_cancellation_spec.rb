@@ -7,19 +7,9 @@ RSpec.describe "CancelWorkflow" do
   it "cancels a workflow run" do
     ref = CANCELLATION_WORKFLOW.run_no_wait
 
-    # Sleep for a long time since we only need cancellation to happen eventually
-    sleep 10
+    # Poll until the run reaches a terminal state (replaces fixed sleep 10 + polling loop)
+    run = HATCHET.runs.poll(ref.workflow_run_id, interval: 1.0, timeout: 60)
 
-    30.times do
-      run = HATCHET.runs.get(ref.workflow_run_id)
-
-      if run.status == "RUNNING"
-        sleep 1
-        next
-      end
-
-      expect(run.status).to eq("CANCELLED")
-      break
-    end
+    expect(run.status).to eq("CANCELLED")
   end
 end

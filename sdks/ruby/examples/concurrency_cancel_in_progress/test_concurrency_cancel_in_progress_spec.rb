@@ -25,10 +25,14 @@ RSpec.describe "ConcurrencyCancelInProgress" do
       ref.result rescue nil
     end
 
-    # Wait for the OLAP repo to catch up
-    sleep 5
+    # Poll until the OLAP repo has caught up (replaces fixed sleep 5)
+    all_rows = nil
+    30.times do
+      all_rows = HATCHET.runs.list(additional_metadata: { "test_run_id" => test_run_id }, limit: 100).rows
+      break if all_rows.length >= 10
 
-    all_rows = HATCHET.runs.list(additional_metadata: { "test_run_id" => test_run_id }, limit: 100).rows
+      sleep 0.5
+    end
     # Filter to workflow-level runs only (exclude individual task runs)
     runs = all_rows.reject { |r| r.respond_to?(:type) && r.type == "TASK" }
     runs.sort_by! { |r| (r.additional_metadata || {})["i"].to_i }

@@ -5,7 +5,7 @@ module Hatchet
     DEDUPE_MESSAGE: String
 
     def initialize: (config: Config, channel: untyped) -> void
-    def result: (String workflow_run_id, ?timeout: Integer) -> Hash[String, untyped]
+    def result: (String workflow_run_id) -> Hash[String, untyped]
     def shutdown: () -> void
   end
 end

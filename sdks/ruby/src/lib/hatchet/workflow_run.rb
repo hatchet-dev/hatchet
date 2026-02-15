@@ -31,17 +31,16 @@ module Hatchet
     # Uses the pooled gRPC `SubscribeToWorkflowRuns` listener when available.
     # Falls back to gRPC `GetRunDetails` polling otherwise.
     #
-    # @param timeout [Integer] Maximum seconds to wait (default: 300)
+    #
     # @return [Hash] The workflow run output keyed by task readable_id
     # @raise [Hatchet::FailedRunError] if the workflow run failed
-    # @raise [Timeout::Error] if the timeout is exceeded
-    def result(timeout: 300)
+    def result
       return @result if @resolved
 
       @result = if @listener
-                  @listener.result(@workflow_run_id, timeout: timeout)
+                  @listener.result(@workflow_run_id)
                 else
-                  poll_result_via_grpc(timeout)
+                  poll_result_via_grpc
                 end
 
       @resolved = true
@@ -51,13 +50,10 @@ module Hatchet
     private
 
     # Fallback: poll via gRPC GetRunDetails (like Python SDK's sync path).
-    def poll_result_via_grpc(timeout)
-      deadline = Time.now + timeout
+    def poll_result_via_grpc
       retries = 0
 
       loop do
-        raise Timeout::Error, "Timed out waiting for workflow run #{@workflow_run_id}" if Time.now > deadline
-
         begin
           response = @client.admin_grpc.get_run_details(external_id: @workflow_run_id)
         rescue StandardError
@@ -121,12 +117,10 @@ module Hatchet
 
     # Block until the task completes and return the extracted task output
     #
-    # @param timeout [Integer] Maximum seconds to wait (default: 300)
     # @return [Hash] The task output
     # @raise [Hatchet::FailedRunError] if the workflow run failed
-    # @raise [Timeout::Error] if the timeout is exceeded
-    def result(timeout: 300)
-      full_result = @workflow_run_ref.result(timeout: timeout)
+    def result
+      full_result = @workflow_run_ref.result
       return full_result unless full_result.is_a?(Hash)
 
       full_result[@task_name] || full_result
