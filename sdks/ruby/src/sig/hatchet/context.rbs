@@ -1,0 +1,42 @@
+module Hatchet
+  class Context
+    attr_reader workflow_run_id: String
+    attr_reader step_run_id: String
+    attr_reader additional_metadata: Hash[String, untyped]
+    attr_reader retry_count: Integer
+    attr_reader attempt_number: Integer
+    attr_reader lifespan: untyped
+    attr_reader priority: Integer?
+    attr_reader filter_payload: Hash[String, untyped]?
+    attr_reader exit_flag: bool
+    attr_accessor deps: Hash[Symbol, untyped]
+
+    def initialize: (
+      workflow_run_id: String,
+      step_run_id: String,
+      ?action: untyped,
+      ?client: Client?,
+      ?dispatcher_client: Clients::Grpc::Dispatcher?,
+      ?event_client: Clients::Grpc::EventClient?,
+      ?additional_metadata: Hash[String, untyped],
+      ?retry_count: Integer,
+      ?lifespan: untyped,
+      ?parent_outputs: Hash[String, untyped],
+      ?deps: Hash[Symbol, untyped],
+      ?priority: Integer?,
+      ?filter_payload: Hash[String, untyped]?,
+      ?worker_context: WorkerContext?
+    ) -> void
+
+    def task_output: (Task | Symbol | String task_ref) -> Hash[String, untyped]?
+    def was_skipped?: (Task | Symbol | String task_ref) -> bool
+    def log: (String | Hash[String, untyped] message) -> void
+    def cancel: () -> void
+    def refresh_timeout: (Integer | String duration) -> void
+    def release_slot: () -> void
+    def put_stream: (String data) -> void
+    def task_run_errors: () -> Array[TaskRunError]
+    def get_task_run_error: (Task | Symbol | String task_ref) -> TaskRunError?
+    def worker: () -> WorkerContext?
+  end
+end

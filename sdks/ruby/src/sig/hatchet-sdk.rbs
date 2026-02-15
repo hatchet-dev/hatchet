@@ -1,48 +1,17 @@
-# Standard library classes
-class Logger
-end
-
-class Time
-  def self.now: () -> Time
-  def utc: () -> Time
-  def iso8601: () -> String
-  def -: (Numeric) -> Time
-  def >=: (Time) -> bool
-end
-
-type Numeric = Integer | Float
-
 module Hatchet
-  VERSION: String
-
   class Error < StandardError
   end
+
+  # Create an OR condition group
+  def self.or_: (*untyped conditions) -> OrCondition
 
   class Client
     attr_reader config: Config
 
-    def self.new: (
-      ?token: String,
-      ?host_port: String,
-      ?server_url: String,
-      ?namespace: String,
-      ?logger: Logger,
-      ?listener_v2_timeout: Integer,
-      ?grpc_max_recv_message_length: Integer,
-      ?grpc_max_send_message_length: Integer,
-      ?worker_preset_labels: Hash[String, String],
-      ?enable_force_kill_sync_threads: bool,
-      ?enable_thread_pool_monitoring: bool,
-      ?terminate_worker_after_num_tasks: Integer,
-      ?disable_log_capture: bool,
-      ?grpc_enable_fork_support: bool,
-      ?tls_config: TLSConfig,
-      ?healthcheck: HealthcheckConfig,
-      ?otel: OpenTelemetryConfig
-    ) -> instance
-
     def initialize: (
+      ?debug: bool,
       ?token: String,
+      ?tenant_id: String,
       ?host_port: String,
       ?server_url: String,
       ?namespace: String,
@@ -62,467 +31,65 @@ module Hatchet
     ) -> void
 
     def rest_client: () -> untyped
-    def events: () -> Hatchet::Features::Events
-    def runs: () -> Hatchet::Features::Runs
+    def events: () -> Features::Events
+    def runs: () -> Features::Runs
+    def tenant: () -> Features::Tenant
+    def logs: () -> Features::Logs
+    def workers: () -> Features::Workers
+    def cel: () -> Features::CEL
+    def workflows: () -> Features::Workflows
+    def filters: () -> Features::Filters
+    def metrics: () -> Features::Metrics
+    def rate_limits: () -> Features::RateLimits
+    def cron: () -> Features::Cron
+    def scheduled: () -> Features::Scheduled
+
+    def workflow: (name: String, **untyped opts) -> Workflow
+    def task: (name: String, **untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
+    def durable_task: (name: String, **untyped opts) { (Hash[String, untyped], DurableContext) -> untyped } -> Task
+    def worker: (String name, **untyped opts) -> Worker
+
+    def logger: () -> Logger
+    def tenant_id: () -> String
+    def channel: () -> untyped
+    def dispatcher_grpc: () -> Clients::Grpc::Dispatcher
+    def admin_grpc: () -> Clients::Grpc::Admin
+    def event_grpc: () -> Clients::Grpc::EventClient
+    def workflow_run_listener: () -> WorkflowRunListener
+    def admin: () -> AdminClient
   end
 
-  class Config
-    attr_accessor token: String
-    attr_reader tenant_id: String
-    attr_accessor host_port: String
-    attr_accessor server_url: String
-    attr_accessor namespace: String
-    attr_accessor logger: Logger
-    attr_accessor listener_v2_timeout: Integer?
-    attr_accessor grpc_max_recv_message_length: Integer
-    attr_accessor grpc_max_send_message_length: Integer
-    attr_accessor worker_preset_labels: Hash[String, String]
-    attr_accessor enable_force_kill_sync_threads: bool
-    attr_accessor enable_thread_pool_monitoring: bool
-    attr_accessor terminate_worker_after_num_tasks: Integer?
-    attr_accessor disable_log_capture: bool
-    attr_accessor grpc_enable_fork_support: bool
-    attr_accessor tls_config: TLSConfig
-    attr_accessor healthcheck: HealthcheckConfig
-    attr_accessor otel: OpenTelemetryConfig
+  class AdminClient
+    def initialize: (client: Client) -> void
 
-    def self.new: (
-      ?token: String,
-      ?host_port: String,
-      ?server_url: String,
-      ?namespace: String,
-      ?logger: Logger,
-      ?listener_v2_timeout: Integer,
-      ?grpc_max_recv_message_length: Integer,
-      ?grpc_max_send_message_length: Integer,
-      ?worker_preset_labels: Hash[String, String],
-      ?enable_force_kill_sync_threads: bool,
-      ?enable_thread_pool_monitoring: bool,
-      ?terminate_worker_after_num_tasks: Integer,
-      ?disable_log_capture: bool,
-      ?grpc_enable_fork_support: bool,
-      ?tls_config: TLSConfig,
-      ?healthcheck: HealthcheckConfig,
-      ?otel: OpenTelemetryConfig
-    ) -> instance
+    def trigger_workflow: (
+      Workflow | Task | String workflow_or_task,
+      Hash[String, untyped] input,
+      ?options: TriggerWorkflowOptions?
+    ) -> Hash[String, untyped]
 
-    def initialize: (
-      ?token: String,
-      ?host_port: String,
-      ?server_url: String,
-      ?namespace: String,
-      ?logger: Logger,
-      ?listener_v2_timeout: Integer,
-      ?grpc_max_recv_message_length: Integer,
-      ?grpc_max_send_message_length: Integer,
-      ?worker_preset_labels: Hash[String, String],
-      ?enable_force_kill_sync_threads: bool,
-      ?enable_thread_pool_monitoring: bool,
-      ?terminate_worker_after_num_tasks: Integer,
-      ?disable_log_capture: bool,
-      ?grpc_enable_fork_support: bool,
-      ?tls_config: TLSConfig,
-      ?healthcheck: HealthcheckConfig,
-      ?otel: OpenTelemetryConfig
-    ) -> void
+    def trigger_workflow_no_wait: (
+      Workflow | Task | String workflow_or_task,
+      Hash[String, untyped] input,
+      ?options: TriggerWorkflowOptions?
+    ) -> WorkflowRunRef
 
-    def apply_namespace: (String? resource_name, ?namespace_override: String?) -> String?
-    def hash: () -> Integer
-    def to_h: () -> Hash[Symbol, untyped]
-  end
+    def trigger_workflow_many: (
+      Workflow | Task | String workflow_or_task,
+      Array[Hash[Symbol, untyped]] items,
+      ?return_exceptions: bool
+    ) -> Array[untyped]
 
-  class TLSConfig
-    attr_accessor strategy: String
-    attr_accessor cert_file: String?
-    attr_accessor key_file: String?
-    attr_accessor root_ca_file: String?
-    attr_accessor server_name: String
+    def trigger_workflow_many_no_wait: (
+      Workflow | Task | String workflow_or_task,
+      Array[Hash[Symbol, untyped]] items
+    ) -> Array[WorkflowRunRef]
 
-    def self.new: (
-      ?strategy: String,
-      ?cert_file: String,
-      ?key_file: String,
-      ?root_ca_file: String,
-      ?server_name: String
-    ) -> instance
-
-    def initialize: (
-      ?strategy: String,
-      ?cert_file: String,
-      ?key_file: String,
-      ?root_ca_file: String,
-      ?server_name: String
-    ) -> void
-  end
-
-  class HealthcheckConfig
-    attr_accessor port: Integer
-    attr_accessor enabled: bool
-
-    def self.new: (?port: Integer, ?enabled: bool) -> instance
-    def initialize: (?port: Integer, ?enabled: bool) -> void
-  end
-
-  class OpenTelemetryConfig
-    attr_accessor excluded_attributes: Array[String]
-
-    def self.new: (?excluded_attributes: Array[String]) -> instance
-    def initialize: (?excluded_attributes: Array[String]) -> void
-  end
-end
-
-module Hatchet
-  module Features
-    # Filter options for listing task runs
-    class RunFilter
-      attr_accessor since: Time
-      attr_accessor until_time: Time?
-      attr_accessor statuses: Array[untyped]?
-      attr_accessor workflow_ids: Array[String]?
-      attr_accessor additional_metadata: Hash[String, String]?
-
-      def initialize: (
-        since: Time,
-        ?until_time: Time?,
-        ?statuses: Array[untyped]?,
-        ?workflow_ids: Array[String]?,
-        ?additional_metadata: Hash[String, String]?
-      ) -> void
-    end
-
-    # Options for bulk cancel and replay operations
-    class BulkCancelReplayOpts
-      attr_accessor ids: Array[String]?
-      attr_accessor filters: RunFilter?
-
-      def initialize: (
-        ?ids: Array[String]?,
-        ?filters: RunFilter?
-      ) -> void
-
-      def v1_task_filter: () -> untyped?
-      def to_cancel_request: () -> untyped
-      def to_replay_request: () -> untyped
-    end
-
-    class Events
-      # Re-exported classes from HatchetSdkRest for convenience
-      CreateEventRequest: Class
-      BulkCreateEventRequest: Class
-      EventList: Class
-
-      def self.new: (untyped rest_client, Hatchet::Config config) -> instance
-      def initialize: (untyped rest_client, Hatchet::Config config) -> void
-
-      def create: (
-        key: String,
-        data: Hash[String, untyped],
-        ?additional_metadata: Hash[String, String]?,
-        ?priority: Integer?,
-        ?scope: String?,
-        ?namespace: String?
-      ) -> untyped
-
-      def push: (
-        String event_key,
-        Hash[String, untyped] payload,
-        ?additional_metadata: Hash[String, String]?,
-        ?namespace: String?,
-        ?priority: Integer?
-      ) -> untyped
-
-      def bulk_push: (
-        Array[Hash[Symbol, untyped]] events,
-        ?namespace: String?
-      ) -> untyped
-
-      def list: (
-        ?offset: Integer?,
-        ?limit: Integer?,
-        ?keys: Array[String]?,
-        ?since: Time?,
-        ?until_time: Time?,
-        ?workflow_ids: Array[String]?,
-        ?workflow_run_statuses: Array[String]?,
-        ?event_ids: Array[String]?,
-        ?additional_metadata: Hash[String, String]?,
-        ?scopes: Array[String]?
-      ) -> untyped
-
-      def get: (String event_id) -> untyped
-      def get_data: (String event_id) -> untyped
-      def list_keys: () -> untyped
-
-      def cancel: (
-        ?event_ids: Array[String]?,
-        ?keys: Array[String]?,
-        ?since: Time?,
-        ?until_time: Time?
-      ) -> untyped
-
-      def replay: (
-        ?event_ids: Array[String]?,
-        ?keys: Array[String]?,
-        ?since: Time?,
-        ?until_time: Time?
-      ) -> untyped
-    end
-
-    class Runs
-      # Re-exported classes from HatchetSdkRest for convenience
-      TriggerWorkflowRunRequest: Class
-      WorkflowRunDetails: Class
-      TaskSummary: Class
-      TaskSummaryList: Class
-      TaskStatus: Class
-
-      def self.new: (untyped rest_client, Hatchet::Config config) -> instance
-      def initialize: (untyped rest_client, Hatchet::Config config) -> void
-
-      def get_task_run: (String task_run_id) -> untyped
-      def get: (String workflow_run_id) -> untyped
-      def get_status: (String workflow_run_id) -> untyped
-
-      def list_with_pagination: (
-        ?since: Time?,
-        ?only_tasks: bool,
-        ?offset: Integer?,
-        ?limit: Integer?,
-        ?statuses: Array[untyped]?,
-        ?until_time: Time?,
-        ?additional_metadata: Hash[String, String]?,
-        ?workflow_ids: Array[String]?,
-        ?worker_id: String?,
-        ?parent_task_external_id: String?,
-        ?triggering_event_external_id: String?
-      ) -> Array[untyped]
-
-      def list: (
-        ?since: Time?,
-        ?only_tasks: bool,
-        ?offset: Integer?,
-        ?limit: Integer?,
-        ?statuses: Array[untyped]?,
-        ?until_time: Time?,
-        ?additional_metadata: Hash[String, String]?,
-        ?workflow_ids: Array[String]?,
-        ?worker_id: String?,
-        ?parent_task_external_id: String?,
-        ?triggering_event_external_id: String?
-      ) -> untyped
-
-      def create: (
-        name: String,
-        input: Hash[String, untyped],
-        ?additional_metadata: Hash[String, untyped]?,
-        ?priority: Integer?
-      ) -> untyped
-
-      def replay: (String run_id) -> void
-      def bulk_replay: (BulkCancelReplayOpts opts) -> void
-      def cancel: (String run_id) -> void
-      def bulk_cancel: (BulkCancelReplayOpts opts) -> void
-      def get_result: (String run_id) -> Hash[String, untyped]
-
-      def poll: (
-        String workflow_run_id,
-        ?interval: Numeric,
-        ?timeout: Numeric?
-      ) -> untyped
-    end
-  end
-end
-
-# External module from the generated REST client
-module HatchetSdkRest
-  class CreateEventRequest
-    attr_accessor key: String?
-    attr_accessor data: Hash[String, untyped]?
-    attr_accessor additional_metadata: Hash[String, untyped]?
-    attr_accessor priority: Integer?
-    attr_accessor scope: String?
-
-    def self.new: (
-      ?key: String,
-      ?data: Hash[String, untyped],
-      ?additional_metadata: Hash[String, untyped],
-      ?priority: Integer,
-      ?scope: String
-    ) -> instance
-
-    def initialize: (
-      ?key: String,
-      ?data: Hash[String, untyped],
-      ?additional_metadata: Hash[String, untyped],
-      ?priority: Integer,
-      ?scope: String
-    ) -> void
-  end
-
-  class BulkCreateEventRequest
-    attr_accessor events: Array[CreateEventRequest]?
-
-    def self.new: (?events: Array[CreateEventRequest]) -> instance
-    def initialize: (?events: Array[CreateEventRequest]) -> void
-  end
-
-  class V1EventList
-    attr_accessor rows: Array[untyped]?
-    attr_accessor pagination: untyped?
-
-    def self.new: (?rows: Array[untyped], ?pagination: untyped) -> instance
-    def initialize: (?rows: Array[untyped], ?pagination: untyped) -> void
-  end
-
-  class CancelEventRequest
-    attr_accessor event_ids: Array[String]?
-    attr_accessor keys: Array[String]?
-    attr_accessor since: String?
-    attr_accessor until: String?
-
-    def self.new: (
-      ?event_ids: Array[String],
-      ?keys: Array[String],
-      ?since: String,
-      ?until: String
-    ) -> instance
-
-    def initialize: (
-      ?event_ids: Array[String],
-      ?keys: Array[String],
-      ?since: String,
-      ?until: String
-    ) -> void
-  end
-
-  class ReplayEventRequest
-    attr_accessor event_ids: Array[String]?
-    attr_accessor keys: Array[String]?
-    attr_accessor since: String?
-    attr_accessor until: String?
-
-    def self.new: (
-      ?event_ids: Array[String],
-      ?keys: Array[String],
-      ?since: String,
-      ?until: String
-    ) -> instance
-
-    def initialize: (
-      ?event_ids: Array[String],
-      ?keys: Array[String],
-      ?since: String,
-      ?until: String
-    ) -> void
-  end
-
-  class V1TaskFilter
-    attr_accessor since: String?
-    attr_accessor until: String?
-    attr_accessor statuses: Array[untyped]?
-    attr_accessor workflow_ids: Array[String]?
-    attr_accessor additional_metadata: Array[Hash[String, String]]?
-
-    def self.new: (
-      ?since: String,
-      ?until: String,
-      ?statuses: Array[untyped],
-      ?workflow_ids: Array[String],
-      ?additional_metadata: Array[Hash[String, String]]
-    ) -> instance
-
-    def initialize: (
-      ?since: String,
-      ?until: String,
-      ?statuses: Array[untyped],
-      ?workflow_ids: Array[String],
-      ?additional_metadata: Array[Hash[String, String]]
-    ) -> void
-  end
-
-  class V1CancelTaskRequest
-    attr_accessor external_ids: Array[String]?
-    attr_accessor filter: V1TaskFilter?
-
-    def self.new: (?external_ids: Array[String], ?filter: V1TaskFilter) -> instance
-    def initialize: (?external_ids: Array[String], ?filter: V1TaskFilter) -> void
-  end
-
-  class V1ReplayTaskRequest
-    attr_accessor external_ids: Array[String]?
-    attr_accessor filter: V1TaskFilter?
-
-    def self.new: (?external_ids: Array[String], ?filter: V1TaskFilter) -> instance
-    def initialize: (?external_ids: Array[String], ?filter: V1TaskFilter) -> void
-  end
-
-  class V1TriggerWorkflowRunRequest
-    attr_accessor workflow_name: String?
-    attr_accessor input: Hash[String, untyped]?
-    attr_accessor additional_metadata: Hash[String, untyped]?
-    attr_accessor priority: Integer?
-
-    def self.new: (
-      ?workflow_name: String,
+    def schedule_workflow: (
+      Workflow | Task | String workflow,
+      Time time,
       ?input: Hash[String, untyped],
-      ?additional_metadata: Hash[String, untyped],
-      ?priority: Integer
-    ) -> instance
-
-    def initialize: (
-      ?workflow_name: String,
-      ?input: Hash[String, untyped],
-      ?additional_metadata: Hash[String, untyped],
-      ?priority: Integer
-    ) -> void
-  end
-
-  class V1WorkflowRunDetails
-    attr_accessor run: untyped?
-
-    def self.new: (?run: untyped) -> instance
-    def initialize: (?run: untyped) -> void
-  end
-
-  class V1TaskSummary
-    attr_accessor metadata: untyped?
-    attr_accessor created_at: Time?
-
-    def self.new: (?metadata: untyped, ?created_at: Time) -> instance
-    def initialize: (?metadata: untyped, ?created_at: Time) -> void
-  end
-
-  class V1TaskSummaryList
-    attr_accessor rows: Array[V1TaskSummary]?
-
-    def self.new: (?rows: Array[V1TaskSummary]) -> instance
-    def initialize: (?rows: Array[V1TaskSummary]) -> void
-  end
-
-  class V1TaskStatus
-    def self.COMPLETED: () -> String
-    def self.CANCELLED: () -> String
-    def self.FAILED: () -> String
-  end
-
-  class WorkflowRunStatus
-    def self.SUCCEEDED: () -> String
-    def self.FAILED: () -> String
-    def self.CANCELLED: () -> String
-  end
-
-  class EventApi
-    def self.new: (untyped api_client) -> instance
-    def initialize: (untyped api_client) -> void
-  end
-
-  class WorkflowRunsApi
-    def self.new: (untyped api_client) -> instance
-    def initialize: (untyped api_client) -> void
-  end
-
-  class TaskApi
-    def self.new: (untyped api_client) -> instance
-    def initialize: (untyped api_client) -> void
+      ?options: TriggerWorkflowOptions?
+    ) -> untyped
   end
 end

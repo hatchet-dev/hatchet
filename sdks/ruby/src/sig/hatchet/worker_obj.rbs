@@ -1,0 +1,31 @@
+module Hatchet
+  class Worker
+    attr_reader name: String
+    attr_reader workflows: Array[Workflow | Task]
+    attr_reader slots: Integer
+    attr_reader labels: Hash[String, String | Integer]
+    attr_reader lifespan: Proc?
+    attr_reader client: Client
+    attr_accessor worker_id: String?
+
+    def initialize: (
+      name: String,
+      client: Client,
+      ?workflows: Array[Workflow | Task],
+      ?slots: Integer,
+      ?labels: Hash[String, String | Integer],
+      ?lifespan: Proc?
+    ) -> void
+
+    def start: () -> void
+    def stop: () -> void
+    def context: () -> WorkerContext
+  end
+
+  class WorkerContext
+    def initialize: (worker: Worker) -> void
+    def id: () -> String?
+    def labels: () -> Hash[String, String | Integer]
+    def upsert_labels: (Hash[String, String | Integer] new_labels) -> void
+  end
+end

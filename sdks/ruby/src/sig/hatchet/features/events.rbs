@@ -1,0 +1,60 @@
+module Hatchet
+  module Features
+    class Events
+      def initialize: (untyped rest_client, untyped event_grpc, Hatchet::Config config) -> void
+
+      def create: (
+        key: String,
+        data: Hash[String, untyped],
+        ?additional_metadata: Hash[String, String]?,
+        ?priority: Integer?,
+        ?scope: String?,
+        ?namespace: String?
+      ) -> untyped
+
+      def push: (
+        String event_key,
+        Hash[String, untyped] payload,
+        ?additional_metadata: Hash[String, String]?,
+        ?namespace: String?,
+        ?priority: Integer?
+      ) -> untyped
+
+      def bulk_push: (
+        Array[Hash[Symbol, untyped]] events,
+        ?namespace: String?
+      ) -> untyped
+
+      def list: (
+        ?offset: Integer?,
+        ?limit: Integer?,
+        ?keys: Array[String]?,
+        ?since: Time?,
+        ?until_time: Time?,
+        ?workflow_ids: Array[String]?,
+        ?workflow_run_statuses: Array[String]?,
+        ?event_ids: Array[String]?,
+        ?additional_metadata: Hash[String, String]?,
+        ?scopes: Array[String]?
+      ) -> untyped
+
+      def get: (String event_id) -> untyped
+      def get_data: (String event_id) -> untyped
+      def list_keys: () -> untyped
+
+      def cancel: (
+        ?event_ids: Array[String]?,
+        ?keys: Array[String]?,
+        ?since: Time?,
+        ?until_time: Time?
+      ) -> untyped
+
+      def replay: (
+        ?event_ids: Array[String]?,
+        ?keys: Array[String]?,
+        ?since: Time?,
+        ?until_time: Time?
+      ) -> untyped
+    end
+  end
+end

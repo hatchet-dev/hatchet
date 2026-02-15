@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require:
+  - ./lib/rubocop/cop/hatchet/rbs_signature_exists
+
 AllCops:
   TargetRubyVersion: 3.1
   NewCops: enable
@@ -139,3 +142,12 @@ Lint/MissingSuper:
 
 Lint/DuplicateBranch:
   Enabled: false
+
+# ─── Custom ─────────────────────────────────────────────────────────
+
+Hatchet/RbsSignatureExists:
+  Enabled: true
+  Exclude:
+    - "lib/hatchet/clients/rest/**/*"
+    - "lib/hatchet/contracts/**/*"
+    - "lib/rubocop/**/*"

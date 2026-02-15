@@ -1,0 +1,6 @@
+module Hatchet
+  class DurableContext < Context
+    def sleep_for: (duration: Integer | String) -> Hash[String, untyped]?
+    def wait_for: (String key, untyped condition) -> Hash[String, untyped]
+  end
+end
