@@ -65,11 +65,7 @@ const BranchingDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop
-                offset="0%"
-                stopColor="rgb(245,158,11)"
-                stopOpacity="0.6"
-              />
+              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(252,211,77)"
@@ -83,11 +79,7 @@ const BranchingDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop
-                offset="0%"
-                stopColor="rgb(99,102,241)"
-                stopOpacity="0.6"
-              />
+              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(129,140,248)"
@@ -101,11 +93,7 @@ const BranchingDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop
-                offset="0%"
-                stopColor="rgb(16,185,129)"
-                stopOpacity="0.6"
-              />
+              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(52,211,153)"
@@ -149,10 +137,7 @@ const BranchingDiagram: React.FC = () => {
           </g>
 
           {/* Condition diamond — always active */}
-          <g
-            transform="translate(270, 140)"
-            style={{ opacity: activeOpacity }}
-          >
+          <g transform="translate(270, 140)" style={{ opacity: activeOpacity }}>
             <polygon
               points="0,-30 40,0 0,30 -40,0"
               fill="rgba(120,53,15,0.3)"
@@ -184,9 +169,7 @@ const BranchingDiagram: React.FC = () => {
               width={nodeWidth}
               height={nodeHeight}
               rx={nodeRx}
-              fill={
-                leftActive ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.3)"
-              }
+              fill={leftActive ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.3)"}
               stroke={leftActive ? "url(#branch-emerald)" : "#555"}
               strokeWidth="1.5"
             />
@@ -224,9 +207,7 @@ const BranchingDiagram: React.FC = () => {
               width={nodeWidth}
               height={nodeHeight}
               rx={nodeRx}
-              fill={
-                rightActive ? "rgba(49,46,129,0.3)" : "rgba(30,30,30,0.3)"
-              }
+              fill={rightActive ? "rgba(49,46,129,0.3)" : "rgba(30,30,30,0.3)"}
               stroke={rightActive ? "url(#branch-indigo)" : "#555"}
               strokeWidth="1.5"
             />

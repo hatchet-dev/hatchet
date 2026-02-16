@@ -26,34 +26,43 @@ When the sleep expires or the event arrives, Hatchet re-schedules the task on an
 </Steps>
 
 <Callout type="info">
-  Long waits require **durable tasks**. Regular tasks cannot pause and resume across worker restarts. See [Durable Sleep](/home/durable-sleep) and [Durable Events](/home/durable-events) for API details.
+  Long waits require **durable tasks**. Regular tasks cannot pause and resume
+  across worker restarts. See [Durable Sleep](/home/durable-sleep) and [Durable
+  Events](/home/durable-events) for API details.
 </Callout>
 
 ## Types of Long Waits
 
-| Type | Mechanism | Resumes When... |
-|---|---|---|
-| **Durable Sleep** | `SleepFor(duration)` | The specified duration has elapsed |
-| **Durable Event** | `WaitForEvent(key)` | An external event matching the key (and optional CEL filter) is received |
+| Type              | Mechanism            | Resumes When...                                                          |
+| ----------------- | -------------------- | ------------------------------------------------------------------------ |
+| **Durable Sleep** | `SleepFor(duration)` | The specified duration has elapsed                                       |
+| **Durable Event** | `WaitForEvent(key)`  | An external event matching the key (and optional CEL filter) is received |
 
 <Callout type="warning">
-  Durable sleeps are **exact** — if a task sleeps for 24 hours and is interrupted after 23 hours, it will only sleep for 1 more hour on restart, not another full 24 hours. This is what makes durable sleep different from a regular sleep call.
+  Durable sleeps are **exact** — if a task sleeps for 24 hours and is
+  interrupted after 23 hours, it will only sleep for 1 more hour on restart, not
+  another full 24 hours. This is what makes durable sleep different from a
+  regular sleep call.
 </Callout>
 
 ## Use Cases
 
 <Cards>
   <Cards.Card title="Delayed Notifications" href="/home/durable-sleep">
-    Send a follow-up email or push notification hours or days after an initial action.
+    Send a follow-up email or push notification hours or days after an initial
+    action.
   </Cards.Card>
   <Cards.Card title="Human-in-the-Loop Approval" href="/home/durable-events">
-    Pause a workflow until a human approves, rejects, or provides input via an external event.
+    Pause a workflow until a human approves, rejects, or provides input via an
+    external event.
   </Cards.Card>
   <Cards.Card title="Scheduled Follow-Ups" href="/home/durable-sleep">
-    Implement drip campaigns, trial expiration checks, or periodic status polls with precise timing.
+    Implement drip campaigns, trial expiration checks, or periodic status polls
+    with precise timing.
   </Cards.Card>
   <Cards.Card title="External System Callbacks" href="/home/durable-events">
-    Wait for a webhook, payment confirmation, or third-party API callback before proceeding.
+    Wait for a webhook, payment confirmation, or third-party API callback before
+    proceeding.
   </Cards.Card>
 </Cards>
 

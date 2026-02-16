@@ -14,54 +14,24 @@ const WorkflowDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient
-              id="wf-indigo"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(99,102,241)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="wf-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(129,140,248)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="wf-cyan"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(34,211,238)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="wf-cyan" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(34,211,238)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(103,232,249)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="wf-emerald"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(16,185,129)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="wf-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(52,211,153)"
@@ -277,13 +247,7 @@ const WorkflowDiagram: React.FC = () => {
             strokeDasharray="4 4"
             opacity="0.5"
           />
-          <text
-            x="432"
-            y="248"
-            fill="#6b7280"
-            fontSize="8"
-            textAnchor="start"
-          >
+          <text x="432" y="248" fill="#6b7280" fontSize="8" textAnchor="start">
             fan-out
           </text>
 

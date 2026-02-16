@@ -82,11 +82,7 @@ const CycleDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop
-                offset="0%"
-                stopColor="rgb(245,158,11)"
-                stopOpacity="0.6"
-              />
+              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(252,211,77)"
@@ -100,11 +96,7 @@ const CycleDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop
-                offset="0%"
-                stopColor="rgb(99,102,241)"
-                stopOpacity="0.6"
-              />
+              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(129,140,248)"
@@ -118,11 +110,7 @@ const CycleDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop
-                offset="0%"
-                stopColor="rgb(16,185,129)"
-                stopOpacity="0.6"
-              />
+              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(52,211,153)"
@@ -148,9 +136,7 @@ const CycleDiagram: React.FC = () => {
             width={nodeWidth}
             height={nodeHeight}
             rx={nodeRx}
-            fill={
-              !isDone ? "rgba(49,46,129,0.3)" : "rgba(49,46,129,0.15)"
-            }
+            fill={!isDone ? "rgba(49,46,129,0.3)" : "rgba(49,46,129,0.15)"}
             stroke={!isDone ? "url(#cycle-indigo)" : "#555"}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
@@ -193,13 +179,7 @@ const CycleDiagram: React.FC = () => {
             >
               {isDone ? "done ✓" : "done?"}
             </text>
-            <text
-              x={0}
-              y={12}
-              textAnchor="middle"
-              fill="#d97706"
-              fontSize="8"
-            >
+            <text x={0} y={12} textAnchor="middle" fill="#d97706" fontSize="8">
               {isDone ? "" : "not yet"}
             </text>
           </g>

@@ -33,33 +33,38 @@ Task outputs are stored and passed to downstream tasks. If a workflow is partial
 
 ## Anatomy of a Workflow
 
-| Concept | Description |
-|---|---|
-| **Task** | An atomic unit of work — a function that takes input and returns output |
-| **Dependency** | A parent-child relationship between tasks. A child task waits for its parents to complete |
-| **Input** | Data passed to the workflow when it's triggered |
-| **Output** | Data returned by each task, accessible to downstream tasks |
-| **Trigger** | How a workflow starts — [direct run](/home/run-with-results), [event](/home/run-on-event), [cron](/home/cron-runs), or [schedule](/home/scheduled-runs) |
+| Concept        | Description                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**       | An atomic unit of work — a function that takes input and returns output                                                                                 |
+| **Dependency** | A parent-child relationship between tasks. A child task waits for its parents to complete                                                               |
+| **Input**      | Data passed to the workflow when it's triggered                                                                                                         |
+| **Output**     | Data returned by each task, accessible to downstream tasks                                                                                              |
+| **Trigger**    | How a workflow starts — [direct run](/home/run-with-results), [event](/home/run-on-event), [cron](/home/cron-runs), or [schedule](/home/scheduled-runs) |
 
 <Callout type="info">
-  Workflows can be as simple as a single task or as complex as dozens of tasks with branching, fan-out, and conditional logic. Start simple and compose as needed.
+  Workflows can be as simple as a single task or as complex as dozens of tasks
+  with branching, fan-out, and conditional logic. Start simple and compose as
+  needed.
 </Callout>
 
 ## Workflows vs Durable Workflows
 
 Hatchet offers two types of workflows to cover different needs:
 
-| | **Workflows** | **Durable Workflows** |
-|---|---|---|
-| **Structure** | DAG of tasks with declared dependencies | Long-running function with checkpoints |
-| **State** | Cached between tasks automatically | Stored in a durable event log |
-| **Pausing** | Use [conditional waits](/home/conditional-workflows) on tasks | Use `SleepFor` and `WaitForEvent` inline |
-| **Crash recovery** | Re-runs failed tasks; completed tasks are skipped | Replays from last checkpoint |
-| **Worker slots** | Each task holds a slot while running | Slot is freed during waits |
-| **Best for** | Predictable multi-step pipelines | Long waits, human-in-the-loop, complex procedural logic |
+|                    | **Workflows**                                                 | **Durable Workflows**                                   |
+| ------------------ | ------------------------------------------------------------- | ------------------------------------------------------- |
+| **Structure**      | DAG of tasks with declared dependencies                       | Long-running function with checkpoints                  |
+| **State**          | Cached between tasks automatically                            | Stored in a durable event log                           |
+| **Pausing**        | Use [conditional waits](/home/conditional-workflows) on tasks | Use `SleepFor` and `WaitForEvent` inline                |
+| **Crash recovery** | Re-runs failed tasks; completed tasks are skipped             | Replays from last checkpoint                            |
+| **Worker slots**   | Each task holds a slot while running                          | Slot is freed during waits                              |
+| **Best for**       | Predictable multi-step pipelines                              | Long waits, human-in-the-loop, complex procedural logic |
 
 <Callout type="warning">
-  If your workflow can be expressed as a DAG, **prefer regular workflows**. They're simpler, inherently deterministic, and easier to debug. Use durable workflows when you need inline pausing, long waits, or logic that can't be expressed as a static graph.
+  If your workflow can be expressed as a DAG, **prefer regular workflows**.
+  They're simpler, inherently deterministic, and easier to debug. Use durable
+  workflows when you need inline pausing, long waits, or logic that can't be
+  expressed as a static graph.
 </Callout>
 
 ## Next Steps
@@ -69,10 +74,12 @@ Hatchet offers two types of workflows to cover different needs:
     Learn how durable workflows checkpoint, pause, and resume across failures.
   </Cards.Card>
   <Cards.Card title="DAGs in Detail" href="/home/dags">
-    Define multi-task workflows with dependencies, parent outputs, and parallel execution.
+    Define multi-task workflows with dependencies, parent outputs, and parallel
+    execution.
   </Cards.Card>
   <Cards.Card title="Child Spawning" href="/home/child-spawning">
-    Dynamically create child tasks at runtime for fan-out, loops, and agent patterns.
+    Dynamically create child tasks at runtime for fan-out, loops, and agent
+    patterns.
   </Cards.Card>
   <Cards.Card title="Patterns" href="/home/patterns/fanout">
     Explore common workflow patterns: fanout, branching, cycles, and more.

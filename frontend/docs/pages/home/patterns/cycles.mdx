@@ -26,37 +26,44 @@ If the condition is not met, the task spawns a new child run of itself with upda
 </Steps>
 
 <Callout type="info">
-  Cycles use [Procedural Child Spawning](/home/child-spawning) under the hood — each iteration is a new child task run. This gives you full observability into every iteration in the Hatchet dashboard.
+  Cycles use [Procedural Child Spawning](/home/child-spawning) under the hood —
+  each iteration is a new child task run. This gives you full observability into
+  every iteration in the Hatchet dashboard.
 </Callout>
 
 ## When to Use Cycles
 
-| Pattern | Use Cycles When... |
-|---|---|
-| **Polling** | You need to check an external system until a resource is ready |
+| Pattern                  | Use Cycles When...                                                              |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| **Polling**              | You need to check an external system until a resource is ready                  |
 | **Iterative Refinement** | An AI agent refines its output over multiple passes until quality is sufficient |
-| **Pagination** | You process paginated API results one page at a time |
-| **Retry with Backoff** | Built-in retries aren't sufficient and you need custom retry logic with state |
-| **Agent Loops** | An AI agent reasons, acts, observes, and loops until a goal is achieved |
+| **Pagination**           | You process paginated API results one page at a time                            |
+| **Retry with Backoff**   | Built-in retries aren't sufficient and you need custom retry logic with state   |
+| **Agent Loops**          | An AI agent reasons, acts, observes, and loops until a goal is achieved         |
 
 <Callout type="warning">
-  Always include a termination condition (max iterations, timeout, or quality threshold) to prevent infinite loops. Each iteration consumes a worker slot, so unbounded cycles can exhaust your worker capacity.
+  Always include a termination condition (max iterations, timeout, or quality
+  threshold) to prevent infinite loops. Each iteration consumes a worker slot,
+  so unbounded cycles can exhaust your worker capacity.
 </Callout>
 
 ## Use Cases
 
 <Cards>
   <Cards.Card title="AI Agent Loops" href="/home/child-spawning">
-    Build agents that reason, take action, observe results, and loop until they achieve their goal.
+    Build agents that reason, take action, observe results, and loop until they
+    achieve their goal.
   </Cards.Card>
   <Cards.Card title="Polling External APIs" href="/home/child-spawning">
-    Check an external service repeatedly until a resource is ready or a status changes.
+    Check an external service repeatedly until a resource is ready or a status
+    changes.
   </Cards.Card>
   <Cards.Card title="Iterative Data Processing" href="/home/child-spawning">
     Process data in successive passes, refining results until convergence.
   </Cards.Card>
   <Cards.Card title="Custom Retry Logic" href="/home/retry-policies">
-    Implement application-specific retry strategies with state carried between attempts.
+    Implement application-specific retry strategies with state carried between
+    attempts.
   </Cards.Card>
 </Cards>
 

@@ -27,41 +27,55 @@ The branch whose condition is satisfied runs; the other is skipped. Downstream t
 
 ## Types of Conditions
 
-| Condition | Behavior |
-|---|---|
-| **Parent condition** | Evaluate a CEL expression against a parent task's output (e.g. `value > 50`) |
-| **Event condition** | Wait for an external event, optionally filtered by a CEL expression on its payload |
-| **Sleep condition** | Wait for a specified duration before continuing |
+| Condition            | Behavior                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| **Parent condition** | Evaluate a CEL expression against a parent task's output (e.g. `value > 50`)       |
+| **Event condition**  | Wait for an external event, optionally filtered by a CEL expression on its payload |
+| **Sleep condition**  | Wait for a specified duration before continuing                                    |
 
 ## Condition Operators
 
-| Operator | Effect |
-|---|---|
-| `wait_for` | Task waits until the condition is satisfied before starting |
-| `skip_if` | Task is skipped if the condition evaluates to true |
+| Operator    | Effect                                                                              |
+| ----------- | ----------------------------------------------------------------------------------- |
+| `wait_for`  | Task waits until the condition is satisfied before starting                         |
+| `skip_if`   | Task is skipped if the condition evaluates to true                                  |
 | `cancel_if` | Task and its downstream dependents are cancelled if the condition evaluates to true |
 
 <Callout type="info">
-  Branching is built using [Conditional Workflows](/home/conditional-workflows). See that page for full code examples covering parent conditions, event conditions, sleep conditions, or groups, and a complete branching workflow walkthrough.
+  Branching is built using [Conditional Workflows](/home/conditional-workflows).
+  See that page for full code examples covering parent conditions, event
+  conditions, sleep conditions, or groups, and a complete branching workflow
+  walkthrough.
 </Callout>
 
 <Callout type="warning">
-  A task cancelled by `cancel_if` behaves like any other cancellation — all downstream tasks are cancelled as well. Use `skip_if` when you want downstream tasks to still run and inspect the skip status.
+  A task cancelled by `cancel_if` behaves like any other cancellation — all
+  downstream tasks are cancelled as well. Use `skip_if` when you want downstream
+  tasks to still run and inspect the skip status.
 </Callout>
 
 ## Use Cases
 
 <Cards>
   <Cards.Card title="Feature Flag Routing" href="/home/conditional-workflows">
-    Read a feature flag in an upstream task and route the workflow down different code paths based on its value.
+    Read a feature flag in an upstream task and route the workflow down
+    different code paths based on its value.
   </Cards.Card>
-  <Cards.Card title="Human-in-the-Loop Approval" href="/home/conditional-workflows">
-    Pause workflow execution until a human approves or rejects, then branch accordingly.
+  <Cards.Card
+    title="Human-in-the-Loop Approval"
+    href="/home/conditional-workflows"
+  >
+    Pause workflow execution until a human approves or rejects, then branch
+    accordingly.
   </Cards.Card>
   <Cards.Card title="A/B Testing Pipelines" href="/home/conditional-workflows">
-    Route data through different processing paths based on experiment assignment.
+    Route data through different processing paths based on experiment
+    assignment.
   </Cards.Card>
-  <Cards.Card title="Error Recovery Branching" href="/home/conditional-workflows">
+  <Cards.Card
+    title="Error Recovery Branching"
+    href="/home/conditional-workflows"
+  >
     Branch into a fallback path when an upstream task signals a degraded state.
   </Cards.Card>
 </Cards>

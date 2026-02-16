@@ -35,8 +35,7 @@ const LongWaitDiagram: React.FC = () => {
   const waitLabel = waitType === "sleep" ? "Sleep 24h" : "Wait for Event";
   const waitSublabel =
     waitType === "sleep" ? "durable pause" : "external signal";
-  const triggerLabel =
-    waitType === "sleep" ? "time elapsed" : "event received";
+  const triggerLabel = waitType === "sleep" ? "time elapsed" : "event received";
 
   return (
     <div className="my-8 flex flex-col items-center gap-4">
@@ -106,54 +105,24 @@ const LongWaitDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient
-              id="lw-indigo"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(99,102,241)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="lw-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(129,140,248)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="lw-amber"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(245,158,11)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="lw-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(252,211,77)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="lw-emerald"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(16,185,129)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="lw-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(52,211,153)"
@@ -186,9 +155,7 @@ const LongWaitDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={
-              phase === 0 ? "rgba(49,46,129,0.3)" : "rgba(49,46,129,0.15)"
-            }
+            fill={phase === 0 ? "rgba(49,46,129,0.3)" : "rgba(49,46,129,0.15)"}
             stroke={phase === 0 ? "url(#lw-indigo)" : "#555"}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
@@ -330,9 +297,7 @@ const LongWaitDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={
-              isResumed ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.15)"
-            }
+            fill={isResumed ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.15)"}
             stroke={isResumed ? "url(#lw-emerald)" : "#444"}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}

@@ -27,13 +27,7 @@ const FanoutDiagram: React.FC = () => {
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="cyan-grad"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
+            <linearGradient id="cyan-grad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="rgb(34,211,238)" stopOpacity="0.6" />
               <stop
                 offset="100%"
