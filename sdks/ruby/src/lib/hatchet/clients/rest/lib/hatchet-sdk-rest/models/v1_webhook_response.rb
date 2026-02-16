@@ -14,22 +14,20 @@ require 'date'
 require 'time'
 
 module HatchetSdkRest
-  class V1UpdateWebhookRequest
-    # The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
-    attr_accessor :event_key_expression
+  class V1WebhookResponse
+    # The message for the webhook response
+    attr_accessor :message
 
-    # The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
-    attr_accessor :scope_expression
+    attr_accessor :event
 
-    # The static payload to use for the webhook. This is used to send a static payload with the webhook.
-    attr_accessor :static_payload
+    attr_accessor :challenge
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'event_key_expression' => :'eventKeyExpression',
-        :'scope_expression' => :'scopeExpression',
-        :'static_payload' => :'staticPayload'
+        :'message' => :'message',
+        :'event' => :'event',
+        :'challenge' => :'challenge'
       }
     end
 
@@ -46,9 +44,9 @@ module HatchetSdkRest
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'event_key_expression' => :'String',
-        :'scope_expression' => :'String',
-        :'static_payload' => :'Object'
+        :'message' => :'String',
+        :'event' => :'V1Event',
+        :'challenge' => :'String'
       }
     end
 
@@ -62,28 +60,28 @@ module HatchetSdkRest
     # @param [Hash] attributes Model attributes in the form of hash
     def initialize(attributes = {})
       if (!attributes.is_a?(Hash))
-        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::V1UpdateWebhookRequest` initialize method"
+        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::V1WebhookResponse` initialize method"
       end
 
       # check to see if the attribute exists and convert string to symbol for hash key
       acceptable_attribute_map = self.class.acceptable_attribute_map
       attributes = attributes.each_with_object({}) { |(k, v), h|
         if (!acceptable_attribute_map.key?(k.to_sym))
-          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::V1UpdateWebhookRequest`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
+          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::V1WebhookResponse`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
         end
         h[k.to_sym] = v
       }
 
-      if attributes.key?(:'event_key_expression')
-        self.event_key_expression = attributes[:'event_key_expression']
+      if attributes.key?(:'message')
+        self.message = attributes[:'message']
       end
 
-      if attributes.key?(:'scope_expression')
-        self.scope_expression = attributes[:'scope_expression']
+      if attributes.key?(:'event')
+        self.event = attributes[:'event']
       end
 
-      if attributes.key?(:'static_payload')
-        self.static_payload = attributes[:'static_payload']
+      if attributes.key?(:'challenge')
+        self.challenge = attributes[:'challenge']
       end
     end
 
@@ -107,9 +105,9 @@ module HatchetSdkRest
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          event_key_expression == o.event_key_expression &&
-          scope_expression == o.scope_expression &&
-          static_payload == o.static_payload
+          message == o.message &&
+          event == o.event &&
+          challenge == o.challenge
     end
 
     # @see the `==` method
@@ -121,7 +119,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [event_key_expression, scope_expression, static_payload].hash
+      [message, event, challenge].hash
     end
 
     # Builds the object from hash

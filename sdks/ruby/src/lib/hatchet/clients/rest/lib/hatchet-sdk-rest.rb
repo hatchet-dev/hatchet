@@ -190,6 +190,7 @@ HatchetSdkRest.autoload :V1WebhookHMACAlgorithm, 'hatchet-sdk-rest/models/v1_web
 HatchetSdkRest.autoload :V1WebhookHMACAuth, 'hatchet-sdk-rest/models/v1_webhook_hmac_auth'
 HatchetSdkRest.autoload :V1WebhookHMACEncoding, 'hatchet-sdk-rest/models/v1_webhook_hmac_encoding'
 HatchetSdkRest.autoload :V1WebhookList, 'hatchet-sdk-rest/models/v1_webhook_list'
+HatchetSdkRest.autoload :V1WebhookResponse, 'hatchet-sdk-rest/models/v1_webhook_response'
 HatchetSdkRest.autoload :V1WebhookSourceName, 'hatchet-sdk-rest/models/v1_webhook_source_name'
 HatchetSdkRest.autoload :V1WorkflowRun, 'hatchet-sdk-rest/models/v1_workflow_run'
 HatchetSdkRest.autoload :V1WorkflowRunDetails, 'hatchet-sdk-rest/models/v1_workflow_run_details'

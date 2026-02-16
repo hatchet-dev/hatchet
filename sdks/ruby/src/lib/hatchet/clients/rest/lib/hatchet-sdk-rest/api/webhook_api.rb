@@ -341,7 +341,7 @@ module HatchetSdkRest
     # @param tenant [String] The tenant id
     # @param v1_webhook [String] The webhook name
     # @param [Hash] opts the optional parameters
-    # @return [Hash<String, Object>]
+    # @return [V1WebhookResponse]
     def v1_webhook_receive(tenant, v1_webhook, opts = {})
       data, _status_code, _headers = v1_webhook_receive_with_http_info(tenant, v1_webhook, opts)
       data
@@ -352,7 +352,7 @@ module HatchetSdkRest
     # @param tenant [String] The tenant id
     # @param v1_webhook [String] The webhook name
     # @param [Hash] opts the optional parameters
-    # @return [Array<(Hash<String, Object>, Integer, Hash)>] Hash<String, Object> data, response status code and response headers
+    # @return [Array<(V1WebhookResponse, Integer, Hash)>] V1WebhookResponse data, response status code and response headers
     def v1_webhook_receive_with_http_info(tenant, v1_webhook, opts = {})
       if @api_client.config.debugging
         @api_client.config.logger.debug 'Calling API: WebhookApi.v1_webhook_receive ...'
@@ -391,7 +391,7 @@ module HatchetSdkRest
       post_body = opts[:debug_body]
 
       # return_type
-      return_type = opts[:debug_return_type] || 'Hash<String, Object>'
+      return_type = opts[:debug_return_type] || 'V1WebhookResponse'
 
       # auth_names
       auth_names = opts[:debug_auth_names] || []
