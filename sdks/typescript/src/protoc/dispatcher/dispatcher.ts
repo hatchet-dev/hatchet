@@ -16,6 +16,7 @@ export enum SDKS {
   GO = 1,
   PYTHON = 2,
   TYPESCRIPT = 3,
+  RUBY = 4,
   UNRECOGNIZED = -1,
 }
 
@@ -33,6 +34,9 @@ export function sDKSFromJSON(object: any): SDKS {
     case 3:
     case 'TYPESCRIPT':
       return SDKS.TYPESCRIPT;
+    case 4:
+    case 'RUBY':
+      return SDKS.RUBY;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -50,6 +54,8 @@ export function sDKSToJSON(object: SDKS): string {
       return 'PYTHON';
     case SDKS.TYPESCRIPT:
       return 'TYPESCRIPT';
+    case SDKS.RUBY:
+      return 'RUBY';
     case SDKS.UNRECOGNIZED:
     default:
       return 'UNRECOGNIZED';

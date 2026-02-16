@@ -264,3 +264,23 @@ nav {
 .dark ._sticky {
   box-shadow: none !important;
 }
+
+/* MCP / markdown action links in breadcrumb row */
+.page-actions {
+  position: absolute;
+  top: -1.75rem;
+  right: 0;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* Drop to its own row on narrower viewports */
+@media (max-width: 1100px) {
+  .page-actions {
+    position: static;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+}

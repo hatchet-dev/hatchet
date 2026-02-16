@@ -2055,6 +2055,7 @@ const (
 	WorkerSDKSGO         WorkerSDKS = "GO"
 	WorkerSDKSPYTHON     WorkerSDKS = "PYTHON"
 	WorkerSDKSTYPESCRIPT WorkerSDKS = "TYPESCRIPT"
+	WorkerSDKSRUBY       WorkerSDKS = "RUBY"
 )
 
 func (e *WorkerSDKS) Scan(src interface{}) error {

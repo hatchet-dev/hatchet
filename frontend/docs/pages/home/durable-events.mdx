@@ -11,7 +11,7 @@ Durable events are a feature of **durable tasks** which allow tasks to wait for 
 
 Durable events are declared using the context method `WaitFor` (or utility method `WaitForEvent`) on the `DurableContext` object.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_event.worker.durable_event} />
@@ -27,13 +27,16 @@ Durable events are declared using the context method `WaitFor` (or utility metho
 <Snippet src={snippets.go.durable.event.main.durable_event} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.durable_event.worker.durable_event} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Durable event filters
 
 Durable events can be filtered using [CEL](https://github.com/google/cel-spec) expressions. For example, to only receive `user:update` events for a specific user, you can use the following filter:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_event.worker.durable_event_with_filter} />
@@ -51,4 +54,7 @@ Durable events can be filtered using [CEL](https://github.com/google/cel-spec) e
 <Snippet src={snippets.go.durable.event.main.durable_event_with_filter} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.durable_event.worker.durable_event_with_filter} />
+  </Tabs.Tab>
 </UniversalTabs>
