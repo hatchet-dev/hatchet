@@ -52,7 +52,6 @@ type DispatcherImpl struct {
 	workers      *workers
 	a            *hatcheterrors.Wrapped
 
-	durableCallbackFn  func(taskExternalId uuid.UUID, nodeId int64, payload []byte) error
 	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
 }
@@ -394,19 +393,11 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 	return d.dispatcherId
 }
 
-func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int64, []byte) error) {
-	d.durableCallbackFn = fn
-}
-
 func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
-	if d.durableCallbackFn == nil {
-		return nil
-	}
-
 	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](task.Payloads)
 
 	for _, payload := range payloads {
-		err := d.durableCallbackFn(
+		err := d.DeliverCallbackCompletion(
 			payload.TaskExternalId,
 			payload.NodeId,
 			payload.Payload,

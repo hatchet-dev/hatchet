@@ -16,9 +16,6 @@ type V1DispatcherAdapter struct {
 }
 
 func NewV1DispatcherAdapter(dispatcher *DispatcherImpl) *V1DispatcherAdapter {
-	if dispatcher != nil {
-		dispatcher.SetDurableCallbackHandler(dispatcher.DeliverCallbackCompletion)
-	}
 	return &V1DispatcherAdapter{dispatcher: dispatcher}
 }
 
