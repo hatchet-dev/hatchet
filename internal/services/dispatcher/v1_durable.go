@@ -166,6 +166,14 @@ func (d *DispatcherImpl) ListenForDurableEvent(server v1contracts.Dispatcher_Lis
 	iterMu := sync.Mutex{}
 
 	sendEvent := func(e *v1.V1TaskEventWithPayload) error {
+		// FIXME: check max size of msg
+		// results := cleanResults(e.Results)
+
+		// if results == nil {
+		// 	s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
+		// 	e.Results = nil
+		// }
+
 		externalId := acks.getExternalId(e.TaskID, e.TaskInsertedAt, e.EventKey.String)
 
 		if externalId == uuid.Nil {
@@ -173,6 +181,7 @@ func (d *DispatcherImpl) ListenForDurableEvent(server v1contracts.Dispatcher_Lis
 			return fmt.Errorf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 		}
 
+		// send the task to the client
 		sendMu.Lock()
 		err := server.Send(&v1contracts.DurableEvent{
 			TaskId:    externalId.String(),
@@ -228,6 +237,7 @@ func (d *DispatcherImpl) ListenForDurableEvent(server v1contracts.Dispatcher_Lis
 		return nil
 	}
 
+	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
 			req, err := server.Recv()
@@ -261,6 +271,7 @@ func (d *DispatcherImpl) ListenForDurableEvent(server v1contracts.Dispatcher_Lis
 		}
 	}()
 
+	// new goroutine to poll every second for finished workflow runs which are not ackd
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 
@@ -283,6 +294,10 @@ func (d *DispatcherImpl) ListenForDurableEvent(server v1contracts.Dispatcher_Lis
 	}()
 
 	<-ctx.Done()
+
+	// if err := cleanupQueue(); err != nil {
+	// 	return fmt.Errorf("could not cleanup queue: %w", err)
+	// }
 
 	waitFor(&wg, 60*time.Second, d.l)
 
