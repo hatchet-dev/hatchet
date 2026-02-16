@@ -541,7 +541,30 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		TriggerOpts:       triggerOpts,
 	})
 
-	if err != nil {
+	var nde *v1.NonDeterminismError
+	if err != nil && errors.As(err, &nde) {
+		errMsg := fmt.Sprintf("non-determinism detected for durable task event with task external id %s, task inserted at %s, node id %d", taskExternalId, task.InsertedAt, ingestionResult.NodeId)
+
+		failOpts := v1.FailTaskOpts{
+			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			IsAppError:     true,
+			ErrorMessage:   errMsg,
+			IsNonRetryable: true,
+		}
+
+		_, err := d.repo.Tasks().FailTasks(ctx, invocation.tenantId, []v1.FailTaskOpts{failOpts})
+
+		if err != nil {
+			return fmt.Errorf("failed to fail task for non-determinism: %w", err)
+		}
+
+		return status.Errorf(codes.FailedPrecondition, "%s: %v", errMsg, err)
+	} else if err != nil {
+
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
 	}
 

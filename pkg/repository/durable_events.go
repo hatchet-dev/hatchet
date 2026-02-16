@@ -78,6 +78,12 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 	}
 }
 
+type NonDeterminismError struct{}
+
+func (m *NonDeterminismError) Error() string {
+	return "non-determinism detected for durable event log entry"
+}
+
 func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -130,7 +136,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		existingIdempotencyKey := entry.IdempotencyKey
 
 		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
-			return nil, fmt.Errorf("non-determinism detected for durable event log entry with durable task id %d, durable task inserted at %s, node id %d: incoming idempotency key %s does not match existing idempotency key %s", params.Durabletaskid, params.Durabletaskinsertedat.Time, params.Nodeid, hex.EncodeToString(incomingIdempotencyKey), hex.EncodeToString(existingIdempotencyKey))
+			return nil, &NonDeterminismError{}
 		}
 	}
 
@@ -400,7 +406,9 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Idempotencykey:        idempotencyKey,
 	}, opts.Payload)
 
-	if err != nil {
+	if err != nil && errors.Is(err, &NonDeterminismError{}) {
+		return nil, fmt.Errorf("non-determinism detected for durable event log entry with durable task id %d, durable task inserted at %s, node id %d", task.ID, task.InsertedAt.Time, nodeId)
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
 	}
 
