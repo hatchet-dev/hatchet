@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
@@ -123,6 +124,13 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			if err != nil {
 				return nil, err
 			}
+		}
+	} else {
+		incomingIdempotencyKey := params.Idempotencykey
+		existingIdempotencyKey := entry.IdempotencyKey
+
+		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
+			return nil, fmt.Errorf("non-determinism detected for durable event log entry with durable task id %d, durable task inserted at %s, node id %d: incoming idempotency key %s does not match existing idempotency key %s", params.Durabletaskid, params.Durabletaskinsertedat.Time, params.Nodeid, hex.EncodeToString(incomingIdempotencyKey), hex.EncodeToString(existingIdempotencyKey))
 		}
 	}
 
