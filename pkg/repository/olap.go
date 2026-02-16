@@ -300,7 +300,7 @@ func NewOLAPRepositoryFromPool(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	olapRetentionPeriod time.Duration,
-	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool, enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
+	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool,
 	shouldPartitionEventsTables bool,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
@@ -309,7 +309,7 @@ func NewOLAPRepositoryFromPool(
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, enforceLimitsFunc, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, statusUpdateBatchSizeLimits), cleanupShared
 }

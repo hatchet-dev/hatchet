@@ -130,7 +130,7 @@ CREATE TYPE "WorkerLabelComparator" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "WorkerSDKS" AS ENUM ('UNKNOWN', 'GO', 'PYTHON', 'TYPESCRIPT');
+CREATE TYPE "WorkerSDKS" AS ENUM ('UNKNOWN', 'GO', 'PYTHON', 'TYPESCRIPT', 'RUBY');
 
 -- CreateEnum
 CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');

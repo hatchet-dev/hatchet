@@ -33,6 +33,7 @@ export enum WorkerRuntimeSDKs {
   GOLANG = "GOLANG",
   PYTHON = "PYTHON",
   TYPESCRIPT = "TYPESCRIPT",
+  RUBY = "RUBY",
 }
 
 export enum WorkerType {
@@ -986,7 +987,7 @@ export type V1CreateWebhookRequest =
 
 export interface V1UpdateWebhookRequest {
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
-  eventKeyExpression: string;
+  eventKeyExpression?: string;
   /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
   scopeExpression?: string;
   /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */

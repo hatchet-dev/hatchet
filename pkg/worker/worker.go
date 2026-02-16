@@ -54,26 +54,38 @@ type actionImpl struct {
 	compute *compute.Compute
 }
 
+// Deprecated: Name is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *actionImpl) Name() string {
 	return j.name
 }
 
+// Deprecated: Run is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *actionImpl) Run(args ...interface{}) []interface{} {
 	return j.run(args...)
 }
 
+// Deprecated: MethodFn is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *actionImpl) MethodFn() any {
 	return j.method
 }
 
+// Deprecated: ConcurrencyFn is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *actionImpl) ConcurrencyFn() GetWorkflowConcurrencyGroupFn {
 	return j.runConcurrencyAction
 }
 
+// Deprecated: Service is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *actionImpl) Service() string {
 	return j.service
 }
 
+// Deprecated: Compute is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *actionImpl) Compute() *compute.Compute {
 	return j.compute
 }

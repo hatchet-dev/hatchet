@@ -16,7 +16,7 @@ func (w *V1WebhooksService) V1WebhookUpdate(ctx echo.Context, request gen.V1Webh
 	webhook := ctx.Get("v1-webhook").(*sqlcv1.V1IncomingWebhook)
 
 	opts := repository.UpdateWebhookOpts{
-		EventKeyExpression: &request.Body.EventKeyExpression,
+		EventKeyExpression: request.Body.EventKeyExpression,
 		ScopeExpression:    request.Body.ScopeExpression,
 	}
 

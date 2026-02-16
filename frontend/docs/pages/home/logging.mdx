@@ -8,7 +8,7 @@ import UniversalTabs from "../../components/UniversalTabs";
 
 Hatchet comes with a built-in logging view where you can push logs from your workflows. This is useful for debugging and monitoring your workflows.
 
-<UniversalTabs items={['Python', 'TypeScript']}>
+<UniversalTabs items={['Python', 'TypeScript', "Ruby"]}>
 {/* <UniversalTabs items={['Python', 'Typescript']}> TODO V1 DOCS -- Add Go logging and add this tab back */}
   <Tabs.Tab>
 You can use either Python's built-in `logging` package, or the `context.log` method for more control over the logs that are sent.
@@ -68,4 +68,8 @@ In this example, we create Pino logger that implement's Hatchet's `Logger` inter
 TODO V1 DOCS - ADD GO LOGGING HERE
 </Tabs.Tab> */}
 
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.logger.worker.logging_workflow} />
+    <Snippet src={snippets.ruby.logger.worker.context_logger} />
+  </Tabs.Tab>
 </UniversalTabs>

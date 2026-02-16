@@ -119,7 +119,7 @@ type CreateWebhookOpts struct {
 }
 
 type UpdateWebhookOpts struct {
-	EventKeyExpression string
+	EventKeyExpression *string
 	ScopeExpression    *string
 	StaticPayload      *map[string]interface{}
 }

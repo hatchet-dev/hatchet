@@ -39,7 +39,10 @@ from examples.lifespans.simple import lifespan, lifespan_task
 from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
-from examples.return_exceptions.worker import return_exceptions_task
+from examples.return_exceptions.worker import (
+    exception_parsing_workflow,
+    return_exceptions_task,
+)
 from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
 from examples.simple.worker import simple, simple_durable
@@ -98,6 +101,7 @@ def main() -> None:
             webhook_with_scope,
             webhook_with_static_payload,
             return_exceptions_task,
+            exception_parsing_workflow,
             wait_for_sleep_twice,
             async_task_with_dependencies,
             sync_task_with_dependencies,

@@ -376,6 +376,11 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 					WorkerSDKS: sqlcv1.WorkerSDKSTYPESCRIPT,
 					Valid:      true,
 				}
+			case contracts.SDKS_RUBY:
+				createParams.Language = sqlcv1.NullWorkerSDKS{
+					WorkerSDKS: sqlcv1.WorkerSDKSRUBY,
+					Valid:      true,
+				}
 			default:
 				return nil, fmt.Errorf("invalid sdk: %s", *opts.RuntimeInfo.Language)
 			}
