@@ -10,6 +10,7 @@ from examples.durable.worker import (
     durable_with_spawn,
     durable_workflow,
     wait_for_sleep_twice,
+    durable_spawn_dag,
 )
 from hatchet_sdk import Hatchet
 
@@ -128,3 +129,13 @@ async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     assert replayed_result["runtime"] <= SLEEP_TIME
 
     assert elapsed < SLEEP_TIME
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_spawn_dag() -> None:
+    result = await durable_spawn_dag.aio_run()
+
+    assert result["sleep_duration"] >= 1
+    assert result["sleep_duration"] <= 2
+    assert result["spawn_duration"] >= 5
+    assert result["spawn_duration"] <= 10

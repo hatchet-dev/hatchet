@@ -459,43 +459,49 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	taskId := task.ID
 	taskExternalId := task.ExternalID
 
+	var conditions []GroupMatchCondition
+
 	for _, childTask := range createdTasks {
 		childHint := childTask.ExternalID.String()
 		orGroupId := uuid.New()
 
+		conditions = append(conditions,
+			GroupMatchCondition{
+				GroupId:           orGroupId,
+				EventType:         sqlcv1.V1EventTypeINTERNAL,
+				EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+				ReadableDataKey:   "output",
+				EventResourceHint: &childHint,
+				Expression:        "true",
+				Action:            sqlcv1.V1MatchConditionActionCREATE,
+			},
+			GroupMatchCondition{
+				GroupId:           orGroupId,
+				EventType:         sqlcv1.V1EventTypeINTERNAL,
+				EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+				ReadableDataKey:   "output",
+				EventResourceHint: &childHint,
+				Expression:        "true",
+				Action:            sqlcv1.V1MatchConditionActionCREATE,
+			},
+			GroupMatchCondition{
+				GroupId:           orGroupId,
+				EventType:         sqlcv1.V1EventTypeINTERNAL,
+				EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+				ReadableDataKey:   "output",
+				EventResourceHint: &childHint,
+				Expression:        "true",
+				Action:            sqlcv1.V1MatchConditionActionCREATE,
+			},
+		)
+	}
+
+	if len(conditions) > 0 {
 		runCallbackSignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
 
 		err = r.createEventMatches(ctx, tx.tx, opts.TenantId, []CreateMatchOpts{{
-			Kind: sqlcv1.V1MatchKindSIGNAL,
-			Conditions: []GroupMatchCondition{
-				{
-					GroupId:           orGroupId,
-					EventType:         sqlcv1.V1EventTypeINTERNAL,
-					EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
-					ReadableDataKey:   "output",
-					EventResourceHint: &childHint,
-					Expression:        "true",
-					Action:            sqlcv1.V1MatchConditionActionCREATE,
-				},
-				{
-					GroupId:           orGroupId,
-					EventType:         sqlcv1.V1EventTypeINTERNAL,
-					EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-					ReadableDataKey:   "output",
-					EventResourceHint: &childHint,
-					Expression:        "true",
-					Action:            sqlcv1.V1MatchConditionActionCREATE,
-				},
-				{
-					GroupId:           orGroupId,
-					EventType:         sqlcv1.V1EventTypeINTERNAL,
-					EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-					ReadableDataKey:   "output",
-					EventResourceHint: &childHint,
-					Expression:        "true",
-					Action:            sqlcv1.V1MatchConditionActionCREATE,
-				},
-			},
+			Kind:                          sqlcv1.V1MatchKindSIGNAL,
+			Conditions:                    conditions,
 			SignalTaskId:                  &taskId,
 			SignalTaskInsertedAt:          task.InsertedAt,
 			SignalExternalId:              &taskExternalId,

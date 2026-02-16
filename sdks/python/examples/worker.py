@@ -36,6 +36,8 @@ from examples.durable.worker import (
     durable_workflow,
     spawn_child_task,
     wait_for_sleep_twice,
+    dag_child_workflow,
+    durable_spawn_dag,
 )
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
@@ -117,6 +119,8 @@ def main() -> None:
             say_hello,
             say_hello_unsafely,
             serde_workflow,
+            durable_spawn_dag,
+            dag_child_workflow,
         ],
         lifespan=lifespan,
     )

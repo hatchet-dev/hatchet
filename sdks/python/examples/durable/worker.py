@@ -16,6 +16,40 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
+
+dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
+
+
+@dag_child_workflow.task()
+async def dag_child_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    await asyncio.sleep(1)
+    return {"result": "child1"}
+
+
+@dag_child_workflow.task()
+async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    await asyncio.sleep(5)
+    return {"result": "child2"}
+
+
+@hatchet.durable_task()
+async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+    sleep_start = time.time()
+    sleep_result = await ctx.aio_sleep_for(timedelta(seconds=1))
+    sleep_duration = time.time() - sleep_start
+
+    spawn_start = time.time()
+    spawn_result = await dag_child_workflow.aio_run()
+    spawn_duration = time.time() - spawn_start
+
+    return {
+        "sleep_duration": sleep_duration,
+        "sleep_result": sleep_result,
+        "spawn_duration": spawn_duration,
+        "spawn_result": spawn_result,
+    }
+
+
 # > Create a durable workflow
 durable_workflow = hatchet.workflow(name="DurableWorkflow")
 # !!
