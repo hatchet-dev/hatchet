@@ -1970,6 +1970,15 @@ type V1WebhookList struct {
 	Rows       *[]V1Webhook        `json:"rows,omitempty"`
 }
 
+// V1WebhookResponse defines model for V1WebhookResponse.
+type V1WebhookResponse struct {
+	Challenge *string  `json:"challenge,omitempty"`
+	Event     *V1Event `json:"event,omitempty"`
+
+	// Message The message for the webhook response
+	Message *string `json:"message,omitempty"`
+}
+
 // V1WebhookSourceName defines model for V1WebhookSourceName.
 type V1WebhookSourceName string
 
@@ -14545,7 +14554,7 @@ func (r V1WebhookUpdateResponse) StatusCode() int {
 type V1WebhookReceiveResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *map[string]interface{}
+	JSON200      *V1WebhookResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 }
@@ -19940,7 +19949,7 @@ func ParseV1WebhookReceiveResponse(rsp *http.Response) (*V1WebhookReceiveRespons
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest map[string]interface{}
+		var dest V1WebhookResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

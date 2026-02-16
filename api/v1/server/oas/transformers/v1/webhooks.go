@@ -53,3 +53,42 @@ func ToV1WebhookList(webhooks []*sqlcv1.V1IncomingWebhook) gen.V1WebhookList {
 		Rows: &rows,
 	}
 }
+
+func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) gen.V1WebhookResponse {
+	res := gen.V1WebhookResponse{
+		Message:   message,
+		Challenge: challenge,
+	}
+
+	if event != nil {
+		v1Event := &gen.V1Event{
+			Metadata: gen.APIResourceMeta{
+				Id:        event.ID.String(),
+				CreatedAt: event.CreatedAt.Time,
+				UpdatedAt: event.UpdatedAt.Time,
+			},
+			Key:      event.Key,
+			TenantId: event.TenantId.String(),
+		}
+
+		if len(event.AdditionalMetadata) > 0 {
+			var additionalMetadata map[string]interface{}
+
+			_ = json.Unmarshal(event.AdditionalMetadata, &additionalMetadata)
+
+			v1Event.AdditionalMetadata = &additionalMetadata
+		}
+
+		if len(event.Data) > 0 {
+			var data map[string]interface{}
+
+			_ = json.Unmarshal(event.Data, &data)
+
+			v1Event.Payload = &data
+		}
+
+		res.Event = v1Event
+	}
+
+	return res
+}

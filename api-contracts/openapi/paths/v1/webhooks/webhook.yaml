@@ -124,8 +124,7 @@ V1WebhookGetDeleteReceiveUpdate:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
+              $ref: "../../../components/schemas/_index.yaml#/V1WebhookResponse"
       "400":
         content:
           application/json:
