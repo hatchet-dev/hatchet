@@ -316,6 +316,7 @@ const (
 const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
 	PYTHON     WorkerRuntimeSDKs = "PYTHON"
+	RUBY       WorkerRuntimeSDKs = "RUBY"
 	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
 )
 

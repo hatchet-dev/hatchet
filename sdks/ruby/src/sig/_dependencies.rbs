@@ -1,0 +1,8 @@
+# Forward-declare stdlib class so the signatures are self-contained
+# without requiring `rbs -r logger`.
+class Logger
+  def info: (untyped msg) -> untyped
+  def warn: (untyped msg) -> untyped
+  def error: (untyped msg) -> untyped
+  def debug: (untyped msg) -> untyped
+end
