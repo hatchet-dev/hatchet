@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 )
 
@@ -78,7 +79,7 @@ for AI editors like Cursor and Claude Code.`,
 
 		err := form.Run()
 		if err != nil {
-			os.Exit(1)
+			cli.Logger.Fatalf("could not run AI editor selection form: %v", err)
 		}
 
 		switch editor {
@@ -115,6 +116,18 @@ var docsInstallClaudeCodeCmd = &cobra.Command{
 	},
 }
 
+func init() {
+	rootCmd.AddCommand(docsCmd)
+	docsCmd.AddCommand(docsInstallCmd)
+	docsInstallCmd.AddCommand(docsInstallCursorCmd)
+	docsInstallCmd.AddCommand(docsInstallClaudeCodeCmd)
+
+	// Add --url flag to install and its subcommands
+	for _, cmd := range []*cobra.Command{docsInstallCmd, docsInstallCursorCmd, docsInstallClaudeCodeCmd} {
+		cmd.Flags().StringVar(&mcpURL, "url", "", "Custom MCP server URL (default: "+defaultMCPURL+")")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
@@ -131,7 +144,6 @@ func runDocsCursor() {
 
 	ruleContent := fmt.Sprintf(`---
 description: Hatchet documentation MCP server
-globs:
 alwaysApply: true
 ---
 
@@ -287,18 +299,3 @@ func openBrowser(url string) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-
-func init() {
-	rootCmd.AddCommand(docsCmd)
-	docsCmd.AddCommand(docsInstallCmd)
-	docsInstallCmd.AddCommand(docsInstallCursorCmd)
-	docsInstallCmd.AddCommand(docsInstallClaudeCodeCmd)
-
-	// Add --url flag to install and its subcommands
-	for _, cmd := range []*cobra.Command{docsInstallCmd, docsInstallCursorCmd, docsInstallClaudeCodeCmd} {
-		cmd.Flags().StringVar(&mcpURL, "url", "", "Custom MCP server URL (default: "+defaultMCPURL+")")
-	}
-}

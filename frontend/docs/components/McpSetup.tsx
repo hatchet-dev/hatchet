@@ -108,7 +108,7 @@ export function CursorDeeplinkButton() {
   const deeplink = `cursor://anysphere.cursor-deeplink/mcp/install?name=hatchet-docs&config=${encoded}`;
 
   return (
-    <Button variant="outline" size="lg" asChild>
+    <Button variant="outline" size="lg" asChild className="mt-4">
       <a
         href={deeplink}
         className="no-underline flex items-center gap-2"
