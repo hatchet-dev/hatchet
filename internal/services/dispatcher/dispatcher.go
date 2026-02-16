@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -45,12 +46,15 @@ type DispatcherImpl struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	triggerWriter               *trigger.TriggerWriter
 
 	dispatcherId uuid.UUID
 	workers      *workers
 	a            *hatcheterrors.Wrapped
 
-	durableCallbackFn func(taskExternalId uuid.UUID, nodeId int64, payload []byte) error
+	durableCallbackFn  func(taskExternalId uuid.UUID, nodeId int64, payload []byte) error
+	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
+	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -237,6 +241,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	a.WithData(map[string]interface{}{"service": "dispatcher"})
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
+	triggerWriter := trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, 0)
 
 	return &DispatcherImpl{
 		mqv1:                        opts.mqv1,
@@ -253,6 +258,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
+		triggerWriter:               triggerWriter,
 	}, nil
 }
 

@@ -58,6 +58,7 @@ type Server struct {
 	config        *server.ServerConfig
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
+	dispatcherV1  v1contracts.DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
@@ -76,6 +77,7 @@ type ServerOpts struct {
 	bindAddress   string
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
+	dispatcherV1  v1contracts.DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
@@ -157,6 +159,12 @@ func WithDispatcher(d dispatcher.Dispatcher) ServerOpt {
 	}
 }
 
+func WithDispatcherV1(d v1contracts.DispatcherServer) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.dispatcherV1 = d
+	}
+}
+
 func WithAdmin(a admin.AdminService) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.admin = a
@@ -202,6 +210,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		bindAddress:   opts.bindAddress,
 		ingestor:      opts.ingestor,
 		dispatcher:    opts.dispatcher,
+		dispatcherV1:  opts.dispatcherV1,
 		admin:         opts.admin,
 		adminv1:       opts.adminv1,
 		otelCollector: opts.otelCollector,
@@ -329,6 +338,10 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	if s.dispatcher != nil {
 		dispatchercontracts.RegisterDispatcherServer(grpcServer, s.dispatcher)
+	}
+
+	if s.dispatcherV1 != nil {
+		v1contracts.RegisterDispatcherServer(grpcServer, s.dispatcherV1)
 	}
 
 	if s.admin != nil {

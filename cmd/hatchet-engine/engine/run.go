@@ -367,6 +367,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
+		dispatcherV1 := dispatcher.NewV1DispatcherAdapter(d)
+
 		dispatcherCleanup, err := d.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
@@ -429,6 +431,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
+			grpc.WithDispatcherV1(dispatcherV1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithOTelCollector(oc),
@@ -793,6 +796,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
+		dispatcherV1 := dispatcher.NewV1DispatcherAdapter(d)
+
 		dispatcherCleanup, err := d.Start()
 
 		if err != nil {
@@ -857,6 +862,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
+			grpc.WithDispatcherV1(dispatcherV1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithOTelCollector(oc),
