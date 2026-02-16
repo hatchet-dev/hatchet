@@ -1,0 +1,97 @@
+import { Callout, Steps, Tabs } from "nextra/components";
+import {
+  McpUrl,
+  CursorDeeplinkButton,
+  CursorMcpConfig,
+  ClaudeCodeCommand,
+  CursorTabLabel,
+  ClaudeCodeTabLabel,
+  OtherAgentsTabLabel,
+} from "@/components/McpSetup";
+
+# Install Docs MCP
+
+Hatchet documentation is optimized for LLMs and available as an **MCP (Model Context Protocol) server**, so AI coding assistants like Cursor and Claude Code can search and reference Hatchet docs directly.
+
+MCP endpoint: <McpUrl />
+
+<Tabs items={[<CursorTabLabel />, <ClaudeCodeTabLabel />, <OtherAgentsTabLabel />]}>
+  <Tabs.Tab>
+
+    <Tabs items={['Hatchet CLI', 'One-Click Install', 'Manual Config']}>
+        <Tabs.Tab>
+
+        ```bash copy
+        hatchet docs install cursor
+        ```
+
+        This creates a `.cursor/rules/hatchet-docs.mdc` file and prints the one-click deeplink.
+
+      </Tabs.Tab>
+      <Tabs.Tab>
+
+        Install the Hatchet docs MCP server in Cursor with one click:
+
+        <CursorDeeplinkButton />
+
+      </Tabs.Tab>
+      <Tabs.Tab>
+
+        <Steps>
+
+        ### Open Cursor Settings
+
+        Go to **Cursor Settings** → **MCP** → **Add new MCP server**.
+
+        ### Add the server configuration
+
+        <CursorMcpConfig />
+
+        ### Use in chat
+
+        Reference Hatchet docs in any Cursor chat with `@hatchet-docs` or ask questions and the agent will automatically search the docs.
+
+        </Steps>
+
+      </Tabs.Tab>
+    </Tabs>
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+    <Tabs items={['Hatchet CLI', 'Command']}>
+      <Tabs.Tab>
+
+        ```bash copy
+        hatchet docs install claude-code
+        ```
+
+        If `claude` is on your PATH, this runs the command automatically. Otherwise it prints it for you to copy.
+
+      </Tabs.Tab>
+      <Tabs.Tab>
+
+        Run this command in your terminal:
+
+        <ClaudeCodeCommand />
+
+      </Tabs.Tab>
+    </Tabs>
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+    For any AI tool that supports [llms.txt](https://llmstxt.org/), Hatchet docs are available at:
+
+    | Resource | URL |
+    |----------|-----|
+    | **llms.txt** (index) | [docs.hatchet.run/llms.txt](https://docs.hatchet.run/llms.txt) |
+    | **llms-full.txt** (all docs) | [docs.hatchet.run/llms-full.txt](https://docs.hatchet.run/llms-full.txt) |
+    | **Per-page markdown** | `docs.hatchet.run/llms/{section}/{page}.md` |
+    | **MCP endpoint** | <McpUrl /> |
+
+    Every documentation page also includes a `<link rel="alternate" type="text/markdown">` header
+    pointing to its markdown version, and a "View as Markdown" link at the top of the page.
+
+  </Tabs.Tab>
+</Tabs>
