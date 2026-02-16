@@ -729,33 +729,6 @@ WITH input AS (
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE
-), evicted_to_delete AS (
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id
-    FROM
-        v1_task_evicted
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_slots AS (
-    DELETE FROM
-        v1_task_runtime_slot
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    -- return a constant for ordering
-    RETURNING 1 AS cte_order
-), deleted_evicted AS (
-    DELETE FROM
-        v1_task_evicted
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM evicted_to_delete)
-    -- return a constant for ordering
-    RETURNING 1 AS cte_order
 ), deleted_runtimes AS (
     DELETE FROM
         v1_task_runtime
@@ -769,7 +742,7 @@ SELECT
     t.external_id,
     t.step_readable_id,
     t.workflow_run_id,
-    COALESCE(r.worker_id, e.worker_id, '00000000-0000-0000-0000-000000000000'::uuid) AS worker_id,
+    r.worker_id,
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids
@@ -778,9 +751,7 @@ FROM
 JOIN
     input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
-    runtimes_to_delete r ON r.task_id = t.id AND r.task_inserted_at = t.inserted_at AND r.retry_count = t.retry_count
-LEFT JOIN
-    evicted_to_delete e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.retry_count = t.retry_count
+    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
 `
 
 type ReleaseTasksParams struct {

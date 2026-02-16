@@ -167,39 +167,6 @@ func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context
 	return err
 }
 
-const clearEvictedIfPresent = `-- name: ClearEvictedIfPresent :one
-WITH deleted AS (
-    DELETE FROM v1_task_evicted
-    WHERE
-        tenant_id = $1::uuid
-        AND task_id = $2::bigint
-        AND task_inserted_at = $3::timestamptz
-        AND retry_count = $4::int
-    RETURNING 1
-)
-SELECT
-    COALESCE((SELECT 1 FROM deleted LIMIT 1), 0)::int AS "deleted"
-`
-
-type ClearEvictedIfPresentParams struct {
-	Tenantid       uuid.UUID          `json:"tenantid"`
-	Taskid         int64              `json:"taskid"`
-	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
-	Retrycount     int32              `json:"retrycount"`
-}
-
-func (q *Queries) ClearEvictedIfPresent(ctx context.Context, db DBTX, arg ClearEvictedIfPresentParams) (int32, error) {
-	row := db.QueryRow(ctx, clearEvictedIfPresent,
-		arg.Tenantid,
-		arg.Taskid,
-		arg.Taskinsertedat,
-		arg.Retrycount,
-	)
-	var deleted int32
-	err := row.Scan(&deleted)
-	return deleted, err
-}
-
 const createEventToRuns = `-- name: CreateEventToRuns :many
 WITH input AS (
     SELECT
@@ -390,15 +357,12 @@ func (q *Queries) EnsureTablePartitionsExist(ctx context.Context, db DBTX) (bool
 	return all_partitions_exist, err
 }
 
-const evictTaskRuntimeToEvicted = `-- name: EvictTaskRuntimeToEvicted :one
+const evictTask = `-- name: EvictTask :one
 WITH locked_runtime AS (
     SELECT
         task_id,
         task_inserted_at,
-        retry_count,
-        worker_id,
-        tenant_id,
-        timeout_at
+        retry_count
     FROM
         v1_task_runtime
     WHERE
@@ -406,34 +370,8 @@ WITH locked_runtime AS (
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
         AND retry_count = $4::int
-    ORDER BY
-        task_id, task_inserted_at, retry_count
+        AND evicted_at IS NULL
     FOR UPDATE
-), upserted_evicted AS (
-    INSERT INTO v1_task_evicted (
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id,
-        tenant_id,
-        timeout_at
-    )
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id,
-        tenant_id,
-        timeout_at
-    FROM
-        locked_runtime
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
-    SET
-        worker_id = EXCLUDED.worker_id,
-        tenant_id = EXCLUDED.tenant_id,
-        timeout_at = EXCLUDED.timeout_at,
-        evicted_at = NOW()
-    RETURNING 1
 ), deleted_slots AS (
     DELETE FROM v1_task_runtime_slot
     WHERE
@@ -441,38 +379,35 @@ WITH locked_runtime AS (
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
         AND retry_count = $4::int
-    RETURNING 1
-), deleted_runtime AS (
-    DELETE FROM v1_task_runtime
-    WHERE
-        tenant_id = $1::uuid
-        AND task_id = $2::bigint
-        AND task_inserted_at = $3::timestamptz
-        AND retry_count = $4::int
+), updated_runtime AS (
+    UPDATE v1_task_runtime
+    SET evicted_at = NOW()
+    WHERE (task_id, task_inserted_at, retry_count)
+        IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM upserted_evicted LIMIT 1), 0)::int AS "moved"
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted"
 `
 
-type EvictTaskRuntimeToEvictedParams struct {
+type EvictTaskParams struct {
 	Tenantid       uuid.UUID          `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
 	Retrycount     int32              `json:"retrycount"`
 }
 
-// Moves a task run from v1_task_runtime to v1_task_evicted and releases worker slots.
-func (q *Queries) EvictTaskRuntimeToEvicted(ctx context.Context, db DBTX, arg EvictTaskRuntimeToEvictedParams) (int32, error) {
-	row := db.QueryRow(ctx, evictTaskRuntimeToEvicted,
+// Marks a task as evicted in v1_task_runtime and releases worker slots.
+func (q *Queries) EvictTask(ctx context.Context, db DBTX, arg EvictTaskParams) (int32, error) {
+	row := db.QueryRow(ctx, evictTask,
 		arg.Tenantid,
 		arg.Taskid,
 		arg.Taskinsertedat,
 		arg.Retrycount,
 	)
-	var moved int32
-	err := row.Scan(&moved)
-	return moved, err
+	var evicted int32
+	err := row.Scan(&evicted)
+	return evicted, err
 }
 
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
@@ -739,9 +674,18 @@ ORDER BY task_id, task_inserted_at
 LIMIT 1
 `
 
-func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*V1TaskRuntime, error) {
+type FindOldestRunningTaskRow struct {
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	WorkerID       *uuid.UUID         `json:"worker_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
+}
+
+func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*FindOldestRunningTaskRow, error) {
 	row := db.QueryRow(ctx, findOldestRunningTask)
-	var i V1TaskRuntime
+	var i FindOldestRunningTaskRow
 	err := row.Scan(
 		&i.TaskID,
 		&i.TaskInsertedAt,
@@ -1183,95 +1127,6 @@ func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTa
 			&i.StepID,
 			&i.WorkflowID,
 			&i.ExternalID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listEvictedTasksToTimeout = `-- name: ListEvictedTasksToTimeout :many
-WITH expired_evicted AS (
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id
-    FROM
-        v1_task_evicted
-    WHERE
-        tenant_id = $1::uuid
-        AND timeout_at <= NOW()
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    LIMIT
-        COALESCE($2::integer, 1000)
-    FOR UPDATE SKIP LOCKED
-)
-SELECT
-    v1_task.id,
-    v1_task.inserted_at,
-    v1_task.retry_count,
-    v1_task.step_id,
-    v1_task.external_id,
-    v1_task.workflow_run_id,
-    v1_task.step_timeout,
-    v1_task.app_retry_count,
-    v1_task.retry_backoff_factor,
-    v1_task.retry_max_backoff,
-    expired_evicted.worker_id
-FROM
-    v1_task
-JOIN
-    expired_evicted ON expired_evicted.task_id = v1_task.id
-        AND expired_evicted.task_inserted_at = v1_task.inserted_at
-        AND expired_evicted.retry_count = v1_task.retry_count
-`
-
-type ListEvictedTasksToTimeoutParams struct {
-	Tenantid uuid.UUID   `json:"tenantid"`
-	Limit    pgtype.Int4 `json:"limit"`
-}
-
-type ListEvictedTasksToTimeoutRow struct {
-	ID                 int64              `json:"id"`
-	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount         int32              `json:"retry_count"`
-	StepID             uuid.UUID          `json:"step_id"`
-	ExternalID         uuid.UUID          `json:"external_id"`
-	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
-	StepTimeout        pgtype.Text        `json:"step_timeout"`
-	AppRetryCount      int32              `json:"app_retry_count"`
-	RetryBackoffFactor pgtype.Float8      `json:"retry_backoff_factor"`
-	RetryMaxBackoff    pgtype.Int4        `json:"retry_max_backoff"`
-	WorkerID           *uuid.UUID         `json:"worker_id"`
-}
-
-func (q *Queries) ListEvictedTasksToTimeout(ctx context.Context, db DBTX, arg ListEvictedTasksToTimeoutParams) ([]*ListEvictedTasksToTimeoutRow, error) {
-	rows, err := db.Query(ctx, listEvictedTasksToTimeout, arg.Tenantid, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListEvictedTasksToTimeoutRow
-	for rows.Next() {
-		var i ListEvictedTasksToTimeoutRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.RetryCount,
-			&i.StepID,
-			&i.ExternalID,
-			&i.WorkflowRunID,
-			&i.StepTimeout,
-			&i.AppRetryCount,
-			&i.RetryBackoffFactor,
-			&i.RetryMaxBackoff,
-			&i.WorkerID,
 		); err != nil {
 			return nil, err
 		}
@@ -2104,6 +1959,8 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        -- TODO: think through reassign case...
+        AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE($2::integer, 1000)
 )
@@ -2443,7 +2300,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
 `
 
 type ManualSlotReleaseParams struct {
@@ -2461,6 +2318,7 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 		&i.WorkerID,
 		&i.TenantID,
 		&i.TimeoutAt,
+		&i.EvictedAt,
 	)
 	return &i, err
 }
@@ -2784,7 +2642,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
 `
 
 type RefreshTimeoutByParams struct {
@@ -2803,39 +2661,71 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.WorkerID,
 		&i.TenantID,
 		&i.TimeoutAt,
+		&i.EvictedAt,
 	)
 	return &i, err
 }
 
 const restoreEvictedTask = `-- name: RestoreEvictedTask :one
-WITH deleted AS (
-    DELETE FROM v1_task_evicted
+WITH evicted_runtime AS (
+    SELECT
+        r.task_id,
+        r.task_inserted_at,
+        r.retry_count
+    FROM
+        v1_task_runtime r
     WHERE
-        tenant_id = $1::uuid
-        AND task_id = $2::bigint
-        AND task_inserted_at = $3::timestamptz
-        AND retry_count = $4::int
-    RETURNING 1
-), updated_task AS (
-    -- TODO-DURABLE: this is not correct, we should likely insert v1_queue_item directly
-    UPDATE v1_task t
-    SET
-        retry_count = t.retry_count + 1,
-        app_retry_count = 0,
-        internal_retry_count = 0,
-        initial_state = 'QUEUED',
-        initial_state_reason = 'woken'
+        r.tenant_id = $1::uuid
+        AND r.task_id = $2::bigint
+        AND r.task_inserted_at = $3::timestamptz
+        AND r.retry_count = $4::int
+        AND r.evicted_at IS NOT NULL
+    FOR UPDATE
+), inserted_qi AS (
+    INSERT INTO v1_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+    )
+    SELECT
+        t.tenant_id,
+        t.queue,
+        t.id,
+        t.inserted_at,
+        t.external_id,
+        t.action_id,
+        t.step_id,
+        t.workflow_id,
+        t.workflow_run_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
+        t.step_timeout,
+        4,
+        t.sticky,
+        t.desired_worker_id,
+        t.retry_count
+    FROM
+        v1_task t
     WHERE
-        t.tenant_id = $1::uuid
-        AND t.id = $2::bigint
+        t.id = $2::bigint
         AND t.inserted_at = $3::timestamptz
-        AND t.retry_count = $4::int
-        AND EXISTS (SELECT 1 FROM deleted)
+        AND EXISTS (SELECT 1 FROM evicted_runtime)
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM deleted LIMIT 1), 0)::int AS "removedEvicted",
-    COALESCE((SELECT 1 FROM updated_task LIMIT 1), 0)::int AS "queued"
+    COALESCE((SELECT 1 FROM evicted_runtime LIMIT 1), 0)::int AS "wasEvicted",
+    COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued"
 `
 
 type RestoreEvictedTaskParams struct {
@@ -2846,13 +2736,13 @@ type RestoreEvictedTaskParams struct {
 }
 
 type RestoreEvictedTaskRow struct {
-	RemovedEvicted int32 `json:"removedEvicted"`
-	Queued         int32 `json:"queued"`
+	WasEvicted int32 `json:"wasEvicted"`
+	Queued     int32 `json:"queued"`
 }
 
-// Removes a task from evicted and "restores" it like replay:
-// bump retry_count, reset retry counters, set QUEUED (so normal triggers handle queue/concurrency).
-// This avoids durable re-execution spawning duplicate child tasks.
+// Restores an evicted task by inserting it directly into the assignment queue.
+// The evicted runtime row stays (evicted_at set); when the queue item is assigned,
+// the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.
 func (q *Queries) RestoreEvictedTask(ctx context.Context, db DBTX, arg RestoreEvictedTaskParams) (*RestoreEvictedTaskRow, error) {
 	row := db.QueryRow(ctx, restoreEvictedTask,
 		arg.Tenantid,
@@ -2861,6 +2751,6 @@ func (q *Queries) RestoreEvictedTask(ctx context.Context, db DBTX, arg RestoreEv
 		arg.Retrycount,
 	)
 	var i RestoreEvictedTaskRow
-	err := row.Scan(&i.RemovedEvicted, &i.Queued)
+	err := row.Scan(&i.WasEvicted, &i.Queued)
 	return &i, err
 }
