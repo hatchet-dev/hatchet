@@ -1,4 +1,3 @@
-import { Button } from '@/components/v1/ui/button';
 import {
   Command,
   CommandGroup,
@@ -13,7 +12,13 @@ import {
 } from '@/components/v1/ui/popover';
 import { cn } from '@/lib/utils';
 import { MagnifyingGlassIcon, Cross2Icon } from '@radix-ui/react-icons';
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
 
 export interface SearchSuggestion<TType extends string = string> {
   type: TType;
@@ -81,6 +86,53 @@ export interface SearchBarWithFiltersProps<
 }
 
 // ============================================================================
+// Filter highlight helpers
+// ============================================================================
+
+/** Colour for the filter key prefix (e.g. "level" in level:error) */
+const FILTER_KEY_COLOR = 'hsl(var(--brand))';
+/** Colour for the filter value suffix (e.g. "error" in level:error) */
+const FILTER_VALUE_COLOR =
+  'color-mix(in srgb, hsl(var(--brand)) 70%, hsl(var(--foreground)))';
+
+interface TextSegment {
+  text: string;
+  isFilter: boolean;
+}
+
+/**
+ * Splits the input value into segments, tagging recognised filter tokens
+ * (e.g. `level:error`) so they can be rendered with custom colours.
+ */
+const parseFilterSegments = (
+  value: string,
+  filterChips: FilterChip[],
+): TextSegment[] => {
+  if (!value) {
+    return [];
+  }
+
+  const segments: TextSegment[] = [];
+  // Split on whitespace runs while preserving them
+  const parts = value.split(/(\s+)/);
+
+  for (const part of parts) {
+    if (/^\s+$/.test(part)) {
+      segments.push({ text: part, isFilter: false });
+      continue;
+    }
+
+    const isFilter = filterChips.some((chip) =>
+      part.toLowerCase().startsWith(chip.key.toLowerCase()),
+    );
+
+    segments.push({ text: part, isFilter });
+  }
+
+  return segments;
+};
+
+// ============================================================================
 // Component
 // ============================================================================
 
@@ -93,7 +145,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
   autocompleteContext,
   renderSuggestion,
   filterChips,
-  onFilterChipClick,
+  // onFilterChipClick,
   placeholder = 'Search...',
   className,
   searchIcon,
@@ -108,10 +160,38 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
   const [localValue, setLocalValue] = useState(value);
   const prevSuggestionsRef = useRef<TSuggestion[]>([]);
   const prevLocalValueRef = useRef(value);
+  const overlayInnerRef = useRef<HTMLDivElement>(null);
+
+  const hasColoredFilters = !!filterChips?.length;
 
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
+
+  const segments = useMemo(
+    () =>
+      hasColoredFilters ? parseFilterSegments(localValue, filterChips) : [],
+    [localValue, filterChips, hasColoredFilters],
+  );
+
+  // Keep the highlight overlay horizontally in sync with the native input scroll
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || !hasColoredFilters) {
+      return;
+    }
+
+    const syncScroll = () => {
+      if (overlayInnerRef.current) {
+        overlayInnerRef.current.style.transform = `translateX(-${input.scrollLeft}px)`;
+      }
+    };
+
+    input.addEventListener('scroll', syncScroll);
+    syncScroll();
+
+    return () => input.removeEventListener('scroll', syncScroll);
+  }, [localValue, hasColoredFilters]);
 
   const { suggestions } = getAutocomplete(localValue, autocompleteContext);
 
@@ -152,27 +232,27 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
     }
   }, [localValue, onChange, onSubmit]);
 
-  const handleFilterChipClick = useCallback(
-    (filterKey: string) => {
-      if (onFilterChipClick) {
-        onFilterChipClick(filterKey);
-        return;
-      }
+  // const handleFilterChipClick = useCallback(
+  //   (filterKey: string) => {
+  //     if (onFilterChipClick) {
+  //       onFilterChipClick(filterKey);
+  //       return;
+  //     }
 
-      const newValue = localValue ? `${localValue} ${filterKey}` : filterKey;
-      setLocalValue(newValue);
-      // Don't call onChange - user is still building the filter
-      setIsOpen(true);
-      setTimeout(() => {
-        const input = inputRef.current;
-        if (input) {
-          input.focus();
-          input.setSelectionRange(newValue.length, newValue.length);
-        }
-      }, 0);
-    },
-    [localValue, onFilterChipClick],
-  );
+  //     const newValue = localValue ? `${localValue} ${filterKey}` : filterKey;
+  //     setLocalValue(newValue);
+  //     // Don't call onChange - user is still building the filter
+  //     setIsOpen(true);
+  //     setTimeout(() => {
+  //       const input = inputRef.current;
+  //       if (input) {
+  //         input.focus();
+  //         input.setSelectionRange(newValue.length, newValue.length);
+  //       }
+  //     }, 0);
+  //   },
+  //   [localValue, onFilterChipClick],
+  // );
 
   const handleSelect = useCallback(
     (index: number) => {
@@ -212,9 +292,17 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        // Enter always submits search
-        submitSearch();
-        setIsOpen(false);
+        // If the dropdown is open with suggestions, Enter autocompletes (like Tab)
+        // Otherwise, Enter submits the search
+        if (isOpen && suggestions.length > 0) {
+          const indexToApply = selectedIndex !== undefined ? selectedIndex : 0;
+          if (suggestions[indexToApply]) {
+            handleSelect(indexToApply);
+          }
+        } else {
+          submitSearch();
+          setIsOpen(false);
+        }
         return;
       }
 
@@ -261,7 +349,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
       <div
         className={cn(
           'flex items-center justify-between w-full',
-          isSelected && 'bg-accent text-accent-foreground',
+          isSelected && 'text-accent-foreground',
         )}
       >
         <div className="flex items-center gap-2">
@@ -271,11 +359,11 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
             />
           )}
           {suggestion.type === 'key' ? (
-            <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
+            <code className="py-0.5 text-xs font-mono">
               {suggestion.label}:
             </code>
           ) : (
-            <span className="font-mono text-sm">{suggestion.label}</span>
+            <span className="py-0.5 font-mono text-xs">{suggestion.label}</span>
           )}
         </div>
         {suggestion.description && (
@@ -339,9 +427,52 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
                 }, 200);
               }}
               placeholder={placeholder}
-              className="pl-9 pr-8"
+              className={cn(
+                'pl-9 pr-8',
+                hasColoredFilters && 'text-transparent',
+              )}
+              style={
+                hasColoredFilters
+                  ? { caretColor: 'hsl(var(--foreground))' }
+                  : undefined
+              }
               data-cy="search-bar-input"
             />
+            {/* Coloured highlight overlay – mirrors input text with filter colours */}
+            {hasColoredFilters && localValue && (
+              <div
+                className="absolute inset-[1px] pointer-events-none overflow-hidden flex items-center pl-9 pr-8"
+                aria-hidden="true"
+              >
+                <div
+                  ref={overlayInnerRef}
+                  className="text-sm text-foreground whitespace-pre"
+                >
+                  {segments.map((segment, i) => {
+                    if (!segment.isFilter) {
+                      return <span key={i}>{segment.text}</span>;
+                    }
+
+                    const colonIdx = segment.text.indexOf(':');
+                    const prefix = segment.text.slice(0, colonIdx + 1);
+                    const suffix = segment.text.slice(colonIdx + 1);
+
+                    return (
+                      <span key={i}>
+                        <span style={{ color: FILTER_KEY_COLOR }}>
+                          {prefix}
+                        </span>
+                        {suffix && (
+                          <span style={{ color: FILTER_VALUE_COLOR }}>
+                            {suffix}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {localValue && (
               <button
                 type="button"
@@ -356,7 +487,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
         </PopoverTrigger>
         <PopoverContent
           className={cn(
-            'w-[var(--radix-popover-trigger-width)] min-w-[320px] p-0',
+            'w-[var(--radix-popover-trigger-width)] min-w-[320px] p-0 lg:max-w-[560px]',
             popoverClassName,
           )}
           align="start"
@@ -373,7 +504,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               }
             >
               <CommandList
-                className="max-h-[300px]"
+                className="max-h-[300px] bg-muted/50"
                 data-cy="search-bar-suggestions"
               >
                 <CommandGroup>
@@ -383,10 +514,10 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
                       value={suggestion.value}
                       onSelect={() => handleSelect(index)}
                       className={cn(
-                        'flex items-center justify-between',
+                        'flex items-center justify-between aria-selected:bg-primary/5 text-primary/60',
                         selectedIndex !== undefined &&
                           index === selectedIndex &&
-                          'bg-accent text-accent-foreground',
+                          'text-accent-foreground',
                       )}
                       onMouseEnter={() => setSelectedIndex(index)}
                       data-cy={`search-bar-suggestion-${index}`}
@@ -401,7 +532,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               </CommandList>
             </Command>
           )}
-          {filterChips && filterChips.length > 0 && (
+          {/* {filterChips && filterChips.length > 0 && (
             <div
               className={cn(
                 'flex flex-col gap-2 px-3 py-2 text-xs',
@@ -428,12 +559,12 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               </div>
               <div className="text-muted-foreground space-y-1">
                 <div>
-                  Arrow keys to navigate, tab to autocomplete. Type any text for
-                  full-text search.
+                  Arrow keys to navigate, tab or enter to autocomplete. Type any
+                  text for full-text search.
                 </div>
               </div>
             </div>
-          )}
+          )} */}
         </PopoverContent>
       </Popover>
     </div>
