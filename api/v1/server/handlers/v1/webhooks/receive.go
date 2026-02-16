@@ -305,7 +305,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		}, nil
 	}
 
-	_, err = w.config.Ingestor.IngestEvent(
+	ev, err := w.config.Ingestor.IngestEvent(
 		ctx.Request().Context(),
 		tenant,
 		eventKey,
@@ -322,6 +322,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	return gen.V1WebhookReceive200JSONResponse(map[string]interface{}{
 		"message": "ok",
+		"eventId": ev.ID.String(),
 	}), nil
 }
 
