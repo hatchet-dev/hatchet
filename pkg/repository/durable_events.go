@@ -2,6 +2,9 @@ package repository
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -101,8 +104,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			Nodeid:                params.Nodeid,
 			ParentNodeId:          params.ParentNodeId,
 			Branchid:              params.Branchid,
-			Datahash:              params.Datahash,
-			Datahashalg:           params.Datahashalg,
+			Idempotencykey:        params.Idempotencykey,
 		})
 
 		if err != nil {
@@ -264,6 +266,40 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
 }
 
+func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts IngestDurableTaskEventOpts) ([]byte, error) {
+	kindBytes := []byte(opts.Kind)
+
+	var triggerOptBytes []byte
+	var conditionBytes []byte
+	var err error
+
+	if opts.TriggerOpts != nil {
+		triggerOptBytes, err = json.Marshal(opts.TriggerOpts)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal trigger opts for idempotency key generation: %w", err)
+		}
+	}
+
+	if opts.WaitForConditions != nil {
+		conditionBytes, err = json.Marshal(opts.WaitForConditions)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal wait for conditions for idempotency key generation: %w", err)
+		}
+	}
+
+	dataToHash := append(kindBytes, triggerOptBytes...)
+	dataToHash = append(dataToHash, conditionBytes...)
+
+	h := sha1.New()
+	h.Write(dataToHash)
+	var idempotencyKey []byte
+	hex.Encode(idempotencyKey, dataToHash)
+
+	return idempotencyKey, nil
+}
+
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, fmt.Errorf("invalid opts: %w", err)
@@ -337,6 +373,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	// todo: real branching logic here
 	branchId := logFile.LatestBranchID
 
+	idempotencyKey, err := r.createIdempotencyKey(ctx, opts)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create idempotency key: %w", err)
+	}
+
 	logEntry, err := r.getOrCreateEventLogEntry(ctx, tx, opts.TenantId, sqlcv1.CreateDurableEventLogEntryParams{
 		Tenantid:              opts.TenantId,
 		Externalid:            uuid.New(),
@@ -346,8 +388,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Nodeid:                nodeId,
 		ParentNodeId:          parentNodeId,
 		Branchid:              branchId,
-		Datahash:              nil, // todo: implement this for nondeterminism check
-		Datahashalg:           "",
+		Idempotencykey:        idempotencyKey,
 	}, opts.Payload)
 
 	if err != nil {
