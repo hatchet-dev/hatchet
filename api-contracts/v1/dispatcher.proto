@@ -87,7 +87,8 @@ message DurableTaskRequest {
 message DurableTaskErrorResponse {
     string durable_task_external_id = 1;
     int64 invocation_count = 2;
-    string error_message = 3;
+    int64 node_id = 3;
+    string error_message = 4;
 }
 
 message DurableTaskResponse {

@@ -571,6 +571,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			Message: &contracts.DurableTaskResponse_Error{
 				Error: &contracts.DurableTaskErrorResponse{
 					DurableTaskExternalId: taskExternalId.String(),
+					NodeId:                ingestionResult.NodeId,
 					InvocationCount:       req.InvocationCount,
 					ErrorMessage:          errMsg,
 				},

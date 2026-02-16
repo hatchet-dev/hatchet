@@ -283,6 +283,7 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts IngestDurableTaskEventOpts) ([]byte, error) {
 	kindBytes := []byte(opts.Kind)
 
+	// todo: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
 	var triggerOptBytes []byte
 	var conditionBytes []byte
 	var err error

@@ -109,14 +109,16 @@ class DurableTaskRequest(_message.Message):
     def __init__(self, register_worker: _Optional[_Union[DurableTaskRequestRegisterWorker, _Mapping]] = ..., event: _Optional[_Union[DurableTaskEventRequest, _Mapping]] = ..., evict_invocation: _Optional[_Union[DurableTaskEvictInvocationRequest, _Mapping]] = ..., worker_status: _Optional[_Union[DurableTaskWorkerStatusRequest, _Mapping]] = ...) -> None: ...
 
 class DurableTaskErrorResponse(_message.Message):
-    __slots__ = ("durable_task_external_id", "invocation_count", "error_message")
+    __slots__ = ("durable_task_external_id", "invocation_count", "node_id", "error_message")
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
     ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
     durable_task_external_id: str
     invocation_count: int
+    node_id: int
     error_message: str
-    def __init__(self, durable_task_external_id: _Optional[str] = ..., invocation_count: _Optional[int] = ..., error_message: _Optional[str] = ...) -> None: ...
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., invocation_count: _Optional[int] = ..., node_id: _Optional[int] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class DurableTaskResponse(_message.Message):
     __slots__ = ("register_worker", "trigger_ack", "callback_completed", "error")
