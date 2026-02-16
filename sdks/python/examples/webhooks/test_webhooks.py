@@ -285,7 +285,8 @@ async def test_basic_auth_success(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -366,7 +367,8 @@ async def test_api_key_success(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -449,7 +451,8 @@ async def test_hmac_success(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -493,7 +496,8 @@ async def test_hmac_different_algorithms_and_encodings(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -586,7 +590,8 @@ async def test_different_source_types(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
