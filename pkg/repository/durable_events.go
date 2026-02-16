@@ -380,96 +380,17 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	if !logEntry.AlreadyExisted {
 		switch opts.Kind {
 		case sqlcv1.V1DurableEventLogKindWAITFOR:
-			if opts.WaitForConditions != nil {
-				externalId := opts.Task.ExternalID
-				signalKey := getDurableTaskSignalKey(externalId, nodeId)
-
-				if len(opts.WaitForConditions) > 0 {
-					taskExternalId := task.ExternalID
-					createMatchOpts := []ExternalCreateSignalMatchOpts{{
-						Conditions:                    opts.WaitForConditions,
-						SignalTaskId:                  task.ID,
-						SignalTaskInsertedAt:          task.InsertedAt,
-						SignalExternalId:              task.ExternalID,
-						SignalKey:                     signalKey,
-						DurableCallbackTaskId:         &task.ID,
-						DurableCallbackTaskInsertedAt: task.InsertedAt,
-						DurableCallbackNodeId:         &callbackResult.Callback.NodeID,
-						DurableCallbackTaskExternalId: &taskExternalId,
-					}}
-
-					err = r.registerSignalMatchConditions(ctx, tx, opts.TenantId, createMatchOpts)
-					if err != nil {
-						return nil, fmt.Errorf("failed to register signal match conditions: %w", err)
-					}
-				}
-			}
-		case sqlcv1.V1DurableEventLogKindRUN:
-			createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, optTx, opts.TenantId, []*WorkflowNameTriggerOpts{opts.TriggerOpts})
+			err := r.handleWaitFor(ctx, tx, nodeId, opts, task)
 
 			if err != nil {
-				return nil, fmt.Errorf("failed to trigger workflows: %w", err)
+				return nil, fmt.Errorf("failed to handle wait for conditions: %w", err)
 			}
+		case sqlcv1.V1DurableEventLogKindRUN:
+			spawnedDAGs, spawnedTasks, err = r.handleTriggerRuns(ctx, optTx, nodeId, opts, task)
 
-			taskId := task.ID
-			taskExternalId := task.ExternalID
-			callbackNodeId := callbackResult.Callback.NodeID
-
-			for _, childTask := range createdTasks {
-				childHint := childTask.ExternalID.String()
-				orGroupId := uuid.New()
-
-				runCallbackSignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
-
-				err = r.createEventMatches(ctx, tx, opts.TenantId, []CreateMatchOpts{{
-					Kind: sqlcv1.V1MatchKindSIGNAL,
-					Conditions: []GroupMatchCondition{
-						{
-							GroupId:           orGroupId,
-							EventType:         sqlcv1.V1EventTypeINTERNAL,
-							EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
-							ReadableDataKey:   "output",
-							EventResourceHint: &childHint,
-							Expression:        "true",
-							Action:            sqlcv1.V1MatchConditionActionCREATE,
-						},
-						{
-							GroupId:           orGroupId,
-							EventType:         sqlcv1.V1EventTypeINTERNAL,
-							EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-							ReadableDataKey:   "output",
-							EventResourceHint: &childHint,
-							Expression:        "true",
-							Action:            sqlcv1.V1MatchConditionActionCREATE,
-						},
-						{
-							GroupId:           orGroupId,
-							EventType:         sqlcv1.V1EventTypeINTERNAL,
-							EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-							ReadableDataKey:   "output",
-							EventResourceHint: &childHint,
-							Expression:        "true",
-							Action:            sqlcv1.V1MatchConditionActionCREATE,
-						},
-					},
-					SignalTaskId:                  &taskId,
-					SignalTaskInsertedAt:          task.InsertedAt,
-					SignalExternalId:              &taskExternalId,
-					SignalKey:                     &runCallbackSignalKey,
-					DurableCallbackTaskId:         &taskId,
-					DurableCallbackTaskInsertedAt: task.InsertedAt,
-					DurableCallbackNodeId:         &callbackNodeId,
-					DurableCallbackTaskExternalId: &taskExternalId,
-				}})
-
-				if err != nil {
-					return nil, fmt.Errorf("failed to register run completion match: %w", err)
-				}
+			if err != nil {
+				return nil, fmt.Errorf("failed to handle trigger runs: %w", err)
 			}
-
-			spawnedTasks = createdTasks
-			spawnedDAGs = createdDAGs
-
 		case sqlcv1.V1DurableEventLogKindMEMO:
 			// todo: memo here
 		default:
@@ -499,4 +420,96 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		CreatedTasks:  spawnedTasks,
 		CreatedDAGs:   spawnedDAGs,
 	}, nil
+}
+
+func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, nodeId int64, opts IngestDurableTaskEventOpts, task *sqlcv1.FlattenExternalIdsRow) error {
+	if opts.WaitForConditions == nil {
+		return nil
+	}
+
+	if len(opts.WaitForConditions) == 0 {
+		return nil
+	}
+
+	taskExternalId := opts.Task.ExternalID
+	signalKey := getDurableTaskSignalKey(taskExternalId, nodeId)
+
+	createMatchOpts := []ExternalCreateSignalMatchOpts{{
+		Conditions:                    opts.WaitForConditions,
+		SignalTaskId:                  task.ID,
+		SignalTaskInsertedAt:          task.InsertedAt,
+		SignalExternalId:              task.ExternalID,
+		SignalKey:                     signalKey,
+		DurableCallbackTaskId:         &task.ID,
+		DurableCallbackTaskInsertedAt: task.InsertedAt,
+		DurableCallbackNodeId:         &nodeId,
+		DurableCallbackTaskExternalId: &taskExternalId,
+	}}
+
+	return r.registerSignalMatchConditions(ctx, tx, opts.TenantId, createMatchOpts)
+}
+
+func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *OptimisticTx, nodeId int64, opts IngestDurableTaskEventOpts, task *sqlcv1.FlattenExternalIdsRow) ([]*DAGWithData, []*V1TaskWithPayload, error) {
+	createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, tx, opts.TenantId, []*WorkflowNameTriggerOpts{opts.TriggerOpts})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
+	}
+
+	taskId := task.ID
+	taskExternalId := task.ExternalID
+
+	for _, childTask := range createdTasks {
+		childHint := childTask.ExternalID.String()
+		orGroupId := uuid.New()
+
+		runCallbackSignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
+
+		err = r.createEventMatches(ctx, tx.tx, opts.TenantId, []CreateMatchOpts{{
+			Kind: sqlcv1.V1MatchKindSIGNAL,
+			Conditions: []GroupMatchCondition{
+				{
+					GroupId:           orGroupId,
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+					ReadableDataKey:   "output",
+					EventResourceHint: &childHint,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCREATE,
+				},
+				{
+					GroupId:           orGroupId,
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+					ReadableDataKey:   "output",
+					EventResourceHint: &childHint,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCREATE,
+				},
+				{
+					GroupId:           orGroupId,
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+					ReadableDataKey:   "output",
+					EventResourceHint: &childHint,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCREATE,
+				},
+			},
+			SignalTaskId:                  &taskId,
+			SignalTaskInsertedAt:          task.InsertedAt,
+			SignalExternalId:              &taskExternalId,
+			SignalKey:                     &runCallbackSignalKey,
+			DurableCallbackTaskId:         &taskId,
+			DurableCallbackTaskInsertedAt: task.InsertedAt,
+			DurableCallbackNodeId:         &nodeId,
+			DurableCallbackTaskExternalId: &taskExternalId,
+		}})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to register run completion match: %w", err)
+		}
+	}
+
+	return createdDAGs, createdTasks, nil
 }
