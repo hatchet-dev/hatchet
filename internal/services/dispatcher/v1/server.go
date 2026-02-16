@@ -583,7 +583,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 		return nil
 	} else if err != nil {
-
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
 	}
 
