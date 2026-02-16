@@ -18,48 +18,272 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// V1DispatcherClient is the client API for V1Dispatcher service.
+// DispatcherClient is the client API for Dispatcher service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type V1DispatcherClient interface {
-	DurableTask(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_DurableTaskClient, error)
+type DispatcherClient interface {
+	Register(ctx context.Context, in *WorkerRegisterRequest, opts ...grpc.CallOption) (*WorkerRegisterResponse, error)
+	Listen(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenClient, error)
+	// ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
+	// against engine version v0.18.1+
+	ListenV2(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenV2Client, error)
+	// Heartbeat is a method for workers to send heartbeats to the dispatcher
+	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
+	SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error)
+	SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowRunsClient, error)
+	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
+	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
+	PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error)
+	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
+	RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error)
+	ReleaseSlot(ctx context.Context, in *ReleaseSlotRequest, opts ...grpc.CallOption) (*ReleaseSlotResponse, error)
+	UpsertWorkerLabels(ctx context.Context, in *UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*UpsertWorkerLabelsResponse, error)
+	DurableTask(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_DurableTaskClient, error)
 	// NOTE: deprecated after DurableEventLog is implemented
 	RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error)
-	ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_ListenForDurableEventClient, error)
+	ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_ListenForDurableEventClient, error)
 }
 
-type v1DispatcherClient struct {
+type dispatcherClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewV1DispatcherClient(cc grpc.ClientConnInterface) V1DispatcherClient {
-	return &v1DispatcherClient{cc}
+func NewDispatcherClient(cc grpc.ClientConnInterface) DispatcherClient {
+	return &dispatcherClient{cc}
 }
 
-func (c *v1DispatcherClient) DurableTask(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_DurableTaskClient, error) {
-	stream, err := c.cc.NewStream(ctx, &V1Dispatcher_ServiceDesc.Streams[0], "/v1.V1Dispatcher/DurableTask", opts...)
+func (c *dispatcherClient) Register(ctx context.Context, in *WorkerRegisterRequest, opts ...grpc.CallOption) (*WorkerRegisterResponse, error) {
+	out := new(WorkerRegisterResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/Register", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &v1DispatcherDurableTaskClient{stream}
+	return out, nil
+}
+
+func (c *dispatcherClient) Listen(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[0], "/v1.Dispatcher/Listen", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherListenClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	return x, nil
 }
 
-type V1Dispatcher_DurableTaskClient interface {
+type Dispatcher_ListenClient interface {
+	Recv() (*AssignedAction, error)
+	grpc.ClientStream
+}
+
+type dispatcherListenClient struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherListenClient) Recv() (*AssignedAction, error) {
+	m := new(AssignedAction)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dispatcherClient) ListenV2(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenV2Client, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[1], "/v1.Dispatcher/ListenV2", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherListenV2Client{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Dispatcher_ListenV2Client interface {
+	Recv() (*AssignedAction, error)
+	grpc.ClientStream
+}
+
+type dispatcherListenV2Client struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherListenV2Client) Recv() (*AssignedAction, error) {
+	m := new(AssignedAction)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dispatcherClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
+	out := new(HeartbeatResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/Heartbeat", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[2], "/v1.Dispatcher/SubscribeToWorkflowEvents", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherSubscribeToWorkflowEventsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Dispatcher_SubscribeToWorkflowEventsClient interface {
+	Recv() (*WorkflowEvent, error)
+	grpc.ClientStream
+}
+
+type dispatcherSubscribeToWorkflowEventsClient struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherSubscribeToWorkflowEventsClient) Recv() (*WorkflowEvent, error) {
+	m := new(WorkflowEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dispatcherClient) SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowRunsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[3], "/v1.Dispatcher/SubscribeToWorkflowRuns", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherSubscribeToWorkflowRunsClient{stream}
+	return x, nil
+}
+
+type Dispatcher_SubscribeToWorkflowRunsClient interface {
+	Send(*SubscribeToWorkflowRunsRequest) error
+	Recv() (*WorkflowRunEvent, error)
+	grpc.ClientStream
+}
+
+type dispatcherSubscribeToWorkflowRunsClient struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsClient) Send(m *SubscribeToWorkflowRunsRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsClient) Recv() (*WorkflowRunEvent, error) {
+	m := new(WorkflowRunEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dispatcherClient) SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
+	out := new(ActionEventResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/SendStepActionEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
+	out := new(ActionEventResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/SendGroupKeyActionEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error) {
+	out := new(OverridesDataResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/PutOverridesData", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error) {
+	out := new(WorkerUnsubscribeResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/Unsubscribe", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error) {
+	out := new(RefreshTimeoutResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/RefreshTimeout", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) ReleaseSlot(ctx context.Context, in *ReleaseSlotRequest, opts ...grpc.CallOption) (*ReleaseSlotResponse, error) {
+	out := new(ReleaseSlotResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/ReleaseSlot", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) UpsertWorkerLabels(ctx context.Context, in *UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*UpsertWorkerLabelsResponse, error) {
+	out := new(UpsertWorkerLabelsResponse)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/UpsertWorkerLabels", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) DurableTask(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_DurableTaskClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[4], "/v1.Dispatcher/DurableTask", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherDurableTaskClient{stream}
+	return x, nil
+}
+
+type Dispatcher_DurableTaskClient interface {
 	Send(*DurableTaskRequest) error
 	Recv() (*DurableTaskResponse, error)
 	grpc.ClientStream
 }
 
-type v1DispatcherDurableTaskClient struct {
+type dispatcherDurableTaskClient struct {
 	grpc.ClientStream
 }
 
-func (x *v1DispatcherDurableTaskClient) Send(m *DurableTaskRequest) error {
+func (x *dispatcherDurableTaskClient) Send(m *DurableTaskRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *v1DispatcherDurableTaskClient) Recv() (*DurableTaskResponse, error) {
+func (x *dispatcherDurableTaskClient) Recv() (*DurableTaskResponse, error) {
 	m := new(DurableTaskResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -67,39 +291,39 @@ func (x *v1DispatcherDurableTaskClient) Recv() (*DurableTaskResponse, error) {
 	return m, nil
 }
 
-func (c *v1DispatcherClient) RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error) {
+func (c *dispatcherClient) RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error) {
 	out := new(RegisterDurableEventResponse)
-	err := c.cc.Invoke(ctx, "/v1.V1Dispatcher/RegisterDurableEvent", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/v1.Dispatcher/RegisterDurableEvent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *v1DispatcherClient) ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_ListenForDurableEventClient, error) {
-	stream, err := c.cc.NewStream(ctx, &V1Dispatcher_ServiceDesc.Streams[1], "/v1.V1Dispatcher/ListenForDurableEvent", opts...)
+func (c *dispatcherClient) ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_ListenForDurableEventClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[5], "/v1.Dispatcher/ListenForDurableEvent", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &v1DispatcherListenForDurableEventClient{stream}
+	x := &dispatcherListenForDurableEventClient{stream}
 	return x, nil
 }
 
-type V1Dispatcher_ListenForDurableEventClient interface {
+type Dispatcher_ListenForDurableEventClient interface {
 	Send(*ListenForDurableEventRequest) error
 	Recv() (*DurableEvent, error)
 	grpc.ClientStream
 }
 
-type v1DispatcherListenForDurableEventClient struct {
+type dispatcherListenForDurableEventClient struct {
 	grpc.ClientStream
 }
 
-func (x *v1DispatcherListenForDurableEventClient) Send(m *ListenForDurableEventRequest) error {
+func (x *dispatcherListenForDurableEventClient) Send(m *ListenForDurableEventRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *v1DispatcherListenForDurableEventClient) Recv() (*DurableEvent, error) {
+func (x *dispatcherListenForDurableEventClient) Recv() (*DurableEvent, error) {
 	m := new(DurableEvent)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -107,62 +331,368 @@ func (x *v1DispatcherListenForDurableEventClient) Recv() (*DurableEvent, error) 
 	return m, nil
 }
 
-// V1DispatcherServer is the server API for V1Dispatcher service.
-// All implementations must embed UnimplementedV1DispatcherServer
+// DispatcherServer is the server API for Dispatcher service.
+// All implementations must embed UnimplementedDispatcherServer
 // for forward compatibility
-type V1DispatcherServer interface {
-	DurableTask(V1Dispatcher_DurableTaskServer) error
+type DispatcherServer interface {
+	Register(context.Context, *WorkerRegisterRequest) (*WorkerRegisterResponse, error)
+	Listen(*WorkerListenRequest, Dispatcher_ListenServer) error
+	// ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
+	// against engine version v0.18.1+
+	ListenV2(*WorkerListenRequest, Dispatcher_ListenV2Server) error
+	// Heartbeat is a method for workers to send heartbeats to the dispatcher
+	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
+	SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error
+	SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error
+	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
+	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
+	PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error)
+	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
+	RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error)
+	ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error)
+	UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error)
+	DurableTask(Dispatcher_DurableTaskServer) error
 	// NOTE: deprecated after DurableEventLog is implemented
 	RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error)
-	ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error
-	mustEmbedUnimplementedV1DispatcherServer()
+	ListenForDurableEvent(Dispatcher_ListenForDurableEventServer) error
+	mustEmbedUnimplementedDispatcherServer()
 }
 
-// UnimplementedV1DispatcherServer must be embedded to have forward compatible implementations.
-type UnimplementedV1DispatcherServer struct {
+// UnimplementedDispatcherServer must be embedded to have forward compatible implementations.
+type UnimplementedDispatcherServer struct {
 }
 
-func (UnimplementedV1DispatcherServer) DurableTask(V1Dispatcher_DurableTaskServer) error {
+func (UnimplementedDispatcherServer) Register(context.Context, *WorkerRegisterRequest) (*WorkerRegisterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
+}
+func (UnimplementedDispatcherServer) Listen(*WorkerListenRequest, Dispatcher_ListenServer) error {
+	return status.Errorf(codes.Unimplemented, "method Listen not implemented")
+}
+func (UnimplementedDispatcherServer) ListenV2(*WorkerListenRequest, Dispatcher_ListenV2Server) error {
+	return status.Errorf(codes.Unimplemented, "method ListenV2 not implemented")
+}
+func (UnimplementedDispatcherServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedDispatcherServer) SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowEvents not implemented")
+}
+func (UnimplementedDispatcherServer) SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowRuns not implemented")
+}
+func (UnimplementedDispatcherServer) SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendStepActionEvent not implemented")
+}
+func (UnimplementedDispatcherServer) SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendGroupKeyActionEvent not implemented")
+}
+func (UnimplementedDispatcherServer) PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutOverridesData not implemented")
+}
+func (UnimplementedDispatcherServer) Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Unsubscribe not implemented")
+}
+func (UnimplementedDispatcherServer) RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefreshTimeout not implemented")
+}
+func (UnimplementedDispatcherServer) ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReleaseSlot not implemented")
+}
+func (UnimplementedDispatcherServer) UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertWorkerLabels not implemented")
+}
+func (UnimplementedDispatcherServer) DurableTask(Dispatcher_DurableTaskServer) error {
 	return status.Errorf(codes.Unimplemented, "method DurableTask not implemented")
 }
-func (UnimplementedV1DispatcherServer) RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error) {
+func (UnimplementedDispatcherServer) RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterDurableEvent not implemented")
 }
-func (UnimplementedV1DispatcherServer) ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error {
+func (UnimplementedDispatcherServer) ListenForDurableEvent(Dispatcher_ListenForDurableEventServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListenForDurableEvent not implemented")
 }
-func (UnimplementedV1DispatcherServer) mustEmbedUnimplementedV1DispatcherServer() {}
+func (UnimplementedDispatcherServer) mustEmbedUnimplementedDispatcherServer() {}
 
-// UnsafeV1DispatcherServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to V1DispatcherServer will
+// UnsafeDispatcherServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to DispatcherServer will
 // result in compilation errors.
-type UnsafeV1DispatcherServer interface {
-	mustEmbedUnimplementedV1DispatcherServer()
+type UnsafeDispatcherServer interface {
+	mustEmbedUnimplementedDispatcherServer()
 }
 
-func RegisterV1DispatcherServer(s grpc.ServiceRegistrar, srv V1DispatcherServer) {
-	s.RegisterService(&V1Dispatcher_ServiceDesc, srv)
+func RegisterDispatcherServer(s grpc.ServiceRegistrar, srv DispatcherServer) {
+	s.RegisterService(&Dispatcher_ServiceDesc, srv)
 }
 
-func _V1Dispatcher_DurableTask_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(V1DispatcherServer).DurableTask(&v1DispatcherDurableTaskServer{stream})
+func _Dispatcher_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkerRegisterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).Register(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/Register",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).Register(ctx, req.(*WorkerRegisterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type V1Dispatcher_DurableTaskServer interface {
+func _Dispatcher_Listen_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WorkerListenRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DispatcherServer).Listen(m, &dispatcherListenServer{stream})
+}
+
+type Dispatcher_ListenServer interface {
+	Send(*AssignedAction) error
+	grpc.ServerStream
+}
+
+type dispatcherListenServer struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherListenServer) Send(m *AssignedAction) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Dispatcher_ListenV2_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WorkerListenRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DispatcherServer).ListenV2(m, &dispatcherListenV2Server{stream})
+}
+
+type Dispatcher_ListenV2Server interface {
+	Send(*AssignedAction) error
+	grpc.ServerStream
+}
+
+type dispatcherListenV2Server struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherListenV2Server) Send(m *AssignedAction) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Dispatcher_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeartbeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).Heartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/Heartbeat",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).Heartbeat(ctx, req.(*HeartbeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_SubscribeToWorkflowEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToWorkflowEventsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DispatcherServer).SubscribeToWorkflowEvents(m, &dispatcherSubscribeToWorkflowEventsServer{stream})
+}
+
+type Dispatcher_SubscribeToWorkflowEventsServer interface {
+	Send(*WorkflowEvent) error
+	grpc.ServerStream
+}
+
+type dispatcherSubscribeToWorkflowEventsServer struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherSubscribeToWorkflowEventsServer) Send(m *WorkflowEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Dispatcher_SubscribeToWorkflowRuns_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DispatcherServer).SubscribeToWorkflowRuns(&dispatcherSubscribeToWorkflowRunsServer{stream})
+}
+
+type Dispatcher_SubscribeToWorkflowRunsServer interface {
+	Send(*WorkflowRunEvent) error
+	Recv() (*SubscribeToWorkflowRunsRequest, error)
+	grpc.ServerStream
+}
+
+type dispatcherSubscribeToWorkflowRunsServer struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsServer) Send(m *WorkflowRunEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsServer) Recv() (*SubscribeToWorkflowRunsRequest, error) {
+	m := new(SubscribeToWorkflowRunsRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _Dispatcher_SendStepActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StepActionEvent)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).SendStepActionEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/SendStepActionEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).SendStepActionEvent(ctx, req.(*StepActionEvent))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_SendGroupKeyActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupKeyActionEvent)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).SendGroupKeyActionEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/SendGroupKeyActionEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).SendGroupKeyActionEvent(ctx, req.(*GroupKeyActionEvent))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_PutOverridesData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OverridesData)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).PutOverridesData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/PutOverridesData",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).PutOverridesData(ctx, req.(*OverridesData))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_Unsubscribe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkerUnsubscribeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).Unsubscribe(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/Unsubscribe",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).Unsubscribe(ctx, req.(*WorkerUnsubscribeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_RefreshTimeout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshTimeoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).RefreshTimeout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/RefreshTimeout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).RefreshTimeout(ctx, req.(*RefreshTimeoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_ReleaseSlot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseSlotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).ReleaseSlot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/ReleaseSlot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).ReleaseSlot(ctx, req.(*ReleaseSlotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_UpsertWorkerLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertWorkerLabelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).UpsertWorkerLabels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.Dispatcher/UpsertWorkerLabels",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).UpsertWorkerLabels(ctx, req.(*UpsertWorkerLabelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_DurableTask_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DispatcherServer).DurableTask(&dispatcherDurableTaskServer{stream})
+}
+
+type Dispatcher_DurableTaskServer interface {
 	Send(*DurableTaskResponse) error
 	Recv() (*DurableTaskRequest, error)
 	grpc.ServerStream
 }
 
-type v1DispatcherDurableTaskServer struct {
+type dispatcherDurableTaskServer struct {
 	grpc.ServerStream
 }
 
-func (x *v1DispatcherDurableTaskServer) Send(m *DurableTaskResponse) error {
+func (x *dispatcherDurableTaskServer) Send(m *DurableTaskResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *v1DispatcherDurableTaskServer) Recv() (*DurableTaskRequest, error) {
+func (x *dispatcherDurableTaskServer) Recv() (*DurableTaskRequest, error) {
 	m := new(DurableTaskRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -170,43 +700,43 @@ func (x *v1DispatcherDurableTaskServer) Recv() (*DurableTaskRequest, error) {
 	return m, nil
 }
 
-func _V1Dispatcher_RegisterDurableEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Dispatcher_RegisterDurableEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterDurableEventRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(V1DispatcherServer).RegisterDurableEvent(ctx, in)
+		return srv.(DispatcherServer).RegisterDurableEvent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/v1.V1Dispatcher/RegisterDurableEvent",
+		FullMethod: "/v1.Dispatcher/RegisterDurableEvent",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(V1DispatcherServer).RegisterDurableEvent(ctx, req.(*RegisterDurableEventRequest))
+		return srv.(DispatcherServer).RegisterDurableEvent(ctx, req.(*RegisterDurableEventRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _V1Dispatcher_ListenForDurableEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(V1DispatcherServer).ListenForDurableEvent(&v1DispatcherListenForDurableEventServer{stream})
+func _Dispatcher_ListenForDurableEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DispatcherServer).ListenForDurableEvent(&dispatcherListenForDurableEventServer{stream})
 }
 
-type V1Dispatcher_ListenForDurableEventServer interface {
+type Dispatcher_ListenForDurableEventServer interface {
 	Send(*DurableEvent) error
 	Recv() (*ListenForDurableEventRequest, error)
 	grpc.ServerStream
 }
 
-type v1DispatcherListenForDurableEventServer struct {
+type dispatcherListenForDurableEventServer struct {
 	grpc.ServerStream
 }
 
-func (x *v1DispatcherListenForDurableEventServer) Send(m *DurableEvent) error {
+func (x *dispatcherListenForDurableEventServer) Send(m *DurableEvent) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *v1DispatcherListenForDurableEventServer) Recv() (*ListenForDurableEventRequest, error) {
+func (x *dispatcherListenForDurableEventServer) Recv() (*ListenForDurableEventRequest, error) {
 	m := new(ListenForDurableEventRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -214,28 +744,85 @@ func (x *v1DispatcherListenForDurableEventServer) Recv() (*ListenForDurableEvent
 	return m, nil
 }
 
-// V1Dispatcher_ServiceDesc is the grpc.ServiceDesc for V1Dispatcher service.
+// Dispatcher_ServiceDesc is the grpc.ServiceDesc for Dispatcher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var V1Dispatcher_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "v1.V1Dispatcher",
-	HandlerType: (*V1DispatcherServer)(nil),
+var Dispatcher_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "v1.Dispatcher",
+	HandlerType: (*DispatcherServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "Register",
+			Handler:    _Dispatcher_Register_Handler,
+		},
+		{
+			MethodName: "Heartbeat",
+			Handler:    _Dispatcher_Heartbeat_Handler,
+		},
+		{
+			MethodName: "SendStepActionEvent",
+			Handler:    _Dispatcher_SendStepActionEvent_Handler,
+		},
+		{
+			MethodName: "SendGroupKeyActionEvent",
+			Handler:    _Dispatcher_SendGroupKeyActionEvent_Handler,
+		},
+		{
+			MethodName: "PutOverridesData",
+			Handler:    _Dispatcher_PutOverridesData_Handler,
+		},
+		{
+			MethodName: "Unsubscribe",
+			Handler:    _Dispatcher_Unsubscribe_Handler,
+		},
+		{
+			MethodName: "RefreshTimeout",
+			Handler:    _Dispatcher_RefreshTimeout_Handler,
+		},
+		{
+			MethodName: "ReleaseSlot",
+			Handler:    _Dispatcher_ReleaseSlot_Handler,
+		},
+		{
+			MethodName: "UpsertWorkerLabels",
+			Handler:    _Dispatcher_UpsertWorkerLabels_Handler,
+		},
+		{
 			MethodName: "RegisterDurableEvent",
-			Handler:    _V1Dispatcher_RegisterDurableEvent_Handler,
+			Handler:    _Dispatcher_RegisterDurableEvent_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
+			StreamName:    "Listen",
+			Handler:       _Dispatcher_Listen_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListenV2",
+			Handler:       _Dispatcher_ListenV2_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SubscribeToWorkflowEvents",
+			Handler:       _Dispatcher_SubscribeToWorkflowEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SubscribeToWorkflowRuns",
+			Handler:       _Dispatcher_SubscribeToWorkflowRuns_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
 			StreamName:    "DurableTask",
-			Handler:       _V1Dispatcher_DurableTask_Handler,
+			Handler:       _Dispatcher_DurableTask_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{
 			StreamName:    "ListenForDurableEvent",
-			Handler:       _V1Dispatcher_ListenForDurableEvent_Handler,
+			Handler:       _Dispatcher_ListenForDurableEvent_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

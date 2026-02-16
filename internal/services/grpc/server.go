@@ -28,7 +28,6 @@ import (
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -45,10 +44,9 @@ import (
 
 type Server struct {
 	eventcontracts.UnimplementedEventsServiceServer
-	dispatchercontracts.UnimplementedDispatcherServer
 	admincontracts.UnimplementedWorkflowServiceServer
 	v1contracts.UnimplementedAdminServiceServer
-	v1contracts.UnimplementedV1DispatcherServer
+	v1contracts.UnimplementedDispatcherServer
 	collectortracev1.UnimplementedTraceServiceServer
 
 	l           *zerolog.Logger
@@ -60,7 +58,6 @@ type Server struct {
 	config        *server.ServerConfig
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
@@ -79,7 +76,6 @@ type ServerOpts struct {
 	bindAddress   string
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
@@ -161,12 +157,6 @@ func WithDispatcher(d dispatcher.Dispatcher) ServerOpt {
 	}
 }
 
-func WithDispatcherV1(d dispatcherv1.DispatcherService) ServerOpt {
-	return func(opts *ServerOpts) {
-		opts.dispatcherv1 = d
-	}
-}
-
 func WithAdmin(a admin.AdminService) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.admin = a
@@ -212,7 +202,6 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		bindAddress:   opts.bindAddress,
 		ingestor:      opts.ingestor,
 		dispatcher:    opts.dispatcher,
-		dispatcherv1:  opts.dispatcherv1,
 		admin:         opts.admin,
 		adminv1:       opts.adminv1,
 		otelCollector: opts.otelCollector,
@@ -340,10 +329,6 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	if s.dispatcher != nil {
 		dispatchercontracts.RegisterDispatcherServer(grpcServer, s.dispatcher)
-	}
-
-	if s.dispatcherv1 != nil {
-		v1contracts.RegisterV1DispatcherServer(grpcServer, s.dispatcherv1)
 	}
 
 	if s.admin != nil {

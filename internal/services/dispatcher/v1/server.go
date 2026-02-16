@@ -150,7 +150,7 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 	delete(w.acks, k)
 }
 
-func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatcher_ListenForDurableEventServer) error {
+func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.Dispatcher_ListenForDurableEventServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -320,7 +320,7 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 }
 
 type durableTaskInvocation struct {
-	server   contracts.V1Dispatcher_DurableTaskServer
+	server   contracts.Dispatcher_DurableTaskServer
 	tenantId uuid.UUID
 	workerId uuid.UUID
 	l        *zerolog.Logger
@@ -334,7 +334,7 @@ func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error 
 	return s.server.Send(resp)
 }
 
-func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
+func (d *DispatcherServiceImpl) DurableTask(server contracts.Dispatcher_DurableTaskServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 

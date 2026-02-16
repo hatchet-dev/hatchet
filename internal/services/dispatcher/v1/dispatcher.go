@@ -16,11 +16,11 @@ import (
 )
 
 type DispatcherService interface {
-	contracts.V1DispatcherServer
+	contracts.DispatcherServer
 }
 
 type DispatcherServiceImpl struct {
-	contracts.UnimplementedV1DispatcherServer
+	contracts.UnimplementedDispatcherServer
 
 	repo          v1.Repository
 	mq            msgqueue.MessageQueue
