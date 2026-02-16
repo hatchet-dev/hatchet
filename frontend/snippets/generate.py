@@ -302,7 +302,7 @@ def write_doc_index_to_app() -> None:
 
     for filename in glob.iglob(path, recursive=True):
         with open(filename) as f:
-            content = f.read().replace("export default ", "")
+            content = f.read().replace("export default ", "").strip().rstrip(";")
             parsed_meta = cast(
                 dict[str, Any], json.loads(content, cls=JavaScriptObjectDecoder)
             )

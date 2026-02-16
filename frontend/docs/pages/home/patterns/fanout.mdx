@@ -1,1 +1,58 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import FanoutDiagram from "@/components/FanoutDiagram";
+
 # Fanout
+
+The **fanout pattern** lets a parent task dynamically spawn N child tasks in parallel, wait for all of them to complete, and collect their results. It is the go-to approach when the number of parallel units of work is determined at runtime — for example, processing every item in a list, running inference on a batch of inputs, or sending notifications to a set of users.
+
+<FanoutDiagram />
+
+## How It Works
+
+<Steps>
+
+### Define parent and child tasks
+
+The parent task contains the spawning logic. The child task (or child workflow) defines the unit of work to be performed for each item.
+
+### Parent spawns N children at runtime
+
+When the parent task executes, it iterates over its input data and spawns one child task per item. All children run in parallel across your worker fleet.
+
+### Collect results
+
+The parent awaits all child completions and aggregates their results into a single return value.
+
+</Steps>
+
+<Callout type="info">
+  Fanout is built on top of [Procedural Child Spawning](/home/child-spawning). See that page for full code examples on defining tasks, spawning children, parallel execution, and error handling.
+</Callout>
+
+<Callout type="warning">
+  When fanning out to large numbers of children, make sure your workers have enough slots to handle the concurrent load. See [Worker Slots](/home/workers) for details on configuring slot capacity.
+</Callout>
+
+## Use Cases
+
+<Cards>
+  <Cards.Card title="Batch Processing" href="/home/bulk-run">
+    Process thousands of items (images, documents, records) in parallel with automatic load distribution across workers.
+  </Cards.Card>
+  <Cards.Card title="Map-Reduce Pipelines" href="/home/dags">
+    Fan out to map tasks, then reduce results in a downstream DAG step.
+  </Cards.Card>
+  <Cards.Card title="Multi-Provider AI Inference" href="/home/child-spawning">
+    Send the same prompt to multiple LLM providers concurrently and pick the best response.
+  </Cards.Card>
+  <Cards.Card title="Notification Delivery" href="/home/rate-limits">
+    Fan out to send notifications to N users while respecting per-provider rate limits.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Procedural Child Spawning](/home/child-spawning) — learn the full child task API
+- [DAG Workflows](/home/dags) — combine fanout with declarative task dependencies
+- [Concurrency Control](/home/concurrency) — limit how many children run simultaneously
+- [Rate Limits](/home/rate-limits) — throttle child task execution rates
