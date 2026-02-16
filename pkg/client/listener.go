@@ -424,9 +424,8 @@ type ClientEventListener interface {
 }
 
 type subscribeClientImpl struct {
-	client dispatchercontracts.DispatcherClient
-
-	clientv1 sharedcontracts.V1DispatcherClient
+	client   dispatchercontracts.DispatcherClient
+	clientv1 sharedcontracts.DispatcherClient
 
 	l *zerolog.Logger
 
@@ -444,7 +443,7 @@ type subscribeClientImpl struct {
 func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient {
 	return &subscribeClientImpl{
 		client:   dispatchercontracts.NewDispatcherClient(conn),
-		clientv1: sharedcontracts.NewV1DispatcherClient(conn),
+		clientv1: sharedcontracts.NewDispatcherClient(conn),
 		l:        opts.l,
 		v:        opts.v,
 		ctx:      opts.ctxLoader,

@@ -24,9 +24,9 @@ type DurableEvent *contracts.DurableEvent
 type DurableEventHandler func(e DurableEvent) error
 
 type DurableEventsListener struct {
-	constructor func(context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error)
+	constructor func(context.Context) (contracts.Dispatcher_ListenForDurableEventClient, error)
 
-	client   contracts.V1Dispatcher_ListenForDurableEventClient
+	client   contracts.Dispatcher_ListenForDurableEventClient
 	clientMu sync.RWMutex
 
 	l *zerolog.Logger
@@ -50,7 +50,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		return r.durableEventsListener, nil
 	}
 
-	constructor := func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+	constructor := func(ctx context.Context) (contracts.Dispatcher_ListenForDurableEventClient, error) {
 		return r.clientv1.ListenForDurableEvent(r.ctx.newContext(ctx), grpc_retry.Disable())
 	}
 

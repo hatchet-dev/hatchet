@@ -166,7 +166,7 @@ type ActionEventResponse struct {
 
 type dispatcherClientImpl struct {
 	client   dispatchercontracts.DispatcherClient
-	clientv1 sharedcontracts.V1DispatcherClient
+	clientv1 sharedcontracts.DispatcherClient
 
 	tenantId string
 
@@ -182,7 +182,7 @@ type dispatcherClientImpl struct {
 func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) DispatcherClient {
 	return &dispatcherClientImpl{
 		client:             dispatchercontracts.NewDispatcherClient(conn),
-		clientv1:           sharedcontracts.NewV1DispatcherClient(conn),
+		clientv1:           sharedcontracts.NewDispatcherClient(conn),
 		tenantId:           opts.tenantId,
 		l:                  opts.l,
 		v:                  opts.v,
