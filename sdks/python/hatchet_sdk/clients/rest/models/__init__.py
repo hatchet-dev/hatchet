@@ -304,6 +304,7 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
     V1WebhookHMACEncoding,
 )
 from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
+from hatchet_sdk.clients.rest.models.v1_webhook_response import V1WebhookResponse
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
