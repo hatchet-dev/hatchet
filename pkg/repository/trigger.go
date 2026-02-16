@@ -184,7 +184,8 @@ func (r *sharedRepository) makeTriggerDecisions(ctx context.Context, filters []*
 			shouldTrigger, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
 
 			if err != nil {
-				r.l.Error().
+				// This is notified to the user via an olap event.
+				r.l.Warn().
 					Err(err).
 					Str("expression", filter.Expression).
 					Msg("Failed to evaluate workflow expression")
@@ -201,6 +202,8 @@ func (r *sharedRepository) makeTriggerDecisions(ctx context.Context, filters []*
 					Source:       sqlcv1.V1CelEvaluationFailureSourceFILTER,
 					ErrorMessage: err.Error(),
 				})
+
+				continue
 			}
 
 			decisions = append(decisions, TriggerDecision{

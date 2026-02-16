@@ -2,9 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -65,6 +68,10 @@ func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId uui
 	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, tenantId)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, time.Time{}, nil
+		}
+
 		return false, time.Now(), err
 	}
 
