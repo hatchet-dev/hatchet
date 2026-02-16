@@ -322,7 +322,7 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 type durableTaskInvocation struct {
 	server   contracts.V1Dispatcher_DurableTaskServer
 	tenantId uuid.UUID
-	workerId string
+	workerId uuid.UUID
 	l        *zerolog.Logger
 
 	sendMu sync.Mutex
@@ -352,9 +352,7 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(taskId)
 		}
-		if invocation.workerId != "" {
-			d.workerInvocations.Delete(invocation.workerId)
-		}
+		d.workerInvocations.Delete(invocation.workerId)
 	}()
 
 	for {
@@ -421,8 +419,14 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskRequestRegisterWorker,
 ) error {
-	invocation.workerId = req.WorkerId
-	d.workerInvocations.Store(req.WorkerId, invocation)
+	workerId, err := uuid.Parse(req.WorkerId)
+
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid worker id: %v", err)
+	}
+
+	invocation.workerId = workerId
+	d.workerInvocations.Store(workerId, invocation)
 
 	return invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_RegisterWorker{
@@ -526,7 +530,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		Task:              task,
 		Kind:              kind,
 		Payload:           req.Payload,
-		DispatcherId:      d.dispatcherId,
+		WorkerId:          invocation.workerId,
 		WaitForConditions: createConditionOpts,
 		InvocationCount:   req.InvocationCount,
 		TriggerOpts:       triggerOpts,

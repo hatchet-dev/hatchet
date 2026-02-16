@@ -22,7 +22,7 @@ INSERT INTO v1_durable_event_log_callback (
     node_id,
     is_satisfied,
     external_id,
-    dispatcher_id
+    worker_id
 )
 VALUES (
     $1::UUID,
@@ -36,7 +36,7 @@ VALUES (
     $9::UUID
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, worker_id
 `
 
 type CreateDurableEventLogCallbackParams struct {
@@ -48,7 +48,7 @@ type CreateDurableEventLogCallbackParams struct {
 	Nodeid                int64                 `json:"nodeid"`
 	Issatisfied           bool                  `json:"issatisfied"`
 	Externalid            uuid.UUID             `json:"externalid"`
-	Dispatcherid          uuid.UUID             `json:"dispatcherid"`
+	Workerid              uuid.UUID             `json:"workerid"`
 }
 
 func (q *Queries) CreateDurableEventLogCallback(ctx context.Context, db DBTX, arg CreateDurableEventLogCallbackParams) (*V1DurableEventLogCallback, error) {
@@ -61,7 +61,7 @@ func (q *Queries) CreateDurableEventLogCallback(ctx context.Context, db DBTX, ar
 		arg.Nodeid,
 		arg.Issatisfied,
 		arg.Externalid,
-		arg.Dispatcherid,
+		arg.Workerid,
 	)
 	var i V1DurableEventLogCallback
 	err := row.Scan(
@@ -74,7 +74,7 @@ func (q *Queries) CreateDurableEventLogCallback(ctx context.Context, db DBTX, ar
 		&i.Kind,
 		&i.NodeID,
 		&i.IsSatisfied,
-		&i.DispatcherID,
+		&i.WorkerID,
 	)
 	return &i, err
 }
@@ -234,7 +234,7 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 }
 
 const getDurableEventLogCallback = `-- name: GetDurableEventLogCallback :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, dispatcher_id
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, is_satisfied, worker_id
 FROM v1_durable_event_log_callback
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -260,7 +260,7 @@ func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg G
 		&i.Kind,
 		&i.NodeID,
 		&i.IsSatisfied,
-		&i.DispatcherID,
+		&i.WorkerID,
 	)
 	return &i, err
 }
@@ -307,7 +307,7 @@ WITH tasks AS (
     WHERE lt.external_id = ANY($2::UUID[])
 )
 
-SELECT cb.tenant_id, cb.external_id, cb.inserted_at, cb.id, cb.durable_task_id, cb.durable_task_inserted_at, cb.kind, cb.node_id, cb.is_satisfied, cb.dispatcher_id, t.external_id AS task_external_id
+SELECT cb.tenant_id, cb.external_id, cb.inserted_at, cb.id, cb.durable_task_id, cb.durable_task_inserted_at, cb.kind, cb.node_id, cb.is_satisfied, cb.worker_id, t.external_id AS task_external_id
 FROM v1_durable_event_log_callback cb
 JOIN tasks t ON (t.id, t.inserted_at) = (cb.durable_task_id, cb.durable_task_inserted_at)
 WHERE
@@ -330,7 +330,7 @@ type ListSatisfiedCallbacksRow struct {
 	Kind                  V1DurableEventLogKind `json:"kind"`
 	NodeID                int64                 `json:"node_id"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
-	DispatcherID          *uuid.UUID            `json:"dispatcher_id"`
+	WorkerID              *uuid.UUID            `json:"worker_id"`
 	TaskExternalID        uuid.UUID             `json:"task_external_id"`
 }
 
@@ -353,7 +353,7 @@ func (q *Queries) ListSatisfiedCallbacks(ctx context.Context, db DBTX, arg ListS
 			&i.Kind,
 			&i.NodeID,
 			&i.IsSatisfied,
-			&i.DispatcherID,
+			&i.WorkerID,
 			&i.TaskExternalID,
 		); err != nil {
 			return nil, err
@@ -380,7 +380,7 @@ FROM inputs
 WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at
   AND v1_durable_event_log_callback.node_id = inputs.node_id
-RETURNING v1_durable_event_log_callback.tenant_id, v1_durable_event_log_callback.external_id, v1_durable_event_log_callback.inserted_at, v1_durable_event_log_callback.id, v1_durable_event_log_callback.durable_task_id, v1_durable_event_log_callback.durable_task_inserted_at, v1_durable_event_log_callback.kind, v1_durable_event_log_callback.node_id, v1_durable_event_log_callback.is_satisfied, v1_durable_event_log_callback.dispatcher_id
+RETURNING v1_durable_event_log_callback.tenant_id, v1_durable_event_log_callback.external_id, v1_durable_event_log_callback.inserted_at, v1_durable_event_log_callback.id, v1_durable_event_log_callback.durable_task_id, v1_durable_event_log_callback.durable_task_inserted_at, v1_durable_event_log_callback.kind, v1_durable_event_log_callback.node_id, v1_durable_event_log_callback.is_satisfied, v1_durable_event_log_callback.worker_id
 `
 
 type UpdateDurableEventLogCallbacksSatisfiedParams struct {
@@ -408,7 +408,7 @@ func (q *Queries) UpdateDurableEventLogCallbacksSatisfied(ctx context.Context, d
 			&i.Kind,
 			&i.NodeID,
 			&i.IsSatisfied,
-			&i.DispatcherID,
+			&i.WorkerID,
 		); err != nil {
 			return nil, err
 		}

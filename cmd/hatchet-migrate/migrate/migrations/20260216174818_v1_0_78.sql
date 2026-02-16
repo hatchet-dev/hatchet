@@ -103,7 +103,7 @@ CREATE TABLE v1_durable_event_log_callback (
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
 
-    dispatcher_id UUID,
+    worker_id UUID,
     -- Access patterns:
     -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied

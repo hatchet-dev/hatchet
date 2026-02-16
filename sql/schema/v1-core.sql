@@ -2320,8 +2320,8 @@ CREATE TABLE v1_durable_event_log_callback (
     -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
-    -- The dispatcher ID that registered this callback, used to route completion messages
-    dispatcher_id UUID,
+    -- The worker ID that registered this callback, used to look up the current dispatcher at dispatch time
+    worker_id UUID,
     -- Access patterns:
     -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied

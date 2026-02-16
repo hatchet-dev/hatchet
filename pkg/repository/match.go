@@ -161,7 +161,7 @@ type SatisfiedCallback struct {
 	DurableTaskInsertedAt pgtype.Timestamptz
 	NodeId                int64
 	Data                  []byte
-	DispatcherId          *uuid.UUID
+	WorkerId              *uuid.UUID
 }
 
 type MatchRepository interface {
@@ -763,7 +763,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			})
 		}
 
-		predeterminedCallback.DispatcherId = cb.DispatcherID
+		predeterminedCallback.WorkerId = cb.WorkerID
 		satisfiedCallbacks = append(satisfiedCallbacks, predeterminedCallback)
 	}
 
