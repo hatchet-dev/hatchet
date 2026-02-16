@@ -42,7 +42,7 @@ func (tc *TasksControllerImpl) processSatisfiedCallbacks(ctx context.Context, te
 		dispatcherId, ok := idInsertedAtToDispatcherId[key]
 
 		if !ok {
-			tc.l.Warn().Msgf("could not find dispatcher id for task %d inserted at %s, skipping callback", cb.DurableTaskId, cb.DurableTaskInsertedAt)
+			tc.l.Warn().Msgf("could not find dispatcher id for task %d inserted at %s, skipping callback", cb.DurableTaskId, cb.DurableTaskInsertedAt.Time)
 			continue
 		}
 
