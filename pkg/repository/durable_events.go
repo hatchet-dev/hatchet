@@ -221,19 +221,34 @@ func (r *durableEventsRepository) GetSatisfiedCallbacks(ctx context.Context, ten
 		return nil, fmt.Errorf("failed to list satisfied callbacks: %w", err)
 	}
 
-	result := make([]*SatisfiedCallbackWithPayload, 0, len(rows))
+	retrievePayloadOpts := make([]RetrievePayloadOpts, len(rows))
 
-	for _, row := range rows {
-		payload, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
+	for i, row := range rows {
+		retrievePayloadOpts[i] = RetrievePayloadOpts{
 			Id:         row.ID,
 			InsertedAt: row.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
 			TenantId:   tenantId,
-		})
-		if err != nil {
-			r.l.Warn().Err(err).Msgf("failed to retrieve payload for callback %d", row.NodeID)
-			payload = nil
 		}
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrievePayloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for satisfied callbacks: %w", err)
+	}
+
+	result := make([]*SatisfiedCallbackWithPayload, 0, len(rows))
+
+	for _, row := range rows {
+		retrieveOpt := RetrievePayloadOpts{
+			Id:         row.ID,
+			InsertedAt: row.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+			TenantId:   tenantId,
+		}
+
+		payload := payloads[retrieveOpt]
 
 		result = append(result, &SatisfiedCallbackWithPayload{
 			TaskExternalId: row.TaskExternalID,
