@@ -128,8 +128,7 @@ ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_CALLBACK_R
 DROP TABLE v1_durable_event_log_callback;
 DROP TABLE v1_durable_event_log_entry;
 DROP TABLE v1_durable_event_log_file;
-DROP TYPE v1_durable_event_log_entry_kind;
-DROP TYPE v1_durable_event_log_callback_kind;
+DROP TYPE v1_durable_event_log_kind;
 
 ALTER TABLE v1_match
     DROP COLUMN durable_event_log_callback_durable_task_external_id,
