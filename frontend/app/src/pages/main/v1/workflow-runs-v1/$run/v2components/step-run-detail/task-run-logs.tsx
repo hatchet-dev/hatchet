@@ -33,8 +33,7 @@ function TaskRunLogsContent() {
     isLoading,
     taskStatus,
   } = useLogsContext();
-  const { featureFlags } = useCloud(tenantId);
-  const isLogSearchEnabled = featureFlags?.enable_log_search === 'true';
+  const isLogSearchEnabled = true;
 
   return (
     <div className="my-4 flex flex-col gap-y-2">
