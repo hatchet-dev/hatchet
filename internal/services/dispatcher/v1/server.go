@@ -480,33 +480,35 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
-	for _, condition := range req.WaitForConditions.SleepConditions {
-		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+	if req.WaitForConditions != nil {
+		for _, condition := range req.WaitForConditions.SleepConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+			}
+
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindSLEEP,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				SleepFor:        &condition.SleepFor,
+			})
 		}
 
-		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
-			Kind:            v1.CreateExternalSignalConditionKindSLEEP,
-			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       orGroupId,
-			SleepFor:        &condition.SleepFor,
-		})
-	}
+		for _, condition := range req.WaitForConditions.UserEventConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+			}
 
-	for _, condition := range req.WaitForConditions.UserEventConditions {
-		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				UserEventKey:    &condition.UserEventKey,
+				Expression:      condition.Base.Expression,
+			})
 		}
-
-		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
-			Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
-			ReadableDataKey: condition.Base.ReadableDataKey,
-			OrGroupId:       orGroupId,
-			UserEventKey:    &condition.UserEventKey,
-			Expression:      condition.Base.Expression,
-		})
 	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
