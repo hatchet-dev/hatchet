@@ -157,11 +157,10 @@ type GroupMatchCondition struct {
 
 type SatisfiedCallback struct {
 	DurableTaskExternalId uuid.UUID
-	DurableTaskId         *int64
+	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
 	NodeId                int64
 	Data                  []byte
-	WorkerId              *uuid.UUID
 }
 
 type MatchRepository interface {
@@ -704,7 +703,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			cb := SatisfiedCallback{
 				DurableTaskExternalId: *match.DurableEventLogCallbackDurableTaskExternalID,
-				DurableTaskId:         &durableTaskId,
+				DurableTaskId:         durableTaskId,
 				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt,
 				NodeId:                match.DurableEventLogCallbackNodeID.Int64,
 				Data:                  match.McAggregatedData,
@@ -763,7 +762,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			})
 		}
 
-		predeterminedCallback.WorkerId = cb.WorkerID
 		satisfiedCallbacks = append(satisfiedCallbacks, predeterminedCallback)
 	}
 

@@ -113,6 +113,10 @@ type WorkerRepository interface {
 	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
 	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error)
+
+	UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error
+
+	GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]uuid.UUID, error)
 }
 
 type workerRepository struct {
@@ -675,4 +679,49 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 	}
 
 	return workerIdToDispatcherId, workerIdsWithoutDispatchers, nil
+}
+
+func (w *workerRepository) UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error {
+	_, err := w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, w.pool, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
+		Workerid:     workerId,
+		Dispatcherid: dispatcherId,
+		Tenantid:     tenantId,
+	})
+
+	return err
+}
+
+func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]uuid.UUID, error) {
+	taskIds := make([]int64, len(idInsertedAtTuples))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(idInsertedAtTuples))
+
+	for i, tuple := range idInsertedAtTuples {
+		taskIds[i] = tuple.ID
+		taskInsertedAts[i] = tuple.InsertedAt
+	}
+
+	rows, err := w.queries.ListDurableTaskDispatcherIdsForTasks(ctx, w.pool, sqlcv1.ListDurableTaskDispatcherIdsForTasksParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get durable dispatcher ids for tasks: %w", err)
+	}
+
+	taskIdToDispatcherId := make(map[IdInsertedAt]uuid.UUID)
+
+	for _, row := range rows {
+		if row.DurableTaskDispatcherId == nil {
+			continue
+		}
+
+		taskIdToDispatcherId[IdInsertedAt{
+			ID:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+		}] = *row.DurableTaskDispatcherId
+	}
+
+	return taskIdToDispatcherId, nil
 }

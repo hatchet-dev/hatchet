@@ -385,3 +385,33 @@ VALUES (
     @workerId::uuid
 )
 ON CONFLICT DO NOTHING;
+
+-- name: UpdateWorkerDurableTaskDispatcherId :one
+UPDATE "Worker"
+SET
+    "durableTaskDispatcherId" = @dispatcherId::UUID,
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = @workerId::uuid
+    AND "tenantId" = @tenantId::uuid
+RETURNING *;
+
+-- name: ListDurableTaskDispatcherIdsForTasks :many
+WITH tasks AS (
+    SELECT
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
+)
+
+SELECT
+    rt.*,
+    w."durableTaskDispatcherId"
+FROM v1_task_runtime rt
+JOIN "Worker" w ON rt.worker_id = w.id
+WHERE
+    rt.tenant_id = @tenantId::uuid
+    AND (rt.task_id, rt.task_inserted_at) IN (
+        SELECT task_id, task_inserted_at
+        FROM tasks
+    )
+;

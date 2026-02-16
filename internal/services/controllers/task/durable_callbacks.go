@@ -16,29 +16,33 @@ func (tc *TasksControllerImpl) processSatisfiedCallbacks(ctx context.Context, te
 		return nil
 	}
 
-	workerIds := make([]uuid.UUID, 0, len(callbacks))
+	idInsertedAtTuples := make([]v1.IdInsertedAt, 0)
+
 	for _, cb := range callbacks {
-		if cb.WorkerId != nil {
-			workerIds = append(workerIds, *cb.WorkerId)
-		}
+		idInsertedAtTuples = append(idInsertedAtTuples, v1.IdInsertedAt{
+			ID:         cb.DurableTaskId,
+			InsertedAt: cb.DurableTaskInsertedAt,
+		})
 	}
 
-	workerIdToDispatcherId, _, err := tc.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+	idInsertedAtToDispatcherId, err := tc.repov1.Workers().GetDurableDispatcherIdsForTasks(ctx, tenantId, idInsertedAtTuples)
+
 	if err != nil {
-		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
+		return fmt.Errorf("could not list dispatcher ids for tasks: %w", err)
 	}
 
 	dispatcherToMsgs := make(map[uuid.UUID][]*msgqueue.Message)
 
 	for _, cb := range callbacks {
-		if cb.WorkerId == nil {
-			tc.l.Error().Msgf("callback has no worker_id set for task %s node %d", cb.DurableTaskExternalId, cb.NodeId)
-			continue
+		key := v1.IdInsertedAt{
+			ID:         cb.DurableTaskId,
+			InsertedAt: cb.DurableTaskInsertedAt,
 		}
 
-		dispatcherId, ok := workerIdToDispatcherId[*cb.WorkerId]
+		dispatcherId, ok := idInsertedAtToDispatcherId[key]
+
 		if !ok {
-			tc.l.Error().Msgf("no dispatcher found for worker %s (task %s node %d)", cb.WorkerId, cb.DurableTaskExternalId, cb.NodeId)
+			tc.l.Warn().Msgf("could not find dispatcher id for task %d inserted at %s, skipping callback", cb.DurableTaskId, cb.DurableTaskInsertedAt)
 			continue
 		}
 

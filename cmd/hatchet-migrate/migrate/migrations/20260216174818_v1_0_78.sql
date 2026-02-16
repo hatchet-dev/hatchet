@@ -103,7 +103,6 @@ CREATE TABLE v1_durable_event_log_callback (
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
 
-    worker_id UUID,
     -- Access patterns:
     -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied
@@ -121,6 +120,8 @@ ALTER TABLE v1_match
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_CALLBACK_RESULT_DATA';
+
+ALTER TABLE "Worker" ADD COLUMN "durableTaskDispatcherId" UUID;
 -- +goose StatementEnd
 
 -- +goose Down
@@ -135,4 +136,6 @@ ALTER TABLE v1_match
     DROP COLUMN durable_event_log_callback_node_id,
     DROP COLUMN durable_event_log_callback_durable_task_id,
     DROP COLUMN durable_event_log_callback_durable_task_inserted_at;
+
+ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
 -- +goose StatementEnd

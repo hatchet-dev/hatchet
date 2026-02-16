@@ -42,7 +42,6 @@ type IngestDurableTaskEventOpts struct {
 	Task              *sqlcv1.FlattenExternalIdsRow `validate:"required"`
 	Kind              sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
 	Payload           []byte
-	WorkerId          uuid.UUID `validate:"required"`
 	WaitForConditions []CreateExternalSignalConditionOpt
 	InvocationCount   int64
 	TriggerOpts       *WorkflowNameTriggerOpts
@@ -155,7 +154,6 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 			Kind:                  params.Kind,
 			Nodeid:                params.Nodeid,
 			Issatisfied:           params.Issatisfied,
-			Workerid:              params.Workerid,
 		})
 
 		if err != nil {
@@ -369,7 +367,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			Nodeid:                nodeId,
 			Issatisfied:           isSatisfied,
 			Externalid:            uuid.New(),
-			Workerid:              opts.WorkerId,
 		},
 		callbackPayload,
 	)

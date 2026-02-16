@@ -3071,7 +3071,6 @@ type V1DurableEventLogCallback struct {
 	Kind                  V1DurableEventLogKind `json:"kind"`
 	NodeID                int64                 `json:"node_id"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
-	WorkerID              *uuid.UUID            `json:"worker_id"`
 }
 
 type V1DurableEventLogEntry struct {
@@ -3647,6 +3646,7 @@ type Worker struct {
 	Os                      pgtype.Text      `json:"os"`
 	RuntimeExtra            pgtype.Text      `json:"runtimeExtra"`
 	SdkVersion              pgtype.Text      `json:"sdkVersion"`
+	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
 }
 
 type WorkerAssignEvent struct {

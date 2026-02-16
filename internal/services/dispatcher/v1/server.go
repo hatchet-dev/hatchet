@@ -428,6 +428,12 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	invocation.workerId = workerId
 	d.workerInvocations.Store(workerId, invocation)
 
+	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to update worker durable task dispatcher id: %v", err)
+	}
+
 	return invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_RegisterWorker{
 			RegisterWorker: &contracts.DurableTaskResponseRegisterWorker{
@@ -530,7 +536,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		Task:              task,
 		Kind:              kind,
 		Payload:           req.Payload,
-		WorkerId:          invocation.workerId,
 		WaitForConditions: createConditionOpts,
 		InvocationCount:   req.InvocationCount,
 		TriggerOpts:       triggerOpts,
