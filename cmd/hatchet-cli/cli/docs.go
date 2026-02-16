@@ -298,4 +298,3 @@ func openBrowser(url string) {
 		fmt.Println("  Copy the link above and paste it in your browser.")
 	}
 }
-

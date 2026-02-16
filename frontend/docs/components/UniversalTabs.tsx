@@ -11,6 +11,7 @@ const LOGO_MAP: Record<string, string> = {
   Typescript: "/typescript-logo.svg",
   TypeScript: "/typescript-logo.svg",
   Go: "/go-logo.svg",
+  Ruby: "/ruby-logo.svg",
 };
 
 const tabLabelStyle: React.CSSProperties = {
