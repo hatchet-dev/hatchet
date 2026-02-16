@@ -3,25 +3,25 @@ import BatchProcessingDiagram from "@/components/BatchProcessingDiagramWrapper";
 
 # Batch Processing
 
-Process **thousands of items in parallel** — images, documents, records, API calls — with automatic retry, concurrency control, and real-time progress tracking. Hatchet distributes work across your worker fleet and handles failures without losing progress.
+Batch processing involves running the same operation across a large set of items — images, documents, records, or API calls. This page covers how to structure batch workloads as Hatchet workflows with fan-out, retry, and concurrency control.
 
 <BatchProcessingDiagram />
 
-## Why Hatchet for Batch Processing
+## Core Challenges
 
 <Steps>
 
-### Massive parallelism
+### Parallelism
 
-A parent task fans out to one child per item. Hatchet distributes these across all available workers automatically. Scale from 10 to 100,000 items without changing your code — just add more workers.
+A parent task fans out to one child per item. Hatchet distributes these across available workers. Adding more workers increases throughput without code changes.
 
-### No lost work
+### Partial failure
 
-Each item is an independent task. If one fails, Hatchet retries just that item — the other 9,999 continue running. You can also bulk-retry all failed items from the dashboard with a single click.
+Each item is an independent task. If one fails, Hatchet retries just that item — the rest continue. You can also bulk-retry all failed items from the dashboard.
 
 ### Resource control
 
-Concurrency limits prevent overwhelming your infrastructure. Rate limits protect external APIs. Priority queues let urgent batches cut ahead. You get predictable resource usage even at massive scale.
+Concurrency limits prevent overwhelming your infrastructure. Rate limits protect external APIs. Priority queues let urgent batches run ahead of lower-priority work.
 
 </Steps>
 

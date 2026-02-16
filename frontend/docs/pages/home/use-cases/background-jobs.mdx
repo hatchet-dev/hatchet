@@ -2,23 +2,20 @@ import { Callout, Cards, Steps } from "nextra/components";
 
 # Background Job Migration
 
-Replace fragile background task systems — **Celery, FastAPI BackgroundTasks, Bull/BullMQ, Sidekiq** — with reliable, observable task execution. Hatchet gives you automatic retries, concurrency control, and a real-time dashboard without the operational overhead of managing a message broker.
+If you're outgrowing your current background task system — whether it's Celery, FastAPI BackgroundTasks, or Bull/BullMQ — this page covers what a migration to Hatchet looks like and what changes in practice.
 
-## Common Pain Points
+## Common Problems with Background Job Systems
 
-If any of these sound familiar, Hatchet is built to solve them:
-
-| Pain point | With your current system | With Hatchet |
-|-----------|------------------------|-------------|
-| **Lost tasks** | Tasks disappear when a worker crashes or your app restarts | Tasks are guaranteed to execute — Hatchet reassigns orphaned tasks to healthy workers |
-| **No visibility** | You don't know which tasks are running, failed, or stuck | Real-time dashboard shows every task's status, duration, and logs |
-| **Retry chaos** | Manual retry logic, exponential backoff bolted on, inconsistent behavior | Configurable retry policies with exponential backoff, per-task or per-workflow |
-| **Resource conflicts** | Background tasks compete with your web server for CPU and memory | Workers run as separate processes — scale them independently from your API |
-| **Concurrency bugs** | No built-in way to prevent duplicate processing or limit parallelism | Concurrency controls, deduplication, and rate limiting are first-class features |
-| **Broker maintenance** | Redis/RabbitMQ/Kafka clusters to manage, monitor, and scale | Hatchet Cloud is fully managed — or self-host with a single Postgres database |
+| Problem | Typical cause | How Hatchet handles it |
+|---------|--------------|----------------------|
+| **Lost tasks** | Worker crash or app restart drops in-flight work | Orphaned tasks are reassigned to healthy workers |
+| **No visibility** | No built-in dashboard for task status | Dashboard shows every task's status, duration, and logs |
+| **Inconsistent retries** | Retry logic varies per task, bolted on after the fact | Configurable retry policies with exponential backoff, applied per-task or per-workflow |
+| **Resource contention** | Background tasks compete with the web server for CPU/memory | Workers run as separate processes, scaled independently |
+| **Duplicate processing** | No built-in concurrency control or deduplication | Concurrency strategies and deduplication are built in |
 
 <Callout type="info">
-  Hatchet works with your existing stack. Workers are just processes that run your task handlers — deploy them alongside your web server or as separate services. See [Deploying Workers](/home/docker) for details.
+  Workers are processes that run your task handlers — deploy them alongside your web server or as separate services. See [Deploying Workers](/home/docker) for details.
 </Callout>
 
 ## Migration Path
@@ -47,41 +44,37 @@ Use the Hatchet dashboard to monitor task execution, identify failures, and bulk
 
 </Steps>
 
-## What You Get
+## Relevant Features
 
 | Feature | Description |
 |---------|------------|
-| **[Retry Policies](/home/retry-policies)** | Configurable retries with exponential backoff — per task or per workflow |
+| **[Retry Policies](/home/retry-policies)** | Configurable retries with exponential backoff, per task or per workflow |
 | **[Concurrency Control](/home/concurrency)** | Limit parallel execution, prevent duplicate processing, fair scheduling |
 | **[Rate Limits](/home/rate-limits)** | Throttle external API calls across all workers |
-| **[Timeouts](/home/timeouts)** | Per-task and per-workflow timeouts prevent stuck tasks |
+| **[Timeouts](/home/timeouts)** | Per-task and per-workflow timeouts to catch stuck tasks |
 | **[On Failure Tasks](/home/on-failure-tasks)** | Run cleanup or alerting logic when a task fails |
 | **[Logging](/home/logging)** | Structured logs visible in the dashboard alongside task execution |
-| **[OpenTelemetry](/home/opentelemetry)** | Built-in tracing and metrics for your observability stack |
+| **[OpenTelemetry](/home/opentelemetry)** | Tracing and metrics for your observability stack |
 | **[Bulk Operations](/home/bulk-retries-and-cancellations)** | Retry or cancel thousands of tasks from the dashboard |
 | **[Autoscaling](/home/autoscaling-workers)** | Scale workers based on queue depth |
 
-<Callout type="warning">
-  When migrating, start with your most failure-prone tasks first. These benefit the most from Hatchet's retry policies and observability. You can run Hatchet workers alongside your existing system during the transition.
+<Callout type="info">
+  A practical migration strategy is to start with your most failure-prone tasks. These benefit the most from retry policies and observability. You can run Hatchet workers alongside your existing system during the transition.
 </Callout>
 
-## Migrating From Specific Systems
+## Migration Notes
 
 ### From Celery (Python)
 
-Replace Celery's `@app.task` decorator with Hatchet's task definition. Hatchet eliminates the need for a separate Redis/RabbitMQ broker — tasks are managed through Hatchet's engine with a Postgres backend.
+Replace Celery's `@app.task` decorator with a Hatchet task definition. The main architectural change is that Hatchet uses a Postgres backend instead of Redis/RabbitMQ as a broker.
 
 ### From FastAPI BackgroundTasks
 
-FastAPI's `BackgroundTasks` runs tasks in-process — they're lost if the server crashes. Hatchet runs tasks in separate workers with guaranteed delivery and full observability.
+FastAPI's `BackgroundTasks` runs tasks in-process — they're lost if the server crashes or restarts. With Hatchet, tasks run in separate worker processes with delivery guarantees.
 
 ### From Bull/BullMQ (TypeScript)
 
-Replace Bull's Redis-backed queues with Hatchet tasks. You get the same queue semantics (delayed jobs, rate limiting, priority) plus DAG workflows, child spawning, and a visual dashboard.
-
-### From Sidekiq (Ruby)
-
-Hatchet provides similar worker-based job processing with additional features: DAG workflows, concurrency strategies (not just simple limits), rate limiting, and durable execution for long-running jobs.
+Replace Bull's Redis-backed queues with Hatchet tasks. You get similar queue semantics (delayed jobs, rate limiting, priority) plus DAG workflows, child spawning, and a dashboard.
 
 ## Related Use Cases
 

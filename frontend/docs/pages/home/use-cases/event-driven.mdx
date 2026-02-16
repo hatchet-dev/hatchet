@@ -3,25 +3,25 @@ import EventDrivenDiagram from "@/components/EventDrivenDiagramWrapper";
 
 # Event-Driven Systems
 
-Build **event-driven architectures** without managing Kafka, RabbitMQ, or SQS. Hatchet acts as your event router — receive webhooks, react to application events, run cron jobs, and distribute work to your workers with built-in concurrency control and spike protection.
+Event-driven systems react to webhooks, application events, cron schedules, and API calls. This page covers how Hatchet routes events to tasks with concurrency control and spike protection.
 
 <EventDrivenDiagram />
 
-## Why Hatchet for Event-Driven Systems
+## Core Challenges
 
 <Steps>
 
-### Multiple trigger types in one system
+### Multiple trigger types
 
-Webhooks, cron schedules, application events, and API calls all route through Hatchet. You don't need separate infrastructure for each trigger type — define your tasks once, trigger them any way you need.
+Webhooks, cron schedules, application events, and API calls can all trigger Hatchet tasks. Define your task handlers once and attach whichever triggers you need.
 
-### Spike protection built in
+### Spike protection
 
-When a burst of events hits your system, Hatchet's concurrency controls queue excess work instead of overwhelming your workers. Use `CANCEL_NEWEST` to drop stale events, or `GROUP_ROUND_ROBIN` to ensure fair processing across sources.
+When a burst of events arrives, concurrency controls queue excess work instead of overwhelming your workers. `CANCEL_NEWEST` drops stale events; `GROUP_ROUND_ROBIN` ensures fair processing across sources.
 
-### No message broker to manage
+### Routing and delivery
 
-Hatchet handles event routing, delivery guarantees, and worker distribution. You write task handlers in your application code — no broker configuration, consumer groups, or dead letter queues to maintain.
+Hatchet matches events to registered task triggers, handles deduplication and filtering, and distributes work to available workers. Failed tasks are retried according to your retry policy.
 
 </Steps>
 
@@ -58,9 +58,9 @@ Each event is matched to registered task triggers. A single event can trigger mu
 
 Tasks are distributed to available workers. Concurrency controls prevent overload. Failed tasks are retried according to your retry policy.
 
-### React and chain
+### Chain further work
 
-Task outputs can trigger further events, spawning child tasks or kicking off downstream workflows — building complex event-driven pipelines from simple, composable pieces.
+Task outputs can trigger further events, spawn child tasks, or start downstream workflows. Complex event-driven pipelines are composed from individual tasks.
 
 </Steps>
 
