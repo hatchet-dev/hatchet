@@ -13,9 +13,9 @@ RuboCop::RakeTask.new
 load File.expand_path("Rakefile.rest", __dir__)
 
 # Generate REST API client before building the gem
-task :build => "api:generate"
+task build: "api:generate"
 
 # Generate REST API client before running tests (for CI)
-task :spec => "api:generate_if_missing"
+task spec: "api:generate_if_missing"
 
 task default: %i[spec rubocop]
