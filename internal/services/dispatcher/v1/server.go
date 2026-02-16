@@ -14,7 +14,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -543,26 +545,43 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	var nde *v1.NonDeterminismError
 	if err != nil && errors.As(err, &nde) {
-		errMsg := fmt.Sprintf("non-determinism detected for durable task event with task external id %s, task inserted at %s", taskExternalId, task.InsertedAt)
+		errMsg := fmt.Sprintf("non-determinism detected for durable task event with task id %s", taskExternalId)
 
-		failOpts := v1.FailTaskOpts{
-			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
-				Id:         task.ID,
-				InsertedAt: task.InsertedAt,
-				RetryCount: task.RetryCount,
+		failMsg, failErr := tasktypes.FailedTaskMessage(
+			invocation.tenantId,
+			task.ID,
+			task.InsertedAt,
+			task.ExternalID,
+			task.WorkflowRunID,
+			task.RetryCount,
+			false,
+			errMsg,
+			true,
+		)
+
+		if failErr != nil {
+			return fmt.Errorf("failed to create non-determinism fail message: %w", failErr)
+		}
+
+		if failErr = d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, failMsg); failErr != nil {
+			return fmt.Errorf("failed to publish non-determinism fail message: %w", failErr)
+		}
+
+		sendErr := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_Error{
+				Error: &contracts.DurableTaskErrorResponse{
+					DurableTaskExternalId: taskExternalId.String(),
+					InvocationCount:       req.InvocationCount,
+					ErrorMessage:          errMsg,
+				},
 			},
-			IsAppError:     true,
-			ErrorMessage:   errMsg,
-			IsNonRetryable: true,
+		})
+
+		if sendErr != nil {
+			return fmt.Errorf("failed to send non-determinism error to worker: %w", sendErr)
 		}
 
-		_, err := d.repo.Tasks().FailTasks(ctx, invocation.tenantId, []v1.FailTaskOpts{failOpts})
-
-		if err != nil {
-			return fmt.Errorf("failed to fail task for non-determinism: %w", err)
-		}
-
-		return status.Errorf(codes.FailedPrecondition, "%s", errMsg)
+		return nil
 	} else if err != nil {
 
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)

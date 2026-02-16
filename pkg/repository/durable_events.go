@@ -408,7 +408,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	var nde *NonDeterminismError
 	if err != nil && errors.As(err, &nde) {
-		return nil, fmt.Errorf("non-determinism detected for durable event log entry with durable task id %d, durable task inserted at %s, node id %d: %w", task.ID, task.InsertedAt.Time, nodeId, err)
+		return nil, fmt.Errorf("non-determinism detected for durable event log entry with durable task id %s, node id %d: %w", task.ExternalID, nodeId, err)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
 	}

@@ -494,7 +494,6 @@ class DurableContext(Context):
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
-
         await self._ensure_stream_started()
 
         flat_conditions = flatten_conditions(list(conditions))

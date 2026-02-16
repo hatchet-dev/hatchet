@@ -173,7 +173,7 @@ class DurableEventListener:
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 logger.error(
-                    f"DurableTask stream error: code={e.code()}, details={e.details()}"
+                    f"durable stream error: code={e.code()}, details={e.details()}"
                 )
         except asyncio.CancelledError:
             logger.debug("Receive loop cancelled")
@@ -211,6 +211,16 @@ class DurableEventListener:
                 if not future.done():
                     future.set_result(DurableTaskCallbackResult.from_proto(completed))
                 del self._pending_callbacks[completed_key]
+        elif response.HasField("error"):
+            error = response.error
+            logger.exception(
+                f"durable task error: {error.error_message} "
+                f"(task={error.durable_task_external_id}, invocation={error.invocation_count})"
+            )
+            event_key = (error.durable_task_external_id, error.invocation_count)
+            if event_key in self._pending_event_acks:
+                self._pending_event_acks[event_key].cancel()
+                del self._pending_event_acks[event_key]
 
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:
