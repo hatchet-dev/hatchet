@@ -3,5 +3,4 @@ export default {
   "rag-and-indexing": "RAG & Data Indexing",
   "batch-processing": "Batch Processing",
   "event-driven": "Event-Driven Systems",
-  "background-jobs": "Background Job Migration",
 };
