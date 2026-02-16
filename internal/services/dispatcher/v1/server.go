@@ -543,7 +543,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	var nde *v1.NonDeterminismError
 	if err != nil && errors.As(err, &nde) {
-		errMsg := fmt.Sprintf("non-determinism detected for durable task event with task external id %s, task inserted at %s, node id %d", taskExternalId, task.InsertedAt, ingestionResult.NodeId)
+		errMsg := fmt.Sprintf("non-determinism detected for durable task event with task external id %s, task inserted at %s", taskExternalId, task.InsertedAt)
 
 		failOpts := v1.FailTaskOpts{
 			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
@@ -562,7 +562,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			return fmt.Errorf("failed to fail task for non-determinism: %w", err)
 		}
 
-		return status.Errorf(codes.FailedPrecondition, "%s: %v", errMsg, err)
+		return status.Errorf(codes.FailedPrecondition, "%s", errMsg)
 	} else if err != nil {
 
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
