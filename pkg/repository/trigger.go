@@ -103,7 +103,7 @@ type TriggerRepository interface {
 
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
-	NewTriggerOpt(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*WorkflowNameTriggerOpts, error)
+	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*TriggerTaskData, error)
 }
 
 type TriggerRepositoryImpl struct {
@@ -2202,19 +2202,19 @@ func (r *TriggerOptInvalidArgumentError) Error() string {
 	return fmt.Sprintf("err %v", r.Err)
 }
 
-func (r *sharedRepository) NewTriggerOpt(
+func (r *sharedRepository) NewTriggerTaskData(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	req *v1contracts.TriggerWorkflowRequest,
 	parentTask *sqlcv1.FlattenExternalIdsRow,
-) (*WorkflowNameTriggerOpts, error) {
-	ctx, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerOpt")
+) (*TriggerTaskData, error) {
+	ctx, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerTaskData")
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("sharedRepository.NewTriggerOpt.workflow_name", req.Name),
-		attribute.Int("sharedRepository.NewTriggerOpt.payload_size", len(req.Input)),
-		attribute.Bool("sharedRepository.NewTriggerOpt.is_child_workflow", req.ParentTaskRunExternalId != nil),
+		attribute.String("sharedRepository.NewTriggerTaskData.workflow_name", req.Name),
+		attribute.Int("sharedRepository.NewTriggerTaskData.payload_size", len(req.Input)),
+		attribute.Bool("sharedRepository.NewTriggerTaskData.is_child_workflow", req.ParentTaskRunExternalId != nil),
 	)
 
 	additionalMeta := ""
@@ -2264,8 +2264,5 @@ func (r *sharedRepository) NewTriggerOpt(
 		t.ChildKey = req.ChildKey
 	}
 
-	return &WorkflowNameTriggerOpts{
-		TriggerTaskData: t,
-		ExternalId:      uuid.New(),
-	}, nil
+	return t, nil
 }

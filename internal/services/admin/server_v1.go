@@ -210,7 +210,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		parentTask = maybeParentTask
 	}
 
-	t, err := i.repov1.Triggers().NewTriggerOpt(ctx, tenantId, req, parentTask)
+	t, err := i.repov1.Triggers().NewTriggerTaskData(ctx, tenantId, req, parentTask)
 
 	if err != nil {
 		re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
@@ -223,7 +223,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}
 
 	return &v1.WorkflowNameTriggerOpts{
-		TriggerTaskData: t.TriggerTaskData,
+		TriggerTaskData: t,
 	}, nil
 }
 

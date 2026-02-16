@@ -469,13 +469,15 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	var triggerOpts *v1.WorkflowNameTriggerOpts
 
 	if kind == sqlcv1.V1DurableEventLogKindRUN {
-		to, err := d.repo.Triggers().NewTriggerOpt(ctx, invocation.tenantId, req.TriggerOpts, task)
+		ttd, err := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, req.TriggerOpts, task)
 
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
 		}
 
-		optsSlice := []*v1.WorkflowNameTriggerOpts{to}
+		optsSlice := []*v1.WorkflowNameTriggerOpts{{
+			TriggerTaskData: ttd,
+		}}
 
 		err = d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, optsSlice)
 
