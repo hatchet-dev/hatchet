@@ -16,7 +16,7 @@ Hatchet supports the dynamic creation of child tasks during a parent task's exec
 
 To implement child task spawning, you first need to create both parent and child task definitions.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 
 First, we'll declare a couple of tasks for the parent and child:
@@ -42,13 +42,17 @@ And that's it! The fanout parent will run and spawn the child, and then will col
 <Snippet src={snippets.go.child_workflows.main.declaring_the_tasks} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.fanout.worker.fanout_parent} />
+    <Snippet src={snippets.ruby.fanout.worker.fanout_child} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Running Child Tasks
 
 To spawn and run a child task from a parent task, use the appropriate method for your language:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.fanout.example_child_spawn.child_spawn} />
@@ -66,13 +70,16 @@ To spawn and run a child task from a parent task, use the appropriate method for
 <Snippet src={snippets.go.child_workflows.main.spawning_a_child_workflow} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.fanout.example_child_spawn.child_spawn} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Parallel Child Task Execution
 
 As shown in the examples above, you can spawn multiple child tasks in parallel:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.fanout.trigger.bulk_run_children} />
@@ -90,6 +97,9 @@ As shown in the examples above, you can spawn multiple child tasks in parallel:
 <Snippet src={snippets.go.child_workflows.main.parallel_child_task_execution} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.fanout.trigger.bulk_run_children} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Use Cases for Child Workflows
@@ -106,7 +116,7 @@ Child workflows are ideal for:
 
 When working with child workflows, it's important to properly handle errors. Here are patterns for different languages:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.fanout.example_child_spawn.error_handling} />
@@ -124,4 +134,7 @@ When working with child workflows, it's important to properly handle errors. Her
 <Snippet src={snippets.go.child_workflows.main.error_handling} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.fanout.example_child_spawn.error_handling} />
+  </Tabs.Tab>
 </UniversalTabs>

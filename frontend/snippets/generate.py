@@ -19,6 +19,11 @@ IGNORED_FILE_PATTERNS = [
     r"test_.*\.go$",
     r"_test\.go$",
     r"\.e2e\.ts$",
+    r"test_.*_spec\.rb$",
+    r"spec_helper\.rb$",
+    r"Gemfile",
+    r"\.rspec$",
+    r"README\.md$",
 ]
 
 
@@ -40,6 +45,9 @@ class SDKParsingContext(Enum):
     )
     GO = ParsingContext(
         example_path="sdks/go/examples", extension=".go", comment_prefix="//"
+    )
+    RUBY = ParsingContext(
+        example_path="sdks/ruby/examples", extension=".rb", comment_prefix="#"
     )
 
 
