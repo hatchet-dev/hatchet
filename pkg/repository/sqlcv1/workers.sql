@@ -159,19 +159,6 @@ LEFT JOIN
 WHERE
     w."id" = @id::uuid;
 
--- name: ListSemaphoreSlotsWithStateForWorker :many
-SELECT
-    *
-FROM
-    v1_task_runtime runtime
-JOIN
-    v1_task ON runtime.task_id = v1_task.id AND runtime.task_inserted_at = v1_task.inserted_at
-WHERE
-    runtime.tenant_id = @tenantId::uuid
-    AND runtime.worker_id = @workerId::uuid
-LIMIT
-    COALESCE(sqlc.narg('limit')::int, 100);
-
 -- name: ListTotalActiveSlotsPerTenant :many
 SELECT
     wc.tenant_id AS "tenantId",

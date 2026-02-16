@@ -9,39 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remainingSlots int) *[]gen.SemaphoreSlots {
-	resp := make([]gen.SemaphoreSlots, len(slots))
-
-	for i := range slots {
-		slot := slots[i]
-
-		var stepRunId uuid.UUID
-		var workflowRunId uuid.UUID
-
-		if slot.ExternalID != uuid.Nil {
-			stepRunId = slot.ExternalID
-			workflowRunId = slot.ExternalID
-		}
-
-		status := gen.StepRunStatusRUNNING
-
-		resp[i] = gen.SemaphoreSlots{
-			StepRunId:     stepRunId,
-			Status:        &status,
-			ActionId:      slot.ActionID,
-			WorkflowRunId: workflowRunId,
-			TimeoutAt:     &slot.TimeoutAt.Time,
-			StartedAt:     &slot.InsertedAt.Time,
-		}
-	}
-
-	for i := len(slots); i < remainingSlots; i++ {
-		resp = append(resp, gen.SemaphoreSlots{})
-	}
-
-	return &resp
-}
-
 func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 	runtime := &gen.WorkerRuntimeInfo{
