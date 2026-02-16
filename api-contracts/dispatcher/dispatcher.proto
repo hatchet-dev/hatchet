@@ -51,6 +51,7 @@ enum SDKS {
     GO = 1;
     PYTHON = 2;
     TYPESCRIPT = 3;
+    RUBY = 4;
 }
 
 message RuntimeInfo {

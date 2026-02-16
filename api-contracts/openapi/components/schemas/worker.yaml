@@ -203,6 +203,7 @@ WorkerRuntimeSDKs:
     - GOLANG
     - PYTHON
     - TYPESCRIPT
+    - RUBY
 
 WorkerRuntimeInfo:
   properties:

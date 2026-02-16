@@ -1,0 +1,12 @@
+module Hatchet
+  module Features
+    class Filters
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+      def list: (?limit: Integer?, ?offset: Integer?, ?workflow_ids: Array[String]?, ?scopes: Array[String]?) -> untyped
+      def get: (String filter_id) -> untyped
+      def create: (workflow_id: String, expression: String, scope: String, ?payload: Hash[String, untyped]?) -> untyped
+      def delete: (String filter_id) -> untyped
+      def update: (String filter_id, Hash[Symbol, untyped] updates) -> untyped
+    end
+  end
+end

@@ -33,6 +33,7 @@ export enum WorkerRuntimeSDKs {
   GOLANG = "GOLANG",
   PYTHON = "PYTHON",
   TYPESCRIPT = "TYPESCRIPT",
+  RUBY = "RUBY",
 }
 
 export enum WorkerType {
@@ -983,6 +984,13 @@ export type V1CreateWebhookRequest =
   | V1CreateWebhookRequestBasicAuth
   | V1CreateWebhookRequestAPIKey
   | V1CreateWebhookRequestHMAC;
+
+export interface V1WebhookResponse {
+  /** The message for the webhook response */
+  message?: string;
+  event?: V1Event;
+  challenge?: string;
+}
 
 export interface V1UpdateWebhookRequest {
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */

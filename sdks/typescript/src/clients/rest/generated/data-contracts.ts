@@ -33,6 +33,7 @@ export enum WorkerRuntimeSDKs {
   GOLANG = 'GOLANG',
   PYTHON = 'PYTHON',
   TYPESCRIPT = 'TYPESCRIPT',
+  RUBY = 'RUBY',
 }
 
 export enum WorkerType {
@@ -241,6 +242,7 @@ export enum V1WebhookSourceName {
   STRIPE = 'STRIPE',
   SLACK = 'SLACK',
   LINEAR = 'LINEAR',
+  SVIX = 'SVIX',
 }
 
 export enum TenantEnvironment {
