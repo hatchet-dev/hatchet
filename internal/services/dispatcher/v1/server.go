@@ -475,7 +475,15 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
 		}
 
-		triggerOpts = to
+		optsSlice := []*v1.WorkflowNameTriggerOpts{to}
+
+		err = d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, optsSlice)
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", err)
+		}
+
+		triggerOpts = optsSlice[0]
 	}
 
 	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
