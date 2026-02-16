@@ -593,13 +593,13 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 
 	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingCallbacks))
 	for _, cb := range req.WaitingCallbacks {
-		taskExtId, err := uuid.Parse(cb.DurableTaskExternalId)
+		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
 		if err != nil {
 			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status: %s", cb.DurableTaskExternalId)
 			continue
 		}
 		waiting = append(waiting, v1.TaskExternalIdNodeId{
-			TaskExternalId: taskExtId.String(),
+			TaskExternalId: taskExternalId,
 			NodeId:         cb.NodeId,
 		})
 	}

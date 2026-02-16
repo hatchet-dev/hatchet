@@ -27,8 +27,8 @@ type EventLogEntryWithPayload struct {
 }
 
 type TaskExternalIdNodeId struct {
-	TaskExternalId string
-	NodeId         int64
+	TaskExternalId uuid.UUID `validate:"required"`
+	NodeId         int64     `validate:"required"`
 }
 
 type SatisfiedCallbackWithPayload struct {
@@ -38,11 +38,11 @@ type SatisfiedCallbackWithPayload struct {
 }
 
 type IngestDurableTaskEventOpts struct {
-	TenantId          uuid.UUID
-	Task              *sqlcv1.FlattenExternalIdsRow
-	Kind              sqlcv1.V1DurableEventLogKind
+	TenantId          uuid.UUID                     `validate:"required"`
+	Task              *sqlcv1.FlattenExternalIdsRow `validate:"required"`
+	Kind              sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
 	Payload           []byte
-	DispatcherId      uuid.UUID
+	DispatcherId      uuid.UUID `validate:"required"`
 	WaitForConditions []CreateExternalSignalConditionOpt
 	InvocationCount   int64
 	TriggerOpts       *WorkflowNameTriggerOpts
@@ -205,11 +205,11 @@ func (r *durableEventsRepository) GetSatisfiedCallbacks(ctx context.Context, ten
 	isSatisfieds := make([]bool, len(callbacks))
 
 	for i, cb := range callbacks {
-		taskId, err := uuid.Parse(cb.TaskExternalId)
-		if err != nil {
-			return nil, fmt.Errorf("invalid task external id %s: %w", cb.TaskExternalId, err)
+		if err := r.v.Validate(cb); err != nil {
+			return nil, fmt.Errorf("invalid callback at index %d: %w", i, err)
 		}
-		taskExternalIds[i] = taskId
+
+		taskExternalIds[i] = cb.TaskExternalId
 		nodeIds[i] = cb.NodeId
 		isSatisfieds[i] = true
 	}
@@ -252,6 +252,10 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 }
 
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, fmt.Errorf("invalid opts: %w", err)
+	}
+
 	task := opts.Task
 
 	optTx, err := r.PrepareOptimisticTx(ctx)
