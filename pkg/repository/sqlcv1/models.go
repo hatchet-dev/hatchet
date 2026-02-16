@@ -3485,16 +3485,6 @@ type V1TaskEventsOlapTmp struct {
 	WorkerID       *uuid.UUID           `json:"worker_id"`
 }
 
-type V1TaskEvicted struct {
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	WorkerID       *uuid.UUID         `json:"worker_id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
-	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
-}
-
 type V1TaskExpressionEval struct {
 	Key            string             `json:"key"`
 	TaskID         int64              `json:"task_id"`
@@ -3512,6 +3502,7 @@ type V1TaskRuntime struct {
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 	SlotGroup      V1WorkerSlotGroup  `json:"slot_group"`
+	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
 }
 
 type V1TaskRuntimeSlot struct {

@@ -357,43 +357,6 @@ FROM
 JOIN
     expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at;
 
--- name: ListEvictedTasksToTimeout :many
-WITH expired_evicted AS (
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id
-    FROM
-        v1_task_evicted
-    WHERE
-        tenant_id = @tenantId::uuid
-        AND timeout_at <= NOW()
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    LIMIT
-        COALESCE(sqlc.narg('limit')::integer, 1000)
-    FOR UPDATE SKIP LOCKED
-)
-SELECT
-    v1_task.id,
-    v1_task.inserted_at,
-    v1_task.retry_count,
-    v1_task.step_id,
-    v1_task.external_id,
-    v1_task.workflow_run_id,
-    v1_task.step_timeout,
-    v1_task.app_retry_count,
-    v1_task.retry_backoff_factor,
-    v1_task.retry_max_backoff,
-    expired_evicted.worker_id
-FROM
-    v1_task
-JOIN
-    expired_evicted ON expired_evicted.task_id = v1_task.id
-        AND expired_evicted.task_inserted_at = v1_task.inserted_at
-        AND expired_evicted.retry_count = v1_task.retry_count;
-
 -- name: ListTasksToReassign :many
 WITH tasks_on_inactive_workers AS (
     SELECT
@@ -407,6 +370,8 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        -- TODO: think through reassign case...
+        AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
 )
@@ -1003,16 +968,13 @@ WHERE
 RETURNING
     v1_task_runtime.*;
 
--- name: EvictTaskRuntimeToEvicted :one
--- Moves a task run from v1_task_runtime to v1_task_evicted and releases worker slots.
+-- name: EvictTask :one
+-- Marks a task as evicted in v1_task_runtime and releases worker slots.
 WITH locked_runtime AS (
     SELECT
         task_id,
         task_inserted_at,
-        retry_count,
-        worker_id,
-        tenant_id,
-        timeout_at
+        retry_count
     FROM
         v1_task_runtime
     WHERE
@@ -1020,34 +982,8 @@ WITH locked_runtime AS (
         AND task_id = @taskId::bigint
         AND task_inserted_at = @taskInsertedAt::timestamptz
         AND retry_count = @retryCount::int
-    ORDER BY
-        task_id, task_inserted_at, retry_count
+        AND evicted_at IS NULL
     FOR UPDATE
-), upserted_evicted AS (
-    INSERT INTO v1_task_evicted (
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id,
-        tenant_id,
-        timeout_at
-    )
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id,
-        tenant_id,
-        timeout_at
-    FROM
-        locked_runtime
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
-    SET
-        worker_id = EXCLUDED.worker_id,
-        tenant_id = EXCLUDED.tenant_id,
-        timeout_at = EXCLUDED.timeout_at,
-        evicted_at = NOW()
-    RETURNING 1
 ), deleted_slots AS (
     DELETE FROM v1_task_runtime_slot
     WHERE
@@ -1055,64 +991,80 @@ WITH locked_runtime AS (
         AND task_id = @taskId::bigint
         AND task_inserted_at = @taskInsertedAt::timestamptz
         AND retry_count = @retryCount::int
-    RETURNING 1
-), deleted_runtime AS (
-    DELETE FROM v1_task_runtime
-    WHERE
-        tenant_id = @tenantId::uuid
-        AND task_id = @taskId::bigint
-        AND task_inserted_at = @taskInsertedAt::timestamptz
-        AND retry_count = @retryCount::int
+), updated_runtime AS (
+    UPDATE v1_task_runtime
+    SET evicted_at = NOW()
+    WHERE (task_id, task_inserted_at, retry_count)
+        IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM upserted_evicted LIMIT 1), 0)::int AS "moved";
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
 
--- name: ClearEvictedIfPresent :one
-WITH deleted AS (
-    DELETE FROM v1_task_evicted
-    WHERE
-        tenant_id = @tenantId::uuid
-        AND task_id = @taskId::bigint
-        AND task_inserted_at = @taskInsertedAt::timestamptz
-        AND retry_count = @retryCount::int
-    RETURNING 1
-)
-SELECT
-    COALESCE((SELECT 1 FROM deleted LIMIT 1), 0)::int AS "deleted";
-
+-- TODO: think through this further...
 -- name: RestoreEvictedTask :one
--- Removes a task from evicted and "restores" it like replay:
--- bump retry_count, reset retry counters, set QUEUED (so normal triggers handle queue/concurrency).
--- This avoids durable re-execution spawning duplicate child tasks.
-WITH deleted AS (
-    DELETE FROM v1_task_evicted
+-- Restores an evicted task by inserting it directly into the assignment queue.
+-- The evicted runtime row stays (evicted_at set); when the queue item is assigned,
+-- the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.
+WITH evicted_runtime AS (
+    SELECT
+        r.task_id,
+        r.task_inserted_at,
+        r.retry_count
+    FROM
+        v1_task_runtime r
     WHERE
-        tenant_id = @tenantId::uuid
-        AND task_id = @taskId::bigint
-        AND task_inserted_at = @taskInsertedAt::timestamptz
-        AND retry_count = @retryCount::int
-    RETURNING 1
-), updated_task AS (
-    -- TODO-DURABLE: this is not correct, we should likely insert v1_queue_item directly
-    UPDATE v1_task t
-    SET
-        retry_count = t.retry_count + 1,
-        app_retry_count = 0,
-        internal_retry_count = 0,
-        initial_state = 'QUEUED',
-        initial_state_reason = 'woken'
+        r.tenant_id = @tenantId::uuid
+        AND r.task_id = @taskId::bigint
+        AND r.task_inserted_at = @taskInsertedAt::timestamptz
+        AND r.retry_count = @retryCount::int
+        AND r.evicted_at IS NOT NULL
+    FOR UPDATE
+), inserted_qi AS (
+    INSERT INTO v1_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+    )
+    SELECT
+        t.tenant_id,
+        t.queue,
+        t.id,
+        t.inserted_at,
+        t.external_id,
+        t.action_id,
+        t.step_id,
+        t.workflow_id,
+        t.workflow_run_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
+        t.step_timeout,
+        4,
+        t.sticky,
+        t.desired_worker_id,
+        t.retry_count
+    FROM
+        v1_task t
     WHERE
-        t.tenant_id = @tenantId::uuid
-        AND t.id = @taskId::bigint
+        t.id = @taskId::bigint
         AND t.inserted_at = @taskInsertedAt::timestamptz
-        AND t.retry_count = @retryCount::int
-        AND EXISTS (SELECT 1 FROM deleted)
+        AND EXISTS (SELECT 1 FROM evicted_runtime)
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM deleted LIMIT 1), 0)::int AS "removedEvicted",
-    COALESCE((SELECT 1 FROM updated_task LIMIT 1), 0)::int AS "queued";
+    COALESCE((SELECT 1 FROM evicted_runtime LIMIT 1), 0)::int AS "wasEvicted",
+    COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued";
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.

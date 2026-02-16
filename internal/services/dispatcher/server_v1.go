@@ -638,7 +638,7 @@ func (s *DispatcherImpl) handleTaskDurableEvicted(inputCtx context.Context, task
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	_, err := s.repov1.Tasks().EvictTaskRuntimeToEvicted(inputCtx, tenantId, v1.TaskIdInsertedAtRetryCount{
+	_, err := s.repov1.Tasks().EvictTask(inputCtx, tenantId, v1.TaskIdInsertedAtRetryCount{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
 		RetryCount: retryCount,

@@ -1021,8 +1021,15 @@ WITH input AS (
         t.timeout_at
     FROM
         updated_tasks t
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-    -- only return the task ids that were successfully assigned
+    -- un-evict evicted tasks
+    -- TODO: think through this really carefully when you're not exhausted from a 7am sfo flight
+    -- I'm wondering if this makes more sense as an update CTE and union...
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+    SET
+        evicted_at = NULL,
+        worker_id = EXCLUDED.worker_id,
+        timeout_at = EXCLUDED.timeout_at
+    WHERE v1_task_runtime.evicted_at IS NOT NULL
     RETURNING task_id, worker_id
 ), slot_requests AS (
     SELECT
