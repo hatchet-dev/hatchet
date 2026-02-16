@@ -618,6 +618,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	callbacks, err := d.repo.DurableEvents().GetSatisfiedCallbacks(ctx, invocation.tenantId, waiting)
+
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}

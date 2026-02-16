@@ -85,8 +85,7 @@ INSERT INTO v1_durable_event_log_entry (
     node_id,
     parent_node_id,
     branch_id,
-    data_hash,
-    data_hash_alg
+    idempotency_key
 )
 VALUES (
     $1::UUID,
@@ -98,11 +97,10 @@ VALUES (
     $6::BIGINT,
     $7::BIGINT,
     $8::BIGINT,
-    $9::BYTEA,
-    $10::TEXT
+    $9::BYTEA
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, idempotency_key
 `
 
 type CreateDurableEventLogEntryParams struct {
@@ -114,8 +112,7 @@ type CreateDurableEventLogEntryParams struct {
 	Nodeid                int64                 `json:"nodeid"`
 	ParentNodeId          pgtype.Int8           `json:"parentNodeId"`
 	Branchid              int64                 `json:"branchid"`
-	Datahash              []byte                `json:"datahash"`
-	Datahashalg           string                `json:"datahashalg"`
+	Idempotencykey        []byte                `json:"idempotencykey"`
 }
 
 func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg CreateDurableEventLogEntryParams) (*V1DurableEventLogEntry, error) {
@@ -128,8 +125,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 		arg.Nodeid,
 		arg.ParentNodeId,
 		arg.Branchid,
-		arg.Datahash,
-		arg.Datahashalg,
+		arg.Idempotencykey,
 	)
 	var i V1DurableEventLogEntry
 	err := row.Scan(
@@ -143,8 +139,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 		&i.NodeID,
 		&i.ParentNodeID,
 		&i.BranchID,
-		&i.DataHash,
-		&i.DataHashAlg,
+		&i.IdempotencyKey,
 	)
 	return &i, err
 }
@@ -260,7 +255,7 @@ func (q *Queries) GetDurableEventLogCallback(ctx context.Context, db DBTX, arg G
 }
 
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, idempotency_key
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -287,8 +282,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 		&i.NodeID,
 		&i.ParentNodeID,
 		&i.BranchID,
-		&i.DataHash,
-		&i.DataHashAlg,
+		&i.IdempotencyKey,
 	)
 	return &i, err
 }

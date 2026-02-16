@@ -494,7 +494,6 @@ class DurableContext(Context):
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
-        from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 
         await self._ensure_stream_started()
 

@@ -60,8 +60,7 @@ INSERT INTO v1_durable_event_log_entry (
     node_id,
     parent_node_id,
     branch_id,
-    data_hash,
-    data_hash_alg
+    idempotency_key
 )
 VALUES (
     @tenantId::UUID,
@@ -73,8 +72,7 @@ VALUES (
     @nodeId::BIGINT,
     sqlc.narg('parentNodeId')::BIGINT,
     @branchId::BIGINT,
-    @dataHash::BYTEA,
-    @dataHashAlg::TEXT
+    @idempotencyKey::BYTEA
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
 RETURNING *
