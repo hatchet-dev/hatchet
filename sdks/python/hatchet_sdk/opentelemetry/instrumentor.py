@@ -3,7 +3,7 @@ from collections.abc import Callable, Collection, Coroutine
 from importlib.metadata import version
 from typing import Any, cast
 
-from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
+from hatchet_sdk.contracts.workflows import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 try:

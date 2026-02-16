@@ -1,58 +1,57 @@
--- name: CreateDurableEventLogFile :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
-        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST(@latestInsertedAts::TIMESTAMPTZ[]) AS latest_inserted_at,
-        UNNEST(@latestNodeIds::BIGINT[]) AS latest_node_id,
-        UNNEST(@latestBranchIds::BIGINT[]) AS latest_branch_id,
-        UNNEST(@latestBranchFirstParentNodeIds::BIGINT[]) AS latest_branch_first_parent_node_id
-)
+-- name: GetAndLockLogFile :one
+SELECT *
+FROM v1_durable_event_log_file
+WHERE durable_task_id = @durableTaskId::BIGINT
+    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+FOR UPDATE;
+
+-- name: UpdateLogFileNodeIdInvocationCount :one
+UPDATE v1_durable_event_log_file
+SET
+    latest_node_id = COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id),
+    latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::BIGINT, v1_durable_event_log_file.latest_invocation_count)
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+RETURNING *;
+
+-- name: CreateEventLogFile :one
 INSERT INTO v1_durable_event_log_file (
+    tenant_id,
     durable_task_id,
     durable_task_inserted_at,
+    latest_invocation_count,
     latest_inserted_at,
     latest_node_id,
     latest_branch_id,
     latest_branch_first_parent_node_id
+) VALUES (
+    @tenantId::UUID,
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    0,
+    NOW(),
+    1,
+    1,
+    0
 )
-SELECT
-    i.durable_task_id,
-    i.durable_task_inserted_at,
-    i.latest_inserted_at,
-    i.latest_node_id,
-    i.latest_branch_id,
-    i.latest_branch_first_parent_node_id
-FROM
-    inputs i
+ON CONFLICT (durable_task_id, durable_task_inserted_at)
+DO UPDATE SET
+    latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, EXCLUDED.latest_node_id),
+    latest_inserted_at = NOW(),
+    latest_invocation_count = GREATEST(v1_durable_event_log_file.latest_invocation_count, EXCLUDED.latest_invocation_count)
 RETURNING *
 ;
 
--- name: GetDurableEventLogFileForTask :one
+-- name: GetDurableEventLogEntry :one
 SELECT *
-FROM v1_durable_event_log_file
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-;
+FROM v1_durable_event_log_entry
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND node_id = @nodeId::BIGINT;
 
--- todo: implement UpdateLatestNodeId
-
--- name: CreateDurableEventLogEntries :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@externalIds::UUID[]) AS external_id,
-        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
-        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST(@kinds::TEXT[] AS v1_durable_event_log_entry_kind[])) AS kind,
-        UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@parentNodeIds::BIGINT[]) AS parent_node_id,
-        UNNEST(@branchIds::BIGINT[]) AS branch_id,
-        UNNEST(@dataHashes::BYTEA[]) AS data_hash,
-        UNNEST(@dataHashAlgs::TEXT[]) AS data_hash_alg
-)
-
+-- name: CreateDurableEventLogEntry :one
 INSERT INTO v1_durable_event_log_entry (
+    tenant_id,
     external_id,
     durable_task_id,
     durable_task_inserted_at,
@@ -64,98 +63,85 @@ INSERT INTO v1_durable_event_log_entry (
     data_hash,
     data_hash_alg
 )
-SELECT
-    i.external_id,
-    i.durable_task_id,
-    i.durable_task_inserted_at,
-    i.inserted_at,
-    i.kind,
-    i.node_id,
-    -- todo: check on if 0 is a safe sentinel value here or if we're zero-indexing the node id
-    NULLIF(i.parent_node_id, 0),
-    i.branch_id,
-    i.data_hash,
-    i.data_hash_alg
-FROM
-    inputs i
-ORDER BY
-    i.durable_task_id,
-    i.durable_task_inserted_at,
-    i.node_id
--- todo: conflict resolution here
-RETURNING *
-;
-
--- name: ListDurableEventLogEntries :many
-SELECT *
-FROM v1_durable_event_log_entry
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-ORDER BY node_id ASC
-;
-
--- name: GetDurableEventLogEntry :one
-SELECT *
-FROM v1_durable_event_log_entry
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-  AND node_id = @nodeId
-;
-
--- name: CreateDurableEventLogCallbacks :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
-        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST(@kinds::TEXT[] AS v1_durable_event_log_callback_kind[])) AS kind,
-        UNNEST(@keys::TEXT[]) AS key,
-        UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+VALUES (
+    @tenantId::UUID,
+    @externalId::UUID,
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    NOW(),
+    @kind::v1_durable_event_log_kind,
+    @nodeId::BIGINT,
+    sqlc.narg('parentNodeId')::BIGINT,
+    @branchId::BIGINT,
+    @dataHash::BYTEA,
+    @dataHashAlg::TEXT
 )
-INSERT INTO v1_durable_event_log_callback (
-    durable_task_id,
-    durable_task_inserted_at,
-    inserted_at,
-    kind,
-    key,
-    node_id,
-    is_satisfied
-)
-SELECT
-    i.durable_task_id,
-    i.durable_task_inserted_at,
-    i.inserted_at,
-    i.kind,
-    i.key,
-    i.node_id,
-    i.is_satisfied
-FROM
-    inputs i
+ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
 RETURNING *
 ;
 
 -- name: GetDurableEventLogCallback :one
 SELECT *
 FROM v1_durable_event_log_callback
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-  AND key = @key
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND node_id = @nodeId::BIGINT
 ;
 
--- name: ListDurableEventLogCallbacks :many
-SELECT *
-FROM v1_durable_event_log_callback
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-ORDER BY inserted_at ASC
-;
-
--- name: UpdateDurableEventLogCallbackSatisfied :one
-UPDATE v1_durable_event_log_callback
-SET is_satisfied = @isSatisfied
-WHERE durable_task_id = @durableTaskId
-  AND durable_task_inserted_at = @durableTaskInsertedAt
-  AND key = @key
+-- name: CreateDurableEventLogCallback :one
+INSERT INTO v1_durable_event_log_callback (
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    inserted_at,
+    kind,
+    node_id,
+    is_satisfied,
+    external_id
+)
+VALUES (
+    @tenantId::UUID,
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    @insertedAt::TIMESTAMPTZ,
+    @kind::v1_durable_event_log_kind,
+    @nodeId::BIGINT,
+    @isSatisfied::BOOLEAN,
+    @externalId::UUID
+)
+ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
 RETURNING *
+;
+
+-- name: UpdateDurableEventLogCallbacksSatisfied :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id
+)
+
+UPDATE v1_durable_event_log_callback
+SET is_satisfied = true
+FROM inputs
+WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
+  AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at
+  AND v1_durable_event_log_callback.node_id = inputs.node_id
+RETURNING v1_durable_event_log_callback.*
+;
+
+-- name: ListSatisfiedCallbacks :many
+WITH tasks AS (
+    SELECT t.*
+    FROM v1_lookup_table lt
+    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
+    WHERE lt.external_id = ANY(@taskExternalIds::UUID[])
+)
+
+SELECT cb.*, t.external_id AS task_external_id
+FROM v1_durable_event_log_callback cb
+JOIN tasks t ON (t.id, t.inserted_at) = (cb.durable_task_id, cb.durable_task_inserted_at)
+WHERE
+    cb.node_id = ANY(@nodeIds::BIGINT[])
+    AND cb.is_satisfied
 ;

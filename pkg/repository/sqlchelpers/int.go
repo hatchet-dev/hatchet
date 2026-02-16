@@ -8,3 +8,10 @@ func ToInt(i int32) pgtype.Int4 {
 		Int32: i,
 	}
 }
+
+func ToBigInt(i int64) pgtype.Int8 {
+	return pgtype.Int8{
+		Valid: true,
+		Int64: i,
+	}
+}

@@ -3,6 +3,7 @@ package msgqueue
 // Message ID constants for tenant messages
 const (
 	MsgIDCancelTasks                  = "cancel-tasks"
+	MsgIDDurableCallbackCompleted     = "durable-callback-completed"
 	MsgIDCELEvaluationFailure         = "cel-evaluation-failure"
 	MsgIDCheckTenantQueue             = "check-tenant-queue"
 	MsgIDNewWorker                    = "new-worker"

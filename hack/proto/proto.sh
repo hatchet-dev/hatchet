@@ -12,7 +12,8 @@ protoc --proto_path=api-contracts \
     --go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
     --go-grpc_out=./internal/services/shared/proto/v1 \
     --go-grpc_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
-    v1/shared/condition.proto
+    v1/shared/condition.proto \
+    v1/shared/trigger.proto
 
 protoc --proto_path=api-contracts \
     --go_out=./internal/services/shared/proto/v1 \
@@ -36,6 +37,6 @@ protoc --proto_path=api-contracts/events --go_out=./internal/services/ingestor/c
     --go-grpc_out=./internal/services/ingestor/contracts --go-grpc_opt=paths=source_relative \
     events.proto
 
-protoc --proto_path=api-contracts/workflows --go_out=./internal/services/admin/contracts --go_opt=paths=source_relative \
+protoc --proto_path=api-contracts --go_out=./internal/services/admin/contracts --go_opt=paths=source_relative \
     --go-grpc_out=./internal/services/admin/contracts --go-grpc_opt=paths=source_relative \
-    workflows.proto
+    workflows/workflows.proto

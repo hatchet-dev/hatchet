@@ -397,8 +397,14 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
+	re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
+
 	if err != nil {
-		return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		if isInvalidArgument {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+		} else {
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		}
 	}
 
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})

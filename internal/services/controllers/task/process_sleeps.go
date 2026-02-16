@@ -33,5 +33,11 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 		}
 	}
 
+	if len(matchResult.SatisfiedCallbacks) > 0 {
+		if err := tc.processSatisfiedCallbacks(ctx, tenantIdUUID, matchResult.SatisfiedCallbacks); err != nil {
+			tc.l.Error().Err(err).Msg("could not process satisfied callbacks from sleep")
+		}
+	}
+
 	return shouldContinue, nil
 }

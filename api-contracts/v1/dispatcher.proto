@@ -5,15 +5,92 @@ option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/pro
 package v1;
 
 import "v1/shared/condition.proto";
+import "v1/shared/trigger.proto";
 
 service V1Dispatcher {
+    rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse) {}
+
+    // NOTE: deprecated after DurableEventLog is implemented
     rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
-
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
-
 }
 
+message DurableTaskRequestRegisterWorker {
+    string worker_id = 1;
+}
 
+message DurableTaskResponseRegisterWorker {
+    string worker_id = 1;
+}
+
+enum DurableTaskEventKind {
+    DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED = 0;
+    DURABLE_TASK_TRIGGER_KIND_RUN = 1;
+    DURABLE_TASK_TRIGGER_KIND_WAIT_FOR = 2;
+    DURABLE_TASK_TRIGGER_KIND_MEMO = 3;
+}
+
+message DurableTaskEventRequest {
+    // The invocation_count is a monotonically increasing count that uniquely identifies an "attempt"
+    // at running a durable task. Each time the task is started, it gets a new invocation count (which has)
+    // incremented by one since the previous invocation. This allows the server (and the worker) to have a way of
+    // differentiating between different attempts of the same task running in different places, to prevent race conditions
+    // and other problems from duplication. It also allows for older invocations to be evicted cleanly
+    int64 invocation_count = 1;
+    string durable_task_external_id = 2;
+    DurableTaskEventKind kind = 3;
+    optional bytes payload = 4;
+    optional DurableEventListenerConditions wait_for_conditions = 5;
+
+    // Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows)
+    optional TriggerWorkflowRequest trigger_opts  = 6;
+}
+
+message DurableTaskEventAckResponse {
+    int64 invocation_count = 1;
+    string durable_task_external_id = 2;
+    int64 node_id = 3;
+}
+
+message DurableTaskCallbackCompletedResponse {
+    string durable_task_external_id = 1;
+    int64 node_id = 2;
+    bytes payload = 3;
+}
+
+message DurableTaskEvictInvocationRequest {
+    int64 invocation_count = 1;
+    string durable_task_external_id = 2;
+}
+
+message DurableTaskAwaitedCallback {
+    string durable_task_external_id = 1;
+    int64 node_id = 2;
+}
+
+message DurableTaskWorkerStatusRequest {
+    string worker_id = 1;
+    int64 node_id = 2;
+    int64 branch_id = 3;
+    repeated DurableTaskAwaitedCallback waiting_callbacks = 4;
+}
+
+message DurableTaskRequest {
+    oneof message {
+        DurableTaskRequestRegisterWorker register_worker = 1;
+        DurableTaskEventRequest event = 2;
+        DurableTaskEvictInvocationRequest evict_invocation = 3;
+        DurableTaskWorkerStatusRequest worker_status = 4;
+    }
+}
+
+message DurableTaskResponse {
+    oneof message {
+        DurableTaskResponseRegisterWorker register_worker = 1;
+        DurableTaskEventAckResponse trigger_ack = 2;
+        DurableTaskCallbackCompletedResponse callback_completed = 3;
+    }
+}
 
 message RegisterDurableEventRequest {
     string task_id = 1; // external uuid for the task run

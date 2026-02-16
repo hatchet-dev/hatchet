@@ -5,10 +5,15 @@
 --
 -- Important: writers to v1_durable_event_log_entry should lock this row to increment the sequence value.
 CREATE TABLE v1_durable_event_log_file (
+    tenant_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
+
     latest_inserted_at TIMESTAMPTZ NOT NULL,
+
+    latest_invocation_count BIGINT NOT NULL,
+
     -- A monotonically increasing node id for this durable event log scoped to the durable task.
     -- Starts at 0 and increments by 1 for each new entry.
     latest_node_id BIGINT NOT NULL,
@@ -16,19 +21,21 @@ CREATE TABLE v1_durable_event_log_file (
     latest_branch_id BIGINT NOT NULL,
     -- The parent node id which should be linked to the first node in a new branch to its parent node.
     latest_branch_first_parent_node_id BIGINT NOT NULL,
+
     CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
 SELECT create_v1_range_partition('v1_durable_event_log_file', NOW()::DATE);
 SELECT create_v1_range_partition('v1_durable_event_log_file', (NOW() + INTERVAL '1 day')::DATE);
 
-CREATE TYPE v1_durable_event_log_entry_kind AS ENUM (
-    'RUN_TRIGGERED',
-    'WAIT_FOR_STARTED',
-    'MEMO_STARTED'
+CREATE TYPE v1_durable_event_log_kind AS ENUM (
+    'RUN',
+    'WAIT_FOR',
+    'MEMO'
 );
 
 CREATE TABLE v1_durable_event_log_entry (
+    tenant_id UUID NOT NULL,
     -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
@@ -39,7 +46,8 @@ CREATE TABLE v1_durable_event_log_entry (
 
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
-    kind v1_durable_event_log_entry_kind,
+
+    kind v1_durable_event_log_kind NOT NULL,
     -- The node number in the durable event log. This represents a monotonically increasing
     -- sequence value generated from v1_durable_event_log_file.latest_node_id
     node_id BIGINT NOT NULL,
@@ -59,19 +67,12 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Definite: we'll query directly for the node_id when a durable task is replaying its log
     -- Possible: we may want to query a range of node_ids for a durable task
     -- Possible: we may want to query a range of inserted_ats for a durable task
+
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
 SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE);
 SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE);
-
-CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
-    'RUN_COMPLETED',
-    -- WAIT_FOR_COMPLETED can represent a durable sleep, an event, or some boolean combination of
-    -- these.
-    'WAIT_FOR_COMPLETED',
-    'MEMO_COMPLETED'
-);
 
 -- v1_durable_event_log_callback stores callbacks that complete a durable event log entry. This needs to be stateful
 -- so that it persists across worker restarts for the same durable task.
@@ -84,6 +85,8 @@ CREATE TYPE v1_durable_event_log_callback_kind AS ENUM (
 --    and direct queries from the engine side to mark a callback as satisfied when we've satisfied a v1_match. Because
 --    of this, we likely need to add a `callback_key` field to the v1_match table.
 CREATE TABLE v1_durable_event_log_callback (
+    tenant_id UUID NOT NULL,
+
     external_id UUID NOT NULL,
     -- The inserted_at time of this callback from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
@@ -92,24 +95,33 @@ CREATE TABLE v1_durable_event_log_callback (
 
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
-    kind v1_durable_event_log_callback_kind,
-    -- A unique, generated key for this callback. This key will change dependent on the callback kind.
-    -- Important: this key should be easily queryable directly from the durable log writers but also the controllers
-    -- that are checking if callbacks are satisfied.
-    key TEXT NOT NULL,
+    kind v1_durable_event_log_kind NOT NULL,
+
     -- The associated log node id that this callback references.
     node_id BIGINT NOT NULL,
     -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+
     -- Access patterns:
     -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
     -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied
-    CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, key)
+    CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
 SELECT create_v1_range_partition('v1_durable_event_log_callback', NOW()::DATE);
 SELECT create_v1_range_partition('v1_durable_event_log_callback', (NOW() + INTERVAL '1 day')::DATE);
+
+ALTER TABLE v1_match
+    ADD COLUMN durable_event_log_callback_durable_task_external_id UUID,
+    ADD COLUMN durable_event_log_callback_node_id BIGINT,
+    ADD COLUMN durable_event_log_callback_durable_task_id BIGINT,
+    ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ;
+
+ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
+ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_CALLBACK_RESULT_DATA';
+
+ALTER TABLE "Worker" ADD COLUMN "durableTaskDispatcherId" UUID;
 -- +goose StatementEnd
 
 -- +goose Down
@@ -117,6 +129,13 @@ SELECT create_v1_range_partition('v1_durable_event_log_callback', (NOW() + INTER
 DROP TABLE v1_durable_event_log_callback;
 DROP TABLE v1_durable_event_log_entry;
 DROP TABLE v1_durable_event_log_file;
-DROP TYPE v1_durable_event_log_entry_kind;
-DROP TYPE v1_durable_event_log_callback_kind;
+DROP TYPE v1_durable_event_log_kind;
+
+ALTER TABLE v1_match
+    DROP COLUMN durable_event_log_callback_durable_task_external_id,
+    DROP COLUMN durable_event_log_callback_node_id,
+    DROP COLUMN durable_event_log_callback_durable_task_id,
+    DROP COLUMN durable_event_log_callback_durable_task_inserted_at;
+
+ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
 -- +goose StatementEnd

@@ -43,6 +43,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     DesiredWorkerLabels,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     R,
@@ -179,6 +180,11 @@ class Task(Generic[TWorkflowInput, R]):
             workflow_input=workflow.config.input_validator,
             step_output=TypeAdapter(normalize_validator(return_type)),
         )
+
+        if not self.is_async_function and self.is_durable:
+            logger.warning(
+                f"{self.fn.__name__} is defined as a synchronous, durable task. in the future, durable tasks will only support `async`. please update this durable task to be async, or make it non-durable."
+            )
 
     async def _parse_maybe_cm_param(
         self,

@@ -287,6 +287,7 @@ class Worker:
                 self.client.debug,
                 self.labels,
                 lifespan_context,
+                is_durable=is_durable,
             )
 
         raise RuntimeError("event loop not set, cannot start action runner")

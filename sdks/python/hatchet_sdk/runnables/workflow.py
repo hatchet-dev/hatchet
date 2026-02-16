@@ -36,9 +36,10 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     DesiredWorkerLabels,
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
-from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
+from hatchet_sdk.contracts.workflows.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.contextvars import ctx_durable_context
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -705,6 +706,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary.
         """
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None:
+            return await durable_ctx._spawn_child(self, input, options)
+
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -1311,6 +1316,19 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :returns: The extracted result of the workflow execution.
         """
+        from hatchet_sdk.runnables.contextvars import ctx_durable_context
+        from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None:
+            raw = await durable_ctx._spawn_child(self, input, options)
+            return cast(
+                R,
+                self._output_validator.validate_python(
+                    raw, context=HATCHET_PYDANTIC_SENTINEL
+                ),
+            )
+
         result = await self._workflow.aio_run(input, options)
         return self._extract_result(result)
 

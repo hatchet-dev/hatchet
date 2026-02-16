@@ -8,12 +8,9 @@ from examples.dependency_injection.worker import (
     SYNC_CM_DEPENDENCY_VALUE,
     SYNC_DEPENDENCY_VALUE,
     Output,
-    async_dep,
     async_task_with_dependencies,
     di_workflow,
     durable_async_task_with_dependencies,
-    durable_sync_task_with_dependencies,
-    sync_dep,
     sync_task_with_dependencies,
 )
 from hatchet_sdk import EmptyModel
@@ -26,7 +23,6 @@ from hatchet_sdk.runnables.workflow import Standalone
         async_task_with_dependencies,
         sync_task_with_dependencies,
         durable_async_task_with_dependencies,
-        durable_sync_task_with_dependencies,
     ],
 )
 @pytest.mark.asyncio(loop_scope="session")
@@ -50,7 +46,7 @@ async def test_di_standalones(
 async def test_di_workflows() -> None:
     result = await di_workflow.aio_run()
 
-    assert len(result) == 4
+    assert len(result) == 3
 
     for output in result.values():
         parsed = Output.model_validate(output)

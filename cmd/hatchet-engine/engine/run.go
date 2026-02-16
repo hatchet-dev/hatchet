@@ -377,11 +377,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcherv1.WithRepository(sc.V1),
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
+			dispatcherv1.WithDispatcherId(d.DispatcherId()),
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
+
+		d.SetDurableCallbackHandler(dv1.DeliverCallbackCompletion)
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
@@ -815,11 +818,14 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcherv1.WithRepository(sc.V1),
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
+			dispatcherv1.WithDispatcherId(d.DispatcherId()),
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
+
+		d.SetDurableCallbackHandler(dv1.DeliverCallbackCompletion)
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
