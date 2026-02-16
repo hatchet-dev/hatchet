@@ -11,14 +11,14 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(up20260211000003, down20260211000003)
+	goose.AddMigrationNoTxContext(up20260216000003, down20260216000003)
 }
 
 const backfillSlotsBatchSize = 10_000
 
 var zeroUUID = uuid.Nil
 
-func up20260211000003(ctx context.Context, db *sql.DB) error {
+func up20260216000003(ctx context.Context, db *sql.DB) error {
 	if err := backfillWorkerSlotConfigs(ctx, db); err != nil {
 		return err
 	}
@@ -34,11 +34,11 @@ func up20260211000003(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// down20260211000003 is intentionally a no-op.
+// down20260216000003 is intentionally a no-op.
 //
 // By the time this migration runs, new services may already be writing to these
 // tables. Deleting rows here would risk removing valid post-cutover data.
-func down20260211000003(ctx context.Context, db *sql.DB) error {
+func down20260216000003(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
