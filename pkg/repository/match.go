@@ -740,7 +740,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		predeterminedCallback, ok := idInsertedAtNodeIdToSatisfiedCallback[key]
 
 		if !ok {
-			m.l.Error().Msgf("no predetermined callback found for satisfied callback with node id %d, durable task id %d and durable task inserted at %s", cb.NodeID, cb.DurableTaskID, cb.DurableTaskInsertedAt)
+			m.l.Error().Msgf("no predetermined callback found for satisfied callback with node id %d, durable task id %d and durable task inserted at %s", cb.NodeID, cb.DurableTaskID, cb.DurableTaskInsertedAt.Time)
 			continue
 		}
 
