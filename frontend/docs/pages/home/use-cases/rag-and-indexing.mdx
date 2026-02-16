@@ -1,0 +1,105 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import RAGPipelineDiagram from "@/components/RAGPipelineDiagramWrapper";
+
+# RAG & Data Indexing
+
+Build **ingestion pipelines** that process documents, generate embeddings, and keep vector databases up to date — with automatic retries, rate limiting for embedding APIs, and fan-out parallelism that processes thousands of documents concurrently.
+
+<RAGPipelineDiagram />
+
+## Why Hatchet for RAG Pipelines
+
+<Steps>
+
+### Fan-out to thousands of documents
+
+When new data arrives, a parent task fans out to child tasks — one per document or chunk. Hatchet distributes these across your worker fleet automatically. Process 50,000 documents in under an hour instead of days.
+
+### Rate-limit embedding APIs
+
+Embedding providers (OpenAI, Cohere, Voyage) enforce rate limits. Hatchet's built-in rate limiting throttles your embedding tasks across all workers, so you never hit 429 errors or get your API key throttled.
+
+### Retry without re-processing
+
+If a task fails (embedding API timeout, database write error), Hatchet retries just that task — not the entire pipeline. Completed chunks stay indexed. Combined with idempotency keys, you get exactly-once semantics.
+
+</Steps>
+
+## Key Features
+
+| Feature | What it does for RAG |
+|---------|---------------------|
+| **[Child Spawning](/home/child-spawning)** | Fan out to one task per document/chunk — process thousands in parallel |
+| **[Rate Limits](/home/rate-limits)** | Throttle embedding API calls across all workers to stay within provider limits |
+| **[Retry Policies](/home/retry-policies)** | Retry failed chunks individually without re-processing the whole pipeline |
+| **[Concurrency](/home/concurrency)** | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing |
+| **[DAG Workflows](/home/dags)** | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
+| **[Event Triggers](/home/run-on-event)** | Start indexing automatically when new documents arrive |
+| **[Cron Triggers](/home/cron-runs)** | Schedule periodic re-indexing or incremental updates |
+| **[Bulk Run](/home/bulk-run)** | Trigger indexing for thousands of documents in a single API call |
+
+<Callout type="info">
+  RAG pipelines are a natural fit for [Pre-Determined Pipelines](/home/patterns/pre-determined-pipelines) — the stages (ingest, chunk, embed, index) are fixed and map directly to a DAG. Use [Fanout](/home/patterns/fanout) within the chunking stage to parallelize.
+</Callout>
+
+## Pipeline Architecture
+
+<Steps>
+
+### Ingest
+
+A trigger (event, cron, or API call) starts the pipeline with document references. The ingest task fetches raw content from your data source (S3, database, API).
+
+### Chunk
+
+The parent task fans out to child tasks, one per document. Each child splits its document into chunks using your preferred strategy (fixed-size, semantic, recursive).
+
+### Embed
+
+Each chunk task calls your embedding provider. Hatchet rate-limits these calls across all workers to respect API quotas. Failed embeddings are retried individually.
+
+### Index
+
+Embeddings are written to your vector database (Pinecone, Weaviate, pgvector). Hatchet retries on transient database errors without re-computing embeddings.
+
+### Query (optional)
+
+A separate workflow handles user queries — generating query embeddings, searching the vector database, and passing context to the LLM.
+
+</Steps>
+
+<Callout type="warning">
+  When fanning out to thousands of chunks, ensure your workers have enough slots. A pipeline processing 10,000 documents with 10 chunks each creates 100,000 child tasks. Use [Concurrency Control](/home/concurrency) to limit how many run simultaneously.
+</Callout>
+
+## Multi-Tenant Indexing
+
+For SaaS applications where multiple tenants share the same pipeline:
+
+- **GROUP_ROUND_ROBIN concurrency** ensures fair scheduling — no single tenant can monopolize your workers
+- **Additional metadata** tags each run with a tenant ID for filtering in the dashboard
+- **Priority queues** let paying customers' indexing jobs run ahead of free-tier users
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Pre-Determined Pipelines" href="/home/patterns/pre-determined-pipelines">
+    The fixed-stage DAG pattern that RAG pipelines are built on.
+  </Cards.Card>
+  <Cards.Card title="Fanout" href="/home/patterns/fanout">
+    Parallelize document and chunk processing across your worker fleet.
+  </Cards.Card>
+  <Cards.Card title="Cycles" href="/home/patterns/cycles">
+    Implement incremental indexing that re-crawls until all changes are processed.
+  </Cards.Card>
+  <Cards.Card title="Batch Processing" href="/home/use-cases/batch-processing">
+    General-purpose batch processing patterns that apply to indexing workloads.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [DAG Workflows](/home/dags) — define multi-stage pipelines with task dependencies
+- [Rate Limits](/home/rate-limits) — configure rate limiting for embedding APIs
+- [Child Spawning](/home/child-spawning) — fan out to per-document tasks
+- [Concurrency Control](/home/concurrency) — fair scheduling for multi-tenant indexing

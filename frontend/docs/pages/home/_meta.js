@@ -19,18 +19,19 @@ export default {
   patterns: "Patterns",
   "use-cases": "Use Cases",
   "--quickstart": {
-    title: "Quickstart",
+    title: "Setup",
     type: "separator",
   },
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
+  setup: "Advanced Setup",
+  "install-docs-mcp": "Install Docs MCP",
   "--guide": {
-    title: "Walkthrough",
+    title: "Fundamentals",
     type: "separator",
   },
-  setup: "Setup",
   "your-first-task": "Tasks",
   workers: "Workers",
-  "running-your-task": "Your First Task",
+  "running-your-task": "Running Tasks",
   environments: "Environments",
   "--running-tasks": {
     title: "Ways of Running Tasks",

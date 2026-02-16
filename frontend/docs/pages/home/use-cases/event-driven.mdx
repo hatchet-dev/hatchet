@@ -1,0 +1,103 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import EventDrivenDiagram from "@/components/EventDrivenDiagramWrapper";
+
+# Event-Driven Systems
+
+Build **event-driven architectures** without managing Kafka, RabbitMQ, or SQS. Hatchet acts as your event router — receive webhooks, react to application events, run cron jobs, and distribute work to your workers with built-in concurrency control and spike protection.
+
+<EventDrivenDiagram />
+
+## Why Hatchet for Event-Driven Systems
+
+<Steps>
+
+### Multiple trigger types in one system
+
+Webhooks, cron schedules, application events, and API calls all route through Hatchet. You don't need separate infrastructure for each trigger type — define your tasks once, trigger them any way you need.
+
+### Spike protection built in
+
+When a burst of events hits your system, Hatchet's concurrency controls queue excess work instead of overwhelming your workers. Use `CANCEL_NEWEST` to drop stale events, or `GROUP_ROUND_ROBIN` to ensure fair processing across sources.
+
+### No message broker to manage
+
+Hatchet handles event routing, delivery guarantees, and worker distribution. You write task handlers in your application code — no broker configuration, consumer groups, or dead letter queues to maintain.
+
+</Steps>
+
+## Key Features
+
+| Feature | What it does for event-driven systems |
+|---------|--------------------------------------|
+| **[Event Triggers](/home/run-on-event)** | React to application events by name with optional payload filtering |
+| **[Webhooks](/home/webhooks)** | Receive external HTTP webhooks and route them to tasks |
+| **[Cron Triggers](/home/cron-runs)** | Schedule recurring tasks with cron expressions |
+| **[Scheduled Runs](/home/scheduled-runs)** | Trigger one-time future execution at a specific time |
+| **[Concurrency](/home/concurrency)** | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies |
+| **[Rate Limits](/home/rate-limits)** | Throttle downstream processing regardless of event volume |
+| **[Inter-Service Triggering](/home/inter-service-triggering)** | Trigger tasks across different services and worker pools |
+| **[Additional Metadata](/home/additional-metadata)** | Tag events with metadata for filtering and observability |
+
+<Callout type="info">
+  Hatchet supports all common triggering patterns in a single system. See [Ways of Running Tasks](/home/running-tasks) for the complete list of trigger types and when to use each.
+</Callout>
+
+## Architecture
+
+<Steps>
+
+### Events arrive
+
+Events come from multiple sources: HTTP webhooks from external services, application events emitted by your code, cron schedules, or direct API calls.
+
+### Hatchet routes to tasks
+
+Each event is matched to registered task triggers. A single event can trigger multiple tasks. Hatchet handles deduplication, filtering, and queuing.
+
+### Workers process tasks
+
+Tasks are distributed to available workers. Concurrency controls prevent overload. Failed tasks are retried according to your retry policy.
+
+### React and chain
+
+Task outputs can trigger further events, spawning child tasks or kicking off downstream workflows — building complex event-driven pipelines from simple, composable pieces.
+
+</Steps>
+
+<Callout type="warning">
+  When processing high-volume events, always configure **concurrency controls** to prevent worker saturation. Without limits, a burst of 10,000 events will attempt to run 10,000 tasks simultaneously.
+</Callout>
+
+## Common Event Patterns
+
+| Pattern | Description |
+|---------|------------|
+| **Webhook processing** | Receive Stripe, GitHub, or Twilio webhooks and process them reliably |
+| **User action handlers** | React to user sign-ups, purchases, or content uploads with async workflows |
+| **Scheduled maintenance** | Run database cleanup, cache invalidation, or health checks on a cron schedule |
+| **Cross-service orchestration** | Coordinate workflows across microservices without direct coupling |
+| **Real-time data sync** | Keep systems in sync by reacting to change events from databases or APIs |
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Branching" href="/home/patterns/branching">
+    Route event-driven workflows down different paths based on event payload.
+  </Cards.Card>
+  <Cards.Card title="Fanout" href="/home/patterns/fanout">
+    A single event triggers parallel processing across multiple workers.
+  </Cards.Card>
+  <Cards.Card title="Long Waits" href="/home/patterns/long-waits">
+    Pause a workflow until an external event arrives, then resume.
+  </Cards.Card>
+  <Cards.Card title="Pre-Determined Pipelines" href="/home/patterns/pre-determined-pipelines">
+    Chain event-triggered tasks into multi-stage processing pipelines.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Event Triggers](/home/run-on-event) — trigger tasks from application events
+- [Webhooks](/home/webhooks) — receive and process external webhooks
+- [Cron Triggers](/home/cron-runs) — set up recurring scheduled tasks
+- [Concurrency Control](/home/concurrency) — configure spike protection

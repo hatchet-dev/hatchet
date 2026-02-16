@@ -1,0 +1,95 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import AgentLoopDiagram from "@/components/AgentLoopDiagramWrapper";
+
+# AI Agents
+
+Build reliable AI agents that **reason, act, observe, and loop** — with durable execution that survives infrastructure failures, streaming for real-time LLM output, and concurrency controls that prevent runaway costs.
+
+<AgentLoopDiagram />
+
+## Why Hatchet for AI Agents
+
+<Steps>
+
+### Durable agent loops
+
+Agent loops can run for minutes or hours. Hatchet's durable execution checkpoints each step — if a worker restarts mid-loop, the agent resumes from its last checkpoint instead of starting over. Worker slots are freed during long waits (human approvals, tool call responses), so you can run thousands of concurrent agents.
+
+### Streaming LLM output
+
+Stream tokens from your LLM directly to your frontend through Hatchet workers. Use `put_stream()` in your task to emit chunks, and `subscribe_to_stream()` on the client to receive them in real-time.
+
+### Concurrency and cancellation
+
+Use `CANCEL_IN_PROGRESS` concurrency to cancel stale agent runs when a user sends a new message. Rate limits prevent overwhelming external APIs (LLM providers, tool endpoints). Priority queues let urgent agent tasks jump ahead of batch work.
+
+</Steps>
+
+## Key Features
+
+| Feature | What it does for agents |
+|---------|----------------------|
+| **[Durable Execution](/home/durable-workflows-overview)** | Agent state survives crashes — checkpoints tool calls, LLM responses, and loop iterations |
+| **[Streaming](/home/streaming)** | Stream LLM tokens from workers to frontends in real-time |
+| **[Durable Events](/home/durable-events)** | Pause agents for human-in-the-loop feedback without holding worker slots |
+| **[Durable Sleep](/home/durable-sleep)** | Schedule agent retries or delayed actions with exact timing |
+| **[Concurrency](/home/concurrency)** | Cancel stale runs, limit parallel agents per user, prevent resource exhaustion |
+| **[Rate Limits](/home/rate-limits)** | Stay within LLM provider API rate limits across all workers |
+| **[Child Spawning](/home/child-spawning)** | Agents dynamically spawn sub-agents or tool-call tasks |
+| **[Cancellation](/home/cancellation)** | Users can cancel long-running agents instantly |
+
+<Callout type="info">
+  The agent loop pattern is a [Cycle](/home/patterns/cycles) — each iteration spawns a new child run via `RunChild`. Combined with [Durable Execution](/home/durable-workflows-overview), you get crash-resistant loops that free slots between iterations.
+</Callout>
+
+## Architecture
+
+A typical Hatchet-powered AI agent follows this flow:
+
+<Steps>
+
+### Receive user input
+
+A trigger (API call, webhook, or event) starts the agent workflow with the user's message and conversation context.
+
+### Reasoning loop
+
+The agent enters a durable task loop: call the LLM, parse tool calls, execute tools via child tasks, observe results, and decide whether to continue or respond.
+
+### Stream response
+
+As the LLM generates its final response, tokens are streamed through Hatchet to the frontend in real-time.
+
+### Wait for next input
+
+The agent uses `WaitForEvent` to pause until the user sends another message — freeing the worker slot for other work.
+
+</Steps>
+
+<Callout type="warning">
+  Always set a **timeout** and **max iteration count** on agent loops. Without bounds, a confused agent can loop indefinitely, consuming worker slots and accumulating LLM costs. See [Timeouts](/home/timeouts) for configuration.
+</Callout>
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Cycles" href="/home/patterns/cycles">
+    The core loop pattern behind agent reasoning — task re-spawns itself until a goal is met.
+  </Cards.Card>
+  <Cards.Card title="Long Waits" href="/home/patterns/long-waits">
+    Pause agents for human feedback or scheduled retries without holding worker slots.
+  </Cards.Card>
+  <Cards.Card title="Fanout" href="/home/patterns/fanout">
+    Agents that spawn parallel tool calls or sub-agent tasks.
+  </Cards.Card>
+  <Cards.Card title="Branching" href="/home/patterns/branching">
+    Route agent behavior based on LLM tool call decisions or user preferences.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Durable Workflows](/home/durable-workflows-overview) — understand checkpointing and replay
+- [Streaming](/home/streaming) — set up real-time LLM output streaming
+- [Concurrency Control](/home/concurrency) — configure CANCEL_IN_PROGRESS for chat agents
+- [Child Spawning](/home/child-spawning) — spawn tool-call tasks from agent loops

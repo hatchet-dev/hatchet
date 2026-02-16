@@ -265,13 +265,22 @@ nav:not(.nextra-toc) {
   box-shadow: none !important;
 }
 
-/* ========================= */
-/* Table of Contents          */
-/* ========================= */
+/* MCP / markdown action links in breadcrumb row */
+.page-actions {
+  position: absolute;
+  top: -1.75rem;
+  right: 0;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  white-space: nowrap;
+}
 
-/* Show TOC on screens >= 1024px (lg) instead of nextra default 1280px (xl) */
-@media (min-width: 1024px) {
-  .nextra-toc {
-    display: block !important;
+/* Drop to its own row on narrower viewports */
+@media (max-width: 1100px) {
+  .page-actions {
+    position: static;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
   }
 }
