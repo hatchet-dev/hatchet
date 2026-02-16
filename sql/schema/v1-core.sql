@@ -429,6 +429,8 @@ CREATE INDEX v1_task_runtime_tenantId_workerId_slotGroup_idx ON v1_task_runtime 
 
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
 
+CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
+
 alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor='0.05',
