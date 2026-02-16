@@ -302,8 +302,9 @@ func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts
 
 	h := sha1.New()
 	h.Write(dataToHash)
-	var idempotencyKey []byte
-	hex.Encode(idempotencyKey, dataToHash)
+	hashBytes := h.Sum(nil)
+	idempotencyKey := make([]byte, hex.EncodedLen(len(hashBytes)))
+	hex.Encode(idempotencyKey, hashBytes)
 
 	return idempotencyKey, nil
 }
