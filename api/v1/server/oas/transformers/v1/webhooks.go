@@ -2,6 +2,7 @@ package transformers
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -54,8 +55,8 @@ func ToV1WebhookList(webhooks []*sqlcv1.V1IncomingWebhook) gen.V1WebhookList {
 	}
 }
 
-func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) gen.V1WebhookResponse {
-	res := gen.V1WebhookResponse{
+func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) (*gen.V1WebhookResponse, error) {
+	res := &gen.V1WebhookResponse{
 		Message:   message,
 		Challenge: challenge,
 	}
@@ -74,7 +75,10 @@ func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) gen.V1
 		if len(event.AdditionalMetadata) > 0 {
 			var additionalMetadata map[string]interface{}
 
-			_ = json.Unmarshal(event.AdditionalMetadata, &additionalMetadata)
+			err := json.Unmarshal(event.AdditionalMetadata, &additionalMetadata)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal additional metadata for event %s: %w", event.Key, err)
+			}
 
 			v1Event.AdditionalMetadata = &additionalMetadata
 		}
@@ -82,7 +86,10 @@ func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) gen.V1
 		if len(event.Data) > 0 {
 			var data map[string]interface{}
 
-			_ = json.Unmarshal(event.Data, &data)
+			err := json.Unmarshal(event.Data, &data)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal data for event %s: %w", event.Key, err)
+			}
 
 			v1Event.Payload = &data
 		}
@@ -90,5 +97,5 @@ func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) gen.V1
 		res.Event = v1Event
 	}
 
-	return res
+	return res, nil
 }

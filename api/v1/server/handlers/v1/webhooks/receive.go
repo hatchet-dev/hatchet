@@ -80,10 +80,13 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to perform challenge: %w", err)
 	}
 
+	res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to transform response: %w", err)
+	}
+
 	if isChallenge {
-		return gen.V1WebhookReceive200JSONResponse(
-			transformers.ToV1WebhookResponse(nil, challengeResponse, nil),
-		), nil
+		return gen.V1WebhookReceive200JSONResponse(*res), nil
 	}
 
 	ok, validationError := w.validateWebhook(rawBody, *webhook, *ctx.Request())
@@ -324,9 +327,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
-	return gen.V1WebhookReceive200JSONResponse(
-		transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev),
-	), nil
+	res, err = transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev)
+	if err != nil {
+		return nil, fmt.Errorf("failed to transform response: %w", err)
+	}
+
+	return gen.V1WebhookReceive200JSONResponse(*res), nil
 }
 
 func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm, encoding sqlcv1.V1IncomingWebhookHmacEncoding) (string, error) {
