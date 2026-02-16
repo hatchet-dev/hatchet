@@ -1,0 +1,91 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
+
+# Durable Workflows
+
+A **durable workflow** is a long-running task that stores its progress in a durable event log. If the task is interrupted — by a crash, a deployment, or a scaling event — it replays from its last checkpoint instead of starting over. This makes durable workflows ideal for tasks that run for minutes, hours, or days.
+
+<DurableWorkflowDiagram />
+
+## How Durable Execution Works
+
+<Steps>
+
+### Task runs and checkpoints
+
+As a durable task executes, each call to `SleepFor`, `WaitForEvent`, or `RunChild` creates a checkpoint in the durable event log. These checkpoints record the task's progress.
+
+### Worker slot is freed during waits
+
+When a durable task enters a long wait (sleep or event), the worker slot is released. The task is not consuming compute resources while waiting — unlike a regular task that holds its slot for the entire duration.
+
+### Task resumes from checkpoint
+
+If the task is interrupted or the wait completes, Hatchet replays the event log up to the last checkpoint and resumes execution from there. Completed operations are not re-executed.
+
+</Steps>
+
+<Callout type="info">
+  Durable tasks run on a **separate durable worker** that Hatchet starts automatically when you register durable tasks. This worker appears as a second worker in the dashboard.
+</Callout>
+
+## The Durable Context
+
+Durable tasks receive a `DurableContext` instead of a regular `Context`. This extends the standard context with methods for durable execution:
+
+| Method | Purpose |
+|---|---|
+| **`SleepFor(duration)`** | Pause for a fixed duration. Respects the original sleep time on restart — if interrupted after 23 of 24 hours, only sleeps 1 more hour |
+| **`WaitForEvent(key)`** | Wait for an external event by key, with optional [CEL filter](https://github.com/google/cel-spec) expressions |
+| **`RunChild(task, input)`** | Spawn a child task and wait for its result. The child's completion is checkpointed |
+
+## Determinism Rules
+
+Durable tasks **must be deterministic** — they must perform the same sequence of operations on every replay. This is what allows Hatchet to safely skip already-completed work.
+
+<Steps>
+
+### Only use DurableContext methods for side effects
+
+Don't call databases, APIs, or I/O directly inside a durable task. Instead, spawn those operations as **child tasks** using `RunChild`. Child tasks are checkpointed and won't re-execute on replay.
+
+### Never change the order of operations
+
+If your task calls `SleepFor` then `WaitForEvent`, don't later swap their order. Existing checkpoints depend on the original sequence. Changing it breaks replay.
+
+### Keep durable tasks backwards-compatible
+
+When updating a durable task, ensure the new version can replay event logs created by the old version. Add new operations at the end; don't remove or reorder existing ones.
+
+</Steps>
+
+<Callout type="warning">
+  If your workflow can be expressed as a [DAG](/home/dags), prefer regular workflows. DAGs are inherently deterministic and don't require you to think about replay safety. Use durable workflows when you need inline `SleepFor`, `WaitForEvent`, or logic that can't be expressed as a static graph.
+</Callout>
+
+## When to Use Durable Workflows
+
+| Scenario | Why Durable? |
+|---|---|
+| **Long waits** (hours/days) | Worker slots are freed during waits — no wasted compute |
+| **Human-in-the-loop** | Wait for approval events without holding resources |
+| **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows |
+| **Large fan-out with collection** | Spawn many children and wait for results without holding a slot |
+| **Crash-resilient pipelines** | Automatically resume from checkpoints after failures |
+
+## Next Steps
+
+<Cards>
+  <Cards.Card title="Durable Sleep" href="/home/durable-sleep">
+    Pause tasks for exact durations with crash-safe timing guarantees.
+  </Cards.Card>
+  <Cards.Card title="Durable Events" href="/home/durable-events">
+    Wait for external signals with key matching and CEL filter expressions.
+  </Cards.Card>
+  <Cards.Card title="Workflows Overview" href="/home/workflows-overview">
+    Compare with regular DAG workflows and understand when to use each.
+  </Cards.Card>
+  <Cards.Card title="Long Waits Pattern" href="/home/patterns/long-waits">
+    See the long waits pattern in action with interactive diagrams.
+  </Cards.Card>
+</Cards>

@@ -6,6 +6,12 @@ export default {
   index: "🪓 Welcome",
   architecture: "Architecture",
   "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
+  "--workflows": {
+    title: "Workflows",
+    type: "separator",
+  },
+  "workflows-overview": "Workflows",
+  "durable-workflows-overview": "Durable Workflows",
   "--patterns-and-use-cases": {
     title: "Patterns and Use Cases",
     type: "separator",
