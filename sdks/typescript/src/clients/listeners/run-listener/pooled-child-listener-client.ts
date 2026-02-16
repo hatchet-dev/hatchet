@@ -7,25 +7,72 @@ import {
 } from '@hatchet/protoc/dispatcher';
 import { isAbortError } from 'abort-controller-x';
 import sleep from '@hatchet/util/sleep';
+import { createAbortError } from '@hatchet/util/abort-error';
 import { RunListenerClient } from './child-listener-client';
 
 export class Streamable {
   listener: AsyncIterable<WorkflowRunEvent>;
   id: string;
+  onCleanup: () => void;
+  private cleanedUp = false;
 
   responseEmitter = new EventEmitter();
 
-  constructor(listener: AsyncIterable<WorkflowRunEvent>, id: string) {
+  constructor(listener: AsyncIterable<WorkflowRunEvent>, id: string, onCleanup: () => void) {
     this.listener = listener;
     this.id = id;
+    this.onCleanup = onCleanup;
   }
 
-  async *stream(): AsyncGenerator<WorkflowRunEvent, void, unknown> {
+  private cleanupOnce() {
+    if (this.cleanedUp) return;
+    this.cleanedUp = true;
+    this.onCleanup();
+  }
+
+  async get(opts?: { signal?: AbortSignal }): Promise<WorkflowRunEvent> {
+    const signal = opts?.signal;
+
+    return new Promise((resolve, reject) => {
+      const cleanupListeners = () => {
+        this.responseEmitter.removeListener('response', onResponse);
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+      };
+
+      const onResponse = (event: WorkflowRunEvent) => {
+        cleanupListeners();
+        resolve(event);
+      };
+
+      const onAbort = () => {
+        cleanupListeners();
+        this.cleanupOnce();
+        reject(createAbortError('Operation cancelled by AbortSignal'));
+      };
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      this.responseEmitter.once('response', onResponse);
+      if (signal) {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    });
+  }
+
+  async *stream(opts?: { signal?: AbortSignal }): AsyncGenerator<WorkflowRunEvent, void, unknown> {
     while (true) {
-      const req: WorkflowRunEvent = await new Promise((resolve) => {
-        this.responseEmitter.once('response', resolve);
-      });
-      yield req;
+      const event = await this.get(opts);
+      yield event;
+
+      if (event.eventType === WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED) {
+        this.cleanupOnce();
+        break;
+      }
     }
   }
 }
@@ -99,7 +146,13 @@ export class RunGrpcPooledListener {
   subscribe(request: SubscribeToWorkflowRunsRequest) {
     if (!this.listener) throw new Error('listener not initialized');
 
-    this.subscribers[request.workflowRunId] = new Streamable(this.listener, request.workflowRunId);
+    this.subscribers[request.workflowRunId] = new Streamable(
+      this.listener,
+      request.workflowRunId,
+      () => {
+        delete this.subscribers[request.workflowRunId];
+      }
+    );
     this.requestEmitter.emit('subscribe', request);
     return this.subscribers[request.workflowRunId];
   }

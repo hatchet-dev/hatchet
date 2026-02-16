@@ -9,6 +9,7 @@ import {
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { z } from 'zod';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -312,7 +313,6 @@ export class BaseWorkflowDeclaration<
 
     // set the parent run context
     const parentRunContext = parentRunContextManager.getContext();
-    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
 
     if (!parentRunContext && (options?.childKey || options?.sticky)) {
       this.client.admin.logger.warn(
@@ -320,8 +320,22 @@ export class BaseWorkflowDeclaration<
       );
     }
 
+    const inheritedSignal = parentRunContext?.signal;
+
+    // Precheck: if we're being called from a cancelled parent task, do not enqueue more work.
+    // The signal is inherited from the parent task's `ctx.abortController.signal`.
+    throwIfAborted(inheritedSignal, {
+      isTrigger: true,
+      context: parentRunContext?.parentTaskRunExternalId
+        ? `task run ${parentRunContext.parentTaskRunExternalId}`
+        : undefined,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
+    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
+
     const runOpts = {
-      ...options,
+      ...(options ?? {}),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
@@ -357,6 +371,9 @@ export class BaseWorkflowDeclaration<
           // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = _standaloneTaskName;
         }
+        // Ensure result subscriptions inherit cancellation if no signal is provided explicitly.
+        // eslint-disable-next-line no-param-reassign
+        ref.defaultSignal = inheritedSignal;
         res.push(ref);
       });
       return res;
@@ -368,6 +385,7 @@ export class BaseWorkflowDeclaration<
       res._standaloneTaskName = _standaloneTaskName;
     }
 
+    res.defaultSignal = inheritedSignal;
     return res;
   }
 
@@ -432,10 +450,16 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // If called from within a cancelled parent task, do not enqueue scheduled work.
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
     const scheduled = this.client.scheduled.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
     });
 
     return scheduled;
@@ -474,10 +498,16 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // If called from within a cancelled parent task, do not enqueue cron work.
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
     const cronDef = this.client.crons.create(this.definition.name, {
       expression,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
       additionalMetadata: options?.additionalMetadata,
       name,
     });

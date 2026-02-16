@@ -19,7 +19,7 @@ import {
   DesiredWorkerLabels,
   WorkflowConcurrencyOpts,
 } from '@hatchet/protoc/workflows';
-import { Logger } from '@hatchet/util/logger';
+import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
@@ -36,6 +36,8 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import sleep from '@hatchet/util/sleep';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -180,21 +182,6 @@ export class V1Worker {
         : {
             ...this.action_registry,
           };
-  }
-
-  getHandler(workflows: Workflow[]) {
-    throw new Error('Not implemented');
-    // TODO v1
-    // for (const workflow of workflows) {
-    //   const wf: Workflow = {
-    //     ...workflow,
-    //     id: this.client.config.namespace + workflow.id,
-    //   };
-
-    //   this.registerActions(wf);
-    // }
-
-    // return new WebhookHandler(this, workflows);
   }
 
   async registerWebhook(webhook: WebhookWorkerCreateRequest) {
@@ -534,7 +521,7 @@ export class V1Worker {
   }
 
   async handleStartStepRun(action: Action) {
-    const { actionId, taskRunExternalId } = action;
+    const { actionId, taskRunExternalId, taskName } = action;
 
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
@@ -550,13 +537,20 @@ export class V1Worker {
       }
 
       const run = async () => {
-        parentRunContextManager.setContext({
-          parentId: action.workflowRunId,
-          parentTaskRunExternalId: taskRunExternalId,
-          childIndex: 0,
-          desiredWorkerId: this.workerId || '',
-        });
-        return step(context);
+        return parentRunContextManager.runWithContext(
+          {
+            parentId: action.workflowRunId,
+            parentTaskRunExternalId: taskRunExternalId,
+            childIndex: 0,
+            desiredWorkerId: this.workerId || '',
+            signal: context.abortController.signal,
+          },
+          () => {
+            // Precheck: if cancellation already happened, don't execute user code.
+            throwIfAborted(context.abortController.signal);
+            return step(context);
+          }
+        );
       };
 
       const success = async (result: any) => {
@@ -565,7 +559,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.info(`Task run ${taskRunExternalId} succeeded`);
+          this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
 
           // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
@@ -616,7 +610,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.error(`Task run ${taskRunExternalId} failed: ${error.message}`);
+          this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
           if (error.stack) {
             this.logger.error(error.stack);
@@ -652,6 +646,19 @@ export class V1Worker {
             await failure(e);
             return;
           }
+
+          // Postcheck: user code may swallow AbortError; don't report completion after cancellation.
+          // If we reached this point and the signal is aborted, the task likely caught/ignored cancellation.
+          if (context.abortController.signal.aborted) {
+            this.logger.warn(
+              `Cancellation: task run ${taskRunExternalId} returned after cancellation was signaled. ` +
+                `This usually means an AbortError was caught and not propagated. ` +
+                `See https://docs.hatchet.run/home/cancellation`
+            );
+            return;
+          }
+          throwIfAborted(context.abortController.signal);
+
           await success(result);
         })()
       );
@@ -673,9 +680,8 @@ export class V1Worker {
         await future.promise;
       } catch (e: any) {
         const message = e?.message || String(e);
-        if (message.includes('Cancelled')) {
-          this.logger.debug(`Task run ${taskRunExternalId} was cancelled`);
-        } else {
+        // TODO is this cased correctly...
+        if (!message.includes('Cancelled')) {
           this.logger.error(
             `Could not wait for task run ${taskRunExternalId} to finish. ` +
               `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
@@ -689,7 +695,7 @@ export class V1Worker {
   }
 
   async handleStartGroupKeyRun(action: Action) {
-    const { actionId, getGroupKeyRunId, taskRunExternalId } = action;
+    const { actionId, getGroupKeyRunId, taskRunExternalId, taskName } = action;
 
     this.logger.error(
       'Concurrency Key Functions have been deprecated and will be removed in a future release. Use Concurrency Expressions instead.'
@@ -721,7 +727,7 @@ export class V1Worker {
       };
 
       const success = (result: any) => {
-        this.logger.info(`Task run ${taskRunExternalId} succeeded`);
+        this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
 
         try {
           // Send the action event to the dispatcher
@@ -743,7 +749,7 @@ export class V1Worker {
       };
 
       const failure = (error: any) => {
-        this.logger.error(`Task run ${key} failed: ${error.message}`);
+        this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
         try {
           // Send the action event to the dispatcher
@@ -824,26 +830,73 @@ export class V1Worker {
   }
 
   async handleCancelStepRun(action: Action) {
-    const { taskRunExternalId } = action;
+    const { taskRunExternalId, taskName } = action;
+
     try {
-      this.logger.info(`Cancelling task run ${taskRunExternalId}`);
       const future = this.futures[taskRunExternalId];
       const context = this.contexts[taskRunExternalId];
 
       if (context && context.abortController) {
-        context.abortController.abort('Cancelled by worker');
+        context.abortController.abort('Cancelled by worker'); // TODO this reason is nonsensical
       }
 
       if (future) {
-        future.promise.catch(() => {
-          this.logger.info(`Cancelled task run ${taskRunExternalId}`);
-        });
-        future.cancel('Cancelled by worker');
-        await future.promise;
+        const start = Date.now();
+        const warningThresholdMs = this.client.config.cancellation_warning_threshold ?? 300;
+        const gracePeriodMs = this.client.config.cancellation_grace_period ?? 1000;
+        const warningMs = Math.max(0, warningThresholdMs);
+        const graceMs = Math.max(0, gracePeriodMs);
+
+        // Ensure cancelling this future doesn't create an unhandled rejection in cases
+        // where the main action handler isn't currently awaiting `future.promise`.
+        future.promise.catch(() => undefined);
+
+        // Cancel the future (rejects the wrapper); user code must still cooperate with AbortSignal.
+        future.cancel('Cancelled by worker'); // TODO this reason is nonsensical
+
+        // Track completion of the underlying work (not the cancelable wrapper).
+        // Ensure this promise never throws into our supervision flow.
+        const completion = (future.inner ?? future.promise).catch(() => undefined);
+
+        // Wait until warning threshold, then log if still running.
+        if (warningMs > 0) {
+          const winner = await Promise.race([
+            completion.then(() => 'done' as const),
+            sleep(warningMs).then(() => 'warn' as const),
+          ]);
+
+          if (winner === 'warn') {
+            const milliseconds = Date.now() - start;
+            this.logger.warn(
+              `Cancellation: task run ${taskRunExternalId} has not cancelled after ${milliseconds}ms. Consider checking for blocking operations. ` +
+                `See https://docs.hatchet.run/home/cancellation`
+            );
+          }
+        }
+
+        // Wait until grace period (total), then log if still running.
+        const elapsedMs = Date.now() - start;
+        const remainingMs = graceMs - elapsedMs;
+        const winner = await Promise.race([
+          completion.then(() => 'done' as const),
+          sleep(Math.max(0, remainingMs)).then(() => 'grace' as const),
+        ]);
+
+        if (winner === 'done') {
+          this.logger.info(taskRunLog(taskName, taskRunExternalId, 'cancelled'));
+        } else {
+          const totalElapsedMs = Date.now() - start;
+          this.logger.error(
+            `Cancellation: task run ${taskRunExternalId} still running after cancellation grace period ` +
+              `${totalElapsedMs}ms.\n` +
+              `JavaScript cannot force-kill user code; see: https://docs.hatchet.run/home/cancellation`
+          );
+        }
       }
     } catch (e: any) {
-      // Expected: the promise rejects when cancelled
-      this.logger.debug(`Task run ${taskRunExternalId} cancellation completed`);
+      this.logger.error(
+        `Cancellation: error while supervising cancellation for task run ${taskRunExternalId}: ${e?.message || e}`
+      );
     } finally {
       delete this.futures[taskRunExternalId];
       delete this.contexts[taskRunExternalId];
@@ -924,9 +977,9 @@ export class V1Worker {
       this.logger.info(`Worker ${this.name} listening for actions`);
 
       for await (const action of generator) {
-        this.logger.info(
-          `Worker ${this.name} received action ${action.actionId}:${action.actionType}`
-        );
+        const receivedType = actionMap(action.actionType);
+
+        this.logger.info(taskRunLog(action.taskName, action.taskRunExternalId, `${receivedType}`));
 
         void this.handleAction(action);
       }

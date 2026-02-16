@@ -33,6 +33,26 @@ When a task is canceled, Hatchet sends a cancellation signal to the task. The ta
 
     />
 
+### AbortError behavior
+
+Hatchet cancellation in TypeScript is driven by an internal `ctx.abortController.signal` (an `AbortSignal`). When a task is cancelled, Hatchet aborts that signal and cancellation-aware operations (like waiting on a child run result) will reject with an **`AbortError`**.
+
+<Callout type="warning">
+  **Important:** JavaScript/TypeScript cannot make cancellation “uncatchable”. A broad `catch (e) { ... }` can swallow cancellation. Hatchet’s SDK will avoid enqueueing new child runs once the parent task is cancelled, and it will not report a cancelled task as “completed” even if user code catches the abort — but your code should still exit quickly to avoid wasted work.
+</Callout>
+
+If you must catch errors, re-throw abort/cancellation errors:
+
+```ts
+try {
+  // ... work ...
+  await simple.run({});
+} catch (e) {
+  ctx.rethrowIfCancelled(e);
+  // ... other error handling ...
+}
+```
+
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.cancellations.main.cancelled_task}/>

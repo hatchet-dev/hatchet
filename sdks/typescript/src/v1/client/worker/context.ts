@@ -21,6 +21,7 @@ import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { ContextWorker, NextStep } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -88,6 +89,24 @@ export class Context<T, K = {}> {
 
   get cancelled() {
     return this.controller.signal.aborted;
+  }
+
+  protected throwIfCancelled(): void {
+    if (this.abortController.signal.aborted) {
+      throw createAbortError('Operation cancelled by AbortSignal');
+    }
+  }
+
+  /**
+   * Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
+   *
+   * Example:
+   * ```ts
+   * try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
+   * ```
+   */
+  rethrowIfCancelled(err: unknown): void {
+    rethrowIfAborted(err);
   }
 
   async cancel() {
@@ -359,6 +378,8 @@ export class Context<T, K = {}> {
   }
 
   private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
+    this.throwIfCancelled();
+
     let workflowName: string;
 
     if (typeof workflow === 'string') {
@@ -379,7 +400,7 @@ export class Context<T, K = {}> {
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const finalOpts = {
-      ...options,
+      ...opts,
       parentId: workflowRunId,
       parentTaskRunExternalId: taskRunExternalId,
       childIndex: this.spawnIndex,
@@ -410,6 +431,7 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ) {
+    this.throwIfCancelled();
     const workflows: Parameters<typeof this.v1.admin.runWorkflows<Q, P>>[0] = children.map(
       (child) => {
         const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
@@ -432,7 +454,12 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    return this.spawnBulk<Q, P>(children);
+    const refs = await this.spawnBulk<Q, P>(children);
+    refs.forEach((ref) => {
+      // eslint-disable-next-line no-param-reassign
+      ref.defaultSignal = this.abortController.signal;
+    });
+    return refs;
   }
 
   /**
@@ -465,6 +492,9 @@ export class Context<T, K = {}> {
     options?: ChildRunOpts
   ): Promise<P> {
     const run = await this.spawn(workflow, input, options);
+    // Ensure waiting for the child result aborts when this task is cancelled.
+    // eslint-disable-next-line no-param-reassign
+    run.defaultSignal = this.abortController.signal;
     return run.output;
   }
 
@@ -482,6 +512,7 @@ export class Context<T, K = {}> {
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
     const ref = await this.spawn(workflow, input, options);
+    ref.defaultSignal = this.abortController.signal;
     return ref;
   }
 
@@ -586,6 +617,7 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const workflowRuns = workflows.map(({ workflow, input, options }) => {
@@ -608,11 +640,16 @@ export class Context<T, K = {}> {
         );
       }
 
+      // `signal` must never be sent over the wire.
+      const optsWithoutSignal: Omit<ChildRunOpts, 'signal'> & { signal?: never } = { ...opts };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (optsWithoutSignal as any).signal;
+
       const resp = {
         workflowName: name,
         input,
         options: {
-          ...opts,
+          ...optsWithoutSignal,
           parentId: workflowRunId,
           parentTaskRunExternalId: taskRunExternalId,
           childIndex: this.spawnIndex,
@@ -663,6 +700,7 @@ export class Context<T, K = {}> {
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
     let workflowName: string = '';
@@ -733,6 +771,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
+    this.throwIfCancelled();
     const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
 
     // eslint-disable-next-line no-plusplus
@@ -743,13 +782,13 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
-
-    const listener = this.v1._v0.durableListener.subscribe({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-    });
-
-    const event = await listener.get();
+    const event = await this.v1._v0.durableListener.result(
+      {
+        taskId: this.action.taskRunExternalId,
+        signalKey: key,
+      },
+      { signal: this.abortController.signal }
+    );
 
     // Convert event.data from Uint8Array to string if needed
     const eventData =

@@ -56,6 +56,7 @@ xdescribe('events-e2e', () => {
     const maxAttempts = 15;
     const eventToRuns: Record<string, any[]> = {};
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       console.log('Waiting for event runs to complete...');
       if (attempts > maxAttempts) {

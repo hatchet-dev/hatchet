@@ -33,5 +33,21 @@
     "class-methods-use-this": "off",
     "no-await-in-loop": "off",
     "no-restricted-syntax": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/**/examples/**/*.{ts,tsx,js}",
+        "src/examples/**/*.{ts,tsx,js}",
+        "tests/**/*.{ts,tsx,js}",
+        "src/**/*.test.{ts,tsx,js}",
+        "src/**/*.e2e.{ts,tsx,js}",
+        "src/**/__tests__/**/*.{ts,tsx,js}"
+      ],
+      "rules": {
+        "@typescript-eslint/no-unused-vars": "off",
+        "no-console": "off"
+      }
+    }
+  ]
 }
