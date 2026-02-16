@@ -96,11 +96,11 @@ export class V1Worker {
     this.enableHealthServer = client.config.healthcheck?.enabled ?? false;
     this.healthPort = client.config.healthcheck?.port ?? 8001;
 
-    process.on('SIGTERM', () => this.exitGracefully(true));
-    process.on('SIGINT', () => this.exitGracefully(true));
-
     this.killing = false;
     this.handle_kill = options.handleKill === undefined ? true : options.handleKill;
+
+    process.on('SIGTERM', () => this.exitGracefully(this.handle_kill));
+    process.on('SIGINT', () => this.exitGracefully(this.handle_kill));
 
     this.logger = client.config.logger(`Worker/${this.name}`, this.client.config.log_level);
 
