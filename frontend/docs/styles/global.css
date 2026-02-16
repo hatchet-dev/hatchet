@@ -256,11 +256,22 @@ h3 {
   background-color: var(--background) !important;
 }
 
-nav {
+nav:not(.nextra-toc) {
   background-color: var(--background) !important;
 }
 
 .dark .nx-sticky,
 .dark ._sticky {
   box-shadow: none !important;
+}
+
+/* ========================= */
+/* Table of Contents          */
+/* ========================= */
+
+/* Show TOC on screens >= 1024px (lg) instead of nextra default 1280px (xl) */
+@media (min-width: 1024px) {
+  .nextra-toc {
+    display: block !important;
+  }
 }

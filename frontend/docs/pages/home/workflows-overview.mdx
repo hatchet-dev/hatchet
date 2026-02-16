@@ -1,7 +1,8 @@
 import { Callout, Cards, Steps } from "nextra/components";
 import WorkflowDiagram from "@/components/WorkflowDiagram";
+import WorkflowComparison from "@/components/WorkflowComparisonWrapper";
 
-# Workflows
+# Workflows (DAGs)
 
 A **workflow** is a set of tasks connected by dependencies. You define the shape of work upfront — which tasks run, in what order, and what depends on what — and Hatchet handles execution, retries, and observability for you.
 
@@ -49,16 +50,9 @@ Task outputs are stored and passed to downstream tasks. If a workflow is partial
 
 ## Workflows vs Durable Workflows
 
-Hatchet offers two types of workflows to cover different needs:
+Hatchet offers two types of workflows to cover different needs. Toggle between them to compare:
 
-|                    | **Workflows**                                                 | **Durable Workflows**                                   |
-| ------------------ | ------------------------------------------------------------- | ------------------------------------------------------- |
-| **Structure**      | DAG of tasks with declared dependencies                       | Long-running function with checkpoints                  |
-| **State**          | Cached between tasks automatically                            | Stored in a durable event log                           |
-| **Pausing**        | Use [conditional waits](/home/conditional-workflows) on tasks | Use `SleepFor` and `WaitForEvent` inline                |
-| **Crash recovery** | Re-runs failed tasks; completed tasks are skipped             | Replays from last checkpoint                            |
-| **Worker slots**   | Each task holds a slot while running                          | Slot is freed during waits                              |
-| **Best for**       | Predictable multi-step pipelines                              | Long waits, human-in-the-loop, complex procedural logic |
+<WorkflowComparison />
 
 <Callout type="warning">
   If your workflow can be expressed as a DAG, **prefer regular workflows**.

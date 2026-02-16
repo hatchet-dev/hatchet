@@ -1,5 +1,6 @@
 import { Callout, Cards, Steps } from "nextra/components";
 import LongWaitDiagram from "@/components/LongWaitDiagramWrapper";
+import PatternComparison from "@/components/PatternComparison";
 
 # Long Waits
 
@@ -44,6 +45,22 @@ When the sleep expires or the event arrives, Hatchet re-schedules the task on an
   another full 24 hours. This is what makes durable sleep different from a
   regular sleep call.
 </Callout>
+
+## In Workflows vs Durable Workflows
+
+Long waits are the pattern where the difference between workflows and durable workflows matters most.
+
+<PatternComparison
+  rows={[
+    { label: "Sleep", workflow: "Use a sleep condition on a task declaration (wait_for with sleep)", durable: "Use SleepFor inline — exact timing survives interruptions" },
+    { label: "Event waits", workflow: "Use an event condition on a task declaration (wait_for with event)", durable: "Use WaitForEvent inline — events are stored in the durable log" },
+    { label: "Slot usage", workflow: "Task slot is not held during condition waits", durable: "Task slot is freed during SleepFor/WaitForEvent" },
+    { label: "Inline logic", workflow: "Wait logic is separate from task code (declarative)", durable: "Wait logic is inline with task code (procedural)" },
+    { label: "Best for", workflow: "Simple waits between DAG tasks", durable: "Complex workflows mixing waits with business logic" },
+  ]}
+  recommendation="durable"
+  recommendationText="Both approaches free the worker slot during waits. The key difference is where you express the wait: DAG workflows use declarative conditions, while durable workflows use inline SleepFor/WaitForEvent calls. Choose based on whether your wait logic is simple (DAGs) or interleaved with complex business logic (durable)."
+/>
 
 ## Use Cases
 

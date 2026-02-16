@@ -1,5 +1,6 @@
 import { Callout, Cards, Steps } from "nextra/components";
 import FanoutDiagram from "@/components/FanoutDiagram";
+import PatternComparison from "@/components/PatternComparison";
 
 # Fanout
 
@@ -36,6 +37,19 @@ The parent awaits all child completions and aggregates their results into a sing
   enough slots to handle the concurrent load. See [Worker Slots](/home/workers)
   for details on configuring slot capacity.
 </Callout>
+
+## In Workflows vs Durable Workflows
+
+<PatternComparison
+  rows={[
+    { label: "How it works", workflow: "Parent task spawns children via RunChild and awaits results", durable: "Same — RunChild is checkpointed in the durable event log" },
+    { label: "Slot usage", workflow: "Parent holds a slot while waiting for children", durable: "Parent slot is freed during the wait — ideal for large fan-outs" },
+    { label: "Crash recovery", workflow: "Parent retries from scratch if it fails mid-fanout", durable: "Parent replays from checkpoint — already-spawned children are not re-spawned" },
+    { label: "Best for", workflow: "Small-to-medium fan-outs where parent completes quickly", durable: "Large fan-outs (hundreds/thousands of children) or when children take a long time" },
+  ]}
+  recommendation="durable"
+  recommendationText="If your fan-out spawns many children that take a long time to complete, use a durable workflow so the parent doesn't hold a worker slot while waiting."
+/>
 
 ## Use Cases
 

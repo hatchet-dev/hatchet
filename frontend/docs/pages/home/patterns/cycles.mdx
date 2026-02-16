@@ -1,5 +1,6 @@
 import { Callout, Cards, Steps } from "nextra/components";
 import CycleDiagram from "@/components/CycleDiagramWrapper";
+import PatternComparison from "@/components/PatternComparison";
 
 # Cycles
 
@@ -46,6 +47,19 @@ If the condition is not met, the task spawns a new child run of itself with upda
   threshold) to prevent infinite loops. Each iteration consumes a worker slot,
   so unbounded cycles can exhaust your worker capacity.
 </Callout>
+
+## In Workflows vs Durable Workflows
+
+<PatternComparison
+  rows={[
+    { label: "Loop mechanism", workflow: "Task spawns a child run of itself via RunChild", durable: "Same — RunChild is checkpointed, so completed iterations survive crashes" },
+    { label: "Slot usage", workflow: "Each iteration holds a slot for its full duration", durable: "Slot is freed between iterations if you add SleepFor or WaitForEvent waits" },
+    { label: "State between iterations", workflow: "Passed as input to the child task", durable: "Can also be stored inline in the durable event log" },
+    { label: "Best for", workflow: "Fast iterations (API polling, agent loops)", durable: "Cycles with long waits between iterations (e.g., retry with 1-hour backoff)" },
+  ]}
+  recommendation="both"
+  recommendationText="Both workflow types use the same RunChild mechanism for cycles. Choose durable workflows when iterations involve long pauses (sleeping between retries, waiting for events) so you don't hold slots idle."
+/>
 
 ## Use Cases
 

@@ -10,7 +10,7 @@ export default {
     title: "Workflows",
     type: "separator",
   },
-  "workflows-overview": "Workflows",
+  "workflows-overview": "Workflows (DAGs)",
   "durable-workflows-overview": "Durable Workflows",
   "--patterns-and-use-cases": {
     title: "Patterns and Use Cases",
