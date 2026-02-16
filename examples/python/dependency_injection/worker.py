@@ -76,6 +76,8 @@ async def chained_async_dep(
     return "chained_" + base_async_cm
 
 
+
+
 class Output(BaseModel):
     sync_dep: str
     async_dep: str
@@ -105,6 +107,8 @@ async def async_task_with_dependencies(
         chained_dep=chained_dep,
         chained_async_dep=chained_async_dep,
     )
+
+
 
 
 @hatchet.task()
@@ -228,6 +232,7 @@ def main() -> None:
         ],
     )
     worker.start()
+
 
 
 if __name__ == "__main__":
