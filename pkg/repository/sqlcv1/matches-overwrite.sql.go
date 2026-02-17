@@ -307,3 +307,123 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 	}
 	return items, nil
 }
+
+const createMatchesForSignalTriggers = `-- name: CreateMatchesForSignalTriggers :many
+WITH input AS (
+    SELECT
+        tenant_id, kind, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, callback_durable_task_id, callback_durable_task_inserted_at, callback_node_id, callback_durable_task_external_id
+    FROM
+        (
+            SELECT
+                unnest($1::uuid[]) AS tenant_id,
+                unnest(cast($2::text[] as v1_match_kind[])) AS kind,
+                unnest($3::bigint[]) AS signal_task_id,
+                unnest($4::timestamptz[]) AS signal_task_inserted_at,
+                unnest($5::uuid[]) AS signal_external_id,
+                unnest($6::text[]) AS signal_key,
+                unnest($7::bigint[]) AS callback_durable_task_id,
+                unnest($8::timestamptz[]) AS callback_durable_task_inserted_at,
+                unnest($9::bigint[]) AS callback_node_id,
+                unnest($10::uuid[]) AS callback_durable_task_external_id
+        ) AS subquery
+)
+INSERT INTO v1_match (
+    tenant_id,
+    kind,
+    signal_task_id,
+    signal_task_inserted_at,
+    signal_external_id,
+    signal_key,
+    durable_event_log_callback_durable_task_id,
+    durable_event_log_callback_durable_task_inserted_at,
+    durable_event_log_callback_node_id,
+    durable_event_log_callback_durable_task_external_id
+)
+SELECT
+    i.tenant_id,
+    i.kind,
+    i.signal_task_id,
+    i.signal_task_inserted_at,
+    i.signal_external_id,
+    i.signal_key,
+    i.callback_durable_task_id,
+    i.callback_durable_task_inserted_at,
+    i.callback_node_id,
+    i.callback_durable_task_external_id
+FROM
+    input i
+RETURNING
+    id, tenant_id, kind, is_satisfied, existing_data, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_priority, durable_event_log_callback_durable_task_external_id, durable_event_log_callback_durable_task_id, durable_event_log_callback_durable_task_inserted_at, durable_event_log_callback_node_id
+`
+
+type CreateMatchesForSignalTriggersParams struct {
+	Tenantids                      []uuid.UUID          `json:"tenantids"`
+	Kinds                          []string             `json:"kinds"`
+	Signaltaskids                  []int64              `json:"signaltaskids"`
+	Signaltaskinsertedats          []pgtype.Timestamptz `json:"signaltaskinsertedats"`
+	Signalexternalids              []uuid.UUID          `json:"signalexternalids"`
+	Signalkeys                     []string             `json:"signalkeys"`
+	Callbackdurabletaskids         []*int64             `json:"callbackdurabletaskids"`
+	Callbackdurabletaskinsertedats []pgtype.Timestamptz `json:"callbackdurabletaskinsertedats"`
+	Callbacknodeids                []*int64             `json:"callbacknodeids"`
+	Callbackdurabletaskexternalids []*uuid.UUID         `json:"callbackdurabletaskexternalids"`
+}
+
+func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V1Match, error) {
+	rows, err := db.Query(ctx, createMatchesForSignalTriggers,
+		arg.Tenantids,
+		arg.Kinds,
+		arg.Signaltaskids,
+		arg.Signaltaskinsertedats,
+		arg.Signalexternalids,
+		arg.Signalkeys,
+		arg.Callbackdurabletaskids,
+		arg.Callbackdurabletaskinsertedats,
+		arg.Callbacknodeids,
+		arg.Callbackdurabletaskexternalids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Match
+	for rows.Next() {
+		var i V1Match
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Kind,
+			&i.IsSatisfied,
+			&i.ExistingData,
+			&i.SignalTaskID,
+			&i.SignalTaskInsertedAt,
+			&i.SignalExternalID,
+			&i.SignalKey,
+			&i.TriggerDagID,
+			&i.TriggerDagInsertedAt,
+			&i.TriggerStepID,
+			&i.TriggerStepIndex,
+			&i.TriggerExternalID,
+			&i.TriggerWorkflowRunID,
+			&i.TriggerParentTaskExternalID,
+			&i.TriggerParentTaskID,
+			&i.TriggerParentTaskInsertedAt,
+			&i.TriggerChildIndex,
+			&i.TriggerChildKey,
+			&i.TriggerExistingTaskID,
+			&i.TriggerExistingTaskInsertedAt,
+			&i.TriggerPriority,
+			&i.DurableEventLogCallbackDurableTaskExternalID,
+			&i.DurableEventLogCallbackDurableTaskID,
+			&i.DurableEventLogCallbackDurableTaskInsertedAt,
+			&i.DurableEventLogCallbackNodeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

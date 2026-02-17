@@ -1,6 +1,7 @@
 import asyncio
 import time
 from datetime import timedelta
+from typing import Any
 from uuid import uuid4
 
 from hatchet_sdk import (
@@ -14,6 +15,40 @@ from hatchet_sdk import (
 )
 
 hatchet = Hatchet(debug=True)
+
+
+dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
+
+
+@dag_child_workflow.task()
+async def dag_child_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    await asyncio.sleep(1)
+    return {"result": "child1"}
+
+
+@dag_child_workflow.task()
+async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    await asyncio.sleep(5)
+    return {"result": "child2"}
+
+
+@hatchet.durable_task()
+async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+    sleep_start = time.time()
+    sleep_result = await ctx.aio_sleep_for(timedelta(seconds=1))
+    sleep_duration = time.time() - sleep_start
+
+    spawn_start = time.time()
+    spawn_result = await dag_child_workflow.aio_run()
+    spawn_duration = time.time() - spawn_start
+
+    return {
+        "sleep_duration": sleep_duration,
+        "sleep_result": sleep_result,
+        "spawn_duration": spawn_duration,
+        "spawn_result": spawn_result,
+    }
+
 
 # > Create a durable workflow
 durable_workflow = hatchet.workflow(name="DurableWorkflow")
@@ -145,10 +180,49 @@ async def wait_for_sleep_twice(
         return {"runtime": -1}
 
 
+@hatchet.task()
+def spawn_child_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {"message": "hello from child"}
+
+
+@hatchet.durable_task()
+async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+    child_result = await spawn_child_task.aio_run()
+    return {"child_output": child_result}
+
+
+@hatchet.durable_task()
+async def durable_sleep_event_spawn(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
+    start = time.time()
+
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    await ctx.aio_wait_for(
+        "event",
+        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    )
+
+    child_result = await spawn_child_task.aio_run()
+
+    return {
+        "runtime": int(time.time() - start),
+        "child_output": child_result,
+    }
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
-        workflows=[durable_workflow, ephemeral_workflow, wait_for_sleep_twice],
+        workflows=[
+            durable_workflow,
+            ephemeral_workflow,
+            wait_for_sleep_twice,
+            spawn_child_task,
+            durable_with_spawn,
+            durable_sleep_event_spawn,
+        ],
     )
     worker.start()
 

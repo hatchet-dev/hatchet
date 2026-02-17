@@ -34,6 +34,24 @@ func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Lo
 	}
 }
 
+func (s *OLAPSignaler) SignalCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload, dags []*v1.DAGWithData) error {
+	eg := &errgroup.Group{}
+
+	if len(tasks) > 0 {
+		eg.Go(func() error {
+			return s.SignalTasksCreated(ctx, tenantId, tasks)
+		})
+	}
+
+	if len(dags) > 0 {
+		eg.Go(func() error {
+			return s.SignalDAGsCreated(ctx, tenantId, dags)
+		})
+	}
+
+	return eg.Wait()
+}
+
 func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) error {
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?

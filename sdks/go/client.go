@@ -49,10 +49,21 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 
 // Worker represents a worker that can execute workflows.
 type Worker struct {
-	nonDurable *worker.Worker
-	durable    *worker.Worker
-	name       string
+	worker *worker.Worker
+	name   string
+
+	// legacyDurable is set when connected to an older engine that needs separate
+	// durable/non-durable workers. nil when using the new unified slot_config approach.
+	legacyDurable *worker.Worker
 }
+
+// slotType represents supported slot types (internal use).
+type slotType string
+
+const (
+	slotTypeDefault slotType = "default"
+	slotTypeDurable slotType = "durable"
+)
 
 // NewWorker creates a worker that can execute workflows.
 func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error) {
@@ -65,11 +76,36 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		opt(config)
 	}
 
+	dumps := gatherWorkflowDumps(config.workflows)
+
+	// Check engine version to decide between new and legacy worker architecture
+	isLegacy, err := c.isLegacyEngine()
+	if err != nil {
+		return nil, err
+	}
+	if isLegacy {
+		return newLegacyWorker(c, name, config, dumps)
+	}
+
+	initialSlotConfig := map[slotType]int{}
+	if config.slotsSet {
+		initialSlotConfig[slotTypeDefault] = config.slots
+	}
+	if config.durableSlotsSet {
+		initialSlotConfig[slotTypeDurable] = config.durableSlots
+	}
+	slotConfig := resolveWorkerSlotConfig(initialSlotConfig, dumps)
+
 	workerOpts := []worker.WorkerOpt{
 		worker.WithClient(c.legacyClient),
 		worker.WithName(name),
-		worker.WithMaxRuns(config.slots),
 	}
+
+	slotConfigMap := make(map[string]int32, len(slotConfig))
+	for key, value := range slotConfig {
+		slotConfigMap[string(key)] = int32(value)
+	}
+	workerOpts = append(workerOpts, worker.WithSlotConfig(slotConfigMap))
 
 	if config.logger != nil {
 		workerOpts = append(workerOpts, worker.WithLogger(config.logger))
@@ -79,67 +115,40 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		workerOpts = append(workerOpts, worker.WithLabels(config.labels))
 	}
 
-	nonDurableWorker, err := worker.NewWorker(workerOpts...)
+	mainWorker, err := worker.NewWorker(workerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	if config.panicHandler != nil {
-		nonDurableWorker.SetPanicHandler(config.panicHandler)
+		mainWorker.SetPanicHandler(config.panicHandler)
 	}
 
-	var durableWorker *worker.Worker
+	for _, dump := range dumps {
+		err := mainWorker.RegisterWorkflowV1(dump.req)
+		if err != nil {
+			return nil, err
+		}
 
-	for _, workflow := range config.workflows {
-		req, regularActions, durableActions, onFailureFn := workflow.Dump()
-		hasDurableTasks := len(durableActions) > 0
-
-		if hasDurableTasks {
-			if durableWorker == nil {
-				durableWorkerOpts := workerOpts
-				durableWorkerOpts = append(durableWorkerOpts, worker.WithName(name+"-durable"))
-				durableWorkerOpts = append(durableWorkerOpts, worker.WithMaxRuns(config.durableSlots))
-
-				durableWorker, err = worker.NewWorker(durableWorkerOpts...)
-				if err != nil {
-					return nil, err
-				}
-
-				if config.panicHandler != nil {
-					durableWorker.SetPanicHandler(config.panicHandler)
-				}
-			}
-
-			err := durableWorker.RegisterWorkflowV1(req)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			err := nonDurableWorker.RegisterWorkflowV1(req)
+		for _, namedFn := range dump.durableActions {
+			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		for _, namedFn := range durableActions {
-			err = durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		for _, namedFn := range regularActions {
-			err = nonDurableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+		for _, namedFn := range dump.regularActions {
+			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		// Register on failure function if exists
-		if req.OnFailureTask != nil && onFailureFn != nil {
-			actionId := req.OnFailureTask.Action
-			err = nonDurableWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
-				return onFailureFn(ctx)
+		if dump.req.OnFailureTask != nil && dump.onFailureFn != nil {
+			actionId := dump.req.OnFailureTask.Action
+			err = mainWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
+				return dump.onFailureFn(ctx)
 			})
 			if err != nil {
 				return nil, err
@@ -148,22 +157,97 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 	}
 
 	return &Worker{
-		nonDurable: nonDurableWorker,
-		durable:    durableWorker,
-		name:       name,
+		worker: mainWorker,
+		name:   name,
 	}, nil
+}
+
+type workflowDump struct {
+	req            *v1.CreateWorkflowVersionRequest
+	onFailureFn    internal.WrappedTaskFn
+	regularActions []internal.NamedFunction
+	durableActions []internal.NamedFunction
+}
+
+func gatherWorkflowDumps(workflows []WorkflowBase) []workflowDump {
+	dumps := make([]workflowDump, 0, len(workflows))
+	for _, workflow := range workflows {
+		req, regularActions, durableActions, onFailureFn := workflow.Dump()
+		dumps = append(dumps, workflowDump{
+			req:            req,
+			regularActions: regularActions,
+			durableActions: durableActions,
+			onFailureFn:    onFailureFn,
+		})
+	}
+	return dumps
+}
+
+func resolveWorkerSlotConfig(
+	slotConfig map[slotType]int,
+	dumps []workflowDump,
+) map[slotType]int {
+	requiredSlotTypes := map[slotType]bool{}
+	addFromRequests := func(requests map[string]int32) {
+		if requests == nil {
+			return
+		}
+		if _, ok := requests[string(slotTypeDefault)]; ok {
+			requiredSlotTypes[slotTypeDefault] = true
+		}
+		if _, ok := requests[string(slotTypeDurable)]; ok {
+			requiredSlotTypes[slotTypeDurable] = true
+		}
+	}
+
+	for _, dump := range dumps {
+		for _, task := range dump.req.Tasks {
+			addFromRequests(task.SlotRequests)
+		}
+		if dump.req.OnFailureTask != nil {
+			addFromRequests(dump.req.OnFailureTask.SlotRequests)
+		}
+	}
+
+	if len(dumps) > 0 {
+		for _, dump := range dumps {
+			for _, task := range dump.req.Tasks {
+				if task.IsDurable {
+					requiredSlotTypes[slotTypeDurable] = true
+					break
+				}
+			}
+		}
+	}
+
+	if requiredSlotTypes[slotTypeDefault] {
+		if _, ok := slotConfig[slotTypeDefault]; !ok {
+			slotConfig[slotTypeDefault] = 100
+		}
+	}
+	if requiredSlotTypes[slotTypeDurable] {
+		if _, ok := slotConfig[slotTypeDurable]; !ok {
+			slotConfig[slotTypeDurable] = 1000
+		}
+	}
+
+	if len(slotConfig) == 0 {
+		slotConfig[slotTypeDefault] = 100
+	}
+
+	return slotConfig
 }
 
 // Starts the worker instance and returns a cleanup function.
 func (w *Worker) Start() (func() error, error) {
 	var workers []*worker.Worker
 
-	if w.nonDurable != nil {
-		workers = append(workers, w.nonDurable)
+	if w.worker != nil {
+		workers = append(workers, w.worker)
 	}
 
-	if w.durable != nil {
-		workers = append(workers, w.durable)
+	if w.legacyDurable != nil {
+		workers = append(workers, w.legacyDurable)
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines

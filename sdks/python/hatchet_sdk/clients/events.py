@@ -4,7 +4,7 @@ import json
 from typing import cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -21,12 +21,12 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
     BulkPushEventRequest,
-    Event,
-    Events,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
 )
+from hatchet_sdk.contracts.events_pb2 import Event as EventProto
+from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
@@ -58,6 +58,43 @@ class BulkPushEventWithMetadata(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | None = None
     scope: str | None = None
+
+
+class Event(BaseModel):
+    tenant_id: str
+    event_id: str
+    key: str
+    payload: str
+    event_timestamp: timestamp_pb2.Timestamp
+    additional_metadata: str | None = None
+    scope: str | None = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @property
+    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
+        return self.event_timestamp
+
+    @property
+    def additionalMetadata(self) -> str | None:  # noqa: N802
+        return self.additional_metadata
+
+    @classmethod
+    def from_proto(cls, proto: EventProto) -> "Event":
+        additional_metadata = (
+            proto.additional_metadata if proto.HasField("additional_metadata") else None
+        )
+        scope = proto.scope if proto.HasField("scope") else None
+
+        return cls(
+            tenant_id=proto.tenant_id,
+            event_id=proto.event_id,
+            key=proto.key,
+            payload=proto.payload,
+            event_timestamp=proto.event_timestamp,
+            additional_metadata=additional_metadata,
+            scope=scope,
+        )
 
 
 class EventClient(BaseRestClient):
@@ -119,16 +156,17 @@ class EventClient(BaseRestClient):
         request = PushEventRequest(
             key=namespaced_event_key,
             payload=payload_str,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_bytes,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_bytes,
             priority=options.priority,
             scope=options.scope,
         )
 
-        return cast(
-            Event,
+        response = cast(
+            EventProto,
             push_event(request, metadata=get_metadata(self.token)),
         )
+        return Event.from_proto(response)
 
     def _create_push_event_request(
         self,
@@ -153,8 +191,8 @@ class EventClient(BaseRestClient):
         return PushEventRequest(
             key=event_key,
             payload=serialized_payload,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_str,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_str,
             priority=event.priority,
             scope=event.scope,
         )
@@ -176,12 +214,11 @@ class EventClient(BaseRestClient):
             ]
         )
 
-        return list(
-            cast(
-                Events,
-                bulk_push(bulk_request, metadata=get_metadata(self.token)),
-            ).events
+        response = cast(
+            EventsProto,
+            bulk_push(bulk_request, metadata=get_metadata(self.token)),
         )
+        return [Event.from_proto(event) for event in response.events]
 
     def log(
         self,
@@ -198,11 +235,11 @@ class EventClient(BaseRestClient):
             self.events_service_client.PutLog, self.client_config.tenacity
         )
         request = PutLogRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_external_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
-            taskRetryCount=task_retry_count,
+            task_retry_count=task_retry_count,
         )
 
         put_log(request, metadata=get_metadata(self.token))
@@ -219,10 +256,10 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         request = PutStreamEventRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_external_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=data_bytes,
-            eventIndex=index,
+            event_index=index,
         )
 
         try:

@@ -283,7 +283,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		// at the moment, API tokens should have a tenant id, because there are no other types of
 		// API tokens. If we add other types of API tokens, we'll need to pass in a parent id to query
 		// for.
-		if apiToken.TenantId == nil || *apiToken.TenantId == uuid.Nil {
+		if apiToken.TenantId == nil {
 			return nil, "", fmt.Errorf("api token has no tenant id")
 		}
 
@@ -510,13 +510,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
 		idUuid, err := uuid.Parse(id)
 
 		if err != nil {
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid worker id")
 		}
 
-		worker, err := config.V1.Workers().GetWorkerById(idUuid)
+		worker, err := config.V1.Workers().GetWorkerById(ctx, idUuid)
 
 		if err != nil {
 			return nil, "", err

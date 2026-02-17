@@ -987,6 +987,49 @@ func (ns NullV1ConcurrencyStrategy) Value() (driver.Value, error) {
 	return string(ns.V1ConcurrencyStrategy), nil
 }
 
+type V1DurableEventLogKind string
+
+const (
+	V1DurableEventLogKindRUN     V1DurableEventLogKind = "RUN"
+	V1DurableEventLogKindWAITFOR V1DurableEventLogKind = "WAIT_FOR"
+	V1DurableEventLogKindMEMO    V1DurableEventLogKind = "MEMO"
+)
+
+func (e *V1DurableEventLogKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1DurableEventLogKind(s)
+	case string:
+		*e = V1DurableEventLogKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1DurableEventLogKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1DurableEventLogKind struct {
+	V1DurableEventLogKind V1DurableEventLogKind `json:"v1_durable_event_log_kind"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1DurableEventLogKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1DurableEventLogKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1DurableEventLogKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1DurableEventLogKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1DurableEventLogKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1DurableEventLogKind), nil
+}
+
 type V1EventType string
 
 const (
@@ -1228,6 +1271,7 @@ const (
 	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
 	V1IncomingWebhookSourceNameSLACK   V1IncomingWebhookSourceName = "SLACK"
 	V1IncomingWebhookSourceNameLINEAR  V1IncomingWebhookSourceName = "LINEAR"
+	V1IncomingWebhookSourceNameSVIX    V1IncomingWebhookSourceName = "SVIX"
 )
 
 func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
@@ -1483,12 +1527,13 @@ func (ns NullV1PayloadLocationOlap) Value() (driver.Value, error) {
 type V1PayloadType string
 
 const (
-	V1PayloadTypeTASKINPUT      V1PayloadType = "TASK_INPUT"
-	V1PayloadTypeDAGINPUT       V1PayloadType = "DAG_INPUT"
-	V1PayloadTypeTASKOUTPUT     V1PayloadType = "TASK_OUTPUT"
-	V1PayloadTypeTASKEVENTDATA  V1PayloadType = "TASK_EVENT_DATA"
-	V1PayloadTypeUSEREVENTINPUT V1PayloadType = "USER_EVENT_INPUT"
-	V1PayloadTypeMEMOOUTPUT     V1PayloadType = "MEMO_OUTPUT"
+	V1PayloadTypeTASKINPUT                         V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT                          V1PayloadType = "DAG_INPUT"
+	V1PayloadTypeTASKOUTPUT                        V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKEVENTDATA                     V1PayloadType = "TASK_EVENT_DATA"
+	V1PayloadTypeUSEREVENTINPUT                    V1PayloadType = "USER_EVENT_INPUT"
+	V1PayloadTypeDURABLEEVENTLOGENTRYDATA          V1PayloadType = "DURABLE_EVENT_LOG_ENTRY_DATA"
+	V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA V1PayloadType = "DURABLE_EVENT_LOG_CALLBACK_RESULT_DATA"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {
@@ -2010,6 +2055,7 @@ const (
 	WorkerSDKSGO         WorkerSDKS = "GO"
 	WorkerSDKSPYTHON     WorkerSDKS = "PYTHON"
 	WorkerSDKSTYPESCRIPT WorkerSDKS = "TYPESCRIPT"
+	WorkerSDKSRUBY       WorkerSDKS = "RUBY"
 )
 
 func (e *WorkerSDKS) Scan(src interface{}) error {
@@ -2640,6 +2686,7 @@ type Step struct {
 	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
+	IsDurable          bool             `json:"isDurable"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -3015,16 +3062,42 @@ type V1DagsOlap struct {
 	TotalTasks           int32                `json:"total_tasks"`
 }
 
-type V1DurableEventLog struct {
-	ID             pgtype.Int8        `json:"id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	ExternalID     uuid.UUID          `json:"external_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	EventType      string             `json:"event_type"`
-	Key            string             `json:"key"`
-	Data           []byte             `json:"data"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+type V1DurableEventLogCallback struct {
+	TenantID              uuid.UUID             `json:"tenant_id"`
+	ExternalID            uuid.UUID             `json:"external_id"`
+	InsertedAt            pgtype.Timestamptz    `json:"inserted_at"`
+	ID                    int64                 `json:"id"`
+	DurableTaskID         int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                  V1DurableEventLogKind `json:"kind"`
+	NodeID                int64                 `json:"node_id"`
+	IsSatisfied           bool                  `json:"is_satisfied"`
+}
+
+type V1DurableEventLogEntry struct {
+	TenantID              uuid.UUID             `json:"tenant_id"`
+	ExternalID            uuid.UUID             `json:"external_id"`
+	InsertedAt            pgtype.Timestamptz    `json:"inserted_at"`
+	ID                    int64                 `json:"id"`
+	DurableTaskID         int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                  V1DurableEventLogKind `json:"kind"`
+	NodeID                int64                 `json:"node_id"`
+	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
+	BranchID              int64                 `json:"branch_id"`
+	DataHash              []byte                `json:"data_hash"`
+	DataHashAlg           pgtype.Text           `json:"data_hash_alg"`
+}
+
+type V1DurableEventLogFile struct {
+	TenantID                      uuid.UUID          `json:"tenant_id"`
+	DurableTaskID                 int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	LatestInvocationCount         int64              `json:"latest_invocation_count"`
+	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
+	LatestNodeID                  int64              `json:"latest_node_id"`
+	LatestBranchID                int64              `json:"latest_branch_id"`
+	LatestBranchFirstParentNodeID int64              `json:"latest_branch_first_parent_node_id"`
 }
 
 type V1DurableSleep struct {
@@ -3166,29 +3239,33 @@ type V1LookupTableOlap struct {
 }
 
 type V1Match struct {
-	ID                            int64              `json:"id"`
-	TenantID                      uuid.UUID          `json:"tenant_id"`
-	Kind                          V1MatchKind        `json:"kind"`
-	IsSatisfied                   bool               `json:"is_satisfied"`
-	ExistingData                  []byte             `json:"existing_data"`
-	SignalTaskID                  pgtype.Int8        `json:"signal_task_id"`
-	SignalTaskInsertedAt          pgtype.Timestamptz `json:"signal_task_inserted_at"`
-	SignalExternalID              *uuid.UUID         `json:"signal_external_id"`
-	SignalKey                     pgtype.Text        `json:"signal_key"`
-	TriggerDagID                  pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt          pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID                 *uuid.UUID         `json:"trigger_step_id"`
-	TriggerStepIndex              pgtype.Int8        `json:"trigger_step_index"`
-	TriggerExternalID             *uuid.UUID         `json:"trigger_external_id"`
-	TriggerWorkflowRunID          *uuid.UUID         `json:"trigger_workflow_run_id"`
-	TriggerParentTaskExternalID   *uuid.UUID         `json:"trigger_parent_task_external_id"`
-	TriggerParentTaskID           pgtype.Int8        `json:"trigger_parent_task_id"`
-	TriggerParentTaskInsertedAt   pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
-	TriggerChildIndex             pgtype.Int8        `json:"trigger_child_index"`
-	TriggerChildKey               pgtype.Text        `json:"trigger_child_key"`
-	TriggerExistingTaskID         pgtype.Int8        `json:"trigger_existing_task_id"`
-	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
-	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
+	ID                                           int64              `json:"id"`
+	TenantID                                     uuid.UUID          `json:"tenant_id"`
+	Kind                                         V1MatchKind        `json:"kind"`
+	IsSatisfied                                  bool               `json:"is_satisfied"`
+	ExistingData                                 []byte             `json:"existing_data"`
+	SignalTaskID                                 pgtype.Int8        `json:"signal_task_id"`
+	SignalTaskInsertedAt                         pgtype.Timestamptz `json:"signal_task_inserted_at"`
+	SignalExternalID                             *uuid.UUID         `json:"signal_external_id"`
+	SignalKey                                    pgtype.Text        `json:"signal_key"`
+	TriggerDagID                                 pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt                         pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID                                *uuid.UUID         `json:"trigger_step_id"`
+	TriggerStepIndex                             pgtype.Int8        `json:"trigger_step_index"`
+	TriggerExternalID                            *uuid.UUID         `json:"trigger_external_id"`
+	TriggerWorkflowRunID                         *uuid.UUID         `json:"trigger_workflow_run_id"`
+	TriggerParentTaskExternalID                  *uuid.UUID         `json:"trigger_parent_task_external_id"`
+	TriggerParentTaskID                          pgtype.Int8        `json:"trigger_parent_task_id"`
+	TriggerParentTaskInsertedAt                  pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
+	TriggerChildIndex                            pgtype.Int8        `json:"trigger_child_index"`
+	TriggerChildKey                              pgtype.Text        `json:"trigger_child_key"`
+	TriggerExistingTaskID                        pgtype.Int8        `json:"trigger_existing_task_id"`
+	TriggerExistingTaskInsertedAt                pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
+	TriggerPriority                              pgtype.Int4        `json:"trigger_priority"`
+	DurableEventLogCallbackDurableTaskExternalID *uuid.UUID         `json:"durable_event_log_callback_durable_task_external_id"`
+	DurableEventLogCallbackDurableTaskID         pgtype.Int8        `json:"durable_event_log_callback_durable_task_id"`
+	DurableEventLogCallbackDurableTaskInsertedAt pgtype.Timestamptz `json:"durable_event_log_callback_durable_task_inserted_at"`
+	DurableEventLogCallbackNodeID                pgtype.Int8        `json:"durable_event_log_callback_node_id"`
 }
 
 type V1MatchCondition struct {
@@ -3357,6 +3434,15 @@ type V1StepMatchCondition struct {
 	ParentReadableID pgtype.Text              `json:"parent_readable_id"`
 }
 
+type V1StepSlotRequest struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	StepID    uuid.UUID          `json:"step_id"`
+	SlotType  string             `json:"slot_type"`
+	Units     int32              `json:"units"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1Task struct {
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
@@ -3461,6 +3547,18 @@ type V1TaskRuntime struct {
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 }
 
+type V1TaskRuntimeSlot struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	WorkerID       uuid.UUID          `json:"worker_id"`
+	SlotType       string             `json:"slot_type"`
+	Units          int32              `json:"units"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1TaskStatusUpdatesTmp struct {
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	RequeueAfter   pgtype.Timestamptz `json:"requeue_after"`
@@ -3495,6 +3593,15 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+}
+
+type V1WorkerSlotConfig struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	WorkerID  uuid.UUID          `json:"worker_id"`
+	SlotType  string             `json:"slot_type"`
+	MaxUnits  int32              `json:"max_units"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1WorkflowConcurrency struct {
@@ -3570,6 +3677,7 @@ type Worker struct {
 	Os                      pgtype.Text      `json:"os"`
 	RuntimeExtra            pgtype.Text      `json:"runtimeExtra"`
 	SdkVersion              pgtype.Text      `json:"sdkVersion"`
+	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
 }
 
 type WorkerAssignEvent struct {

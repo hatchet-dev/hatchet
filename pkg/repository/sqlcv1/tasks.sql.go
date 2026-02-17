@@ -125,7 +125,7 @@ WITH locked_trs AS (
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED
 )
-DELETE FROM v1_task_runtime
+DELETE FROM v1_task_runtime_slot
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_trs
@@ -233,7 +233,10 @@ SELECT
     create_v1_range_partition('v1_payload', $1::date),
     create_v1_range_partition('v1_event', $1::date),
     create_v1_weekly_range_partition('v1_event_lookup_table', $1::date),
-    create_v1_range_partition('v1_event_to_run', $1::date)
+    create_v1_range_partition('v1_event_to_run', $1::date),
+    create_v1_range_partition('v1_durable_event_log_file', $1::date),
+    create_v1_range_partition('v1_durable_event_log_entry', $1::date),
+    create_v1_range_partition('v1_durable_event_log_callback', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -329,6 +332,12 @@ WITH tomorrow_date AS (
     SELECT 'v1_payload_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_file_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_entry_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_callback_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -550,8 +559,66 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
+const filterValidTasks = `-- name: FilterValidTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS task_retry_count
+)
+SELECT
+    t.id
+FROM
+    v1_task t
+JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
+WHERE
+    (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM inputs
+    )
+    AND t.tenant_id = $1::uuid
+`
+
+type FilterValidTasksParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+}
+
+func (q *Queries) FilterValidTasks(ctx context.Context, db DBTX, arg FilterValidTasksParams) ([]int64, error) {
+	rows, err := db.Query(ctx, filterValidTasks,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findOldestRunningTask = `-- name: FindOldestRunningTask :one
-SELECT task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at
+SELECT
+    task_id,
+    task_inserted_at,
+    retry_count,
+    worker_id,
+    tenant_id,
+    timeout_at
 FROM v1_task_runtime
 ORDER BY task_id, task_inserted_at
 LIMIT 1
@@ -1183,6 +1250,12 @@ WITH task_partitions AS (
     SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', $1::date) AS p
 ), event_to_run_partitions AS (
     SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', $1::date) AS p
+), durable_event_log_file_partitions AS (
+    SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', $1::date) AS p
+), durable_event_log_entry_partitions AS (
+    SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', $1::date) AS p
+), durable_event_log_callback_partitions AS (
+    SELECT 'v1_durable_event_log_callback' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_callback', $1::date) AS p
 )
 
 SELECT
@@ -1238,6 +1311,27 @@ SELECT
     parent_table, partition_name
 FROM
     event_to_run_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    durable_event_log_file_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    durable_event_log_entry_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    durable_event_log_callback_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -2139,6 +2233,11 @@ WITH task AS (
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
+    RETURNING task_id
 )
 UPDATE
     v1_task_runtime

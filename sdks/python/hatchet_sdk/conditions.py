@@ -10,6 +10,7 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import Action as ProtoAction
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
     BaseMatchCondition,
+    DurableEventListenerConditions,
     ParentOverrideMatchCondition,
     SleepMatchCondition,
     UserEventMatchCondition,
@@ -155,3 +156,16 @@ def flatten_conditions(conditions: list[Condition | OrGroup]) -> list[Condition]
             flattened.append(condition)
 
     return flattened
+
+
+def build_conditions_proto(
+    conditions: list[Condition], config: ClientConfig
+) -> DurableEventListenerConditions:
+    return DurableEventListenerConditions(
+        sleep_conditions=[
+            c.to_proto(config) for c in conditions if isinstance(c, SleepCondition)
+        ],
+        user_event_conditions=[
+            c.to_proto(config) for c in conditions if isinstance(c, UserEventCondition)
+        ],
+    )

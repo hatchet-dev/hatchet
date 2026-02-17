@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -38,11 +39,16 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
 
 	for _, task := range res.TimeoutTasks {
+		var workerId uuid.UUID
+		if task.WorkerID != nil {
+			workerId = *task.WorkerID
+		}
+
 		cancellationSignals = append(cancellationSignals, tasktypes.SignalTaskCancelledPayload{
 			TaskId:     task.ID,
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
-			WorkerId:   *task.WorkerID,
+			WorkerId:   workerId,
 		})
 
 		// send failed tasks to the olap repository

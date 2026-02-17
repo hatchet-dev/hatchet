@@ -11,12 +11,14 @@ import (
 type WorkerOption func(*workerConfig)
 
 type workerConfig struct {
-	workflows    []WorkflowBase
-	slots        int
-	durableSlots int
-	labels       map[string]any
-	logger       *zerolog.Logger
-	panicHandler func(ctx Context, recovered any)
+	workflows       []WorkflowBase
+	slots           int
+	slotsSet        bool
+	durableSlots    int
+	durableSlotsSet bool
+	labels          map[string]any
+	logger          *zerolog.Logger
+	panicHandler    func(ctx Context, recovered any)
 }
 
 type WorkflowBase interface {
@@ -39,6 +41,7 @@ func WithWorkflows(workflows ...WorkflowBase) WorkerOption {
 func WithSlots(slots int) WorkerOption {
 	return func(config *workerConfig) {
 		config.slots = slots
+		config.slotsSet = true
 	}
 }
 
@@ -60,6 +63,7 @@ func WithLogger(logger *zerolog.Logger) WorkerOption {
 func WithDurableSlots(durableSlots int) WorkerOption {
 	return func(config *workerConfig) {
 		config.durableSlots = durableSlots
+		config.durableSlotsSet = true
 	}
 }
 

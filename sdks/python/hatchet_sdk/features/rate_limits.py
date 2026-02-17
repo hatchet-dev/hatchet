@@ -3,9 +3,9 @@ import asyncio
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
-from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.contracts.workflows import workflows_pb2 as v0_workflow_protos
+from hatchet_sdk.contracts.workflows.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto

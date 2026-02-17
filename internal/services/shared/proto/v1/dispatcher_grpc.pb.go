@@ -22,10 +22,10 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type V1DispatcherClient interface {
+	DurableTask(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_DurableTaskClient, error)
+	// NOTE: deprecated after DurableEventLog is implemented
 	RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_ListenForDurableEventClient, error)
-	GetDurableEventLog(ctx context.Context, in *GetDurableEventLogRequest, opts ...grpc.CallOption) (*GetDurableEventLogResponse, error)
-	CreateDurableEventLog(ctx context.Context, in *CreateDurableEventLogRequest, opts ...grpc.CallOption) (*CreateDurableEventLogResponse, error)
 }
 
 type v1DispatcherClient struct {
@@ -34,6 +34,37 @@ type v1DispatcherClient struct {
 
 func NewV1DispatcherClient(cc grpc.ClientConnInterface) V1DispatcherClient {
 	return &v1DispatcherClient{cc}
+}
+
+func (c *v1DispatcherClient) DurableTask(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_DurableTaskClient, error) {
+	stream, err := c.cc.NewStream(ctx, &V1Dispatcher_ServiceDesc.Streams[0], "/v1.V1Dispatcher/DurableTask", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &v1DispatcherDurableTaskClient{stream}
+	return x, nil
+}
+
+type V1Dispatcher_DurableTaskClient interface {
+	Send(*DurableTaskRequest) error
+	Recv() (*DurableTaskResponse, error)
+	grpc.ClientStream
+}
+
+type v1DispatcherDurableTaskClient struct {
+	grpc.ClientStream
+}
+
+func (x *v1DispatcherDurableTaskClient) Send(m *DurableTaskRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *v1DispatcherDurableTaskClient) Recv() (*DurableTaskResponse, error) {
+	m := new(DurableTaskResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *v1DispatcherClient) RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error) {
@@ -46,7 +77,7 @@ func (c *v1DispatcherClient) RegisterDurableEvent(ctx context.Context, in *Regis
 }
 
 func (c *v1DispatcherClient) ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_ListenForDurableEventClient, error) {
-	stream, err := c.cc.NewStream(ctx, &V1Dispatcher_ServiceDesc.Streams[0], "/v1.V1Dispatcher/ListenForDurableEvent", opts...)
+	stream, err := c.cc.NewStream(ctx, &V1Dispatcher_ServiceDesc.Streams[1], "/v1.V1Dispatcher/ListenForDurableEvent", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,32 +107,14 @@ func (x *v1DispatcherListenForDurableEventClient) Recv() (*DurableEvent, error) 
 	return m, nil
 }
 
-func (c *v1DispatcherClient) GetDurableEventLog(ctx context.Context, in *GetDurableEventLogRequest, opts ...grpc.CallOption) (*GetDurableEventLogResponse, error) {
-	out := new(GetDurableEventLogResponse)
-	err := c.cc.Invoke(ctx, "/v1.V1Dispatcher/GetDurableEventLog", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *v1DispatcherClient) CreateDurableEventLog(ctx context.Context, in *CreateDurableEventLogRequest, opts ...grpc.CallOption) (*CreateDurableEventLogResponse, error) {
-	out := new(CreateDurableEventLogResponse)
-	err := c.cc.Invoke(ctx, "/v1.V1Dispatcher/CreateDurableEventLog", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // V1DispatcherServer is the server API for V1Dispatcher service.
 // All implementations must embed UnimplementedV1DispatcherServer
 // for forward compatibility
 type V1DispatcherServer interface {
+	DurableTask(V1Dispatcher_DurableTaskServer) error
+	// NOTE: deprecated after DurableEventLog is implemented
 	RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error
-	GetDurableEventLog(context.Context, *GetDurableEventLogRequest) (*GetDurableEventLogResponse, error)
-	CreateDurableEventLog(context.Context, *CreateDurableEventLogRequest) (*CreateDurableEventLogResponse, error)
 	mustEmbedUnimplementedV1DispatcherServer()
 }
 
@@ -109,17 +122,14 @@ type V1DispatcherServer interface {
 type UnimplementedV1DispatcherServer struct {
 }
 
+func (UnimplementedV1DispatcherServer) DurableTask(V1Dispatcher_DurableTaskServer) error {
+	return status.Errorf(codes.Unimplemented, "method DurableTask not implemented")
+}
 func (UnimplementedV1DispatcherServer) RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterDurableEvent not implemented")
 }
 func (UnimplementedV1DispatcherServer) ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListenForDurableEvent not implemented")
-}
-func (UnimplementedV1DispatcherServer) GetDurableEventLog(context.Context, *GetDurableEventLogRequest) (*GetDurableEventLogResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDurableEventLog not implemented")
-}
-func (UnimplementedV1DispatcherServer) CreateDurableEventLog(context.Context, *CreateDurableEventLogRequest) (*CreateDurableEventLogResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateDurableEventLog not implemented")
 }
 func (UnimplementedV1DispatcherServer) mustEmbedUnimplementedV1DispatcherServer() {}
 
@@ -132,6 +142,32 @@ type UnsafeV1DispatcherServer interface {
 
 func RegisterV1DispatcherServer(s grpc.ServiceRegistrar, srv V1DispatcherServer) {
 	s.RegisterService(&V1Dispatcher_ServiceDesc, srv)
+}
+
+func _V1Dispatcher_DurableTask_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(V1DispatcherServer).DurableTask(&v1DispatcherDurableTaskServer{stream})
+}
+
+type V1Dispatcher_DurableTaskServer interface {
+	Send(*DurableTaskResponse) error
+	Recv() (*DurableTaskRequest, error)
+	grpc.ServerStream
+}
+
+type v1DispatcherDurableTaskServer struct {
+	grpc.ServerStream
+}
+
+func (x *v1DispatcherDurableTaskServer) Send(m *DurableTaskResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *v1DispatcherDurableTaskServer) Recv() (*DurableTaskRequest, error) {
+	m := new(DurableTaskRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func _V1Dispatcher_RegisterDurableEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -178,42 +214,6 @@ func (x *v1DispatcherListenForDurableEventServer) Recv() (*ListenForDurableEvent
 	return m, nil
 }
 
-func _V1Dispatcher_GetDurableEventLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDurableEventLogRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(V1DispatcherServer).GetDurableEventLog(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/v1.V1Dispatcher/GetDurableEventLog",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(V1DispatcherServer).GetDurableEventLog(ctx, req.(*GetDurableEventLogRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _V1Dispatcher_CreateDurableEventLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateDurableEventLogRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(V1DispatcherServer).CreateDurableEventLog(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/v1.V1Dispatcher/CreateDurableEventLog",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(V1DispatcherServer).CreateDurableEventLog(ctx, req.(*CreateDurableEventLogRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // V1Dispatcher_ServiceDesc is the grpc.ServiceDesc for V1Dispatcher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -225,16 +225,14 @@ var V1Dispatcher_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "RegisterDurableEvent",
 			Handler:    _V1Dispatcher_RegisterDurableEvent_Handler,
 		},
-		{
-			MethodName: "GetDurableEventLog",
-			Handler:    _V1Dispatcher_GetDurableEventLog_Handler,
-		},
-		{
-			MethodName: "CreateDurableEventLog",
-			Handler:    _V1Dispatcher_CreateDurableEventLog_Handler,
-		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "DurableTask",
+			Handler:       _V1Dispatcher_DurableTask_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
 		{
 			StreamName:    "ListenForDurableEvent",
 			Handler:       _V1Dispatcher_ListenForDurableEvent_Handler,

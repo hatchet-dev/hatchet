@@ -15,10 +15,13 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 )
 
 func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.WorkerRegisterRequest) (*contracts.WorkerRegisterResponse, error) {
@@ -50,9 +53,20 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	if request.MaxRuns != nil {
-		mr := int(*request.MaxRuns)
-		opts.MaxRuns = &mr
+	if len(request.SlotConfig) > 0 {
+		opts.SlotConfig = request.SlotConfig
+	} else {
+		// default to 100 slots
+		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: 100}
+	}
+
+	// fixme: deprecated remove in a future release feb6 2026
+	if request.Slots != nil {
+		if len(request.SlotConfig) > 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "either slot_config or slots (deprecated) must be provided, not both")
+		}
+
+		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: *request.Slots}
 	}
 
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
@@ -162,7 +176,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == nil || *worker.DispatcherId == uuid.Nil || *worker.DispatcherId != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || (worker.DispatcherId != nil && *worker.DispatcherId != s.dispatcherId)
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -271,7 +285,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
-	shouldUpdateDispatcherId := worker.DispatcherId == nil || *worker.DispatcherId == uuid.Nil || *worker.DispatcherId != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || (worker.DispatcherId != nil && *worker.DispatcherId != s.dispatcherId)
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
@@ -409,6 +423,33 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		}
 
 		return nil, err
+	}
+
+	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
+	// new worker is available
+	if !worker.LastHeartbeatAt.Valid || worker.LastHeartbeatAt.Time.Before(heartbeatAt.Add(-30*time.Second)) {
+		if tenant.SchedulerPartitionId.Valid {
+			go func() {
+				notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				msg, err := tasktypes.NotifyNewWorker(tenantId, worker.ID)
+
+				if err != nil {
+					s.l.Err(err).Msg("could not create message for notifying new worker")
+				} else {
+					err = s.mqv1.SendMessage(
+						notifyCtx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msg,
+					)
+
+					if err != nil {
+						s.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
+				}
+			}()
+		}
 	}
 
 	return &contracts.HeartbeatResponse{}, nil
@@ -609,4 +650,10 @@ func UnmarshalPayload[T any](payload interface{}) (T, error) {
 	}
 
 	return result, nil
+}
+
+func (s *DispatcherImpl) GetVersion(ctx context.Context, req *contracts.GetVersionRequest) (*contracts.GetVersionResponse, error) {
+	return &contracts.GetVersionResponse{
+		Version: s.version,
+	}, nil
 }

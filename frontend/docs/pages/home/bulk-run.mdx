@@ -7,7 +7,7 @@ import { snippets } from "@/lib/generated/snippets";
 
 Often you may want to run a task multiple times with different inputs. There is significant overhead (i.e. network roundtrips) to write the task, so if you're running multiple tasks, it's best to use the bulk run methods.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 You can use the `aio_run_many` method to bulk run a task. This will return a list of results.
@@ -60,5 +60,8 @@ You can use the `RunMany` method directly on the `Workflow` or `StandaloneTask` 
 
 Additional bulk methods are coming soon for the Go SDK. Join our [Discord](https://hatchet.run/discord) to stay up to date.
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.child.bulk.bulk_run_a_task} />
   </Tabs.Tab>
 </UniversalTabs>

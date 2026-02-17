@@ -312,8 +312,15 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		}
 	}()
 
-	if task.ID == msgqueue.MsgIDCheckTenantQueue {
+	switch task.ID {
+	case msgqueue.MsgIDCheckTenantQueue:
 		return s.handleCheckQueue(ctx, task)
+	case msgqueue.MsgIDNewWorker:
+		return s.handleNewWorker(ctx, task)
+	case msgqueue.MsgIDNewQueue:
+		return s.handleNewQueue(ctx, task)
+	case msgqueue.MsgIDNewConcurrencyStrategy:
+		return s.handleNewConcurrencyStrategy(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -337,6 +344,45 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message)
 		if payload.SlotsReleased {
 			s.pool.Replenish(ctx, msg.TenantID)
 		}
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-worker", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewWorkerPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewWorker(ctx, msg.TenantID, payload.WorkerId)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-queue", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewQueuePayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewQueue(ctx, msg.TenantID, payload.QueueName)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-concurrency-strategy", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewConcurrencyStrategyPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewConcurrencyStrategy(ctx, msg.TenantID, payload.StrategyId)
 	}
 
 	return nil
@@ -374,9 +420,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		var dispatcherIdWorkerIds map[uuid.UUID][]uuid.UUID
-
-		dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -384,20 +428,13 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
 
-		workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
-
-		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-			for _, workerId := range workerIds {
-				workerIdToDispatcherId[workerId] = dispatcherId
-			}
-		}
-
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
 		for _, bulkAssigned := range res.Assigned {
+			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
 			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
-			if !ok {
+			if hasNoDispatcher || !ok {
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
 
 				s.internalRetry(ctx, tenantId, bulkAssigned)
@@ -793,32 +830,24 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	}
 
 	// since the dispatcher IDs may have changed since the previous send, we need to query them again
-	dispatcherIdWorkerIds, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
+	workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
-	}
-
-	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID)
-
-	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-		for _, workerId := range workerIds {
-			workerIdToDispatcherId[workerId] = dispatcherId
-		}
 	}
 
 	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message
-		if _, ok := workerIdToDispatcherId[p.WorkerId]; !ok {
+		dispatcherId, ok := workerIdToDispatcherId[p.WorkerId]
+		_, hasNoDispatcher := workersWithoutDispatchers[p.WorkerId]
+
+		if hasNoDispatcher || !ok {
 			continue
 		}
 
-		pcp := *p
-		dispatcherId := workerIdToDispatcherId[pcp.WorkerId]
-
-		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], pcp)
+		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], *p)
 	}
 
 	for dispatcherId, payloads := range dispatcherIdsToPayloads {

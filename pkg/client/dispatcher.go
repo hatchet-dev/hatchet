@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -6,6 +8,7 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -23,6 +26,10 @@ import (
 type DispatcherClient interface {
 	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
+	// GetVersion calls the GetVersion RPC. Returns the engine semantic version string.
+	// Old engines that do not implement this will return codes.Unimplemented.
+	GetVersion(ctx context.Context) (string, error)
+
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
@@ -35,9 +42,9 @@ type DispatcherClient interface {
 
 	RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error)
 
-	GetDurableEventLog(ctx context.Context, req *sharedcontracts.GetDurableEventLogRequest) (*sharedcontracts.GetDurableEventLogResponse, error)
-
-	CreateDurableEventLog(ctx context.Context, req *sharedcontracts.CreateDurableEventLogRequest) (*sharedcontracts.CreateDurableEventLogResponse, error)
+	// GetDurableTaskStream returns a DurableTask bidirectional stream, creating one if necessary.
+	// The workerId is used to register the worker with the server on stream creation.
+	GetDurableTaskStream(ctx context.Context, workerId string) (*DurableTaskStream, error)
 }
 
 const (
@@ -49,9 +56,14 @@ type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
 	Actions    []string
-	MaxRuns    *int
+	SlotConfig map[string]int32
 	Labels     map[string]interface{}
 	WebhookId  *string
+
+	// LegacySlots, when non-nil, causes the registration to use the deprecated
+	// `slots` proto field instead of `slot_config`. This is for backward
+	// compatibility with engines that do not support multiple slot types.
+	LegacySlots *int32
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -179,6 +191,9 @@ type dispatcherClientImpl struct {
 	ctx *contextLoader
 
 	presetWorkerLabels map[string]string
+
+	durableStreamMu sync.Mutex
+	durableStream   *DurableTaskStream
 }
 
 func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) DispatcherClient {
@@ -272,9 +287,12 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.MaxRuns != nil {
-		mr := int32(*req.MaxRuns) // nolint: gosec
-		registerReq.MaxRuns = &mr
+	if req.LegacySlots != nil {
+		registerReq.Slots = req.LegacySlots
+	} else if len(req.SlotConfig) > 0 {
+		registerReq.SlotConfig = req.SlotConfig
+	} else {
+		return nil, nil, fmt.Errorf("slot config is required for worker registration")
 	}
 
 	// register the worker
@@ -315,18 +333,20 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
 	go func() {
+		heartbeatInterval := 4 * time.Second
 		timer := time.NewTicker(100 * time.Millisecond)
 		defer timer.Stop()
 
 		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
 		lastHeartbeat := time.Now().Add(-5 * time.Second)
+		firstHeartbeat := true
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
+				if now := time.Now().UTC(); lastHeartbeat.Add(heartbeatInterval).Before(now) {
 					a.l.Debug().Msgf("updating worker %s heartbeat", a.workerId)
 
 					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
@@ -343,7 +363,21 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						}
 					}
 
-					lastHeartbeat = time.Now().UTC()
+					// detect heartbeat delays caused by CPU contention or other scheduling issues,
+					// but skip the first heartbeat since lastHeartbeat is artificially backdated
+					if !firstHeartbeat {
+						actualInterval := now.Sub(lastHeartbeat)
+						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
+						if actualInterval > heartbeatInterval+1*time.Second {
+							a.l.Warn().Msgf(
+								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
+								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
+							)
+						}
+					}
+
+					firstHeartbeat = false
+					lastHeartbeat = now
 				}
 			}
 		}
@@ -440,9 +474,9 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				JobId:               assignedAction.JobId,
 				JobName:             assignedAction.JobName,
 				JobRunId:            assignedAction.JobRunId,
-				StepId:              assignedAction.StepId,
-				StepName:            assignedAction.StepName,
-				StepRunId:           assignedAction.StepRunId,
+				StepId:              assignedAction.TaskId,
+				StepName:            assignedAction.TaskName,
+				StepRunId:           assignedAction.TaskRunExternalId,
 				ActionId:            assignedAction.ActionId,
 				ActionType:          actionType,
 				ActionPayload:       []byte(unquoted),
@@ -520,6 +554,14 @@ func (a *actionListenerImpl) Unregister() error {
 	return nil
 }
 
+func (d *dispatcherClientImpl) GetVersion(ctx context.Context) (string, error) {
+	resp, err := d.client.GetVersion(d.ctx.newContext(ctx), &dispatchercontracts.GetVersionRequest{})
+	if err != nil {
+		return "", err
+	}
+	return resp.Version, nil
+}
+
 func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {
 	return d.newActionListener(ctx, req)
 }
@@ -550,17 +592,17 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 	}
 
 	resp, err := d.client.SendStepActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.StepActionEvent{
-		WorkerId:       in.WorkerId,
-		JobId:          in.JobId,
-		JobRunId:       in.JobRunId,
-		StepId:         in.StepId,
-		StepRunId:      in.StepRunId,
-		ActionId:       in.ActionId,
-		EventTimestamp: timestamppb.New(*in.EventTimestamp),
-		EventType:      actionEventType,
-		EventPayload:   string(payloadBytes),
-		RetryCount:     &in.RetryCount,
-		ShouldNotRetry: in.ShouldNotRetry,
+		WorkerId:          in.WorkerId,
+		JobId:             in.JobId,
+		JobRunId:          in.JobRunId,
+		TaskId:            in.StepId,
+		TaskRunExternalId: in.StepRunId,
+		ActionId:          in.ActionId,
+		EventTimestamp:    timestamppb.New(*in.EventTimestamp),
+		EventType:         actionEventType,
+		EventPayload:      string(payloadBytes),
+		RetryCount:        &in.RetryCount,
+		ShouldNotRetry:    in.ShouldNotRetry,
 	})
 
 	if err != nil {
@@ -620,7 +662,7 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 
 func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
-		StepRunId: stepRunId,
+		TaskRunExternalId: stepRunId,
 	})
 
 	if err != nil {
@@ -632,7 +674,7 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 
 func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
 	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
-		StepRunId:          stepRunId,
+		TaskRunExternalId:  stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,
 	})
 
@@ -691,10 +733,143 @@ func (d *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sh
 	return d.clientv1.RegisterDurableEvent(d.ctx.newContext(ctx), req)
 }
 
-func (d *dispatcherClientImpl) GetDurableEventLog(ctx context.Context, req *sharedcontracts.GetDurableEventLogRequest) (*sharedcontracts.GetDurableEventLogResponse, error) {
-	return d.clientv1.GetDurableEventLog(d.ctx.newContext(ctx), req)
+// DurableTaskStream wraps a V1Dispatcher_DurableTaskClient bidirectional stream.
+// It provides thread-safe send/recv and callback routing by node ID.
+type DurableTaskStream struct {
+	stream        sharedcontracts.V1Dispatcher_DurableTaskClient
+	callbackChs   map[int64]chan *sharedcontracts.DurableTaskCallbackCompletedResponse
+	ackCh         chan *sharedcontracts.DurableTaskEventAckResponse
+	registerCh    chan *sharedcontracts.DurableTaskResponseRegisterWorker
+	l             *zerolog.Logger
+	sendMu        sync.Mutex
+	callbackChsMu sync.Mutex
 }
 
-func (d *dispatcherClientImpl) CreateDurableEventLog(ctx context.Context, req *sharedcontracts.CreateDurableEventLogRequest) (*sharedcontracts.CreateDurableEventLogResponse, error) {
-	return d.clientv1.CreateDurableEventLog(d.ctx.newContext(ctx), req)
+// Send sends a DurableTaskRequest on the stream (thread-safe).
+func (s *DurableTaskStream) Send(req *sharedcontracts.DurableTaskRequest) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	return s.stream.Send(req)
+}
+
+// SendEventAndWaitForAck sends a DurableTaskEventRequest and waits for the TriggerAck response.
+func (s *DurableTaskStream) SendEventAndWaitForAck(ctx context.Context, event *sharedcontracts.DurableTaskEventRequest) (*sharedcontracts.DurableTaskEventAckResponse, error) {
+	err := s.Send(&sharedcontracts.DurableTaskRequest{
+		Message: &sharedcontracts.DurableTaskRequest_Event{
+			Event: event,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to send durable task event: %w", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case ack := <-s.ackCh:
+		return ack, nil
+	}
+}
+
+// WaitForCallback waits for a CallbackCompleted response for the given nodeId.
+func (s *DurableTaskStream) WaitForCallback(ctx context.Context, nodeId int64) (*sharedcontracts.DurableTaskCallbackCompletedResponse, error) {
+	ch := make(chan *sharedcontracts.DurableTaskCallbackCompletedResponse, 1)
+
+	s.callbackChsMu.Lock()
+	s.callbackChs[nodeId] = ch
+	s.callbackChsMu.Unlock()
+
+	defer func() {
+		s.callbackChsMu.Lock()
+		delete(s.callbackChs, nodeId)
+		s.callbackChsMu.Unlock()
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case resp := <-ch:
+		return resp, nil
+	}
+}
+
+// recvLoop reads responses from the stream and routes them.
+func (s *DurableTaskStream) recvLoop() {
+	for {
+		resp, err := s.stream.Recv()
+		if err != nil {
+			s.l.Debug().Err(err).Msg("durable task stream recv ended")
+			return
+		}
+
+		switch msg := resp.GetMessage().(type) {
+		case *sharedcontracts.DurableTaskResponse_RegisterWorker:
+			select {
+			case s.registerCh <- msg.RegisterWorker:
+			default:
+			}
+		case *sharedcontracts.DurableTaskResponse_TriggerAck:
+			select {
+			case s.ackCh <- msg.TriggerAck:
+			default:
+				s.l.Warn().Msg("dropped trigger ack: no listener")
+			}
+		case *sharedcontracts.DurableTaskResponse_CallbackCompleted:
+			s.callbackChsMu.Lock()
+			ch, ok := s.callbackChs[msg.CallbackCompleted.NodeId]
+			s.callbackChsMu.Unlock()
+			if ok {
+				select {
+				case ch <- msg.CallbackCompleted:
+				default:
+				}
+			}
+		}
+	}
+}
+
+func (d *dispatcherClientImpl) GetDurableTaskStream(ctx context.Context, workerId string) (*DurableTaskStream, error) {
+	d.durableStreamMu.Lock()
+	defer d.durableStreamMu.Unlock()
+
+	if d.durableStream != nil {
+		return d.durableStream, nil
+	}
+
+	stream, err := d.clientv1.DurableTask(d.ctx.newContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create durable task stream: %w", err)
+	}
+
+	s := &DurableTaskStream{
+		stream:      stream,
+		callbackChs: make(map[int64]chan *sharedcontracts.DurableTaskCallbackCompletedResponse),
+		ackCh:       make(chan *sharedcontracts.DurableTaskEventAckResponse, 1),
+		registerCh:  make(chan *sharedcontracts.DurableTaskResponseRegisterWorker, 1),
+		l:           d.l,
+	}
+
+	go s.recvLoop()
+
+	// Register the worker with the server
+	err = s.Send(&sharedcontracts.DurableTaskRequest{
+		Message: &sharedcontracts.DurableTaskRequest_RegisterWorker{
+			RegisterWorker: &sharedcontracts.DurableTaskRequestRegisterWorker{
+				WorkerId: workerId,
+			},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to send register worker: %w", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.registerCh:
+		// Registration acknowledged
+	}
+
+	d.durableStream = s
+	return s, nil
 }

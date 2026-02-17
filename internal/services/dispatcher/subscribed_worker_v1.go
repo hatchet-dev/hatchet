@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -251,10 +252,10 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 		JobId:             task.StepID.String(), // FIXME
 		JobName:           task.StepReadableID,
 		JobRunId:          task.ExternalID.String(), // FIXME
-		StepId:            task.StepID.String(),
-		StepRunId:         task.ExternalID.String(),
+		TaskId:            task.StepID.String(),
+		TaskRunExternalId: task.ExternalID.String(),
 		ActionId:          task.ActionID,
-		StepName:          task.StepReadableID,
+		TaskName:          task.StepReadableID,
 		WorkflowRunId:     task.WorkflowRunID.String(),
 		RetryCount:        retryCount,
 		Priority:          task.Priority.Int32,
@@ -267,7 +268,7 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 		action.AdditionalMetadata = &metadataStr
 	}
 
-	if task.ParentTaskExternalID == nil || *task.ParentTaskExternalID != uuid.Nil {
+	if task.ParentTaskExternalID != nil {
 		parentId := task.ParentTaskExternalID.String()
 		action.ParentWorkflowRunId = &parentId
 	}

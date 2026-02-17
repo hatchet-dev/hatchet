@@ -27,11 +27,18 @@ from examples.dependency_injection.worker import (
     async_task_with_dependencies,
     di_workflow,
     durable_async_task_with_dependencies,
-    durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
 )
 from examples.dict_input.worker import say_hello_unsafely
-from examples.durable.worker import durable_workflow, wait_for_sleep_twice
+from examples.durable.worker import (
+    durable_sleep_event_spawn,
+    durable_with_spawn,
+    durable_workflow,
+    spawn_child_task,
+    wait_for_sleep_twice,
+    dag_child_workflow,
+    durable_spawn_dag,
+)
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
@@ -39,7 +46,10 @@ from examples.lifespans.simple import lifespan, lifespan_task
 from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
-from examples.return_exceptions.worker import return_exceptions_task
+from examples.return_exceptions.worker import (
+    exception_parsing_workflow,
+    return_exceptions_task,
+)
 from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
 from examples.simple.worker import simple, simple_durable
@@ -98,14 +108,19 @@ def main() -> None:
             webhook_with_scope,
             webhook_with_static_payload,
             return_exceptions_task,
+            exception_parsing_workflow,
             wait_for_sleep_twice,
+            spawn_child_task,
+            durable_with_spawn,
+            durable_sleep_event_spawn,
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_sync_task_with_dependencies,
             say_hello,
             say_hello_unsafely,
             serde_workflow,
+            durable_spawn_dag,
+            dag_child_workflow,
         ],
         lifespan=lifespan,
     )

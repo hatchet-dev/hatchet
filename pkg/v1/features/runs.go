@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -12,6 +14,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: RunsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // RunsClient provides methods for interacting with workflow runs
 // in the Hatchet platform.
 type RunsClient interface {
@@ -46,6 +51,9 @@ type runsClientImpl struct {
 	l        *zerolog.Logger
 }
 
+// Deprecated: NewRunsClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // NewRunsClient creates a new client for interacting with workflow runs.
 func NewRunsClient(
 	api *rest.ClientWithResponses,
@@ -63,6 +71,9 @@ func NewRunsClient(
 	}
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Get retrieves a workflow run by its ID.
 func (r *runsClientImpl) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
 	return r.api.V1WorkflowRunGetWithResponse(
@@ -71,6 +82,9 @@ func (r *runsClientImpl) Get(ctx context.Context, runId string) (*rest.V1Workflo
 	)
 }
 
+// Deprecated: GetStatus is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // GetStatus retrieves the status of a workflow run by its ID.
 func (r *runsClientImpl) GetStatus(ctx context.Context, runId string) (*rest.V1WorkflowRunGetStatusResponse, error) {
 	return r.api.V1WorkflowRunGetStatusWithResponse(
@@ -79,8 +93,10 @@ func (r *runsClientImpl) GetStatus(ctx context.Context, runId string) (*rest.V1W
 	)
 }
 
-// GetDetails retrieves detailed information about a workflow run by its ID.
-// Deprecated: Use Get instead.
+// Deprecated: GetDetails is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// GetDetails retrieves detailed information about a workflow run by its ID. Use Get instead.
 func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
 	return r.api.V1WorkflowRunGetWithResponse(
 		ctx,
@@ -88,6 +104,9 @@ func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1
 	)
 }
 
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // List retrieves a collection of workflow runs based on the provided parameters.
 func (r *runsClientImpl) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error) {
 	return r.api.V1WorkflowRunListWithResponse(
@@ -97,6 +116,9 @@ func (r *runsClientImpl) List(ctx context.Context, opts rest.V1WorkflowRunListPa
 	)
 }
 
+// Deprecated: Replay is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Replay requests a task to be replayed within a workflow run.
 func (r *runsClientImpl) Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1TaskReplayResponse, error) {
 	json, err := json.Marshal(opts)
@@ -112,6 +134,9 @@ func (r *runsClientImpl) Replay(ctx context.Context, opts rest.V1ReplayTaskReque
 	)
 }
 
+// Deprecated: Cancel is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Cancel requests cancellation of a specific task within a workflow run.
 func (r *runsClientImpl) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1TaskCancelResponse, error) {
 	json, err := json.Marshal(opts)
@@ -127,6 +152,9 @@ func (r *runsClientImpl) Cancel(ctx context.Context, opts rest.V1CancelTaskReque
 	)
 }
 
+// Deprecated: SubscribeToStream is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // SubscribeToStream subscribes to streaming events for a specific workflow run.
 func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId string) (<-chan string, error) {
 	ch := make(chan string)

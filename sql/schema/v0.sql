@@ -130,7 +130,7 @@ CREATE TYPE "WorkerLabelComparator" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "WorkerSDKS" AS ENUM ('UNKNOWN', 'GO', 'PYTHON', 'TYPESCRIPT');
+CREATE TYPE "WorkerSDKS" AS ENUM ('UNKNOWN', 'GO', 'PYTHON', 'TYPESCRIPT', 'RUBY');
 
 -- CreateEnum
 CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
@@ -454,6 +454,7 @@ CREATE TABLE "Step" (
     -- the maximum amount of time in seconds to wait between retries
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "isDurable" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -850,6 +851,7 @@ CREATE TABLE "Worker" (
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
     "dispatcherId" UUID,
+    -- FIXME: maxRuns is deprecated, remove this column in a future migration
     "maxRuns" INTEGER NOT NULL DEFAULT 100,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
@@ -861,6 +863,7 @@ CREATE TABLE "Worker" (
     "os" TEXT,
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
+    "durableTaskDispatcherId" UUID,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

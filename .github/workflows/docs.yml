@@ -25,13 +25,44 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate snippets
         working-directory: frontend/snippets
         run: python3 generate.py
       - name: Lint
         working-directory: frontend/docs
         run: npm run lint:check
+
+  search-quality:
+    runs-on: ubicloud-standard-2
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          cache-dependency-path: frontend/docs/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: frontend/docs
+        run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Generate snippets
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Generate search index
+        working-directory: frontend/docs
+        run: pnpm run generate-llms
+      - name: Run search quality tests
+        working-directory: frontend/docs
+        run: pnpm run test-search
 
   build:
     runs-on: ubicloud-standard-2
@@ -53,7 +84,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Generate snippets
         working-directory: frontend/snippets
         run: python3 generate.py

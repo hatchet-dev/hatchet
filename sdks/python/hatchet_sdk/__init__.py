@@ -1,12 +1,10 @@
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.admin import (
     RunStatus,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
 from hatchet_sdk.clients.events import PushEventOptions
-from hatchet_sdk.clients.listeners.durable_event_listener import (
-    RegisterDurableEventRequest,
-)
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     StepRunEventType,
@@ -106,6 +104,13 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+    V1WebhookHMACAlgorithm,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+    V1WebhookHMACEncoding,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_deployment_config import (
@@ -142,12 +147,14 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.workflows_pb2 import (
+from hatchet_sdk.contracts.workflows.workflows_pb2 import (
     CreateWorkflowVersionOpts,
     RateLimitDuration,
     WorkerLabelComparator,
 )
 from hatchet_sdk.exceptions import (
+    CancellationReason,
+    CancelledError,
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
     NonRetryableException,
@@ -170,6 +177,7 @@ from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.serde import remove_null_unicode_character
+from hatchet_sdk.worker.slot_types import SlotType
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -186,6 +194,9 @@ __all__ = [
     "CELEvaluationResult",
     "CELFailure",
     "CELSuccess",
+    "CancellationReason",
+    "CancellationToken",
+    "CancelledError",
     "ClientConfig",
     "ClientTLSConfig",
     "ConcurrencyExpression",
@@ -247,6 +258,7 @@ __all__ = [
     "RunStatus",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
+    "SlotType",
     "StepRun",
     "StepRunDiff",
     "StepRunEventType",
@@ -273,6 +285,9 @@ __all__ = [
     "UserTenantMembershipsList",
     "UserTenantPublic",
     "V1TaskStatus",
+    "V1WebhookHMACAlgorithm",
+    "V1WebhookHMACEncoding",
+    "V1WebhookSourceName",
     "Worker",
     "Worker",
     "WorkerContext",

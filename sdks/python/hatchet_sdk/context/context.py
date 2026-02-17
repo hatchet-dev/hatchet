@@ -4,7 +4,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from hatchet_sdk.clients.admin import AdminClient
+from hatchet_sdk.cancellation import CancellationToken
+from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
@@ -12,25 +13,28 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
-    RegisterDurableEventRequest,
 )
 from hatchet_sdk.conditions import (
     OrGroup,
     SleepCondition,
     UserEventCondition,
+    build_conditions_proto,
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.exceptions import TaskRunError
+from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
+from hatchet_sdk.exceptions import CancellationReason, TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
+from hatchet_sdk.utils.cancellation import await_with_cancellation
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.runnables.types import R, TWorkflowInput
+    from hatchet_sdk.runnables.workflow import BaseWorkflow
 
 
 class Context:
@@ -56,7 +60,7 @@ class Context:
         self.action = action
 
         self.step_run_id = action.step_run_id
-        self.exit_flag = False
+        self.cancellation_token = CancellationToken()
         self.dispatcher_client = dispatcher_client
         self.admin_client = admin_client
         self.event_client = event_client
@@ -73,6 +77,31 @@ class Context:
         self._max_attempts = max_attempts
         self._workflow_name = workflow_name
         self._task_name = task_name
+
+    @property
+    def exit_flag(self) -> bool:
+        """
+        Check if the cancellation flag has been set.
+
+        This property is maintained for backwards compatibility.
+        Use `cancellation_token.is_cancelled` for new code.
+
+        :return: True if the task has been cancelled, False otherwise.
+        """
+        return self.cancellation_token.is_cancelled
+
+    @exit_flag.setter
+    def exit_flag(self, value: bool) -> None:
+        """
+        Set the cancellation flag.
+
+        This setter is maintained for backwards compatibility.
+        Setting to True will trigger the cancellation token.
+
+        :param value: True to trigger cancellation, False is a no-op.
+        """
+        if value:
+            self.cancellation_token.cancel(CancellationReason.USER_REQUESTED)
 
     def _increment_stream_index(self) -> int:
         index = self.stream_index
@@ -169,8 +198,21 @@ class Context:
         """
         return self.action.workflow_run_id
 
-    def _set_cancellation_flag(self) -> None:
-        self.exit_flag = True
+    def _set_cancellation_flag(
+        self, reason: CancellationReason = CancellationReason.WORKFLOW_CANCELLED
+    ) -> None:
+        """
+        Internal method to trigger cancellation.
+
+        This triggers the cancellation token, which will:
+        - Signal all waiters (async and sync)
+        - Set the exit_flag property to True
+        - Allow child workflow cancellation
+
+        Args:
+            reason: The reason for cancellation.
+        """
+        self.cancellation_token.cancel(reason)
 
     def cancel(self) -> None:
         """
@@ -178,9 +220,8 @@ class Context:
 
         :return: None
         """
-        logger.debug("cancelling step...")
         self.runs_client.cancel(self.step_run_id)
-        self._set_cancellation_flag()
+        self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
 
     async def aio_cancel(self) -> None:
         """
@@ -188,9 +229,8 @@ class Context:
 
         :return: None
         """
-        logger.debug("cancelling step...")
         await self.runs_client.aio_cancel(self.step_run_id)
-        self._set_cancellation_flag()
+        self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
 
     def done(self) -> bool:
         """
@@ -474,6 +514,7 @@ class DurableContext(Context):
 
         return index
 
+    ## todo: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -482,41 +523,99 @@ class DurableContext(Context):
         """
         Durably wait for either a sleep or an event.
 
+        This method respects the context's cancellation token. If the task is cancelled
+        while waiting, an asyncio.CancelledError will be raised.
+
         :param signal_key: The key to use for the durable event. This is used to identify the event in the Hatchet API.
-        :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
+        :param \\*conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
-        :raises ValueError: If the durable event listener is not available.
+        :raises ValueError: If the durable task client is not available.
         """
         if self.durable_event_listener is None:
-            raise ValueError("Durable event listener is not available")
+            raise ValueError("Durable task client is not available")
 
-        task_id = self.step_run_id
+        from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 
-        request = RegisterDurableEventRequest(
-            task_id=task_id,
-            signal_key=signal_key,
-            conditions=flatten_conditions(list(conditions)),
-            config=self.runs_client.client_config,
+        await self._ensure_stream_started()
+
+        flat_conditions = flatten_conditions(list(conditions))
+        conditions_proto = build_conditions_proto(
+            flat_conditions, self.runs_client.client_config
+        )
+        invocation_count = self.attempt_number
+
+        ack = await self.durable_event_listener.send_event(
+            durable_task_external_id=self.step_run_id,
+            ## todo: figure out how to store this invocation count properly
+            invocation_count=invocation_count,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
+            payload=None,
+            wait_for_conditions=conditions_proto,
+        )
+        node_id = ack.node_id
+
+        result = await await_with_cancellation(
+            self.durable_event_listener.wait_for_callback(
+                durable_task_external_id=self.step_run_id,
+                node_id=node_id,
+            ),
+            self.cancellation_token,
         )
 
-        self.durable_event_listener.register_durable_event(request)
-
-        return await self.durable_event_listener.result(
-            task_id,
-            signal_key,
-        )
+        return result.payload or {}
 
     async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
-        For more complicated conditions, use `ctx.aio_wait_for` directly.
-        """
+        This method respects the context's cancellation token. If the task is cancelled
+        while sleeping, an asyncio.CancelledError will be raised.
 
+        For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+        :param duration: The duration to sleep for.
+        :return: A dictionary containing the results of the wait.
+        """
         wait_index = self._increment_wait_index()
 
         return await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
+
+    ## todo: instrumentor for this
+    async def _spawn_child(
+        self,
+        workflow: "BaseWorkflow[TWorkflowInput]",
+        input: TWorkflowInput = cast(Any, EmptyModel()),
+        options: "TriggerWorkflowOptions" | None = None,
+    ) -> dict[str, Any]:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable task client is not available")
+
+        await self._ensure_stream_started()
+
+        ack = await self.durable_event_listener.send_event(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=self.attempt_number,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
+            payload=workflow._serialize_input(input),
+            workflow_name=workflow.config.name,
+            trigger_workflow_opts=options,
+        )
+
+        node_id = ack.node_id
+
+        result = await self.durable_event_listener.wait_for_callback(
+            durable_task_external_id=self.step_run_id,
+            node_id=node_id,
+        )
+
+        return result.payload or {}
+
+    async def _ensure_stream_started(self) -> None:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable task client is not available")
+
+        await self.durable_event_listener.ensure_started(self.action.worker_id)

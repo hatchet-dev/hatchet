@@ -5,6 +5,27 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-02-13
+
+### Added
+
+- Webhooks client for managing incoming webhooks: create, list, get, update, and delete methods for webhooks, so external systems (e.g. GitHub, Stripe) can trigger workflows via HTTP.
+
+
+## [1.11.0] - 2026-02-05
+
+### Internal Only
+
+- Updated gRPC/REST contract field names to lowerCamelCase for consistency across SDKs.
+
+
+## [1.11.0] - 2026-02-04
+
+### Changed
+
+- Updated the metrics client for the latest server metrics APIs (including adding `getTaskStatusMetrics` for tenant task/run status counts).
+- Removes deprecated metrics methods.
+
 ## [1.10.8] - 2026-02-02
 
 ### Changed

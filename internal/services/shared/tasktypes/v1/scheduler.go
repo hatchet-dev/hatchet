@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -84,4 +85,58 @@ func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgq
 
 type TaskAssignedBulkTaskPayload struct {
 	WorkerIdToTaskIds map[uuid.UUID][]int64 `json:"worker_id_to_task_id" validate:"required"`
+}
+
+type NewWorkerPayload struct {
+	WorkerId uuid.UUID `json:"worker_id"`
+}
+
+func NotifyNewWorker(tenantId uuid.UUID, workerId uuid.UUID) (*msgqueue.Message, error) {
+	payload := NewWorkerPayload{
+		WorkerId: workerId,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDNewWorker,
+		true,
+		false,
+		payload,
+	)
+}
+
+type NewQueuePayload struct {
+	QueueName string `json:"queue_name"`
+}
+
+func NotifyNewQueue(tenantId uuid.UUID, queueName string) (*msgqueue.Message, error) {
+	payload := NewQueuePayload{
+		QueueName: queueName,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDNewQueue,
+		true,
+		false,
+		payload,
+	)
+}
+
+type NewConcurrencyStrategyPayload struct {
+	StrategyId int64 `json:"strategy_id"`
+}
+
+func NotifyNewConcurrencyStrategy(tenantId uuid.UUID, strategyId int64) (*msgqueue.Message, error) {
+	payload := NewConcurrencyStrategyPayload{
+		StrategyId: strategyId,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDNewConcurrencyStrategy,
+		true,
+		false,
+		payload,
+	)
 }

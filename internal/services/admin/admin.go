@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	contracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	scheduler "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
@@ -44,11 +44,10 @@ type AdminServiceOpts struct {
 	v                           validator.Validator
 	localScheduler              *scheduler.Scheduler
 	localDispatcher             *dispatcher.DispatcherImpl
-	optimisticSchedulingEnabled bool
 	l                           *zerolog.Logger
-
-	grpcTriggersEnabled bool
-	grpcTriggerSlots    int
+	grpcTriggerSlots            int
+	optimisticSchedulingEnabled bool
+	grpcTriggersEnabled         bool
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {

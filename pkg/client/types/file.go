@@ -26,6 +26,8 @@ type Concurrency struct {
 	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
 }
 
+// Deprecated: Workflow is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 
@@ -66,6 +68,8 @@ type WorkflowConcurrency struct {
 	ActionID *string `yaml:"action,omitempty"`
 }
 
+// Deprecated: WorkflowTriggers is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowTriggers struct {
 	Events    []string    `yaml:"events,omitempty"`
 	Cron      []string    `yaml:"crons,omitempty"`
@@ -88,6 +92,8 @@ type WorkflowEvent struct {
 	Name string `yaml:"name,omitempty"`
 }
 
+// Deprecated: WorkflowJob is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowJob struct {
 	Description string `yaml:"description,omitempty"`
 
@@ -116,6 +122,8 @@ type DesiredWorkerLabel struct {
 	Comparator *WorkerLabelComparator `yaml:"comparator,omitempty"`
 }
 
+// Deprecated: WorkflowStep is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowStep struct {
 	Name     string `yaml:"name,omitempty"`
 	ID       string `yaml:"id,omitempty"`
@@ -149,6 +157,8 @@ type RateLimit struct {
 	Duration       *RateLimitDuration `yaml:"duration,omitempty"`
 }
 
+// Deprecated: ParseYAML is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {
 	var workflowFile Workflow
 
@@ -164,6 +174,8 @@ func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {
 	return workflowFile, nil
 }
 
+// Deprecated: ToYAML is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func ToYAML(ctx context.Context, workflow *Workflow) ([]byte, error) {
 	var b bytes.Buffer
 	yamlEncoder := yaml.NewEncoder(&b)

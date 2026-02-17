@@ -304,51 +304,6 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	return nil
 }
 
-func (d *DispatcherServiceImpl) GetDurableEventLog(ctx context.Context, req *contracts.GetDurableEventLogRequest) (*contracts.GetDurableEventLogResponse, error) {
-	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID
-
-	if _, err := uuid.Parse(req.ExternalId); err != nil {
-		return nil, status.Error(codes.InvalidArgument, "external id is not a valid uuid")
-	}
-
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, uuid.MustParse(req.ExternalId), false)
-	if err != nil {
-		return nil, err
-	}
-
-	row, err := d.repo.Tasks().GetDurableEventLog(ctx, tenantId, task.ID, task.InsertedAt, req.Key)
-	if err != nil {
-		return &contracts.GetDurableEventLogResponse{Found: false}, nil
-	}
-
-	return &contracts.GetDurableEventLogResponse{
-		Found: true,
-		Data:  row.Data,
-	}, nil
-}
-
-func (d *DispatcherServiceImpl) CreateDurableEventLog(ctx context.Context, req *contracts.CreateDurableEventLogRequest) (*contracts.CreateDurableEventLogResponse, error) {
-	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID
-
-	if _, err := uuid.Parse(req.ExternalId); err != nil {
-		return nil, status.Error(codes.InvalidArgument, "external id is not a valid uuid")
-	}
-
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, uuid.MustParse(req.ExternalId), false)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = d.repo.Tasks().CreateDurableEventLog(ctx, tenantId, task.ID, task.InsertedAt, "MEMO", req.Key, req.Data)
-	if err != nil {
-		return nil, err
-	}
-
-	return &contracts.CreateDurableEventLogResponse{}, nil
-}
-
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	done := make(chan struct{})
 
@@ -362,4 +317,340 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	case <-time.After(timeout):
 		l.Error().Msg("timed out waiting for wait group")
 	}
+}
+
+type durableTaskInvocation struct {
+	server   contracts.V1Dispatcher_DurableTaskServer
+	l        *zerolog.Logger
+	sendMu   sync.Mutex
+	tenantId uuid.UUID
+	workerId uuid.UUID
+}
+
+func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	return s.server.Send(resp)
+}
+
+func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
+	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	ctx, cancel := context.WithCancel(server.Context())
+	defer cancel()
+
+	invocation := &durableTaskInvocation{
+		server:   server,
+		tenantId: tenantId,
+		l:        d.l,
+	}
+
+	registeredTasks := make(map[uuid.UUID]struct{})
+	defer func() {
+		for taskId := range registeredTasks {
+			d.durableInvocations.Delete(taskId)
+		}
+		d.workerInvocations.Delete(invocation.workerId)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		req, err := server.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+				return nil
+			}
+			d.l.Error().Err(err).Msg("error receiving durable task request")
+			return err
+		}
+
+		if event := req.GetEvent(); event != nil {
+			taskExtId, err := uuid.Parse(event.DurableTaskExternalId)
+
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "invalid durable task external id: %v", err)
+			}
+
+			if _, exists := registeredTasks[taskExtId]; !exists {
+				d.durableInvocations.Store(taskExtId, invocation)
+				registeredTasks[taskExtId] = struct{}{}
+			}
+		}
+
+		if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+			d.l.Error().Err(err).Msg("error handling durable task request")
+			// Continue processing other requests rather than closing the stream
+		}
+	}
+}
+
+func (d *DispatcherServiceImpl) handleDurableTaskRequest(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskRequest,
+) error {
+	switch msg := req.GetMessage().(type) {
+	case *contracts.DurableTaskRequest_RegisterWorker:
+		return d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker)
+
+	case *contracts.DurableTaskRequest_Event:
+		return d.handleDurableTaskEvent(ctx, invocation, msg.Event)
+
+	case *contracts.DurableTaskRequest_EvictInvocation:
+		return d.handleEvictInvocation(ctx, invocation, msg.EvictInvocation)
+
+	case *contracts.DurableTaskRequest_WorkerStatus:
+		return d.handleWorkerStatus(ctx, invocation, msg.WorkerStatus)
+
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown message type: %T", msg)
+	}
+}
+
+func (d *DispatcherServiceImpl) handleRegisterWorker(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskRequestRegisterWorker,
+) error {
+	workerId, err := uuid.Parse(req.WorkerId)
+
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid worker id: %v", err)
+	}
+
+	invocation.workerId = workerId
+	d.workerInvocations.Store(workerId, invocation)
+
+	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to update worker durable task dispatcher id: %v", err)
+	}
+
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_RegisterWorker{
+			RegisterWorker: &contracts.DurableTaskResponseRegisterWorker{
+				WorkerId: req.WorkerId,
+			},
+		},
+	})
+}
+
+func getDurableTaskEventKind(eventKind contracts.DurableTaskEventKind) (sqlcv1.V1DurableEventLogKind, error) {
+	switch eventKind {
+	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
+		return sqlcv1.V1DurableEventLogKindWAITFOR, nil
+	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_RUN:
+		return sqlcv1.V1DurableEventLogKindRUN, nil
+	case contracts.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO:
+		return sqlcv1.V1DurableEventLogKindMEMO, nil
+	default:
+		return "", fmt.Errorf("unsupported event kind: %v", eventKind)
+	}
+}
+
+func (d *DispatcherServiceImpl) handleDurableTaskEvent(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskEventRequest,
+) error {
+	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+	}
+
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+
+	kind, err := getDurableTaskEventKind(req.Kind)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid event kind: %v", err)
+	}
+
+	var triggerOpts *v1.WorkflowNameTriggerOpts
+
+	if kind == sqlcv1.V1DurableEventLogKindRUN {
+		ttd, err := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, req.TriggerOpts, task)
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
+		}
+
+		optsSlice := []*v1.WorkflowNameTriggerOpts{{
+			TriggerTaskData: ttd,
+		}}
+
+		err = d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, optsSlice)
+
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", err)
+		}
+
+		triggerOpts = optsSlice[0]
+	}
+
+	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
+
+	if req.WaitForConditions != nil {
+		for _, condition := range req.WaitForConditions.SleepConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+			}
+
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindSLEEP,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				SleepFor:        &condition.SleepFor,
+			})
+		}
+
+		for _, condition := range req.WaitForConditions.UserEventConditions {
+			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
+			if err != nil {
+				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+			}
+
+			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
+				Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
+				ReadableDataKey: condition.Base.ReadableDataKey,
+				OrGroupId:       orGroupId,
+				UserEventKey:    &condition.UserEventKey,
+				Expression:      condition.Base.Expression,
+			})
+		}
+	}
+
+	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
+		TenantId:          invocation.tenantId,
+		Task:              task,
+		Kind:              kind,
+		Payload:           req.Payload,
+		WaitForConditions: createConditionOpts,
+		InvocationCount:   req.InvocationCount,
+		TriggerOpts:       triggerOpts,
+	})
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
+	}
+
+	if len(ingestionResult.CreatedTasks) > 0 || len(ingestionResult.CreatedDAGs) > 0 {
+		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, ingestionResult.CreatedTasks, ingestionResult.CreatedDAGs); sigErr != nil {
+			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
+		}
+	}
+
+	err = invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_TriggerAck{
+			TriggerAck: &contracts.DurableTaskEventAckResponse{
+				InvocationCount:       req.InvocationCount,
+				DurableTaskExternalId: req.DurableTaskExternalId,
+				NodeId:                ingestionResult.NodeId,
+			},
+		},
+	})
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
+	}
+
+	if ingestionResult.Callback.Callback.IsSatisfied {
+		err := d.DeliverCallbackCompletion(
+			taskExternalId,
+			ingestionResult.NodeId,
+			ingestionResult.Callback.Result,
+		)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, ingestionResult.NodeId)
+			return status.Errorf(codes.Internal, "failed to deliver callback completion: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) handleEvictInvocation(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskEvictInvocationRequest,
+) error {
+	// todo: implement eviction here
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) handleWorkerStatus(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskWorkerStatusRequest,
+) error {
+	if len(req.WaitingCallbacks) == 0 {
+		return nil
+	}
+
+	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingCallbacks))
+	for _, cb := range req.WaitingCallbacks {
+		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
+		if err != nil {
+			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status: %s", cb.DurableTaskExternalId)
+			continue
+		}
+		waiting = append(waiting, v1.TaskExternalIdNodeId{
+			TaskExternalId: taskExternalId,
+			NodeId:         cb.NodeId,
+		})
+	}
+
+	if len(waiting) == 0 {
+		return nil
+	}
+
+	callbacks, err := d.repo.DurableEvents().GetSatisfiedCallbacks(ctx, invocation.tenantId, waiting)
+	if err != nil {
+		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
+	}
+
+	for _, cb := range callbacks {
+		if err := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_CallbackCompleted{
+				CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+					DurableTaskExternalId: cb.TaskExternalId.String(),
+					NodeId:                cb.NodeID,
+					Payload:               cb.Result,
+				},
+			},
+		}); err != nil {
+			d.l.Error().Err(err).Msgf("failed to send callback_completed for task %s node %d", cb.TaskExternalId, cb.NodeID)
+		}
+	}
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
+	inv, ok := d.durableInvocations.Load(taskExternalId)
+	if !ok {
+		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
+	}
+
+	return inv.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_CallbackCompleted{
+			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+				DurableTaskExternalId: taskExternalId.String(),
+				NodeId:                nodeId,
+				Payload:               payload,
+			},
+		},
+	})
 }

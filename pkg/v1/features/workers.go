@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -7,6 +9,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: WorkersClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // WorkersClient provides methods for interacting with workers
 // in the Hatchet platform.
 type WorkersClient interface {
@@ -32,6 +37,9 @@ type workersClientImpl struct {
 	tenantId uuid.UUID
 }
 
+// Deprecated: NewWorkersClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // NewWorkersClient creates a new client for interacting with workers.
 func NewWorkersClient(
 	api *rest.ClientWithResponses,
@@ -45,6 +53,9 @@ func NewWorkersClient(
 	}
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Get retrieves a worker by its ID.
 func (w *workersClientImpl) Get(ctx context.Context, workerId string) (*rest.Worker, error) {
 	workerIdUUID, err := uuid.Parse(workerId)
@@ -63,6 +74,9 @@ func (w *workersClientImpl) Get(ctx context.Context, workerId string) (*rest.Wor
 	return resp.JSON200, nil
 }
 
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // List retrieves all workers for the tenant.
 func (w *workersClientImpl) List(ctx context.Context) (*rest.WorkerList, error) {
 	resp, err := w.api.WorkerListWithResponse(
@@ -76,6 +90,9 @@ func (w *workersClientImpl) List(ctx context.Context) (*rest.WorkerList, error) 
 	return resp.JSON200, nil
 }
 
+// Deprecated: IsPaused is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // IsPaused checks if a worker is paused.
 func (w *workersClientImpl) IsPaused(ctx context.Context, workerId string) (bool, error) {
 	worker, err := w.Get(ctx, workerId)
@@ -92,6 +109,9 @@ func (w *workersClientImpl) IsPaused(ctx context.Context, workerId string) (bool
 	return *worker.Status == rest.WorkerStatus("PAUSED"), nil
 }
 
+// Deprecated: Pause is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Pause pauses a worker.
 func (w *workersClientImpl) Pause(ctx context.Context, workerId string) (*rest.Worker, error) {
 	workerIdUUID, err := uuid.Parse(workerId)
@@ -117,6 +137,9 @@ func (w *workersClientImpl) Pause(ctx context.Context, workerId string) (*rest.W
 	return resp.JSON200, nil
 }
 
+// Deprecated: Unpause is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // Unpause unpauses a worker.
 func (w *workersClientImpl) Unpause(ctx context.Context, workerId string) (*rest.Worker, error) {
 	workerIdUUID, err := uuid.Parse(workerId)

@@ -1,0 +1,41 @@
+module Hatchet
+  module Features
+    class Scheduled
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+
+      def create: (
+        workflow_name: String,
+        trigger_at: Time,
+        ?input: Hash[String, untyped],
+        ?additional_metadata: Hash[String, untyped]
+      ) -> untyped
+
+      def delete: (String scheduled_id) -> void
+      def update: (String scheduled_id, trigger_at: Time) -> untyped
+
+      def bulk_delete: (
+        ?scheduled_ids: Array[String]?,
+        ?workflow_id: String?,
+        ?parent_workflow_run_id: String?,
+        ?parent_step_run_id: String?,
+        ?statuses: Array[String]?,
+        ?additional_metadata: Hash[String, String]?
+      ) -> untyped
+
+      def bulk_update: (Array[Hash[Symbol, untyped]] updates) -> untyped
+
+      def list: (
+        ?offset: Integer?,
+        ?limit: Integer?,
+        ?workflow_id: String?,
+        ?parent_workflow_run_id: String?,
+        ?statuses: Array[String]?,
+        ?additional_metadata: Hash[String, String]?,
+        ?order_by_field: String?,
+        ?order_by_direction: String?
+      ) -> untyped
+
+      def get: (String scheduled_id) -> untyped
+    end
+  end
+end

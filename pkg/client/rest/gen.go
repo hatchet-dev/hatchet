@@ -296,6 +296,7 @@ const (
 	LINEAR  V1WebhookSourceName = "LINEAR"
 	SLACK   V1WebhookSourceName = "SLACK"
 	STRIPE  V1WebhookSourceName = "STRIPE"
+	SVIX    V1WebhookSourceName = "SVIX"
 )
 
 // Defines values for V1WorkflowType.
@@ -315,6 +316,7 @@ const (
 const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
 	PYTHON     WorkerRuntimeSDKs = "PYTHON"
+	RUBY       WorkerRuntimeSDKs = "RUBY"
 	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
 )
 
@@ -994,15 +996,21 @@ type SlackWebhook struct {
 
 // Step defines model for Step.
 type Step struct {
-	Action   string          `json:"action"`
-	Children *[]string       `json:"children,omitempty"`
-	JobId    string          `json:"jobId"`
-	Metadata APIResourceMeta `json:"metadata"`
-	Parents  *[]string       `json:"parents,omitempty"`
+	Action   string    `json:"action"`
+	Children *[]string `json:"children,omitempty"`
+
+	// IsDurable Whether the step is durable.
+	IsDurable *bool           `json:"isDurable,omitempty"`
+	JobId     string          `json:"jobId"`
+	Metadata  APIResourceMeta `json:"metadata"`
+	Parents   *[]string       `json:"parents,omitempty"`
 
 	// ReadableId The readable id of the step.
 	ReadableId string `json:"readableId"`
-	TenantId   string `json:"tenantId"`
+
+	// SlotRequests Slot requests for the step (slot_type -> units).
+	SlotRequests *map[string]int `json:"slotRequests,omitempty"`
+	TenantId     string          `json:"tenantId"`
 
 	// Timeout The timeout of the step.
 	Timeout *string `json:"timeout,omitempty"`
@@ -1892,7 +1900,7 @@ type V1UpdateFilterRequest struct {
 // V1UpdateWebhookRequest defines model for V1UpdateWebhookRequest.
 type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
-	EventKeyExpression string `json:"eventKeyExpression"`
+	EventKeyExpression *string `json:"eventKeyExpression,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string `json:"scopeExpression,omitempty"`
@@ -1966,6 +1974,15 @@ type V1WebhookHMACEncoding string
 type V1WebhookList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]V1Webhook        `json:"rows,omitempty"`
+}
+
+// V1WebhookResponse defines model for V1WebhookResponse.
+type V1WebhookResponse struct {
+	Challenge *string  `json:"challenge,omitempty"`
+	Event     *V1Event `json:"event,omitempty"`
+
+	// Message The message for the webhook response
+	Message *string `json:"message,omitempty"`
 }
 
 // V1WebhookSourceName defines model for V1WebhookSourceName.
@@ -2109,9 +2126,6 @@ type Worker struct {
 	// Actions The actions this worker can perform.
 	Actions *[]string `json:"actions,omitempty"`
 
-	// AvailableRuns The number of runs this worker can execute concurrently.
-	AvailableRuns *int `json:"availableRuns,omitempty"`
-
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
 
@@ -2122,11 +2136,8 @@ type Worker struct {
 	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
 
 	// LastListenerEstablished The time this worker last sent a heartbeat.
-	LastListenerEstablished *time.Time `json:"lastListenerEstablished,omitempty"`
-
-	// MaxRuns The maximum number of runs this worker can execute concurrently.
-	MaxRuns  *int            `json:"maxRuns,omitempty"`
-	Metadata APIResourceMeta `json:"metadata"`
+	LastListenerEstablished *time.Time      `json:"lastListenerEstablished,omitempty"`
+	Metadata                APIResourceMeta `json:"metadata"`
 
 	// Name The name of the worker.
 	Name string `json:"name"`
@@ -2137,6 +2148,9 @@ type Worker struct {
 	// RegisteredWorkflows The workflow ids registered on this worker.
 	RegisteredWorkflows *[]RegisteredWorkflow `json:"registeredWorkflows,omitempty"`
 	RuntimeInfo         *WorkerRuntimeInfo    `json:"runtimeInfo,omitempty"`
+
+	// SlotConfig Slot availability and limits for this worker (slot_type -> { available, limit }).
+	SlotConfig *map[string]WorkerSlotConfig `json:"slotConfig,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
@@ -2182,6 +2196,15 @@ type WorkerRuntimeInfo struct {
 
 // WorkerRuntimeSDKs defines model for WorkerRuntimeSDKs.
 type WorkerRuntimeSDKs string
+
+// WorkerSlotConfig Slot availability and limits for a slot type.
+type WorkerSlotConfig struct {
+	// Available The number of available units for this slot type.
+	Available *int `json:"available,omitempty"`
+
+	// Limit The maximum number of units for this slot type.
+	Limit int `json:"limit"`
+}
 
 // WorkerType defines model for WorkerType.
 type WorkerType string
@@ -14543,7 +14566,7 @@ func (r V1WebhookUpdateResponse) StatusCode() int {
 type V1WebhookReceiveResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *map[string]interface{}
+	JSON200      *V1WebhookResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 }
@@ -19938,7 +19961,7 @@ func ParseV1WebhookReceiveResponse(rsp *http.Response) (*V1WebhookReceiveRespons
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest map[string]interface{}
+		var dest V1WebhookResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

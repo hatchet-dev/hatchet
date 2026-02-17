@@ -121,6 +121,8 @@ func (q *Queuer) queue(ctx context.Context) {
 func (q *Queuer) loopQueue(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 
+	q.l.Debug().Msgf("starting queue loop for tenant %s and queue %s with limit %d", q.tenantId, q.queueName, q.limit)
+
 	for {
 		var carrier map[string]string
 
@@ -130,6 +132,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case <-ticker.C:
 		case carrier = <-q.notifyQueueCh:
 		}
+
+		q.l.Debug().Msgf("queue loop tick for tenant %s and queue %s", q.tenantId, q.queueName)
 
 		prometheus.QueueInvocations.Inc()
 		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
@@ -161,6 +165,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
 		}
+
+		q.l.Debug().Int("refilled_items", len(qis)).Msgf("refilled queue for tenant %s and queue %s", q.tenantId, q.queueName)
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
@@ -207,7 +213,21 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, rls)
+		stepRequests, err := q.repo.GetStepSlotRequests(ctx, nil, stepIds)
+
+		if err != nil {
+			span.RecordError(err)
+			span.End()
+			q.l.Error().Err(err).Msg("error getting step slot requests")
+
+			q.unackedToUnassigned(qis)
+			continue
+		}
+
+		getSlotRequestsTime := time.Since(checkpoint)
+		checkpoint = time.Now()
+
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -286,6 +306,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				"rate_limit_time", rateLimitTime,
 			).Dur(
 				"desired_labels_time", desiredLabelsTime,
+			).Dur(
+				"get_slot_requests_time", getSlotRequestsTime,
 			).Dur(
 				"assign_time", assignTime,
 			).Msgf("queue %s took longer than 100ms (%s) to process %d items", q.queueName, elapsed, len(qis))
@@ -594,7 +616,12 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, rls)
+	stepRequests, err := q.repo.GetStepSlotRequests(ctx, tx, stepIds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults

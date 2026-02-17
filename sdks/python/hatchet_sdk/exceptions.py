@@ -1,5 +1,6 @@
 import json
 import traceback
+from enum import Enum
 from typing import cast
 
 
@@ -38,27 +39,26 @@ class TaskRunError(Exception):
         return str(self)
 
     def serialize(self, include_metadata: bool) -> str:
-        if not self.exc_type or not self.exc:
-            return ""
-
-        metadata = json.dumps(
-            {
-                TASK_RUN_ERROR_METADATA_KEY: {
-                    "task_run_external_id": self.task_run_external_id,
-                }
-            },
-            indent=None,
-        )
-
+        exc_type = self.exc_type.replace(": ", ":::")
+        exc = self.exc.replace("\n", "\\\n")
+        header = f"{exc_type}: {exc}" if exc_type and exc else f"{exc_type}{exc}"
         result = (
-            self.exc_type.replace(": ", ":::")
-            + ": "
-            + self.exc.replace("\n", "\\\n")
-            + "\n"
-            + self.trace
+            f"{header}\n{self.trace}"
+            if header and self.trace
+            else f"{header}{self.trace}"
         )
+        if result == "":
+            return result
 
         if include_metadata:
+            metadata = json.dumps(
+                {
+                    TASK_RUN_ERROR_METADATA_KEY: {
+                        "task_run_external_id": self.task_run_external_id,
+                    }
+                },
+                indent=None,
+            )
             return result + "\n\n" + metadata
 
         return result
@@ -171,3 +171,54 @@ class IllegalTaskOutputError(Exception):
 
 class LifespanSetupError(Exception):
     pass
+
+
+class CancellationReason(Enum):
+    """Reason for cancellation of an operation."""
+
+    USER_REQUESTED = "user_requested"
+    """The user explicitly requested cancellation."""
+
+    TIMEOUT = "timeout"
+    """The operation timed out."""
+
+    PARENT_CANCELLED = "parent_cancelled"
+    """The parent workflow or task was cancelled."""
+
+    WORKFLOW_CANCELLED = "workflow_cancelled"
+    """The workflow run was cancelled."""
+
+    TOKEN_CANCELLED = "token_cancelled"
+    """The cancellation token was cancelled."""
+
+
+class CancelledError(BaseException):
+    """
+    Raised when an operation is cancelled via CancellationToken.
+
+    This exception inherits from BaseException (not Exception) so that it
+    won't be caught by bare `except Exception:` handlers. This mirrors the
+    behavior of asyncio.CancelledError in Python 3.8+.
+
+    To catch this exception, use:
+        - `except CancelledError:` (recommended)
+        - `except BaseException:` (catches all exceptions)
+
+    This exception is used for sync code paths. For async code paths,
+    asyncio.CancelledError is used instead.
+
+    :param message: Optional message describing the cancellation.
+    :param reason: Optional enum indicating the reason for cancellation.
+    """
+
+    def __init__(
+        self,
+        message: str = "Operation cancelled",
+        reason: CancellationReason | None = None,
+    ) -> None:
+        self.reason = reason
+        super().__init__(message)
+
+    @property
+    def message(self) -> str:
+        return str(self.args[0]) if self.args else "Operation cancelled"

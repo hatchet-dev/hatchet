@@ -109,7 +109,7 @@ type ReplayTaskOpts struct {
 }
 
 type TaskIdInsertedAtRetryCount struct {
-	// (required) the external id
+	// (required) the id
 	Id int64 `validate:"required"`
 
 	// (required) the inserted at time
@@ -273,9 +273,7 @@ type TaskRepository interface {
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error)
 
-	GetDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLog, error)
-
-	CreateDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error)
+	FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts []TaskIdInsertedAtRetryCount) (map[int64]struct{}, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1734,7 +1732,7 @@ func (r *sharedRepository) insertTasks(
 	stepTimeouts := make([]string, len(tasks))
 	priorities := make([]int32, len(tasks))
 	stickies := make([]string, len(tasks))
-	desiredWorkerIds := make([]uuid.UUID, len(tasks))
+	desiredWorkerIds := make([]*uuid.UUID, len(tasks))
 	externalIds := make([]uuid.UUID, len(tasks))
 	displayNames := make([]string, len(tasks))
 	retryCounts := make([]int32, len(tasks))
@@ -1805,11 +1803,7 @@ func (r *sharedRepository) insertTasks(
 			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
 		}
 
-		desiredWorkerIds[i] = uuid.Nil
-
-		if task.DesiredWorkerId != nil {
-			desiredWorkerIds[i] = *task.DesiredWorkerId
-		}
+		desiredWorkerIds[i] = task.DesiredWorkerId
 
 		initialStates[i] = string(task.InitialState)
 		if initialStates[i] == "" {
@@ -2049,7 +2043,7 @@ func (r *sharedRepository) insertTasks(
 				Steptimeouts:                 make([]string, 0),
 				Priorities:                   make([]int32, 0),
 				Stickies:                     make([]string, 0),
-				Desiredworkerids:             make([]uuid.UUID, 0),
+				Desiredworkerids:             make([]*uuid.UUID, 0),
 				Externalids:                  make([]uuid.UUID, 0),
 				Displaynames:                 make([]string, 0),
 				Retrycounts:                  make([]int32, 0),
@@ -3143,8 +3137,12 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				childKey = &task.ChildKey.String
 			}
 
-			parentExternalId := task.ParentTaskExternalID
-			k := getChildSignalEventKey(*parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
+			var parentExternalId uuid.UUID
+
+			if task.ParentTaskExternalID == nil {
+				parentExternalId = *task.ParentTaskExternalID
+			}
+			k := getChildSignalEventKey(parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
 
 			signalEventKeys = append(signalEventKeys, k)
 			parentTaskIds = append(parentTaskIds, task.ParentTaskID.Int64)
@@ -3153,7 +3151,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			eventMatches = append(eventMatches, CreateMatchOpts{
 				Kind:                 sqlcv1.V1MatchKindSIGNAL,
 				Conditions:           getChildWorkflowGroupMatches(task.ExternalID, task.StepReadableID),
-				SignalExternalId:     parentExternalId,
+				SignalExternalId:     task.ParentTaskExternalID,
 				SignalTaskId:         &task.ParentTaskID.Int64,
 				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
 				SignalKey:            &k,
@@ -4182,63 +4180,31 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) GetDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, key string) (*sqlcv1.V1DurableEventLog, error) {
-	res, err := r.queries.GetDurableEventLog(ctx, r.pool, sqlcv1.GetDurableEventLogParams{
-		TenantID:       tenantId,
-		TaskID:         taskId,
-		TaskInsertedAt: taskInsertedAt,
-		Key:            key,
-	})
+func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts []TaskIdInsertedAtRetryCount) (map[int64]struct{}, error) {
+	res := make(map[int64]struct{})
 
+	taskIds := make([]int64, len(opts))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
+	taskRetryCounts := make([]int32, len(opts))
+
+	for i, opt := range opts {
+		taskIds[i] = opt.Id
+		taskInsertedAts[i] = opt.InsertedAt
+		taskRetryCounts[i] = opt.RetryCount
+	}
+
+	taskIds, err := r.queries.FilterValidTasks(ctx, r.pool, sqlcv1.FilterValidTasksParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	retrieveOpt := RetrievePayloadOpts{
-		Id:         res.ID.Int64,
-		InsertedAt: res.CreatedAt,
-		Type:       sqlcv1.V1PayloadTypeMEMOOUTPUT,
-		TenantId:   tenantId,
-	}
-
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpt)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve durable event log payload: %w", err)
-	}
-
-	if payload, ok := payloads[retrieveOpt]; ok {
-		res.Data = payload
-	}
-
-	return res, nil
-}
-
-func (r *TaskRepositoryImpl) CreateDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, eventType string, key string, data []byte) (*sqlcv1.V1DurableEventLog, error) {
-	res, err := r.queries.CreateDurableEventLog(ctx, r.pool, sqlcv1.CreateDurableEventLogParams{
-		TenantID:       tenantId,
-		TaskID:         taskId,
-		TaskInsertedAt: taskInsertedAt,
-		EventType:      eventType,
-		Key:            key,
-		Data:           data,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = r.payloadStore.Store(ctx, r.pool, StorePayloadOpts{
-		Id:         res.ID.Int64,
-		InsertedAt: res.CreatedAt,
-		ExternalId: res.ExternalID,
-		Type:       sqlcv1.V1PayloadTypeMEMOOUTPUT,
-		Payload:    data,
-		TenantId:   tenantId,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to store durable event log payload: %w", err)
+	for _, taskId := range taskIds {
+		res[taskId] = struct{}{}
 	}
 
 	return res, nil

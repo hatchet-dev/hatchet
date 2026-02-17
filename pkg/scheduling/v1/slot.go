@@ -1,11 +1,13 @@
 package v1
 
 import (
+	"fmt"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -13,34 +15,83 @@ import (
 // time for unacked slots to get written back to the database.
 const defaultSlotExpiry = 1500 * time.Millisecond
 
-type slot struct {
-	worker  *worker
-	actions []string
-
-	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
-	expiresAt *time.Time
-	used      bool
-
-	ackd bool
-
-	additionalAcks  []func()
-	additionalNacks []func()
-
-	mu sync.RWMutex
+// slotMeta is shared across many slots to avoid duplicating
+// metadata that is identical for a worker/type.
+type slotMeta struct {
+	slotType string
+	actions  []string
 }
 
-func newSlot(worker *worker, actions []string) *slot {
+func newSlotMeta(actions []string, slotType string) *slotMeta {
+	return &slotMeta{
+		actions:  actions,
+		slotType: slotType,
+	}
+}
+
+type slot struct {
+	worker          *worker
+	meta            *slotMeta
+	expiresAt       *time.Time
+	additionalAcks  []func()
+	additionalNacks []func()
+	mu              sync.RWMutex
+	used            bool
+	ackd            bool
+}
+
+type assignedSlots struct {
+	rateLimitAck  func()
+	rateLimitNack func()
+	slots         []*slot
+}
+
+func (a *assignedSlots) workerId() uuid.UUID {
+	if len(a.slots) == 0 {
+		return uuid.Nil
+	}
+
+	return a.slots[0].getWorkerId()
+}
+
+func (a *assignedSlots) ack() {
+	for _, slot := range a.slots {
+		slot.ack()
+	}
+	if a.rateLimitAck != nil {
+		a.rateLimitAck()
+	}
+}
+
+func (a *assignedSlots) nack() {
+	for _, slot := range a.slots {
+		slot.nack()
+	}
+	if a.rateLimitNack != nil {
+		a.rateLimitNack()
+	}
+}
+
+func newSlot(worker *worker, meta *slotMeta) *slot {
 	expires := time.Now().Add(defaultSlotExpiry)
 
 	return &slot{
 		worker:    worker,
-		actions:   actions,
+		meta:      meta,
 		expiresAt: &expires,
 	}
 }
 
 func (s *slot) getWorkerId() uuid.UUID {
 	return s.worker.ID
+}
+
+func (s *slot) getSlotType() (string, error) {
+	if s.meta == nil {
+		return "", fmt.Errorf("slot has nil meta")
+	}
+
+	return s.meta.slotType, nil
 }
 
 func (s *slot) extendExpiry() {

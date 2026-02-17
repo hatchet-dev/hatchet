@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -30,6 +31,12 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 
 		if err != nil {
 			return false, fmt.Errorf("could not signal created tasks: %w", err)
+		}
+	}
+
+	if len(matchResult.SatisfiedCallbacks) > 0 {
+		if err := tc.processSatisfiedCallbacks(ctx, tenantIdUUID, matchResult.SatisfiedCallbacks); err != nil {
+			tc.l.Error().Err(err).Msg("could not process satisfied callbacks from sleep")
 		}
 	}
 

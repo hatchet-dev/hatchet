@@ -397,8 +397,14 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
+	re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
+
 	if err != nil {
-		return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		if isInvalidArgument {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+		} else {
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		}
 	}
 
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
@@ -658,10 +664,58 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		},
 	)
 
+	// notify that a new set of queues have been created
+	// important: this assumes that actions correspond 1:1 with queues, which they do at the moment
+	// but might not in the future
+	actions, err := getActionsForTasks(req.Tasks)
+
+	if tenant.SchedulerPartitionId.Valid && err == nil {
+		go func() {
+			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			for _, action := range actions {
+				msg, err := tasktypes.NotifyNewQueue(tenantId, action)
+
+				if err != nil {
+					a.l.Err(err).Msg("could not create message for notifying new queue")
+				} else {
+					err = a.mq.SendMessage(
+						notifyCtx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msg,
+					)
+
+					if err != nil {
+						a.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
+				}
+			}
+		}()
+	}
+
 	return &contracts.CreateWorkflowVersionResponse{
 		Id:         currWorkflow.WorkflowVersion.ID.String(),
 		WorkflowId: currWorkflow.WorkflowVersion.WorkflowId.String(),
 	}, nil
+}
+
+func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {
+	actions := make([]string, len(tasks))
+
+	for i, task := range tasks {
+		if task == nil {
+			return nil, fmt.Errorf("task at index %d is nil", i)
+		}
+
+		if task.Action == "" {
+			return nil, fmt.Errorf("task at index %d is missing required field 'Action'", i)
+		}
+
+		actions[i] = task.Action
+	}
+
+	return actions, nil
 }
 
 func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionOpts, error) {
@@ -863,6 +917,12 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
 			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
 			ScheduleTimeout:     stepCp.ScheduleTimeout,
+			IsDurable:           stepCp.IsDurable,
+			SlotRequests:        nil,
+		}
+
+		if stepCp.SlotRequests != nil {
+			steps[j].SlotRequests = stepCp.SlotRequests
 		}
 
 		// Safely set Parents
@@ -929,7 +989,13 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						continue
 					}
 
-					orGroupId, err := uuid.Parse(userEventCondition.Base.OrGroupId)
+					orGroupIdStr := userEventCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
 					if err != nil {
 						return nil, fmt.Errorf("invalid OrGroupId in UserEventCondition for step %s: %w", stepCp.ReadableId, err)
 					}
@@ -956,7 +1022,14 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					duration := sleepCondition.SleepFor
-					orGroupId, err := uuid.Parse(sleepCondition.Base.OrGroupId)
+
+					orGroupIdStr := sleepCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
 					if err != nil {
 						return nil, fmt.Errorf("invalid OrGroupId in SleepCondition for step %s: %w", stepCp.ReadableId, err)
 					}
@@ -980,7 +1053,14 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					}
 
 					parentReadableId := parentOverrideCondition.ParentReadableId
-					orGroupId, err := uuid.Parse(parentOverrideCondition.Base.OrGroupId)
+
+					orGroupIdStr := parentOverrideCondition.Base.OrGroupId
+
+					if orGroupIdStr == "" || orGroupIdStr == uuid.Nil.String() {
+						orGroupIdStr = uuid.New().String()
+					}
+
+					orGroupId, err := uuid.Parse(orGroupIdStr)
 
 					if err != nil {
 						return nil, fmt.Errorf("invalid OrGroupId in ParentOverrideCondition for step %s: %w", stepCp.ReadableId, err)
