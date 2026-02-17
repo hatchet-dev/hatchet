@@ -5,13 +5,9 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 from hatchet_sdk.exceptions import CancellationReason
 from hatchet_sdk.logger import logger
-
-if TYPE_CHECKING:
-    pass
 
 
 class CancellationToken:

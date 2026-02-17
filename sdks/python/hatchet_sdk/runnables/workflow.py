@@ -21,6 +21,7 @@ from typing import (
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -67,7 +68,6 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
-    from hatchet_sdk.cancellation import CancellationToken
 
 
 T = TypeVar("T")

@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Generic, Literal, TypeVar
+from typing import Generic, Literal, TypeVar
 
 import grpc
 import grpc.aio
 
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.event_ts import (
     ThreadSafeEvent,
     UnexpectedEOF,
@@ -17,9 +18,6 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.cancellation import race_against_token
-
-if TYPE_CHECKING:
-    from hatchet_sdk.cancellation import CancellationToken
 
 DEFAULT_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_LISTENER_RETRY_COUNT = 5

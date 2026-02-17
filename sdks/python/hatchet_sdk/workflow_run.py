@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     RunEventListenerClient,
@@ -17,7 +18,6 @@ from hatchet_sdk.exceptions import (
 from hatchet_sdk.utils.cancellation import await_with_cancellation
 
 if TYPE_CHECKING:
-    from hatchet_sdk.cancellation import CancellationToken
     from hatchet_sdk.clients.admin import AdminClient
 
 

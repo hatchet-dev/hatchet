@@ -1,14 +1,12 @@
-"""Utilities for cancellation-aware operations."""
-
 from __future__ import annotations
 
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, TypeVar
+from typing import TypeVar
 
-if TYPE_CHECKING:
-    from hatchet_sdk.cancellation import CancellationToken
+from hatchet_sdk.cancellation import CancellationToken
+from hatchet_sdk.logger import logger
 
 T = TypeVar("T")
 
@@ -129,7 +127,10 @@ async def await_with_cancellation(
     main_task = asyncio.ensure_future(coro)
 
     try:
-        return await race_against_token(main_task, token)
+        result = await race_against_token(main_task, token)
+        logger.debug("await_with_cancellation: completed successfully")
+
+        return result
     except asyncio.CancelledError:
         if cancel_callback:
             with contextlib.suppress(asyncio.CancelledError):
