@@ -1,5 +1,7 @@
 # > Simple
 from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk.runnables.eviction import EvictionPolicy
+from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionConfig
 
 hatchet = Hatchet(debug=True)
 

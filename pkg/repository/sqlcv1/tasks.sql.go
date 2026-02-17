@@ -2740,6 +2740,7 @@ type RestoreEvictedTaskRow struct {
 	Queued     int32 `json:"queued"`
 }
 
+// TODO: think through this further...
 // Restores an evicted task by inserting it directly into the assignment queue.
 // The evicted runtime row stays (evicted_at set); when the queue item is assigned,
 // the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.

@@ -36,7 +36,23 @@ class V1CreateWebhookRequestBase(BaseModel):
         description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
         alias="eventKeyExpression",
     )
-    __properties: ClassVar[List[str]] = ["sourceName", "name", "eventKeyExpression"]
+    scope_expression: Optional[StrictStr] = Field(
+        default=None,
+        description="The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.",
+        alias="scopeExpression",
+    )
+    static_payload: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="The static payload to use for the webhook. This is used to send a static payload with the webhook.",
+        alias="staticPayload",
+    )
+    __properties: ClassVar[List[str]] = [
+        "sourceName",
+        "name",
+        "eventKeyExpression",
+        "scopeExpression",
+        "staticPayload",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -91,6 +107,8 @@ class V1CreateWebhookRequestBase(BaseModel):
                 "sourceName": obj.get("sourceName"),
                 "name": obj.get("name"),
                 "eventKeyExpression": obj.get("eventKeyExpression"),
+                "scopeExpression": obj.get("scopeExpression"),
+                "staticPayload": obj.get("staticPayload"),
             }
         )
         return _obj

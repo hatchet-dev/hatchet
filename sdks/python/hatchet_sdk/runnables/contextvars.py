@@ -29,6 +29,7 @@ ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar
 ctx_task_retry_count: ContextVar[int | None] = ContextVar(
     "ctx_task_retry_count", default=0
 )
+# TODO-DURABLE: is this redundant with ctx_is_durable?
 ctx_durable_context: ContextVar[DurableContext | None] = ContextVar(
     "ctx_durable_context", default=None
 )

@@ -32,6 +32,8 @@ service Dispatcher {
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 
+    rpc RestoreEvictedTask(RestoreEvictedTaskRequest) returns (RestoreEvictedTaskResponse) {}
+
     rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
 
     // GetVersion returns the dispatcher protocol version as a simple integer.
@@ -165,16 +167,16 @@ message AssignedAction {
     int32 retry_count = 13;
 
     // (optional) additional metadata set on the workflow
-    optional string additionalMetadata = 14;
+    optional string additional_metadata = 14;
 
     // (optional) the child workflow index (if this is a child workflow)
-    optional int32 childWorkflowIndex = 15;
+    optional int32 child_workflow_index = 15;
 
     // (optional) the child workflow key (if this is a child workflow)
-    optional string childWorkflowKey = 16;
+    optional string child_workflow_key = 16;
 
     // (optional) the parent workflow run id (if this is a child workflow)
-    optional string parentWorkflowRunId = 17;
+    optional string parent_workflow_run_id = 17;
 
     // (optional) the priority of the run
     int32 priority = 18;
@@ -418,6 +420,14 @@ message ReleaseSlotRequest {
 }
 
 message ReleaseSlotResponse {}
+
+message RestoreEvictedTaskRequest {
+    string task_run_external_id = 1;
+}
+
+message RestoreEvictedTaskResponse {
+    bool requeued = 1;
+}
 
 message GetVersionRequest {}
 

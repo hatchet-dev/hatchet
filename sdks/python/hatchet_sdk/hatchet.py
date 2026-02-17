@@ -245,6 +245,7 @@ class Hatchet:
             owned_loop=loop is None,
             workflows=workflows,
             lifespan=lifespan,
+            # TODO-DURABLE: i think durable_run_eviction_config is more clear
             durable_eviction_config=durable_eviction_config,
         )
 
@@ -484,9 +485,6 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
-        :param eviction: Task-scoped durable eviction parameters. If set to `None`, this durable task
-            run will never be eligible for eviction.
-
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -688,6 +686,9 @@ class Hatchet:
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
+
+        :param eviction: Task-scoped durable eviction parameters. If set to `None`, this durable task
+            run will never be eligible for eviction.
 
         :returns: A decorator which creates a `Standalone` task object.
         """

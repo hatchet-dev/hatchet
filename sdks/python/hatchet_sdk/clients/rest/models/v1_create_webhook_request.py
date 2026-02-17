@@ -42,12 +42,6 @@ V1CREATEWEBHOOKREQUEST_ONE_OF_SCHEMAS = [
     "V1CreateWebhookRequestHMAC",
 ]
 
-V1CREATEWEBHOOKREQUEST_ONE_OF_SCHEMAS = [
-    "V1CreateWebhookRequestAPIKey",
-    "V1CreateWebhookRequestBasicAuth",
-    "V1CreateWebhookRequestHMAC",
-]
-
 
 class V1CreateWebhookRequest(BaseModel):
     """

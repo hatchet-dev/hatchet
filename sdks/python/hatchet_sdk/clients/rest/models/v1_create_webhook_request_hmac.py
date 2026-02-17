@@ -37,6 +37,16 @@ class V1CreateWebhookRequestHMAC(BaseModel):
         description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
         alias="eventKeyExpression",
     )
+    scope_expression: Optional[StrictStr] = Field(
+        default=None,
+        description="The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.",
+        alias="scopeExpression",
+    )
+    static_payload: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="The static payload to use for the webhook. This is used to send a static payload with the webhook.",
+        alias="staticPayload",
+    )
     auth_type: StrictStr = Field(
         description="The type of authentication to use for the webhook",
         alias="authType",
@@ -46,6 +56,8 @@ class V1CreateWebhookRequestHMAC(BaseModel):
         "sourceName",
         "name",
         "eventKeyExpression",
+        "scopeExpression",
+        "staticPayload",
         "authType",
         "auth",
     ]
@@ -113,6 +125,8 @@ class V1CreateWebhookRequestHMAC(BaseModel):
                 "sourceName": obj.get("sourceName"),
                 "name": obj.get("name"),
                 "eventKeyExpression": obj.get("eventKeyExpression"),
+                "scopeExpression": obj.get("scopeExpression"),
+                "staticPayload": obj.get("staticPayload"),
                 "authType": obj.get("authType"),
                 "auth": (
                     V1WebhookHMACAuth.from_dict(obj["auth"])

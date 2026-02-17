@@ -190,8 +190,7 @@ class DispatcherServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def RestoreEvictedTask(self, request, context):
-        """TEMP: restores an evicted durable task by requeueing it at highest priority.
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')

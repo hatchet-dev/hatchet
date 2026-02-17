@@ -194,6 +194,7 @@ class CancellationReason(Enum):
     EVICTED = "evicted"
     """The operation was cancelled due to durable-run eviction."""
 
+
 class CancelledError(BaseException):
     """
     Raised when an operation is cancelled via CancellationToken.

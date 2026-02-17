@@ -431,3 +431,13 @@ class RestoreEvictedTaskResponse(_message.Message):
     REQUEUED_FIELD_NUMBER: _ClassVar[int]
     requeued: bool
     def __init__(self, requeued: bool = ...) -> None: ...
+
+class GetVersionRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class GetVersionResponse(_message.Message):
+    __slots__ = ("version",)
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    version: str
+    def __init__(self, version: _Optional[str] = ...) -> None: ...

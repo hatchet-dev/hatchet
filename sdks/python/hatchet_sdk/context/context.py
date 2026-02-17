@@ -30,7 +30,9 @@ from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.cancellation import await_with_cancellation
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
-from hatchet_sdk.worker.durable_eviction.instrumentation import aio_durable_eviction_wait
+from hatchet_sdk.worker.durable_eviction.instrumentation import (
+    aio_durable_eviction_wait,
+)
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:

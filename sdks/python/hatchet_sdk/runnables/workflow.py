@@ -1088,9 +1088,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
-        :param eviction: Task-scoped durable eviction parameters. If set to `None`, this durable task
-            run will never be eligible for eviction.
-
         :returns: A decorator which creates a `Task` object.
         """
 
@@ -1194,6 +1191,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param skip_if: A list of conditions that, if met, will cause the task to be skipped.
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
+
+        # TODO-DURABLE: add default value documentation
+        :param eviction: Task-scoped durable eviction parameters. If set to `None`, this durable task
+            run will never be eligible for eviction.
 
         :returns: A decorator which creates a `Task` object.
         """

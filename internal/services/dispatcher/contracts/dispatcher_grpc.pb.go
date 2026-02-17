@@ -37,7 +37,6 @@ type DispatcherClient interface {
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
 	RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error)
 	ReleaseSlot(ctx context.Context, in *ReleaseSlotRequest, opts ...grpc.CallOption) (*ReleaseSlotResponse, error)
-	// TEMP: restores an evicted durable task by requeueing it at highest priority.
 	RestoreEvictedTask(ctx context.Context, in *RestoreEvictedTaskRequest, opts ...grpc.CallOption) (*RestoreEvictedTaskResponse, error)
 	UpsertWorkerLabels(ctx context.Context, in *UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*UpsertWorkerLabelsResponse, error)
 	// GetVersion returns the dispatcher protocol version as a simple integer.
@@ -299,7 +298,6 @@ type DispatcherServer interface {
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
 	RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error)
 	ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error)
-	// TEMP: restores an evicted durable task by requeueing it at highest priority.
 	RestoreEvictedTask(context.Context, *RestoreEvictedTaskRequest) (*RestoreEvictedTaskResponse, error)
 	UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error)
 	// GetVersion returns the dispatcher protocol version as a simple integer.

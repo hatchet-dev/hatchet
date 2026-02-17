@@ -535,13 +535,13 @@ class Runner:
 
         grace_period = self.config.cancellation_grace_period.total_seconds()
         warning_threshold = self.config.cancellation_warning_threshold.total_seconds()
-        grace_period_ms = int(round(grace_period * 1000))
-        warning_threshold_ms = int(round(warning_threshold * 1000))
+        grace_period_ms = round(grace_period * 1000)
+        warning_threshold_ms = round(warning_threshold * 1000)
 
         # Wait until warning threshold
         await asyncio.sleep(warning_threshold)
         elapsed = time.monotonic() - cancel_started_at
-        elapsed_ms = int(round(elapsed * 1000))
+        elapsed_ms = round(elapsed * 1000)
 
         task_running = key in self.tasks and not self.tasks[key].done()
         if not task_running:
@@ -586,9 +586,7 @@ class Runner:
                     f"and prevent new tasks from running."
                 )
 
-                total_elapsed_ms = int(
-                    round((time.monotonic() - cancel_started_at) * 1000)
-                )
+                total_elapsed_ms = round((time.monotonic() - cancel_started_at) * 1000)
                 await self.dispatcher_client.send_step_action_event(
                     action,
                     STEP_EVENT_TYPE_CANCELLATION_FAILED,
@@ -607,7 +605,7 @@ class Runner:
         # that ignore cancellation, and also provides a consistent signal even when we can't
         # conclusively determine liveness (e.g. no thread key).
         total_elapsed = time.monotonic() - cancel_started_at
-        total_elapsed_ms = int(round(total_elapsed * 1000))
+        total_elapsed_ms = round(total_elapsed * 1000)
         if total_elapsed > grace_period:
             logger.warning(
                 f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
@@ -757,16 +755,25 @@ class Runner:
         # Prefer the SDK-local cancellation token reason if it was already set
         # (e.g. durable eviction cancels the local token before the engine cancel arrives).
         reason = (
-            self.contexts[key].cancellation_token.reason.value
+            self.contexts[key].cancellation_token.reason
             if key in self.contexts
             and self.contexts[key].cancellation_token.reason is not None
             else self.cancellation_reasons.get(
-                key, CancellationReason.WORKFLOW_CANCELLED.value
+                key, CancellationReason.WORKFLOW_CANCELLED
             )
         )
 
         # Persist the reason so we can still reference it after context cleanup.
-        self.cancellation_reasons[key] = reason
+        reason_str: str = (
+            reason.value
+            if isinstance(reason, CancellationReason)
+            else (
+                reason
+                if isinstance(reason, str)
+                else CancellationReason.WORKFLOW_CANCELLED.value
+            )
+        )
+        self.cancellation_reasons[key] = reason_str
 
         logger.info(
             f"Cancellation: received cancel action for {action.action_id}, "
@@ -776,7 +783,7 @@ class Runner:
         # Trigger the cancellation token to signal the context to stop
         if key in self.contexts:
             ctx = self.contexts[key]
-            child_count = len(ctx.cancellation_token.get_child_run_ids())
+            child_count = len(ctx.cancellation_token.child_run_ids)
             logger.debug(
                 f"Cancellation: triggering token for {action.action_id}, "
                 f"reason={reason}, "
@@ -784,7 +791,7 @@ class Runner:
             )
             cancel_reason = CancellationReason.WORKFLOW_CANCELLED
             try:
-                cancel_reason = CancellationReason(reason)
+                cancel_reason = CancellationReason(reason_str)
             except Exception:
                 # Be defensive: if we receive an unknown reason string from the engine,
                 # still cancel the token with a sensible default.

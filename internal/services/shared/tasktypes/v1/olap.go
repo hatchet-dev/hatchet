@@ -179,6 +179,7 @@ func isEvictedReason(eventPayload string) bool {
 
 	reason := strings.ToLower(strings.TrimSpace(p.Reason))
 
+	// TODO-DURABLE: This is a hack to get the durable eviction event type to work. We should remove this once we have a proper durable eviction event types.
 	// Python SDK uses CancellationReason.EVICTED.value ("evicted").
 	// Be defensive in case other SDKs/versions use slightly different strings.
 	switch reason {
