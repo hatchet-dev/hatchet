@@ -693,27 +693,32 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	idInsertedAtNodeIdToSatisfiedCallback := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
 
 	for _, match := range satisfiedMatches {
-		if match.DurableEventLogEntryNodeID.Valid && match.DurableEventLogEntryDurableTaskID.Valid && match.DurableEventLogEntryDurableTaskExternalID != nil {
-			durableTaskId := match.DurableEventLogEntryDurableTaskID.Int64
+		durableTaskExternalId := match.SignalTaskExternalID
+		durableTaskId := match.SignalTaskID
+		durableTaskInsertedAt := match.SignalTaskInsertedAt
+		nodeId := match.DurableEventLogEntryNodeID
+
+		if nodeId.Valid && durableTaskExternalId != nil {
+
 			key := DurableTaskNodeIdKey{
-				DurableTaskId:         durableTaskId,
-				DurableTaskInsertedAt: match.DurableEventLogEntryDurableTaskInsertedAt.Time,
-				NodeId:                match.DurableEventLogEntryNodeID.Int64,
+				DurableTaskId:         durableTaskId.Int64,
+				DurableTaskInsertedAt: durableTaskInsertedAt.Time,
+				NodeId:                nodeId.Int64,
 			}
 
 			cb := SatisfiedEntry{
-				DurableTaskExternalId: *match.DurableEventLogEntryDurableTaskExternalID,
-				DurableTaskId:         durableTaskId,
-				DurableTaskInsertedAt: match.DurableEventLogEntryDurableTaskInsertedAt,
-				NodeId:                match.DurableEventLogEntryNodeID.Int64,
+				DurableTaskExternalId: *durableTaskExternalId,
+				DurableTaskId:         durableTaskId.Int64,
+				DurableTaskInsertedAt: durableTaskInsertedAt,
+				NodeId:                nodeId.Int64,
 				Data:                  match.McAggregatedData,
 			}
 
 			idInsertedAtNodeIdToSatisfiedCallback[key] = cb
 
-			durableTaskIds = append(durableTaskIds, match.DurableEventLogEntryDurableTaskID.Int64)
-			durableTaskInsertedAts = append(durableTaskInsertedAts, match.DurableEventLogEntryDurableTaskInsertedAt)
-			durableTaskNodeIds = append(durableTaskNodeIds, match.DurableEventLogEntryNodeID.Int64)
+			durableTaskIds = append(durableTaskIds, durableTaskId.Int64)
+			durableTaskInsertedAts = append(durableTaskInsertedAts, durableTaskInsertedAt)
+			durableTaskNodeIds = append(durableTaskNodeIds, nodeId.Int64)
 		}
 	}
 
@@ -1103,12 +1108,16 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		callbackTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
 		callbackNodeIds := make([]*int64, len(signalMatches))
 		callbackDurableTaskExternalIds := make([]*uuid.UUID, len(signalMatches))
+		signalTaskExternalIds := make([]*uuid.UUID, len(signalMatches))
 
 		for i, match := range signalMatches {
 			signalTenantIds[i] = tenantId
 			signalKinds[i] = string(match.Kind)
 			signalTaskIds[i] = *match.SignalTaskId
 			signalTaskInsertedAts[i] = match.SignalTaskInsertedAt
+
+			fmt.Printf("durable callback ext id: %s, signal ext id: %s\n", match.TriggerExternalId, match.DurableCallbackTaskExternalId)
+			signalTaskExternalIds[i] = match.DurableCallbackTaskExternalId
 			signalKeys[i] = *match.SignalKey
 
 			callbackTaskIds[i] = match.DurableCallbackTaskId
@@ -1122,15 +1131,13 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForSignalTriggersParams{
-				Tenantids:                          signalTenantIds,
-				Kinds:                              signalKinds,
-				Signaltaskids:                      signalTaskIds,
-				Signaltaskinsertedats:              signalTaskInsertedAts,
-				Signalkeys:                         signalKeys,
-				Durableeventlogentrydurabletaskids: callbackTaskIds,
-				Durableeventlogentrydurabletaskinsertedats: callbackTaskInsertedAts,
-				Durableeventlogentrynodeids:                callbackNodeIds,
-				Durableeventlogentrydurabletaskexternalids: callbackDurableTaskExternalIds,
+				Tenantids:                   signalTenantIds,
+				Kinds:                       signalKinds,
+				Signaltaskids:               signalTaskIds,
+				Signaltaskinsertedats:       signalTaskInsertedAts,
+				Signaltaskexternalids:       signalTaskExternalIds,
+				Signalkeys:                  signalKeys,
+				Durableeventlogentrynodeids: callbackNodeIds,
 			},
 		)
 
