@@ -1,0 +1,166 @@
+import { Callout, Steps } from "nextra/components";
+
+# Upgrading and Downgrading Hatchet
+
+This guide covers how to safely upgrade and downgrade self-hosted Hatchet instances, with strategies for production-critical workloads.
+
+<Callout type="warning">
+  Always test upgrades and downgrades in a non-production environment before
+  applying them to production.
+</Callout>
+
+## Overview
+
+For production-critical deployments, we recommend the following workflow:
+
+1. **Snapshot** your database before upgrading
+2. **Upgrade** the Hatchet engine to the new version
+3. **Verify** the upgrade is working as expected
+4. If something goes wrong, **downgrade** by restoring the snapshot or running down migrations
+
+## Step 1: Take a Database Snapshot
+
+Before any version change, create a point-in-time snapshot of your database. This gives you a fast, reliable rollback path if the upgrade causes issues.
+
+Refer to the backup and restore documentation for your database provider:
+
+- **PostgreSQL (self-managed):** [Backup and Restore](https://www.postgresql.org/docs/current/backup.html)
+- **AWS RDS:** [Backing Up and Restoring](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_CommonTasks.BackupRestore.html)
+- **Google Cloud SQL:** [Backup and Recovery](https://docs.cloud.google.com/sql/docs/postgres/backup-recovery/backups)
+- **Azure Database for PostgreSQL:** [Backup](https://learn.microsoft.com/en-us/azure/backup/backup-azure-database-postgresql)
+
+## Step 2: Upgrade Engine Versions
+
+Once your snapshot is in place, upgrade the Hatchet engine.
+
+<Callout type="info">
+  Hatchet runs database migrations automatically on engine startup. No separate
+  migration step is required when upgrading.
+</Callout>
+
+### Docker Compose
+
+Update the image tags in your `docker-compose.yml`:
+
+```yaml
+services:
+  hatchet-engine:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:v0.78.26
+    # ... rest of configuration
+
+  hatchet-dashboard:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:v0.78.26
+    # ... rest of configuration
+```
+
+Then redeploy:
+
+```bash
+docker-compose pull
+docker-compose down
+docker-compose up -d
+```
+
+### Kubernetes (Helm)
+
+The Hatchet Helm charts use a `sharedConfig.image.tag` value that sets the image tag for all components (engine, API, frontend, migrations). Set this to the target Hatchet version:
+
+```yaml
+# values.yaml
+sharedConfig:
+  image:
+    tag: "v0.78.26"
+```
+
+Then upgrade the release:
+
+```bash
+# hatchet-stack (standard deployment)
+helm upgrade hatchet ./charts/hatchet-stack \
+  --namespace hatchet \
+  --values values.yaml
+
+# hatchet-ha (high-availability deployment)
+helm upgrade hatchet ./charts/hatchet-ha \
+  --namespace hatchet \
+  --values values.yaml
+```
+
+<Callout type="info">
+  You can also override individual component tags (e.g., `engine.image.tag`,
+  `frontend.image.tag`), but `sharedConfig.image.tag` takes precedence when set.
+</Callout>
+
+### Verification
+
+After upgrading, verify the deployment is healthy:
+
+1. Check that the engine is running and accepting connections
+2. Confirm the dashboard loads and shows the correct version
+3. Run a test workflow to verify end-to-end functionality
+4. Monitor logs for migration errors or unexpected warnings
+
+```bash
+# Docker Compose
+docker-compose logs hatchet-engine | head -50
+
+# Kubernetes
+kubectl logs -n hatchet -l app=hatchet-engine --tail=50
+```
+
+## Step 3: Downgrade if Needed
+
+If the upgrade causes issues, you have two options depending on your situation:
+
+### Option A: Restore from Database Snapshot (Recommended for Production)
+
+This is the fastest and safest rollback path. It returns your database to the exact state before the upgrade, avoiding any risk of incomplete down migrations.
+
+<Steps>
+
+### Stop the Hatchet engine
+
+Shut down all Hatchet engine instances to prevent writes during the restore.
+
+```bash
+# Docker Compose
+docker-compose down
+
+# Kubernetes
+kubectl scale deployment hatchet-engine -n hatchet --replicas=0
+```
+
+### Restore the database snapshot
+
+Follow the restore procedure for your database provider (see [Step 1](#step-1-take-a-database-snapshot) for links to the relevant documentation).
+
+### Deploy the previous Hatchet version
+
+Update your deployment to use the previous version's image tags (see [Upgrade Engine Versions](#step-2-upgrade-engine-versions) for the relevant deployment method) and redeploy.
+
+### Verify the rollback
+
+Confirm the engine starts, the dashboard loads, and workflows execute correctly.
+
+</Steps>
+
+### Option B: Run Down Migrations (Manual)
+
+If you don't have a database snapshot or prefer a more targeted rollback, you can run down migrations to revert schema changes. See the [Downgrading DB Schema Manually](/self-hosting/downgrading-db-schema-manually) guide for detailed instructions on:
+
+- Finding the target migration version for your desired Hatchet version
+- Running `hatchet-migrate --down <migration_version>`
+- Deploying the older engine version
+
+<Callout type="warning">
+  Down migrations may not fully reverse all data changes (e.g., dropped columns
+  lose their data). For production-critical workloads, prefer restoring from a
+  snapshot when possible.
+</Callout>
+
+## Best Practices
+
+- **Always snapshot before upgrading.** Even if you plan to use down migrations, having a snapshot as a backup gives you a reliable safety net.
+- **Test in staging first.** Run the full upgrade cycle (snapshot, upgrade, verify, and optionally downgrade) in a staging environment before touching production.
+- **Keep snapshots until the upgrade is verified.** Don't delete your pre-upgrade snapshot until you've confirmed the new version is stable in production for a reasonable period.
+- **Pin your versions.** Always use explicit version tags (e.g., `v0.72.0`) rather than `latest` to avoid unexpected upgrades.
