@@ -124,14 +124,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 				TenantId:   tenantId,
 			})
 		}
-	} else {
-		incomingIdempotencyKey := params.Idempotencykey
-		existingIdempotencyKey := entry.IdempotencyKey
-
-		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
-			return nil, &NonDeterminismError{}
-		}
-	}
 
 		if len(resultPayload) > 0 {
 			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
@@ -148,7 +140,13 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		incomingIdempotencyKey := params.Idempotencykey
+		existingIdempotencyKey := entry.IdempotencyKey
 
+		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
+			return nil, &NonDeterminismError{}
+		}
 	}
 
 	if alreadyExisted {
@@ -217,13 +215,13 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		return nil, fmt.Errorf("failed to retrieve payloads for satisfied callbacks: %w", err)
 	}
 
-	result := make([]*SatisfiedCallbackWithPayload, 0, len(rows))
+	result := make([]*SatisfiedEventWithPayload, 0, len(rows))
 
 	for _, row := range rows {
 		retrieveOpt := RetrievePayloadOpts{
 			Id:         row.ID,
 			InsertedAt: row.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 		}
 
@@ -350,24 +348,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	// todo: real branching logic here
 	branchId := logFile.LatestBranchID
 
-	idempotencyKey, err := r.createIdempotencyKey(ctx, opts)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create idempotency key: %w", err)
-	}
-
-	logEntry, err := r.getOrCreateEventLogEntry(ctx, tx, opts.TenantId, sqlcv1.CreateDurableEventLogEntryParams{
-		Tenantid:              opts.TenantId,
-		Externalid:            uuid.New(),
-		Durabletaskid:         task.ID,
-		Durabletaskinsertedat: task.InsertedAt,
-		Kind:                  opts.Kind,
-		Nodeid:                nodeId,
-		ParentNodeId:          parentNodeId,
-		Branchid:              branchId,
-		Idempotencykey:        idempotencyKey,
-	}, opts.Payload)
-
 	var nde *NonDeterminismError
 	if err != nil && errors.As(err, &nde) {
 		return nil, fmt.Errorf("non-determinism detected for durable event log entry with durable task id %s, node id %d: %w", task.ExternalID, nodeId, err)
@@ -390,6 +370,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
+	idempotencyKey, err := r.createIdempotencyKey(ctx, opts)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create idempotency key: %w", err)
+	}
+
 	logEntry, err := r.getOrCreateEventLogEntry(
 		ctx,
 		tx,
@@ -404,8 +390,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			ParentNodeId:          parentNodeId,
 			Branchid:              branchId,
 			Issatisfied:           isSatisfied,
-			Datahash:              nil, // todo: implement this for nondeterminism check
-			Datahashalg:           "",
+			Idempotencykey:        idempotencyKey,
 		},
 		opts.Payload,
 		resultPayload,
