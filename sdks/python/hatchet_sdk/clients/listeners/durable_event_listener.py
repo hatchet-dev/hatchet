@@ -28,6 +28,8 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
+DEFAULT_RECONNECT_INTERVAL = 3  # seconds
+
 
 class DurableTaskEventAck(BaseModel):
     invocation_count: int
@@ -84,6 +86,28 @@ class DurableEventListener:
     def worker_id(self) -> str | None:
         return self._worker_id
 
+    async def _connect(self) -> None:
+        if self._conn is not None:
+            with suppress(Exception):
+                await self._conn.close()
+
+        logger.info("durable event listener connecting...")
+
+        self._conn = new_conn(self.config, aio=True)
+        self._stub = V1DispatcherStub(self._conn)
+        self._request_queue = asyncio.Queue()
+
+        self._stream = cast(
+            grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
+            self._stub.DurableTask(
+                self._request_iterator(),  # type: ignore[arg-type]
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        await self._register_worker()
+        logger.info("durable event listener connected")
+
     async def start(self, worker_id: str) -> None:
         async with self._start_lock:
             if self._running:
@@ -91,23 +115,11 @@ class DurableEventListener:
 
             self._worker_id = worker_id
             self._running = True
-            self._request_queue = asyncio.Queue()
 
-            self._conn = new_conn(self.config, aio=True)
-            self._stub = V1DispatcherStub(self._conn)
-
-            self._stream = cast(
-                grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
-                self._stub.DurableTask(
-                    self._request_iterator(),  # type: ignore[arg-type]
-                    metadata=get_metadata(self.token),
-                ),
-            )
+            await self._connect()
 
             self._receive_task = asyncio.create_task(self._receive_loop())
             self._send_task = asyncio.create_task(self._send_loop())
-
-            await self._register_worker()
 
     async def ensure_started(self, worker_id: str) -> None:
         if not self._running:
@@ -165,22 +177,62 @@ class DurableEventListener:
         )
         await self._request_queue.put(request)
 
-    async def _receive_loop(self) -> None:
-        if not self._stream:
-            return
+    def _fail_pending_acks(self, exc: Exception) -> None:
+        for future in self._pending_event_acks.values():
+            if not future.done():
+                future.set_exception(exc)
+        self._pending_event_acks.clear()
 
-        try:
-            async for response in self._stream:
-                await self._handle_response(response)
-        except grpc.aio.AioRpcError as e:
-            if e.code() != grpc.StatusCode.CANCELLED:
-                logger.error(
-                    f"durable stream error: code={e.code()}, details={e.details()}"
+    async def _receive_loop(self) -> None:
+        while self._running:
+            if not self._stream:
+                await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                continue
+
+            try:
+                async for response in self._stream:
+                    await self._handle_response(response)
+
+                if self._running:
+                    logger.warning(
+                        f"durable event listener disconnected (EOF), reconnecting in {DEFAULT_RECONNECT_INTERVAL}s..."
+                    )
+                    self._fail_pending_acks(
+                        ConnectionResetError("durable stream disconnected")
+                    )
+                    await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                    await self._connect()
+
+            except grpc.aio.AioRpcError as e:
+                if e.code() == grpc.StatusCode.CANCELLED:
+                    break
+                logger.warning(
+                    f"durable event listener disconnected: code={e.code()}, details={e.details()}, reconnecting in {DEFAULT_RECONNECT_INTERVAL}s..."
                 )
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.exception(f"Unexpected error in receive loop: {e}")
+                if self._running:
+                    self._fail_pending_acks(
+                        ConnectionResetError(
+                            f"durable stream error: {e.code()} {e.details()}"
+                        )
+                    )
+                    await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                    try:
+                        await self._connect()
+                    except Exception:
+                        logger.exception("failed to reconnect durable event listener")
+
+            except asyncio.CancelledError:
+                break
+
+            except Exception as e:
+                logger.exception(f"unexpected error in durable event listener: {e}")
+                if self._running:
+                    self._fail_pending_acks(e)
+                    await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                    try:
+                        await self._connect()
+                    except Exception:
+                        logger.exception("failed to reconnect durable event listener")
 
     async def _handle_response(self, response: DurableTaskResponse) -> None:
         if response.HasField("register_worker"):
