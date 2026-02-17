@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import CancellationReason, CancelledError, Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
