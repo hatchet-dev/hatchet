@@ -3,7 +3,7 @@ package repository
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -322,7 +322,7 @@ func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts
 		}
 	}
 
-	h := sha1.New()
+	h := sha256.New()
 	h.Write(dataToHash)
 	hashBytes := h.Sum(nil)
 	idempotencyKey := make([]byte, hex.EncodedLen(len(hashBytes)))
