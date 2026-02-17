@@ -218,7 +218,7 @@ class NonDeterminismOutput(BaseModel):
     sleep_time: int
 
 
-@hatchet.durable_task()
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_non_determinism(
     input: EmptyModel, ctx: DurableContext
 ) -> NonDeterminismOutput:
