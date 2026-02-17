@@ -14,7 +14,7 @@ class NonDeterminismError(Exception):
         self.node_id = node_id
 
         super().__init__(
-            f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}"
+            f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}.\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/home/durable-best-practices"
         )
 
     def serialize(self, include_metadata: bool = False) -> str:
