@@ -200,7 +200,7 @@ class DurableEventListener:
                     )
                 )
                 del self._pending_event_acks[event_key]
-        elif response.HasField("callback_completed"):
+        elif response.HasField("entry_completed"):
             completed = response.entry_completed
             completed_key = (
                 completed.durable_task_external_id,

@@ -633,7 +633,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				},
 			},
 		}); err != nil {
-			d.l.Error().Err(err).Msgf("failed to send callback_completed for task %s node %d", cb.TaskExternalId, cb.NodeID)
+			d.l.Error().Err(err).Msgf("failed to send event_log_entry for task %s node %d", cb.TaskExternalId, cb.NodeID)
 		}
 	}
 
