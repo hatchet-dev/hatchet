@@ -12,6 +12,7 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskAwaitedCompletedEntry,
+    DurableTaskErrorType,
     DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
     DurableTaskEventRequest,
@@ -214,13 +215,26 @@ class DurableEventListener:
                 del self._pending_callbacks[completed_key]
         elif response.HasField("error"):
             error = response.error
+            exc: Exception
 
-            exc = NonDeterminismError(
-                task_external_id=error.durable_task_external_id,
-                invocation_count=error.invocation_count,
-                message=error.error_message,
-                node_id=error.node_id,
-            )
+            if (
+                error.error_type
+                == DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_NONDETERMINISM
+            ):
+                exc = NonDeterminismError(
+                    task_external_id=error.durable_task_external_id,
+                    invocation_count=error.invocation_count,
+                    message=error.error_message,
+                    node_id=error.node_id,
+                )
+            else:
+                ## fallthrough, this shouldn't happen unless we add an error type to the engine and the SDK
+                ## hasn't been updated to handle it
+                exc = Exception(
+                    "Unspecified durable task error: "
+                    + error.error_message
+                    + f" (type: {error.error_type})"
+                )
 
             event_key = (error.durable_task_external_id, error.invocation_count)
             if event_key in self._pending_event_acks:
