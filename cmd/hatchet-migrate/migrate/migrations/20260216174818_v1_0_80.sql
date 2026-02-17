@@ -117,10 +117,9 @@ SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE, 80);
 SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE, 80);
 
 ALTER TABLE v1_match
-    ADD COLUMN durable_event_log_entry_durable_task_external_id UUID,
-    ADD COLUMN durable_event_log_entry_node_id BIGINT,
-    ADD COLUMN durable_event_log_entry_durable_task_id BIGINT,
-    ADD COLUMN durable_event_log_entry_durable_task_inserted_at TIMESTAMPTZ;
+    ADD COLUMN signal_task_external_id UUID,
+    ADD COLUMN durable_event_log_entry_node_id BIGINT
+;
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA';
@@ -135,10 +134,8 @@ DROP TABLE v1_durable_event_log_file;
 DROP TYPE v1_durable_event_log_kind;
 
 ALTER TABLE v1_match
-    DROP COLUMN durable_event_log_entry_durable_task_external_id,
-    DROP COLUMN durable_event_log_entry_node_id,
-    DROP COLUMN durable_event_log_entry_durable_task_id,
-    DROP COLUMN durable_event_log_entry_durable_task_inserted_at;
+    DROP COLUMN signal_task_external_id,
+    DROP COLUMN durable_event_log_entry_node_id;
 
 ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
 

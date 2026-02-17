@@ -528,6 +528,7 @@ CREATE TABLE v1_match (
     existing_data JSONB,
     signal_task_id bigint,
     signal_task_inserted_at timestamptz,
+    signal_task_external_id UUID,
     signal_external_id UUID,
     signal_key TEXT,
     -- references the parent DAG for the task, which we can use to get input + additional metadata
@@ -548,9 +549,6 @@ CREATE TABLE v1_match (
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
-    durable_event_log_entry_durable_task_external_id uuid,
-    durable_event_log_entry_durable_task_id bigint,
-    durable_event_log_entry_durable_task_inserted_at timestamptz,
     durable_event_log_entry_node_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
