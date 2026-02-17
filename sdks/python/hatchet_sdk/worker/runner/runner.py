@@ -90,7 +90,6 @@ class Runner:
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
-        is_durable: bool = False,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
@@ -110,7 +109,6 @@ class Runner:
 
         self.killing = False
         self.handle_kill = handle_kill
-        self.is_durable = is_durable
 
         self.dispatcher_client = DispatcherClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
@@ -148,10 +146,11 @@ class Runner:
     def run(self, action: Action) -> None:
         if self.worker_context.id() is None:
             self.worker_context._worker_id = action.worker_id
-            if self.is_durable:
-                self.durable_event_listener_task = asyncio.create_task(
-                    self.durable_event_listener.ensure_started(action.worker_id)
-                )
+
+            ## fixme: only do this if durable tasks are registered
+            self.durable_event_listener_task = asyncio.create_task(
+                self.durable_event_listener.ensure_started(action.worker_id)
+            )
 
         t: asyncio.Task[Exception | None] | None = None
         match action.action_type:
