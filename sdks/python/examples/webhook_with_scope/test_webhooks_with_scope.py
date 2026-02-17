@@ -262,12 +262,14 @@ async def test_scope_expression_from_payload(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         triggered_event = await wait_for_event(
             hatchet, incoming_webhook.name, test_start
         )
         assert triggered_event is not None
+        assert triggered_event.metadata.id == data["event"]["metadata"]["id"]
         assert triggered_event.scope == webhook_body_with_scope.scope
 
 
@@ -295,12 +297,14 @@ async def test_scope_expression_from_headers(
             ) as response:
                 assert response.status == 200
                 data = await response.json()
-                assert data == {"message": "ok"}
+                assert data["message"] == "ok"
+                assert data["event"]["metadata"]["id"]
 
         triggered_event = await wait_for_event(
             hatchet, incoming_webhook.name, test_start
         )
         assert triggered_event is not None
+        assert triggered_event.metadata.id == data["event"]["metadata"]["id"]
         assert triggered_event.scope == "header-scope-value"
 
 
@@ -357,7 +361,8 @@ async def test_static_payload_adds_fields(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         expected_payload = {
             **webhook_body_for_static.model_dump(),
@@ -472,10 +477,12 @@ async def test_webhook_update_scope_expression(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         triggered_event = await wait_for_event(
             hatchet, incoming_webhook.name, test_start
         )
         assert triggered_event is not None
+        assert triggered_event.metadata.id == data["event"]["metadata"]["id"]
         assert triggered_event.scope == webhook_body_with_scope.scope

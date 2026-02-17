@@ -917,6 +917,12 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
 			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
 			ScheduleTimeout:     stepCp.ScheduleTimeout,
+			IsDurable:           stepCp.IsDurable,
+			SlotRequests:        nil,
+		}
+
+		if stepCp.SlotRequests != nil {
+			steps[j].SlotRequests = stepCp.SlotRequests
 		}
 
 		// Safely set Parents

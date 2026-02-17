@@ -53,6 +53,7 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 	}
 
 	var id int64
+	var pushed int64
 
 	// Precompute payload data.
 	payloadSize := parseSize(payloadArg)
@@ -68,18 +69,34 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for ev := range jobCh {
-				l.Info().Msgf("pushing event %d", ev.ID)
+			for {
+				select {
+				case <-ctx.Done():
+					// Stop promptly on cancellation. Remaining buffered events (if any) are intentionally dropped.
+					return
+				case ev, ok := <-jobCh:
+					if !ok {
+						return
+					}
 
-				err := c.Events().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
-					"event_id": fmt.Sprintf("%d", ev.ID),
-				}))
-				if err != nil {
-					panic(fmt.Errorf("error pushing event: %w", err))
+					l.Info().Msgf("pushing event %d", ev.ID)
+
+					err := c.Events().Push(ctx, "load-test:event", ev, client.WithEventMetadata(map[string]string{
+						"event_id": fmt.Sprintf("%d", ev.ID),
+					}))
+					if err != nil {
+						// If the test is shutting down, treat this as a clean stop rather than a correctness failure.
+						if ctx.Err() != nil {
+							return
+						}
+						panic(fmt.Errorf("error pushing event: %w", err))
+					}
+
+					atomic.AddInt64(&pushed, 1)
+					took := time.Since(ev.CreatedAt)
+					l.Info().Msgf("pushed event %d took %s", ev.ID, took)
+					scheduled <- took
 				}
-				took := time.Since(ev.CreatedAt)
-				l.Info().Msgf("pushed event %d took %s", ev.ID, took)
-				scheduled <- took
 			}
 		}()
 	}
@@ -115,5 +132,5 @@ loop:
 
 	close(jobCh)
 	wg.Wait()
-	return id
+	return atomic.LoadInt64(&pushed)
 }

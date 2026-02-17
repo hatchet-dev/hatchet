@@ -39,13 +39,15 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
+import { SlotConfig } from '../../slot-types';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
 export interface WorkerOpts {
   name: string;
   handleKill?: boolean;
-  maxRuns?: number;
+  slots?: number;
+  durableSlots?: number;
   labels?: WorkerLabels;
   healthPort?: number;
   enableHealthServer?: boolean;
@@ -63,7 +65,9 @@ export class V1Worker {
   listener: ActionListener | undefined;
   futures: Record<Action['taskRunExternalId'], HatchetPromise<any>> = {};
   contexts: Record<Action['taskRunExternalId'], Context<any, any>> = {};
-  maxRuns?: number;
+  slots?: number;
+  durableSlots?: number;
+  slotConfig: SlotConfig;
 
   logger: Logger;
 
@@ -82,14 +86,18 @@ export class V1Worker {
     options: {
       name: string;
       handleKill?: boolean;
-      maxRuns?: number;
+      slots?: number;
+      durableSlots?: number;
+      slotConfig?: SlotConfig;
       labels?: WorkerLabels;
     }
   ) {
     this.client = client;
     this.name = applyNamespace(options.name, this.client.config.namespace);
     this.action_registry = {};
-    this.maxRuns = options.maxRuns;
+    this.slots = options.slots;
+    this.durableSlots = options.durableSlots;
+    this.slotConfig = options.slotConfig || {};
 
     this.labels = options.labels || {};
 
@@ -127,11 +135,10 @@ export class V1Worker {
   }
 
   private getAvailableSlots(): number {
-    if (!this.maxRuns) {
-      return 0;
-    }
+    // sum all the slots in the slot config
+    const totalSlots = Object.values(this.slotConfig).reduce((acc, curr) => acc + curr, 0);
     const currentRuns = Object.keys(this.futures).length;
-    return Math.max(0, this.maxRuns - currentRuns);
+    return Math.max(0, totalSlots - currentRuns);
   }
 
   private getRegisteredActions(): string[] {
@@ -284,6 +291,8 @@ export class V1Worker {
           rateLimits: [],
           workerLabels: {},
           concurrency: [],
+          isDurable: false,
+          slotRequests: { default: 1 },
         };
       }
 
@@ -306,6 +315,8 @@ export class V1Worker {
           backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds:
             onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+          isDurable: false,
+          slotRequests: { default: 1 },
         };
       }
 
@@ -381,6 +392,8 @@ export class V1Worker {
         inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
       }
 
+      const durableTaskSet = new Set(workflow._durableTasks);
+
       const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
@@ -412,6 +425,9 @@ export class V1Worker {
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           conditions: taskConditionsToPb(task),
+          isDurable: durableTaskSet.has(task),
+          slotRequests:
+            task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency
@@ -887,6 +903,20 @@ export class V1Worker {
     }
   }
 
+  /**
+   * Creates an action listener by registering the worker with the dispatcher.
+   * Override in subclasses to change registration behavior (e.g. legacy engines).
+   */
+  protected async createListener(): Promise<ActionListener> {
+    return this.client._v0.dispatcher.getActionListener({
+      workerName: this.name,
+      services: ['default'],
+      actions: Object.keys(this.action_registry),
+      slotConfig: this.slotConfig,
+      labels: this.labels,
+    });
+  }
+
   async start() {
     this.setStatus(workerStatus.STARTING);
 
@@ -908,13 +938,7 @@ export class V1Worker {
     }
 
     try {
-      this.listener = await this.client._v0.dispatcher.getActionListener({
-        workerName: this.name,
-        services: ['default'],
-        actions: Object.keys(this.action_registry),
-        maxRuns: this.maxRuns,
-        labels: this.labels,
-      });
+      this.listener = await this.createListener();
 
       this.workerId = this.listener.workerId;
       this.setStatus(workerStatus.HEALTHY);

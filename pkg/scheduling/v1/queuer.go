@@ -213,7 +213,21 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, rls)
+		stepRequests, err := q.repo.GetStepSlotRequests(ctx, nil, stepIds)
+
+		if err != nil {
+			span.RecordError(err)
+			span.End()
+			q.l.Error().Err(err).Msg("error getting step slot requests")
+
+			q.unackedToUnassigned(qis)
+			continue
+		}
+
+		getSlotRequestsTime := time.Since(checkpoint)
+		checkpoint = time.Now()
+
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -292,6 +306,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				"rate_limit_time", rateLimitTime,
 			).Dur(
 				"desired_labels_time", desiredLabelsTime,
+			).Dur(
+				"get_slot_requests_time", getSlotRequestsTime,
 			).Dur(
 				"assign_time", assignTime,
 			).Msgf("queue %s took longer than 100ms (%s) to process %d items", q.queueName, elapsed, len(qis))
@@ -600,7 +616,12 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, rls)
+	stepRequests, err := q.repo.GetStepSlotRequests(ctx, tx, stepIds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults

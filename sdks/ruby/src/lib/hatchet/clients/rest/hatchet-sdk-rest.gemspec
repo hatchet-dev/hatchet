@@ -19,11 +19,11 @@ Gem::Specification.new do |s|
   s.name        = "hatchet-sdk-rest"
   s.version     = HatchetSdkRest::VERSION
   s.platform    = Gem::Platform::RUBY
-  s.authors     = ["Hatchet Team"]
+  s.authors     = ["HatchetTeam"]
   s.email       = [""]
   s.homepage    = "https://github.com/hatchet-dev/hatchet"
   s.summary     = "Hatchet API Ruby Gem"
-  s.description = "Ruby REST client for Hatchet API generated from OpenAPI specification"
+  s.description = "HatchetRubySDKRestClient"
   s.license     = "MIT"
   s.required_ruby_version = ">= 2.7"
   s.metadata    = {}

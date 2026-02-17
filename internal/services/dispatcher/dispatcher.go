@@ -51,6 +51,7 @@ type DispatcherImpl struct {
 	a            *hatcheterrors.Wrapped
 
 	durableCallbackFn func(taskExternalId uuid.UUID, nodeId int64, payload []byte) error
+	version           string
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -127,6 +128,7 @@ type DispatcherOpts struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	version                     string
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -204,6 +206,12 @@ func WithWorkflowRunBufferSize(size int) DispatcherOpt {
 	}
 }
 
+func WithVersion(version string) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.version = version
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -253,6 +261,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
+		version:                     opts.version,
 	}, nil
 }
 
