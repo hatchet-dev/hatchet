@@ -180,7 +180,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list satisfied callbacks: %w", err)
+		return nil, fmt.Errorf("failed to list satisfied entries: %w", err)
 	}
 
 	result := make([]*SatisfiedEventWithPayload, 0, len(rows))
@@ -193,7 +193,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			TenantId:   tenantId,
 		})
 		if err != nil {
-			r.l.Warn().Err(err).Msgf("failed to retrieve payload for callback %d", row.NodeID)
+			r.l.Warn().Err(err).Msgf("failed to retrieve payload for entry %d", row.NodeID)
 			payload = nil
 		}
 
@@ -290,7 +290,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	case sqlcv1.V1DurableEventLogKindRUN:
 		// do nothing
 	case sqlcv1.V1DurableEventLogKindMEMO:
-		// for memoization, we don't need to wait for anything before marking the callback as satisfied since it's just a cache entry
+		// for memoization, we don't need to wait for anything before marking the entry as satisfied since it's just a cache entry
 		isSatisfied = true
 		resultPayload = opts.Payload
 	default:
@@ -383,16 +383,13 @@ func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.D
 	signalKey := getDurableTaskSignalKey(taskExternalId, nodeId)
 
 	createMatchOpts := []ExternalCreateSignalMatchOpts{{
-		Conditions:                    opts.WaitForConditions,
-		SignalTaskId:                  task.ID,
-		SignalTaskInsertedAt:          task.InsertedAt,
-		SignalTaskExternalId:          task.ExternalID,
-		SignalExternalId:              task.ExternalID,
-		SignalKey:                     signalKey,
-		DurableCallbackTaskId:         &task.ID,
-		DurableCallbackTaskInsertedAt: task.InsertedAt,
-		DurableCallbackNodeId:         &nodeId,
-		DurableCallbackTaskExternalId: &taskExternalId,
+		Conditions:                 opts.WaitForConditions,
+		SignalTaskId:               task.ID,
+		SignalTaskInsertedAt:       task.InsertedAt,
+		SignalTaskExternalId:       task.ExternalID,
+		SignalExternalId:           taskExternalId,
+		SignalKey:                  signalKey,
+		DurableEventLogEntryNodeId: &nodeId,
 	}}
 
 	return r.registerSignalMatchConditions(ctx, tx, opts.TenantId, createMatchOpts)
@@ -446,7 +443,7 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	}
 
 	if len(conditions) > 0 {
-		runCallbackSignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
+		runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
 
 		err = r.createEventMatches(ctx, tx.tx, opts.TenantId, []CreateMatchOpts{{
 			Kind:                       sqlcv1.V1MatchKindSIGNAL,
@@ -455,7 +452,7 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 			SignalTaskInsertedAt:       task.InsertedAt,
 			SignalExternalId:           &taskExternalId,
 			SignalTaskExternalId:       &taskExternalId,
-			SignalKey:                  &runCallbackSignalKey,
+			SignalKey:                  &runEventLogEntrySignalKey,
 			DurableEventLogEntryNodeId: &nodeId,
 		}})
 

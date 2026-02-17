@@ -47,11 +47,8 @@ type ExternalCreateSignalMatchOpts struct {
 
 	SignalKey string `validate:"required"`
 
-	// Optional callback fields for durable WAIT_FOR
-	DurableCallbackTaskId         *int64
-	DurableCallbackTaskInsertedAt pgtype.Timestamptz
-	DurableCallbackNodeId         *int64
-	DurableCallbackTaskExternalId *uuid.UUID
+	// Optional durable event log entry fields for durable WAIT_FOR
+	DurableEventLogEntryNodeId *int64
 }
 
 type CreateExternalSignalConditionKind string
@@ -131,7 +128,7 @@ type EventMatchResults struct {
 	// The list of tasks which were replayed from the matches
 	ReplayedTasks []*V1TaskWithPayload
 
-	// The list of satisfied durable callbacks from matches
+	// The list of satisfied durable event log entries from matches
 	SatisfiedDurableEventLogEntries []SatisfiedEntry
 }
 
@@ -236,7 +233,7 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 			SignalTaskExternalId:       &signalMatch.SignalTaskExternalId,
 			SignalExternalId:           &externalId,
 			SignalKey:                  &signalKey,
-			DurableEventLogEntryNodeId: signalMatch.DurableCallbackNodeId,
+			DurableEventLogEntryNodeId: signalMatch.DurableEventLogEntryNodeId,
 		})
 	}
 
@@ -689,7 +686,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	durableTaskNodeIds := make([]int64, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
-	idInsertedAtNodeIdToSatisfiedCallback := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
+	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
 
 	for _, match := range satisfiedMatches {
 		durableTaskExternalId := match.SignalTaskExternalID
@@ -713,7 +710,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				Data:                  match.McAggregatedData,
 			}
 
-			idInsertedAtNodeIdToSatisfiedCallback[key] = cb
+			idInsertedAtNodeIdToSatisfiedEntry[key] = cb
 
 			durableTaskIds = append(durableTaskIds, durableTaskId.Int64)
 			durableTaskInsertedAts = append(durableTaskInsertedAts, durableTaskInsertedAt)
@@ -740,40 +737,40 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			NodeId:                cb.NodeID,
 		}
 
-		predeterminedCallback, ok := idInsertedAtNodeIdToSatisfiedCallback[key]
+		initialEntry, ok := idInsertedAtNodeIdToSatisfiedEntry[key]
 
 		if !ok {
-			m.l.Error().Msgf("no predetermined callback found for satisfied callback with node id %d, durable task id %d and durable task inserted at %s", cb.NodeID, cb.DurableTaskID, cb.DurableTaskInsertedAt.Time)
+			m.l.Error().Msgf("no initial entry found for satisfied entry with node id %d, durable task id %d and durable task inserted at %s", cb.NodeID, cb.DurableTaskID, cb.DurableTaskInsertedAt.Time)
 			continue
 		}
 
 		if cb.Kind == sqlcv1.V1DurableEventLogKindRUN {
-			if extracted, extractErr := ExtractOutputFromMatchData(predeterminedCallback.Data); extractErr != nil {
-				m.l.Error().Err(extractErr).Msgf("failed to extract output from RUN_COMPLETED match data for callback %d", cb.NodeID)
+			if extracted, extractErr := ExtractOutputFromMatchData(initialEntry.Data); extractErr != nil {
+				m.l.Error().Err(extractErr).Msgf("failed to extract output from RUN_COMPLETED match data for entry %d", cb.NodeID)
 			} else {
-				predeterminedCallback.Data = extracted
+				initialEntry.Data = extracted
 			}
 		}
 
-		if len(predeterminedCallback.Data) > 0 {
+		if len(initialEntry.Data) > 0 {
 			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
 				Id:         cb.ID,
 				InsertedAt: cb.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-				Payload:    predeterminedCallback.Data,
+				Payload:    initialEntry.Data,
 				ExternalId: cb.ExternalID,
 				TenantId:   tenantId,
 			})
 		}
 
-		satisfiedEntries = append(satisfiedEntries, predeterminedCallback)
+		satisfiedEntries = append(satisfiedEntries, initialEntry)
 	}
 
 	if len(payloadsToStore) > 0 {
 		err = m.payloadStore.Store(ctx, tx, payloadsToStore...)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to store callback result payloads for satisfied callbacks: %w", err)
+			return nil, fmt.Errorf("failed to store entry result payloads for satisfied entry: %w", err)
 		}
 	}
 
