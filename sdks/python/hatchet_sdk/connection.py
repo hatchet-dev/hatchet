@@ -107,7 +107,6 @@ def _execute_grpc_call(
         raise _translate_grpc_error(e) from e
 
 
-
 def _translate_grpc_error(e: grpc.RpcError) -> Exception:
     """
     Translate grpc.RpcError into more specific SDK exceptions.
