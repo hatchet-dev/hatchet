@@ -546,8 +546,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	var nde *v1.NonDeterminismError
 	if err != nil && errors.As(err, &nde) {
-		errMsg := fmt.Sprintf("non-determinism detected for durable task event with task id %s", taskExternalId)
-
 		failMsg, failErr := tasktypes.FailedTaskMessage(
 			invocation.tenantId,
 			task.ID,
@@ -556,7 +554,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			task.WorkflowRunID,
 			task.RetryCount,
 			false,
-			errMsg,
+			nde.Error(),
 			true,
 		)
 
@@ -574,7 +572,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 					DurableTaskExternalId: taskExternalId.String(),
 					NodeId:                nde.NodeId,
 					InvocationCount:       req.InvocationCount,
-					ErrorMessage:          errMsg,
+					ErrorMessage:          nde.Error(),
 				},
 			},
 		})
