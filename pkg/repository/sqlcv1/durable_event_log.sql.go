@@ -23,6 +23,7 @@ INSERT INTO v1_durable_event_log_entry (
     node_id,
     parent_node_id,
     branch_id,
+    is_satisfied,
     data_hash,
     data_hash_alg
 )
@@ -36,8 +37,9 @@ VALUES (
     $6::BIGINT,
     $7::BIGINT,
     $8::BIGINT,
-    $9::BYTEA,
-    $10::TEXT
+    $9::BOOLEAN,
+    $10::BYTEA,
+    $11::TEXT
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
 RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, data_hash, data_hash_alg, is_satisfied
@@ -52,6 +54,7 @@ type CreateDurableEventLogEntryParams struct {
 	Nodeid                int64                 `json:"nodeid"`
 	ParentNodeId          pgtype.Int8           `json:"parentNodeId"`
 	Branchid              int64                 `json:"branchid"`
+	Issatisfied           bool                  `json:"issatisfied"`
 	Datahash              []byte                `json:"datahash"`
 	Datahashalg           string                `json:"datahashalg"`
 }
@@ -66,6 +69,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 		arg.Nodeid,
 		arg.ParentNodeId,
 		arg.Branchid,
+		arg.Issatisfied,
 		arg.Datahash,
 		arg.Datahashalg,
 	)

@@ -9,8 +9,7 @@ SELECT
     create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
     create_v1_range_partition('v1_event_to_run', @date::date),
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
-    create_v1_range_partition('v1_durable_event_log_entry', @date::date),
-    create_v1_range_partition('v1_durable_event_log_callback', @date::date)
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date)
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -33,8 +32,6 @@ WITH tomorrow_date AS (
     SELECT 'v1_durable_event_log_file_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_durable_event_log_entry_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
-    UNION ALL
-    SELECT 'v1_durable_event_log_callback_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -70,8 +67,6 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', @date::date) AS p
 ), durable_event_log_entry_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
-), durable_event_log_callback_partitions AS (
-    SELECT 'v1_durable_event_log_callback' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_callback', @date::date) AS p
 )
 
 SELECT
@@ -141,13 +136,6 @@ SELECT
     *
 FROM
     durable_event_log_entry_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    durable_event_log_callback_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one

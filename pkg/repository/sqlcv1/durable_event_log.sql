@@ -60,6 +60,7 @@ INSERT INTO v1_durable_event_log_entry (
     node_id,
     parent_node_id,
     branch_id,
+    is_satisfied,
     data_hash,
     data_hash_alg
 )
@@ -73,6 +74,7 @@ VALUES (
     @nodeId::BIGINT,
     sqlc.narg('parentNodeId')::BIGINT,
     @branchId::BIGINT,
+    @isSatisfied::BOOLEAN,
     @dataHash::BYTEA,
     @dataHashAlg::TEXT
 )

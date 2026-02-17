@@ -565,11 +565,11 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
 	}
 
-	if ingestionResult.Callback.Callback.IsSatisfied {
+	if ingestionResult.EventLogEntry.Entry.IsSatisfied {
 		err := d.DeliverCallbackCompletion(
 			taskExternalId,
 			ingestionResult.NodeId,
-			ingestionResult.Callback.Result,
+			ingestionResult.EventLogEntry.ResultPayload,
 		)
 
 		if err != nil {
@@ -617,7 +617,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		return nil
 	}
 
-	callbacks, err := d.repo.DurableEvents().GetSatisfiedCallbacks(ctx, invocation.tenantId, waiting)
+	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting)
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}

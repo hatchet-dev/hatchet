@@ -131,7 +131,7 @@ type EventMatchResults struct {
 	ReplayedTasks []*V1TaskWithPayload
 
 	// The list of satisfied durable callbacks from matches
-	SatisfiedCallbacks []SatisfiedCallback
+	SatisfiedDurableEventLogEntries []SatisfiedEntry
 }
 
 type GroupMatchCondition struct {
@@ -155,7 +155,7 @@ type GroupMatchCondition struct {
 	Data []byte
 }
 
-type SatisfiedCallback struct {
+type SatisfiedEntry struct {
 	DurableTaskExternalId uuid.UUID
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
@@ -690,46 +690,46 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	durableTaskNodeIds := make([]int64, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
-	idInsertedAtNodeIdToSatisfiedCallback := make(map[DurableTaskNodeIdKey]SatisfiedCallback)
+	idInsertedAtNodeIdToSatisfiedCallback := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
 
 	for _, match := range satisfiedMatches {
-		if match.DurableEventLogCallbackNodeID.Valid && match.DurableEventLogCallbackDurableTaskID.Valid && match.DurableEventLogCallbackDurableTaskExternalID != nil {
-			durableTaskId := match.DurableEventLogCallbackDurableTaskID.Int64
+		if match.DurableEventLogEntryNodeID.Valid && match.DurableEventLogEntryDurableTaskID.Valid && match.DurableEventLogEntryDurableTaskExternalID != nil {
+			durableTaskId := match.DurableEventLogEntryDurableTaskID.Int64
 			key := DurableTaskNodeIdKey{
 				DurableTaskId:         durableTaskId,
-				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt.Time,
-				NodeId:                match.DurableEventLogCallbackNodeID.Int64,
+				DurableTaskInsertedAt: match.DurableEventLogEntryDurableTaskInsertedAt.Time,
+				NodeId:                match.DurableEventLogEntryNodeID.Int64,
 			}
 
-			cb := SatisfiedCallback{
-				DurableTaskExternalId: *match.DurableEventLogCallbackDurableTaskExternalID,
+			cb := SatisfiedEntry{
+				DurableTaskExternalId: *match.DurableEventLogEntryDurableTaskExternalID,
 				DurableTaskId:         durableTaskId,
-				DurableTaskInsertedAt: match.DurableEventLogCallbackDurableTaskInsertedAt,
-				NodeId:                match.DurableEventLogCallbackNodeID.Int64,
+				DurableTaskInsertedAt: match.DurableEventLogEntryDurableTaskInsertedAt,
+				NodeId:                match.DurableEventLogEntryNodeID.Int64,
 				Data:                  match.McAggregatedData,
 			}
 
 			idInsertedAtNodeIdToSatisfiedCallback[key] = cb
 
-			durableTaskIds = append(durableTaskIds, match.DurableEventLogCallbackDurableTaskID.Int64)
-			durableTaskInsertedAts = append(durableTaskInsertedAts, match.DurableEventLogCallbackDurableTaskInsertedAt)
-			durableTaskNodeIds = append(durableTaskNodeIds, match.DurableEventLogCallbackNodeID.Int64)
+			durableTaskIds = append(durableTaskIds, match.DurableEventLogEntryDurableTaskID.Int64)
+			durableTaskInsertedAts = append(durableTaskInsertedAts, match.DurableEventLogEntryDurableTaskInsertedAt)
+			durableTaskNodeIds = append(durableTaskNodeIds, match.DurableEventLogEntryNodeID.Int64)
 		}
 	}
 
-	callbacks, err := m.queries.UpdateDurableEventLogCallbacksSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogCallbacksSatisfiedParams{
+	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
 		Nodeids:                durableTaskNodeIds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list satisfied callbacks: %w", err)
+		return nil, fmt.Errorf("failed to list satisfied entries: %w", err)
 	}
 
-	satisfiedCallbacks := make([]SatisfiedCallback, 0)
+	satisfiedEntries := make([]SatisfiedEntry, 0)
 
-	for _, cb := range callbacks {
+	for _, cb := range entries {
 		key := DurableTaskNodeIdKey{
 			DurableTaskId:         cb.DurableTaskID,
 			DurableTaskInsertedAt: cb.DurableTaskInsertedAt.Time,
@@ -755,14 +755,14 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
 				Id:         cb.ID,
 				InsertedAt: cb.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGCALLBACKRESULTDATA,
+				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 				Payload:    predeterminedCallback.Data,
 				ExternalId: cb.ExternalID,
 				TenantId:   tenantId,
 			})
 		}
 
-		satisfiedCallbacks = append(satisfiedCallbacks, predeterminedCallback)
+		satisfiedEntries = append(satisfiedEntries, predeterminedCallback)
 	}
 
 	if len(payloadsToStore) > 0 {
@@ -773,7 +773,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
-	res.SatisfiedCallbacks = satisfiedCallbacks
+	res.SatisfiedDurableEventLogEntries = satisfiedEntries
 
 	if len(signalIds) > 0 {
 		// create a SIGNAL_COMPLETED event for any signal
@@ -1122,15 +1122,15 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForSignalTriggersParams{
-				Tenantids:                      signalTenantIds,
-				Kinds:                          signalKinds,
-				Signaltaskids:                  signalTaskIds,
-				Signaltaskinsertedats:          signalTaskInsertedAts,
-				Signalkeys:                     signalKeys,
-				Callbackdurabletaskids:         callbackTaskIds,
-				Callbackdurabletaskinsertedats: callbackTaskInsertedAts,
-				Callbacknodeids:                callbackNodeIds,
-				Callbackdurabletaskexternalids: callbackDurableTaskExternalIds,
+				Tenantids:                          signalTenantIds,
+				Kinds:                              signalKinds,
+				Signaltaskids:                      signalTaskIds,
+				Signaltaskinsertedats:              signalTaskInsertedAts,
+				Signalkeys:                         signalKeys,
+				Durableeventlogentrydurabletaskids: callbackTaskIds,
+				Durableeventlogentrydurabletaskinsertedats: callbackTaskInsertedAts,
+				Durableeventlogentrynodeids:                callbackNodeIds,
+				Durableeventlogentrydurabletaskexternalids: callbackDurableTaskExternalIds,
 			},
 		)
 
