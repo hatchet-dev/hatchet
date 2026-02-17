@@ -22,10 +22,10 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
+from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.exceptions import NonDeterminismError
 
 
 class DurableTaskEventAck(BaseModel):
@@ -34,7 +34,7 @@ class DurableTaskEventAck(BaseModel):
     node_id: int
 
 
-class DurableTaskCallbackResult(BaseModel):
+class DurableTaskEventLogEntryResult(BaseModel):
     durable_task_external_id: str
     node_id: int
     payload: JSONSerializableMapping | None
@@ -71,7 +71,7 @@ class DurableEventListener:
             tuple[str, int], asyncio.Future[DurableTaskEventAck]
         ] = {}
         self._pending_callbacks: dict[
-            tuple[str, int], asyncio.Future[DurableTaskCallbackResult]
+            tuple[str, int], asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
@@ -208,9 +208,11 @@ class DurableEventListener:
                 completed.node_id,
             )
             if completed_key in self._pending_callbacks:
-                future = self._pending_callbacks[completed_key]
-                if not future.done():
-                    future.set_result(DurableTaskCallbackResult.from_proto(completed))
+                completed_future = self._pending_callbacks[completed_key]
+                if not completed_future.done():
+                    completed_future.set_result(
+                        DurableTaskEventLogEntryResult.from_proto(completed)
+                    )
                 del self._pending_callbacks[completed_key]
         elif response.HasField("error"):
             error = response.error
@@ -224,15 +226,17 @@ class DurableEventListener:
 
             event_key = (error.durable_task_external_id, error.invocation_count)
             if event_key in self._pending_event_acks:
-                future = self._pending_event_acks.pop(event_key)
-                if not future.done():
-                    future.set_exception(exc)
+                error_pending_ack_future = self._pending_event_acks.pop(event_key)
+                if not error_pending_ack_future.done():
+                    error_pending_ack_future.set_exception(exc)
 
             callback_key = (error.durable_task_external_id, error.node_id)
             if callback_key in self._pending_callbacks:
-                future = self._pending_callbacks.pop(callback_key)
-                if not future.done():
-                    future.set_exception(exc)
+                error_pending_callback_future = self._pending_callbacks.pop(
+                    callback_key
+                )
+                if not error_pending_callback_future.done():
+                    error_pending_callback_future.set_exception(exc)
 
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:
@@ -293,11 +297,11 @@ class DurableEventListener:
         self,
         durable_task_external_id: str,
         node_id: int,
-    ) -> DurableTaskCallbackResult:
+    ) -> DurableTaskEventLogEntryResult:
         key = (durable_task_external_id, node_id)
 
         if key not in self._pending_callbacks:
-            future: asyncio.Future[DurableTaskCallbackResult] = asyncio.Future()
+            future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
 
         return await self._pending_callbacks[key]

@@ -15,7 +15,7 @@ from examples.durable.worker import (
     hatchet,
 )
 from hatchet_sdk import Hatchet
-from hatchet_sdk.exceptions import NonDeterminismError
+from hatchet_sdk.exceptions import NonDeterminismError, FailedTaskRunExceptionGroup
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -151,8 +151,18 @@ async def test_durable_non_determinism() -> None:
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
 
-    with pytest.raises(NonDeterminismError) as exc_info:
+    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info:
         await ref.aio_result()
-        assert exc_info.value.task_external_id == ref.workflow_run_id
-        assert exc_info.value.invocation_count == 2
-        assert exc_info.value.node_id == 1
+
+        exceptions = exc_info.value.exceptions
+
+        assert len(exceptions) == 1
+
+        err = exceptions[0]
+
+        ## fixme: type checker for this
+        assert isinstance(err, NonDeterminismError)
+
+        assert err.task_external_id == ref.workflow_run_id
+        assert err.invocation_count == 2
+        assert err.node_id == 1
