@@ -266,7 +266,7 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
 }
 
-func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts IngestDurableTaskEventOpts) ([]byte, error) {
+func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEventOpts) ([]byte, error) {
 	// todo: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
 	dataToHash := []byte(opts.Kind)
 
@@ -417,7 +417,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
-	idempotencyKey, err := r.createIdempotencyKey(ctx, opts)
+	idempotencyKey, err := r.createIdempotencyKey(opts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create idempotency key: %w", err)
