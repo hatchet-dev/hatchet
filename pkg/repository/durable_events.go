@@ -313,7 +313,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			Issatisfied:           isSatisfied,
 			Datahash:              nil, // todo: implement this for nondeterminism check
 			Datahashalg:           "",
-			// todo: send payload here to write result
 		},
 		opts.Payload,
 		resultPayload,
