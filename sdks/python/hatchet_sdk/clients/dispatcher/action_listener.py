@@ -272,12 +272,7 @@ class ActionListener:
                     self.run_heartbeat = False
                     logger.info("ListenV2 not available, falling back to Listen")
                 else:
-                    # TODO retry
-                    if e.code() == grpc.StatusCode.UNAVAILABLE:
-                        logger.exception("action listener error")
-                    else:
-                        # Unknown error, report and break
-                        logger.exception("action listener error")
+                    logger.error("action listener error - reconnecting")
 
                     self.retries = self.retries + 1
 
