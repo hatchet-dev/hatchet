@@ -273,8 +273,6 @@ func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts
 		}
 	}
 
-	fmt.Println("hashing data for idempotency key generation:", string(dataToHash))
-
 	h := sha1.New()
 	h.Write(dataToHash)
 	hashBytes := h.Sum(nil)
