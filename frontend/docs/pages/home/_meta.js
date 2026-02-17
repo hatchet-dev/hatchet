@@ -11,6 +11,7 @@ export default {
     type: "separator",
   },
   "workflows-overview": "Workflows (DAGs)",
+
   "durable-workflows-overview": "Durable Workflows",
   "--patterns-and-use-cases": {
     title: "Patterns and Use Cases",
@@ -81,6 +82,22 @@ export default {
   },
   "additional-metadata": {
     title: "Additional Metadata",
+  },
+  "--durable-execution": {
+    title: "Durable Execution",
+    type: "separator",
+  },
+  "durable-execution": {
+    title: "Durable Execution",
+  },
+  "durable-events": {
+    title: "Durable Events",
+  },
+  "durable-sleep": {
+    title: "Durable Sleep",
+  },
+  "durable-best-practices": {
+    title: "Best Practices",
   },
   "--error-handling": {
     title: "Error Handling",
