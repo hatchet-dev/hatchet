@@ -268,11 +268,11 @@ async def test_cancel_callback_invoked() -> None:
 
 @pytest.mark.asyncio
 async def test_sync_cancel_callback_invoked() -> None:
-    """Sync cancel callback should be invoked on cancellation (and not awaited)."""
+    """Cancel callback should be invoked on cancellation."""
     token = CancellationToken()
     callback_called = []
 
-    def cancel_callback() -> None:
+    async def cancel_callback() -> None:
         callback_called.append(True)
 
     async def slow_coro() -> str:
@@ -299,7 +299,7 @@ async def test_cancel_callback_invoked_on_external_task_cancel() -> None:
     token = CancellationToken()
     callback_called = asyncio.Event()
 
-    def cancel_callback() -> None:
+    async def cancel_callback() -> None:
         callback_called.set()
 
     async def slow_coro() -> str:
