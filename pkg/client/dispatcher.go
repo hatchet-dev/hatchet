@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -836,7 +837,7 @@ func (d *dispatcherClientImpl) GetDurableTaskStream(ctx context.Context, workerI
 		return d.durableStream, nil
 	}
 
-	stream, err := d.clientv1.DurableTask(d.ctx.newContext(ctx))
+	stream, err := d.clientv1.DurableTask(d.ctx.newContext(ctx), grpc_retry.Disable())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create durable task stream: %w", err)
 	}
