@@ -4,11 +4,6 @@ import { Callout, Steps } from "nextra/components";
 
 This guide covers how to safely upgrade and downgrade self-hosted Hatchet instances, with strategies for production-critical workloads.
 
-<Callout type="warning">
-  Always test upgrades and downgrades in a non-production environment before
-  applying them to production.
-</Callout>
-
 ## Overview
 
 For production-critical deployments, we recommend the following workflow:
@@ -54,6 +49,10 @@ services:
 ```
 
 Then redeploy:
+
+<Callout type="warning">
+  This can cause some downtime till the containers are back up.
+</Callout>
 
 ```bash
 docker-compose pull
@@ -111,6 +110,10 @@ kubectl logs -n hatchet -l app=hatchet-engine --tail=50
 ## Step 3: Downgrade if Needed
 
 If the upgrade causes issues, you have two options depending on your situation:
+
+<Callout type="warning">
+  Both the following options will result in data loss and some downtime.
+</Callout>
 
 ### Option A: Restore from Database Snapshot (Recommended for Production)
 
