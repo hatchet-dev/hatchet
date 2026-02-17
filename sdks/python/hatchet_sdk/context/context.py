@@ -212,10 +212,6 @@ class Context:
         Args:
             reason: The reason for cancellation.
         """
-        logger.debug(
-            f"Context: setting cancellation flag for step_run_id={self.step_run_id}, "
-            f"reason={reason.value}"
-        )
         self.cancellation_token.cancel(reason)
 
     def cancel(self) -> None:
@@ -224,9 +220,6 @@ class Context:
 
         :return: None
         """
-        logger.debug(
-            f"Context: cancel() called for task_run_external_id={self.step_run_id}"
-        )
         self.runs_client.cancel(self.step_run_id)
         self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
 
@@ -236,9 +229,6 @@ class Context:
 
         :return: None
         """
-        logger.debug(
-            f"Context: aio_cancel() called for task_run_external_id={self.step_run_id}"
-        )
         await self.runs_client.aio_cancel(self.step_run_id)
         self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
 
@@ -588,10 +578,6 @@ class DurableContext(Context):
         :return: A dictionary containing the results of the wait.
         """
         wait_index = self._increment_wait_index()
-
-        logger.debug(
-            f"DurableContext.aio_sleep_for: sleeping for {duration}, wait_index={wait_index}"
-        )
 
         return await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
