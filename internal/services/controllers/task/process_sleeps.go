@@ -36,7 +36,7 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
 		if err := tc.processSatisfiedEventLogEntry(ctx, tenantIdUUID, matchResult.SatisfiedDurableEventLogEntries); err != nil {
-			tc.l.Error().Err(err).Msg("could not process satisfied callbacks from sleep")
+			tc.l.Error().Err(err).Msg("could not process satisfied entries from sleep")
 		}
 	}
 

@@ -11,9 +11,9 @@ from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
-    DurableTaskAwaitedCallback,
-    DurableTaskCallbackCompletedResponse,
+    DurableTaskAwaitedCompletedEntry,
     DurableTaskEventKind,
+    DurableTaskEventLogEntryCompletedResponse,
     DurableTaskEventRequest,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
@@ -39,7 +39,7 @@ class DurableTaskCallbackResult(BaseModel):
     payload: JSONSerializableMapping | None
 
     @classmethod
-    def from_proto(cls, proto: DurableTaskCallbackCompletedResponse) -> Self:
+    def from_proto(cls, proto: DurableTaskEventLogEntryCompletedResponse) -> Self:
         payload: JSONSerializableMapping | None = None
         if proto.payload:
             payload = json.loads(proto.payload.decode("utf-8"))
@@ -148,7 +148,7 @@ class DurableEventListener:
             return
 
         waiting = [
-            DurableTaskAwaitedCallback(
+            DurableTaskAwaitedCompletedEntry(
                 durable_task_external_id=task_ext_id,
                 node_id=node_id,
             )
@@ -158,7 +158,7 @@ class DurableEventListener:
         request = DurableTaskRequest(
             worker_status=DurableTaskWorkerStatusRequest(
                 worker_id=self._worker_id,
-                waiting_callbacks=waiting,
+                waiting_entries=waiting,
             )
         )
         await self._request_queue.put(request)
@@ -201,7 +201,7 @@ class DurableEventListener:
                 )
                 del self._pending_event_acks[event_key]
         elif response.HasField("callback_completed"):
-            completed = response.callback_completed
+            completed = response.entry_completed
             completed_key = (
                 completed.durable_task_external_id,
                 completed.node_id,

@@ -567,7 +567,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	}
 
 	if ingestionResult.EventLogEntry.Entry.IsSatisfied {
-		err := d.DeliverCallbackCompletion(
+		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
 			ingestionResult.NodeId,
 			ingestionResult.EventLogEntry.ResultPayload,
@@ -597,12 +597,12 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskWorkerStatusRequest,
 ) error {
-	if len(req.WaitingCallbacks) == 0 {
+	if len(req.WaitingEntries) == 0 {
 		return nil
 	}
 
-	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingCallbacks))
-	for _, cb := range req.WaitingCallbacks {
+	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingEntries))
+	for _, cb := range req.WaitingEntries {
 		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
 		if err != nil {
 			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status: %s", cb.DurableTaskExternalId)
@@ -625,8 +625,8 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 
 	for _, cb := range callbacks {
 		if err := invocation.send(&contracts.DurableTaskResponse{
-			Message: &contracts.DurableTaskResponse_CallbackCompleted{
-				CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+			Message: &contracts.DurableTaskResponse_EntryCompleted{
+				EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 					DurableTaskExternalId: cb.TaskExternalId.String(),
 					NodeId:                cb.NodeID,
 					Payload:               cb.Result,
@@ -640,15 +640,15 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	return nil
 }
 
-func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
 	}
 
 	return inv.send(&contracts.DurableTaskResponse{
-		Message: &contracts.DurableTaskResponse_CallbackCompleted{
-			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+		Message: &contracts.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
 				Payload:               payload,
