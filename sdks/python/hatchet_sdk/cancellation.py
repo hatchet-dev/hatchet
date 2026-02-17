@@ -94,14 +94,17 @@ class CancellationToken:
                 self._async_event.set()
             self._sync_event.set()
 
-            for callback in self._callbacks:
-                try:
-                    logger.debug(f"CancellationToken: invoking callback {callback}")
-                    callback()
-                except Exception as e:  # noqa: PERF203
-                    logger.warning(f"CancellationToken: callback raised exception: {e}")
+            # Snapshot callbacks under the lock, invoke outside to avoid deadlocks
+            callbacks = list(self._callbacks)
 
-            logger.debug(f"CancellationToken: cancel() complete, reason={reason.value}")
+        for callback in callbacks:
+            try:
+                logger.debug(f"CancellationToken: invoking callback {callback}")
+                callback()
+            except Exception as e:  # noqa: PERF203
+                logger.warning(f"CancellationToken: callback raised exception: {e}")
+
+        logger.debug(f"CancellationToken: cancel() complete, reason={reason.value}")
 
     @property
     def is_cancelled(self) -> bool:
@@ -157,15 +160,10 @@ class CancellationToken:
             logger.debug(f"CancellationToken: registering child workflow {run_id}")
             self._child_run_ids.append(run_id)
 
-    def get_child_run_ids(self) -> list[str]:
-        """
-        Get a copy of the registered child run IDs.
-
-        Returns:
-            A list of child workflow run IDs.
-        """
-        with self._lock:
-            return self._child_run_ids.copy()
+    @property
+    def child_run_ids(self) -> list[str]:
+        """The registered child workflow run IDs."""
+        return self._child_run_ids
 
     def add_callback(self, callback: Callable[[], None]) -> None:
         """
@@ -178,16 +176,19 @@ class CancellationToken:
         """
         with self._lock:
             if self._cancelled:
-                # Already cancelled, invoke immediately
-                logger.debug(
-                    f"CancellationToken: invoking callback immediately (already cancelled): {callback}"
-                )
-                try:
-                    callback()
-                except Exception as e:
-                    logger.warning(f"CancellationToken: callback raised exception: {e}")
+                invoke_now = True
             else:
+                invoke_now = False
                 self._callbacks.append(callback)
+
+        if invoke_now:
+            logger.debug(
+                f"CancellationToken: invoking callback immediately (already cancelled): {callback}"
+            )
+            try:
+                callback()
+            except Exception as e:
+                logger.warning(f"CancellationToken: callback raised exception: {e}")
 
     def __repr__(self) -> str:
         return (

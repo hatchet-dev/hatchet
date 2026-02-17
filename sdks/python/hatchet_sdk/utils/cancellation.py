@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import inspect
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, TypeVar
 
@@ -14,6 +13,16 @@ if TYPE_CHECKING:
     from hatchet_sdk.cancellation import CancellationToken
 
 T = TypeVar("T")
+
+
+async def _invoke_cancel_callback(
+    cancel_callback: Callable[[], Awaitable[None]] | None,
+) -> None:
+    """Invoke a cancel callback."""
+    if not cancel_callback:
+        return
+
+    await cancel_callback()
 
 
 async def race_against_token(
@@ -69,7 +78,7 @@ async def race_against_token(
 async def await_with_cancellation(
     coro: Awaitable[T],
     token: CancellationToken | None,
-    cancel_callback: Callable[[], Awaitable[None] | None] | None = None,
+    cancel_callback: Callable[[], Awaitable[None]] | None = None,
 ) -> T:
     """
     Await an awaitable with cancellation support.
@@ -79,10 +88,10 @@ async def await_with_cancellation(
     and an asyncio.CancelledError is raised.
 
     Args:
-        coro: The awaitable to await (coroutine, Future, or Task).
+        coro: The awaitable to await (coroutine, Future, or asyncio.Task).
         token: The cancellation token to check. If None, the coroutine is awaited directly.
-        cancel_callback: An optional callback to invoke when cancellation occurs
-            (e.g., to cancel child workflows). May be sync or async.
+        cancel_callback: An optional async callback to invoke when cancellation occurs
+            (e.g., to cancel child workflows).
 
     Returns:
         The result of the coroutine.
@@ -92,7 +101,7 @@ async def await_with_cancellation(
 
     Example:
         ```python
-        def cleanup() -> None:
+        async def cleanup() -> None:
             print("cleaning up...")
 
         async def long_running_task():
@@ -110,14 +119,6 @@ async def await_with_cancellation(
         ```
     """
 
-    async def _invoke_cancel_callback() -> None:
-        if not cancel_callback:
-            return
-
-        result = cancel_callback()
-        if inspect.isawaitable(result):
-            await result
-
     if token is None:
         logger.debug("await_with_cancellation: no token provided, awaiting directly")
         return await coro
@@ -129,7 +130,7 @@ async def await_with_cancellation(
         logger.debug("await_with_cancellation: token already cancelled")
         if cancel_callback:
             logger.debug("await_with_cancellation: invoking cancel callback")
-            await _invoke_cancel_callback()
+            await _invoke_cancel_callback(cancel_callback)
         raise asyncio.CancelledError("Operation cancelled by cancellation token")
 
     main_task = asyncio.ensure_future(coro)
@@ -144,5 +145,5 @@ async def await_with_cancellation(
         if cancel_callback:
             logger.debug("await_with_cancellation: invoking cancel callback")
             with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.shield(_invoke_cancel_callback())
+                await asyncio.shield(_invoke_cancel_callback(cancel_callback))
         raise

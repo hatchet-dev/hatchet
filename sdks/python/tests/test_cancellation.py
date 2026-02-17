@@ -119,19 +119,7 @@ def test_register_child() -> None:
     token.register_child("run-1")
     token.register_child("run-2")
 
-    children = token.get_child_run_ids()
-    assert children == ["run-1", "run-2"]
-
-
-def test_get_child_run_ids_returns_copy() -> None:
-    """get_child_run_ids() should return a copy, not the internal list."""
-    token = CancellationToken()
-    token.register_child("run-1")
-
-    children = token.get_child_run_ids()
-    children.append("run-2")  # Modify the copy
-
-    assert token.get_child_run_ids() == ["run-1"]  # Original unchanged
+    assert token.child_run_ids == ["run-1", "run-2"]
 
 
 def test_callback_invoked_on_cancel() -> None:

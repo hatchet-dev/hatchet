@@ -246,7 +246,7 @@ class Context:
 
         :return: True if the task run has been cancelled, False otherwise.
         """
-        return self.cancellation_token.is_cancelled
+        return self.exit_flag
 
     def log(
         self, line: str | JSONSerializableMapping, raise_on_error: bool = False

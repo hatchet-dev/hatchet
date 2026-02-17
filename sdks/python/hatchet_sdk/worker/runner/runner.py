@@ -502,7 +502,7 @@ class Runner:
             # Trigger the cancellation token to signal the context to stop
             if key in self.contexts:
                 ctx = self.contexts[key]
-                child_count = len(ctx.cancellation_token.get_child_run_ids())
+                child_count = len(ctx.cancellation_token.child_run_ids)
                 logger.debug(
                     f"Cancellation: triggering token for {action.action_id}, "
                     f"reason={CancellationReason.WORKFLOW_CANCELLED.value}, "
