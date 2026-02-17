@@ -311,7 +311,14 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 const createMatchesForSignalTriggers = `-- name: CreateMatchesForSignalTriggers :many
 WITH input AS (
     SELECT
-        tenant_id, kind, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, callback_durable_task_id, callback_durable_task_inserted_at, callback_node_id, callback_durable_task_external_id
+        tenant_id,
+		kind,
+		signal_task_id,
+		signal_task_inserted_at,
+		signal_task_external_id,
+		signal_external_id,
+		signal_key,
+		durable_event_log_entry_node_id
     FROM
         (
             SELECT
@@ -319,12 +326,10 @@ WITH input AS (
                 unnest(cast($2::text[] as v1_match_kind[])) AS kind,
                 unnest($3::bigint[]) AS signal_task_id,
                 unnest($4::timestamptz[]) AS signal_task_inserted_at,
-                unnest($5::uuid[]) AS signal_external_id,
-                unnest($6::text[]) AS signal_key,
-                unnest($7::bigint[]) AS callback_durable_task_id,
-                unnest($8::timestamptz[]) AS callback_durable_task_inserted_at,
-                unnest($9::bigint[]) AS callback_node_id,
-                unnest($10::uuid[]) AS callback_durable_task_external_id
+				unnest($5::uuid[]) AS signal_task_external_id,
+                unnest($6::uuid[]) AS signal_external_id,
+                unnest($7::text[]) AS signal_key,
+                unnest($8::bigint[]) AS durable_event_log_entry_node_id
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -332,41 +337,35 @@ INSERT INTO v1_match (
     kind,
     signal_task_id,
     signal_task_inserted_at,
+	signal_task_external_id,
     signal_external_id,
     signal_key,
-    durable_event_log_callback_durable_task_id,
-    durable_event_log_callback_durable_task_inserted_at,
-    durable_event_log_callback_node_id,
-    durable_event_log_callback_durable_task_external_id
+    durable_event_log_entry_node_id
 )
 SELECT
     i.tenant_id,
     i.kind,
     i.signal_task_id,
     i.signal_task_inserted_at,
+	i.signal_task_external_id,
     i.signal_external_id,
     i.signal_key,
-    i.callback_durable_task_id,
-    i.callback_durable_task_inserted_at,
-    i.callback_node_id,
-    i.callback_durable_task_external_id
+    i.durable_event_log_entry_node_id
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, existing_data, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_priority, durable_event_log_callback_durable_task_external_id, durable_event_log_callback_durable_task_id, durable_event_log_callback_durable_task_inserted_at, durable_event_log_callback_node_id
+    id, tenant_id, kind, is_satisfied, existing_data, signal_task_id, signal_task_inserted_at, signal_task_external_id, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_priority, durable_event_log_entry_node_id
 `
 
 type CreateMatchesForSignalTriggersParams struct {
-	Tenantids                      []uuid.UUID          `json:"tenantids"`
-	Kinds                          []string             `json:"kinds"`
-	Signaltaskids                  []int64              `json:"signaltaskids"`
-	Signaltaskinsertedats          []pgtype.Timestamptz `json:"signaltaskinsertedats"`
-	Signalexternalids              []uuid.UUID          `json:"signalexternalids"`
-	Signalkeys                     []string             `json:"signalkeys"`
-	Callbackdurabletaskids         []*int64             `json:"callbackdurabletaskids"`
-	Callbackdurabletaskinsertedats []pgtype.Timestamptz `json:"callbackdurabletaskinsertedats"`
-	Callbacknodeids                []*int64             `json:"callbacknodeids"`
-	Callbackdurabletaskexternalids []*uuid.UUID         `json:"callbackdurabletaskexternalids"`
+	Tenantids                   []uuid.UUID          `json:"tenantids"`
+	Kinds                       []string             `json:"kinds"`
+	Signaltaskids               []int64              `json:"signaltaskids"`
+	Signaltaskinsertedats       []pgtype.Timestamptz `json:"signaltaskinsertedats"`
+	Signaltaskexternalids       []*uuid.UUID         `json:"signaltaskexternalids"`
+	Signalexternalids           []uuid.UUID          `json:"signalexternalids"`
+	Signalkeys                  []string             `json:"signalkeys"`
+	Durableeventlogentrynodeids []*int64             `json:"durableeventlogentrynodeids"`
 }
 
 func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V1Match, error) {
@@ -375,12 +374,10 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 		arg.Kinds,
 		arg.Signaltaskids,
 		arg.Signaltaskinsertedats,
+		arg.Signaltaskexternalids,
 		arg.Signalexternalids,
 		arg.Signalkeys,
-		arg.Callbackdurabletaskids,
-		arg.Callbackdurabletaskinsertedats,
-		arg.Callbacknodeids,
-		arg.Callbackdurabletaskexternalids,
+		arg.Durableeventlogentrynodeids,
 	)
 	if err != nil {
 		return nil, err
@@ -397,6 +394,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 			&i.ExistingData,
 			&i.SignalTaskID,
 			&i.SignalTaskInsertedAt,
+			&i.SignalTaskExternalID,
 			&i.SignalExternalID,
 			&i.SignalKey,
 			&i.TriggerDagID,
@@ -413,10 +411,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 			&i.TriggerExistingTaskID,
 			&i.TriggerExistingTaskInsertedAt,
 			&i.TriggerPriority,
-			&i.DurableEventLogCallbackDurableTaskExternalID,
-			&i.DurableEventLogCallbackDurableTaskID,
-			&i.DurableEventLogCallbackDurableTaskInsertedAt,
-			&i.DurableEventLogCallbackNodeID,
+			&i.DurableEventLogEntryNodeID,
 		); err != nil {
 			return nil, err
 		}

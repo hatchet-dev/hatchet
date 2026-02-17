@@ -227,7 +227,7 @@ WITH match_counts AS (
     GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
-        m.id, m.tenant_id, m.kind, m.is_satisfied, m.existing_data, m.signal_task_id, m.signal_task_inserted_at, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_workflow_run_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at, m.trigger_priority, m.durable_event_log_callback_durable_task_external_id, m.durable_event_log_callback_durable_task_id, m.durable_event_log_callback_durable_task_inserted_at, m.durable_event_log_callback_node_id,
+        m.id, m.tenant_id, m.kind, m.is_satisfied, m.existing_data, m.signal_task_id, m.signal_task_inserted_at, m.signal_task_external_id, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_workflow_run_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at, m.trigger_priority, m.durable_event_log_entry_node_id,
         CASE WHEN
             (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
             WHEN (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups) THEN 'CANCEL'
@@ -293,7 +293,7 @@ WITH match_counts AS (
         id IN (SELECT id FROM deleted_conditions)
 )
 SELECT
-    rm.id, rm.tenant_id, rm.kind, rm.is_satisfied, rm.existing_data, rm.signal_task_id, rm.signal_task_inserted_at, rm.signal_external_id, rm.signal_key, rm.trigger_dag_id, rm.trigger_dag_inserted_at, rm.trigger_step_id, rm.trigger_step_index, rm.trigger_external_id, rm.trigger_workflow_run_id, rm.trigger_parent_task_external_id, rm.trigger_parent_task_id, rm.trigger_parent_task_inserted_at, rm.trigger_child_index, rm.trigger_child_key, rm.trigger_existing_task_id, rm.trigger_existing_task_inserted_at, rm.trigger_priority, rm.durable_event_log_callback_durable_task_external_id, rm.durable_event_log_callback_durable_task_id, rm.durable_event_log_callback_durable_task_inserted_at, rm.durable_event_log_callback_node_id, rm.action,
+    rm.id, rm.tenant_id, rm.kind, rm.is_satisfied, rm.existing_data, rm.signal_task_id, rm.signal_task_inserted_at, rm.signal_task_external_id, rm.signal_external_id, rm.signal_key, rm.trigger_dag_id, rm.trigger_dag_inserted_at, rm.trigger_step_id, rm.trigger_step_index, rm.trigger_external_id, rm.trigger_workflow_run_id, rm.trigger_parent_task_external_id, rm.trigger_parent_task_id, rm.trigger_parent_task_inserted_at, rm.trigger_child_index, rm.trigger_child_key, rm.trigger_existing_task_id, rm.trigger_existing_task_inserted_at, rm.trigger_priority, rm.durable_event_log_entry_node_id, rm.action,
     COALESCE(rm.existing_data || d.mc_aggregated_data, d.mc_aggregated_data)::jsonb AS mc_aggregated_data
 FROM
     result_matches rm
@@ -302,35 +302,33 @@ LEFT JOIN
 `
 
 type SaveSatisfiedMatchConditionsRow struct {
-	ID                                           int64                  `json:"id"`
-	TenantID                                     uuid.UUID              `json:"tenant_id"`
-	Kind                                         V1MatchKind            `json:"kind"`
-	IsSatisfied                                  bool                   `json:"is_satisfied"`
-	ExistingData                                 []byte                 `json:"existing_data"`
-	SignalTaskID                                 pgtype.Int8            `json:"signal_task_id"`
-	SignalTaskInsertedAt                         pgtype.Timestamptz     `json:"signal_task_inserted_at"`
-	SignalExternalID                             *uuid.UUID             `json:"signal_external_id"`
-	SignalKey                                    pgtype.Text            `json:"signal_key"`
-	TriggerDagID                                 pgtype.Int8            `json:"trigger_dag_id"`
-	TriggerDagInsertedAt                         pgtype.Timestamptz     `json:"trigger_dag_inserted_at"`
-	TriggerStepID                                *uuid.UUID             `json:"trigger_step_id"`
-	TriggerStepIndex                             pgtype.Int8            `json:"trigger_step_index"`
-	TriggerExternalID                            *uuid.UUID             `json:"trigger_external_id"`
-	TriggerWorkflowRunID                         *uuid.UUID             `json:"trigger_workflow_run_id"`
-	TriggerParentTaskExternalID                  *uuid.UUID             `json:"trigger_parent_task_external_id"`
-	TriggerParentTaskID                          pgtype.Int8            `json:"trigger_parent_task_id"`
-	TriggerParentTaskInsertedAt                  pgtype.Timestamptz     `json:"trigger_parent_task_inserted_at"`
-	TriggerChildIndex                            pgtype.Int8            `json:"trigger_child_index"`
-	TriggerChildKey                              pgtype.Text            `json:"trigger_child_key"`
-	TriggerExistingTaskID                        pgtype.Int8            `json:"trigger_existing_task_id"`
-	TriggerExistingTaskInsertedAt                pgtype.Timestamptz     `json:"trigger_existing_task_inserted_at"`
-	TriggerPriority                              pgtype.Int4            `json:"trigger_priority"`
-	DurableEventLogCallbackDurableTaskExternalID *uuid.UUID             `json:"durable_event_log_callback_durable_task_external_id"`
-	DurableEventLogCallbackDurableTaskID         pgtype.Int8            `json:"durable_event_log_callback_durable_task_id"`
-	DurableEventLogCallbackDurableTaskInsertedAt pgtype.Timestamptz     `json:"durable_event_log_callback_durable_task_inserted_at"`
-	DurableEventLogCallbackNodeID                pgtype.Int8            `json:"durable_event_log_callback_node_id"`
-	Action                                       V1MatchConditionAction `json:"action"`
-	McAggregatedData                             []byte                 `json:"mc_aggregated_data"`
+	ID                            int64                  `json:"id"`
+	TenantID                      uuid.UUID              `json:"tenant_id"`
+	Kind                          V1MatchKind            `json:"kind"`
+	IsSatisfied                   bool                   `json:"is_satisfied"`
+	ExistingData                  []byte                 `json:"existing_data"`
+	SignalTaskID                  pgtype.Int8            `json:"signal_task_id"`
+	SignalTaskInsertedAt          pgtype.Timestamptz     `json:"signal_task_inserted_at"`
+	SignalTaskExternalID          *uuid.UUID             `json:"signal_task_external_id"`
+	SignalExternalID              *uuid.UUID             `json:"signal_external_id"`
+	SignalKey                     pgtype.Text            `json:"signal_key"`
+	TriggerDagID                  pgtype.Int8            `json:"trigger_dag_id"`
+	TriggerDagInsertedAt          pgtype.Timestamptz     `json:"trigger_dag_inserted_at"`
+	TriggerStepID                 *uuid.UUID             `json:"trigger_step_id"`
+	TriggerStepIndex              pgtype.Int8            `json:"trigger_step_index"`
+	TriggerExternalID             *uuid.UUID             `json:"trigger_external_id"`
+	TriggerWorkflowRunID          *uuid.UUID             `json:"trigger_workflow_run_id"`
+	TriggerParentTaskExternalID   *uuid.UUID             `json:"trigger_parent_task_external_id"`
+	TriggerParentTaskID           pgtype.Int8            `json:"trigger_parent_task_id"`
+	TriggerParentTaskInsertedAt   pgtype.Timestamptz     `json:"trigger_parent_task_inserted_at"`
+	TriggerChildIndex             pgtype.Int8            `json:"trigger_child_index"`
+	TriggerChildKey               pgtype.Text            `json:"trigger_child_key"`
+	TriggerExistingTaskID         pgtype.Int8            `json:"trigger_existing_task_id"`
+	TriggerExistingTaskInsertedAt pgtype.Timestamptz     `json:"trigger_existing_task_inserted_at"`
+	TriggerPriority               pgtype.Int4            `json:"trigger_priority"`
+	DurableEventLogEntryNodeID    pgtype.Int8            `json:"durable_event_log_entry_node_id"`
+	Action                        V1MatchConditionAction `json:"action"`
+	McAggregatedData              []byte                 `json:"mc_aggregated_data"`
 }
 
 // NOTE: we have to break this into a separate query because CTEs can't see modified rows
@@ -354,6 +352,7 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 			&i.ExistingData,
 			&i.SignalTaskID,
 			&i.SignalTaskInsertedAt,
+			&i.SignalTaskExternalID,
 			&i.SignalExternalID,
 			&i.SignalKey,
 			&i.TriggerDagID,
@@ -370,10 +369,7 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 			&i.TriggerExistingTaskID,
 			&i.TriggerExistingTaskInsertedAt,
 			&i.TriggerPriority,
-			&i.DurableEventLogCallbackDurableTaskExternalID,
-			&i.DurableEventLogCallbackDurableTaskID,
-			&i.DurableEventLogCallbackDurableTaskInsertedAt,
-			&i.DurableEventLogCallbackNodeID,
+			&i.DurableEventLogEntryNodeID,
 			&i.Action,
 			&i.McAggregatedData,
 		); err != nil {

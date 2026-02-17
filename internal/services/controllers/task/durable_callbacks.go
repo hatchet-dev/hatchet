@@ -11,7 +11,7 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-func (tc *TasksControllerImpl) processSatisfiedCallbacks(ctx context.Context, tenantId uuid.UUID, callbacks []v1.SatisfiedCallback) error {
+func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context, tenantId uuid.UUID, callbacks []v1.SatisfiedEntry) error {
 	if len(callbacks) == 0 {
 		return nil
 	}

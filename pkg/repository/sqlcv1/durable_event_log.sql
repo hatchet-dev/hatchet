@@ -60,6 +60,7 @@ INSERT INTO v1_durable_event_log_entry (
     node_id,
     parent_node_id,
     branch_id,
+    is_satisfied,
     data_hash,
     data_hash_alg
 )
@@ -73,6 +74,7 @@ VALUES (
     @nodeId::BIGINT,
     sqlc.narg('parentNodeId')::BIGINT,
     @branchId::BIGINT,
+    @isSatisfied::BOOLEAN,
     @dataHash::BYTEA,
     @dataHashAlg::TEXT
 )
@@ -80,40 +82,8 @@ ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
 RETURNING *
 ;
 
--- name: GetDurableEventLogCallback :one
-SELECT *
-FROM v1_durable_event_log_callback
-WHERE durable_task_id = @durableTaskId::BIGINT
-  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-  AND node_id = @nodeId::BIGINT
-;
 
--- name: CreateDurableEventLogCallback :one
-INSERT INTO v1_durable_event_log_callback (
-    tenant_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    inserted_at,
-    kind,
-    node_id,
-    is_satisfied,
-    external_id
-)
-VALUES (
-    @tenantId::UUID,
-    @durableTaskId::BIGINT,
-    @durableTaskInsertedAt::TIMESTAMPTZ,
-    @insertedAt::TIMESTAMPTZ,
-    @kind::v1_durable_event_log_kind,
-    @nodeId::BIGINT,
-    @isSatisfied::BOOLEAN,
-    @externalId::UUID
-)
-ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
-RETURNING *
-;
-
--- name: UpdateDurableEventLogCallbacksSatisfied :many
+-- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
@@ -121,16 +91,16 @@ WITH inputs AS (
         UNNEST(@nodeIds::BIGINT[]) AS node_id
 )
 
-UPDATE v1_durable_event_log_callback
+UPDATE v1_durable_event_log_entry
 SET is_satisfied = true
 FROM inputs
-WHERE v1_durable_event_log_callback.durable_task_id = inputs.durable_task_id
-  AND v1_durable_event_log_callback.durable_task_inserted_at = inputs.durable_task_inserted_at
-  AND v1_durable_event_log_callback.node_id = inputs.node_id
-RETURNING v1_durable_event_log_callback.*
+WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
+  AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
+  AND v1_durable_event_log_entry.node_id = inputs.node_id
+RETURNING v1_durable_event_log_entry.*
 ;
 
--- name: ListSatisfiedCallbacks :many
+-- name: ListSatisfiedEntries :many
 WITH tasks AS (
     SELECT t.*
     FROM v1_lookup_table lt
@@ -138,10 +108,10 @@ WITH tasks AS (
     WHERE lt.external_id = ANY(@taskExternalIds::UUID[])
 )
 
-SELECT cb.*, t.external_id AS task_external_id
-FROM v1_durable_event_log_callback cb
-JOIN tasks t ON (t.id, t.inserted_at) = (cb.durable_task_id, cb.durable_task_inserted_at)
+SELECT e.*, t.external_id AS task_external_id
+FROM v1_durable_event_log_entry e
+JOIN tasks t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
-    cb.node_id = ANY(@nodeIds::BIGINT[])
-    AND cb.is_satisfied
+    e.node_id = ANY(@nodeIds::BIGINT[])
+    AND e.is_satisfied
 ;

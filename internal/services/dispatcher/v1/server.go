@@ -77,6 +77,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		SignalTaskId:         task.ID,
 		SignalTaskInsertedAt: task.InsertedAt,
 		SignalExternalId:     task.ExternalID,
+		SignalTaskExternalId: task.ExternalID,
 		SignalKey:            req.SignalKey,
 	})
 
@@ -565,11 +566,11 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
 	}
 
-	if ingestionResult.Callback.Callback.IsSatisfied {
-		err := d.DeliverCallbackCompletion(
+	if ingestionResult.EventLogEntry.Entry.IsSatisfied {
+		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
 			ingestionResult.NodeId,
-			ingestionResult.Callback.Result,
+			ingestionResult.EventLogEntry.ResultPayload,
 		)
 
 		if err != nil {
@@ -596,12 +597,12 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskWorkerStatusRequest,
 ) error {
-	if len(req.WaitingCallbacks) == 0 {
+	if len(req.WaitingEntries) == 0 {
 		return nil
 	}
 
-	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingCallbacks))
-	for _, cb := range req.WaitingCallbacks {
+	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingEntries))
+	for _, cb := range req.WaitingEntries {
 		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
 		if err != nil {
 			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status: %s", cb.DurableTaskExternalId)
@@ -617,37 +618,37 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		return nil
 	}
 
-	callbacks, err := d.repo.DurableEvents().GetSatisfiedCallbacks(ctx, invocation.tenantId, waiting)
+	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting)
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}
 
 	for _, cb := range callbacks {
 		if err := invocation.send(&contracts.DurableTaskResponse{
-			Message: &contracts.DurableTaskResponse_CallbackCompleted{
-				CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+			Message: &contracts.DurableTaskResponse_EntryCompleted{
+				EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 					DurableTaskExternalId: cb.TaskExternalId.String(),
 					NodeId:                cb.NodeID,
 					Payload:               cb.Result,
 				},
 			},
 		}); err != nil {
-			d.l.Error().Err(err).Msgf("failed to send callback_completed for task %s node %d", cb.TaskExternalId, cb.NodeID)
+			d.l.Error().Err(err).Msgf("failed to send event_log_entry for task %s node %d", cb.TaskExternalId, cb.NodeID)
 		}
 	}
 
 	return nil
 }
 
-func (d *DispatcherServiceImpl) DeliverCallbackCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
 	}
 
 	return inv.send(&contracts.DurableTaskResponse{
-		Message: &contracts.DurableTaskResponse_CallbackCompleted{
-			CallbackCompleted: &contracts.DurableTaskCallbackCompletedResponse{
+		Message: &contracts.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
 				Payload:               payload,
