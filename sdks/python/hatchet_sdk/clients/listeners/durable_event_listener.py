@@ -25,6 +25,7 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerCo
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.exceptions import NonDeterminismError
 
 
 class DurableTaskEventAck(BaseModel):
@@ -213,14 +214,24 @@ class DurableEventListener:
                 del self._pending_callbacks[completed_key]
         elif response.HasField("error"):
             error = response.error
-            logger.exception(
-                f"durable task error: {error.error_message} "
-                f"(task={error.durable_task_external_id}, invocation={error.invocation_count})"
+
+            exc = NonDeterminismError(
+                task_external_id=error.durable_task_external_id,
+                invocation_count=error.invocation_count,
+                message=error.error_message,
             )
+
             event_key = (error.durable_task_external_id, error.invocation_count)
             if event_key in self._pending_event_acks:
-                self._pending_event_acks[event_key].cancel()
-                del self._pending_event_acks[event_key]
+                future = self._pending_event_acks.pop(event_key)
+                if not future.done():
+                    future.set_exception(exc)
+
+            callback_key = (error.durable_task_external_id, error.node_id)
+            if callback_key in self._pending_callbacks:
+                future = self._pending_callbacks.pop(callback_key)
+                if not future.done():
+                    future.set_exception(exc)
 
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:

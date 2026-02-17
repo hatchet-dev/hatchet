@@ -72,27 +72,42 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 
 type NonDeterminismError struct {
 	NodeId                 int64
+	TaskExternalId         uuid.UUID
 	ExpectedIdempotencyKey []byte
 	ActualIdempotencyKey   []byte
 }
 
 func (m *NonDeterminismError) Error() string {
-	return fmt.Sprintf("non-determinism detected for durable event log entry: expected idempotency key %s but got %s", hex.EncodeToString(m.ExpectedIdempotencyKey), hex.EncodeToString(m.ActualIdempotencyKey))
+	return fmt.Sprintf("non-determinism detected for durable event log entry in task %s at node id %d", m.TaskExternalId.String(), m.NodeId)
+}
+
+type GetOrCreateLogEntryOpts struct {
+	TenantId              uuid.UUID
+	DurableTaskExternalId uuid.UUID
+	DurableTaskId         int64
+	DurableTaskInsertedAt pgtype.Timestamptz
+	Kind                  sqlcv1.V1DurableEventLogKind
+	NodeId                int64
+	ParentNodeId          pgtype.Int8
+	BranchId              int64
+	IdempotencyKey        []byte
+	IsSatisfied           bool
 }
 
 func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
 	tenantId uuid.UUID,
-	params sqlcv1.CreateDurableEventLogEntryParams,
+	params GetOrCreateLogEntryOpts,
 	inputPayload []byte,
 	resultPayload []byte,
 ) (*EventLogEntryWithPayloads, error) {
+	entryExternalId := uuid.New()
 	alreadyExisted := true
 	entry, err := r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
-		Durabletaskid:         params.Durabletaskid,
-		Durabletaskinsertedat: params.Durabletaskinsertedat,
-		Nodeid:                params.Nodeid,
+		Durabletaskid:         params.DurableTaskId,
+		Durabletaskinsertedat: params.DurableTaskInsertedAt,
+		Nodeid:                params.NodeId,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -100,15 +115,16 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExisted = false
 		entry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
-			Tenantid:              params.Tenantid,
-			Externalid:            params.Externalid,
-			Durabletaskid:         params.Durabletaskid,
-			Durabletaskinsertedat: params.Durabletaskinsertedat,
+			Tenantid:              params.TenantId,
+			Externalid:            entryExternalId,
+			Durabletaskid:         params.DurableTaskId,
+			Durabletaskinsertedat: params.DurableTaskInsertedAt,
 			Kind:                  params.Kind,
-			Nodeid:                params.Nodeid,
+			Nodeid:                params.NodeId,
 			ParentNodeId:          params.ParentNodeId,
-			Branchid:              params.Branchid,
-			Idempotencykey:        params.Idempotencykey,
+			Branchid:              params.BranchId,
+			Idempotencykey:        params.IdempotencyKey,
+			Issatisfied:           params.IsSatisfied,
 		})
 
 		if err != nil {
@@ -144,12 +160,13 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			return nil, err
 		}
 	} else {
-		incomingIdempotencyKey := params.Idempotencykey
+		incomingIdempotencyKey := params.IdempotencyKey
 		existingIdempotencyKey := entry.IdempotencyKey
 
 		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
 			return nil, &NonDeterminismError{
-				NodeId:                 params.Nodeid,
+				NodeId:                 params.NodeId,
+				TaskExternalId:         params.DurableTaskExternalId,
 				ExpectedIdempotencyKey: existingIdempotencyKey,
 				ActualIdempotencyKey:   incomingIdempotencyKey,
 			}
@@ -385,17 +402,17 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		ctx,
 		tx,
 		opts.TenantId,
-		sqlcv1.CreateDurableEventLogEntryParams{
-			Tenantid:              opts.TenantId,
-			Externalid:            uuid.New(),
-			Durabletaskid:         task.ID,
-			Durabletaskinsertedat: task.InsertedAt,
+		GetOrCreateLogEntryOpts{
+			TenantId:              opts.TenantId,
+			DurableTaskExternalId: task.ExternalID,
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
 			Kind:                  opts.Kind,
-			Nodeid:                nodeId,
+			NodeId:                nodeId,
 			ParentNodeId:          parentNodeId,
-			Branchid:              branchId,
-			Issatisfied:           isSatisfied,
-			Idempotencykey:        idempotencyKey,
+			BranchId:              branchId,
+			IsSatisfied:           isSatisfied,
+			IdempotencyKey:        idempotencyKey,
 		},
 		opts.Payload,
 		resultPayload,

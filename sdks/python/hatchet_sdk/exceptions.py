@@ -4,6 +4,19 @@ from enum import Enum
 from typing import cast
 
 
+class NonDeterminismError(Exception):
+    def __init__(
+        self, task_external_id: str, invocation_count: int, message: str
+    ) -> None:
+        self.task_external_id = task_external_id
+        self.invocation_count = invocation_count
+        self.message = message
+
+        super().__init__(
+            f"Non-determinism detected in task {task_external_id} on invocation {invocation_count}: {message}"
+        )
+
+
 class InvalidDependencyError(Exception):
     pass
 
