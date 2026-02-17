@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -275,6 +276,37 @@ func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts
 	}
 
 	if opts.WaitForConditions != nil {
+		sort.Slice(opts.WaitForConditions, func(i, j int) bool {
+			condI := opts.WaitForConditions[i]
+			condJ := opts.WaitForConditions[j]
+
+			if condI.Expression != condJ.Expression {
+				return condI.Expression < condJ.Expression
+			}
+
+			if condI.ReadableDataKey != condJ.ReadableDataKey {
+				return condI.ReadableDataKey < condJ.ReadableDataKey
+			}
+
+			if condI.Kind != condJ.Kind {
+				return condI.Kind < condJ.Kind
+			}
+
+			if condI.SleepFor != nil && condJ.SleepFor != nil {
+				if *condI.SleepFor != *condJ.SleepFor {
+					return *condI.SleepFor < *condJ.SleepFor
+				}
+			}
+
+			if condI.UserEventKey != nil && condJ.UserEventKey != nil {
+				if *condI.UserEventKey != *condJ.UserEventKey {
+					return *condI.UserEventKey < *condJ.UserEventKey
+				}
+			}
+
+			return false
+		})
+
 		for _, cond := range opts.WaitForConditions {
 			toHash := cond.Expression + cond.ReadableDataKey + string(cond.Kind)
 
@@ -369,13 +401,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	// todo: real branching logic here
 	branchId := logFile.LatestBranchID
-
-	var nde *NonDeterminismError
-	if err != nil && errors.As(err, &nde) {
-		return nil, fmt.Errorf("non-determinism detected for durable event log entry with durable task id %s, node id %d: %w", task.ExternalID, nodeId, err)
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
-	}
 
 	var resultPayload []byte
 	isSatisfied := false
