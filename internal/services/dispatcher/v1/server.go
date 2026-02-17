@@ -14,9 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -546,26 +544,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 
 	var nde *v1.NonDeterminismError
 	if err != nil && errors.As(err, &nde) {
-		failMsg, failErr := tasktypes.FailedTaskMessage(
-			invocation.tenantId,
-			task.ID,
-			task.InsertedAt,
-			task.ExternalID,
-			task.WorkflowRunID,
-			task.RetryCount,
-			false,
-			nde.Error(),
-			true,
-		)
-
-		if failErr != nil {
-			return fmt.Errorf("failed to create non-determinism fail message: %w", failErr)
-		}
-
-		if failErr = d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, failMsg); failErr != nil {
-			return fmt.Errorf("failed to publish non-determinism fail message: %w", failErr)
-		}
-
 		sendErr := invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_Error{
 				Error: &contracts.DurableTaskErrorResponse{
