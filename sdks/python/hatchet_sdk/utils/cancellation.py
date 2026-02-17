@@ -112,7 +112,9 @@ async def await_with_cancellation(
         return await coro
 
     if token.is_cancelled:
+        logger.debug("await_with_cancellation: token already cancelled")
         if cancel_callback:
+            logger.debug("await_with_cancellation: invoking cancel callback")
             await _invoke_cancel_callback(cancel_callback)
 
         raise asyncio.CancelledError("Operation cancelled by cancellation token")
