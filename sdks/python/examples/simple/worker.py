@@ -10,7 +10,7 @@ def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 @hatchet.durable_task()
-def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "Hello, world!"}
 
 

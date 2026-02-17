@@ -1,5 +1,6 @@
 import json
 import traceback
+from enum import Enum
 from typing import cast
 
 
@@ -170,3 +171,54 @@ class IllegalTaskOutputError(Exception):
 
 class LifespanSetupError(Exception):
     pass
+
+
+class CancellationReason(Enum):
+    """Reason for cancellation of an operation."""
+
+    USER_REQUESTED = "user_requested"
+    """The user explicitly requested cancellation."""
+
+    TIMEOUT = "timeout"
+    """The operation timed out."""
+
+    PARENT_CANCELLED = "parent_cancelled"
+    """The parent workflow or task was cancelled."""
+
+    WORKFLOW_CANCELLED = "workflow_cancelled"
+    """The workflow run was cancelled."""
+
+    TOKEN_CANCELLED = "token_cancelled"
+    """The cancellation token was cancelled."""
+
+
+class CancelledError(BaseException):
+    """
+    Raised when an operation is cancelled via CancellationToken.
+
+    This exception inherits from BaseException (not Exception) so that it
+    won't be caught by bare `except Exception:` handlers. This mirrors the
+    behavior of asyncio.CancelledError in Python 3.8+.
+
+    To catch this exception, use:
+        - `except CancelledError:` (recommended)
+        - `except BaseException:` (catches all exceptions)
+
+    This exception is used for sync code paths. For async code paths,
+    asyncio.CancelledError is used instead.
+
+    :param message: Optional message describing the cancellation.
+    :param reason: Optional enum indicating the reason for cancellation.
+    """
+
+    def __init__(
+        self,
+        message: str = "Operation cancelled",
+        reason: CancellationReason | None = None,
+    ) -> None:
+        self.reason = reason
+        super().__init__(message)
+
+    @property
+    def message(self) -> str:
+        return str(self.args[0]) if self.args else "Operation cancelled"
