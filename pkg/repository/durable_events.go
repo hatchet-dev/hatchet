@@ -71,7 +71,9 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 	}
 }
 
-type NonDeterminismError struct{}
+type NonDeterminismError struct {
+	NodeId int64
+}
 
 func (m *NonDeterminismError) Error() string {
 	return "non-determinism detected for durable event log entry"
@@ -397,6 +399,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	)
 
 	if err != nil {
+		var nde *NonDeterminismError
+		if errors.As(err, &nde) {
+			nde.NodeId = nodeId
+		}
 		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
 	}
 
