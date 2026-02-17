@@ -151,7 +151,7 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
-        durable_eviction: EvictionPolicy | None = None,
+        durable_run_eviction: EvictionPolicy | None = None,
         slot_requests: dict[str, int] | None = None,
     ) -> None:
         self.is_durable = is_durable
@@ -159,14 +159,14 @@ class Task(Generic[TWorkflowInput, R]):
             slot_requests = {"durable": 1} if is_durable else {"default": 1}
         self.slot_requests = slot_requests
 
-        if not is_durable and durable_eviction is not None:
+        if not is_durable and durable_run_eviction is not None:
             raise ValueError(
                 "Durable eviction policy cannot be set for a non-durable task."
             )
 
         # Durable-only: if None, the durable task run is not eviction-eligible.
         self.durable_eviction: EvictionPolicy | None = (
-            durable_eviction if is_durable else None
+            durable_run_eviction if is_durable else None
         )
 
         self.fn = _fn

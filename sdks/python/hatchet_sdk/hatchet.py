@@ -245,8 +245,7 @@ class Hatchet:
             owned_loop=loop is None,
             workflows=workflows,
             lifespan=lifespan,
-            # TODO-DURABLE: i think durable_run_eviction_config is more clear
-            durable_eviction_config=durable_eviction_config,
+            durable_run_eviction_config=durable_eviction_config,
         )
 
     @overload
@@ -688,7 +687,8 @@ class Hatchet:
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
         :param eviction: Task-scoped durable eviction parameters. If set to `None`, this durable task
-            run will never be eligible for eviction.
+            run will never be eligible for eviction. Defaults to ``DEFAULT_DURABLE_TASK_EVICTION_POLICY``
+            (ttl=15 minutes, allow_capacity_eviction=True, priority=0); see :mod:`hatchet_sdk.runnables.eviction`.
 
         :returns: A decorator which creates a `Standalone` task object.
         """
@@ -735,7 +735,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
-                eviction=eviction,
+                durable_run_eviction=eviction,
             )
 
             return Standalone[TWorkflowInput, R](

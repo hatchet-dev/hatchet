@@ -29,6 +29,8 @@ class EvictionPolicy(BaseModel):
 
 
 # Shared sensible defaults (single source of truth).
+# NOTE: When changing these values, update the :param durable_run_eviction: / :param eviction:
+# docstrings in workflow.Workflow.durable_task and hatchet.Hatchet.durable_task to match.
 DEFAULT_DURABLE_TASK_EVICTION_POLICY = EvictionPolicy(
     ttl=timedelta(minutes=15),
     allow_capacity_eviction=True,
