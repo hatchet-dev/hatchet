@@ -1,6 +1,45 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["./src/index.ts"],
-  "out": "docs",
-  "plugin": ["typedoc-plugin-markdown"]
+  "entryPoints": [
+    "./src/v1/client/client.ts",
+    "./src/v1/client/worker/context.ts",
+    "./src/v1/workflow.ts",
+    "./src/v1/client/features/metrics.ts",
+    "./src/v1/client/features/runs.ts",
+    "./src/v1/client/features/schedules.ts",
+    "./src/v1/client/features/crons.ts",
+    "./src/v1/client/features/workflows.ts",
+    "./src/v1/client/features/workers.ts",
+    "./src/v1/client/features/filters.ts",
+    "./src/v1/client/features/ratelimits.ts"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "/tmp/hatchet-typescript/docs",
+  "plugin": ["typedoc-plugin-markdown"],
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Class",
+    "Constructor",
+    "Property",
+    "Method",
+    "Function",
+    "TypeAlias",
+    "Interface",
+    "Enum"
+  ],
+  "outputFileStrategy": "modules",
+  "flattenOutputFiles": false,
+  "hideGenerator": true,
+  "disableSources": false,
+  "useCodeBlocks": true,
+  "expandObjects": true,
+  "parametersFormat": "table",
+  "enumMembersFormat": "table",
+  "typeDeclarationFormat": "table",
+  "propertiesFormat": "table"
 }
