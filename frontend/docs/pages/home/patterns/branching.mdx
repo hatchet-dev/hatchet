@@ -22,7 +22,7 @@ Downstream tasks declare conditions using `skip_if`, `wait_for`, or `cancel_if`.
 
 ### One branch executes
 
-The branch whose condition is satisfied runs; the other is skipped. Downstream tasks can check whether a parent was skipped using the context object.
+The branch whose condition is satisfied runs.
 
 </Steps>
 
@@ -55,18 +55,7 @@ The branch whose condition is satisfied runs; the other is skipped. Downstream t
   tasks to still run and inspect the skip status.
 </Callout>
 
-## In Workflows vs Durable Workflows
-
-<PatternComparison
-  rows={[
-    { label: "Branch conditions", workflow: "Declared with skip_if, wait_for, cancel_if on tasks", durable: "Expressed as if/else logic around RunChild calls" },
-    { label: "Event-based branching", workflow: "Use event conditions on task declarations", durable: "Use WaitForEvent inline, then branch in code" },
-    { label: "Evaluation", workflow: "Hatchet evaluates conditions and skips/cancels tasks for you", durable: "You control branching logic directly in your function" },
-    { label: "Best for", workflow: "Static branches known at definition time", durable: "Dynamic branching that depends on runtime state or external events" },
-  ]}
-  recommendation="workflow"
-  recommendationText="For simple 'if A then B, else C' branching, DAG workflows with skip_if are the cleanest approach. Use durable workflows when the branching logic is complex, depends on external events with long waits, or can't be expressed as static conditions."
-/>
+## In Workflows vs Durable Workflows (WIP)
 
 ## Use Cases
 

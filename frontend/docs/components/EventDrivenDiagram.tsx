@@ -1,10 +1,79 @@
 import React, { useState, useEffect } from "react";
 
-const SOURCES = [
-  { label: "Webhook", icon: "🔗", color: "#818cf8" },
-  { label: "Cron", icon: "⏰", color: "#38bdf8" },
-  { label: "Event", icon: "📡", color: "#fbbf24" },
+type SourceType = "Webhook" | "Cron" | "Event";
+
+const SOURCES: { label: SourceType; color: string }[] = [
+  { label: "Webhook", color: "#818cf8" },
+  { label: "Cron", color: "#38bdf8" },
+  { label: "Event", color: "#fbbf24" },
 ];
+
+const SourceIcon: React.FC<{
+  type: SourceType;
+  color: string;
+  size?: number;
+}> = ({ type, color, size = 14 }) => {
+  const props = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    strokeWidth: "2",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  switch (type) {
+    case "Webhook":
+      // Link icon
+      return (
+        <svg {...props}>
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      );
+    case "Cron":
+      // Clock icon
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      );
+    case "Event":
+      // Signal/broadcast icon
+      return (
+        <svg {...props}>
+          <path d="M5.5 16.5a2.12 2.12 0 0 1 0-3" />
+          <path d="M18.5 16.5a2.12 2.12 0 0 0 0-3" />
+          <path d="M3 19a4.24 4.24 0 0 1 0-8" />
+          <path d="M21 19a4.24 4.24 0 0 0 0-8" />
+          <circle cx="12" cy="15" r="2" />
+          <line x1="12" y1="13" x2="12" y2="6" />
+        </svg>
+      );
+  }
+};
+
+const GearIcon: React.FC<{ color: string; size?: number }> = ({
+  color,
+  size = 14,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
 
 const EventDrivenDiagram: React.FC = () => {
   const [activeSource, setActiveSource] = useState(0);
@@ -53,12 +122,16 @@ const EventDrivenDiagram: React.FC = () => {
                 strokeWidth={isActive ? 2 : 1}
                 style={{ transition: "all 0.4s ease" }}
               />
-              <text x={45} y={y + 18} fontSize="14" textAnchor="middle">
-                {src.icon}
-              </text>
+              {/* Icon via foreignObject */}
+              <foreignObject x={30} y={y + 10} width={14} height={14}>
+                <SourceIcon
+                  type={src.label}
+                  color={isActive ? src.color : "#6b7280"}
+                />
+              </foreignObject>
               <text
-                x={75}
-                y={y + 27}
+                x={72}
+                y={y + 25}
                 fontSize="10"
                 fill={isActive ? src.color : "#9ca3af"}
                 fontWeight={isActive ? 600 : 400}
@@ -113,7 +186,14 @@ const EventDrivenDiagram: React.FC = () => {
         <text x={220} y={85} textAnchor="middle" fontSize="10" fill="#c7d2fe">
           Hatchet
         </text>
-        <text x={220} y={100} textAnchor="middle" fontSize="10" fill="#818cf8" fontWeight={600}>
+        <text
+          x={220}
+          y={100}
+          textAnchor="middle"
+          fontSize="10"
+          fill="#818cf8"
+          fontWeight={600}
+        >
           Engine
         </text>
 
@@ -148,14 +228,10 @@ const EventDrivenDiagram: React.FC = () => {
                 strokeWidth={isActive ? 2 : 1}
                 style={{ transition: "all 0.4s ease" }}
               />
-              <text
-                x={375}
-                y={y + 18}
-                textAnchor="middle"
-                fontSize="14"
-              >
-                ⚙️
-              </text>
+              {/* Gear icon */}
+              <foreignObject x={368} y={y + 5} width={14} height={14}>
+                <GearIcon color={isActive ? "#34d399" : "#6b7280"} />
+              </foreignObject>
               <text
                 x={375}
                 y={y + 33}
@@ -182,7 +258,11 @@ const EventDrivenDiagram: React.FC = () => {
               transition: "color 0.4s ease",
             }}
           >
-            <span>{src.icon}</span>
+            <SourceIcon
+              type={src.label}
+              color={i === activeSource ? src.color : "#6b7280"}
+              size={12}
+            />
             {src.label}
           </div>
         ))}

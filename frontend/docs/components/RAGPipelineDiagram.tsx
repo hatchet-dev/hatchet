@@ -1,12 +1,81 @@
 import React, { useState, useEffect } from "react";
 
 const STAGES = [
-  { id: "ingest", label: "Ingest", icon: "📥", color: "#818cf8" },
-  { id: "chunk", label: "Chunk", icon: "✂️", color: "#38bdf8" },
-  { id: "embed", label: "Embed", icon: "🧮", color: "#fbbf24" },
-  { id: "index", label: "Index", icon: "🗃️", color: "#34d399" },
-  { id: "query", label: "Query", icon: "🔍", color: "#f472b6" },
+  { id: "ingest", label: "Ingest", color: "#818cf8" },
+  { id: "chunk", label: "Chunk", color: "#38bdf8" },
+  { id: "embed", label: "Embed", color: "#fbbf24" },
+  { id: "index", label: "Index", color: "#34d399" },
+  { id: "query", label: "Query", color: "#f472b6" },
 ] as const;
+
+type StageId = (typeof STAGES)[number]["id"];
+
+const StageIcon: React.FC<{ id: StageId; color: string; size?: number }> = ({
+  id,
+  color,
+  size = 16,
+}) => {
+  const props = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    strokeWidth: "2",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  switch (id) {
+    case "ingest":
+      // Download/import arrow
+      return (
+        <svg {...props}>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      );
+    case "chunk":
+      // Scissors
+      return (
+        <svg {...props}>
+          <circle cx="6" cy="6" r="3" />
+          <circle cx="6" cy="18" r="3" />
+          <line x1="20" y1="4" x2="8.12" y2="15.88" />
+          <line x1="14.47" y1="14.48" x2="20" y2="20" />
+          <line x1="8.12" y1="8.12" x2="12" y2="12" />
+        </svg>
+      );
+    case "embed":
+      // Grid/vector
+      return (
+        <svg {...props}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+        </svg>
+      );
+    case "index":
+      // Database
+      return (
+        <svg {...props}>
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+        </svg>
+      );
+    case "query":
+      // Search
+      return (
+        <svg {...props}>
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+      );
+  }
+};
 
 const RAGPipelineDiagram: React.FC = () => {
   const [activeStage, setActiveStage] = useState(0);
@@ -115,14 +184,17 @@ const RAGPipelineDiagram: React.FC = () => {
                 style={{ transition: "all 0.5s ease" }}
               />
               {/* Icon */}
-              <text
-                x={x + stageWidth / 2}
-                y={y + 28}
-                textAnchor="middle"
-                fontSize="18"
+              <foreignObject
+                x={x + stageWidth / 2 - 8}
+                y={y + 12}
+                width={16}
+                height={16}
               >
-                {stage.icon}
-              </text>
+                <StageIcon
+                  id={stage.id}
+                  color={isActive ? stage.color : "#6b7280"}
+                />
+              </foreignObject>
               {/* Label */}
               <text
                 x={x + stageWidth / 2}
@@ -140,7 +212,10 @@ const RAGPipelineDiagram: React.FC = () => {
         })}
 
         {/* Fan-out indicator under chunk stage */}
-        <g opacity={activeStage === 1 ? 1 : 0.3} style={{ transition: "opacity 0.5s ease" }}>
+        <g
+          opacity={activeStage === 1 ? 1 : 0.3}
+          style={{ transition: "opacity 0.5s ease" }}
+        >
           <text
             x={startX + 1 * (stageWidth + gap) + stageWidth / 2}
             y={125}
@@ -162,7 +237,10 @@ const RAGPipelineDiagram: React.FC = () => {
         </g>
 
         {/* Rate limit indicator under embed stage */}
-        <g opacity={activeStage === 2 ? 1 : 0.3} style={{ transition: "opacity 0.5s ease" }}>
+        <g
+          opacity={activeStage === 2 ? 1 : 0.3}
+          style={{ transition: "opacity 0.5s ease" }}
+        >
           <text
             x={startX + 2 * (stageWidth + gap) + stageWidth / 2}
             y={125}
@@ -184,7 +262,10 @@ const RAGPipelineDiagram: React.FC = () => {
         </g>
 
         {/* Retry indicator under index stage */}
-        <g opacity={activeStage === 3 ? 1 : 0.3} style={{ transition: "opacity 0.5s ease" }}>
+        <g
+          opacity={activeStage === 3 ? 1 : 0.3}
+          style={{ transition: "opacity 0.5s ease" }}
+        >
           <text
             x={startX + 3 * (stageWidth + gap) + stageWidth / 2}
             y={125}

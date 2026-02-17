@@ -41,18 +41,7 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 | **Dependencies** | Explicit parent-child DAG                          | Parent spawns N identical children        |
 | **Best for**     | ETL, data processing stages, multi-step transforms | Batch processing, parallel map operations |
 
-## In Workflows vs Durable Workflows
-
-<PatternComparison
-  rows={[
-    { label: "Structure", workflow: "Tasks and dependencies declared upfront as a DAG", durable: "A single durable function with sequential checkpoint calls" },
-    { label: "Parallelism", workflow: "Independent tasks run in parallel automatically", durable: "Parallelism requires spawning child tasks with RunChild" },
-    { label: "Intermediate results", workflow: "Cached between tasks; each task starts fresh on retry", durable: "Stored in the durable event log; replayed on restart" },
-    { label: "Best for", workflow: "Most pipelines: ETL, multi-step transforms, CI/CD", durable: "Pipelines that need inline SleepFor or WaitForEvent between steps" },
-  ]}
-  recommendation="workflow"
-  recommendationText="Pre-determined pipelines are the strongest fit for regular DAG workflows. The fixed structure maps directly to a DAG with automatic parallelism and cached results. Only reach for durable workflows if your pipeline needs long waits between steps."
-/>
+## In Workflows vs Durable Workflows (WIP)
 
 ## Use Cases
 

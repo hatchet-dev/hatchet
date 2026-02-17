@@ -1,44 +1,107 @@
 import React, { useState, useEffect } from "react";
 
-const PHASES = ["reason", "act", "observe", "decide"] as const;
+const PHASES = ["thought", "action", "observation"] as const;
 type Phase = (typeof PHASES)[number];
 
-const PHASE_CONFIG: Record<
-  Phase,
-  { label: string; color: string; icon: string }
-> = {
-  reason: { label: "Reason", color: "#818cf8", icon: "🧠" },
-  act: { label: "Act", color: "#38bdf8", icon: "⚡" },
-  observe: { label: "Observe", color: "#fbbf24", icon: "👁" },
-  decide: { label: "Decide", color: "#34d399", icon: "🔀" },
+const PHASE_CONFIG: Record<Phase, { label: string; color: string }> = {
+  thought: { label: "Thought", color: "#818cf8" },
+  action: { label: "Action", color: "#38bdf8" },
+  observation: { label: "Observation", color: "#fbbf24" },
+};
+
+/** Small SVG icons rendered inline, no emojis */
+const PhaseIcon: React.FC<{ phase: Phase; active: boolean }> = ({
+  phase,
+  active,
+}) => {
+  const color = active ? PHASE_CONFIG[phase].color : "#6b7280";
+  const size = 18;
+
+  switch (phase) {
+    case "thought":
+      // Lightbulb icon
+      return (
+        <svg
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M9 18h6" />
+          <path d="M10 22h4" />
+          <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+        </svg>
+      );
+    case "action":
+      // Zap/bolt icon
+      return (
+        <svg
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+      );
+    case "observation":
+      // Eye icon
+      return (
+        <svg
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+  }
 };
 
 const AgentLoopDiagram: React.FC = () => {
-  const [phase, setPhase] = useState<Phase>("reason");
+  const [phaseIdx, setPhaseIdx] = useState(0);
   const [iteration, setIteration] = useState(1);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPhase((prev) => {
-        const idx = PHASES.indexOf(prev);
-        if (idx === PHASES.length - 1) {
+      setPhaseIdx((prev) => {
+        if (prev === PHASES.length - 1) {
           setIteration((i) => (i >= 3 ? 1 : i + 1));
-          return PHASES[0];
+          return 0;
         }
-        return PHASES[idx + 1];
+        return prev + 1;
       });
-    }, 1200);
+    }, 1400);
     return () => clearInterval(interval);
   }, []);
 
-  const cx = 200;
-  const cy = 140;
-  const r = 90;
+  const phase = PHASES[phaseIdx];
 
-  const nodePositions = PHASES.map((_, i) => {
-    const angle = (i * Math.PI * 2) / PHASES.length - Math.PI / 2;
-    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
-  });
+  // Horizontal layout: 3 nodes evenly spaced
+  const svgW = 520;
+  const svgH = 160;
+  const nodeY = 70;
+  const nodeSpacing = 160;
+  const startX = 100;
+
+  const nodes = PHASES.map((_, i) => ({
+    x: startX + i * nodeSpacing,
+    y: nodeY,
+  }));
 
   return (
     <div
@@ -49,99 +112,138 @@ const AgentLoopDiagram: React.FC = () => {
       }}
     >
       <svg
-        viewBox="0 0 400 280"
+        viewBox={`0 0 ${svgW} ${svgH}`}
         className="mx-auto w-full"
-        style={{ maxWidth: 500 }}
+        style={{ maxWidth: 560 }}
       >
-        {/* Circular arrows between phases */}
-        {PHASES.map((_, i) => {
-          const from = nodePositions[i];
-          const to = nodePositions[(i + 1) % PHASES.length];
-          const midX = (from.x + to.x) / 2;
-          const midY = (from.y + to.y) / 2;
-          const dx = to.x - from.x;
-          const dy = to.y - from.y;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          const nx = -dy / len;
-          const ny = dx / len;
-          const bulge = 20;
-          const cpX = midX + nx * bulge;
-          const cpY = midY + ny * bulge;
+        <defs>
+          <marker
+            id="arrow"
+            viewBox="0 0 10 7"
+            refX="9"
+            refY="3.5"
+            markerWidth="8"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <polygon points="0 0, 10 3.5, 0 7" fill="#4b5563" />
+          </marker>
+          <marker
+            id="arrow-active"
+            viewBox="0 0 10 7"
+            refX="9"
+            refY="3.5"
+            markerWidth="8"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <polygon points="0 0, 10 3.5, 0 7" fill="#818cf8" />
+          </marker>
+        </defs>
 
-          const phaseIdx = PHASES.indexOf(phase);
-          const isActive = i === phaseIdx;
-
+        {/* Forward arrows between nodes */}
+        {nodes.slice(0, -1).map((from, i) => {
+          const to = nodes[i + 1];
+          const isActive = phaseIdx === i;
           return (
-            <path
-              key={`arrow-${i}`}
-              d={`M ${from.x} ${from.y} Q ${cpX} ${cpY} ${to.x} ${to.y}`}
-              fill="none"
-              stroke={isActive ? PHASE_CONFIG[PHASES[i]].color : "#374151"}
-              strokeWidth={isActive ? 2.5 : 1.5}
-              strokeDasharray={isActive ? "6 3" : "none"}
-              opacity={isActive ? 1 : 0.4}
-              style={{
-                transition: "all 0.4s ease",
-              }}
+            <line
+              key={`fwd-${i}`}
+              x1={from.x + 34}
+              y1={from.y}
+              x2={to.x - 34}
+              y2={to.y}
+              stroke={isActive ? PHASE_CONFIG[PHASES[i]].color : "#4b5563"}
+              strokeWidth={isActive ? 2 : 1.5}
+              markerEnd={isActive ? "url(#arrow-active)" : "url(#arrow)"}
+              opacity={isActive ? 1 : 0.5}
+              style={{ transition: "all 0.4s ease" }}
             />
           );
         })}
 
+        {/* Return arrow: curved path from Observation back to Thought */}
+        {(() => {
+          const from = nodes[nodes.length - 1];
+          const to = nodes[0];
+          const isActive = phaseIdx === PHASES.length - 1;
+          const curveY = nodeY + 58;
+          return (
+            <path
+              d={`M ${from.x} ${from.y + 30} C ${from.x} ${curveY + 10}, ${to.x} ${curveY + 10}, ${to.x} ${to.y + 30}`}
+              fill="none"
+              stroke={isActive ? PHASE_CONFIG.observation.color : "#4b5563"}
+              strokeWidth={isActive ? 2 : 1.5}
+              strokeDasharray="6 4"
+              opacity={isActive ? 1 : 0.35}
+              style={{ transition: "all 0.4s ease" }}
+            />
+          );
+        })()}
+
+        {/* Loop label on return arrow */}
+        <text
+          x={svgW / 2}
+          y={nodeY + 78}
+          textAnchor="middle"
+          fontSize="10"
+          fill="#6b7280"
+          fontStyle="italic"
+        >
+          iteration {iteration}/3
+        </text>
+
         {/* Phase nodes */}
         {PHASES.map((p, i) => {
-          const pos = nodePositions[i];
+          const pos = nodes[i];
           const config = PHASE_CONFIG[p];
           const isActive = phase === p;
 
           return (
             <g key={p}>
-              {/* Glow */}
+              {/* Glow ring */}
               {isActive && (
-                <circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={36}
+                <rect
+                  x={pos.x - 36}
+                  y={pos.y - 36}
+                  width={72}
+                  height={72}
+                  rx={16}
                   fill={config.color}
-                  opacity={0.15}
+                  opacity={0.1}
                 >
                   <animate
-                    attributeName="r"
-                    values="36;42;36"
-                    dur="1.5s"
-                    repeatCount="indefinite"
-                  />
-                  <animate
                     attributeName="opacity"
-                    values="0.15;0.08;0.15"
-                    dur="1.5s"
+                    values="0.1;0.05;0.1"
+                    dur="1.8s"
                     repeatCount="indefinite"
                   />
-                </circle>
+                </rect>
               )}
-              {/* Circle */}
-              <circle
-                cx={pos.x}
-                cy={pos.y}
-                r={30}
-                fill={isActive ? `${config.color}22` : "#1f2937"}
+              {/* Node box */}
+              <rect
+                x={pos.x - 30}
+                y={pos.y - 30}
+                width={60}
+                height={60}
+                rx={14}
+                fill={isActive ? `${config.color}18` : "#1f2937"}
                 stroke={isActive ? config.color : "#374151"}
                 strokeWidth={isActive ? 2 : 1.5}
                 style={{ transition: "all 0.4s ease" }}
               />
               {/* Icon */}
-              <text
-                x={pos.x}
-                y={pos.y - 4}
-                textAnchor="middle"
-                fontSize="16"
-                style={{ transition: "all 0.4s ease" }}
+              <foreignObject
+                x={pos.x - 9}
+                y={pos.y - 18}
+                width={18}
+                height={18}
               >
-                {config.icon}
-              </text>
+                <PhaseIcon phase={p} active={isActive} />
+              </foreignObject>
               {/* Label */}
               <text
                 x={pos.x}
-                y={pos.y + 16}
+                y={pos.y + 14}
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight={isActive ? 600 : 400}
@@ -153,31 +255,10 @@ const AgentLoopDiagram: React.FC = () => {
             </g>
           );
         })}
-
-        {/* Center iteration counter */}
-        <text
-          x={cx}
-          y={cy - 8}
-          textAnchor="middle"
-          fontSize="11"
-          fill="#6b7280"
-        >
-          Iteration
-        </text>
-        <text
-          x={cx}
-          y={cy + 10}
-          textAnchor="middle"
-          fontSize="18"
-          fontWeight={700}
-          fill="#e5e7eb"
-        >
-          {iteration}/3
-        </text>
       </svg>
 
-      {/* Status bar */}
-      <div className="mt-4 flex items-center justify-center gap-3">
+      {/* Status indicators */}
+      <div className="mt-3 flex items-center justify-center gap-3">
         {PHASES.map((p) => (
           <div
             key={p}
@@ -192,7 +273,7 @@ const AgentLoopDiagram: React.FC = () => {
               transition: "all 0.4s ease",
             }}
           >
-            <span>{PHASE_CONFIG[p].icon}</span>
+            <PhaseIcon phase={p} active={phase === p} />
             {PHASE_CONFIG[p].label}
           </div>
         ))}

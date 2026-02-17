@@ -66,13 +66,21 @@ const DurableWorkflowDiagram: React.FC = () => {
     "restoring...",
     "complete!",
   ];
-  const statusColors = ["#818cf8", "#fcd34d", "#fca5a5", "#6ee7b7", "#6ee7b7"];
+  const statusColors = [
+    "#818cf8",
+    "#fcd34d",
+    "#fca5a5",
+    "#6ee7b7",
+    "#6ee7b7",
+  ];
 
   return (
     <div className="my-8 flex flex-col items-center gap-4">
       {/* Status bar */}
       <div className="flex items-center gap-3 rounded-lg border border-neutral-700/40 bg-neutral-900/50 px-4 py-2">
-        <span className="text-xs font-medium text-gray-400">Durable task:</span>
+        <span className="text-xs font-medium text-gray-400">
+          Durable task:
+        </span>
         {steps.map((s, i) => (
           <span
             key={i}
@@ -107,32 +115,72 @@ const DurableWorkflowDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient id="dw-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
+            <linearGradient
+              id="dw-indigo"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop
+                offset="0%"
+                stopColor="rgb(99,102,241)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(129,140,248)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="dw-amber" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
+            <linearGradient
+              id="dw-amber"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop
+                offset="0%"
+                stopColor="rgb(245,158,11)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(252,211,77)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="dw-red" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(239,68,68)" stopOpacity="0.6" />
+            <linearGradient
+              id="dw-red"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop
+                offset="0%"
+                stopColor="rgb(239,68,68)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(248,113,113)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="dw-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
+            <linearGradient
+              id="dw-emerald"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop
+                offset="0%"
+                stopColor="rgb(16,185,129)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(52,211,153)"
@@ -148,11 +196,6 @@ const DurableWorkflowDiagram: React.FC = () => {
             .dw-flow {
               stroke-dasharray: 8 6;
               animation: dw-dash 0.8s linear infinite;
-            }
-            @keyframes dw-shake {
-              0%, 100% { transform: translateX(0); }
-              25% { transform: translateX(-2px); }
-              75% { transform: translateX(2px); }
             }
           `}</style>
 
@@ -186,7 +229,6 @@ const DurableWorkflowDiagram: React.FC = () => {
           {/* Edges between nodes */}
           {steps.slice(0, -1).map((s, i) => {
             const nextX = steps[i + 1].x;
-            const isActive = i === phase - 1 || (i < phase && phase > i + 1);
             const isCurrent = i === phase;
 
             let edgeColor = "#333";
@@ -222,13 +264,6 @@ const DurableWorkflowDiagram: React.FC = () => {
           {steps.map((s, i) => {
             const isActive = i === phase;
             const isPast = i < phase;
-            const gradIds = [
-              "dw-indigo",
-              "dw-amber",
-              "dw-red",
-              "dw-emerald",
-              "dw-emerald",
-            ];
 
             let fill = "rgba(30,30,30,0.15)";
             let stroke = "#444";
@@ -245,7 +280,6 @@ const DurableWorkflowDiagram: React.FC = () => {
               stroke = phaseColors[i].stroke;
               textColor = phaseColors[i].text;
               subColor = phaseColors[i].sub;
-              // Dim past nodes slightly
             }
 
             return (
@@ -289,30 +323,46 @@ const DurableWorkflowDiagram: React.FC = () => {
                   {s.sub}
                 </text>
 
-                {/* Lightning bolt icon for crash */}
+                {/* Crash indicator (SVG bolt) */}
                 {i === 2 && isActive && (
-                  <text
-                    x={s.x + nodeW / 2}
-                    y={y - 10}
-                    textAnchor="middle"
-                    fill="#ef4444"
-                    fontSize="16"
+                  <g
+                    transform={`translate(${s.x + nodeW / 2 - 7}, ${y - 22})`}
                   >
-                    ⚡
-                  </text>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                  </g>
                 )}
 
-                {/* Checkpoint icon */}
+                {/* Checkpoint indicator (SVG save/disk) */}
                 {i === 1 && (isActive || isPast) && (
-                  <text
-                    x={s.x + nodeW / 2}
-                    y={y - 10}
-                    textAnchor="middle"
-                    fill="#fcd34d"
-                    fontSize="14"
+                  <g
+                    transform={`translate(${s.x + nodeW / 2 - 7}, ${y - 20})`}
                   >
-                    💾
-                  </text>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#fcd34d"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                  </g>
                 )}
 
                 {/* Timeline dot */}
