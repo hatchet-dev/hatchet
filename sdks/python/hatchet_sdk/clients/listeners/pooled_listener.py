@@ -237,11 +237,6 @@ class PooledListener(Generic[R, T, L], ABC):
             if not self.listener_task or self.listener_task.done():
                 self.listener_task = asyncio.create_task(self._init_producer())
 
-            logger.debug(
-                f"PooledListener.subscribe: waiting for event on id={id}, "
-                f"subscription_id={subscription_id}, token={cancellation_token is not None}"
-            )
-
             if cancellation_token:
                 result_task = asyncio.create_task(self.events[subscription_id].get())
                 return await race_against_token(result_task, cancellation_token)
