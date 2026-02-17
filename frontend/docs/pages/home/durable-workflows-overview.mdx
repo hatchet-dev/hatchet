@@ -29,12 +29,12 @@ If the task is interrupted or the wait completes, Hatchet replays the event log 
 
 Durable tasks receive a `DurableContext` instead of a regular `Context`. This extends the standard context with methods for durable execution:
 
-| Method                           | Purpose                                                                                                                                |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **`SleepFor(duration)`**         | Pause for a fixed duration. Respects the original sleep time on restart; if interrupted after 23 of 24 hours, only sleeps 1 more hour |
-| **`WaitForEvent(key, expr)`**    | Wait for an external event by key, with optional [CEL filter](https://github.com/google/cel-spec) expression on the payload           |
-| **`WaitFor(conditions)`**        | General-purpose wait accepting any combination of sleep conditions, event conditions, or or-groups. `SleepFor` and `WaitForEvent` are convenience wrappers around this method |
-| **`Memo(function)`**      | Run functions whose outputs are memoized based on the input arguments  |
+| Method                        | Purpose                                                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`SleepFor(duration)`**      | Pause for a fixed duration. Respects the original sleep time on restart; if interrupted after 23 of 24 hours, only sleeps 1 more hour                                         |
+| **`WaitForEvent(key, expr)`** | Wait for an external event by key, with optional [CEL filter](https://github.com/google/cel-spec) expression on the payload                                                   |
+| **`WaitFor(conditions)`**     | General-purpose wait accepting any combination of sleep conditions, event conditions, or or-groups. `SleepFor` and `WaitForEvent` are convenience wrappers around this method |
+| **`Memo(function)`**          | Run functions whose outputs are memoized based on the input arguments                                                                                                         |
 
 ## Determinism Rules
 
@@ -63,7 +63,7 @@ If your task calls `SleepFor` then `WaitForEvent`, don't later swap their order.
 
 | Scenario                          | Why Durable?                                                           |
 | --------------------------------- | ---------------------------------------------------------------------- |
-| **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute                |
+| **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute                 |
 | **Human-in-the-loop**             | Wait for approval events without holding resources                     |
 | **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows |
 | **Large fan-out with collection** | Spawn many children and wait for results without holding a slot        |

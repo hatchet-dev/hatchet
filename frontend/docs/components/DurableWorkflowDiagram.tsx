@@ -66,21 +66,13 @@ const DurableWorkflowDiagram: React.FC = () => {
     "restoring...",
     "complete!",
   ];
-  const statusColors = [
-    "#818cf8",
-    "#fcd34d",
-    "#fca5a5",
-    "#6ee7b7",
-    "#6ee7b7",
-  ];
+  const statusColors = ["#818cf8", "#fcd34d", "#fca5a5", "#6ee7b7", "#6ee7b7"];
 
   return (
     <div className="my-8 flex flex-col items-center gap-4">
       {/* Status bar */}
       <div className="flex items-center gap-3 rounded-lg border border-neutral-700/40 bg-neutral-900/50 px-4 py-2">
-        <span className="text-xs font-medium text-gray-400">
-          Durable task:
-        </span>
+        <span className="text-xs font-medium text-gray-400">Durable task:</span>
         {steps.map((s, i) => (
           <span
             key={i}
@@ -115,72 +107,32 @@ const DurableWorkflowDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient
-              id="dw-indigo"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(99,102,241)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="dw-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(129,140,248)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="dw-amber"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(245,158,11)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="dw-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(252,211,77)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="dw-red"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(239,68,68)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="dw-red" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(239,68,68)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(248,113,113)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="dw-emerald"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop
-                offset="0%"
-                stopColor="rgb(16,185,129)"
-                stopOpacity="0.6"
-              />
+            <linearGradient id="dw-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
               <stop
                 offset="100%"
                 stopColor="rgb(52,211,153)"
@@ -325,9 +277,7 @@ const DurableWorkflowDiagram: React.FC = () => {
 
                 {/* Crash indicator (SVG bolt) */}
                 {i === 2 && isActive && (
-                  <g
-                    transform={`translate(${s.x + nodeW / 2 - 7}, ${y - 22})`}
-                  >
+                  <g transform={`translate(${s.x + nodeW / 2 - 7}, ${y - 22})`}>
                     <svg
                       width="14"
                       height="14"
@@ -345,9 +295,7 @@ const DurableWorkflowDiagram: React.FC = () => {
 
                 {/* Checkpoint indicator (SVG save/disk) */}
                 {i === 1 && (isActive || isPast) && (
-                  <g
-                    transform={`translate(${s.x + nodeW / 2 - 7}, ${y - 20})`}
-                  >
+                  <g transform={`translate(${s.x + nodeW / 2 - 7}, ${y - 20})`}>
                     <svg
                       width="14"
                       height="14"

@@ -13,9 +13,27 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="5" cy="10" r="2.5" stroke="#818cf8" strokeWidth="1.5" />
-              <circle cx="15" cy="5" r="2.5" stroke="#818cf8" strokeWidth="1.5" />
-              <circle cx="15" cy="15" r="2.5" stroke="#818cf8" strokeWidth="1.5" />
+              <circle
+                cx="5"
+                cy="10"
+                r="2.5"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+              />
+              <circle
+                cx="15"
+                cy="5"
+                r="2.5"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+              />
+              <circle
+                cx="15"
+                cy="15"
+                r="2.5"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+              />
               <path d="M7.5 9L12.5 6" stroke="#818cf8" strokeWidth="1.2" />
               <path d="M7.5 11L12.5 14" stroke="#818cf8" strokeWidth="1.2" />
             </svg>
@@ -26,9 +44,27 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect x="3" y="3" width="14" height="14" rx="2" stroke="#818cf8" strokeWidth="1.5" />
-              <path d="M7 10H13" stroke="#818cf8" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M10 7V13" stroke="#818cf8" strokeWidth="1.5" strokeLinecap="round" />
+              <rect
+                x="3"
+                y="3"
+                width="14"
+                height="14"
+                rx="2"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M7 10H13"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M10 7V13"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           ),
           title: "State",
@@ -37,8 +73,19 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="10" r="7" stroke="#818cf8" strokeWidth="1.5" />
-              <path d="M10 6V10L13 13" stroke="#818cf8" strokeWidth="1.5" strokeLinecap="round" />
+              <circle
+                cx="10"
+                cy="10"
+                r="7"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M10 6V10L13 13"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           ),
           title: "Pausing",
@@ -47,7 +94,13 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M4 10L8 14L16 6" stroke="#818cf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M4 10L8 14L16 6"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           ),
           title: "Recovery",
@@ -56,8 +109,24 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect x="3" y="8" width="5" height="9" rx="1" stroke="#818cf8" strokeWidth="1.5" />
-              <rect x="12" y="3" width="5" height="14" rx="1" stroke="#818cf8" strokeWidth="1.5" />
+              <rect
+                x="3"
+                y="8"
+                width="5"
+                height="9"
+                rx="1"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+              />
+              <rect
+                x="12"
+                y="3"
+                width="5"
+                height="14"
+                rx="1"
+                stroke="#818cf8"
+                strokeWidth="1.5"
+              />
             </svg>
           ),
           title: "Slots",
@@ -72,11 +141,21 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M4 4V16H16" stroke="#6ee7b7" strokeWidth="1.5" strokeLinecap="round" />
+              <path
+                d="M4 4V16H16"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
               <circle cx="8" cy="12" r="1.5" fill="#6ee7b7" />
               <circle cx="12" cy="8" r="1.5" fill="#6ee7b7" />
               <circle cx="15" cy="5" r="1.5" fill="#6ee7b7" />
-              <path d="M8 12L12 8L15 5" stroke="#6ee7b7" strokeWidth="1" strokeDasharray="2 2" />
+              <path
+                d="M8 12L12 8L15 5"
+                stroke="#6ee7b7"
+                strokeWidth="1"
+                strokeDasharray="2 2"
+              />
             </svg>
           ),
           title: "Structure",
@@ -85,9 +164,27 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect x="3" y="5" width="14" height="10" rx="2" stroke="#6ee7b7" strokeWidth="1.5" />
-              <path d="M7 9H13" stroke="#6ee7b7" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M7 12H11" stroke="#6ee7b7" strokeWidth="1.2" strokeLinecap="round" />
+              <rect
+                x="3"
+                y="5"
+                width="14"
+                height="10"
+                rx="2"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M7 9H13"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M7 12H11"
+                stroke="#6ee7b7"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
             </svg>
           ),
           title: "State",
@@ -106,9 +203,24 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M6 10C6 7 8 4 10 4C12 4 14 7 14 10" stroke="#6ee7b7" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M14 10L16 8" stroke="#6ee7b7" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M14 10L12 8" stroke="#6ee7b7" strokeWidth="1.5" strokeLinecap="round" />
+              <path
+                d="M6 10C6 7 8 4 10 4C12 4 14 7 14 10"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M14 10L16 8"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M14 10L12 8"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
               <circle cx="10" cy="16" r="1.5" fill="#6ee7b7" />
             </svg>
           ),
@@ -118,9 +230,32 @@ const WorkflowComparison: React.FC = () => {
         {
           icon: (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect x="3" y="8" width="5" height="9" rx="1" stroke="#6ee7b7" strokeWidth="1.5" strokeDasharray="3 2" />
-              <rect x="12" y="3" width="5" height="14" rx="1" stroke="#6ee7b7" strokeWidth="1.5" />
-              <path d="M5 11L5 14" stroke="#6ee7b7" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+              <rect
+                x="3"
+                y="8"
+                width="5"
+                height="9"
+                rx="1"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+                strokeDasharray="3 2"
+              />
+              <rect
+                x="12"
+                y="3"
+                width="5"
+                height="14"
+                rx="1"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M5 11L5 14"
+                stroke="#6ee7b7"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.4"
+              />
             </svg>
           ),
           title: "Slots",
@@ -203,9 +338,7 @@ const WorkflowComparison: React.FC = () => {
                 >
                   {item.title}
                 </div>
-                <div className="mt-0.5 text-sm text-gray-400">
-                  {item.desc}
-                </div>
+                <div className="mt-0.5 text-sm text-gray-400">{item.desc}</div>
               </div>
             </div>
           ))}

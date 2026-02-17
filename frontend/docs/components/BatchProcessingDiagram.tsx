@@ -287,10 +287,7 @@ const BatchProcessingDiagram: React.FC = () => {
             }}
           />
         </div>
-        <span
-          className="text-xs tabular-nums"
-          style={{ color: "#9ca3af" }}
-        >
+        <span className="text-xs tabular-nums" style={{ color: "#9ca3af" }}>
           {processedCount}/{ITEMS.length}
         </span>
       </div>

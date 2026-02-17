@@ -37,9 +37,27 @@ const PatternComparison: React.FC<PatternComparisonProps> = ({
               }}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="4" cy="8" r="2" stroke="#818cf8" strokeWidth="1.5" />
-                <circle cx="12" cy="4" r="2" stroke="#818cf8" strokeWidth="1.5" />
-                <circle cx="12" cy="12" r="2" stroke="#818cf8" strokeWidth="1.5" />
+                <circle
+                  cx="4"
+                  cy="8"
+                  r="2"
+                  stroke="#818cf8"
+                  strokeWidth="1.5"
+                />
+                <circle
+                  cx="12"
+                  cy="4"
+                  r="2"
+                  stroke="#818cf8"
+                  strokeWidth="1.5"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="2"
+                  stroke="#818cf8"
+                  strokeWidth="1.5"
+                />
                 <path d="M6 7L10 5" stroke="#818cf8" strokeWidth="1" />
                 <path d="M6 9L10 11" stroke="#818cf8" strokeWidth="1" />
               </svg>

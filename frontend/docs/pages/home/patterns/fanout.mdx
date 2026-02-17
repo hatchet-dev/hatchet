@@ -42,10 +42,28 @@ The parent may choose to await all child completions and aggregate their results
 
 <PatternComparison
   rows={[
-    { label: "How it works", workflow: "Parent task spawns children and may choose to await results", durable: "Same as DAGs" },
-    { label: "Slot usage", workflow: "Parent holds a slot while waiting for children", durable: "Parent slot is freed during the wait, ideal for large fan-outs" },
-    { label: "Crash recovery", workflow: "Parent retries from scratch if it fails mid-fanout", durable: "Parent replays from checkpoint and only spawns children tasks that need to run" },
-    { label: "Best for", workflow: "Small-to-medium fan-outs where parent completes quickly", durable: "Large deterministic fan-outs that may require long waits or sleeps" },
+    {
+      label: "How it works",
+      workflow: "Parent task spawns children and may choose to await results",
+      durable: "Same as DAGs",
+    },
+    {
+      label: "Slot usage",
+      workflow: "Parent holds a slot while waiting for children",
+      durable: "Parent slot is freed during the wait, ideal for large fan-outs",
+    },
+    {
+      label: "Crash recovery",
+      workflow: "Parent retries from scratch if it fails mid-fanout",
+      durable:
+        "Parent replays from checkpoint and only spawns children tasks that need to run",
+    },
+    {
+      label: "Best for",
+      workflow: "Small-to-medium fan-outs where parent completes quickly",
+      durable:
+        "Large deterministic fan-outs that may require long waits or sleeps",
+    },
   ]}
   recommendationText="If your fan-out spawns many children that take a long time to complete, use a durable workflow so the parent doesn't hold a worker slot while waiting."
 />

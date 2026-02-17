@@ -27,19 +27,21 @@ Hatchet matches events to registered task triggers, handles deduplication and fi
 
 ## Key Features
 
-| Feature | What it does for event-driven systems |
-|---------|--------------------------------------|
-| **[Event Triggers](/home/run-on-event)** | React to application events by name with optional payload filtering |
-| **[Webhooks](/home/webhooks)** | Receive external HTTP webhooks and route them to tasks |
-| **[Cron Triggers](/home/cron-runs)** | Schedule recurring tasks with cron expressions |
-| **[Scheduled Runs](/home/scheduled-runs)** | Trigger one-time future execution at a specific time |
-| **[Concurrency](/home/concurrency)** | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies |
-| **[Rate Limits](/home/rate-limits)** | Throttle downstream processing regardless of event volume |
-| **[Inter-Service Triggering](/home/inter-service-triggering)** | Trigger tasks across different services and worker pools |
-| **[Additional Metadata](/home/additional-metadata)** | Tag events with metadata for filtering and observability |
+| Feature                                                        | What it does for event-driven systems                               |
+| -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **[Event Triggers](/home/run-on-event)**                       | React to application events by name with optional payload filtering |
+| **[Webhooks](/home/webhooks)**                                 | Receive external HTTP webhooks and route them to tasks              |
+| **[Cron Triggers](/home/cron-runs)**                           | Schedule recurring tasks with cron expressions                      |
+| **[Scheduled Runs](/home/scheduled-runs)**                     | Trigger one-time future execution at a specific time                |
+| **[Concurrency](/home/concurrency)**                           | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies     |
+| **[Rate Limits](/home/rate-limits)**                           | Throttle downstream processing regardless of event volume           |
+| **[Inter-Service Triggering](/home/inter-service-triggering)** | Trigger tasks across different services and worker pools            |
+| **[Additional Metadata](/home/additional-metadata)**           | Tag events with metadata for filtering and observability            |
 
 <Callout type="info">
-  Hatchet supports all common triggering patterns in a single system. See [Ways of Running Tasks](/home/running-tasks) for the complete list of trigger types and when to use each.
+  Hatchet supports all common triggering patterns in a single system. See [Ways
+  of Running Tasks](/home/running-tasks) for the complete list of trigger types
+  and when to use each.
 </Callout>
 
 ## Architecture
@@ -65,18 +67,20 @@ Task outputs can trigger further events, spawn child tasks, or start downstream 
 </Steps>
 
 <Callout type="warning">
-  When processing high-volume events, always configure **concurrency controls** to prevent worker saturation. Without limits, a burst of 10,000 events will attempt to run 10,000 tasks simultaneously.
+  When processing high-volume events, always configure **concurrency controls**
+  to prevent worker saturation. Without limits, a burst of 10,000 events will
+  attempt to run 10,000 tasks simultaneously.
 </Callout>
 
 ## Common Event Patterns
 
-| Pattern | Description |
-|---------|------------|
-| **Webhook processing** | Receive Stripe, GitHub, or Twilio webhooks and process them reliably |
-| **User action handlers** | React to user sign-ups, purchases, or content uploads with async workflows |
-| **Scheduled maintenance** | Run database cleanup, cache invalidation, or health checks on a cron schedule |
-| **Cross-service orchestration** | Coordinate workflows across microservices without direct coupling |
-| **Real-time data sync** | Keep systems in sync by reacting to change events from databases or APIs |
+| Pattern                         | Description                                                                   |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| **Webhook processing**          | Receive Stripe, GitHub, or Twilio webhooks and process them reliably          |
+| **User action handlers**        | React to user sign-ups, purchases, or content uploads with async workflows    |
+| **Scheduled maintenance**       | Run database cleanup, cache invalidation, or health checks on a cron schedule |
+| **Cross-service orchestration** | Coordinate workflows across microservices without direct coupling             |
+| **Real-time data sync**         | Keep systems in sync by reacting to change events from databases or APIs      |
 
 ## Related Patterns
 
@@ -90,7 +94,10 @@ Task outputs can trigger further events, spawn child tasks, or start downstream 
   <Cards.Card title="Long Waits" href="/home/patterns/long-waits">
     Pause a workflow until an external event arrives, then resume.
   </Cards.Card>
-  <Cards.Card title="Pre-Determined Pipelines" href="/home/patterns/pre-determined-pipelines">
+  <Cards.Card
+    title="Pre-Determined Pipelines"
+    href="/home/patterns/pre-determined-pipelines"
+  >
     Chain event-triggered tasks into multi-stage processing pipelines.
   </Cards.Card>
 </Cards>

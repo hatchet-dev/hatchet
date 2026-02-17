@@ -27,19 +27,22 @@ Agents typically need to stream LLM tokens to a frontend as they're generated. U
 
 ## Key Features
 
-| Feature | What it does for agents |
-|---------|----------------------|
+| Feature                                                   | What it does for agents                                                                    |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | **[Durable Execution](/home/durable-workflows-overview)** | Checkpoints tool calls, LLM responses, and loop iterations so agent state survives crashes |
-| **[Streaming](/home/streaming)** | Stream LLM tokens from workers to frontends in real-time |
-| **[Durable Events](/home/durable-events)** | Pause for human-in-the-loop feedback without holding worker slots |
-| **[Durable Sleep](/home/durable-sleep)** | Schedule agent retries or delayed actions with exact timing |
-| **[Concurrency](/home/concurrency)** | Cancel stale runs, limit parallel agents per user |
-| **[Rate Limits](/home/rate-limits)** | Stay within LLM provider API rate limits across all workers |
-| **[Child Spawning](/home/child-spawning)** | Agents dynamically spawn sub-agents or tool-call tasks |
-| **[Cancellation](/home/cancellation)** | Stop long-running agents on user request |
+| **[Streaming](/home/streaming)**                          | Stream LLM tokens from workers to frontends in real-time                                   |
+| **[Durable Events](/home/durable-events)**                | Pause for human-in-the-loop feedback without holding worker slots                          |
+| **[Durable Sleep](/home/durable-sleep)**                  | Schedule agent retries or delayed actions with exact timing                                |
+| **[Concurrency](/home/concurrency)**                      | Cancel stale runs, limit parallel agents per user                                          |
+| **[Rate Limits](/home/rate-limits)**                      | Stay within LLM provider API rate limits across all workers                                |
+| **[Child Spawning](/home/child-spawning)**                | Agents dynamically spawn sub-agents or tool-call tasks                                     |
+| **[Cancellation](/home/cancellation)**                    | Stop long-running agents on user request                                                   |
 
 <Callout type="info">
-  The agent loop pattern is a [Cycle](/home/patterns/cycles). Each iteration spawns a new child run via `RunChild`. Combined with [Durable Execution](/home/durable-workflows-overview), completed iterations survive crashes and slots are freed between iterations.
+  The agent loop pattern is a [Cycle](/home/patterns/cycles). Each iteration
+  spawns a new child run via `RunChild`. Combined with [Durable
+  Execution](/home/durable-workflows-overview), completed iterations survive
+  crashes and slots are freed between iterations.
 </Callout>
 
 ## Typical Agent Flow
@@ -65,17 +68,21 @@ The agent uses `WaitForEvent` to pause until the user sends another message, fre
 </Steps>
 
 <Callout type="warning">
-  Always set a **timeout** and **max iteration count** on agent loops. Without bounds, an agent can loop indefinitely. See [Timeouts](/home/timeouts) for configuration.
+  Always set a **timeout** and **max iteration count** on agent loops. Without
+  bounds, an agent can loop indefinitely. See [Timeouts](/home/timeouts) for
+  configuration.
 </Callout>
 
 ## Related Patterns
 
 <Cards>
   <Cards.Card title="Cycles" href="/home/patterns/cycles">
-    The core loop pattern behind agent reasoning, where a task re-spawns itself until a goal is met.
+    The core loop pattern behind agent reasoning, where a task re-spawns itself
+    until a goal is met.
   </Cards.Card>
   <Cards.Card title="Long Waits" href="/home/patterns/long-waits">
-    Pause agents for human feedback or scheduled retries without holding worker slots.
+    Pause agents for human feedback or scheduled retries without holding worker
+    slots.
   </Cards.Card>
   <Cards.Card title="Fanout" href="/home/patterns/fanout">
     Agents that spawn parallel tool calls or sub-agent tasks.

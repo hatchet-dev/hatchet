@@ -33,12 +33,12 @@ Task outputs are stored and passed to downstream tasks. If a workflow is partial
 
 ## Anatomy of a Workflow
 
-| Concept        | Description                                                                                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**       | An atomic unit of work. A function that takes input and returns output                                                                                 |
-| **Dependency** | A parent-child relationship between tasks. A child task waits for its parents to complete                                                               |
-| **Input**      | Data passed to the workflow when it's triggered                                                                                                         |
-| **Output**     | Data returned by each task, accessible to downstream tasks                                                                                              |
+| Concept        | Description                                                                                                                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**       | An atomic unit of work. A function that takes input and returns output                                                                                                             |
+| **Dependency** | A parent-child relationship between tasks. A child task waits for its parents to complete                                                                                          |
+| **Input**      | Data passed to the workflow when it's triggered                                                                                                                                    |
+| **Output**     | Data returned by each task, accessible to downstream tasks                                                                                                                         |
 | **Trigger**    | How a workflow starts: [direct run](/home/run-with-results), [event](/home/run-on-event), [cron](/home/cron-runs), [schedule](/home/scheduled-runs), or [webhooks](/home/webhooks) |
 
 <Callout type="info">

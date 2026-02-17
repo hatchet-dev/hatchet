@@ -40,10 +40,10 @@ When the sleep expires or the event arrives, Hatchet re-schedules the task on an
 | **Durable Event** | `WaitForEvent(key)`  | An external event matching the key (and optional CEL filter) is received |
 
 <Callout type="warning">
-  Durable sleeps are **exact**. If a task sleeps for 24 hours and is
-  interrupted after 23 hours, it will only sleep for 1 more hour on restart, not
-  another full 24 hours. This is what makes durable sleep different from a
-  regular sleep call.
+  Durable sleeps are **exact**. If a task sleeps for 24 hours and is interrupted
+  after 23 hours, it will only sleep for 1 more hour on restart, not another
+  full 24 hours. This is what makes durable sleep different from a regular sleep
+  call.
 </Callout>
 
 ## Use Cases
