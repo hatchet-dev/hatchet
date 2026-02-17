@@ -115,7 +115,7 @@ class ActionListener:
                 )
 
                 if self.last_heartbeat_succeeded is False:
-                    logger.info("listener established")
+                    logger.info("action listener established")
 
                 now = time.time()
                 diff = now - self.time_last_hb_succeeded
