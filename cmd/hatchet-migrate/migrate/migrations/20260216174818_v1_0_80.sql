@@ -68,8 +68,8 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Possible: we may want to query a range of node_ids for a durable task
     -- Possible: we may want to query a range of inserted_ats for a durable task
 
-    -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
-    -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
+    -- Whether this event has been seen by the engine or not. Note that is_satisfied _may_ change multiple
+    -- times through the lifecycle of a event, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
 
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
@@ -85,7 +85,7 @@ ALTER TABLE v1_match
     ADD COLUMN durable_event_log_entry_durable_task_inserted_at TIMESTAMPTZ;
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
-ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_CALLBACK_RESULT_DATA';
+ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA';
 
 ALTER TABLE "Worker" ADD COLUMN "durableTaskDispatcherId" UUID;
 -- +goose StatementEnd
