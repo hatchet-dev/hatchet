@@ -126,8 +126,14 @@ class Runner:
             admin_client=self.admin_client,
         )
         self.event_client = EventClient(self.config)
-        self.durable_event_listener = DurableEventListener(
-            self.config, admin_client=self.admin_client
+
+        has_durable_tasks = any(
+            task.is_durable for task in self.action_registry.values()
+        )
+        self.durable_event_listener: DurableEventListener | None = (
+            DurableEventListener(self.config, admin_client=self.admin_client)
+            if has_durable_tasks
+            else None
         )
 
         self.worker_context = WorkerContext(
@@ -147,10 +153,10 @@ class Runner:
         if self.worker_context.id() is None:
             self.worker_context._worker_id = action.worker_id
 
-            ## fixme: only do this if durable tasks are registered
-            self.durable_event_listener_task = asyncio.create_task(
-                self.durable_event_listener.ensure_started(action.worker_id)
-            )
+            if self.durable_event_listener is not None:
+                self.durable_event_listener_task = asyncio.create_task(
+                    self.durable_event_listener.ensure_started(action.worker_id)
+                )
 
         t: asyncio.Task[Exception | None] | None = None
         match action.action_type:
