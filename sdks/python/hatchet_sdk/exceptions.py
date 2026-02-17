@@ -17,13 +17,6 @@ class NonDeterminismError(Exception):
             f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}.\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/home/durable-best-practices"
         )
 
-    def serialize(self, include_metadata: bool = False) -> str:
-        return str(self)
-
-    @property
-    def exc(self) -> str:
-        return self.message
-
 
 class InvalidDependencyError(Exception):
     pass
@@ -166,9 +159,7 @@ class TaskRunError(Exception):
 
 
 class FailedTaskRunExceptionGroup(ValueError):  # noqa: N818
-    def __init__(
-        self, message: str, exceptions: list[TaskRunError | NonDeterminismError]
-    ):
+    def __init__(self, message: str, exceptions: list[TaskRunError]):
         self.message = message
         self.exceptions = exceptions
 
