@@ -134,6 +134,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 
 	}
 
+	if alreadyExisted {
+		resultPayload, err = r.payloadStore.RetrieveSingle(ctx, tx, RetrievePayloadOpts{
+			Id:         entry.ID,
+			InsertedAt: entry.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+			TenantId:   tenantId,
+		})
+
+		if err != nil {
+			resultPayload = nil
+		}
+	}
+
 	return &EventLogEntryWithPayloads{
 		Entry:          entry,
 		InputPayload:   inputPayload,
