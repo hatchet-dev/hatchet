@@ -118,3 +118,43 @@ func TestCreateIdempotencyKey_WithAndWithoutTriggerOpts(t *testing.T) {
 
 	assert.NotEqual(t, key(t, without), key(t, with))
 }
+
+func int32Ptr(i int32) *int32 { return &i }
+
+func TestCreateIdempotencyKey_PriorityIgnored(t *testing.T) {
+	base := IngestDurableTaskEventOpts{
+		Kind: sqlcv1.V1DurableEventLogKindRUN,
+		TriggerOpts: &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":1}`)},
+		},
+	}
+	withPriority := IngestDurableTaskEventOpts{
+		Kind: sqlcv1.V1DurableEventLogKindRUN,
+		TriggerOpts: &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":1}`), Priority: int32Ptr(3)},
+		},
+	}
+
+	assert.Equal(t, key(t, base), key(t, withPriority))
+}
+
+func TestCreateIdempotencyKey_AdditionalMetadataIgnored(t *testing.T) {
+	base := IngestDurableTaskEventOpts{
+		Kind: sqlcv1.V1DurableEventLogKindRUN,
+		TriggerOpts: &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":1}`)},
+		},
+	}
+	withMeta := IngestDurableTaskEventOpts{
+		Kind: sqlcv1.V1DurableEventLogKindRUN,
+		TriggerOpts: &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{
+				WorkflowName:       "my-workflow",
+				Data:               []byte(`{"x":1}`),
+				AdditionalMetadata: []byte(`{"env":"prod"}`),
+			},
+		},
+	}
+
+	assert.Equal(t, key(t, base), key(t, withMeta))
+}
