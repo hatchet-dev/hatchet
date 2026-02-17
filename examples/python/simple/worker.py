@@ -1,5 +1,5 @@
 # > Simple
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
@@ -10,9 +10,7 @@ def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 @hatchet.durable_task()
-async def simple_durable(input: EmptyModel, ctx: DurableContext) -> dict[str, str]:
-    res = await simple.aio_run(input)
-    print(res)
+async def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "Hello, world!"}
 
 
