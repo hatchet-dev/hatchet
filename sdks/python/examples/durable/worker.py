@@ -3,6 +3,7 @@ import time
 from datetime import timedelta
 from typing import Any
 from uuid import uuid4
+from pydantic import BaseModel
 
 from hatchet_sdk import (
     Context,
@@ -212,6 +213,25 @@ async def durable_sleep_event_spawn(
     }
 
 
+class NonDeterminismOutput(BaseModel):
+    attempt_number: int
+    sleep_time: int
+
+
+@hatchet.durable_task()
+async def durable_non_determinism(
+    input: EmptyModel, ctx: DurableContext
+) -> NonDeterminismOutput:
+    sleep_time = ctx.attempt_number * 2
+
+    await ctx.aio_sleep_for(timedelta(seconds=sleep_time))
+
+    return NonDeterminismOutput(
+        attempt_number=ctx.attempt_number,
+        sleep_time=sleep_time,
+    )
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
@@ -222,6 +242,7 @@ def main() -> None:
             spawn_child_task,
             durable_with_spawn,
             durable_sleep_event_spawn,
+            durable_non_determinism,
         ],
     )
     worker.start()
