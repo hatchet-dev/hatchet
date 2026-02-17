@@ -17,6 +17,13 @@ class NonDeterminismError(Exception):
             f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}"
         )
 
+    def serialize(self, include_metadata: bool = False) -> str:
+        return str(self)
+
+    @property
+    def exc(self) -> str:
+        return self.message
+
 
 class InvalidDependencyError(Exception):
     pass
@@ -159,7 +166,9 @@ class TaskRunError(Exception):
 
 
 class FailedTaskRunExceptionGroup(ValueError):  # noqa: N818
-    def __init__(self, message: str, exceptions: list[TaskRunError]):
+    def __init__(
+        self, message: str, exceptions: list[TaskRunError | NonDeterminismError]
+    ):
         self.message = message
         self.exceptions = exceptions
 
