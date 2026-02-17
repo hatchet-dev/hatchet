@@ -1,0 +1,50 @@
+module Hatchet
+  class Task
+    attr_reader name: Symbol
+    attr_reader parents: Array[Task | Symbol]
+    attr_reader execution_timeout: Integer?
+    attr_reader schedule_timeout: Integer?
+    attr_reader retries: Integer?
+    attr_reader backoff_max_seconds: Integer?
+    attr_reader backoff_factor: Float?
+    attr_reader rate_limits: Array[RateLimit]
+    attr_reader concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil
+    attr_reader desired_worker_labels: Hash[Symbol, untyped]?
+    attr_reader wait_for: Array[untyped]
+    attr_reader skip_if: Array[untyped]
+    attr_reader durable: bool
+    attr_reader fn: Proc?
+    attr_reader workflow: Workflow?
+    attr_reader client: Client?
+    attr_reader deps: Hash[Symbol, Proc]?
+
+    def initialize: (
+      name: Symbol | String,
+      ?parents: Array[Task | Symbol],
+      ?execution_timeout: Integer?,
+      ?schedule_timeout: Integer?,
+      ?retries: Integer?,
+      ?backoff_max_seconds: Integer?,
+      ?backoff_factor: Float?,
+      ?rate_limits: Array[RateLimit],
+      ?concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil,
+      ?desired_worker_labels: Hash[Symbol, untyped]?,
+      ?wait_for: Array[untyped],
+      ?skip_if: Array[untyped],
+      ?durable: bool,
+      ?workflow: Workflow?,
+      ?client: Client?,
+      ?deps: Hash[Symbol, Proc]?
+    ) { (Hash[String, untyped], Context) -> untyped } -> void
+
+    def call: (Hash[String, untyped] input, Context context) -> untyped
+    def to_proto: (String service_name) -> untyped
+    def run: (?Hash[String, untyped] input, ?options: TriggerWorkflowOptions?) -> Hash[String, untyped]
+    def run_no_wait: (?Hash[String, untyped] input, ?options: TriggerWorkflowOptions?) -> TaskRunRef
+    def run_many: (Array[Hash[Symbol, untyped]] items, ?return_exceptions: bool) -> Array[untyped]
+    def run_many_no_wait: (Array[Hash[Symbol, untyped]] items) -> Array[TaskRunRef]
+    def create_bulk_run_item: (?input: Hash[String, untyped], ?key: String?, ?options: TriggerWorkflowOptions?) -> Hash[Symbol, untyped]
+    def mock_run: (input: Hash[String, untyped], ?additional_metadata: Hash[String, untyped], ?retry_count: Integer, ?parent_outputs: Hash[String, untyped]) -> untyped
+    def id: () -> String
+  end
+end

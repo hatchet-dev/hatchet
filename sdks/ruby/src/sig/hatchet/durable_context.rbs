@@ -1,0 +1,13 @@
+module Hatchet
+  class DurableContext < Context
+    def sleep_for: (duration: Integer | String) -> Hash[String, untyped]?
+    def wait_for: (String key, untyped condition) -> Hash[String, untyped]
+
+    private
+
+    def v1_dispatcher_stub: () -> untyped
+    def listen_for_event: (String signal_key) -> untyped
+    def build_durable_conditions: (String key, untyped condition) -> untyped
+    def process_durable_condition: (String key, untyped condition, String or_group_id, Array[untyped] sleep_conditions, Array[untyped] user_event_conditions) -> void
+  end
+end

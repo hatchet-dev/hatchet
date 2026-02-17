@@ -32,7 +32,7 @@ You can create dynamic scheduled runs programmatically via the API to run tasks 
 
 Here's an example of creating a scheduled run to trigger a task tomorrow at noon:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.simple.schedule.schedule_a_task} />
@@ -44,6 +44,9 @@ Here's an example of creating a scheduled run to trigger a task tomorrow at noon
 <Tabs.Tab title="Go">
 <Snippet src={snippets.go.scheduled.main.create} />
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.simple.schedule.schedule_a_task} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 In this example you can have different scheduled times for different customers, or dynamically set the scheduled time based on some other business logic.
@@ -59,7 +62,7 @@ When creating a scheduled run via the API, you will receive a scheduled run obje
 
 You can delete a scheduled run by calling the `delete` method on the scheduled client.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.delete} />
   </Tabs.Tab>
@@ -69,13 +72,16 @@ You can delete a scheduled run by calling the `delete` method on the scheduled c
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.scheduled.main.delete} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.scheduled.programatic_sync.delete} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ### Listing Scheduled Runs
 
 You can list all scheduled runs for a task by calling the `list` method on the scheduled client.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.list} />
   </Tabs.Tab>
@@ -85,13 +91,16 @@ You can list all scheduled runs for a task by calling the `list` method on the s
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.scheduled.main.list} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.scheduled.programatic_sync.list} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ### Rescheduling a Scheduled Run
 
 If you need to change the trigger time for an existing scheduled run, you can reschedule it by updating its `triggerAt`.
 
-<UniversalTabs items={["Python", "Typescript"]}>
+<UniversalTabs items={["Python", "Typescript", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.reschedule} />
 
@@ -101,6 +110,9 @@ If you need to change the trigger time for an existing scheduled run, you can re
       src={snippets.typescript.simple.schedule.reschedule_a_scheduled_run}
     />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.scheduled.programatic_sync.reschedule} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -114,7 +126,7 @@ If you need to change the trigger time for an existing scheduled run, you can re
 
 Hatchet supports bulk operations for scheduled runs. You can bulk delete scheduled runs, and you can bulk reschedule scheduled runs by providing a list of updates.
 
-<UniversalTabs items={["Python", "Typescript"]}>
+<UniversalTabs items={["Python", "Typescript", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.bulk_delete} />
     <Snippet src={snippets.python.scheduled.programatic_sync.bulk_reschedule} />
@@ -126,6 +138,10 @@ Hatchet supports bulk operations for scheduled runs. You can bulk delete schedul
       src={snippets.typescript.simple.schedule.bulk_reschedule_scheduled_runs}
     />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.scheduled.programatic_sync.bulk_delete} />
+    <Snippet src={snippets.ruby.scheduled.programatic_sync.bulk_reschedule} />
   </Tabs.Tab>
 </UniversalTabs>
 

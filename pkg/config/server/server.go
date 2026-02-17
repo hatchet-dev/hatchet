@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/tls"
 	"time"
 
@@ -202,10 +201,6 @@ type ConfigFileRuntime struct {
 
 	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
-
-	// EnforceLimitsFunc is a function that returns whether the server should enforce limits for a tenant
-	// This will take precedence over EnforceLimits if set.
-	EnforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error) `json:"-"`
 
 	// Default limit values
 	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`

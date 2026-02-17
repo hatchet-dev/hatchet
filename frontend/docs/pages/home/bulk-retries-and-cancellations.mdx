@@ -16,7 +16,7 @@ There are two ways of bulk cancelling or replaying tasks in both cases:
 
 The first way to bulk cancel or replay runs is by providing a list of run ids. This is the most straightforward way to cancel or replay runs in bulk.
 
-<UniversalTabs items={["Python", "Go"]}>
+<UniversalTabs items={["Python", "Go", "Ruby"]}>
 {/* <UniversalTabs items={"Python", "Typescript", "Go"]}> TODO V1 DOCS - Add TS */}
   <Tabs.Tab title="Python">
 
@@ -70,13 +70,18 @@ The first way to bulk cancel or replay runs is by providing a list of run ids. T
     <Snippet src={snippets.python.bulk_operations.cancel.cancel_by_run_ids} />
 
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.bulk_operations.cancel.setup} />
+    <Snippet src={snippets.ruby.bulk_operations.cancel.list_runs} />
+    <Snippet src={snippets.ruby.bulk_operations.cancel.cancel_by_run_ids} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ### Bulk Operations by Filters
 
 The second way to bulk cancel or replay runs is by providing a list of filters. This is the most powerful way to cancel or replay runs in bulk, as it allows you to cancel or replay all runs matching a set of arbitrary filters without needing to provide IDs for the runs in advance.
 
-<UniversalTabs items={["Python", "Go"]}>
+<UniversalTabs items={["Python", "Go", "Ruby"]}>
 {/* <UniversalTabs items={["Python", "Typescript", "Go"]}> TODO V1 DOCS - Add TS */}
   <Tabs.Tab title="Python">
 
@@ -98,6 +103,9 @@ The example below provides some filters you might use to cancel or replay runs i
 
     Running this request will cancel all task runs matching the filters provided.
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.bulk_operations.cancel.cancel_by_filters} />
   </Tabs.Tab>
 </UniversalTabs>
 

@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -23,6 +25,10 @@ import (
 type DispatcherClient interface {
 	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
+	// GetVersion calls the GetVersion RPC. Returns the engine semantic version string.
+	// Old engines that do not implement this will return codes.Unimplemented.
+	GetVersion(ctx context.Context) (string, error)
+
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
@@ -45,9 +51,14 @@ type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
 	Actions    []string
-	Slots      *int
+	SlotConfig map[string]int32
 	Labels     map[string]interface{}
 	WebhookId  *string
+
+	// LegacySlots, when non-nil, causes the registration to use the deprecated
+	// `slots` proto field instead of `slot_config`. This is for backward
+	// compatibility with engines that do not support multiple slot types.
+	LegacySlots *int32
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -268,9 +279,12 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.Slots != nil {
-		mr := int32(*req.Slots) // nolint: gosec
-		registerReq.Slots = &mr
+	if req.LegacySlots != nil {
+		registerReq.Slots = req.LegacySlots
+	} else if len(req.SlotConfig) > 0 {
+		registerReq.SlotConfig = req.SlotConfig
+	} else {
+		return nil, nil, fmt.Errorf("slot config is required for worker registration")
 	}
 
 	// register the worker
@@ -311,18 +325,20 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
 	go func() {
+		heartbeatInterval := 4 * time.Second
 		timer := time.NewTicker(100 * time.Millisecond)
 		defer timer.Stop()
 
 		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
 		lastHeartbeat := time.Now().Add(-5 * time.Second)
+		firstHeartbeat := true
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
+				if now := time.Now().UTC(); lastHeartbeat.Add(heartbeatInterval).Before(now) {
 					a.l.Debug().Msgf("updating worker %s heartbeat", a.workerId)
 
 					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
@@ -339,7 +355,21 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						}
 					}
 
-					lastHeartbeat = time.Now().UTC()
+					// detect heartbeat delays caused by CPU contention or other scheduling issues,
+					// but skip the first heartbeat since lastHeartbeat is artificially backdated
+					if !firstHeartbeat {
+						actualInterval := now.Sub(lastHeartbeat)
+						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
+						if actualInterval > heartbeatInterval+1*time.Second {
+							a.l.Warn().Msgf(
+								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
+								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
+							)
+						}
+					}
+
+					firstHeartbeat = false
+					lastHeartbeat = now
 				}
 			}
 		}
@@ -514,6 +544,14 @@ func (a *actionListenerImpl) Unregister() error {
 	}
 
 	return nil
+}
+
+func (d *dispatcherClientImpl) GetVersion(ctx context.Context) (string, error) {
+	resp, err := d.client.GetVersion(d.ctx.newContext(ctx), &dispatchercontracts.GetVersionRequest{})
+	if err != nil {
+		return "", err
+	}
+	return resp.Version, nil
 }
 
 func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {

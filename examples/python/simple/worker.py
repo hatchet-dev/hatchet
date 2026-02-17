@@ -1,6 +1,4 @@
 # > Simple
-import time
-
 from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
@@ -8,7 +6,6 @@ hatchet = Hatchet(debug=True)
 
 @hatchet.task()
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    time.sleep(50)
     return {"result": "Hello, world!"}
 
 
@@ -20,7 +17,10 @@ async def simple_durable(input: EmptyModel, ctx: DurableContext) -> dict[str, st
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", workflows=[simple, simple_durable])
+    worker = hatchet.worker(
+        "test-worker",
+        workflows=[simple, simple_durable],
+    )
     worker.start()
 
 

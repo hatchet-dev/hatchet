@@ -59,6 +59,7 @@ V1WebhookSourceName:
     - STRIPE
     - SLACK
     - LINEAR
+    - SVIX
 
 V1WebhookHMACAlgorithm:
   type: string
@@ -211,5 +212,14 @@ V1UpdateWebhookRequest:
     staticPayload:
       type: object
       description: The static payload to use for the webhook. This is used to send a static payload with the webhook.
-  required:
-    - eventKeyExpression
+
+V1WebhookResponse:
+  type: object
+  properties:
+    message:
+      type: string
+      description: The message for the webhook response
+    event:
+      $ref: "event.yaml#/V1Event"
+    challenge:
+      type: string

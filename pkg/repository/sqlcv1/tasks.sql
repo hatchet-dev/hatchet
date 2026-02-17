@@ -912,6 +912,11 @@ WITH task AS (
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
+    RETURNING task_id
 )
 UPDATE
     v1_task_runtime
@@ -970,6 +975,12 @@ WITH locked_trs AS (
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
 )
+DELETE FROM v1_task_runtime_slot
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_trs
+);
+
 DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
@@ -1160,7 +1171,13 @@ SELECT
 FROM running_tasks;
 
 -- name: FindOldestRunningTask :one
-SELECT *
+SELECT
+    task_id,
+    task_inserted_at,
+    retry_count,
+    worker_id,
+    tenant_id,
+    timeout_at
 FROM v1_task_runtime
 ORDER BY task_id, task_inserted_at
 LIMIT 1;
@@ -1224,3 +1241,23 @@ FROM
     input
 RETURNING
     *;
+
+-- name: FilterValidTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS task_retry_count
+)
+SELECT
+    t.id
+FROM
+    v1_task t
+JOIN "Step" s ON s."id" = t.step_id AND s."deletedAt" IS NULL
+WHERE
+    (t.id, t.inserted_at, t.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM inputs
+    )
+    AND t.tenant_id = @tenantId::uuid
+;

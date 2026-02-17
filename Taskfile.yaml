@@ -4,15 +4,12 @@ tasks:
   setup:
     cmds:
       - task: install-dependencies
-      - task: generate-certs
       - task: set-env-db
       - task: migrate
-      - task: generate-all
       - task: generate-local-encryption-keys
+      - task: generate-docs
       - task: set-env-all
       - task: seed-dev
-      - task: copy-ca-to-sdks
-      - task: docs
   set-env-db:
     cmds:
       - |
@@ -36,7 +33,7 @@ tasks:
 
         SERVER_AUTH_COOKIE_SECRETS="$(randstring 16) $(randstring 16)"
         SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-        SERVER_AUTH_COOKIE_INSECURE=false
+        SERVER_AUTH_COOKIE_INSECURE=true
         SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
         SERVER_MSGQUEUE_KIND=rabbitmq
@@ -46,9 +43,9 @@ tasks:
         SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT=console
         SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL=error
         SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT=console
-        SERVER_LOGGER_LEVEL=error
+        SERVER_LOGGER_LEVEL=warn
         SERVER_LOGGER_FORMAT=console
-        DATABASE_LOGGER_LEVEL=error
+        DATABASE_LOGGER_LEVEL=warn
         DATABASE_LOGGER_FORMAT=console
 
         SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
@@ -56,16 +53,27 @@ tasks:
         SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
         SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
         EOF
+  fmt-go:
+    cmd: gofmt -s -w .
+  fmt-app:
+    dir: frontend/app
+    cmd: pnpm run prettier:fix && pnpm run prettier:check
+  fmt-docs:
+    dir: frontend/docs
+    cmd: pnpm run prettier:fix && pnpm run prettier:check
   pre:
+    aliases: [fmt]
     cmds:
-      - cd frontend/app/ && pnpm run prettier:fix
-      - pre-commit run --all-files
+      - task: fmt-go
+      - task: fmt-app
+      - task: fmt-docs
+      - task: pre-commit-run
   start-db:
     cmds:
       - docker compose up -d
   stop-db:
     cmds:
-      - docker compose down
+      - docker compose down {{.CLI_ARGS}}
   recreate-db-from-scratch:
     cmds:
       - docker compose down -v
@@ -82,20 +90,20 @@ tasks:
     cmds:
       - task: generate-sqlc
       - task: goose-migrate
-  atlas-migrate:
-    cmds:
-      - bash ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
   goose-migrate:
     cmds:
       - bash ./hack/dev/migrate.sh
   seed-dev:
+    dotenv: [.env]
     cmds:
-      - SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
+      - SEED_DEVELOPMENT=true go run ./cmd/hatchet-admin seed
   seed-cypress:
+    dotenv: [.env]
     cmds:
-      - SEED_DEVELOPMENT=true bash ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed-cypress
+      - SEED_DEVELOPMENT=true go run ./cmd/hatchet-admin seed-cypress
   start-dev:
     deps:
+      - task: goose-migrate
       - task: start-db
       - task: start-api
       - task: start-engine
@@ -125,30 +133,38 @@ tasks:
     desc: Run Cypress E2E for frontend/app against a locally started API stack (CI-friendly).
     cmds:
       - bash ./hack/ci/e2e-frontend.sh
-  start-ngrok:
-    cmds:
-      - ngrok http 8080
   start-lite:
     cmds:
       - bash ./hack/dev/start-lite.sh
+  start-ngrok:
+    cmds:
+      - ngrok http 8080
   generate-all:
+    aliases: [generate]
     cmds:
       - task: install-dependencies
       - task: generate-api
-      - task: generate-go
       - task: generate-proto
       - task: generate-sqlc
+      - task: generate-docs
       - task: pre-commit-run
   install-dependencies:
+    deps: [venv]
     cmds:
       - go mod download
       - cd frontend/app/ && pnpm install
       - cd frontend/docs/ && pnpm install
-      - npm install -g vite
+      - source .venv/bin/activate && pip install pre-commit
   generate-api:
     cmds:
       - task: generate-api-server
       - task: generate-api-client
+  generate-docs:
+      deps: [venv]
+      dir: frontend/snippets
+      cmds:
+        - 'source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py'
+        - task: fmt
   generate-certs:
     cmds:
       - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
@@ -156,7 +172,9 @@ tasks:
     cmds:
       - bash ./hack/dev/generate-local-encryption-keys.sh ./hack/dev/encryption-keys
   init-dev-env:
-    - bash ./hack/dev/init-dev-token-and-env.sh
+    dotenv: [.env]
+    cmds:
+      - bash ./hack/dev/init-dev-token-and-env.sh
   generate-dev-api-token:
     cmds:
       - bash ./hack/dev/generate-dev-api-token.sh
@@ -168,9 +186,6 @@ tasks:
     cmds:
       - bash ./hack/oas/generate-clients.sh
     silent: true
-  generate-go:
-    cmds:
-      - go generate ./...
   generate-proto:
     cmds:
       - bash ./hack/proto/proto.sh
@@ -184,13 +199,16 @@ tasks:
   lint:
     cmds:
       - task: lint-go
-      - task: lint-frontend
+      - task: lint-app
+      - task: lint-docs
   lint-go:
-    cmds:
-      - golangci-lint run ./... --config .golangci.yml
-  lint-frontend:
-    cmds:
-      - cd frontend/app/ && pnpm run lint:check
+    cmd: golangci-lint run ./... --config .golangci.yml
+  lint-app:
+    dir: frontend/app
+    cmd: pnpm run lint:check
+  lint-docs:
+    dir: frontend/docs
+    cmd: npm run lint:check
   kill-apis:
     cmds:
       - ps -A | grep 'cmd/hatchet-api' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
@@ -202,15 +220,15 @@ tasks:
   copy-ca-to-sdks:
     cmds:
       - mkdir -p ./python-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./python-sdk/certs/
+  venv:
+    status: [test -d .venv]
+    cmd: python3 -m venv .venv
   pre-commit-install:
-    cmds:
-      - pip install pre-commit # can use brew install pre-commit if you are on macOS
-      - pre-commit install
+    deps: [venv]
+    cmd: source .venv/bin/activate && pip install pre-commit && pre-commit install
   pre-commit-run:
-    cmds:
-      - cd frontend/app/ && pnpm run lint:fix && pnpm run prettier:check
-      - cd frontend/docs/ && pnpm run lint:fix && pnpm run prettier:check
-      - pre-commit run --all-files || pre-commit run --all-files
+    deps: [venv]
+    cmd: 'source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files'
   docs:
     cmds:
       - |
@@ -231,3 +249,15 @@ tasks:
   start-telemetry:
     cmds:
       - docker compose -f docker-compose.infra.yml up -d
+  test:
+    cmds:
+      - go test -count=1 $(go list ./... | grep -v "quickstart") -v -failfast
+  test-integration:
+    deps:
+      - start-db
+      - goose-migrate
+      - generate-local-encryption-keys
+    cmds:
+      - defer:
+          task: stop-db
+      - go test -count=1 -tags integration $(go list ./... | grep -v "quickstart") -v -failfast

@@ -1,0 +1,35 @@
+module Hatchet
+  module Clients
+    module Grpc
+      class Admin
+        BULK_TRIGGER_BATCH_SIZE: Integer
+
+        def initialize: (config: Config, channel: untyped) -> void
+
+        def put_workflow: (untyped workflow_proto) -> untyped
+
+        def trigger_workflow: (
+          String workflow_name,
+          ?input: Hash[String, untyped],
+          ?options: Hash[Symbol, untyped]
+        ) -> String
+
+        def bulk_trigger_workflow: (
+          String workflow_name,
+          Array[Hash[Symbol, untyped]] items
+        ) -> Array[String]
+
+        def schedule_workflow: (
+          String workflow_name,
+          run_at: Time,
+          ?input: Hash[String, untyped],
+          ?options: Hash[Symbol, untyped]
+        ) -> untyped
+
+        def get_run_details: (external_id: String) -> untyped
+        def put_rate_limit: (key: String, limit: Integer, duration: Symbol) -> untyped
+        def close: () -> void
+      end
+    end
+  end
+end
