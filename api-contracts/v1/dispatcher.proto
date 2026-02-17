@@ -111,22 +111,3 @@ message DurableEvent {
     string signal_key = 2;
     bytes data = 3; // the data for the event
 }
-
-message GetDurableEventLogRequest {
-    string external_id = 1;
-    string key = 2;
-}
-
-message GetDurableEventLogResponse {
-    bool found = 1;
-    bytes data = 2;
-}
-
-message CreateDurableEventLogRequest {
-    string external_id = 1;
-    string key = 2;
-    bytes data = 3;
-}
-
-message CreateDurableEventLogResponse {
-}

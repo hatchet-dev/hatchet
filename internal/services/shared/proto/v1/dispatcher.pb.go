@@ -989,217 +989,6 @@ func (x *DurableEvent) GetData() []byte {
 	return nil
 }
 
-type GetDurableEventLogRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	ExternalId string `protobuf:"bytes,1,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
-	Key        string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-}
-
-func (x *GetDurableEventLogRequest) Reset() {
-	*x = GetDurableEventLogRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_dispatcher_proto_msgTypes[14]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *GetDurableEventLogRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetDurableEventLogRequest) ProtoMessage() {}
-
-func (x *GetDurableEventLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_dispatcher_proto_msgTypes[14]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetDurableEventLogRequest.ProtoReflect.Descriptor instead.
-func (*GetDurableEventLogRequest) Descriptor() ([]byte, []int) {
-	return file_v1_dispatcher_proto_rawDescGZIP(), []int{14}
-}
-
-func (x *GetDurableEventLogRequest) GetExternalId() string {
-	if x != nil {
-		return x.ExternalId
-	}
-	return ""
-}
-
-func (x *GetDurableEventLogRequest) GetKey() string {
-	if x != nil {
-		return x.Key
-	}
-	return ""
-}
-
-type GetDurableEventLogResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Found bool   `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
-	Data  []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-}
-
-func (x *GetDurableEventLogResponse) Reset() {
-	*x = GetDurableEventLogResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_dispatcher_proto_msgTypes[15]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *GetDurableEventLogResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetDurableEventLogResponse) ProtoMessage() {}
-
-func (x *GetDurableEventLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_dispatcher_proto_msgTypes[15]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetDurableEventLogResponse.ProtoReflect.Descriptor instead.
-func (*GetDurableEventLogResponse) Descriptor() ([]byte, []int) {
-	return file_v1_dispatcher_proto_rawDescGZIP(), []int{15}
-}
-
-func (x *GetDurableEventLogResponse) GetFound() bool {
-	if x != nil {
-		return x.Found
-	}
-	return false
-}
-
-func (x *GetDurableEventLogResponse) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-type CreateDurableEventLogRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	ExternalId string `protobuf:"bytes,1,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
-	Key        string `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	Data       []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
-}
-
-func (x *CreateDurableEventLogRequest) Reset() {
-	*x = CreateDurableEventLogRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_dispatcher_proto_msgTypes[16]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *CreateDurableEventLogRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateDurableEventLogRequest) ProtoMessage() {}
-
-func (x *CreateDurableEventLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_dispatcher_proto_msgTypes[16]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateDurableEventLogRequest.ProtoReflect.Descriptor instead.
-func (*CreateDurableEventLogRequest) Descriptor() ([]byte, []int) {
-	return file_v1_dispatcher_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *CreateDurableEventLogRequest) GetExternalId() string {
-	if x != nil {
-		return x.ExternalId
-	}
-	return ""
-}
-
-func (x *CreateDurableEventLogRequest) GetKey() string {
-	if x != nil {
-		return x.Key
-	}
-	return ""
-}
-
-func (x *CreateDurableEventLogRequest) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-type CreateDurableEventLogResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *CreateDurableEventLogResponse) Reset() {
-	*x = CreateDurableEventLogResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_dispatcher_proto_msgTypes[17]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *CreateDurableEventLogResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateDurableEventLogResponse) ProtoMessage() {}
-
-func (x *CreateDurableEventLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_dispatcher_proto_msgTypes[17]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateDurableEventLogResponse.ProtoReflect.Descriptor instead.
-func (*CreateDurableEventLogResponse) Descriptor() ([]byte, []int) {
-	return file_v1_dispatcher_proto_rawDescGZIP(), []int{17}
-}
-
 var File_v1_dispatcher_proto protoreflect.FileDescriptor
 
 var file_v1_dispatcher_proto_rawDesc = []byte{
@@ -1349,25 +1138,7 @@ var file_v1_dispatcher_proto_rawDesc = []byte{
 	0x74, 0x61, 0x73, 0x6b, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x6c,
 	0x5f, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x73, 0x69, 0x67, 0x6e,
 	0x61, 0x6c, 0x4b, 0x65, 0x79, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x03, 0x20,
-	0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x4e, 0x0a, 0x19, 0x47, 0x65, 0x74,
-	0x44, 0x75, 0x72, 0x61, 0x62, 0x6c, 0x65, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x4c, 0x6f, 0x67, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1f, 0x0a, 0x0b, 0x65, 0x78, 0x74, 0x65, 0x72, 0x6e,
-	0x61, 0x6c, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x65, 0x78, 0x74,
-	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x49, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x22, 0x46, 0x0a, 0x1a, 0x47, 0x65, 0x74,
-	0x44, 0x75, 0x72, 0x61, 0x62, 0x6c, 0x65, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x4c, 0x6f, 0x67, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x66, 0x6f, 0x75, 0x6e, 0x64,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x66, 0x6f, 0x75, 0x6e, 0x64, 0x12, 0x12, 0x0a,
-	0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74,
-	0x61, 0x22, 0x65, 0x0a, 0x1c, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x44, 0x75, 0x72, 0x61, 0x62,
-	0x6c, 0x65, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x4c, 0x6f, 0x67, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x12, 0x1f, 0x0a, 0x0b, 0x65, 0x78, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x5f, 0x69, 0x64,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x65, 0x78, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
-	0x49, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x03, 0x6b, 0x65, 0x79, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x1f, 0x0a, 0x1d, 0x43, 0x72, 0x65, 0x61,
-	0x74, 0x65, 0x44, 0x75, 0x72, 0x61, 0x62, 0x6c, 0x65, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x4c, 0x6f,
-	0x67, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2a, 0xb0, 0x01, 0x0a, 0x14, 0x44, 0x75,
+	0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x2a, 0xb0, 0x01, 0x0a, 0x14, 0x44, 0x75,
 	0x72, 0x61, 0x62, 0x6c, 0x65, 0x54, 0x61, 0x73, 0x6b, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x4b, 0x69,
 	0x6e, 0x64, 0x12, 0x29, 0x0a, 0x25, 0x44, 0x55, 0x52, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x54, 0x41,
 	0x53, 0x4b, 0x5f, 0x54, 0x52, 0x49, 0x47, 0x47, 0x45, 0x52, 0x5f, 0x4b, 0x49, 0x4e, 0x44, 0x5f,
@@ -1415,7 +1186,7 @@ func file_v1_dispatcher_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_dispatcher_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_dispatcher_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_v1_dispatcher_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_v1_dispatcher_proto_goTypes = []interface{}{
 	(DurableTaskEventKind)(0),                    // 0: v1.DurableTaskEventKind
 	(*DurableTaskRequestRegisterWorker)(nil),     // 1: v1.DurableTaskRequestRegisterWorker
@@ -1432,17 +1203,13 @@ var file_v1_dispatcher_proto_goTypes = []interface{}{
 	(*RegisterDurableEventResponse)(nil),         // 12: v1.RegisterDurableEventResponse
 	(*ListenForDurableEventRequest)(nil),         // 13: v1.ListenForDurableEventRequest
 	(*DurableEvent)(nil),                         // 14: v1.DurableEvent
-	(*GetDurableEventLogRequest)(nil),            // 15: v1.GetDurableEventLogRequest
-	(*GetDurableEventLogResponse)(nil),           // 16: v1.GetDurableEventLogResponse
-	(*CreateDurableEventLogRequest)(nil),         // 17: v1.CreateDurableEventLogRequest
-	(*CreateDurableEventLogResponse)(nil),        // 18: v1.CreateDurableEventLogResponse
-	(*DurableEventListenerConditions)(nil),       // 19: v1.DurableEventListenerConditions
-	(*TriggerWorkflowRequest)(nil),               // 20: v1.TriggerWorkflowRequest
+	(*DurableEventListenerConditions)(nil),       // 15: v1.DurableEventListenerConditions
+	(*TriggerWorkflowRequest)(nil),               // 16: v1.TriggerWorkflowRequest
 }
 var file_v1_dispatcher_proto_depIdxs = []int32{
 	0,  // 0: v1.DurableTaskEventRequest.kind:type_name -> v1.DurableTaskEventKind
-	19, // 1: v1.DurableTaskEventRequest.wait_for_conditions:type_name -> v1.DurableEventListenerConditions
-	20, // 2: v1.DurableTaskEventRequest.trigger_opts:type_name -> v1.TriggerWorkflowRequest
+	15, // 1: v1.DurableTaskEventRequest.wait_for_conditions:type_name -> v1.DurableEventListenerConditions
+	16, // 2: v1.DurableTaskEventRequest.trigger_opts:type_name -> v1.TriggerWorkflowRequest
 	7,  // 3: v1.DurableTaskWorkerStatusRequest.waiting_callbacks:type_name -> v1.DurableTaskAwaitedCallback
 	1,  // 4: v1.DurableTaskRequest.register_worker:type_name -> v1.DurableTaskRequestRegisterWorker
 	3,  // 5: v1.DurableTaskRequest.event:type_name -> v1.DurableTaskEventRequest
@@ -1451,7 +1218,7 @@ var file_v1_dispatcher_proto_depIdxs = []int32{
 	2,  // 8: v1.DurableTaskResponse.register_worker:type_name -> v1.DurableTaskResponseRegisterWorker
 	4,  // 9: v1.DurableTaskResponse.trigger_ack:type_name -> v1.DurableTaskEventAckResponse
 	5,  // 10: v1.DurableTaskResponse.callback_completed:type_name -> v1.DurableTaskCallbackCompletedResponse
-	19, // 11: v1.RegisterDurableEventRequest.conditions:type_name -> v1.DurableEventListenerConditions
+	15, // 11: v1.RegisterDurableEventRequest.conditions:type_name -> v1.DurableEventListenerConditions
 	9,  // 12: v1.V1Dispatcher.DurableTask:input_type -> v1.DurableTaskRequest
 	11, // 13: v1.V1Dispatcher.RegisterDurableEvent:input_type -> v1.RegisterDurableEventRequest
 	13, // 14: v1.V1Dispatcher.ListenForDurableEvent:input_type -> v1.ListenForDurableEventRequest
@@ -1641,54 +1408,6 @@ func file_v1_dispatcher_proto_init() {
 				return nil
 			}
 		}
-		file_v1_dispatcher_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetDurableEventLogRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_v1_dispatcher_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetDurableEventLogResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_v1_dispatcher_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateDurableEventLogRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_v1_dispatcher_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateDurableEventLogResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
 	}
 	file_v1_dispatcher_proto_msgTypes[2].OneofWrappers = []interface{}{}
 	file_v1_dispatcher_proto_msgTypes[8].OneofWrappers = []interface{}{
@@ -1708,7 +1427,7 @@ func file_v1_dispatcher_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_v1_dispatcher_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   18,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
