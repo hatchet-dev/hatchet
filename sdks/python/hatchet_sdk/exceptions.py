@@ -5,6 +5,7 @@ from typing import cast
 
 class HatchetError(Exception):
     """Base exception for all Hatchet SDK errors."""
+
     pass  # noqa: PIE790
 
 
