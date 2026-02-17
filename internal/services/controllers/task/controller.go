@@ -1099,7 +1099,7 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
 		if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, matchResult.SatisfiedDurableEventLogEntries); err != nil {
-			tc.l.Error().Err(err).Msg("could not process satisfied callbacks")
+			tc.l.Error().Err(err).Msg("could not process satisfied entries")
 		}
 	}
 
@@ -1145,7 +1145,7 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
 		if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, matchResult.SatisfiedDurableEventLogEntries); err != nil {
-			tc.l.Error().Err(err).Msg("could not process satisfied callbacks")
+			tc.l.Error().Err(err).Msg("could not process satisfied entries")
 		}
 	}
 
