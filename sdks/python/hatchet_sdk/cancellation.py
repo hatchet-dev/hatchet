@@ -66,8 +66,8 @@ class CancellationToken:
         - Signal both async and sync events
         - Invoke all registered callbacks
 
-        Args:
-            reason: The reason for cancellation.
+
+        :param reason: The reason for cancellation.
         """
         with self._lock:
             if self._cancelled:
@@ -112,11 +112,9 @@ class CancellationToken:
         """
         Block until cancelled (for use in sync code).
 
-        Args:
-            timeout: Maximum time to wait in seconds. None means wait forever.
+        :param timeout: Maximum time to wait in seconds. None means wait forever.
 
-        Returns:
-            True if the token was cancelled (event was set), False if timeout expired.
+        :returns: True if the token was cancelled (event was set), False if timeout expired.
         """
         return self._sync_event.wait(timeout)
 
@@ -127,8 +125,7 @@ class CancellationToken:
         When the parent is cancelled, these child run IDs can be used to cancel
         the child workflows as well.
 
-        Args:
-            run_id: The workflow run ID of the child workflow.
+        :param run_id: The workflow run ID of the child workflow.
         """
         with self._lock:
             self._child_run_ids.append(run_id)
@@ -144,8 +141,7 @@ class CancellationToken:
 
         If the token is already cancelled, the callback will be invoked immediately.
 
-        Args:
-            callback: A callable that takes no arguments.
+        :param callback: A callable that takes no arguments.
         """
         with self._lock:
             if self._cancelled:

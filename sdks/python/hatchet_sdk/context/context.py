@@ -209,8 +209,7 @@ class Context:
         - Set the exit_flag property to True
         - Allow child workflow cancellation
 
-        Args:
-            reason: The reason for cancellation.
+        :param reason: The reason for cancellation.
         """
         self.cancellation_token.cancel(reason)
 

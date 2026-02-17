@@ -51,12 +51,20 @@ class ConcurrencyLimitStrategy(str, Enum):
 class ConcurrencyExpression(BaseModel):
     """
     Defines concurrency limits for a workflow using a CEL expression.
-    Args:
-        expression (str): CEL expression to determine concurrency grouping. (i.e. "input.user_id")
-        max_runs (int): Maximum number of concurrent workflow runs.
-        limit_strategy (ConcurrencyLimitStrategy): Strategy for handling limit violations.
-    Example:
-        ConcurrencyExpression("input.user_id", 5, ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
+
+    :ivar expression: CEL expression to determine concurrency grouping. (i.e. "input.user_id")
+    :ivar max_runs: Maximum number of concurrent workflow runs.
+    :ivar limit_strategy: Strategy for handling limit violations.
+
+
+    **Example**
+    ```python
+    ConcurrencyExpression(
+        "input.user_id",
+        5,
+        ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
+    )
+    ```
     """
 
     expression: str
