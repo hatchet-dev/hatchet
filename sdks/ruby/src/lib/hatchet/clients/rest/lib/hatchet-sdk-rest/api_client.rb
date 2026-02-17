@@ -357,7 +357,7 @@ module HatchetSdkRest
         when 'header' then header_params[auth_setting[:key]] = auth_setting[:value]
         when 'query'  then query_params[auth_setting[:key]] = auth_setting[:value]
         when 'cookie' then header_params['Cookie'] = "#{auth_setting[:key]}=#{auth_setting[:value]}"
-        else next # skip unsupported auth locations
+        else next
         end
       end
     end

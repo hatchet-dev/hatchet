@@ -22,7 +22,9 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -79,7 +81,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	}
 
 	if isChallenge {
-		return gen.V1WebhookReceive200JSONResponse(challengeResponse), nil
+		res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to transform response: %w", err)
+		}
+
+		return gen.V1WebhookReceive200JSONResponse(*res), nil
 	}
 
 	ok, validationError := w.validateWebhook(rawBody, *webhook, *ctx.Request())
@@ -305,7 +312,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		}, nil
 	}
 
-	_, err = w.config.Ingestor.IngestEvent(
+	ev, err := w.config.Ingestor.IngestEvent(
 		ctx.Request().Context(),
 		tenant,
 		eventKey,
@@ -320,9 +327,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
-	return gen.V1WebhookReceive200JSONResponse(map[string]interface{}{
-		"message": "ok",
-	}), nil
+	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev)
+	if err != nil {
+		return nil, fmt.Errorf("failed to transform response: %w", err)
+	}
+
+	return gen.V1WebhookReceive200JSONResponse(*res), nil
 }
 
 func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm, encoding sqlcv1.V1IncomingWebhookHmacEncoding) (string, error) {
@@ -389,7 +399,7 @@ func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, erro
 type IsValid bool
 type IsChallenge bool
 
-func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (IsChallenge, map[string]interface{}, error) {
+func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (IsChallenge, *string, error) {
 	switch webhook.SourceName {
 	case sqlcv1.V1IncomingWebhookSourceNameSLACK:
 		/* Slack Events API URL verification challenges come as application/json with direct JSON payload
@@ -404,9 +414,7 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 		}
 
 		if challenge, ok := payload["challenge"].(string); ok && challenge != "" {
-			return true, map[string]interface{}{
-				"challenge": challenge,
-			}, nil
+			return true, repository.StringPtr(challenge), nil
 		}
 
 		return false, nil, nil

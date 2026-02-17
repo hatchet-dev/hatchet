@@ -281,6 +281,14 @@ Step:
     timeout:
       type: string
       description: The timeout of the step.
+    isDurable:
+      type: boolean
+      description: Whether the step is durable.
+    slotRequests:
+      type: object
+      description: Slot requests for the step (slot_type -> units).
+      additionalProperties:
+        type: integer
     children:
       type: array
       items:

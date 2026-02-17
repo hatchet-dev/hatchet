@@ -76,14 +76,14 @@ generate_rest() {
 
   # Generate
   local additional_props="gemName=hatchet-sdk-rest,moduleName=HatchetSdkRest,gemVersion=0.0.1,gemDescription=HatchetRubySDKRestClient,gemAuthor=HatchetTeam,gemHomepage=https://github.com/hatchet-dev/hatchet,gemLicense=MIT,library=faraday"
-
+  # TODO-RUBY: we can generate docs here :wow:
   local cmd=(
     openapi-generator-cli generate
     -i "$openapi_spec"
     -g ruby
     -o "$output_dir"
     --skip-validate-spec
-    --global-property "apiTests=false,modelTests=false,apiDocs=true,modelDocs=true"
+    --global-property "apiTests=false,modelTests=false,apiDocs=false,modelDocs=false"
     --additional-properties "$additional_props"
   )
 
@@ -117,25 +117,19 @@ apply_cookie_auth_patch() {
       path = ARGV[0]
       content = File.read(path)
 
-      old_auth = <<~RUBY.strip
-        case auth_setting[:in]
-              when '\''header'\'' then header_params[auth_setting[:key]] = auth_setting[:value]
-              when '\''query'\''  then query_params[auth_setting[:key]] = auth_setting[:value]
-              else fail ArgumentError, '\''Authentication token must be in `query` or `header`'\''
-              end
-      RUBY
+      # Match the auth switch block regardless of indentation
+      old_pattern = /^(\s*)case auth_setting\[:in\]\n\s*when '\''header'\'' then header_params\[auth_setting\[:key\]\] = auth_setting\[:value\]\n\s*when '\''query'\''  then query_params\[auth_setting\[:key\]\] = auth_setting\[:value\]\n\s*else fail ArgumentError, '\''Authentication token must be in `query` or `header`'\''\n\s*end/
 
-      new_auth = <<~RUBY.strip
-        next if auth_setting[:value].nil? || auth_setting[:value].to_s.empty?
-              case auth_setting[:in]
-              when '\''header'\'' then header_params[auth_setting[:key]] = auth_setting[:value]
-              when '\''query'\''  then query_params[auth_setting[:key]] = auth_setting[:value]
-              when '\''cookie'\'' then header_params['\''Cookie'\''] = "#{auth_setting[:key]}=#{auth_setting[:value]}"
-              else next # skip unsupported auth locations
-              end
-      RUBY
-
-      if content.sub!(old_auth, new_auth)
+      if content.match(old_pattern)
+        indent = content.match(old_pattern)[1]
+        new_auth = "#{indent}next if auth_setting[:value].nil? || auth_setting[:value].to_s.empty?\n" \
+                   "#{indent}case auth_setting[:in]\n" \
+                   "#{indent}when '\''header'\'' then header_params[auth_setting[:key]] = auth_setting[:value]\n" \
+                   "#{indent}when '\''query'\''  then query_params[auth_setting[:key]] = auth_setting[:value]\n" \
+                   "#{indent}when '\''cookie'\'' then header_params['\''Cookie'\''] = \"\#{auth_setting[:key]}=\#{auth_setting[:value]}\"\n" \
+                   "#{indent}else next\n" \
+                   "#{indent}end"
+        content.sub!(old_pattern, new_auth)
         File.write(path, content)
         puts "      Patched api_client.rb"
       else

@@ -5,14 +5,12 @@ package worker
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 )
 
 // Deprecated: Worker is part of the old generics-based v1 Go SDK.
@@ -28,13 +26,13 @@ type Worker interface {
 	// RegisterWorkflows registers one or more workflows with the worker.
 	RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 
-	// IsPaused checks if all worker instances are paused
+	// IsPaused checks if the worker is paused
 	IsPaused(ctx context.Context) (bool, error)
 
-	// Pause pauses all worker instances
+	// Pause pauses the worker
 	Pause(ctx context.Context) error
 
-	// Unpause resumes all paused worker instances
+	// Unpause resumes the paused worker
 	Unpause(ctx context.Context) error
 }
 
@@ -76,11 +74,8 @@ type WorkerImpl struct {
 	// v1 workers client
 	workers features.WorkersClient
 
-	// nonDurableWorker is the underlying non-durable worker implementation. (default)
-	nonDurableWorker *worker.Worker
-
-	// durableWorker is the underlying worker implementation for durable tasks.
-	durableWorker *worker.Worker
+	// worker is the underlying worker implementation.
+	worker *worker.Worker
 
 	// name is the friendly name of the worker.
 	name string
@@ -160,16 +155,16 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 	for _, workflow := range workflows {
 		dump, fns, durableFns, onFailureFn := workflow.Dump()
 
-		// Check if there are non-durable tasks in this workflow
-		hasNonDurableTasks := len(fns) > 0 || (dump.OnFailureTask != nil && onFailureFn != nil)
-		hasDurableTasks := len(durableFns) > 0
+		hasAnyTasks := len(fns) > 0 || len(durableFns) > 0 || (dump.OnFailureTask != nil && onFailureFn != nil)
 
-		// Create non-durable worker on demand if needed and not already created
-		if hasNonDurableTasks && w.nonDurableWorker == nil {
+		// Create worker on demand if needed and not already created
+		if hasAnyTasks && w.worker == nil {
+			totalRuns := w.slots + w.durableSlots
 			opts := []worker.WorkerOpt{
 				worker.WithClient(w.v0),
 				worker.WithName(w.name),
-				worker.WithMaxRuns(w.slots),
+				worker.WithSlots(totalRuns),
+				worker.WithDurableSlots(w.durableSlots),
 				worker.WithLogger(w.logger),
 				worker.WithLogLevel(w.logLevel),
 				worker.WithLabels(w.labels),
@@ -179,56 +174,33 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 				opts = append(opts, worker.WithLogger(w.logger))
 			}
 
-			nonDurableWorker, err := worker.NewWorker(
+			wkr, err := worker.NewWorker(
 				opts...,
 			)
 			if err != nil {
 				return err
 			}
-			w.nonDurableWorker = nonDurableWorker
+			w.worker = wkr
 		}
 
-		// Create durable worker on demand if needed and not already created
-		if hasDurableTasks && w.durableWorker == nil {
-			// Reuse logger from main worker if exists
-			var logger *zerolog.Logger
-			if w.nonDurableWorker != nil {
-				logger = w.nonDurableWorker.Logger()
-			}
-
-			labels := make(map[string]interface{})
-			for k, v := range w.labels {
-				labels[k] = fmt.Sprintf("%v-durable", v)
-			}
-
-			opts := []worker.WorkerOpt{
-				worker.WithClient(w.v0),
-				worker.WithName(w.name + "-durable"),
-				worker.WithMaxRuns(w.durableSlots),
-				worker.WithLogger(logger),
-				worker.WithLogLevel(w.logLevel),
-				worker.WithLabels(labels),
-			}
-
-			durableWorker, err := worker.NewWorker(
-				opts...,
-			)
-			if err != nil {
-				return err
-			}
-			w.durableWorker = durableWorker
-		}
-
-		// Register workflow with non-durable worker if it exists
-		if w.nonDurableWorker != nil {
-			err := w.nonDurableWorker.RegisterWorkflowV1(dump)
+		// Register workflow with worker if it exists
+		if w.worker != nil {
+			err := w.worker.RegisterWorkflowV1(dump)
 			if err != nil {
 				return err
 			}
 
 			// Register non-durable actions
 			for _, namedFn := range fns {
-				err := w.nonDurableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+				err := w.worker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+				if err != nil {
+					return err
+				}
+			}
+
+			// Register durable actions on the same worker
+			for _, namedFn := range durableFns {
+				err := w.worker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 				if err != nil {
 					return err
 				}
@@ -236,22 +208,7 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 
 			if dump.OnFailureTask != nil && onFailureFn != nil {
 				actionId := dump.OnFailureTask.Action
-				err := w.nonDurableWorker.RegisterAction(actionId, onFailureFn)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		// Register durable actions with durable worker
-		if w.durableWorker != nil {
-			err := w.durableWorker.RegisterWorkflowV1(dump)
-			if err != nil {
-				return err
-			}
-
-			for _, namedFn := range durableFns {
-				err := w.durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+				err := w.worker.RegisterAction(actionId, onFailureFn)
 				if err != nil {
 					return err
 				}
@@ -269,65 +226,16 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 // returns a cleanup function to be called when the worker should be stopped,
 // and any error encountered during startup.
 func (w *WorkerImpl) Start() (func() error, error) {
-	// Create slice of workers that exist
-	var workers []*worker.Worker
-	if w.nonDurableWorker != nil {
-		workers = append(workers, w.nonDurableWorker)
-	}
-	if w.durableWorker != nil {
-		workers = append(workers, w.durableWorker)
+	if w.worker == nil {
+		return func() error { return nil }, nil
 	}
 
-	// Track cleanup functions with a mutex to safely access from multiple goroutines
-	var cleanupFuncs []func() error
-	var cleanupMu sync.Mutex
-
-	// Use errgroup to start workers concurrently
-	g := new(errgroup.Group)
-
-	// Start all workers concurrently
-	for i := range workers {
-		worker := workers[i] // Capture the worker for the goroutine
-		g.Go(func() error {
-			cleanup, err := worker.Start()
-			if err != nil {
-				return fmt.Errorf("failed to start worker %s: %w", *worker.ID(), err)
-			}
-
-			cleanupMu.Lock()
-			cleanupFuncs = append(cleanupFuncs, cleanup)
-			cleanupMu.Unlock()
-			return nil
-		})
+	cleanup, err := w.worker.Start()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start worker %s: %w", *w.worker.ID(), err)
 	}
 
-	// Wait for all workers to start
-	if err := g.Wait(); err != nil {
-		// Clean up any workers that did start
-		for _, cleanupFn := range cleanupFuncs {
-			_ = cleanupFn()
-		}
-		return nil, err
-	}
-
-	// Return a combined cleanup function that also uses errgroup for concurrent cleanup
-	return func() error {
-		g := new(errgroup.Group)
-
-		for _, cleanup := range cleanupFuncs {
-			cleanupFn := cleanup // Capture the cleanup function for the goroutine
-			g.Go(func() error {
-				return cleanupFn()
-			})
-		}
-
-		// Wait for all cleanup operations to complete and return any error
-		if err := g.Wait(); err != nil {
-			return fmt.Errorf("worker cleanup error: %w", err)
-		}
-
-		return nil
-	}, nil
+	return cleanup, nil
 }
 
 // Deprecated: StartBlocking is part of the old generics-based v1 Go SDK.
@@ -356,39 +264,11 @@ func (w *WorkerImpl) StartBlocking(ctx context.Context) error {
 //
 // IsPaused checks if all worker instances are paused
 func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
-	// Create slice of worker IDs to check
-	var workerIDs []string
-
-	if w.nonDurableWorker != nil {
-		mainID := w.nonDurableWorker.ID()
-		workerIDs = append(workerIDs, *mainID)
-	}
-
-	if w.durableWorker != nil {
-		durableID := w.durableWorker.ID()
-		workerIDs = append(workerIDs, *durableID)
-	}
-
-	// If no workers exist, consider it not paused
-	if len(workerIDs) == 0 {
+	if w.worker == nil {
 		return false, nil
 	}
 
-	// Check pause status for all workers
-	for _, id := range workerIDs {
-		isPaused, err := w.workers.IsPaused(ctx, id)
-		if err != nil {
-			return false, err
-		}
-
-		// If any worker is not paused, return false
-		if !isPaused {
-			return false, nil
-		}
-	}
-
-	// All workers are paused
-	return true, nil
+	return w.workers.IsPaused(ctx, *w.worker.ID())
 }
 
 // Deprecated: Pause is part of the old generics-based v1 Go SDK.
@@ -396,23 +276,12 @@ func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
 //
 // Pause pauses all worker instances
 func (w *WorkerImpl) Pause(ctx context.Context) error {
-	// Pause main worker if it exists
-	if w.nonDurableWorker != nil {
-		_, err := w.workers.Pause(ctx, *w.nonDurableWorker.ID())
-		if err != nil {
-			return err
-		}
+	if w.worker == nil {
+		return nil
 	}
 
-	// Pause durable worker if it exists
-	if w.durableWorker != nil {
-		_, err := w.workers.Pause(ctx, *w.durableWorker.ID())
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	_, err := w.workers.Pause(ctx, *w.worker.ID())
+	return err
 }
 
 // Deprecated: Unpause is part of the old generics-based v1 Go SDK.
@@ -420,21 +289,10 @@ func (w *WorkerImpl) Pause(ctx context.Context) error {
 //
 // Unpause resumes all paused worker instances
 func (w *WorkerImpl) Unpause(ctx context.Context) error {
-	// Unpause main worker if it exists
-	if w.nonDurableWorker != nil {
-		_, err := w.workers.Unpause(ctx, *w.nonDurableWorker.ID())
-		if err != nil {
-			return err
-		}
+	if w.worker == nil {
+		return nil
 	}
 
-	// Unpause durable worker if it exists
-	if w.durableWorker != nil {
-		_, err := w.workers.Unpause(ctx, *w.durableWorker.ID())
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	_, err := w.workers.Unpause(ctx, *w.worker.ID())
+	return err
 }
