@@ -463,8 +463,47 @@ func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strateg
 	return nil
 }
 
+func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
+	loopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+
+		if err := l.acquireWorkerLeases(loopCtx); err != nil {
+			l.conf.l.Error().Err(err).Msg("error acquiring worker leases")
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := l.acquireQueueLeases(loopCtx); err != nil {
+			l.conf.l.Error().Err(err).Msg("error acquiring queue leases")
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := l.acquireConcurrencyLeases(loopCtx); err != nil {
+			l.conf.l.Error().Err(err).Msg("error acquiring concurrency leases")
+		}
+	}()
+
+	wg.Wait()
+}
+
 // loopForLeases acquires new leases every 5 seconds for workers, queues, and concurrency strategies
 func (l *LeaseManager) loopForLeases(ctx context.Context) {
+	// Perform an initial lease acquisition immediately so that callers don't have to wait
+	// for the first ticker interval before workers, queues, and concurrency strategies are discovered.
+	l.acquireAllLeases(ctx)
+
 	ticker := time.NewTicker(5 * time.Second)
 
 	for {
@@ -472,40 +511,7 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// we don't want to block the cleanup process, so we use a separate context with a timeout
-			loopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-
-			wg := sync.WaitGroup{}
-
-			wg.Add(3)
-
-			go func() {
-				defer wg.Done()
-
-				if err := l.acquireWorkerLeases(loopCtx); err != nil {
-					l.conf.l.Error().Err(err).Msg("error acquiring worker leases")
-				}
-			}()
-
-			go func() {
-				defer wg.Done()
-
-				if err := l.acquireQueueLeases(loopCtx); err != nil {
-					l.conf.l.Error().Err(err).Msg("error acquiring queue leases")
-				}
-			}()
-
-			go func() {
-				defer wg.Done()
-
-				if err := l.acquireConcurrencyLeases(loopCtx); err != nil {
-					l.conf.l.Error().Err(err).Msg("error acquiring concurrency leases")
-				}
-			}()
-
-			wg.Wait()
-
-			cancel()
+			l.acquireAllLeases(ctx)
 		}
 	}
 }

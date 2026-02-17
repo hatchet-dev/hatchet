@@ -54,7 +54,7 @@ jobs:
         run: docker compose down
 
   unit:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     steps:
       - uses: actions/checkout@v6
       - name: Setup Go
@@ -72,7 +72,7 @@ jobs:
         run: go test $(go list ./... | grep -v "quickstart") -v -failfast
 
   integration:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
@@ -117,7 +117,7 @@ jobs:
         run: docker compose down
 
   e2e:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -206,7 +206,7 @@ jobs:
         run: docker compose down
 
   e2e-pgmq:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -297,7 +297,7 @@ jobs:
         run: docker compose down
 
   load:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     strategy:
       matrix:
@@ -339,8 +339,213 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
+  load-online-migrate:
+    runs-on: ubicloud-standard-8
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Determine latest stable release tag
+        run: |
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "ERROR: No stable release tag found"
+            exit 1
+          fi
+          echo "Latest stable tag: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Pull old release images
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }}
+
+      - name: Run old migrations
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+
+      - name: Setup config and seed database
+        run: |
+          mkdir -p generated
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+
+      - name: Generate API token
+        run: |
+          TOKEN=$(docker run --rm --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-admin token create --config /hatchet/generated)
+          echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Start old engine
+        run: |
+          docker run -d --name hatchet-engine --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
+            -e SERVER_MSGQUEUE_KIND=postgres \
+            -e SERVER_LOGGER_LEVEL=warn \
+            -e SERVER_LOGGER_FORMAT=console \
+            -e DATABASE_LOGGER_LEVEL=warn \
+            -e DATABASE_LOGGER_FORMAT=console \
+            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-engine --config /hatchet/generated
+          echo "Waiting 30s for engine to start..."
+          sleep 30
+
+      - name: Start old load test
+        run: |
+          docker run -d --name hatchet-loadtest --network host \
+            -e HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
+            -e HATCHET_CLIENT_TLS_STRATEGY=none \
+            -e HATCHET_CLIENT_HOST_PORT=localhost:7077 \
+            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-load-test loadtest -e 10 -d 240s -w 60s -s 100
+
+      - name: Wait then apply new migrations
+        run: |
+          echo "Waiting 30s for load test to get started..."
+          sleep 30
+          echo "Applying new migrations from current branch..."
+          go run ./cmd/hatchet-migrate
+          echo "New migrations applied successfully"
+
+      - name: Wait for load test to complete
+        run: |
+          echo "Waiting for load test container to finish..."
+          docker wait hatchet-loadtest
+          EXIT_CODE=$(docker inspect hatchet-loadtest --format='{{.State.ExitCode}}')
+          echo "Load test exited with code: $EXIT_CODE"
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "=== Load test logs ==="
+            docker logs hatchet-loadtest
+            echo "=== Engine logs ==="
+            docker logs hatchet-engine
+            exit 1
+          fi
+          echo "Load test passed"
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker rm -f hatchet-loadtest hatchet-engine 2>/dev/null || true
+          docker compose down
+
+  load-deadlock:
+    runs-on: ubicloud-standard-8
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        migrate-strategy: ["latest"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["17-alpine"]
+        optimistic-scheduling: ["true", "false"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
+          run_install: false
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Add go-deadlock dependency
+        run: go get github.com/sasha-s/go-deadlock@v0.3.6
+
+      - name: Patch sync imports to use go-deadlock (sed)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Replace ONLY the stdlib "sync" import with an alias that preserves `sync.X` call sites.
+          # - `import "sync"` -> `import sync "github.com/sasha-s/go-deadlock"`
+          # - within import blocks: `"sync"` -> `sync "github.com/sasha-s/go-deadlock"`
+          # NOTE: use `-i''` (no backup) for portability across GNU/BSD sed.
+          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 sed -i'' -E \
+            -e 's/^([[:space:]]*)import[[:space:]]+"sync"[[:space:]]*$/\1import sync "github.com\/sasha-s\/go-deadlock"/' \
+            -e 's/^([[:space:]]*)"sync"[[:space:]]*$/\1sync "github.com\/sasha-s\/go-deadlock"/'
+
+          # Keep formatting/import grouping consistent after rewriting.
+          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 gofmt -w
+
+          # Evidence in CI logs that rewriting happened (or not).
+          echo "Changed Go files (after patch):"
+          git diff --name-only -- '*.go' || true
+
+          echo ""
+          echo "Contents of pkg/scheduling/v1/scheduler.go after patch:"
+          echo "----"
+          cat pkg/scheduling/v1/scheduler.go
+          echo "----"
+
+      - name: Test (deadlock-instrumented)
+        run: |
+          # Disable gzip compression for load tests to reduce CPU overhead
+          # Compression adds overhead without benefit for 0kb payloads
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+        env:
+          # This job adds go-deadlock + -race overhead; relax perf threshold to avoid flakes.
+          HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD: 1s
+          # Give the engine a bit more time to come up under instrumentation.
+          HATCHET_LOADTEST_STARTUP_SLEEP: 30s
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
+
   rampup:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     strategy:
       matrix:

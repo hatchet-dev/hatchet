@@ -2,6 +2,7 @@ package servertel
 
 import (
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 

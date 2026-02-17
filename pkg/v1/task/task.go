@@ -290,6 +290,7 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
+	base.IsDurable = false
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 
@@ -344,6 +345,7 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *crea
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
+	base.IsDurable = true
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 	return base
@@ -358,6 +360,7 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *cr
 
 	base.ReadableId = "on-failure"
 	base.Action = getActionID(workflowName, "on-failure")
+	base.IsDurable = false
 
 	return base
 }

@@ -25,6 +25,10 @@ import (
 type DispatcherClient interface {
 	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
+	// GetVersion calls the GetVersion RPC. Returns the engine semantic version string.
+	// Old engines that do not implement this will return codes.Unimplemented.
+	GetVersion(ctx context.Context) (string, error)
+
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
@@ -47,9 +51,14 @@ type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
 	Actions    []string
-	Slots      *int
+	SlotConfig map[string]int32
 	Labels     map[string]interface{}
 	WebhookId  *string
+
+	// LegacySlots, when non-nil, causes the registration to use the deprecated
+	// `slots` proto field instead of `slot_config`. This is for backward
+	// compatibility with engines that do not support multiple slot types.
+	LegacySlots *int32
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -270,9 +279,12 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.Slots != nil {
-		mr := int32(*req.Slots) // nolint: gosec
-		registerReq.Slots = &mr
+	if req.LegacySlots != nil {
+		registerReq.Slots = req.LegacySlots
+	} else if len(req.SlotConfig) > 0 {
+		registerReq.SlotConfig = req.SlotConfig
+	} else {
+		return nil, nil, fmt.Errorf("slot config is required for worker registration")
 	}
 
 	// register the worker
@@ -532,6 +544,14 @@ func (a *actionListenerImpl) Unregister() error {
 	}
 
 	return nil
+}
+
+func (d *dispatcherClientImpl) GetVersion(ctx context.Context) (string, error) {
+	resp, err := d.client.GetVersion(d.ctx.newContext(ctx), &dispatchercontracts.GetVersionRequest{})
+	if err != nil {
+		return "", err
+	}
+	return resp.Version, nil
 }
 
 func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {

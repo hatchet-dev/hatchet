@@ -286,7 +286,8 @@ INSERT INTO "Step" (
     "retries",
     "scheduleTimeout",
     "retryBackoffFactor",
-    "retryMaxBackoff"
+    "retryMaxBackoff",
+    "isDurable"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -301,8 +302,28 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('retries')::integer, 0),
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
-    sqlc.narg('retryMaxBackoff')
+    sqlc.narg('retryMaxBackoff'),
+    coalesce(sqlc.narg('isDurable')::boolean, false)
 ) RETURNING *;
+
+-- name: CreateStepSlotRequests :exec
+INSERT INTO v1_step_slot_request (
+    tenant_id,
+    step_id,
+    slot_type,
+    units,
+    created_at,
+    updated_at
+)
+SELECT
+    @tenantId::uuid,
+    @stepId::uuid,
+    unnest(@slotTypes::text[]),
+    unnest(@units::integer[]),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+-- NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
+ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING;
 
 -- name: AddStepParents :exec
 INSERT INTO "_StepOrder" ("A", "B")

@@ -432,6 +432,48 @@ alter table v1_task_runtime set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
+-- v1_worker_slot_config stores per-worker config for arbitrary slot types.
+CREATE TABLE v1_worker_slot_config (
+    tenant_id UUID NOT NULL,
+    worker_id UUID NOT NULL,
+    slot_type TEXT NOT NULL,
+    max_units INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, worker_id, slot_type)
+);
+
+-- v1_step_slot_request stores per-step slot requests.
+CREATE TABLE v1_step_slot_request (
+    tenant_id UUID NOT NULL,
+    step_id UUID NOT NULL,
+    slot_type TEXT NOT NULL,
+    units INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, step_id, slot_type)
+);
+
+CREATE INDEX v1_step_slot_request_step_idx
+    ON v1_step_slot_request (step_id ASC);
+
+-- v1_task_runtime_slot stores runtime slot consumption per task.
+CREATE TABLE v1_task_runtime_slot (
+    tenant_id UUID NOT NULL,
+    task_id bigint NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    retry_count INTEGER NOT NULL,
+    worker_id UUID NOT NULL,
+    slot_type TEXT NOT NULL,
+    units INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (task_id, task_inserted_at, retry_count, slot_type)
+);
+
+CREATE INDEX v1_task_runtime_slot_tenant_worker_type_idx
+    ON v1_task_runtime_slot (tenant_id ASC, worker_id ASC, slot_type ASC);
+
 -- v1_rate_limited_queue_items represents a queue item that has been rate limited and removed from the v1_queue_item table.
 CREATE TABLE v1_rate_limited_queue_items (
     requeue_after TIMESTAMPTZ NOT NULL,

@@ -19,25 +19,17 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 }
 
 func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
+	reqCtx := ctx.Request().Context()
 	workerV0 := ctx.Get("worker").(*sqlcv1.GetWorkerByIdRow)
 
-	worker, err := t.config.V1.Workers().GetWorkerById(workerV0.Worker.ID)
-
-	if err != nil {
-		return nil, err
-	}
-
-	slotState, err := t.config.V1.Workers().ListWorkerState(
-		worker.Worker.TenantId,
-		worker.Worker.ID,
-		int(worker.Worker.MaxRuns),
-	)
+	worker, err := t.config.V1.Workers().GetWorkerById(reqCtx, workerV0.Worker.ID)
 
 	if err != nil {
 		return nil, err
 	}
 
 	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
+		reqCtx,
 		worker.Worker.TenantId,
 		[]uuid.UUID{worker.Worker.ID},
 	)
@@ -46,7 +38,12 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 		return nil, err
 	}
 
-	workerWorkflows, err := t.config.V1.Workers().GetWorkerWorkflowsByWorkerId(tenant.ID, worker.Worker.ID)
+	workerSlotConfig, err := buildWorkerSlotConfig(ctx.Request().Context(), t.config.V1.Workers(), worker.Worker.TenantId, []uuid.UUID{worker.Worker.ID})
+	if err != nil {
+		return nil, err
+	}
+
+	workerWorkflows, err := t.config.V1.Workers().GetWorkerWorkflowsByWorkerId(reqCtx, tenant.ID, worker.Worker.ID)
 
 	if err != nil {
 		return nil, err
@@ -59,14 +56,14 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 
 	respStepRuns := make([]gen.RecentStepRuns, 0)
 
-	slots := int(worker.RemainingSlots)
+	slotConfig := workerSlotConfig[worker.Worker.ID]
 
-	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions, &workerWorkflows)
+	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, slotConfig, actions, &workerWorkflows)
 
 	workerResp.RecentStepRuns = &respStepRuns
-	workerResp.Slots = transformersv1.ToSlotState(slotState, slots)
 
 	affinity, err := t.config.V1.Workers().ListWorkerLabels(
+		reqCtx,
 		worker.Worker.TenantId,
 		worker.Worker.ID,
 	)

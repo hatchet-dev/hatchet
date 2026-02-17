@@ -18,6 +18,8 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
+    GetVersionRequest,
+    GetVersionResponse,
     OverridesData,
     RefreshTimeoutRequest,
     ReleaseSlotRequest,
@@ -74,8 +76,8 @@ class DispatcherClient:
                     worker_name=req.worker_name,
                     actions=req.actions,
                     services=req.services,
-                    slots=req.slots,
                     labels=req.labels,
+                    slot_config=req.slot_config,
                     runtime_info=RuntimeInfo(
                         sdk_version=version("hatchet_sdk"),
                         language=SDKS.PYTHON,
@@ -89,6 +91,26 @@ class DispatcherClient:
         )
 
         return ActionListener(self.config, response.worker_id)
+
+    async def get_version(self) -> str:
+        """Call GetVersion RPC. Returns the engine semantic version string.
+
+        Raises grpc.RpcError with UNIMPLEMENTED on older engines.
+        """
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
+
+        response = cast(
+            GetVersionResponse,
+            await self.aio_client.GetVersion(  # type: ignore[misc]
+                GetVersionRequest(),
+                timeout=DEFAULT_REGISTER_TIMEOUT,
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        return response.version
 
     async def send_step_action_event(
         self,
