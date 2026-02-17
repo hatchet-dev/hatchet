@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable
-from typing import Literal, TypeVar, cast, overload
+from typing import Any, Literal, TypeVar, cast, overload
 
 import grpc
 
@@ -98,19 +98,14 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
 
 def _execute_grpc_call(
     fn: Callable[..., T],
-    *args,
-    **kwargs,
+    *args: Any,
+    **kwargs: Any,
 ) -> T:
-    """
-    Executes a gRPC stub call and normalizes transport-level errors.
-
-    Does NOT change retry behavior.
-    Only translates grpc.RpcError into clearer SDK-level exceptions.
-    """
     try:
         return fn(*args, **kwargs)
     except grpc.RpcError as e:
         raise _translate_grpc_error(e) from e
+
 
 
 def _translate_grpc_error(e: grpc.RpcError) -> Exception:
