@@ -43,6 +43,8 @@ type ExternalCreateSignalMatchOpts struct {
 
 	SignalExternalId uuid.UUID `validate:"required"`
 
+	SignalTaskExternalId uuid.UUID `validate:"required"`
+
 	SignalKey string `validate:"required"`
 
 	// Optional callback fields for durable WAIT_FOR
@@ -111,6 +113,8 @@ type CreateMatchOpts struct {
 	SignalTaskId *int64
 
 	SignalTaskInsertedAt pgtype.Timestamptz
+
+	SignalTaskExternalId *uuid.UUID
 
 	SignalExternalId *uuid.UUID
 
@@ -232,6 +236,7 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 			Conditions:                    conditions,
 			SignalTaskId:                  &taskId,
 			SignalTaskInsertedAt:          signalMatch.SignalTaskInsertedAt,
+			SignalTaskExternalId:          &signalMatch.SignalTaskExternalId,
 			SignalExternalId:              &externalId,
 			SignalKey:                     &signalKey,
 			DurableCallbackTaskId:         signalMatch.DurableCallbackTaskId,

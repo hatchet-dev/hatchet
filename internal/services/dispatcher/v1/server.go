@@ -77,6 +77,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		SignalTaskId:         task.ID,
 		SignalTaskInsertedAt: task.InsertedAt,
 		SignalExternalId:     task.ExternalID,
+		SignalTaskExternalId: task.ExternalID,
 		SignalKey:            req.SignalKey,
 	})
 
