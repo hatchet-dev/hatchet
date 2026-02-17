@@ -15,6 +15,7 @@ from examples.durable.worker import (
     hatchet,
 )
 from hatchet_sdk import Hatchet
+from hatchet_sdk.exceptions import NonDeterminismError
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -150,4 +151,8 @@ async def test_durable_non_determinism() -> None:
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
 
-    await ref.aio_result()
+    with pytest.raises(NonDeterminismError) as exc_info:
+        await ref.aio_result()
+        assert exc_info.value.task_external_id == ref.workflow_run_id
+        assert exc_info.value.invocation_count == 2
+        assert exc_info.value.node_id == 1

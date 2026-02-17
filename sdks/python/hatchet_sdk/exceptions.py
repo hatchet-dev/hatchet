@@ -6,14 +6,15 @@ from typing import cast
 
 class NonDeterminismError(Exception):
     def __init__(
-        self, task_external_id: str, invocation_count: int, message: str
+        self, task_external_id: str, invocation_count: int, message: str, node_id: int
     ) -> None:
         self.task_external_id = task_external_id
         self.invocation_count = invocation_count
         self.message = message
+        self.node_id = node_id
 
         super().__init__(
-            f"Non-determinism detected in task {task_external_id} on invocation {invocation_count}: {message}"
+            f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}"
         )
 
 

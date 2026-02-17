@@ -219,6 +219,7 @@ class DurableEventListener:
                 task_external_id=error.durable_task_external_id,
                 invocation_count=error.invocation_count,
                 message=error.error_message,
+                node_id=error.node_id,
             )
 
             event_key = (error.durable_task_external_id, error.invocation_count)
