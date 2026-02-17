@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+	"github.com/hatchet-dev/hatchet/pkg/worker/eviction"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
@@ -96,8 +98,9 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 
 // Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
 type Workflow struct {
-	declaration internal.WorkflowDeclaration[any, any]
-	v0Client    v0Client.Client
+	declaration      internal.WorkflowDeclaration[any, any]
+	v0Client         v0Client.Client
+	evictionPolicies map[string]*eviction.Policy // task name -> eviction policy
 }
 
 // GetName returns the resolved workflow name (including namespace if applicable).
@@ -228,8 +231,9 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 	declaration := internal.NewWorkflowDeclaration[any, any](createOpts, v0Client)
 
 	return &Workflow{
-		declaration: declaration,
-		v0Client:    v0Client,
+		declaration:      declaration,
+		v0Client:         v0Client,
+		evictionPolicies: make(map[string]*eviction.Policy),
 	}
 }
 
@@ -252,6 +256,7 @@ type taskConfig struct {
 	waitFor                condition.Condition
 	skipIf                 condition.Condition
 	description            string
+	evictionPolicy         *eviction.Policy
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -357,6 +362,16 @@ func WithSkipIf(condition condition.Condition) TaskOption {
 func WithDescription(description string) TaskOption {
 	return func(config *taskConfig) {
 		config.description = description
+	}
+}
+
+// WithEvictionPolicy sets the eviction policy for a durable task.
+// This controls when and how the task can be evicted from a durable slot
+// while it is in a waiting state (e.g. SleepFor, WaitForEvent).
+// A nil policy (the default) means the task is never eligible for eviction.
+func WithEvictionPolicy(policy *eviction.Policy) TaskOption {
+	return func(config *taskConfig) {
+		config.evictionPolicy = policy
 	}
 }
 
@@ -473,6 +488,11 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 
 	w.declaration.Task(taskOpts, wrapper)
 
+	// Store eviction policy for durable tasks
+	if config.isDurable && config.evictionPolicy != nil {
+		w.evictionPolicies[name] = config.evictionPolicy
+	}
+
 	return &Task{name: name}
 }
 
@@ -490,7 +510,24 @@ func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *T
 
 // Dump implements the WorkflowBase interface for internal use.
 func (w *Workflow) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
-	return w.declaration.Dump()
+	req, regularFns, durableFns, onFailureFn := w.declaration.Dump()
+
+	// Attach eviction policies to named functions that match durable tasks.
+	workflowName := w.declaration.Name()
+	attachEvictionPolicies := func(fns []internal.NamedFunction) {
+		for i, fn := range fns {
+			for taskName, policy := range w.evictionPolicies {
+				expectedActionID := strings.ToLower(fmt.Sprintf("%s:%s", workflowName, taskName))
+				if fn.ActionID == expectedActionID {
+					fns[i].EvictionPolicy = policy
+				}
+			}
+		}
+	}
+	attachEvictionPolicies(regularFns)
+	attachEvictionPolicies(durableFns)
+
+	return req, regularFns, durableFns, onFailureFn
 }
 
 // OnFailure sets a failure handler for the workflow.

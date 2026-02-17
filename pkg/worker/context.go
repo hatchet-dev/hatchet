@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+	"github.com/hatchet-dev/hatchet/pkg/worker/eviction"
 )
 
 type HatchetWorkerContext interface {
@@ -796,9 +797,33 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 		return nil, fmt.Errorf("failed to add signal: %w", err)
 	}
 
-	data := <-resCh
+	// Mark the run as waiting for eviction tracking
+	actionKey := d.StepRunId()
+	resourceID := fmt.Sprintf("%s:%s", d.StepRunId(), signalKey)
+	if mgr := d.evictionManager(); mgr != nil {
+		mgr.MarkWaiting(actionKey, "durable_event", resourceID)
+		defer mgr.MarkActive(actionKey)
+	}
 
-	return newWaitResult(data)
+	// Wait for either the durable event or context cancellation (e.g. eviction)
+	select {
+	case data := <-resCh:
+		return newWaitResult(data)
+	case <-d.Done():
+		cause := context.Cause(d)
+		if cause != nil {
+			return nil, cause
+		}
+		return nil, d.Err()
+	}
+}
+
+// evictionManager returns the eviction manager from the worker, or nil.
+func (d *durableHatchetContext) evictionManager() *eviction.Manager {
+	if d.w == nil || d.w.worker == nil {
+		return nil
+	}
+	return d.w.worker.evictionManager
 }
 
 func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {

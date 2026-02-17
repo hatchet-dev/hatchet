@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/hatchet-dev/hatchet/pkg/worker/eviction"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal/task"
 
@@ -31,8 +32,9 @@ type DurableWrappedTaskFn func(ctx worker.DurableHatchetContext) (interface{}, e
 
 // NamedFunction represents a function with its associated action ID
 type NamedFunction struct {
-	ActionID string
-	Fn       WrappedTaskFn
+	ActionID       string
+	Fn             WrappedTaskFn
+	EvictionPolicy *eviction.Policy
 }
 
 // WorkflowBase defines the common interface for all workflow types.
