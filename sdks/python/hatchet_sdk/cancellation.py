@@ -75,16 +75,7 @@ class CancellationToken:
         """
         with self._lock:
             if self._cancelled:
-                logger.debug(
-                    f"CancellationToken: cancel() called but already cancelled, "
-                    f"reason={self._reason.value if self._reason else 'none'}"
-                )
                 return
-
-            logger.debug(
-                f"CancellationToken: cancel() called, reason={reason.value}, "
-                f"{len(self._child_run_ids)} children registered"
-            )
 
             self._cancelled = True
             self._reason = reason
@@ -99,12 +90,9 @@ class CancellationToken:
 
         for callback in callbacks:
             try:
-                logger.debug(f"CancellationToken: invoking callback {callback}")
                 callback()
             except Exception as e:  # noqa: PERF203
                 logger.warning(f"CancellationToken: callback raised exception: {e}")
-
-        logger.debug(f"CancellationToken: cancel() complete, reason={reason.value}")
 
     @property
     def is_cancelled(self) -> bool:
@@ -123,10 +111,6 @@ class CancellationToken:
         This will block until cancel() is called.
         """
         await self._get_async_event().wait()
-        logger.debug(
-            f"CancellationToken: async wait completed (cancelled), "
-            f"reason={self._reason.value if self._reason else 'none'}"
-        )
 
     def wait(self, timeout: float | None = None) -> bool:
         """
@@ -138,13 +122,7 @@ class CancellationToken:
         Returns:
             True if the token was cancelled (event was set), False if timeout expired.
         """
-        result = self._sync_event.wait(timeout)
-        if result:
-            logger.debug(
-                f"CancellationToken: sync wait interrupted by cancellation, "
-                f"reason={self._reason.value if self._reason else 'none'}"
-            )
-        return result
+        return self._sync_event.wait(timeout)
 
     def register_child(self, run_id: str) -> None:
         """
@@ -157,7 +135,6 @@ class CancellationToken:
             run_id: The workflow run ID of the child workflow.
         """
         with self._lock:
-            logger.debug(f"CancellationToken: registering child workflow {run_id}")
             self._child_run_ids.append(run_id)
 
     @property
@@ -182,9 +159,6 @@ class CancellationToken:
                 self._callbacks.append(callback)
 
         if invoke_now:
-            logger.debug(
-                f"CancellationToken: invoking callback immediately (already cancelled): {callback}"
-            )
             try:
                 callback()
             except Exception as e:

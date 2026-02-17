@@ -41,7 +41,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrat
 from hatchet_sdk.contracts.workflows.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.exceptions import CancellationReason, CancelledError
 from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.contextvars import (
     ctx_cancellation_token,
@@ -686,11 +685,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         cancellation_token = self._resolve_check_cancellation_token()
 
-        logger.debug(
-            f"Workflow.run_no_wait: triggering {self.config.name}, "
-            f"token={cancellation_token is not None}"
-        )
-
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -722,11 +716,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         cancellation_token = self._resolve_check_cancellation_token()
 
-        logger.debug(
-            f"Workflow.run: triggering {self.config.name}, "
-            f"token={cancellation_token is not None}"
-        )
-
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -737,8 +726,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             cancellation_token,
             ref.workflow_run_id,
         )
-
-        logger.debug(f"Workflow.run: awaiting result for {ref.workflow_run_id}")
 
         return ref.result(cancellation_token=cancellation_token)
 
@@ -760,11 +747,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
         cancellation_token = self._resolve_check_cancellation_token()
-
-        logger.debug(
-            f"Workflow.aio_run_no_wait: triggering {self.config.name}, "
-            f"token={cancellation_token is not None}"
-        )
 
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
@@ -801,11 +783,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         cancellation_token = self._resolve_check_cancellation_token()
 
-        logger.debug(
-            f"Workflow.aio_run: triggering {self.config.name}, "
-            f"token={cancellation_token is not None}"
-        )
-
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -816,8 +793,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             cancellation_token,
             ref.workflow_run_id,
         )
-
-        logger.debug(f"Workflow.aio_run: awaiting result for {ref.workflow_run_id}")
 
         return await await_with_cancellation(
             ref.aio_result(),
@@ -881,17 +856,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             refs,
         )
 
-        # Pass cancellation_token through to each result() call
-        # The cancellation check happens INSIDE result()'s polling loop
         results: list[dict[str, Any] | BaseException] = []
         for ref in refs:
             try:
                 results.append(ref.result(cancellation_token=cancellation_token))
             except CancelledError:  # noqa: PERF203
-                logger.debug(
-                    f"Workflow.run_many: cancellation detected, stopping wait, "
-                    f"reason={CancellationReason.PARENT_CANCELLED.value}"
-                )
                 if return_exceptions:
                     results.append(
                         CancelledError(
@@ -940,11 +909,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         cancellation_token = self._resolve_check_cancellation_token()
 
-        logger.debug(
-            f"Workflow.aio_run_many: triggering {len(workflows)} workflows, "
-            f"token={cancellation_token is not None}"
-        )
-
         refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
@@ -978,11 +942,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         cancellation_token = self._resolve_check_cancellation_token()
 
-        logger.debug(
-            f"Workflow.run_many_no_wait: triggering {len(workflows)} workflows, "
-            f"token={cancellation_token is not None}"
-        )
-
         refs = self.client._client.admin.run_workflows(
             workflows=workflows,
         )
@@ -1011,11 +970,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
         """
         cancellation_token = self._resolve_check_cancellation_token()
-
-        logger.debug(
-            f"Workflow.aio_run_many_no_wait: triggering {len(workflows)} workflows, "
-            f"token={cancellation_token is not None}"
-        )
 
         refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,

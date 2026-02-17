@@ -7,8 +7,6 @@ import contextlib
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, TypeVar
 
-from hatchet_sdk.logger import logger
-
 if TYPE_CHECKING:
     from hatchet_sdk.cancellation import CancellationToken
 
@@ -120,30 +118,21 @@ async def await_with_cancellation(
     """
 
     if token is None:
-        logger.debug("await_with_cancellation: no token provided, awaiting directly")
         return await coro
 
-    logger.debug("await_with_cancellation: starting with cancellation token")
-
-    # Check if already cancelled
     if token.is_cancelled:
-        logger.debug("await_with_cancellation: token already cancelled")
         if cancel_callback:
-            logger.debug("await_with_cancellation: invoking cancel callback")
             await _invoke_cancel_callback(cancel_callback)
+
         raise asyncio.CancelledError("Operation cancelled by cancellation token")
 
     main_task = asyncio.ensure_future(coro)
 
     try:
-        result = await race_against_token(main_task, token)
-        logger.debug("await_with_cancellation: completed successfully")
-        return result
-
+        return await race_against_token(main_task, token)
     except asyncio.CancelledError:
-        logger.debug("await_with_cancellation: cancelled")
         if cancel_callback:
-            logger.debug("await_with_cancellation: invoking cancel callback")
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.shield(_invoke_cancel_callback(cancel_callback))
+
         raise

@@ -509,26 +509,18 @@ class Runner:
         start_time = time.monotonic()
 
         logger.info(
-            f"Cancellation: received cancel action for {action.action_id}, "
+            f"received cancel action for {action.action_id}, "
             f"reason={CancellationReason.WORKFLOW_CANCELLED.value}"
         )
 
         try:
-            # Trigger the cancellation token to signal the context to stop
             if key in self.contexts:
                 ctx = self.contexts[key]
-                child_count = len(ctx.cancellation_token.child_run_ids)
-                logger.debug(
-                    f"Cancellation: triggering token for {action.action_id}, "
-                    f"reason={CancellationReason.WORKFLOW_CANCELLED.value}, "
-                    f"{child_count} children registered"
-                )
+
                 ctx._set_cancellation_flag(CancellationReason.WORKFLOW_CANCELLED)
                 self.cancellations[key] = True
                 # Note: Child workflows are not cancelled here - they run independently
                 # and are managed by Hatchet's normal cancellation mechanisms
-            else:
-                logger.debug(f"Cancellation: no context found for {action.action_id}")
 
             # Wait with supervision (using timedelta configs)
             grace_period = self.config.cancellation_grace_period.total_seconds()
@@ -548,7 +540,7 @@ class Runner:
 
             if task_still_running:
                 logger.warning(
-                    f"Cancellation: task {action.action_id} has not cancelled after "
+                    f"task {action.action_id} has not cancelled after "
                     f"{elapsed_ms}ms (warning threshold {warning_threshold_ms}ms). "
                     f"Consider checking for blocking operations. "
                     f"See https://docs.hatchet.run/home/cancellation"
@@ -559,25 +551,18 @@ class Runner:
                     await asyncio.sleep(remaining)
 
                 if key in self.tasks and not self.tasks[key].done():
-                    logger.debug(
-                        f"Cancellation: force-cancelling task {action.action_id} "
-                        f"after grace period ({grace_period_ms}ms)"
-                    )
                     self.tasks[key].cancel()
 
                 if key in self.threads:
                     thread = self.threads[key]
 
                     if self.config.enable_force_kill_sync_threads:
-                        logger.debug(
-                            f"Cancellation: force-killing thread for {action.action_id}"
-                        )
                         self.force_kill_thread(thread)
                         await asyncio.sleep(1)
 
                     if thread.is_alive():
                         logger.warning(
-                            f"Cancellation: thread {thread.ident} with key {key} is still running "
+                            f"thread {thread.ident} with key {key} is still running "
                             f"after cancellation. This could cause the thread pool to get blocked "
                             f"and prevent new tasks from running."
                         )
@@ -586,15 +571,9 @@ class Runner:
                 total_elapsed_ms = round(total_elapsed * 1000)
                 if total_elapsed > grace_period:
                     logger.warning(
-                        f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
+                        f"cancellation of {action.action_id} took {total_elapsed_ms}ms "
                         f"(exceeded grace period of {grace_period_ms}ms)"
                     )
-                else:
-                    logger.debug(
-                        f"Cancellation: task {action.action_id} eventually completed in {total_elapsed_ms}ms"
-                    )
-            else:
-                logger.info(f"Cancellation: task {action.action_id} completed")
         finally:
             self.cleanup_run_id(key)
 
@@ -633,16 +612,14 @@ class Runner:
             ) from e
 
         if "\\u0000" in serialized_output:
-            raise IllegalTaskOutputError(
-                dedent(f"""
+            raise IllegalTaskOutputError(dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """)
-            )
+                """))
 
         return serialized_output
 

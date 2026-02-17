@@ -176,7 +176,7 @@ class DurableEventListener:
                     f"durable stream error: code={e.code()}, details={e.details()}"
                 )
         except asyncio.CancelledError:
-            logger.debug("Receive loop cancelled")
+            pass
         except Exception as e:
             logger.exception(f"Unexpected error in receive loop: {e}")
 

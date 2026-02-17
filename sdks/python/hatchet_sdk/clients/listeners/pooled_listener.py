@@ -247,7 +247,6 @@ class PooledListener(Generic[R, T, L], ABC):
                 return await race_against_token(result_task, cancellation_token)
             return await self.events[subscription_id].get()
         except asyncio.CancelledError:
-            logger.debug(f"PooledListener.subscribe: externally cancelled for id={id}")
             raise
         finally:
             if subscription_id:
