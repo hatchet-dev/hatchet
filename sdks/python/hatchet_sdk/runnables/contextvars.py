@@ -29,7 +29,6 @@ ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar
 ctx_task_retry_count: ContextVar[int | None] = ContextVar(
     "ctx_task_retry_count", default=0
 )
-# TODO-DURABLE: is this redundant with ctx_is_durable?
 ctx_durable_context: ContextVar[DurableContext | None] = ContextVar(
     "ctx_durable_context", default=None
 )
@@ -40,8 +39,6 @@ ctx_admin_client: ContextVar[AdminClient | None] = ContextVar(
 ctx_cancellation_token: ContextVar[CancellationToken | None] = ContextVar(
     "ctx_cancellation_token", default=None
 )
-
-# Durable-run eviction instrumentation.
 ctx_is_durable: ContextVar[bool] = ContextVar("ctx_is_durable", default=False)
 ctx_durable_eviction_manager: ContextVar[DurableEvictionManager | None] = ContextVar(
     "ctx_durable_eviction_manager", default=None

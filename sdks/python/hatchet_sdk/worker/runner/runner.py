@@ -49,7 +49,6 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_additional_metadata,
     ctx_admin_client,
     ctx_cancellation_token,
-    # TODO-DURABLE: is this redundant?
     ctx_durable_context,
     ctx_durable_eviction_manager,
     ctx_is_durable,
