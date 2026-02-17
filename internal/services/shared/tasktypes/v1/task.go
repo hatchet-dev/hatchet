@@ -216,10 +216,10 @@ type CandidateFinalizedPayload struct {
 }
 
 type DurableCallbackCompletedPayload struct {
-	TaskExternalId  uuid.UUID
+	Payload         []byte
 	NodeId          int64
 	InvocationCount int64
-	Payload         []byte
+	TaskExternalId  uuid.UUID
 }
 
 func DurableCallbackCompletedMessage(

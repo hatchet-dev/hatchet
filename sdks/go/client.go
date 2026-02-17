@@ -164,9 +164,9 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 
 type workflowDump struct {
 	req            *v1.CreateWorkflowVersionRequest
+	onFailureFn    internal.WrappedTaskFn
 	regularActions []internal.NamedFunction
 	durableActions []internal.NamedFunction
-	onFailureFn    internal.WrappedTaskFn
 }
 
 func gatherWorkflowDumps(workflows []WorkflowBase) []workflowDump {

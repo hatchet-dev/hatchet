@@ -321,11 +321,10 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 
 type durableTaskInvocation struct {
 	server   contracts.V1Dispatcher_DurableTaskServer
+	l        *zerolog.Logger
+	sendMu   sync.Mutex
 	tenantId uuid.UUID
 	workerId uuid.UUID
-	l        *zerolog.Logger
-
-	sendMu sync.Mutex
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {

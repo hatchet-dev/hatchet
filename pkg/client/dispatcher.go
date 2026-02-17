@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -40,6 +42,10 @@ type DispatcherClient interface {
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 
 	RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error)
+
+	// GetDurableTaskStream returns a DurableTask bidirectional stream, creating one if necessary.
+	// The workerId is used to register the worker with the server on stream creation.
+	GetDurableTaskStream(ctx context.Context, workerId string) (*DurableTaskStream, error)
 }
 
 const (
@@ -186,6 +192,9 @@ type dispatcherClientImpl struct {
 	ctx *contextLoader
 
 	presetWorkerLabels map[string]string
+
+	durableStreamMu sync.Mutex
+	durableStream   *DurableTaskStream
 }
 
 func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) DispatcherClient {
@@ -721,6 +730,147 @@ func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.Worke
 	return labels
 }
 
-func (a *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
-	return a.clientv1.RegisterDurableEvent(a.ctx.newContext(ctx), req)
+func (d *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
+	return d.clientv1.RegisterDurableEvent(d.ctx.newContext(ctx), req)
+}
+
+// DurableTaskStream wraps a V1Dispatcher_DurableTaskClient bidirectional stream.
+// It provides thread-safe send/recv and callback routing by node ID.
+type DurableTaskStream struct {
+	stream        sharedcontracts.V1Dispatcher_DurableTaskClient
+	callbackChs   map[int64]chan *sharedcontracts.DurableTaskCallbackCompletedResponse
+	ackCh         chan *sharedcontracts.DurableTaskEventAckResponse
+	registerCh    chan *sharedcontracts.DurableTaskResponseRegisterWorker
+	l             *zerolog.Logger
+	sendMu        sync.Mutex
+	callbackChsMu sync.Mutex
+}
+
+// Send sends a DurableTaskRequest on the stream (thread-safe).
+func (s *DurableTaskStream) Send(req *sharedcontracts.DurableTaskRequest) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	return s.stream.Send(req)
+}
+
+// SendEventAndWaitForAck sends a DurableTaskEventRequest and waits for the TriggerAck response.
+func (s *DurableTaskStream) SendEventAndWaitForAck(ctx context.Context, event *sharedcontracts.DurableTaskEventRequest) (*sharedcontracts.DurableTaskEventAckResponse, error) {
+	err := s.Send(&sharedcontracts.DurableTaskRequest{
+		Message: &sharedcontracts.DurableTaskRequest_Event{
+			Event: event,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to send durable task event: %w", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case ack := <-s.ackCh:
+		return ack, nil
+	}
+}
+
+// WaitForCallback waits for a CallbackCompleted response for the given nodeId.
+func (s *DurableTaskStream) WaitForCallback(ctx context.Context, nodeId int64) (*sharedcontracts.DurableTaskCallbackCompletedResponse, error) {
+	ch := make(chan *sharedcontracts.DurableTaskCallbackCompletedResponse, 1)
+
+	s.callbackChsMu.Lock()
+	s.callbackChs[nodeId] = ch
+	s.callbackChsMu.Unlock()
+
+	defer func() {
+		s.callbackChsMu.Lock()
+		delete(s.callbackChs, nodeId)
+		s.callbackChsMu.Unlock()
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case resp := <-ch:
+		return resp, nil
+	}
+}
+
+// recvLoop reads responses from the stream and routes them.
+func (s *DurableTaskStream) recvLoop() {
+	for {
+		resp, err := s.stream.Recv()
+		if err != nil {
+			s.l.Debug().Err(err).Msg("durable task stream recv ended")
+			return
+		}
+
+		switch msg := resp.GetMessage().(type) {
+		case *sharedcontracts.DurableTaskResponse_RegisterWorker:
+			select {
+			case s.registerCh <- msg.RegisterWorker:
+			default:
+			}
+		case *sharedcontracts.DurableTaskResponse_TriggerAck:
+			select {
+			case s.ackCh <- msg.TriggerAck:
+			default:
+				s.l.Warn().Msg("dropped trigger ack: no listener")
+			}
+		case *sharedcontracts.DurableTaskResponse_CallbackCompleted:
+			s.callbackChsMu.Lock()
+			ch, ok := s.callbackChs[msg.CallbackCompleted.NodeId]
+			s.callbackChsMu.Unlock()
+			if ok {
+				select {
+				case ch <- msg.CallbackCompleted:
+				default:
+				}
+			}
+		}
+	}
+}
+
+func (d *dispatcherClientImpl) GetDurableTaskStream(ctx context.Context, workerId string) (*DurableTaskStream, error) {
+	d.durableStreamMu.Lock()
+	defer d.durableStreamMu.Unlock()
+
+	if d.durableStream != nil {
+		return d.durableStream, nil
+	}
+
+	stream, err := d.clientv1.DurableTask(d.ctx.newContext(ctx), grpc_retry.Disable())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create durable task stream: %w", err)
+	}
+
+	s := &DurableTaskStream{
+		stream:      stream,
+		callbackChs: make(map[int64]chan *sharedcontracts.DurableTaskCallbackCompletedResponse),
+		ackCh:       make(chan *sharedcontracts.DurableTaskEventAckResponse, 1),
+		registerCh:  make(chan *sharedcontracts.DurableTaskResponseRegisterWorker, 1),
+		l:           d.l,
+	}
+
+	go s.recvLoop()
+
+	// Register the worker with the server
+	err = s.Send(&sharedcontracts.DurableTaskRequest{
+		Message: &sharedcontracts.DurableTaskRequest_RegisterWorker{
+			RegisterWorker: &sharedcontracts.DurableTaskRequestRegisterWorker{
+				WorkerId: workerId,
+			},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to send register worker: %w", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.registerCh:
+		// Registration acknowledged
+	}
+
+	d.durableStream = s
+	return s, nil
 }

@@ -811,6 +811,9 @@ type DurableHatchetContext interface {
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
 	// like worker restarts.
 	WaitFor(conditions condition.Condition) (*WaitResult, error)
+
+	// Memo memoizes the result of a potentially expensive but fast function call.
+	Memo(fn func() (interface{}, error), deps []interface{}) (interface{}, error)
 }
 
 // durableHatchetContext implements the DurableHatchetContext interface.
@@ -901,8 +904,50 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	return newWaitResult(data)
 }
 
-func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
-	return h.client().Subscribe().ListenForDurableEvents(context.Background())
+func (d *durableHatchetContext) Memo(fn func() (interface{}, error), deps []interface{}) (interface{}, error) {
+	// Compute the result first (memo caches the output of a fast function)
+	result, err := fn()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal memo result: %w", err)
+	}
+
+	stream, err := d.client().Dispatcher().GetDurableTaskStream(d, d.Worker().ID())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get durable task stream: %w", err)
+	}
+
+	invocationCount := int64(d.RetryCount())
+
+	ack, err := stream.SendEventAndWaitForAck(d, &v1.DurableTaskEventRequest{
+		InvocationCount:       invocationCount,
+		DurableTaskExternalId: d.WorkflowRunId(),
+		Kind:                  v1.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO,
+		Payload:               data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to send memo event: %w", err)
+	}
+
+	// Wait for the callback completion which contains the (potentially cached) result
+	callback, err := stream.WaitForCallback(d, ack.NodeId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for memo callback: %w", err)
+	}
+
+	var cachedResult interface{}
+	if unmarshalErr := json.Unmarshal(callback.Payload, &cachedResult); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to unmarshal memo result: %w", unmarshalErr)
+	}
+	return cachedResult, nil
+}
+
+func (d *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
+	return d.client().Subscribe().ListenForDurableEvents(context.Background())
 }
 
 // Deprecated: NewDurableHatchetContext is an internal function used by the new Go SDK.

@@ -32,30 +32,28 @@ type TaskExternalIdNodeId struct {
 }
 
 type SatisfiedCallbackWithPayload struct {
-	TaskExternalId uuid.UUID
-	NodeID         int64
 	Result         []byte
+	NodeID         int64
+	TaskExternalId uuid.UUID
 }
 
 type IngestDurableTaskEventOpts struct {
-	TenantId          uuid.UUID                     `validate:"required"`
 	Task              *sqlcv1.FlattenExternalIdsRow `validate:"required"`
-	Kind              sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
+	TriggerOpts       *WorkflowNameTriggerOpts
+	Kind              sqlcv1.V1DurableEventLogKind `validate:"required,oneof=RUN WAIT_FOR MEMO"`
 	Payload           []byte
 	WaitForConditions []CreateExternalSignalConditionOpt
 	InvocationCount   int64
-	TriggerOpts       *WorkflowNameTriggerOpts
+	TenantId          uuid.UUID `validate:"required"`
 }
 
 type IngestDurableTaskEventResult struct {
-	NodeId        int64
 	Callback      *EventLogCallbackWithPayload
 	EventLogEntry *EventLogEntryWithPayload
 	EventLogFile  *sqlcv1.V1DurableEventLogFile
-
-	// Populated for RUNTRIGGERED: the tasks/DAGs created by the child spawn.
-	CreatedTasks []*V1TaskWithPayload
-	CreatedDAGs  []*DAGWithData
+	CreatedTasks  []*V1TaskWithPayload
+	CreatedDAGs   []*DAGWithData
+	NodeId        int64
 }
 
 type DurableEventsRepository interface {
@@ -287,10 +285,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	isNewInvocation := false
-	if logFile.LatestInvocationCount < opts.InvocationCount {
-		isNewInvocation = true
-	}
+	isNewInvocation := logFile.LatestInvocationCount < opts.InvocationCount
 
 	var nodeId int64
 	if isNewInvocation {

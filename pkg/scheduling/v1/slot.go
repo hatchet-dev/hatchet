@@ -41,9 +41,9 @@ type slot struct {
 }
 
 type assignedSlots struct {
-	slots         []*slot
 	rateLimitAck  func()
 	rateLimitNack func()
+	slots         []*slot
 }
 
 func (a *assignedSlots) workerId() uuid.UUID {

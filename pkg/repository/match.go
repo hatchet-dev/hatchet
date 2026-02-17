@@ -156,11 +156,11 @@ type GroupMatchCondition struct {
 }
 
 type SatisfiedCallback struct {
-	DurableTaskExternalId uuid.UUID
-	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
-	NodeId                int64
 	Data                  []byte
+	DurableTaskId         int64
+	NodeId                int64
+	DurableTaskExternalId uuid.UUID
 }
 
 type MatchRepository interface {
@@ -355,8 +355,8 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 }
 
 type DurableTaskNodeIdKey struct {
-	DurableTaskId         int64
 	DurableTaskInsertedAt time.Time
+	DurableTaskId         int64
 	NodeId                int64
 }
 

@@ -192,8 +192,8 @@ type TenantIdSDKTuple struct {
 }
 
 type TenantIdSlotTypeTuple struct {
-	TenantId uuid.UUID
 	SlotType string
+	TenantId uuid.UUID
 }
 
 func (w *workerRepository) ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error) {
