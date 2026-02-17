@@ -235,7 +235,7 @@ SELECT
     create_v1_weekly_range_partition('v1_event_lookup_table', $1::date),
     create_v1_range_partition('v1_event_to_run', $1::date),
     create_v1_range_partition('v1_durable_event_log_file', $1::date),
-    create_v1_range_partition('v1_durable_event_log_entry', $1::date)
+    create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {

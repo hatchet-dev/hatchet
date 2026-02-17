@@ -9,7 +9,7 @@ SELECT
     create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
     create_v1_range_partition('v1_event_to_run', @date::date),
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
-    create_v1_range_partition('v1_durable_event_log_entry', @date::date)
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80)
 ;
 
 -- name: EnsureTablePartitionsExist :one

@@ -40,7 +40,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION create_v1_range_partition(
     targetTableName text,
-    targetDate date
+    targetDate date,
+    fillfactor integer DEFAULT 100
 ) RETURNS integer
     LANGUAGE plpgsql AS
 $$
@@ -60,14 +61,15 @@ BEGIN
     EXECUTE
         format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
     EXECUTE
-        format('ALTER TABLE %s SET (
+        format('ALTER TABLE %I SET (
+            fillfactor = %s,
             autovacuum_vacuum_scale_factor = ''0.1'',
             autovacuum_analyze_scale_factor=''0.05'',
             autovacuum_vacuum_threshold=''25'',
             autovacuum_analyze_threshold=''25'',
             autovacuum_vacuum_cost_delay=''10'',
             autovacuum_vacuum_cost_limit=''1000''
-        )', newTableName);
+        )', newTableName, fillfactor);
     EXECUTE
         format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
     RETURN 1;

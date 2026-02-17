@@ -1,5 +1,43 @@
 -- +goose Up
 -- +goose StatementBegin
+DROP FUNCTION IF EXISTS create_v1_range_partition(text, date);
+CREATE OR REPLACE FUNCTION create_v1_range_partition(
+    targetTableName text,
+    targetDate date,
+    fillfactor integer DEFAULT 100
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT lower(format('%s_%s', targetTableName, targetDateStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
+    EXECUTE format('ALTER TABLE %I SET (
+            fillfactor = %s,
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName, fillfactor);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
+    RETURN 1;
+END;
+$$;
+
 -- v1_durable_event_log represents the log file for the durable event history
 -- of a durable task. This table stores metadata like sequence values for entries.
 --
@@ -75,8 +113,8 @@ CREATE TABLE v1_durable_event_log_entry (
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
-SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE);
-SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE);
+SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE, 80);
+SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE, 80);
 
 ALTER TABLE v1_match
     ADD COLUMN durable_event_log_entry_durable_task_external_id UUID,
@@ -103,4 +141,41 @@ ALTER TABLE v1_match
     DROP COLUMN durable_event_log_entry_durable_task_inserted_at;
 
 ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
+
+DROP FUNCTION IF EXISTS create_v1_range_partition(text, date, integer);
+CREATE OR REPLACE FUNCTION create_v1_range_partition(
+    targetTableName text,
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT lower(format('%s_%s', targetTableName, targetDateStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
+    RETURN 1;
+END;
+$$;
 -- +goose StatementEnd
