@@ -449,17 +449,14 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 		runCallbackSignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
 
 		err = r.createEventMatches(ctx, tx.tx, opts.TenantId, []CreateMatchOpts{{
-			Kind:                          sqlcv1.V1MatchKindSIGNAL,
-			Conditions:                    conditions,
-			SignalTaskId:                  &taskId,
-			SignalTaskInsertedAt:          task.InsertedAt,
-			SignalExternalId:              &taskExternalId,
-			SignalTaskExternalId:          &taskExternalId,
-			SignalKey:                     &runCallbackSignalKey,
-			DurableCallbackTaskId:         &taskId,
-			DurableCallbackTaskInsertedAt: task.InsertedAt,
-			DurableCallbackNodeId:         &nodeId,
-			DurableCallbackTaskExternalId: &taskExternalId,
+			Kind:                       sqlcv1.V1MatchKindSIGNAL,
+			Conditions:                 conditions,
+			SignalTaskId:               &taskId,
+			SignalTaskInsertedAt:       task.InsertedAt,
+			SignalExternalId:           &taskExternalId,
+			SignalTaskExternalId:       &taskExternalId,
+			SignalKey:                  &runCallbackSignalKey,
+			DurableEventLogEntryNodeId: &nodeId,
 		}})
 
 		if err != nil {

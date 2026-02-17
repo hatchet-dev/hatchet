@@ -120,11 +120,8 @@ type CreateMatchOpts struct {
 
 	SignalKey *string
 
-	// Optional callback fields for durable WAIT_FOR
-	DurableCallbackTaskId         *int64
-	DurableCallbackTaskInsertedAt pgtype.Timestamptz
-	DurableCallbackNodeId         *int64
-	DurableCallbackTaskExternalId *uuid.UUID
+	// Optional durable event log fields for durable WAIT_FOR
+	DurableEventLogEntryNodeId *int64
 }
 
 type EventMatchResults struct {
@@ -232,17 +229,14 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 		signalKey := signalMatch.SignalKey
 
 		eventMatches = append(eventMatches, CreateMatchOpts{
-			Kind:                          sqlcv1.V1MatchKindSIGNAL,
-			Conditions:                    conditions,
-			SignalTaskId:                  &taskId,
-			SignalTaskInsertedAt:          signalMatch.SignalTaskInsertedAt,
-			SignalTaskExternalId:          &signalMatch.SignalTaskExternalId,
-			SignalExternalId:              &externalId,
-			SignalKey:                     &signalKey,
-			DurableCallbackTaskId:         signalMatch.DurableCallbackTaskId,
-			DurableCallbackTaskInsertedAt: signalMatch.DurableCallbackTaskInsertedAt,
-			DurableCallbackNodeId:         signalMatch.DurableCallbackNodeId,
-			DurableCallbackTaskExternalId: signalMatch.DurableCallbackTaskExternalId,
+			Kind:                       sqlcv1.V1MatchKindSIGNAL,
+			Conditions:                 conditions,
+			SignalTaskId:               &taskId,
+			SignalTaskInsertedAt:       signalMatch.SignalTaskInsertedAt,
+			SignalTaskExternalId:       &signalMatch.SignalTaskExternalId,
+			SignalExternalId:           &externalId,
+			SignalKey:                  &signalKey,
+			DurableEventLogEntryNodeId: signalMatch.DurableCallbackNodeId,
 		})
 	}
 
@@ -1109,10 +1103,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		signalTaskIds := make([]int64, len(signalMatches))
 		signalTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
 		signalKeys := make([]string, len(signalMatches))
-		callbackTaskIds := make([]*int64, len(signalMatches))
-		callbackTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
-		callbackNodeIds := make([]*int64, len(signalMatches))
-		callbackDurableTaskExternalIds := make([]*uuid.UUID, len(signalMatches))
+		DurableLogEntryNodeIds := make([]*int64, len(signalMatches))
 		signalTaskExternalIds := make([]*uuid.UUID, len(signalMatches))
 
 		for i, match := range signalMatches {
@@ -1121,13 +1112,10 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			signalTaskIds[i] = *match.SignalTaskId
 			signalTaskInsertedAts[i] = match.SignalTaskInsertedAt
 
-			signalTaskExternalIds[i] = match.DurableCallbackTaskExternalId
+			signalTaskExternalIds[i] = match.SignalTaskExternalId
 			signalKeys[i] = *match.SignalKey
 
-			callbackTaskIds[i] = match.DurableCallbackTaskId
-			callbackTaskInsertedAts[i] = match.DurableCallbackTaskInsertedAt
-			callbackNodeIds[i] = match.DurableCallbackNodeId
-			callbackDurableTaskExternalIds[i] = match.DurableCallbackTaskExternalId
+			DurableLogEntryNodeIds[i] = match.DurableEventLogEntryNodeId
 		}
 
 		// Create matches in the database
@@ -1141,7 +1129,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				Signaltaskinsertedats:       signalTaskInsertedAts,
 				Signaltaskexternalids:       signalTaskExternalIds,
 				Signalkeys:                  signalKeys,
-				Durableeventlogentrynodeids: callbackNodeIds,
+				Durableeventlogentrynodeids: DurableLogEntryNodeIds,
 			},
 		)
 
