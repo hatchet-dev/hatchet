@@ -1513,6 +1513,7 @@ func (r *sharedRepository) registerChildWorkflows(
 					Conditions:           getChildWorkflowGroupMatches(stepExternalId, stepReadableId),
 					SignalExternalId:     tuple.parentExternalId,
 					SignalTaskId:         tuple.parentTaskId,
+					SignalTaskExternalId: tuple.parentExternalId,
 					SignalTaskInsertedAt: sqlchelpers.TimestamptzFromTime(*tuple.parentTaskInsertedAt),
 					SignalKey:            &key,
 				})

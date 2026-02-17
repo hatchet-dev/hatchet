@@ -3154,6 +3154,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				SignalExternalId:     task.ParentTaskExternalID,
 				SignalTaskId:         &task.ParentTaskID.Int64,
 				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
+				SignalTaskExternalId: &task.ExternalID,
 				SignalKey:            &k,
 			})
 		}

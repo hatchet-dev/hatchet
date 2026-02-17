@@ -1,5 +1,43 @@
 -- +goose Up
 -- +goose StatementBegin
+DROP FUNCTION IF EXISTS create_v1_range_partition(text, date);
+CREATE OR REPLACE FUNCTION create_v1_range_partition(
+    targetTableName text,
+    targetDate date,
+    fillfactor integer DEFAULT 100
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT lower(format('%s_%s', targetTableName, targetDateStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
+    EXECUTE format('ALTER TABLE %I SET (
+            fillfactor = %s,
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName, fillfactor);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
+    RETURN 1;
+END;
+$$;
+
 -- v1_durable_event_log represents the log file for the durable event history
 -- of a durable task. This table stores metadata like sequence values for entries.
 --
@@ -63,74 +101,73 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Possible: we may want to query a range of node_ids for a durable task
     -- Possible: we may want to query a range of inserted_ats for a durable task
 
+    -- Whether this event has been seen by the engine or not. Note that is_satisfied _may_ change multiple
+    -- times through the lifecycle of a event, and readers should not assume that once it's true it will always be true.
+    is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
-SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE);
-SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE);
-
--- v1_durable_event_log_callback stores callbacks that complete a durable event log entry. This needs to be stateful
--- so that it persists across worker restarts for the same durable task.
---
--- Implementation notes (should be removed or moved elsewhere once this is done):
--- 1. Why not store callbacks in the core durable event log? Because their entries are not guaranteed to be
---    stable. For example, if a task is replayed, we would need to remove old callback entries and insert new ones,
---    in which case the durable event log would be changing history.
--- 2. The two important access patterns are direct queries from the worker side to check if a callback is satisfied,
---    and direct queries from the engine side to mark a callback as satisfied when we've satisfied a v1_match. Because
---    of this, we likely need to add a `callback_key` field to the v1_match table.
-CREATE TABLE v1_durable_event_log_callback (
-    tenant_id UUID NOT NULL,
-
-    external_id UUID NOT NULL,
-    -- The inserted_at time of this callback from a DB clock perspective.
-    -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
-    inserted_at TIMESTAMPTZ NOT NULL,
-    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
-
-    durable_task_id BIGINT NOT NULL,
-    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
-    kind v1_durable_event_log_kind NOT NULL,
-
-    -- The associated log node id that this callback references.
-    node_id BIGINT NOT NULL,
-    -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
-    -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
-    is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
-
-    -- Access patterns:
-    -- Definite: we'll query directly for the key when a worker is checking if a callback is satisfied
-    -- Definite: we'll query directly for the key when a v1_match has been satisfied and we need to mark the callback as satisfied
-    CONSTRAINT v1_durable_event_log_callback_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
-) PARTITION BY RANGE(durable_task_inserted_at);
-
-SELECT create_v1_range_partition('v1_durable_event_log_callback', NOW()::DATE);
-SELECT create_v1_range_partition('v1_durable_event_log_callback', (NOW() + INTERVAL '1 day')::DATE);
+SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE, 80);
+SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE, 80);
 
 ALTER TABLE v1_match
-    ADD COLUMN durable_event_log_callback_durable_task_external_id UUID,
-    ADD COLUMN durable_event_log_callback_node_id BIGINT,
-    ADD COLUMN durable_event_log_callback_durable_task_id BIGINT,
-    ADD COLUMN durable_event_log_callback_durable_task_inserted_at TIMESTAMPTZ;
+    ADD COLUMN signal_task_external_id UUID,
+    ADD COLUMN durable_event_log_entry_node_id BIGINT
+;
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
-ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_CALLBACK_RESULT_DATA';
+ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA';
 
 ALTER TABLE "Worker" ADD COLUMN "durableTaskDispatcherId" UUID;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE v1_durable_event_log_callback;
 DROP TABLE v1_durable_event_log_entry;
 DROP TABLE v1_durable_event_log_file;
 DROP TYPE v1_durable_event_log_kind;
 
 ALTER TABLE v1_match
-    DROP COLUMN durable_event_log_callback_durable_task_external_id,
-    DROP COLUMN durable_event_log_callback_node_id,
-    DROP COLUMN durable_event_log_callback_durable_task_id,
-    DROP COLUMN durable_event_log_callback_durable_task_inserted_at;
+    DROP COLUMN signal_task_external_id,
+    DROP COLUMN durable_event_log_entry_node_id;
 
 ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
+
+DROP FUNCTION IF EXISTS create_v1_range_partition(text, date, integer);
+CREATE OR REPLACE FUNCTION create_v1_range_partition(
+    targetTableName text,
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT lower(format('%s_%s', targetTableName, targetDateStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
+    RETURN 1;
+END;
+$$;
 -- +goose StatementEnd

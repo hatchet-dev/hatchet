@@ -52,7 +52,7 @@ message DurableTaskEventAckResponse {
     int64 node_id = 3;
 }
 
-message DurableTaskCallbackCompletedResponse {
+message DurableTaskEventLogEntryCompletedResponse {
     string durable_task_external_id = 1;
     int64 node_id = 2;
     bytes payload = 3;
@@ -63,7 +63,7 @@ message DurableTaskEvictInvocationRequest {
     string durable_task_external_id = 2;
 }
 
-message DurableTaskAwaitedCallback {
+message DurableTaskAwaitedCompletedEntry {
     string durable_task_external_id = 1;
     int64 node_id = 2;
 }
@@ -72,7 +72,7 @@ message DurableTaskWorkerStatusRequest {
     string worker_id = 1;
     int64 node_id = 2;
     int64 branch_id = 3;
-    repeated DurableTaskAwaitedCallback waiting_callbacks = 4;
+    repeated DurableTaskAwaitedCompletedEntry waiting_entries = 4;
 }
 
 message DurableTaskRequest {
@@ -95,7 +95,7 @@ message DurableTaskResponse {
     oneof message {
         DurableTaskResponseRegisterWorker register_worker = 1;
         DurableTaskEventAckResponse trigger_ack = 2;
-        DurableTaskCallbackCompletedResponse callback_completed = 3;
+        DurableTaskEventLogEntryCompletedResponse entry_completed = 3;
         DurableTaskErrorResponse error = 4;
     }
 }
