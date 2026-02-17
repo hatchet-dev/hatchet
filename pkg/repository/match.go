@@ -1116,7 +1116,6 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			signalTaskIds[i] = *match.SignalTaskId
 			signalTaskInsertedAts[i] = match.SignalTaskInsertedAt
 
-			fmt.Printf("durable callback ext id: %s, signal ext id: %s\n", match.TriggerExternalId, match.DurableCallbackTaskExternalId)
 			signalTaskExternalIds[i] = match.DurableCallbackTaskExternalId
 			signalKeys[i] = *match.SignalKey
 
