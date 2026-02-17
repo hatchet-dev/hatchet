@@ -93,10 +93,3 @@ FROM "Worker"
 WHERE "tenantId" = @tenantId::uuid
 AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
 AND "isActive" = true;
-
--- name: CountTenantWorkerSlots :one
-SELECT COALESCE(SUM(w."maxRuns"), 0)::int AS "count"
-FROM "Worker" w
-WHERE "tenantId" = @tenantId::uuid
-AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
-AND "isActive" = true;

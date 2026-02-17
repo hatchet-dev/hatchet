@@ -100,6 +100,12 @@ type CreateStepOpts struct {
 	// (optional) the step retry backoff max seconds (can't be greater than 86400)
 	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 
+	// (optional) whether this step is durable
+	IsDurable bool `json:"isDurable,omitempty"`
+
+	// (optional) slot requests for this step (slot_type -> units)
+	SlotRequests map[string]int32 `json:"slotRequests,omitempty" validate:"omitempty,dive,keys,required,endkeys,gt=0"`
+
 	// (optional) a list of additional trigger conditions
 	TriggerConditions []CreateStepMatchConditionOpt `validate:"omitempty,dive"`
 
@@ -727,6 +733,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Readableid:     stepOpts.ReadableId,
 			CustomUserData: customUserData,
 			Retries:        retries,
+			IsDurable:      sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
 		}
 
 		if stepOpts.ScheduleTimeout != nil {
@@ -751,6 +758,45 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			ctx,
 			tx,
 			createStepParams,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		slotRequests := stepOpts.SlotRequests
+		if len(slotRequests) == 0 {
+			if stepOpts.IsDurable {
+				slotRequests = map[string]int32{SlotTypeDurable: 1}
+			} else {
+				slotRequests = map[string]int32{SlotTypeDefault: 1}
+			}
+		}
+
+		slotTypes := make([]string, 0, len(slotRequests))
+		units := make([]int32, 0, len(slotRequests))
+		for slotType, unit := range slotRequests {
+			if unit <= 0 {
+				continue
+			}
+			slotTypes = append(slotTypes, slotType)
+			units = append(units, unit)
+		}
+
+		if len(slotTypes) == 0 {
+			slotTypes = append(slotTypes, SlotTypeDefault)
+			units = append(units, 1)
+		}
+
+		err = r.queries.CreateStepSlotRequests(
+			ctx,
+			tx,
+			sqlcv1.CreateStepSlotRequestsParams{
+				Tenantid:  tenantId,
+				Stepid:    stepId,
+				Slottypes: slotTypes,
+				Units:     units,
+			},
 		)
 
 		if err != nil {
@@ -1227,6 +1273,18 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 			// set the index for the or group id
 			condition.OrGroupIdIndex = orGroupIdsToIndex[condition.OrGroupId]
 			opts.Tasks[i].TriggerConditions[j] = condition
+		}
+	}
+
+	// Normalize fields for backwards-compatible checksums:
+	// default values that didn't exist before this feature should not change the hash.
+	for i := range opts.Tasks {
+		// SlotRequests={"default": 1}is the new default; strip it so it doesn't affect the hash.
+		sr := opts.Tasks[i].SlotRequests
+		if len(sr) == 1 {
+			if units, ok := sr[SlotTypeDefault]; ok && units == 1 {
+				opts.Tasks[i].SlotRequests = nil
+			}
 		}
 	}
 

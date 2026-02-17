@@ -13,10 +13,9 @@ import (
 )
 
 type ListActiveWorkersResult struct {
-	ID      uuid.UUID
-	MaxRuns int
-	Name    string
-	Labels  []*sqlcv1.ListManyWorkerLabelsRow
+	ID     uuid.UUID
+	Name   string
+	Labels []*sqlcv1.ListManyWorkerLabelsRow
 }
 
 type leaseRepository struct {
@@ -149,10 +148,9 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 
 	for _, worker := range activeWorkers {
 		res = append(res, &ListActiveWorkersResult{
-			ID:      worker.ID,
-			MaxRuns: int(worker.MaxRuns),
-			Labels:  workerIdsToLabels[worker.ID],
-			Name:    worker.Name,
+			ID:     worker.ID,
+			Labels: workerIdsToLabels[worker.ID],
+			Name:   worker.Name,
 		})
 	}
 
@@ -189,10 +187,9 @@ func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerI
 	}
 
 	return &ListActiveWorkersResult{
-		ID:      worker.Worker.ID,
-		MaxRuns: int(worker.Worker.MaxRuns),
-		Labels:  workerIdsToLabels[worker.Worker.ID],
-		Name:    worker.Worker.Name,
+		ID:     worker.Worker.ID,
+		Labels: workerIdsToLabels[worker.Worker.ID],
+		Name:   worker.Worker.Name,
 	}, nil
 }
 

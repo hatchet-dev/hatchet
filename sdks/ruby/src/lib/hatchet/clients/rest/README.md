@@ -407,6 +407,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1WebhookHMACAuth](docs/V1WebhookHMACAuth.md)
  - [HatchetSdkRest::V1WebhookHMACEncoding](docs/V1WebhookHMACEncoding.md)
  - [HatchetSdkRest::V1WebhookList](docs/V1WebhookList.md)
+ - [HatchetSdkRest::V1WebhookResponse](docs/V1WebhookResponse.md)
  - [HatchetSdkRest::V1WebhookSourceName](docs/V1WebhookSourceName.md)
  - [HatchetSdkRest::V1WorkflowRun](docs/V1WorkflowRun.md)
  - [HatchetSdkRest::V1WorkflowRunDetails](docs/V1WorkflowRunDetails.md)

@@ -25,6 +25,11 @@ import (
 
 type actionFunc func(args ...any) []any
 
+const (
+	slotTypeDefault = "default"
+	slotTypeDurable = "durable"
+)
+
 // Deprecated: Action is an internal interface used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Action interface {
@@ -117,7 +122,14 @@ type Worker struct {
 
 	middlewares *middlewares
 
-	slots *int
+	slots        *int
+	durableSlots *int
+	slotConfig   map[string]int32
+
+	// legacySlots, when non-nil, causes the registration to use the deprecated
+	// `slots` proto field instead of `slot_config`. For backward compatibility
+	// with engines that do not support multiple slot types.
+	legacySlots *int32
 
 	initActionNames []string
 
@@ -142,6 +154,9 @@ type WorkerOpts struct {
 	integrations []integrations.Integration
 	alerter      errors.Alerter
 	slots        *int
+	durableSlots *int
+	slotConfig   map[string]int32
+	legacySlots  *int32
 
 	actions []string
 
@@ -208,6 +223,31 @@ func WithMaxRuns(maxRuns int) WorkerOpt {
 func WithSlots(slots int) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.slots = &slots
+	}
+}
+
+// Deprecated: WithSlots is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+func WithDurableSlots(durableSlots int) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.durableSlots = &durableSlots
+	}
+}
+
+// Deprecated: WithSlots is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+func WithSlotConfig(slotConfig map[string]int32) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.slotConfig = slotConfig
+	}
+}
+
+// WithLegacySlots configures the worker to register using the deprecated `slots`
+// proto field instead of `slot_config`. This is for backward compatibility with
+// engines that do not support multiple slot types.
+func WithLegacySlots(slots int32) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.legacySlots = &slots
 	}
 }
 
@@ -278,6 +318,33 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		opts.l = &l
 	}
 
+	if opts.slotConfig != nil && (opts.slots != nil || opts.durableSlots != nil) {
+		return nil, fmt.Errorf("cannot set both slot config and slots/durable slots")
+	}
+
+	// Backwards compatibility:
+	// If callers used the older slots/durableSlots options, map them to a slot config so that
+	// worker registration continues to work with multiple slot types.
+	if opts.slotConfig == nil {
+		legacySlotConfig := map[string]int32{}
+
+		if opts.slots != nil {
+			legacySlotConfig[slotTypeDefault] = int32(*opts.slots) // nolint:gosec
+		}
+
+		if opts.durableSlots != nil {
+			legacySlotConfig[slotTypeDurable] = int32(*opts.durableSlots) // nolint:gosec
+		}
+
+		if len(legacySlotConfig) > 0 {
+			opts.slotConfig = legacySlotConfig
+		}
+	}
+
+	if opts.slotConfig == nil {
+		opts.slotConfig = map[string]int32{slotTypeDefault: 100}
+	}
+
 	w := &Worker{
 		client:               opts.client,
 		name:                 opts.name,
@@ -286,6 +353,9 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		alerter:              opts.alerter,
 		middlewares:          mws,
 		slots:                opts.slots,
+		durableSlots:         opts.durableSlots,
+		slotConfig:           opts.slotConfig,
+		legacySlots:          opts.legacySlots,
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
@@ -516,10 +586,11 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	_ = NewManagedCompute(&w.actions, w.client, 1)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
-		WorkerName: w.name,
-		Actions:    actionNames,
-		Slots:      w.slots,
-		Labels:     w.labels,
+		WorkerName:  w.name,
+		Actions:     actionNames,
+		Labels:      w.labels,
+		SlotConfig:  w.slotConfig,
+		LegacySlots: w.legacySlots,
 	})
 
 	w.id = id
