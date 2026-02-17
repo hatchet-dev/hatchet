@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import json
 from collections.abc import Callable, Mapping

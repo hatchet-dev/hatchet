@@ -22,9 +22,9 @@ from typing import (
     get_origin,
     get_type_hints,
 )
-from typing_extensions import TypeAliasType
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
+from typing_extensions import TypeAliasType
 
 from hatchet_sdk.conditions import (
     Action,
