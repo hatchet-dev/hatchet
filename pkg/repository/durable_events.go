@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -259,14 +258,22 @@ func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts
 	}
 
 	if opts.WaitForConditions != nil {
-		conditionBytes, err := json.Marshal(opts.WaitForConditions)
+		for _, cond := range opts.WaitForConditions {
+			toHash := cond.Expression + cond.ReadableDataKey + string(cond.Kind)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal wait for conditions for idempotency key generation: %w", err)
+			if cond.SleepFor != nil {
+				toHash += *cond.SleepFor
+			}
+
+			if cond.UserEventKey != nil {
+				toHash += *cond.UserEventKey
+			}
+
+			dataToHash = append(dataToHash, []byte(toHash)...)
 		}
-
-		dataToHash = append(dataToHash, conditionBytes...)
 	}
+
+	fmt.Println("hashing data for idempotency key generation:", string(dataToHash))
 
 	h := sha1.New()
 	h.Write(dataToHash)
