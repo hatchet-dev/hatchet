@@ -135,11 +135,6 @@ jobs:
           bundler-cache: true
           working-directory: ./sdks/ruby/examples
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        with:
-          detached: true
-
       - name: Start example worker
         working-directory: ./sdks/ruby/examples
         run: bundle exec ruby worker.rb > worker.log 2>&1 &
