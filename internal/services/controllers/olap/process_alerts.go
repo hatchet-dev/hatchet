@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -26,7 +27,7 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 		o.processTenantAlertOperations.SetTenants(tenants)
 
 		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			tenantId := tenants[i].ID.String()
 
 			o.processTenantAlertOperations.RunOrContinue(tenantId)
 		}
@@ -42,7 +43,7 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, tenantId)
+	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return false, fmt.Errorf("could not check if tenant is active: %w", err)
@@ -56,7 +57,7 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 		lastAlerted = time.Now().Add(-24 * time.Hour).UTC()
 	}
 
-	failedRuns, _, err := o.repo.OLAP().ListWorkflowRuns(ctx, tenantId, v1.ListWorkflowRunOpts{
+	failedRuns, _, err := o.repo.OLAP().ListWorkflowRuns(ctx, uuid.MustParse(tenantId), v1.ListWorkflowRunOpts{
 		Statuses: []sqlcv1.V1ReadableStatusOlap{
 			sqlcv1.V1ReadableStatusOlapFAILED,
 		},
@@ -69,7 +70,7 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 		return false, fmt.Errorf("could not list workflow runs: %w", err)
 	}
 
-	err = o.ta.SendWorkflowRunAlertV1(tenantId, failedRuns)
+	err = o.ta.SendWorkflowRunAlertV1(uuid.MustParse(tenantId), failedRuns)
 
 	if err != nil {
 		return false, fmt.Errorf("could not send alert: %w", err)

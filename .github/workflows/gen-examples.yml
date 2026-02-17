@@ -6,17 +6,32 @@ on:
 
 jobs:
   generate:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
     - name: Checkout repository
       uses: actions/checkout@v6
 
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: "1.25"
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10.16.1
+        run_install: false
+
     - uses: actions/setup-python@v6
       with:
-        python-version: '3.13'
+        python-version: '3.14'
     - name: Generate snippets
-      working-directory: frontend/snippets
-      run: python3 generate.py
+      run: task install-dependencies pre-commit-install generate-docs -v
 
     - name: Check for changes in examples directory
       id: verify-changed-files

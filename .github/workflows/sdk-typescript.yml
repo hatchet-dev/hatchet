@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -53,7 +53,7 @@ jobs:
         run: npx tsc
 
   test-unit:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -83,7 +83,7 @@ jobs:
         run: pnpm test:unit
 
   test-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -140,7 +140,6 @@ jobs:
         run: |
           export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
           go run ./cmd/hatchet-migrate
-          task generate-go
 
       - name: Setup
         working-directory: .
@@ -169,7 +168,7 @@ jobs:
           pnpm test:e2e
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     needs: [lint, test-unit, test-e2e]
     if: github.ref == 'refs/heads/main'
     steps:

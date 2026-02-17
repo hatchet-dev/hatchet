@@ -1,0 +1,34 @@
+module Hatchet
+  module Features
+    class CELSuccess
+      attr_accessor status: String
+      attr_accessor output: untyped
+
+      def initialize: (output: untyped) -> void
+    end
+
+    class CELFailure
+      attr_accessor status: String
+      attr_accessor error: String
+
+      def initialize: (error: String) -> void
+    end
+
+    class CELEvaluationResult
+      attr_accessor result: CELSuccess | CELFailure
+
+      def initialize: (result: CELSuccess | CELFailure) -> void
+    end
+
+    class CEL
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+
+      def debug: (
+        expression: String,
+        input: Hash[String, untyped],
+        ?additional_metadata: Hash[String, untyped]?,
+        ?filter_payload: Hash[String, untyped]?
+      ) -> CELEvaluationResult
+    end
+  end
+end

@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -8,6 +10,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: FiltersClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type FiltersClient interface {
 	List(ctx context.Context, opts *rest.V1FilterListParams) (*rest.V1FilterList, error)
 
@@ -25,6 +29,8 @@ type filtersClientImpl struct {
 	tenantID uuid.UUID
 }
 
+// Deprecated: NewFiltersClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewFiltersClient(
 	api *rest.ClientWithResponses,
 	tenantID *string,
@@ -35,6 +41,8 @@ func NewFiltersClient(
 	}
 }
 
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) List(ctx context.Context, opts *rest.V1FilterListParams) (*rest.V1FilterList, error) {
 	resp, err := c.api.V1FilterListWithResponse(
 		ctx,
@@ -49,6 +57,8 @@ func (c *filtersClientImpl) List(ctx context.Context, opts *rest.V1FilterListPar
 	return resp.JSON200, nil
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) Get(ctx context.Context, filterID string) (*rest.V1Filter, error) {
 	resp, err := c.api.V1FilterGetWithResponse(
 		ctx,
@@ -63,6 +73,8 @@ func (c *filtersClientImpl) Get(ctx context.Context, filterID string) (*rest.V1F
 	return resp.JSON200, nil
 }
 
+// Deprecated: Create is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) Create(ctx context.Context, opts rest.V1CreateFilterRequest) (*rest.V1Filter, error) {
 	resp, err := c.api.V1FilterCreateWithResponse(
 		ctx,
@@ -77,6 +89,8 @@ func (c *filtersClientImpl) Create(ctx context.Context, opts rest.V1CreateFilter
 	return resp.JSON200, nil
 }
 
+// Deprecated: Delete is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) Delete(ctx context.Context, filterID string) (*rest.V1Filter, error) {
 	resp, err := c.api.V1FilterDeleteWithResponse(
 		ctx,
@@ -91,6 +105,8 @@ func (c *filtersClientImpl) Delete(ctx context.Context, filterID string) (*rest.
 	return resp.JSON200, nil
 }
 
+// Deprecated: Update is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) Update(ctx context.Context, filterID string, opts rest.V1FilterUpdateJSONRequestBody) (*rest.V1Filter, error) {
 	resp, err := c.api.V1FilterUpdateWithResponse(
 		ctx,

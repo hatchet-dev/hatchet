@@ -1,0 +1,22 @@
+module Hatchet
+  module RateLimitDuration
+    SECOND: Symbol
+    MINUTE: Symbol
+    HOUR: Symbol
+    DAY: Symbol
+    WEEK: Symbol
+    MONTH: Symbol
+    YEAR: Symbol
+  end
+
+  class RateLimit
+    attr_reader static_key: String?
+    attr_reader dynamic_key: String?
+    attr_reader units: Integer
+    attr_reader limit: Integer?
+    attr_reader duration: Symbol?
+
+    def initialize: (?static_key: String?, ?dynamic_key: String?, ?units: Integer, ?limit: Integer?, ?duration: Symbol?) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+  end
+end

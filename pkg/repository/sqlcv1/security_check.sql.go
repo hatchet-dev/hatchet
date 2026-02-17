@@ -8,16 +8,16 @@ package sqlcv1
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const getSecurityCheckIdent = `-- name: GetSecurityCheckIdent :one
 SELECT id FROM "SecurityCheckIdent" LIMIT 1
 `
 
-func (q *Queries) GetSecurityCheckIdent(ctx context.Context, db DBTX) (pgtype.UUID, error) {
+func (q *Queries) GetSecurityCheckIdent(ctx context.Context, db DBTX) (uuid.UUID, error) {
 	row := db.QueryRow(ctx, getSecurityCheckIdent)
-	var id pgtype.UUID
+	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }

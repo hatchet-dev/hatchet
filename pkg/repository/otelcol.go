@@ -3,39 +3,36 @@ package repository
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 type SpanData struct {
-	TraceID           []byte // 16 bytes
-	SpanID            []byte // 8 bytes
-	ParentSpanID      []byte // optional
-	Name              string
-	Kind              int32
-	StartTimeUnixNano uint64
-	EndTimeUnixNano   uint64
-	StatusCode        int32
-	StatusMessage     string
-
-	Attributes         []byte
-	Events             []byte
-	Links              []byte
-	ResourceAttributes []byte
-
-	TaskRunExternalID *pgtype.UUID // from hatchet.step_run_id attribute
-	WorkflowRunID     *pgtype.UUID // from hatchet.workflow_run_id attribute
-	TenantID          pgtype.UUID  // from auth context
-
+	WorkflowRunID        *uuid.UUID
+	TaskRunExternalID    *uuid.UUID
+	StatusMessage        string
 	InstrumentationScope string
+	Name                 string
+	ResourceAttributes   []byte
+	Attributes           []byte
+	Events               []byte
+	Links                []byte
+	TraceID              []byte
+	ParentSpanID         []byte
+	SpanID               []byte
+	EndTimeUnixNano      uint64
+	StartTimeUnixNano    uint64
+	StatusCode           int32
+	Kind                 int32
+	TenantID             uuid.UUID
 }
 
 type CreateSpansOpts struct {
-	TenantID string `validate:"required,uuid"`
+	TenantID uuid.UUID `validate:"required"`
 	Spans    []*SpanData
 }
 
 type OTelCollectorRepository interface {
-	CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error
+	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -48,7 +45,7 @@ func newOTelCollectorRepository(s *sharedRepository) OTelCollectorRepository {
 	}
 }
 
-func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId string, opts *CreateSpansOpts) error {
+func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
 	// intentional no-op, intended to be overridden
 	return nil
 }

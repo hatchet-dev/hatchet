@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -186,10 +187,10 @@ type GetDesiredLabelsRow struct {
 	Required   bool                  `json:"required"`
 	Weight     int32                 `json:"weight"`
 	Comparator WorkerLabelComparator `json:"comparator"`
-	StepId     pgtype.UUID           `json:"stepId"`
+	StepId     uuid.UUID             `json:"stepId"`
 }
 
-func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []pgtype.UUID) ([]*GetDesiredLabelsRow, error) {
+func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*GetDesiredLabelsRow, error) {
 	rows, err := db.Query(ctx, getDesiredLabels, stepids)
 	if err != nil {
 		return nil, err
@@ -284,8 +285,8 @@ FROM (
 `
 
 type GetMinUnprocessedQueueItemIdParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Queue    string      `json:"queue"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Queue    string    `json:"queue"`
 }
 
 func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg GetMinUnprocessedQueueItemIdParams) (int64, error) {
@@ -312,7 +313,7 @@ type GetQueuedCountsRow struct {
 	Count int64  `json:"count"`
 }
 
-func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetQueuedCountsRow, error) {
+func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetQueuedCountsRow, error) {
 	rows, err := db.Query(ctx, getQueuedCounts, tenantid)
 	if err != nil {
 		return nil, err
@@ -322,6 +323,49 @@ func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.
 	for rows.Next() {
 		var i GetQueuedCountsRow
 		if err := rows.Scan(&i.Queue, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStepSlotRequests = `-- name: GetStepSlotRequests :many
+SELECT
+    step_id,
+    slot_type,
+    units
+FROM
+    v1_step_slot_request
+WHERE
+    step_id = ANY($1::uuid[])
+    AND tenant_id = $2::uuid
+`
+
+type GetStepSlotRequestsParams struct {
+	Stepids  []uuid.UUID `json:"stepids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+}
+
+type GetStepSlotRequestsRow struct {
+	StepID   uuid.UUID `json:"step_id"`
+	SlotType string    `json:"slot_type"`
+	Units    int32     `json:"units"`
+}
+
+func (q *Queries) GetStepSlotRequests(ctx context.Context, db DBTX, arg GetStepSlotRequestsParams) ([]*GetStepSlotRequestsRow, error) {
+	rows, err := db.Query(ctx, getStepSlotRequests, arg.Stepids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepSlotRequestsRow
+	for rows.Next() {
+		var i GetStepSlotRequestsRow
+		if err := rows.Scan(&i.StepID, &i.SlotType, &i.Units); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -352,12 +396,12 @@ WHERE
 `
 
 type ListActionsForWorkersParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
 }
 
 type ListActionsForWorkersRow struct {
-	WorkerId pgtype.UUID `json:"workerId"`
+	WorkerId uuid.UUID   `json:"workerId"`
 	ActionId pgtype.Text `json:"actionId"`
 }
 
@@ -371,68 +415,6 @@ func (q *Queries) ListActionsForWorkers(ctx context.Context, db DBTX, arg ListAc
 	for rows.Next() {
 		var i ListActionsForWorkersRow
 		if err := rows.Scan(&i.WorkerId, &i.ActionId); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAvailableSlotsForWorkers = `-- name: ListAvailableSlotsForWorkers :many
-WITH worker_max_runs AS (
-    SELECT
-        "id",
-        "maxRuns"
-    FROM
-        "Worker"
-    WHERE
-        "tenantId" = $1::uuid
-        AND "id" = ANY($2::uuid[])
-), worker_filled_slots AS (
-    SELECT
-        worker_id,
-        COUNT(task_id) AS "filledSlots"
-    FROM
-        v1_task_runtime
-    WHERE
-        tenant_id = $1::uuid
-        AND worker_id = ANY($2::uuid[])
-    GROUP BY
-        worker_id
-)
-SELECT
-    wmr."id",
-    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
-FROM
-    worker_max_runs wmr
-LEFT JOIN
-    worker_filled_slots wfs ON wmr."id" = wfs.worker_id
-`
-
-type ListAvailableSlotsForWorkersParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Workerids []pgtype.UUID `json:"workerids"`
-}
-
-type ListAvailableSlotsForWorkersRow struct {
-	ID             pgtype.UUID `json:"id"`
-	AvailableSlots int32       `json:"availableSlots"`
-}
-
-// subtract the filled slots from the max runs to get the available slots
-func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg ListAvailableSlotsForWorkersParams) ([]*ListAvailableSlotsForWorkersRow, error) {
-	rows, err := db.Query(ctx, listAvailableSlotsForWorkers, arg.Tenantid, arg.Workerids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListAvailableSlotsForWorkersRow
-	for rows.Next() {
-		var i ListAvailableSlotsForWorkersRow
-		if err := rows.Scan(&i.ID, &i.AvailableSlots); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -465,7 +447,7 @@ LIMIT
 `
 
 type ListQueueItemsForQueueParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid uuid.UUID   `json:"tenantid"`
 	Queue    string      `json:"queue"`
 	GtId     pgtype.Int8 `json:"gtId"`
 	Limit    pgtype.Int4 `json:"limit"`
@@ -513,6 +495,71 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 	return items, nil
 }
 
+const listQueueItemsForTasks = `-- name: ListQueueItemsForTasks :many
+WITH input AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS retry_count
+)
+SELECT
+    qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count
+FROM
+    v1_queue_item qi
+WHERE
+    (qi.task_id, qi.task_inserted_at, qi.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    AND qi.tenant_id = $1::uuid
+`
+
+type ListQueueItemsForTasksParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+}
+
+func (q *Queries) ListQueueItemsForTasks(ctx context.Context, db DBTX, arg ListQueueItemsForTasksParams) ([]*V1QueueItem, error) {
+	rows, err := db.Query(ctx, listQueueItemsForTasks,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1QueueItem
+	for rows.Next() {
+		var i V1QueueItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Queue,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.ExternalID,
+			&i.ActionID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.WorkflowRunID,
+			&i.ScheduleTimeoutAt,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueues = `-- name: ListQueues :many
 SELECT
     tenant_id, name, last_active
@@ -523,7 +570,7 @@ WHERE
     AND last_active > NOW() - INTERVAL '1 day'
 `
 
-func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*V1Queue, error) {
+func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*V1Queue, error) {
 	rows, err := db.Query(ctx, listQueues, tenantid)
 	if err != nil {
 		return nil, err
@@ -616,7 +663,7 @@ type MoveRateLimitedQueueItemsParams struct {
 }
 
 type MoveRateLimitedQueueItemsRow struct {
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
@@ -761,13 +808,13 @@ RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
 `
 
 type RequeueRateLimitedQueueItemsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Queue    string      `json:"queue"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Queue    string    `json:"queue"`
 }
 
 type RequeueRateLimitedQueueItemsRow struct {
 	ID             int64              `json:"id"`
-	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
@@ -820,6 +867,7 @@ WITH input AS (
         t.retry_count,
         i.worker_id,
         t.tenant_id,
+        t.step_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
         v1_task t
@@ -849,6 +897,42 @@ WITH input AS (
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
     RETURNING task_id, worker_id
+), slot_requests AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.worker_id,
+        t.tenant_id,
+        COALESCE(req.slot_type, 'default'::text) AS slot_type,
+        COALESCE(req.units, 1) AS units
+    FROM
+        updated_tasks t
+    LEFT JOIN
+        v1_step_slot_request req
+        ON req.step_id = t.step_id AND req.tenant_id = t.tenant_id
+), assigned_slots AS (
+    INSERT INTO v1_task_runtime_slot (
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        slot_type,
+        units
+    )
+    SELECT
+        tenant_id,
+        id,
+        inserted_at,
+        retry_count,
+        worker_id,
+        slot_type,
+        units
+    FROM
+        slot_requests
+    ON CONFLICT (task_id, task_inserted_at, retry_count, slot_type) DO NOTHING
+    RETURNING task_id
 )
 SELECT
     asr.task_id,
@@ -860,14 +944,14 @@ FROM
 type UpdateTasksToAssignedParams struct {
 	Taskids           []int64              `json:"taskids"`
 	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
-	Workerids         []pgtype.UUID        `json:"workerids"`
+	Workerids         []uuid.UUID          `json:"workerids"`
 	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
-	Tenantid          pgtype.UUID          `json:"tenantid"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
 }
 
 type UpdateTasksToAssignedRow struct {
-	TaskID   int64       `json:"task_id"`
-	WorkerID pgtype.UUID `json:"worker_id"`
+	TaskID   int64      `json:"task_id"`
+	WorkerID *uuid.UUID `json:"worker_id"`
 }
 
 func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg UpdateTasksToAssignedParams) ([]*UpdateTasksToAssignedRow, error) {
@@ -931,8 +1015,8 @@ ON CONFLICT (tenant_id, name) DO NOTHING
 `
 
 type UpsertQueuesParams struct {
-	TenantID pgtype.UUID `json:"tenant_id"`
-	Names    []string    `json:"names"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Names    []string  `json:"names"`
 }
 
 // Insert new queues
