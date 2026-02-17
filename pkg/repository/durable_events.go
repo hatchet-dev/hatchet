@@ -244,31 +244,23 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(ctx context.Context, opts IngestDurableTaskEventOpts) ([]byte, error) {
-	kindBytes := []byte(opts.Kind)
-
 	// todo: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
-	var triggerOptBytes []byte
-	var conditionBytes []byte
-	var err error
+	dataToHash := []byte(opts.Kind)
 
 	if opts.TriggerOpts != nil {
-		triggerOptBytes, err = json.Marshal(opts.TriggerOpts)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal trigger opts for idempotency key generation: %w", err)
-		}
+		dataToHash = append(dataToHash, opts.TriggerOpts.Data...)
+		dataToHash = append(dataToHash, []byte(opts.TriggerOpts.WorkflowName)...)
 	}
 
 	if opts.WaitForConditions != nil {
-		conditionBytes, err = json.Marshal(opts.WaitForConditions)
+		conditionBytes, err := json.Marshal(opts.WaitForConditions)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal wait for conditions for idempotency key generation: %w", err)
 		}
-	}
 
-	dataToHash := append(kindBytes, triggerOptBytes...)
-	dataToHash = append(dataToHash, conditionBytes...)
+		dataToHash = append(dataToHash, conditionBytes...)
+	}
 
 	h := sha1.New()
 	h.Write(dataToHash)
