@@ -30,7 +30,6 @@ class WorkerActionRunLoopManager:
         debug: bool,
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
-        is_durable: bool = False,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
@@ -47,7 +46,6 @@ class WorkerActionRunLoopManager:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
-        self.is_durable = is_durable
         self.killing = False
         self.runner: Runner | None = None
 
@@ -98,7 +96,6 @@ class WorkerActionRunLoopManager:
             self.labels,
             self.lifespan_context,
             self.log_sender,
-            is_durable=self.is_durable,
         )
 
         logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")
