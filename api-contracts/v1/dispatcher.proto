@@ -84,11 +84,17 @@ message DurableTaskRequest {
     }
 }
 
+enum DurableTaskErrorType {
+    DURABLE_TASK_ERROR_TYPE_UNSPECIFIED = 0;
+    DURABLE_TASK_ERROR_TYPE_NONDETERMINISM = 1;
+}
+
 message DurableTaskErrorResponse {
     string durable_task_external_id = 1;
     int64 invocation_count = 2;
     int64 node_id = 3;
-    string error_message = 4;
+    DurableTaskErrorType error_type = 4;
+    string error_message = 5;
 }
 
 message DurableTaskResponse {

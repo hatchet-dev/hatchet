@@ -550,6 +550,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 					DurableTaskExternalId: taskExternalId.String(),
 					NodeId:                nde.NodeId,
 					InvocationCount:       req.InvocationCount,
+					ErrorType:             contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM,
 					ErrorMessage:          nde.Error(),
 				},
 			},
