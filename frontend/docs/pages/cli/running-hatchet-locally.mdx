@@ -1,25 +1,101 @@
 # Running Hatchet Locally
 
-The Hatchet CLI provides the `hatchet server` commands to run a local instance of Hatchet for development and testing purposes. This local instance relies on Docker to run the necessary services.
+The Hatchet CLI provides the `hatchet server` commands to run a local instance of Hatchet for development and testing. There are two modes:
 
-## Prerequisites
+- **Docker mode** (default) — runs Hatchet in Docker containers
+- **Local mode** (`--local`) — downloads and runs Hatchet binaries directly, with an embedded PostgreSQL database. No Docker required.
 
-Before running Hatchet locally, you must have Docker installed on your machine. You can download Docker from [here](https://www.docker.com/get-started).
+## Docker Mode
 
-## Starting Hatchet Locally
+### Prerequisites
 
-To start a local instance of Hatchet, run the following command in your terminal:
+Docker must be installed. You can download it from [here](https://www.docker.com/get-started).
+
+### Starting
 
 ```sh
 hatchet server start
 ```
 
-## Stopping Hatchet Locally
-
-To stop the local Hatchet instance, run the following command:
+### Stopping
 
 ```sh
 hatchet server stop
+```
+
+## Local Mode (no Docker)
+
+Local mode runs Hatchet directly on your machine without Docker. It automatically downloads the required binaries (`hatchet-api`, `hatchet-engine`, `hatchet-migrate`, `hatchet-admin`) from GitHub releases and starts an embedded PostgreSQL instance.
+
+### Starting
+
+```sh
+hatchet server start --local
+```
+
+This will:
+
+1. Start an embedded PostgreSQL database (port 5433 by default)
+2. Download the required Hatchet binaries (cached for future runs)
+3. Run database migrations
+4. Generate encryption keys and seed the database
+5. Start the API and engine servers
+6. Create a local CLI profile for connecting
+
+The server runs in the foreground — press `Ctrl+C` to stop.
+
+### Custom Ports
+
+```sh
+hatchet server start --local --api-port 9080 --grpc-port 9077 --postgres-port 5434
+```
+
+### External PostgreSQL
+
+If you already have a PostgreSQL instance running, you can use it instead of the embedded one:
+
+```sh
+hatchet server start --local --database-url "postgresql://user:pass@localhost:5432/hatchet"
+```
+
+### Stopping
+
+```sh
+hatchet server stop
+```
+
+The stop command auto-detects whether the server was started in Docker or local mode.
+
+### Cleanup
+
+If the server was interrupted and left orphan processes behind (e.g. port already in use errors), run:
+
+```sh
+hatchet server cleanup
+```
+
+## Building Binaries from Source
+
+By default, `--local` mode downloads pre-built binaries from GitHub releases. If you're developing Hatchet itself or need to test unreleased changes, you can build the binaries from the local repository instead.
+
+From within the hatchet repo:
+
+```sh
+hatchet server build
+```
+
+This builds all four binaries (`hatchet-api`, `hatchet-engine`, `hatchet-migrate`, `hatchet-admin`) from source and places them into the same cache that `--local` mode checks. After building, start the server normally:
+
+```sh
+hatchet server start --local
+```
+
+It will find the locally built binaries and use them instead of downloading.
+
+You can also specify the repo root explicitly:
+
+```sh
+hatchet server build --repo-root /path/to/hatchet
 ```
 
 ## Reference
@@ -27,54 +103,63 @@ hatchet server stop
 #### `hatchet server start`
 
 ```txt
-Start a local Hatchet server environment using Docker containers. This command will start both a PostgreSQL database and a Hatchet server instance, automatically creating a local profile for easy access.
-
 Usage:
   hatchet server start [flags]
 
 Examples:
-  # Start server with default settings (port 8888)
+  # Start server with Docker (default)
   hatchet server start
 
-  # Start server with custom dashboard port
-  hatchet server start --dashboard-port 9000
+  # Start server without Docker (uses embedded PostgreSQL)
+  hatchet server start --local
 
-  # Start server with custom ports and project name
-  hatchet server start --dashboard-port 9000 --grpc-port 8077 --project-name my-hatchet
+  # Start local server with external PostgreSQL
+  hatchet server start --local --database-url "postgresql://user:pass@localhost:5432/hatchet"
 
-  # Start server with custom profile name
-  hatchet server start --profile my-local
+  # Start local server with custom ports
+  hatchet server start --local --api-port 9080 --grpc-port 9077
 
 Flags:
-  -d, --dashboard-port int    Port for the Hatchet dashboard (default: auto-detect starting at 8888)
-  -g, --grpc-port int         Port for the Hatchet gRPC server (default: auto-detect starting at 7077)
-  -h, --help                  help for start
-  -n, --profile string        Name for the local profile (default: local) (default "local")
-  -p, --project-name string   Docker project name for containers (default: hatchet-cli)
-
-Global Flags:
-  -v, --version   The version of the hatchet cli.
+      --api-port int            Port for the API server in --local mode (default: 8080)
+      --binary-version string   Version of hatchet-api/engine binaries to download (default: CLI version)
+  -d, --dashboard-port int      Port for the Hatchet dashboard in Docker mode (default: auto-detect starting at 8888)
+      --database-url string     PostgreSQL connection string (disables embedded PostgreSQL)
+  -g, --grpc-port int           Port for the Hatchet gRPC server (default: auto-detect starting at 7077)
+      --healthcheck-port int    Port for the healthcheck server in --local mode (default: 8733)
+  -l, --local                   Run without Docker (uses embedded PostgreSQL by default)
+      --no-embedded-postgres    Disable embedded PostgreSQL (requires external PostgreSQL)
+      --postgres-port int       Port for embedded PostgreSQL (default: 5433)
+  -n, --profile string          Name for the local profile (default: "local")
+  -p, --project-name string     Docker project name for containers (default: hatchet-cli)
 ```
 
 #### `hatchet server stop`
 
 ```txt
-Stop a local Hatchet server environment that was started using Docker containers with the 'hatchet server start' command.
-
 Usage:
   hatchet server stop [flags]
 
-Examples:
-  # Stop the local Hatchet server
-  hatchet server stop
+Flags:
+  -l, --local                   Explicitly stop a local (non-Docker) server
+  -p, --project-name string     Docker project name for containers (default: hatchet-cli)
+```
 
-  # Stop the local Hatchet server with a custom project name
-  hatchet server stop --project-name my-hatchet
+#### `hatchet server build`
+
+```txt
+Usage:
+  hatchet server build [flags]
 
 Flags:
-  -h, --help                  help for stop
-  -p, --project-name string   Docker project name for containers (default: hatchet-cli)
+      --repo-root string   Path to hatchet repo root (auto-detected if inside repo)
+```
 
-Global Flags:
-  -v, --version   The version of the hatchet cli.
+#### `hatchet server cleanup`
+
+```txt
+Usage:
+  hatchet server cleanup [flags]
+
+Flags:
+      --postgres-port int   Port for embedded PostgreSQL to clean up (default: 5433)
 ```
