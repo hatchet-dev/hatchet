@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
@@ -737,13 +738,26 @@ func (d *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sh
 // DurableTaskStream wraps a V1Dispatcher_DurableTaskClient bidirectional stream.
 // It provides thread-safe send/recv and callback routing by node ID.
 type DurableTaskStream struct {
-	stream        sharedcontracts.V1Dispatcher_DurableTaskClient
-	callbackChs   map[int64]chan *sharedcontracts.DurableTaskCallbackCompletedResponse
-	ackCh         chan *sharedcontracts.DurableTaskEventAckResponse
-	registerCh    chan *sharedcontracts.DurableTaskResponseRegisterWorker
-	l             *zerolog.Logger
-	sendMu        sync.Mutex
+	stream sharedcontracts.V1Dispatcher_DurableTaskClient
+
+	sendMu sync.Mutex
+
+	// closed is set to 1 when the recvLoop exits (stream is dead).
+	closed atomic.Int32
+
+	// callbackChs stores channels waiting for CallbackCompleted responses keyed by nodeId.
+	// callbackBuf stores callbacks that arrived before a listener was registered.
 	callbackChsMu sync.Mutex
+	callbackChs   map[int64]chan *sharedcontracts.DurableTaskCallbackCompletedResponse
+	callbackBuf   map[int64]*sharedcontracts.DurableTaskCallbackCompletedResponse
+
+	// ackCh receives TriggerAck responses from the recv loop.
+	ackCh chan *sharedcontracts.DurableTaskEventAckResponse
+
+	// registerCh receives RegisterWorker responses from the recv loop.
+	registerCh chan *sharedcontracts.DurableTaskResponseRegisterWorker
+
+	l *zerolog.Logger
 }
 
 // Send sends a DurableTaskRequest on the stream (thread-safe).
@@ -774,9 +788,16 @@ func (s *DurableTaskStream) SendEventAndWaitForAck(ctx context.Context, event *s
 
 // WaitForCallback waits for a CallbackCompleted response for the given nodeId.
 func (s *DurableTaskStream) WaitForCallback(ctx context.Context, nodeId int64) (*sharedcontracts.DurableTaskCallbackCompletedResponse, error) {
-	ch := make(chan *sharedcontracts.DurableTaskCallbackCompletedResponse, 1)
-
 	s.callbackChsMu.Lock()
+
+	// Check if the callback already arrived before we started waiting
+	if buffered, ok := s.callbackBuf[nodeId]; ok {
+		delete(s.callbackBuf, nodeId)
+		s.callbackChsMu.Unlock()
+		return buffered, nil
+	}
+
+	ch := make(chan *sharedcontracts.DurableTaskCallbackCompletedResponse, 1)
 	s.callbackChs[nodeId] = ch
 	s.callbackChsMu.Unlock()
 
@@ -800,6 +821,7 @@ func (s *DurableTaskStream) recvLoop() {
 		resp, err := s.stream.Recv()
 		if err != nil {
 			s.l.Debug().Err(err).Msg("durable task stream recv ended")
+			s.closed.Store(1)
 			return
 		}
 
@@ -818,12 +840,16 @@ func (s *DurableTaskStream) recvLoop() {
 		case *sharedcontracts.DurableTaskResponse_CallbackCompleted:
 			s.callbackChsMu.Lock()
 			ch, ok := s.callbackChs[msg.CallbackCompleted.NodeId]
-			s.callbackChsMu.Unlock()
 			if ok {
+				s.callbackChsMu.Unlock()
 				select {
 				case ch <- msg.CallbackCompleted:
 				default:
 				}
+			} else {
+				// Buffer the callback for a future WaitForCallback call
+				s.callbackBuf[msg.CallbackCompleted.NodeId] = msg.CallbackCompleted
+				s.callbackChsMu.Unlock()
 			}
 		}
 	}
@@ -833,11 +859,17 @@ func (d *dispatcherClientImpl) GetDurableTaskStream(ctx context.Context, workerI
 	d.durableStreamMu.Lock()
 	defer d.durableStreamMu.Unlock()
 
-	if d.durableStream != nil {
+	if d.durableStream != nil && d.durableStream.closed.Load() == 0 {
 		return d.durableStream, nil
 	}
 
-	stream, err := d.clientv1.DurableTask(d.ctx.newContext(ctx), grpc_retry.Disable())
+	if d.durableStream != nil {
+		d.durableStream = nil
+	}
+
+	// Use a background context for the stream so it outlives individual step runs.
+	// The auth metadata is still attached via d.ctx.newContext.
+	stream, err := d.clientv1.DurableTask(d.ctx.newContext(context.Background()), grpc_retry.Disable())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create durable task stream: %w", err)
 	}
@@ -845,6 +877,7 @@ func (d *dispatcherClientImpl) GetDurableTaskStream(ctx context.Context, workerI
 	s := &DurableTaskStream{
 		stream:      stream,
 		callbackChs: make(map[int64]chan *sharedcontracts.DurableTaskCallbackCompletedResponse),
+		callbackBuf: make(map[int64]*sharedcontracts.DurableTaskCallbackCompletedResponse),
 		ackCh:       make(chan *sharedcontracts.DurableTaskEventAckResponse, 1),
 		registerCh:  make(chan *sharedcontracts.DurableTaskResponseRegisterWorker, 1),
 		l:           d.l,
@@ -868,7 +901,6 @@ func (d *dispatcherClientImpl) GetDurableTaskStream(ctx context.Context, workerI
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-s.registerCh:
-		// Registration acknowledged
 	}
 
 	d.durableStream = s

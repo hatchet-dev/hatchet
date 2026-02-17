@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -90,7 +91,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		return nil, err
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExisted = false
-		entry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
+		entry, err = r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
 			Tenantid:              params.Tenantid,
 			Externalid:            params.Externalid,
 			Durabletaskid:         params.Durabletaskid,
@@ -143,7 +144,7 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 		return nil, err
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExists = false
-		callback, err := r.queries.CreateDurableEventLogCallback(ctx, tx, sqlcv1.CreateDurableEventLogCallbackParams{
+		callback, err = r.queries.CreateDurableEventLogCallback(ctx, tx, sqlcv1.CreateDurableEventLogCallbackParams{
 			Tenantid:              params.Tenantid,
 			Durabletaskid:         params.Durabletaskid,
 			Durabletaskinsertedat: params.Durabletaskinsertedat,
@@ -186,6 +187,8 @@ func (r *durableEventsRepository) getOrCreateEventLogCallback(
 		if err != nil {
 			result = nil
 		}
+	} else {
+		result = payload
 	}
 
 	return &EventLogCallbackWithPayload{Callback: callback, Result: result, AlreadyExisted: alreadyExists}, nil
@@ -241,6 +244,14 @@ func (r *durableEventsRepository) GetSatisfiedCallbacks(ctx context.Context, ten
 	}
 
 	return result, nil
+}
+
+func computeDataHash(payload []byte) []byte {
+	if len(payload) == 0 {
+		return nil
+	}
+	h := sha256.Sum256(payload)
+	return h[:]
 }
 
 func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
@@ -326,8 +337,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Nodeid:                nodeId,
 		ParentNodeId:          parentNodeId,
 		Branchid:              branchId,
-		Datahash:              nil, // todo: implement this for nondeterminism check
-		Datahashalg:           "",
+		Datahash:              computeDataHash(opts.Payload),
+		Datahashalg:           "sha256",
 	}, opts.Payload)
 
 	if err != nil {

@@ -925,7 +925,7 @@ func (d *durableHatchetContext) Memo(fn func() (interface{}, error), deps []inte
 
 	ack, err := stream.SendEventAndWaitForAck(d, &v1.DurableTaskEventRequest{
 		InvocationCount:       invocationCount,
-		DurableTaskExternalId: d.WorkflowRunId(),
+		DurableTaskExternalId: d.StepRunId(),
 		Kind:                  v1.DurableTaskEventKind_DURABLE_TASK_TRIGGER_KIND_MEMO,
 		Payload:               data,
 	})
