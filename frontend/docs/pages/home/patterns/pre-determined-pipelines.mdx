@@ -47,8 +47,8 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
   rows={[
     { label: "Structure", workflow: "Tasks and dependencies declared upfront as a DAG", durable: "A single durable function with sequential checkpoint calls" },
     { label: "Parallelism", workflow: "Independent tasks run in parallel automatically", durable: "Parallelism requires spawning child tasks with RunChild" },
-    { label: "Intermediate results", workflow: "Cached between tasks — each task starts fresh on retry", durable: "Stored in the durable event log — replayed on restart" },
-    { label: "Best for", workflow: "Most pipelines — ETL, multi-step transforms, CI/CD", durable: "Pipelines that need inline SleepFor or WaitForEvent between steps" },
+    { label: "Intermediate results", workflow: "Cached between tasks; each task starts fresh on retry", durable: "Stored in the durable event log; replayed on restart" },
+    { label: "Best for", workflow: "Most pipelines: ETL, multi-step transforms, CI/CD", durable: "Pipelines that need inline SleepFor or WaitForEvent between steps" },
   ]}
   recommendation="workflow"
   recommendationText="Pre-determined pipelines are the strongest fit for regular DAG workflows. The fixed structure maps directly to a DAG with automatic parallelism and cached results. Only reach for durable workflows if your pipeline needs long waits between steps."
@@ -59,7 +59,7 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 <Cards>
   <Cards.Card title="ETL Pipelines" href="/home/dags">
     Extract data, transform it through multiple stages, and load it into a
-    destination — each stage as a task with clear dependencies.
+    destination, each stage as a task with clear dependencies.
   </Cards.Card>
   <Cards.Card title="CI/CD Workflows" href="/home/dags">
     Build, test, and deploy in sequence with parallel test suites that fan back
@@ -70,14 +70,14 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
     processing stages.
   </Cards.Card>
   <Cards.Card title="Multi-Step AI Pipelines" href="/home/dags">
-    Chain LLM calls with validation gates — generate, evaluate, refine — where
+    Chain LLM calls with validation gates (generate, evaluate, refine) where
     each step depends on the previous.
   </Cards.Card>
 </Cards>
 
 ## Next Steps
 
-- [DAG Workflows](/home/dags) — full guide to defining workflows with task dependencies
-- [Fanout](/home/patterns/fanout) — dynamically spawn tasks at runtime instead
-- [Concurrency Control](/home/concurrency) — limit concurrent task execution within a pipeline
-- [Procedural Child Spawning](/home/child-spawning) — combine pipelines with dynamic child tasks
+- [DAG Workflows](/home/dags): full guide to defining workflows with task dependencies
+- [Fanout](/home/patterns/fanout): dynamically spawn tasks at runtime instead
+- [Concurrency Control](/home/concurrency): limit concurrent task execution within a pipeline
+- [Procedural Child Spawning](/home/child-spawning): combine pipelines with dynamic child tasks

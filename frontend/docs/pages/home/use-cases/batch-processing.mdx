@@ -3,7 +3,7 @@ import BatchProcessingDiagram from "@/components/BatchProcessingDiagramWrapper";
 
 # Batch Processing
 
-Batch processing involves running the same operation across a large set of items — images, documents, records, or API calls. This page covers how to structure batch workloads as Hatchet workflows with fan-out, retry, and concurrency control.
+Batch processing involves running the same operation across a large set of items, such as images, documents, records, or API calls. This page covers how to structure batch workloads as Hatchet workflows with fan-out, retry, and concurrency control.
 
 <BatchProcessingDiagram />
 
@@ -17,7 +17,7 @@ A parent task fans out to one child per item. Hatchet distributes these across a
 
 ### Partial failure
 
-Each item is an independent task. If one fails, Hatchet retries just that item — the rest continue. You can also bulk-retry all failed items from the dashboard.
+Each item is an independent task. If one fails, Hatchet retries just that item; the rest continue. You can also bulk-retry all failed items from the dashboard.
 
 ### Resource control
 
@@ -48,7 +48,7 @@ Concurrency limits prevent overwhelming your infrastructure. Rate limits protect
 
 ### Trigger the batch
 
-Start a parent workflow with the batch input — a list of item IDs, file paths, or records. This can come from an API call, event, cron schedule, or the dashboard.
+Start a parent workflow with the batch input (a list of item IDs, file paths, or records). This can come from an API call, event, cron schedule, or the dashboard.
 
 ### Fan out to workers
 
@@ -56,7 +56,7 @@ The parent task iterates over the input and spawns one child task per item. For 
 
 ### Process items
 
-Each child task processes its item independently — calling external APIs, transforming data, writing results. Failed items are retried according to your retry policy.
+Each child task processes its item independently, calling external APIs, transforming data, and writing results. Failed items are retried according to your retry policy.
 
 ### Collect results
 
@@ -82,7 +82,7 @@ The parent awaits all children and aggregates results. You can see the status of
 
 <Cards>
   <Cards.Card title="Fanout" href="/home/patterns/fanout">
-    The core pattern behind batch processing — spawn N children from a parent.
+    The core pattern behind batch processing, spawning N children from a parent.
   </Cards.Card>
   <Cards.Card title="Pre-Determined Pipelines" href="/home/patterns/pre-determined-pipelines">
     Chain batch processing with multi-stage transforms in a DAG.
@@ -97,7 +97,7 @@ The parent awaits all children and aggregates results. You can see the status of
 
 ## Next Steps
 
-- [Child Spawning](/home/child-spawning) — learn the fan-out API for batch processing
-- [Bulk Run](/home/bulk-run) — trigger large batches efficiently
-- [Concurrency Control](/home/concurrency) — limit concurrent item processing
-- [Rate Limits](/home/rate-limits) — protect external APIs during batch operations
+- [Child Spawning](/home/child-spawning): learn the fan-out API for batch processing
+- [Bulk Run](/home/bulk-run): trigger large batches efficiently
+- [Concurrency Control](/home/concurrency): limit concurrent item processing
+- [Rate Limits](/home/rate-limits): protect external APIs during batch operations

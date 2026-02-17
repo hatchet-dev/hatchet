@@ -13,7 +13,7 @@ RAG and indexing pipelines share a common shape: ingest documents, split them in
 
 ### Fan-out to many documents
 
-When new data arrives, a parent task fans out to child tasks — one per document or chunk. Hatchet distributes these across your workers. The number of children is determined at runtime by the input data.
+When new data arrives, a parent task fans out to child tasks, one per document or chunk. Hatchet distributes these across your workers. The number of children is determined at runtime by the input data.
 
 ### Rate-limiting embedding APIs
 
@@ -21,7 +21,7 @@ Embedding providers (OpenAI, Cohere, Voyage) enforce rate limits. Hatchet's rate
 
 ### Retrying without re-processing
 
-If a task fails (embedding API timeout, database write error), Hatchet retries just that task — not the entire pipeline. Completed chunks stay indexed.
+If a task fails (embedding API timeout, database write error), Hatchet retries just that task, not the entire pipeline. Completed chunks stay indexed.
 
 </Steps>
 
@@ -29,7 +29,7 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 
 | Feature | What it does for RAG |
 |---------|---------------------|
-| **[Child Spawning](/home/child-spawning)** | Fan out to one task per document/chunk — process thousands in parallel |
+| **[Child Spawning](/home/child-spawning)** | Fan out to one task per document/chunk; process thousands in parallel |
 | **[Rate Limits](/home/rate-limits)** | Throttle embedding API calls across all workers to stay within provider limits |
 | **[Retry Policies](/home/retry-policies)** | Retry failed chunks individually without re-processing the whole pipeline |
 | **[Concurrency](/home/concurrency)** | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing |
@@ -39,7 +39,7 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 | **[Bulk Run](/home/bulk-run)** | Trigger indexing for thousands of documents in a single API call |
 
 <Callout type="info">
-  RAG pipelines are a natural fit for [Pre-Determined Pipelines](/home/patterns/pre-determined-pipelines) — the stages (ingest, chunk, embed, index) are fixed and map directly to a DAG. Use [Fanout](/home/patterns/fanout) within the chunking stage to parallelize.
+  RAG pipelines are a natural fit for [Pre-Determined Pipelines](/home/patterns/pre-determined-pipelines). The stages (ingest, chunk, embed, index) are fixed and map directly to a DAG. Use [Fanout](/home/patterns/fanout) within the chunking stage to parallelize.
 </Callout>
 
 ## Pipeline Architecture
@@ -64,7 +64,7 @@ Embeddings are written to your vector database (Pinecone, Weaviate, pgvector). H
 
 ### Query (optional)
 
-A separate workflow handles user queries — generating query embeddings, searching the vector database, and passing context to the LLM.
+A separate workflow handles user queries, generating query embeddings, searching the vector database, and passing context to the LLM.
 
 </Steps>
 
@@ -99,7 +99,7 @@ For SaaS applications where multiple tenants share the same pipeline:
 
 ## Next Steps
 
-- [DAG Workflows](/home/dags) — define multi-stage pipelines with task dependencies
-- [Rate Limits](/home/rate-limits) — configure rate limiting for embedding APIs
-- [Child Spawning](/home/child-spawning) — fan out to per-document tasks
-- [Concurrency Control](/home/concurrency) — fair scheduling for multi-tenant indexing
+- [DAG Workflows](/home/dags): define multi-stage pipelines with task dependencies
+- [Rate Limits](/home/rate-limits): configure rate limiting for embedding APIs
+- [Child Spawning](/home/child-spawning): fan out to per-document tasks
+- [Concurrency Control](/home/concurrency): fair scheduling for multi-tenant indexing

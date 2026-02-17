@@ -4,7 +4,7 @@ import PatternComparison from "@/components/PatternComparison";
 
 # Fanout
 
-The **fanout pattern** lets a parent task dynamically spawn N child tasks in parallel, wait for all of them to complete, and collect their results. It is the go-to approach when the number of parallel units of work is determined at runtime — for example, processing every item in a list, running inference on a batch of inputs, or sending notifications to a set of users.
+The **fanout pattern** lets a parent task dynamically spawn N child tasks in parallel, wait for all of them to complete, and collect their results. It is the go-to approach when the number of parallel units of work is determined at runtime (for example, processing every item in a list, running inference on a batch of inputs, or sending notifications to a set of users).
 
 <FanoutDiagram />
 
@@ -42,9 +42,9 @@ The parent awaits all child completions and aggregates their results into a sing
 
 <PatternComparison
   rows={[
-    { label: "How it works", workflow: "Parent task spawns children via RunChild and awaits results", durable: "Same — RunChild is checkpointed in the durable event log" },
-    { label: "Slot usage", workflow: "Parent holds a slot while waiting for children", durable: "Parent slot is freed during the wait — ideal for large fan-outs" },
-    { label: "Crash recovery", workflow: "Parent retries from scratch if it fails mid-fanout", durable: "Parent replays from checkpoint — already-spawned children are not re-spawned" },
+    { label: "How it works", workflow: "Parent task spawns children via RunChild and awaits results", durable: "Same. RunChild is checkpointed in the durable event log" },
+    { label: "Slot usage", workflow: "Parent holds a slot while waiting for children", durable: "Parent slot is freed during the wait, ideal for large fan-outs" },
+    { label: "Crash recovery", workflow: "Parent retries from scratch if it fails mid-fanout", durable: "Parent replays from checkpoint; already-spawned children are not re-spawned" },
     { label: "Best for", workflow: "Small-to-medium fan-outs where parent completes quickly", durable: "Large fan-outs (hundreds/thousands of children) or when children take a long time" },
   ]}
   recommendation="durable"
@@ -73,7 +73,7 @@ The parent awaits all child completions and aggregates their results into a sing
 
 ## Next Steps
 
-- [Procedural Child Spawning](/home/child-spawning) — learn the full child task API
-- [DAG Workflows](/home/dags) — combine fanout with declarative task dependencies
-- [Concurrency Control](/home/concurrency) — limit how many children run simultaneously
-- [Rate Limits](/home/rate-limits) — throttle child task execution rates
+- [Procedural Child Spawning](/home/child-spawning): learn the full child task API
+- [DAG Workflows](/home/dags): combine fanout with declarative task dependencies
+- [Concurrency Control](/home/concurrency): limit how many children run simultaneously
+- [Rate Limits](/home/rate-limits): throttle child task execution rates

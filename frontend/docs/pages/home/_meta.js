@@ -12,7 +12,6 @@ export default {
   },
   "workflows-overview": "Workflows (DAGs)",
   "durable-workflows-overview": "Durable Workflows",
-  "choosing-a-workflow-type": "Choosing a Workflow Type",
   "--patterns-and-use-cases": {
     title: "Patterns and Use Cases",
     type: "separator",

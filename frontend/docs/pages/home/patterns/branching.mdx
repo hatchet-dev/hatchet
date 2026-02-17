@@ -4,7 +4,7 @@ import PatternComparison from "@/components/PatternComparison";
 
 # Branching
 
-**Branching** lets your workflow take different paths based on conditions evaluated at runtime. A task can inspect the output of a parent task, wait for an external event, or sleep for a duration — and then decide whether to run, skip, or cancel downstream tasks. Only the relevant branch executes, while the other is skipped.
+**Branching** lets your workflow take different paths based on conditions evaluated at runtime. A task can inspect the output of a parent task, wait for an external event, or sleep for a duration, and then decide whether to run, skip, or cancel downstream tasks. Only the relevant branch executes, while the other is skipped.
 
 <BranchingDiagram />
 
@@ -14,7 +14,7 @@ import PatternComparison from "@/components/PatternComparison";
 
 ### A task produces output
 
-An upstream task runs and returns a result — for example, a score, a flag, or a status value.
+An upstream task runs and returns a result (for example, a score, a flag, or a status value).
 
 ### Conditions evaluate the output
 
@@ -50,7 +50,7 @@ The branch whose condition is satisfied runs; the other is skipped. Downstream t
 </Callout>
 
 <Callout type="warning">
-  A task cancelled by `cancel_if` behaves like any other cancellation — all
+  A task cancelled by `cancel_if` behaves like any other cancellation, and all
   downstream tasks are cancelled as well. Use `skip_if` when you want downstream
   tasks to still run and inspect the skip status.
 </Callout>
@@ -96,7 +96,7 @@ The branch whose condition is satisfied runs; the other is skipped. Downstream t
 
 ## Next Steps
 
-- [Conditional Workflows](/home/conditional-workflows) — full guide to conditions, or groups, and operators
-- [DAG Workflows](/home/dags) — define task dependencies that branching builds on
-- [Fanout](/home/patterns/fanout) — dynamically spawn tasks instead of choosing between fixed branches
-- [Pre-Determined Pipelines](/home/patterns/pre-determined-pipelines) — fixed-structure pipelines without branching
+- [Conditional Workflows](/home/conditional-workflows): full guide to conditions, or groups, and operators
+- [DAG Workflows](/home/dags): define task dependencies that branching builds on
+- [Fanout](/home/patterns/fanout): dynamically spawn tasks instead of choosing between fixed branches
+- [Pre-Determined Pipelines](/home/patterns/pre-determined-pipelines): fixed-structure pipelines without branching

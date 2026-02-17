@@ -1,10 +1,9 @@
 import { Callout, Cards, Steps } from "nextra/components";
 import WorkflowDiagram from "@/components/WorkflowDiagram";
-import WorkflowComparison from "@/components/WorkflowComparisonWrapper";
 
 # Workflows (DAGs)
 
-A **workflow** is a set of tasks connected by dependencies. You define the shape of work upfront — which tasks run, in what order, and what depends on what — and Hatchet handles execution, retries, and observability for you.
+A **workflow** is a set of tasks connected by dependencies. You define the shape of work upfront (which tasks run, in what order, and what depends on what) and Hatchet handles execution, retries, and observability for you.
 
 Workflows in Hatchet are **Directed Acyclic Graphs (DAGs)**: each task is a node, dependencies are edges, and there are no circular paths. This structure makes workflows predictable, debuggable, and easy to reason about.
 
@@ -24,7 +23,7 @@ Each task has configurable [retry policies](/home/retry-policies) and [timeouts]
 
 ### Full observability
 
-Every task execution is tracked in the Hatchet dashboard — inputs, outputs, durations, and errors. You can see exactly where a workflow succeeded or failed.
+Every task execution is tracked in the Hatchet dashboard, including inputs, outputs, durations, and errors. You can see exactly where a workflow succeeded or failed.
 
 ### Cached intermediate results
 
@@ -36,29 +35,16 @@ Task outputs are stored and passed to downstream tasks. If a workflow is partial
 
 | Concept        | Description                                                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**       | An atomic unit of work — a function that takes input and returns output                                                                                 |
+| **Task**       | An atomic unit of work. A function that takes input and returns output                                                                                 |
 | **Dependency** | A parent-child relationship between tasks. A child task waits for its parents to complete                                                               |
 | **Input**      | Data passed to the workflow when it's triggered                                                                                                         |
 | **Output**     | Data returned by each task, accessible to downstream tasks                                                                                              |
-| **Trigger**    | How a workflow starts — [direct run](/home/run-with-results), [event](/home/run-on-event), [cron](/home/cron-runs), or [schedule](/home/scheduled-runs) |
+| **Trigger**    | How a workflow starts: [direct run](/home/run-with-results), [event](/home/run-on-event), [cron](/home/cron-runs), [schedule](/home/scheduled-runs), or [webhooks](/home/webhooks) |
 
 <Callout type="info">
   Workflows can be as simple as a single task or as complex as dozens of tasks
   with branching, fan-out, and conditional logic. Start simple and compose as
   needed.
-</Callout>
-
-## Workflows vs Durable Workflows
-
-Hatchet supports two workflow types. Toggle between them to compare:
-
-<WorkflowComparison />
-
-<Callout type="warning">
-  If your workflow can be expressed as a DAG, **prefer regular workflows**.
-  They're simpler, inherently deterministic, and easier to debug. Use durable
-  workflows when you need inline pausing, long waits, or logic that can't be
-  expressed as a static graph.
 </Callout>
 
 ## Next Steps

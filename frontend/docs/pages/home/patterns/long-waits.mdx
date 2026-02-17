@@ -4,7 +4,7 @@ import PatternComparison from "@/components/PatternComparison";
 
 # Long Waits
 
-A **long wait** is a workflow pattern where a task pauses execution for an extended period — hours, days, or even weeks — and then resumes exactly where it left off. Hatchet's durable tasks make this possible without holding a worker slot open: the task is evicted during the wait and re-scheduled when the wait completes.
+A **long wait** is a workflow pattern where a task pauses execution for an extended period (hours, days, or even weeks) and then resumes exactly where it left off. Hatchet's durable tasks make this possible without holding a worker slot open: the task is evicted during the wait and re-scheduled when the wait completes.
 
 <LongWaitDiagram />
 
@@ -14,11 +14,11 @@ A **long wait** is a workflow pattern where a task pauses execution for an exten
 
 ### Task performs initial work
 
-The durable task runs its logic up to the point where it needs to wait — preparing data, making API calls, or setting up state.
+The durable task runs its logic up to the point where it needs to wait, preparing data, making API calls, or setting up state.
 
 ### Task enters a long wait
 
-The task calls a durable sleep (for a fixed duration) or waits for a durable event (an external signal). During this time, the worker slot is freed — the task is not consuming resources.
+The task calls a durable sleep (for a fixed duration) or waits for a durable event (an external signal). During this time, the worker slot is freed, and the task is not consuming resources.
 
 ### Task resumes and completes
 
@@ -40,7 +40,7 @@ When the sleep expires or the event arrives, Hatchet re-schedules the task on an
 | **Durable Event** | `WaitForEvent(key)`  | An external event matching the key (and optional CEL filter) is received |
 
 <Callout type="warning">
-  Durable sleeps are **exact** — if a task sleeps for 24 hours and is
+  Durable sleeps are **exact**. If a task sleeps for 24 hours and is
   interrupted after 23 hours, it will only sleep for 1 more hour on restart, not
   another full 24 hours. This is what makes durable sleep different from a
   regular sleep call.
@@ -52,8 +52,8 @@ Long waits are the pattern where the difference between workflows and durable wo
 
 <PatternComparison
   rows={[
-    { label: "Sleep", workflow: "Use a sleep condition on a task declaration (wait_for with sleep)", durable: "Use SleepFor inline — exact timing survives interruptions" },
-    { label: "Event waits", workflow: "Use an event condition on a task declaration (wait_for with event)", durable: "Use WaitForEvent inline — events are stored in the durable log" },
+    { label: "Sleep", workflow: "Use a sleep condition on a task declaration (wait_for with sleep)", durable: "Use SleepFor inline; exact timing survives interruptions" },
+    { label: "Event waits", workflow: "Use an event condition on a task declaration (wait_for with event)", durable: "Use WaitForEvent inline; events are stored in the durable log" },
     { label: "Slot usage", workflow: "Task slot is not held during condition waits", durable: "Task slot is freed during SleepFor/WaitForEvent" },
     { label: "Inline logic", workflow: "Wait logic is separate from task code (declarative)", durable: "Wait logic is inline with task code (procedural)" },
     { label: "Best for", workflow: "Simple waits between DAG tasks", durable: "Complex workflows mixing waits with business logic" },
@@ -85,7 +85,7 @@ Long waits are the pattern where the difference between workflows and durable wo
 
 ## Next Steps
 
-- [Durable Sleep](/home/durable-sleep) — pause for a fixed duration with exact timing guarantees
-- [Durable Events](/home/durable-events) — wait for external signals with optional CEL filters
-- [Conditional Workflows](/home/conditional-workflows) — combine long waits with branching logic
-- [Cycles](/home/patterns/cycles) — use long waits inside iterative loops
+- [Durable Sleep](/home/durable-sleep): pause for a fixed duration with exact timing guarantees
+- [Durable Events](/home/durable-events): wait for external signals with optional CEL filters
+- [Conditional Workflows](/home/conditional-workflows): combine long waits with branching logic
+- [Cycles](/home/patterns/cycles): use long waits inside iterative loops

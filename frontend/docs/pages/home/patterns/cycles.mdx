@@ -4,7 +4,7 @@ import PatternComparison from "@/components/PatternComparison";
 
 # Cycles
 
-A **cycle** is a workflow pattern where a task re-runs itself repeatedly until a condition is met. Since Hatchet workflows are DAGs (no circular dependencies), cycles are implemented by having a task spawn a new child run of itself — effectively creating an iterative loop through child task spawning.
+A **cycle** is a workflow pattern where a task re-runs itself repeatedly until a condition is met. Since Hatchet workflows are DAGs (no circular dependencies), cycles are implemented by having a task spawn a new child run of itself, effectively creating an iterative loop through child task spawning.
 
 <CycleDiagram />
 
@@ -14,7 +14,7 @@ A **cycle** is a workflow pattern where a task re-runs itself repeatedly until a
 
 ### Task performs work
 
-The task executes its logic — making an API call, running an LLM inference, checking a status, or processing a batch of data.
+The task executes its logic: making an API call, running an LLM inference, checking a status, or processing a batch of data.
 
 ### Evaluate a termination condition
 
@@ -27,7 +27,7 @@ If the condition is not met, the task spawns a new child run of itself with upda
 </Steps>
 
 <Callout type="info">
-  Cycles use [Procedural Child Spawning](/home/child-spawning) under the hood —
+  Cycles use [Procedural Child Spawning](/home/child-spawning) under the hood;
   each iteration is a new child task run. This gives you full observability into
   every iteration in the Hatchet dashboard.
 </Callout>
@@ -52,7 +52,7 @@ If the condition is not met, the task spawns a new child run of itself with upda
 
 <PatternComparison
   rows={[
-    { label: "Loop mechanism", workflow: "Task spawns a child run of itself via RunChild", durable: "Same — RunChild is checkpointed, so completed iterations survive crashes" },
+    { label: "Loop mechanism", workflow: "Task spawns a child run of itself via RunChild", durable: "Same. RunChild is checkpointed, so completed iterations survive crashes" },
     { label: "Slot usage", workflow: "Each iteration holds a slot for its full duration", durable: "Slot is freed between iterations if you add SleepFor or WaitForEvent waits" },
     { label: "State between iterations", workflow: "Passed as input to the child task", durable: "Can also be stored inline in the durable event log" },
     { label: "Best for", workflow: "Fast iterations (API polling, agent loops)", durable: "Cycles with long waits between iterations (e.g., retry with 1-hour backoff)" },
@@ -83,7 +83,7 @@ If the condition is not met, the task spawns a new child run of itself with upda
 
 ## Next Steps
 
-- [Procedural Child Spawning](/home/child-spawning) — the mechanism that powers cycle iteration
-- [Retry Policies](/home/retry-policies) — built-in retry support for simpler retry scenarios
-- [Branching](/home/patterns/branching) — combine cycles with conditional logic
-- [Fanout](/home/patterns/fanout) — spawn parallel tasks instead of sequential iterations
+- [Procedural Child Spawning](/home/child-spawning): the mechanism that powers cycle iteration
+- [Retry Policies](/home/retry-policies): built-in retry support for simpler retry scenarios
+- [Branching](/home/patterns/branching): combine cycles with conditional logic
+- [Fanout](/home/patterns/fanout): spawn parallel tasks instead of sequential iterations
