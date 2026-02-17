@@ -43,8 +43,10 @@ from hatchet_sdk.exceptions import CancellationReason, CancelledError
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.contextvars import ctx_durable_context
-from hatchet_sdk.runnables.contextvars import ctx_cancellation_token
+from hatchet_sdk.runnables.contextvars import (
+    ctx_cancellation_token,
+    ctx_durable_context,
+)
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
