@@ -183,9 +183,7 @@ class DurableEventListener:
 
     async def _handle_response(self, response: DurableTaskResponse) -> None:
         if response.HasField("register_worker"):
-            logger.info(
-                f"Registered durable task worker: {response.register_worker.worker_id}"
-            )
+            pass
         elif response.HasField("trigger_ack"):
             trigger_ack = response.trigger_ack
             event_key = (
