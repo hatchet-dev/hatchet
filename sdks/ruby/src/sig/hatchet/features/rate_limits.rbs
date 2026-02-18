@@ -1,0 +1,8 @@
+module Hatchet
+  module Features
+    class RateLimits
+      def initialize: (Hatchet::Clients::Grpc::Admin admin_grpc, Hatchet::Config config) -> void
+      def put: (key: String, limit: Integer, ?duration: Symbol) -> void
+    end
+  end
+end

@@ -1,11 +1,13 @@
 package v1
 
 import (
+	"fmt"
 	"slices"
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -13,34 +15,83 @@ import (
 // time for unacked slots to get written back to the database.
 const defaultSlotExpiry = 1500 * time.Millisecond
 
-type slot struct {
-	worker  *worker
-	actions []string
-
-	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
-	expiresAt *time.Time
-	used      bool
-
-	ackd bool
-
-	additionalAcks  []func()
-	additionalNacks []func()
-
-	mu sync.RWMutex
+// slotMeta is shared across many slots to avoid duplicating
+// metadata that is identical for a worker/type.
+type slotMeta struct {
+	slotType string
+	actions  []string
 }
 
-func newSlot(worker *worker, actions []string) *slot {
+func newSlotMeta(actions []string, slotType string) *slotMeta {
+	return &slotMeta{
+		actions:  actions,
+		slotType: slotType,
+	}
+}
+
+type slot struct {
+	worker          *worker
+	meta            *slotMeta
+	expiresAt       *time.Time
+	additionalAcks  []func()
+	additionalNacks []func()
+	mu              sync.RWMutex
+	used            bool
+	ackd            bool
+}
+
+type assignedSlots struct {
+	slots         []*slot
+	rateLimitAck  func()
+	rateLimitNack func()
+}
+
+func (a *assignedSlots) workerId() uuid.UUID {
+	if len(a.slots) == 0 {
+		return uuid.Nil
+	}
+
+	return a.slots[0].getWorkerId()
+}
+
+func (a *assignedSlots) ack() {
+	for _, slot := range a.slots {
+		slot.ack()
+	}
+	if a.rateLimitAck != nil {
+		a.rateLimitAck()
+	}
+}
+
+func (a *assignedSlots) nack() {
+	for _, slot := range a.slots {
+		slot.nack()
+	}
+	if a.rateLimitNack != nil {
+		a.rateLimitNack()
+	}
+}
+
+func newSlot(worker *worker, meta *slotMeta) *slot {
 	expires := time.Now().Add(defaultSlotExpiry)
 
 	return &slot{
 		worker:    worker,
-		actions:   actions,
+		meta:      meta,
 		expiresAt: &expires,
 	}
 }
 
-func (s *slot) getWorkerId() string {
+func (s *slot) getWorkerId() uuid.UUID {
 	return s.worker.ID
+}
+
+func (s *slot) getSlotType() (string, error) {
+	if s.meta == nil {
+		return "", fmt.Errorf("slot has nil meta")
+	}
+
+	return s.meta.slotType, nil
 }
 
 func (s *slot) extendExpiry() {
@@ -125,13 +176,13 @@ type rankedValidSlots struct {
 	ranksToSlots map[int][]*slot
 
 	// cachedWorkerRanks is a map of worker id to rank.
-	cachedWorkerRanks map[string]int
+	cachedWorkerRanks map[uuid.UUID]int
 }
 
 func newRankedValidSlots() *rankedValidSlots {
 	return &rankedValidSlots{
 		ranksToSlots:      make(map[int][]*slot),
-		cachedWorkerRanks: make(map[string]int),
+		cachedWorkerRanks: make(map[uuid.UUID]int),
 	}
 }
 
@@ -201,9 +252,9 @@ func getRankedSlots(
 		// if this is a HARD sticky strategy, and there's a desired worker id, it can only be assigned to that
 		// worker. if there's no desired worker id, we assign to any worker.
 		if qi.Sticky == sqlcv1.V1StickyStrategyHARD {
-			if qi.DesiredWorkerID.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
+			if qi.DesiredWorkerID != nil && workerId == *qi.DesiredWorkerID {
 				validSlots.addSlot(slot, 0)
-			} else if !qi.DesiredWorkerID.Valid {
+			} else if qi.DesiredWorkerID == nil {
 				validSlots.addSlot(slot, 0)
 			}
 
@@ -213,7 +264,7 @@ func getRankedSlots(
 		// if this is a SOFT sticky strategy, we should prefer the desired worker, but if it is not
 		// available, we can assign to any worker.
 		if qi.Sticky == sqlcv1.V1StickyStrategySOFT {
-			if qi.DesiredWorkerID.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
+			if qi.DesiredWorkerID != nil && workerId == *qi.DesiredWorkerID {
 				validSlots.addSlot(slot, 1)
 			} else {
 				validSlots.addSlot(slot, 0)

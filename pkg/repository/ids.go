@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func getChildSignalEventKey(parentExternalId string, stepIndex, childIndex int64, childKeyArg *string) string {
+func getChildSignalEventKey(parentExternalId uuid.UUID, stepIndex, childIndex int64, childKeyArg *string) string {
 	childKey := fmt.Sprintf("%d", childIndex)
 
 	if childKeyArg != nil {
@@ -25,7 +25,7 @@ func getChildSignalEventKey(parentExternalId string, stepIndex, childIndex int64
 type WorkflowNameTriggerOpts struct {
 	*TriggerTaskData
 
-	ExternalId string
+	ExternalId uuid.UUID
 
 	// (optional) The idempotency key to use for debouncing this task
 	IdempotencyKey *IdempotencyKey
@@ -44,10 +44,10 @@ func (g *WorkflowNameTriggerOpts) childSpawnKey() string {
 
 type ChildWorkflowSignalCreatedData struct {
 	// The external id of the target child task
-	ChildExternalId string `json:"external_id"`
+	ChildExternalId uuid.UUID `json:"external_id"`
 
 	// The external id of the parent task
-	ParentExternalId string `json:"parent_external_id"`
+	ParentExternalId uuid.UUID `json:"parent_external_id"`
 
 	// The index of the child task
 	ChildIndex int64 `json:"child_index"`
@@ -56,7 +56,7 @@ type ChildWorkflowSignalCreatedData struct {
 	ChildKey *string `json:"child_key"`
 }
 
-func newChildWorkflowSignalCreatedData(childExternalId string, opt *WorkflowNameTriggerOpts) *ChildWorkflowSignalCreatedData {
+func newChildWorkflowSignalCreatedData(childExternalId uuid.UUID, opt *WorkflowNameTriggerOpts) *ChildWorkflowSignalCreatedData {
 	return &ChildWorkflowSignalCreatedData{
 		ChildExternalId:  childExternalId,
 		ParentExternalId: *opt.ParentExternalId,
@@ -84,7 +84,7 @@ func (c *ChildWorkflowSignalCreatedData) Bytes() []byte {
 
 // GenerateExternalIdsForWorkflow generates external ids and additional looks up child workflows and whether they
 // already exist.
-func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
+func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
 	// get child workflow data first
 	optsWithParents := make([]*WorkflowNameTriggerOpts, 0, len(opts))
 
@@ -94,7 +94,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 		if opt.ParentExternalId != nil && opt.ChildIndex != nil {
 			optsWithParents = append(optsWithParents, opt)
 		} else {
-			opt.ExternalId = uuid.NewString()
+			opt.ExternalId = uuid.New()
 		}
 	}
 
@@ -109,7 +109,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 	return nil
 }
 
-func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
+func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
@@ -118,28 +118,28 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 
 	defer rollback()
 
-	externalIds := make([]pgtype.UUID, 0, len(opts))
+	externalIds := make([]uuid.UUID, 0, len(opts))
 	spawnKeyToOpt := make(map[string]*WorkflowNameTriggerOpts)
 
 	for i, opt := range opts {
-		externalIds = append(externalIds, sqlchelpers.UUIDFromStr(*opt.ParentExternalId))
+		externalIds = append(externalIds, *opt.ParentExternalId)
 
 		spawnKeyToOpt[opt.childSpawnKey()] = opts[i] // we don't want a copy here, we want the actual pointer as we modify in-place
 	}
 
 	gotTasks, err := s.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
 		Externalids: externalIds,
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:    tenantId,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	externalIdToLookupRow := make(map[string]*sqlcv1.V1LookupTable)
+	externalIdToLookupRow := make(map[uuid.UUID]*sqlcv1.V1LookupTable)
 
 	for _, task := range gotTasks {
-		externalIdToLookupRow[sqlchelpers.UUIDToStr(task.ExternalID)] = task
+		externalIdToLookupRow[task.ExternalID] = task
 	}
 
 	eventTaskIds := make([]int64, 0, len(gotTasks))
@@ -159,7 +159,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid:        tenantId,
 		Taskids:         eventTaskIds,
 		Taskinsertedats: eventTaskInsertedAts,
 		Eventkeys:       eventKeys,
@@ -176,7 +176,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   tenantId,
 		}
 	}
 
@@ -193,7 +193,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+			TenantId:   tenantId,
 		}]
 
 		if !ok {
@@ -211,7 +211,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	taskIds := make([]TaskIdInsertedAtRetryCount, 0, len(opts))
-	taskExternalIds := make([]string, 0, len(opts))
+	taskExternalIds := make([]uuid.UUID, 0, len(opts))
 	datas := make([][]byte, 0, len(opts))
 	newEventKeys := make([]string, 0, len(opts))
 
@@ -228,7 +228,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			continue
 		}
 
-		generatedId := uuid.NewString()
+		generatedId := uuid.New()
 		opt.ExternalId = generatedId
 
 		data := newChildWorkflowSignalCreatedData(generatedId, opt)
@@ -239,7 +239,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			RetryCount: -1,
 		})
 
-		taskExternalIds = append(taskExternalIds, sqlchelpers.UUIDToStr(lookupRow.ExternalID))
+		taskExternalIds = append(taskExternalIds, lookupRow.ExternalID)
 		datas = append(datas, data.Bytes())
 		newEventKeys = append(newEventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
 	}

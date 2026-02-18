@@ -1,0 +1,38 @@
+module Hatchet
+  module ConditionConverter
+    def self.convert_condition: (
+      untyped cond,
+      action: Symbol,
+      sleep_conditions: Array[untyped],
+      user_event_conditions: Array[untyped],
+      ?or_group_id: String?,
+      ?readable_data_key: String?,
+      ?proto_method: Symbol,
+      ?proto_arg: untyped
+    ) -> void
+
+    def self.convert_sleep_condition: (
+      Integer | String duration,
+      action: Symbol,
+      or_group_id: String,
+      sleep_conditions: Array[untyped]
+    ) -> void
+
+    def self.convert_user_event_condition: (
+      String event_key,
+      action: Symbol,
+      or_group_id: String,
+      expression: String,
+      user_event_conditions: Array[untyped]
+    ) -> void
+
+    def self.convert_hash_condition: (
+      Hash[Symbol, untyped] cond,
+      action: Symbol,
+      or_group_id: String,
+      readable_data_key: String?,
+      sleep_conditions: Array[untyped],
+      user_event_conditions: Array[untyped]
+    ) -> void
+  end
+end

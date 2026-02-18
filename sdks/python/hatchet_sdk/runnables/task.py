@@ -149,8 +149,12 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
+        slot_requests: dict[str, int] | None = None,
     ) -> None:
         self.is_durable = is_durable
+        if slot_requests is None:
+            slot_requests = {"durable": 1} if is_durable else {"default": 1}
+        self.slot_requests = slot_requests
 
         self.fn = _fn
         self.is_async_function = is_async_fn(self.fn)  # type: ignore
@@ -391,6 +395,8 @@ class Task(Generic[TWorkflowInput, R]):
             concurrency=[t.to_proto() for t in concurrency],
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
+            is_durable=self.is_durable,
+            slot_requests=self.slot_requests,
         )
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
@@ -495,6 +501,8 @@ class Task(Generic[TWorkflowInput, R]):
             lifespan_context=lifespan_context,
             log_sender=AsyncLogSender(self.workflow.client._client.event),
             max_attempts=self.retries + 1,
+            task_name=self.name,
+            workflow_name=self.workflow.name,
         )
 
     def mock_run(
@@ -572,3 +580,11 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
         return await self.aio_call(ctx, dependencies)
+
+    @property
+    def output_validator(self) -> TypeAdapter[R]:
+        return cast(TypeAdapter[R], self.validators.step_output)
+
+    @property
+    def output_validator_type(self) -> type[R]:
+        return cast(type[R], self.validators.step_output._type)

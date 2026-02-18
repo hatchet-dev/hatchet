@@ -12,13 +12,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request gen.WorkflowScheduledBulkDeleteRequestObject) (gen.WorkflowScheduledBulkDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledBulkDelete400JSONResponse(gen.APIErrors{
@@ -51,24 +50,15 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		orderDirection := "DESC"
 
 		opts := &v1.ListScheduledWorkflowsOpts{
-			Limit:          &limit,
-			Offset:         &offset,
-			OrderBy:        &orderBy,
-			OrderDirection: &orderDirection,
+			Limit:               &limit,
+			Offset:              &offset,
+			OrderBy:             &orderBy,
+			OrderDirection:      &orderDirection,
+			WorkflowId:          filter.WorkflowId,
+			ParentWorkflowRunId: filter.ParentWorkflowRunId,
+			ParentStepRunId:     filter.ParentStepRunId,
 		}
 
-		if filter.WorkflowId != nil {
-			wid := filter.WorkflowId.String()
-			opts.WorkflowId = &wid
-		}
-		if filter.ParentWorkflowRunId != nil {
-			pid := filter.ParentWorkflowRunId.String()
-			opts.ParentWorkflowRunId = &pid
-		}
-		if filter.ParentStepRunId != nil {
-			psid := filter.ParentStepRunId.String()
-			opts.ParentStepRunId = &psid
-		}
 		if filter.AdditionalMetadata != nil {
 			additionalMetadata := make(map[string]interface{}, len(*filter.AdditionalMetadata))
 			for _, v := range *filter.AdditionalMetadata {
@@ -101,7 +91,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		// Convert list results into ids + pre-fill errors for non-API items.
 		ids = make([]uuid.UUID, 0, len(all))
 		for _, row := range all {
-			idStr := sqlchelpers.UUIDToStr(row.ID)
+			idStr := row.ID.String()
 			idUUID, err := uuid.Parse(idStr)
 			if err != nil {
 				// fall back to skip with generic error (should never happen)
@@ -134,12 +124,11 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		}
 		chunk := ids[i:end]
 
-		chunkStr := make([]string, 0, len(chunk))
-		chunkUUIDByStr := make(map[string]uuid.UUID, len(chunk))
+		chunkStr := make([]uuid.UUID, 0, len(chunk))
+		chunkUUIDByStr := make(map[uuid.UUID]uuid.UUID, len(chunk))
 		for _, id := range chunk {
-			idStr := id.String()
-			chunkStr = append(chunkStr, idStr)
-			chunkUUIDByStr[idStr] = id
+			chunkStr = append(chunkStr, id)
+			chunkUUIDByStr[id] = id
 		}
 
 		deletedIds, err := t.config.V1.WorkflowSchedules().BulkDeleteScheduledWorkflows(dbCtx, tenantId, chunkStr)
@@ -147,13 +136,13 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 			return nil, err
 		}
 
-		deletedSet := make(map[string]struct{}, len(deletedIds))
+		deletedSet := make(map[uuid.UUID]struct{}, len(deletedIds))
 		for _, idStr := range deletedIds {
 			deletedSet[idStr] = struct{}{}
 		}
 
 		for _, id := range chunk {
-			if _, ok := deletedSet[id.String()]; ok {
+			if _, ok := deletedSet[id]; ok {
 				deleted = append(deleted, id)
 			}
 		}

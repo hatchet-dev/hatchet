@@ -28,7 +28,7 @@ There are a few different ways to set priorities for tasks or workflows in Hatch
 
 First, you can set a default priority at the workflow level:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.priority.worker.default_priority} />
@@ -45,6 +45,9 @@ First, you can set a default priority at the workflow level:
     <Snippet src={snippets.go.priority.main.default_priority} />
 
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.priority.worker.default_priority} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 This will assign the same default priority to all runs of this workflow (and all of the workflow's corresponding tasks), but will have no effect without also setting run-level priorities, since every run will use the same default.
@@ -53,7 +56,7 @@ This will assign the same default priority to all runs of this workflow (and all
 
 When you trigger a run, you can set the priority of the triggered run to override its default priority.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.priority.trigger.runtime_priority} />
@@ -68,11 +71,14 @@ When you trigger a run, you can set the priority of the triggered run to overrid
     <Snippet src={snippets.go.priority.main.running_a_task_with_priority} />
 
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.priority.trigger.runtime_priority} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 Similarly, you can also assign a priority to scheduled and cron workflows.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.priority.trigger.scheduled_priority} />
@@ -86,6 +92,9 @@ Similarly, you can also assign a priority to scheduled and cron workflows.
   <Tabs.Tab>
     <Snippet src={snippets.go.priority.main.schedule_and_cron} />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.priority.trigger.scheduled_priority} />
   </Tabs.Tab>
 </UniversalTabs>
 

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
 // nolint: staticcheck
@@ -45,7 +47,7 @@ func init() {
 	}
 }
 
-type DstFunc func(tenantId, msgId string, payloads [][]byte) error
+type DstFunc func(tenantId uuid.UUID, msgId string, payloads [][]byte) error
 
 func JSONConvert[T any](payloads [][]byte) []*T {
 	ret := make([]*T, 0)
@@ -77,8 +79,8 @@ type MQSubBuffer struct {
 
 	mq MessageQueue
 
-	// buffers is keyed on (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
-	buffers sync.Map
+	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
+	buffers syncx.Map[string, *msgIdBuffer]
 
 	// the destination function to send the messages to
 	dst DstFunc
@@ -203,7 +205,7 @@ type msgWithResultCh struct {
 }
 
 func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
-	if msg.TenantID == "" {
+	if msg.TenantID == uuid.Nil {
 		return nil
 	}
 
@@ -214,14 +216,13 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 
 	k := getKey(msg.TenantID, msg.ID)
 
-	buf, ok := m.buffers.Load(k)
+	msgBuf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
+		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
 	// this places some backpressure on the consumer if buffers are full
-	msgBuf := buf.(*msgIdBuffer)
 	msgBuf.msgIdBufferCh <- msgWithResult
 	msgBuf.notifier <- struct{}{}
 
@@ -236,12 +237,12 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 	return err
 }
 
-func getKey(tenantId, msgId string) string {
-	return tenantId + msgId
+func getKey(tenantId uuid.UUID, msgId string) string {
+	return tenantId.String() + msgId
 }
 
 type msgIdBuffer struct {
-	tenantId string
+	tenantId uuid.UUID
 	msgId    string
 
 	msgIdBufferCh chan *msgWithResultCh
@@ -259,7 +260,7 @@ type msgIdBuffer struct {
 	flushInterval time.Duration
 }
 
-func newMsgIDBuffer(ctx context.Context, tenantID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
+func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
 		tenantId:              tenantID,
 		msgId:                 msgID,

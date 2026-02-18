@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -28,10 +27,9 @@ func ToWorkerLabels(labels []*sqlcv1.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 			value = nil
 		}
 
-		id := fmt.Sprintf("%d", labels[i].ID)
-
 		resp[i] = gen.WorkerLabel{
-			Metadata: *toAPIMetadata(id, labels[i].CreatedAt.Time, labels[i].UpdatedAt.Time),
+			// fixme: `id` needs to be a uuid
+			Metadata: *toAPIMetadata(uuid.Nil, labels[i].CreatedAt.Time, labels[i].UpdatedAt.Time),
 			Key:      labels[i].Key,
 			Value:    value,
 		}
@@ -57,11 +55,9 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotConfig, actions []string) *gen.Worker {
 
-	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
-
-	maxRuns := int(worker.MaxRuns)
+	dispatcherId := worker.DispatcherId
 
 	status := gen.ACTIVE
 
@@ -73,27 +69,24 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 		status = gen.INACTIVE
 	}
 
-	var availableRuns int
-
-	if remainingSlots != nil {
-		availableRuns = *remainingSlots
+	var slotConfigInt *map[string]gen.WorkerSlotConfig
+	if len(slotConfig) > 0 {
+		tmp := make(map[string]gen.WorkerSlotConfig, len(slotConfig))
+		for k, v := range slotConfig {
+			tmp[k] = v
+		}
+		slotConfigInt = &tmp
 	}
 
 	res := &gen.Worker{
-		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
-		Name:          worker.Name,
-		Type:          gen.WorkerType(worker.Type),
-		Status:        &status,
-		DispatcherId:  &dispatcherId,
-		MaxRuns:       &maxRuns,
-		AvailableRuns: &availableRuns,
-		WebhookUrl:    webhookUrl,
-		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
-	}
-
-	if worker.WebhookId.Valid {
-		wid := uuid.MustParse(pgUUIDToStr(worker.WebhookId))
-		res.WebhookId = &wid
+		Metadata:     *toAPIMetadata(worker.ID, worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Name:         worker.Name,
+		Type:         gen.WorkerType(worker.Type),
+		Status:       &status,
+		DispatcherId: dispatcherId,
+		SlotConfig:   slotConfigInt,
+		RuntimeInfo:  ToWorkerRuntimeInfo(worker),
+		WebhookId:    worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

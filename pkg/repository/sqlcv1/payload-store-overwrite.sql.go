@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type CutoverPayloadToInsert struct {
-	TenantID            pgtype.UUID
+	TenantID            uuid.UUID
 	ID                  int64
 	InsertedAt          pgtype.Timestamptz
-	ExternalID          pgtype.UUID
+	ExternalID          uuid.UUID
 	Type                V1PayloadType
 	ExternalLocationKey string
 	InlineContent       []byte
@@ -19,17 +20,17 @@ type CutoverPayloadToInsert struct {
 }
 
 type InsertCutOverPayloadsIntoTempTableRow struct {
-	TenantId   pgtype.UUID
+	TenantId   uuid.UUID
 	ID         int64
 	InsertedAt pgtype.Timestamptz
 	Type       V1PayloadType
 }
 
 func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (*InsertCutOverPayloadsIntoTempTableRow, error) {
-	tenantIds := make([]pgtype.UUID, 0, len(payloads))
+	tenantIds := make([]uuid.UUID, 0, len(payloads))
 	ids := make([]int64, 0, len(payloads))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
-	externalIds := make([]pgtype.UUID, 0, len(payloads))
+	externalIds := make([]uuid.UUID, 0, len(payloads))
 	types := make([]string, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 	externalLocationKeys := make([]string, 0, len(payloads))

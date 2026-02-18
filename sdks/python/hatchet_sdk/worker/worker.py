@@ -14,9 +14,13 @@ from types import FrameType
 from typing import Any, TypeVar
 from warnings import warn
 
+import grpc
+
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
+from hatchet_sdk.deprecated.deprecation import semver_less_than
+from hatchet_sdk.deprecated.worker import legacy_aio_start
 from hatchet_sdk.exceptions import LifespanSetupError, LoopAlreadyRunningError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
@@ -65,8 +69,7 @@ class Worker:
         self,
         name: str,
         config: ClientConfig,
-        slots: int,
-        durable_slots: int,
+        slot_config: dict[str, int],
         labels: dict[str, str | int] | None = None,
         debug: bool = False,
         owned_loop: bool = True,
@@ -76,15 +79,15 @@ class Worker:
     ) -> None:
         self.config = config
         self.name = self.config.apply_namespace(name)
-        self.slots = slots
-        self.durable_slots = durable_slots
+        self.slot_config = slot_config
+        self._slots = slot_config.get("default", 0)
+        self._durable_slots = slot_config.get("durable", 0)
         self.debug = debug
         self.labels = labels or {}
         self.handle_kill = handle_kill
         self.owned_loop = owned_loop
 
         self.action_registry: dict[str, Task[Any, Any]] = {}
-        self.durable_action_registry: dict[str, Task[Any, Any]] = {}
 
         self.killing: bool = False
         self._status: WorkerStatus = WorkerStatus.INITIALIZED
@@ -95,15 +98,14 @@ class Worker:
         self.action_listener_health_check: asyncio.Task[None]
 
         self.action_runner: WorkerActionRunLoopManager | None = None
-        self.durable_action_runner: WorkerActionRunLoopManager | None = None
+        self._legacy_durable_action_runner: WorkerActionRunLoopManager | None = None
 
         self.ctx = multiprocessing.get_context("spawn")
 
         self.action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
         self.event_queue: Queue[ActionEvent] = self.ctx.Queue()
-
-        self.durable_action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
-        self.durable_event_queue: Queue[ActionEvent] = self.ctx.Queue()
+        self.durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
+        self.durable_event_queue: Queue[ActionEvent] | None = None
 
         self.loop: asyncio.AbstractEventLoop | None = None
 
@@ -111,11 +113,9 @@ class Worker:
 
         self._setup_signal_handlers()
 
-        self.has_any_durable = False
-        self.has_any_non_durable = False
-
         self.lifespan = lifespan
         self.lifespan_stack: AsyncExitStack | None = None
+        self._lifespan_cleanup_complete: asyncio.Event | None = None
 
         self.register_workflows(workflows or [])
 
@@ -128,9 +128,8 @@ class Worker:
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         if not workflow.tasks:
-            raise ValueError(
-                "workflow must have at least one task registered before registering"
-            )
+            msg = f"failed to register workflow: {workflow.name}. Workflows must have at least one task registered before registering"
+            raise ValueError(msg)
 
         try:
             self.client.admin.put_workflow(workflow.to_proto())
@@ -141,12 +140,7 @@ class Worker:
         for step in workflow.tasks:
             action_name = workflow._create_action_name(step)
 
-            if step.is_durable:
-                self.has_any_durable = True
-                self.durable_action_registry[action_name] = step
-            else:
-                self.has_any_non_durable = True
-                self.action_registry[action_name] = step
+            self.action_registry[action_name] = step
 
     def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
         for workflow in workflows:
@@ -155,6 +149,24 @@ class Worker:
     @property
     def status(self) -> WorkerStatus:
         return self._status
+
+    @property
+    def slots(self) -> int:
+        warn(
+            "Worker.slots is deprecated; use slot_config['default'] instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._slots
+
+    @property
+    def durable_slots(self) -> int:
+        warn(
+            "Worker.durable_slots is deprecated; use slot_config['durable'] instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._durable_slots
 
     def _setup_loop(self) -> None:
         try:
@@ -171,7 +183,7 @@ class Worker:
         asyncio.set_event_loop(self.loop)
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
-        if not (self.action_registry or self.durable_action_registry):
+        if not self.action_registry:
             raise ValueError(
                 "no actions registered, register workflows before starting worker"
             )
@@ -196,6 +208,48 @@ class Worker:
         if self.handle_kill:
             sys.exit(0)
 
+    # Minimum engine version that supports multiple slot types.
+    _MIN_SLOT_CONFIG_VERSION = "v0.78.23"
+
+    def _emit_legacy_deprecation(self) -> None:
+        from datetime import datetime, timezone
+
+        from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice
+
+        emit_deprecation_notice(
+            feature="legacy-engine",
+            message=(
+                "Connected to an older Hatchet engine that does not support "
+                "multiple slot types. Falling back to legacy worker registration. "
+                "Please upgrade your Hatchet engine to the latest version."
+            ),
+            start=datetime(2026, 2, 12, tzinfo=timezone.utc),
+            error_days=180,
+        )
+
+    async def _check_engine_version(self) -> str | None:
+        """Returns the engine version string, or None if engine is legacy (pre-slot-config).
+
+        Compares the engine's semantic version against the minimum required
+        version for slot_config support. Returns the version string for modern
+        engines so callers can branch on specific versions.
+        """
+
+        try:
+            version = await self.client.dispatcher.get_version()
+
+            # Empty version or older than minimum → legacy
+            if not version or semver_less_than(version, self._MIN_SLOT_CONFIG_VERSION):
+                self._emit_legacy_deprecation()
+                return None
+
+            return version  # new engine
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.UNIMPLEMENTED:
+                self._emit_legacy_deprecation()
+                return None  # old engine
+            raise
+
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
 
@@ -205,13 +259,16 @@ class Worker:
 
         self._status = WorkerStatus.STARTING
 
-        if (
-            len(self.action_registry.keys()) == 0
-            and len(self.durable_action_registry.keys()) == 0
-        ):
+        if len(self.action_registry.keys()) == 0:
             raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
+
+        # Check engine version and fall back to legacy dual-worker mode if needed
+        engine_version = await self._check_engine_version()
+        if engine_version is None:
+            await legacy_aio_start(self)
+            return
 
         lifespan_context = None
         if self.lifespan:
@@ -226,54 +283,41 @@ class Worker:
         # Healthcheck server is started inside the spawned action-listener process
         # (non-durable preferred) to avoid being affected by the main worker loop.
         healthcheck_port = self.config.healthcheck.port
-        enable_health_server_non_durable = (
-            self.config.healthcheck.enabled and self.has_any_non_durable
-        )
-        enable_health_server_durable = (
-            self.config.healthcheck.enabled
-            and (not self.has_any_non_durable)
-            and self.has_any_durable
-        )
+        enable_health_server = self.config.healthcheck.enabled
 
-        if self.has_any_non_durable:
-            self.action_listener_process = self._start_action_listener(
-                is_durable=False,
-                enable_health_server=enable_health_server_non_durable,
-                healthcheck_port=healthcheck_port,
-            )
-            self.action_runner = self._run_action_runner(
-                is_durable=False, lifespan_context=lifespan_context
-            )
-
-        if self.has_any_durable:
-            self.durable_action_listener_process = self._start_action_listener(
-                is_durable=True,
-                enable_health_server=enable_health_server_durable,
-                healthcheck_port=healthcheck_port,
-            )
-            self.durable_action_runner = self._run_action_runner(
-                is_durable=True, lifespan_context=lifespan_context
-            )
+        self.action_listener_process = self._start_action_listener(
+            enable_health_server=enable_health_server,
+            healthcheck_port=healthcheck_port,
+        )
+        self.action_runner = self._run_action_runner(lifespan_context=lifespan_context)
 
         if self.loop:
+            self._lifespan_cleanup_complete = asyncio.Event()
             self.action_listener_health_check = self.loop.create_task(
                 self._check_listener_health()
             )
 
             await self.action_listener_health_check
 
+            try:
+                await self._cleanup_lifespan()
+            except LifespanSetupError:
+                logger.exception("lifespan cleanup failed")
+            finally:
+                self._lifespan_cleanup_complete.set()
+
     def _run_action_runner(
-        self, is_durable: bool, lifespan_context: Any | None
+        self, lifespan_context: Any | None
     ) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         if self.loop:
             return WorkerActionRunLoopManager(
-                self.name + ("_durable" if is_durable else ""),
-                self.durable_action_registry if is_durable else self.action_registry,
-                self.durable_slots if is_durable else self.slots,
+                self.name,
+                self.action_registry,
+                sum(self.slot_config.values()),
                 self.config,
-                self.durable_action_queue if is_durable else self.action_queue,
-                self.durable_event_queue if is_durable else self.event_queue,
+                self.action_queue,
+                self.event_queue,
                 self.loop,
                 self.handle_kill,
                 self.client.debug,
@@ -311,7 +355,6 @@ class Worker:
 
     def _start_action_listener(
         self,
-        is_durable: bool,
         *,
         enable_health_server: bool = False,
         healthcheck_port: int = 8001,
@@ -320,16 +363,12 @@ class Worker:
             process = self.ctx.Process(
                 target=worker_action_listener_process,
                 args=(
-                    self.name + ("_durable" if is_durable else ""),
-                    (
-                        list(self.durable_action_registry.keys())
-                        if is_durable
-                        else list(self.action_registry.keys())
-                    ),
-                    self.durable_slots if is_durable else self.slots,
+                    self.name,
+                    list(self.action_registry.keys()),
+                    self.slot_config,
                     self.config,
-                    self.durable_action_queue if is_durable else self.action_queue,
-                    self.durable_event_queue if is_durable else self.event_queue,
+                    self.action_queue,
+                    self.event_queue,
                     self.handle_kill,
                     self.client.debug,
                     self.labels,
@@ -349,12 +388,7 @@ class Worker:
             while not self.killing:
                 if (
                     not self.action_listener_process
-                    and not self.durable_action_listener_process
-                ) or (
-                    self.action_listener_process
-                    and self.durable_action_listener_process
-                    and not self.action_listener_process.is_alive()
-                    and not self.durable_action_listener_process.is_alive()
+                    or not self.action_listener_process.is_alive()
                 ):
                     logger.debug("child action listener process killed...")
                     self._status = WorkerStatus.UNHEALTHY
@@ -406,6 +440,41 @@ class Worker:
         if self.loop:
             self.loop.create_task(self._exit_forcefully())
 
+    def _close_queues(self) -> None:
+        queues: list[Queue[Any] | None] = [
+            self.action_queue,
+            self.event_queue,
+            self.durable_action_queue,
+            self.durable_event_queue,
+        ]
+
+        for queue in queues:
+            if queue is None:
+                continue
+            try:
+                queue.cancel_join_thread()
+                queue.close()
+            except Exception:
+                continue
+
+    def _terminate_processes(self) -> None:
+        for process in [
+            self.action_listener_process,
+            self.durable_action_listener_process,
+        ]:
+            if process is not None and process.pid is not None:
+                try:
+                    if process.is_alive():
+                        os.kill(process.pid, signal.SIGQUIT)
+
+                    process.join(timeout=5)
+
+                    if process.is_alive():
+                        process.kill()
+                        process.join(timeout=1)
+                except Exception:
+                    pass
+
     async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
         self.killing = True
@@ -413,10 +482,13 @@ class Worker:
         if self.action_runner is not None:
             self.action_runner.cleanup()
 
-        if self.durable_action_runner is not None:
-            self.durable_action_runner.cleanup()
+        # Also clean up the durable action runner (legacy mode)
+        if self._legacy_durable_action_runner is not None:
+            self._legacy_durable_action_runner.cleanup()
 
         await self.action_listener_health_check
+
+        self._close_queues()
 
     async def exit_gracefully(self) -> None:
         logger.debug(f"gracefully stopping worker: {self.name}")
@@ -430,9 +502,10 @@ class Worker:
             await self.action_runner.wait_for_tasks()
             await self.action_runner.exit_gracefully()
 
-        if self.durable_action_runner:
-            await self.durable_action_runner.wait_for_tasks()
-            await self.durable_action_runner.exit_gracefully()
+        # Also clean up the durable action runner (legacy mode)
+        if self._legacy_durable_action_runner:
+            await self._legacy_durable_action_runner.wait_for_tasks()
+            await self._legacy_durable_action_runner.exit_gracefully()
 
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
@@ -449,6 +522,9 @@ class Worker:
             logger.exception("lifespan cleanup failed")
 
         await self._close()
+
+        if self._lifespan_cleanup_complete is not None:
+            await self._lifespan_cleanup_complete.wait()
         if self.loop and self.owned_loop:
             self.loop.stop()
 
@@ -459,13 +535,17 @@ class Worker:
 
         logger.debug(f"forcefully stopping worker: {self.name}")
 
+        self._terminate_processes()
+
         await self._close()
 
-        if self.action_listener_process:
-            self.action_listener_process.kill()
-
-        if self.durable_action_listener_process:
-            self.durable_action_listener_process.kill()
+        if self._lifespan_cleanup_complete is not None:
+            try:
+                await asyncio.wait_for(
+                    self._lifespan_cleanup_complete.wait(), timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("lifespan cleanup timed out during forceful shutdown")
 
         logger.info("👋")
         sys.exit(1)

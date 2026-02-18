@@ -39,13 +39,15 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
+import { SlotConfig } from '../../slot-types';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
 export interface WorkerOpts {
   name: string;
   handleKill?: boolean;
-  maxRuns?: number;
+  slots?: number;
+  durableSlots?: number;
   labels?: WorkerLabels;
   healthPort?: number;
   enableHealthServer?: boolean;
@@ -61,9 +63,11 @@ export class V1Worker {
   action_registry: ActionRegistry;
   workflow_registry: Array<WorkflowDefinition | Workflow> = [];
   listener: ActionListener | undefined;
-  futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
-  contexts: Record<Action['stepRunId'], Context<any, any>> = {};
-  maxRuns?: number;
+  futures: Record<Action['taskRunExternalId'], HatchetPromise<any>> = {};
+  contexts: Record<Action['taskRunExternalId'], Context<any, any>> = {};
+  slots?: number;
+  durableSlots?: number;
+  slotConfig: SlotConfig;
 
   logger: Logger;
 
@@ -82,14 +86,18 @@ export class V1Worker {
     options: {
       name: string;
       handleKill?: boolean;
-      maxRuns?: number;
+      slots?: number;
+      durableSlots?: number;
+      slotConfig?: SlotConfig;
       labels?: WorkerLabels;
     }
   ) {
     this.client = client;
     this.name = applyNamespace(options.name, this.client.config.namespace);
     this.action_registry = {};
-    this.maxRuns = options.maxRuns;
+    this.slots = options.slots;
+    this.durableSlots = options.durableSlots;
+    this.slotConfig = options.slotConfig || {};
 
     this.labels = options.labels || {};
 
@@ -127,11 +135,10 @@ export class V1Worker {
   }
 
   private getAvailableSlots(): number {
-    if (!this.maxRuns) {
-      return 0;
-    }
+    // sum all the slots in the slot config
+    const totalSlots = Object.values(this.slotConfig).reduce((acc, curr) => acc + curr, 0);
     const currentRuns = Object.keys(this.futures).length;
-    return Math.max(0, this.maxRuns - currentRuns);
+    return Math.max(0, totalSlots - currentRuns);
   }
 
   private getRegisteredActions(): string[] {
@@ -284,6 +291,8 @@ export class V1Worker {
           rateLimits: [],
           workerLabels: {},
           concurrency: [],
+          isDurable: false,
+          slotRequests: { default: 1 },
         };
       }
 
@@ -306,6 +315,8 @@ export class V1Worker {
           backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds:
             onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+          isDurable: false,
+          slotRequests: { default: 1 },
         };
       }
 
@@ -381,6 +392,8 @@ export class V1Worker {
         inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
       }
 
+      const durableTaskSet = new Set(workflow._durableTasks);
+
       const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
@@ -412,6 +425,9 @@ export class V1Worker {
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           conditions: taskConditionsToPb(task),
+          isDurable: durableTaskSet.has(task),
+          slotRequests:
+            task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency
@@ -534,12 +550,12 @@ export class V1Worker {
   }
 
   async handleStartStepRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, taskRunExternalId } = action;
 
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
       const context = new DurableContext(action, this.client, this);
-      this.contexts[action.stepRunId] = context;
+      this.contexts[taskRunExternalId] = context;
 
       const step = this.action_registry[actionId];
 
@@ -552,7 +568,7 @@ export class V1Worker {
       const run = async () => {
         parentRunContextManager.setContext({
           parentId: action.workflowRunId,
-          parentRunId: action.stepRunId,
+          parentTaskRunExternalId: taskRunExternalId,
           childIndex: 0,
           desiredWorkerId: this.workerId || '',
         });
@@ -565,7 +581,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.info(`Step run ${action.stepRunId} succeeded`);
+          this.logger.info(`Task run ${taskRunExternalId} succeeded`);
 
           // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
@@ -603,8 +619,8 @@ export class V1Worker {
           );
         } finally {
           // delete the run from the futures
-          delete this.futures[action.stepRunId];
-          delete this.contexts[action.stepRunId];
+          delete this.futures[taskRunExternalId];
+          delete this.contexts[taskRunExternalId];
         }
       };
 
@@ -616,7 +632,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.error(`Step run ${action.stepRunId} failed: ${error.message}`);
+          this.logger.error(`Task run ${taskRunExternalId} failed: ${error.message}`);
 
           if (error.stack) {
             this.logger.error(error.stack);
@@ -638,8 +654,8 @@ export class V1Worker {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
           // delete the run from the futures
-          delete this.futures[action.stepRunId];
-          delete this.contexts[action.stepRunId];
+          delete this.futures[taskRunExternalId];
+          delete this.contexts[taskRunExternalId];
         }
       };
 
@@ -655,7 +671,7 @@ export class V1Worker {
           await success(result);
         })()
       );
-      this.futures[action.stepRunId] = future;
+      this.futures[taskRunExternalId] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(
@@ -672,7 +688,16 @@ export class V1Worker {
       try {
         await future.promise;
       } catch (e: any) {
-        this.logger.error('Could not wait for step run to finish: ', e);
+        const message = e?.message || String(e);
+        if (message.includes('Cancelled')) {
+          this.logger.debug(`Task run ${taskRunExternalId} was cancelled`);
+        } else {
+          this.logger.error(
+            `Could not wait for task run ${taskRunExternalId} to finish. ` +
+              `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
+            e
+          );
+        }
       }
     } catch (e: any) {
       this.logger.error('Could not send action event (outer): ', e);
@@ -680,7 +705,7 @@ export class V1Worker {
   }
 
   async handleStartGroupKeyRun(action: Action) {
-    const { actionId } = action;
+    const { actionId, getGroupKeyRunId, taskRunExternalId } = action;
 
     this.logger.error(
       'Concurrency Key Functions have been deprecated and will be removed in a future release. Use Concurrency Expressions instead.'
@@ -689,7 +714,7 @@ export class V1Worker {
     try {
       const context = new Context(action, this.client, this);
 
-      const key = action.getGroupKeyRunId;
+      const key = getGroupKeyRunId;
 
       if (!key) {
         this.logger.error(`No group key run id provided for action ${actionId}`);
@@ -712,7 +737,7 @@ export class V1Worker {
       };
 
       const success = (result: any) => {
-        this.logger.info(`Step run ${action.stepRunId} succeeded`);
+        this.logger.info(`Task run ${taskRunExternalId} succeeded`);
 
         try {
           // Send the action event to the dispatcher
@@ -734,7 +759,7 @@ export class V1Worker {
       };
 
       const failure = (error: any) => {
-        this.logger.error(`Step run ${key} failed: ${error.message}`);
+        this.logger.error(`Task run ${key} failed: ${error.message}`);
 
         try {
           // Send the action event to the dispatcher
@@ -784,8 +809,8 @@ export class V1Worker {
       workerId: this.name,
       jobId: action.jobId,
       jobRunId: action.jobRunId,
-      stepId: action.stepId,
-      stepRunId: action.stepRunId,
+      taskId: action.taskId,
+      taskRunExternalId: action.taskRunExternalId,
       actionId: action.actionId,
       eventTimestamp: new Date(),
       eventType,
@@ -815,11 +840,11 @@ export class V1Worker {
   }
 
   async handleCancelStepRun(action: Action) {
-    const { stepRunId } = action;
+    const { taskRunExternalId } = action;
     try {
-      this.logger.info(`Cancelling step run ${action.stepRunId}`);
-      const future = this.futures[stepRunId];
-      const context = this.contexts[stepRunId];
+      this.logger.info(`Cancelling task run ${taskRunExternalId}`);
+      const future = this.futures[taskRunExternalId];
+      const context = this.contexts[taskRunExternalId];
 
       if (context && context.abortController) {
         context.abortController.abort('Cancelled by worker');
@@ -827,16 +852,17 @@ export class V1Worker {
 
       if (future) {
         future.promise.catch(() => {
-          this.logger.info(`Cancelled step run ${action.stepRunId}`);
+          this.logger.info(`Cancelled task run ${taskRunExternalId}`);
         });
         future.cancel('Cancelled by worker');
         await future.promise;
       }
     } catch (e: any) {
-      this.logger.error('Could not cancel step run: ', e);
+      // Expected: the promise rejects when cancelled
+      this.logger.debug(`Task run ${taskRunExternalId} cancellation completed`);
     } finally {
-      delete this.futures[stepRunId];
-      delete this.contexts[stepRunId];
+      delete this.futures[taskRunExternalId];
+      delete this.contexts[taskRunExternalId];
     }
   }
 
@@ -877,6 +903,20 @@ export class V1Worker {
     }
   }
 
+  /**
+   * Creates an action listener by registering the worker with the dispatcher.
+   * Override in subclasses to change registration behavior (e.g. legacy engines).
+   */
+  protected async createListener(): Promise<ActionListener> {
+    return this.client._v0.dispatcher.getActionListener({
+      workerName: this.name,
+      services: ['default'],
+      actions: Object.keys(this.action_registry),
+      slotConfig: this.slotConfig,
+      labels: this.labels,
+    });
+  }
+
   async start() {
     this.setStatus(workerStatus.STARTING);
 
@@ -898,13 +938,7 @@ export class V1Worker {
     }
 
     try {
-      this.listener = await this.client._v0.dispatcher.getActionListener({
-        workerName: this.name,
-        services: ['default'],
-        actions: Object.keys(this.action_registry),
-        maxRuns: this.maxRuns,
-        labels: this.labels,
-      });
+      this.listener = await this.createListener();
 
       this.workerId = this.listener.workerId;
       this.setStatus(workerStatus.HEALTHY);

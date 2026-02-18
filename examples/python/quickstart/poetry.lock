@@ -473,14 +473,14 @@ setuptools = "*"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.22.12"
+version = "1.25.0"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.22.12-py3-none-any.whl", hash = "sha256:0b371dda9b89ed63a6ad9b7704e37dfe0f84715c65518840b8b7f350303ad3af"},
-    {file = "hatchet_sdk-1.22.12.tar.gz", hash = "sha256:37b3c4f6f0b2884a25f38f792607390723f4d913df5297d24bbc29c29b42ac82"},
+    {file = "hatchet_sdk-1.25.0-py3-none-any.whl", hash = "sha256:d89ec0183e6593b1f6665fd06c621192d04fceaceaf296f99408be695034954f"},
+    {file = "hatchet_sdk-1.25.0.tar.gz", hash = "sha256:0718e67fdedabde80f50404bb395165eb1b178825a94eb4b1752843eae359e1f"},
 ]
 
 [package.dependencies]
@@ -488,7 +488,7 @@ aiohttp = ">=3.10.5,<4.0.0"
 grpcio = ">=1.76.0,<2.0.0"
 grpcio-tools = ">=1.76.0,<2.0.0"
 prometheus-client = ">=0.21.1"
-protobuf = ">=6.30.0,<7.0.0"
+protobuf = ">=6.30.2,<7.0.0"
 pydantic = ">=2.6.3,<3.0.0"
 pydantic-settings = ">=2.7.1,<3.0.0"
 python-dateutil = ">=2.9.0.post0,<3.0.0"
@@ -1125,4 +1125,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "620d42b3bd71cee2111135e2be49cc8da14707e8aee656507b5b4182898632bb"
+content-hash = "4088ec7612a4f750b19883f71a1a9840f20bd06933a1117c7e79e14afac06e9c"

@@ -3,6 +3,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -126,18 +127,18 @@ RETURNING
 `
 
 type CreateTasksParams struct {
-	Tenantids           []pgtype.UUID        `json:"tenantids"`
+	Tenantids           []uuid.UUID          `json:"tenantids"`
 	Queues              []string             `json:"queues"`
 	Actionids           []string             `json:"actionids"`
-	Stepids             []pgtype.UUID        `json:"stepids"`
+	Stepids             []uuid.UUID          `json:"stepids"`
 	Stepreadableids     []string             `json:"stepreadableids"`
-	Workflowids         []pgtype.UUID        `json:"workflowids"`
+	Workflowids         []uuid.UUID          `json:"workflowids"`
 	Scheduletimeouts    []string             `json:"scheduletimeouts"`
 	Steptimeouts        []string             `json:"steptimeouts"`
 	Priorities          []int32              `json:"priorities"`
 	Stickies            []string             `json:"stickies"`
-	Desiredworkerids    []pgtype.UUID        `json:"desiredworkerids"`
-	Externalids         []pgtype.UUID        `json:"externalids"`
+	Desiredworkerids    []*uuid.UUID         `json:"desiredworkerids"`
+	Externalids         []uuid.UUID          `json:"externalids"`
 	Displaynames        []string             `json:"displaynames"`
 	Inputs              [][]byte             `json:"inputs"`
 	Retrycounts         []int32              `json:"retrycounts"`
@@ -152,7 +153,7 @@ type CreateTasksParams struct {
 	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
 	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
-	ParentTaskExternalIds        []pgtype.UUID        `json:"parentTaskExternalIds"`
+	ParentTaskExternalIds        []uuid.UUID          `json:"parentTaskExternalIds"`
 	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
 	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
 	ChildIndex                   []pgtype.Int8        `json:"childIndex"`
@@ -160,8 +161,8 @@ type CreateTasksParams struct {
 	StepIndex                    []int64              `json:"stepIndex"`
 	RetryBackoffFactor           []pgtype.Float8      `json:"retryBackoffFactor"`
 	RetryMaxBackoff              []pgtype.Int4        `json:"retryMaxBackoff"`
-	WorkflowVersionIds           []pgtype.UUID        `json:"workflowVersionIds"`
-	WorkflowRunIds               []pgtype.UUID        `json:"workflowRunIds"`
+	WorkflowVersionIds           []uuid.UUID          `json:"workflowVersionIds"`
+	WorkflowRunIds               []uuid.UUID          `json:"workflowRunIds"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -332,14 +333,14 @@ RETURNING
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
 	Eventtypes      []string             `json:"eventtypes"`
 	Eventkeys       []pgtype.Text        `json:"eventkeys"`
 	Datas           [][]byte             `json:"datas"`
-	Externalids     []pgtype.UUID        `json:"externalids"`
+	Externalids     []uuid.UUID          `json:"externalids"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
@@ -728,13 +729,16 @@ WITH input AS (
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM
+        v1_task_runtime_slot
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 ), deleted_runtimes AS (
     DELETE FROM
         v1_task_runtime
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM runtimes_to_delete)
-    -- return a constant for ordering
-    RETURNING 1 AS cte_order
 )
 SELECT
     t.queue,
@@ -765,10 +769,10 @@ type ReleaseTasksRow struct {
 	Queue                  string             `json:"queue"`
 	ID                     int64              `json:"id"`
 	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID             pgtype.UUID        `json:"external_id"`
+	ExternalID             uuid.UUID          `json:"external_id"`
 	StepReadableID         string             `json:"step_readable_id"`
-	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
-	WorkerID               pgtype.UUID        `json:"worker_id"`
+	WorkflowRunID          uuid.UUID          `json:"workflow_run_id"`
+	WorkerID               uuid.UUID          `json:"worker_id"`
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
@@ -837,5 +841,79 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 		return nil, err
 	}
 
+	return items, nil
+}
+
+const bulkCreateEvents = `-- name: BulkCreateEvents :many
+WITH to_insert AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS external_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
+        UNNEST($4::TEXT[]) AS key,
+        UNNEST($5::JSONB[]) AS additional_metadata,
+        -- Scopes are nullable
+        UNNEST($6::TEXT[]) AS scope,
+        -- Webhook names are nullable
+        UNNEST($7::TEXT[]) AS triggering_webhook_name
+)
+INSERT INTO v1_event (
+    tenant_id,
+    external_id,
+    seen_at,
+    key,
+    additional_metadata,
+    scope,
+	triggering_webhook_name
+)
+SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+FROM to_insert
+RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+`
+
+type BulkCreateEventsParams struct {
+	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Externalids            []uuid.UUID          `json:"externalids"`
+	Seenats                []pgtype.Timestamptz `json:"seenats"`
+	Keys                   []string             `json:"keys"`
+	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
+	Scopes                 []pgtype.Text        `json:"scopes"`
+	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
+}
+
+func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1Event, error) {
+	rows, err := db.Query(ctx, bulkCreateEvents,
+		arg.Tenantids,
+		arg.Externalids,
+		arg.Seenats,
+		arg.Keys,
+		arg.Additionalmetadatas,
+		arg.Scopes,
+		arg.TriggeringWebhookNames,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Event
+	for rows.Next() {
+		var i V1Event
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.ExternalID,
+			&i.SeenAt,
+			&i.Key,
+			&i.AdditionalMetadata,
+			&i.Scope,
+			&i.TriggeringWebhookName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }

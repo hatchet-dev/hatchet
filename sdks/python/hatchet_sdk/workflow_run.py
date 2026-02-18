@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -6,9 +8,17 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
+from hatchet_sdk.exceptions import (
+    CancellationReason,
+    CancelledError,
+    FailedTaskRunExceptionGroup,
+    TaskRunError,
+)
+from hatchet_sdk.logger import logger
+from hatchet_sdk.utils.cancellation import await_with_cancellation
 
 if TYPE_CHECKING:
+    from hatchet_sdk.cancellation import CancellationToken
     from hatchet_sdk.clients.admin import AdminClient
 
 
@@ -18,7 +28,7 @@ class WorkflowRunRef:
         workflow_run_id: str,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-        admin_client: "AdminClient",
+        admin_client: AdminClient,
     ):
         self.workflow_run_id = workflow_run_id
         self.workflow_run_listener = workflow_run_listener
@@ -31,7 +41,25 @@ class WorkflowRunRef:
     def stream(self) -> RunEventListener:
         return self.workflow_run_event_listener.stream(self.workflow_run_id)
 
-    async def aio_result(self) -> dict[str, Any]:
+    async def aio_result(
+        self, cancellation_token: CancellationToken | None = None
+    ) -> dict[str, Any]:
+        """
+        Asynchronously wait for the workflow run to complete and return the result.
+
+        :param cancellation_token: Optional cancellation token to abort the wait.
+        :return: A dictionary mapping task names to their outputs.
+        """
+        logger.debug(
+            f"WorkflowRunRef.aio_result: waiting for {self.workflow_run_id}, "
+            f"token={cancellation_token is not None}"
+        )
+
+        if cancellation_token:
+            return await await_with_cancellation(
+                self.workflow_run_listener.aio_result(self.workflow_run_id),
+                cancellation_token,
+            )
         return await self.workflow_run_listener.aio_result(self.workflow_run_id)
 
     def _safely_get_action_name(self, action_id: str | None) -> str | None:
@@ -43,12 +71,42 @@ class WorkflowRunRef:
         except IndexError:
             return None
 
-    def result(self) -> dict[str, Any]:
+    def result(
+        self, cancellation_token: CancellationToken | None = None
+    ) -> dict[str, Any]:
+        """
+        Synchronously wait for the workflow run to complete and return the result.
+
+        This method polls the API for the workflow run status. If a cancellation token
+        is provided, the polling will be interrupted when cancellation is triggered.
+
+        :param cancellation_token: Optional cancellation token to abort the wait.
+        :return: A dictionary mapping task names to their outputs.
+        :raises CancelledError: If the cancellation token is triggered.
+        :raises FailedTaskRunExceptionGroup: If the workflow run fails.
+        :raises ValueError: If the workflow run is not found.
+        """
         from hatchet_sdk.clients.admin import RunStatus
+
+        logger.debug(
+            f"WorkflowRunRef.result: waiting for {self.workflow_run_id}, "
+            f"token={cancellation_token is not None}"
+        )
 
         retries = 0
 
         while True:
+            # Check cancellation at start of each iteration
+            if cancellation_token and cancellation_token.is_cancelled:
+                logger.debug(
+                    f"WorkflowRunRef.result: cancellation detected for {self.workflow_run_id}, "
+                    f"reason={CancellationReason.PARENT_CANCELLED.value}"
+                )
+                raise CancelledError(
+                    "Operation cancelled by cancellation token",
+                    reason=CancellationReason.PARENT_CANCELLED,
+                )
+
             try:
                 details = self.admin_client.get_details(self.workflow_run_id)
             except Exception as e:
@@ -59,14 +117,42 @@ class WorkflowRunRef:
                         f"Workflow run {self.workflow_run_id} not found"
                     ) from e
 
-                time.sleep(1)
+                # Use interruptible sleep via token.wait()
+                if cancellation_token:
+                    if cancellation_token.wait(timeout=1.0):
+                        logger.debug(
+                            f"WorkflowRunRef.result: cancellation during retry sleep for {self.workflow_run_id}, "
+                            f"reason={CancellationReason.PARENT_CANCELLED.value}"
+                        )
+                        raise CancelledError(
+                            "Operation cancelled by cancellation token",
+                            reason=CancellationReason.PARENT_CANCELLED,
+                        ) from None
+                else:
+                    time.sleep(1)
                 continue
+
+            logger.debug(
+                f"WorkflowRunRef.result: {self.workflow_run_id} status={details.status}"
+            )
 
             if (
                 details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
                 or details.done is False
             ):
-                time.sleep(1)
+                # Use interruptible sleep via token.wait()
+                if cancellation_token:
+                    if cancellation_token.wait(timeout=1.0):
+                        logger.debug(
+                            f"WorkflowRunRef.result: cancellation during poll sleep for {self.workflow_run_id}, "
+                            f"reason={CancellationReason.PARENT_CANCELLED.value}"
+                        )
+                        raise CancelledError(
+                            "Operation cancelled by cancellation token",
+                            reason=CancellationReason.PARENT_CANCELLED,
+                        )
+                else:
+                    time.sleep(1)
                 continue
 
             if details.status == RunStatus.FAILED:
@@ -80,6 +166,9 @@ class WorkflowRunRef:
                 )
 
             if details.status == RunStatus.COMPLETED:
+                logger.debug(
+                    f"WorkflowRunRef.result: {self.workflow_run_id} completed successfully"
+                )
                 return {
                     readable_id: run.output
                     for readable_id, run in details.task_runs.items()

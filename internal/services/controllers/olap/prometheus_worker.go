@@ -3,6 +3,7 @@ package olap
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/errgroup"
 
@@ -12,20 +13,20 @@ import (
 )
 
 type taskPrometheusUpdate struct {
-	tenantId       string
+	tenantId       uuid.UUID
 	taskId         int64
 	taskInsertedAt pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
-	workflowId     pgtype.UUID
+	workflowId     uuid.UUID
 	isDAGTask      bool
 }
 
 type dagPrometheusUpdate struct {
-	tenantId       string
-	dagExternalId  pgtype.UUID
+	tenantId       uuid.UUID
+	dagExternalId  uuid.UUID
 	dagInsertedAt  pgtype.Timestamptz
 	readableStatus sqlcv1.V1ReadableStatusOlap
-	workflowId     pgtype.UUID
+	workflowId     uuid.UUID
 }
 
 func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
@@ -46,7 +47,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 		}
 
 		// Group by tenant
-		tenantToUpdates := make(map[string][]taskPrometheusUpdate)
+		tenantToUpdates := make(map[uuid.UUID][]taskPrometheusUpdate)
 		for _, update := range updates {
 			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
 		}
@@ -55,7 +56,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 
 		for tenantId, tenantUpdates := range tenantToUpdates {
 			eg.Go(func() error {
-				workflowIds := make([]pgtype.UUID, 0, len(tenantUpdates))
+				workflowIds := make([]uuid.UUID, 0, len(tenantUpdates))
 				for _, update := range tenantUpdates {
 					workflowIds = append(workflowIds, update.workflowId)
 				}
@@ -96,7 +97,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 					}
 
 					duration := int(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds())
-					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(update.readableStatus)).Observe(float64(duration))
+					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId.String(), workflowName, string(update.readableStatus)).Observe(float64(duration))
 				}
 
 				return nil
@@ -153,7 +154,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 		}
 
 		// Group by tenant
-		tenantToUpdates := make(map[string][]dagPrometheusUpdate)
+		tenantToUpdates := make(map[uuid.UUID][]dagPrometheusUpdate)
 		for _, update := range updates {
 			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
 		}
@@ -162,7 +163,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 
 		for tenantId, tenantUpdates := range tenantToUpdates {
 			eg.Go(func() error {
-				workflowIds := make([]pgtype.UUID, 0, len(tenantUpdates))
+				workflowIds := make([]uuid.UUID, 0, len(tenantUpdates))
 				for _, update := range tenantUpdates {
 					workflowIds = append(workflowIds, update.workflowId)
 				}
@@ -172,7 +173,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 					return err
 				}
 
-				dagExternalIds := make([]pgtype.UUID, 0, len(tenantUpdates))
+				dagExternalIds := make([]uuid.UUID, 0, len(tenantUpdates))
 				var minInsertedAt pgtype.Timestamptz
 
 				for _, update := range tenantUpdates {
@@ -200,7 +201,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 					}
 
 					duration := int(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds())
-					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(update.readableStatus)).Observe(float64(duration))
+					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId.String(), workflowName, string(update.readableStatus)).Observe(float64(duration))
 				}
 
 				return nil

@@ -10,22 +10,23 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 )
 
 func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.WorkerRegisterRequest) (*contracts.WorkerRegisterResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
@@ -52,9 +53,20 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	if request.MaxRuns != nil {
-		mr := int(*request.MaxRuns)
-		opts.MaxRuns = &mr
+	if len(request.SlotConfig) > 0 {
+		opts.SlotConfig = request.SlotConfig
+	} else {
+		// default to 100 slots
+		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: 100}
+	}
+
+	// fixme: deprecated remove in a future release feb6 2026
+	if request.Slots != nil {
+		if len(request.SlotConfig) > 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "either slot_config or slots (deprecated) must be provided, not both")
+		}
+
+		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: *request.Slots}
 	}
 
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
@@ -75,7 +87,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		return nil, err
 	}
 
-	workerId := sqlchelpers.UUIDToStr(worker.ID)
+	workerId := worker.ID.String()
 
 	if request.Labels != nil {
 		_, err = s.upsertLabels(ctx, worker.ID, request.Labels)
@@ -87,7 +99,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	// return the worker id to the worker
 	return &contracts.WorkerRegisterResponse{
-		TenantId:   tenantId,
+		TenantId:   tenantId.String(),
 		WorkerId:   workerId,
 		WorkerName: worker.Name,
 	}, nil
@@ -95,20 +107,25 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contracts.UpsertWorkerLabelsRequest) (*contracts.UpsertWorkerLabelsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	workerId, err := uuid.Parse(request.WorkerId)
 
-	_, err := s.upsertLabels(ctx, sqlchelpers.UUIDFromStr(request.WorkerId), request.Labels)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
+
+	_, err = s.upsertLabels(ctx, workerId, request.Labels)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &contracts.UpsertWorkerLabelsResponse{
-		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
+		TenantId: tenant.ID.String(),
 		WorkerId: request.WorkerId,
 	}, nil
 }
 
-func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
 	affinities := make([]v1.UpsertWorkerLabelOpts, 0, len(request))
 
 	for key, config := range request {
@@ -129,7 +146,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID,
 	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, workerId, affinities)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", sqlchelpers.UUIDToStr(workerId))
+		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
 		return nil, err
 	}
 
@@ -139,25 +156,31 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID,
 // Subscribe handles a subscribe request from a client
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 	sessionId := uuid.New().String()
+	workerId, err := uuid.Parse(request.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
+		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
 	ctx := stream.Context()
 
-	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || (worker.DispatcherId != nil && *worker.DispatcherId != s.dispatcherId)
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
-		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -173,7 +196,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, request.WorkerId, 20, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, 20, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -182,7 +205,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		default:
 		}
 
-		s.workers.DeleteForSession(request.WorkerId, sessionId)
+		s.workers.DeleteForSession(workerId, sessionId)
 	}()
 
 	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
@@ -205,7 +228,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
 					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
 
-					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
+					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
 						IsActive:        v1.BoolPtr(true),
 					})
@@ -242,25 +265,31 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 // against engine version v0.18.1+
 func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 	sessionId := uuid.New().String()
+	workerId, err := uuid.Parse(request.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
+		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
 
 	ctx := stream.Context()
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
-	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
 		return err
 	}
 
-	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || (worker.DispatcherId != nil && *worker.DispatcherId != s.dispatcherId)
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if shouldUpdateDispatcherId {
-		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, request.WorkerId, &v1.UpdateWorkerOpts{
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -276,7 +305,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	sessionEstablished := time.Now().UTC()
 
-	_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
+	_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, true, sessionEstablished)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -295,7 +324,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, newSubscribedWorker(stream, fin, request.WorkerId, s.defaultMaxWorkerBacklogSize, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerBacklogSize, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -304,7 +333,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		default:
 		}
 
-		s.workers.DeleteForSession(request.WorkerId, sessionId)
+		s.workers.DeleteForSession(workerId, sessionId)
 	}()
 
 	// Keep the connection alive for sending messages
@@ -313,7 +342,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-fin:
 			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
+			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
@@ -327,7 +356,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
+			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
@@ -347,7 +376,13 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	defer span.End()
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
+	workerId, err := uuid.Parse(req.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", req.WorkerId)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", req.WorkerId)
+	}
 
 	heartbeatAt := time.Now().UTC()
 
@@ -358,7 +393,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		s.l.Warn().Msgf("heartbeat time is greater than expected heartbeat interval")
 	}
 
-	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
+	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
 		span.RecordError(err)
@@ -377,7 +412,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
-	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
+	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, heartbeatAt)
 
 	if err != nil {
 		span.RecordError(err)
@@ -388,6 +423,33 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		}
 
 		return nil, err
+	}
+
+	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
+	// new worker is available
+	if !worker.LastHeartbeatAt.Valid || worker.LastHeartbeatAt.Time.Before(heartbeatAt.Add(-30*time.Second)) {
+		if tenant.SchedulerPartitionId.Valid {
+			go func() {
+				notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				msg, err := tasktypes.NotifyNewWorker(tenantId, worker.ID)
+
+				if err != nil {
+					s.l.Err(err).Msg("could not create message for notifying new worker")
+				} else {
+					err = s.mqv1.SendMessage(
+						notifyCtx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msg,
+					)
+
+					if err != nil {
+						s.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
+				}
+			}()
+		}
 	}
 
 	return &contracts.HeartbeatResponse{}, nil
@@ -406,22 +468,22 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 // map of workflow run ids to whether the workflow runs are finished and have sent a message
 // that the workflow run is finished
 type workflowRunAcks struct {
-	acks map[string]bool
+	acks map[uuid.UUID]bool
 	mu   sync.RWMutex
 }
 
-func (w *workflowRunAcks) addWorkflowRun(id string) {
+func (w *workflowRunAcks) addWorkflowRun(id uuid.UUID) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	w.acks[id] = false
 }
 
-func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
+func (w *workflowRunAcks) getNonAckdWorkflowRuns() []uuid.UUID {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	ids := make([]string, 0, len(w.acks))
+	ids := make([]uuid.UUID, 0, len(w.acks))
 
 	for id := range w.acks {
 		if !w.acks[id] {
@@ -432,14 +494,14 @@ func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
 	return ids
 }
 
-func (w *workflowRunAcks) ackWorkflowRun(id string) {
+func (w *workflowRunAcks) ackWorkflowRun(id uuid.UUID) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	delete(w.acks, id)
 }
 
-func (w *workflowRunAcks) hasWorkflowRun(id string) bool {
+func (w *workflowRunAcks) hasWorkflowRun(id uuid.UUID) bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -550,13 +612,18 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
+
+	workerId, err := uuid.Parse(request.WorkerId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
 
 	// remove the worker from the connection pool
-	s.workers.Delete(request.WorkerId)
+	s.workers.Delete(workerId)
 
 	return &contracts.WorkerUnsubscribeResponse{
-		TenantId: tenantId,
+		TenantId: tenantId.String(),
 		WorkerId: request.WorkerId,
 	}, nil
 }
@@ -583,4 +650,10 @@ func UnmarshalPayload[T any](payload interface{}) (T, error) {
 	}
 
 	return result, nil
+}
+
+func (s *DispatcherImpl) GetVersion(ctx context.Context, req *contracts.GetVersionRequest) (*contracts.GetVersionResponse, error) {
+	return &contracts.GetVersionResponse{
+		Version: s.version,
+	}, nil
 }

@@ -1,13 +1,13 @@
 package repository
 
 import (
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
 type OLAPPayloadToOffload struct {
-	ExternalId          pgtype.UUID
+	ExternalId          uuid.UUID
 	ExternalLocationKey string
 }
 
@@ -15,7 +15,7 @@ type OLAPPayloadsToOffload struct {
 	Payloads []OLAPPayloadToOffload
 }
 
-func OLAPPayloadOffloadMessage(tenantId string, payloads []OLAPPayloadToOffload) (*msgqueue.Message, error) {
+func OLAPPayloadOffloadMessage(tenantId uuid.UUID, payloads []OLAPPayloadToOffload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDOffloadPayload,

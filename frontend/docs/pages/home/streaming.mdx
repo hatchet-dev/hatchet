@@ -11,7 +11,7 @@ Hatchet tasks can stream data back to a consumer in real-time. This has a number
 
 You can stream data out of a task run by using the `put_stream` (or equivalent) method on the `Context`.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 <Snippet src={snippets.python.streaming.worker.streaming} />
 
@@ -27,6 +27,9 @@ You can stream data out of a task run by using the `put_stream` (or equivalent) 
 
 </Tabs.Tab>
 
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.streaming.worker.streaming} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 This task will stream small chunks of content through Hatchet, which can then be consumed elsewhere. Here we use some text as an example, but this is intended to replicate streaming the results of an LLM call back to a consumer.
@@ -35,7 +38,7 @@ This task will stream small chunks of content through Hatchet, which can then be
 
 You can easily consume stream events by using the stream method on the workflow run ref that the various [fire-and-forget](./run-no-wait.mdx) methods return.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 <Snippet src={snippets.python.streaming.async_stream.consume} />
 
@@ -51,6 +54,9 @@ You can easily consume stream events by using the stream method on the workflow 
 
 </Tabs.Tab>
 
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.streaming.async_stream.consume} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 In the examples above, this will result in the famous text below being gradually printed to the console, bit by bit.
@@ -74,7 +80,7 @@ It's common to want to stream events out of a Hatchet task and back to the front
 
 In both cases, we recommend using your application's backend as a proxy for the stream, where you would subscribe to the stream of events from Hatchet, and then stream events through to the frontend as they're received by the backend.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 For example, with FastAPI, you'd do the following:
@@ -97,6 +103,9 @@ For example, with Go's built-in HTTP server, you'd do the following:
 
 </Tabs.Tab>
 
+  <Tabs.Tab title="Ruby">
+    {/* TODO: add ruby snippet */}
+  </Tabs.Tab>
 </UniversalTabs>
 
 Then, assuming you run the server on port `8000`, running `curl -N http://localhost:8000/stream` would result in the text streaming back to your console from Hatchet through your FastAPI proxy.

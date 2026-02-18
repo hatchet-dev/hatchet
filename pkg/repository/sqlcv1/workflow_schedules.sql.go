@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -24,19 +25,19 @@ RETURNING t."id"
 `
 
 type BulkDeleteScheduledWorkflowsParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Ids      []pgtype.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Ids      []uuid.UUID `json:"ids"`
 }
 
-func (q *Queries) BulkDeleteScheduledWorkflows(ctx context.Context, db DBTX, arg BulkDeleteScheduledWorkflowsParams) ([]pgtype.UUID, error) {
+func (q *Queries) BulkDeleteScheduledWorkflows(ctx context.Context, db DBTX, arg BulkDeleteScheduledWorkflowsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, bulkDeleteScheduledWorkflows, arg.Tenantid, arg.Ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -75,20 +76,20 @@ RETURNING t."id"
 `
 
 type BulkUpdateScheduledWorkflowsParams struct {
-	Tenantid   pgtype.UUID        `json:"tenantid"`
-	Ids        []pgtype.UUID      `json:"ids"`
+	Tenantid   uuid.UUID          `json:"tenantid"`
+	Ids        []uuid.UUID        `json:"ids"`
 	Triggerats []pgtype.Timestamp `json:"triggerats"`
 }
 
-func (q *Queries) BulkUpdateScheduledWorkflows(ctx context.Context, db DBTX, arg BulkUpdateScheduledWorkflowsParams) ([]pgtype.UUID, error) {
+func (q *Queries) BulkUpdateScheduledWorkflows(ctx context.Context, db DBTX, arg BulkUpdateScheduledWorkflowsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, bulkUpdateScheduledWorkflows, arg.Tenantid, arg.Ids, arg.Triggerats)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []uuid.UUID
 	for rows.Next() {
-		var id pgtype.UUID
+		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -136,9 +137,9 @@ WHERE
 `
 
 type CountCronWorkflowsParams struct {
-	Tenantid           pgtype.UUID `json:"tenantid"`
-	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
-	Workflowid         pgtype.UUID `json:"workflowid"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
+	CronTriggerId      *uuid.UUID  `json:"cronTriggerId"`
+	WorkflowId         *uuid.UUID  `json:"workflowId"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	CronName           pgtype.Text `json:"cronName"`
 	WorkflowName       pgtype.Text `json:"workflowName"`
@@ -148,8 +149,8 @@ type CountCronWorkflowsParams struct {
 func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, arg CountCronWorkflowsParams) (int64, error) {
 	row := db.QueryRow(ctx, countCronWorkflows,
 		arg.Tenantid,
-		arg.Crontriggerid,
-		arg.Workflowid,
+		arg.CronTriggerId,
+		arg.WorkflowId,
 		arg.AdditionalMetadata,
 		arg.CronName,
 		arg.WorkflowName,
@@ -185,23 +186,23 @@ WHERE v."deletedAt" IS NULL
 `
 
 type CountScheduledWorkflowsParams struct {
-	Tenantid            pgtype.UUID `json:"tenantid"`
-	Scheduleid          pgtype.UUID `json:"scheduleid"`
-	Workflowid          pgtype.UUID `json:"workflowid"`
-	Parentworkflowrunid pgtype.UUID `json:"parentworkflowrunid"`
-	Parentsteprunid     pgtype.UUID `json:"parentsteprunid"`
-	AdditionalMetadata  []byte      `json:"additionalMetadata"`
-	Statuses            []string    `json:"statuses"`
-	Includescheduled    bool        `json:"includescheduled"`
+	Tenantid            uuid.UUID  `json:"tenantid"`
+	ScheduleId          *uuid.UUID `json:"scheduleId"`
+	WorkflowId          *uuid.UUID `json:"workflowId"`
+	ParentWorkflowRunId *uuid.UUID `json:"parentWorkflowRunId"`
+	ParentStepRunId     *uuid.UUID `json:"parentStepRunId"`
+	AdditionalMetadata  []byte     `json:"additionalMetadata"`
+	Statuses            []string   `json:"statuses"`
+	Includescheduled    bool       `json:"includescheduled"`
 }
 
 func (q *Queries) CountScheduledWorkflows(ctx context.Context, db DBTX, arg CountScheduledWorkflowsParams) (int64, error) {
 	row := db.QueryRow(ctx, countScheduledWorkflows,
 		arg.Tenantid,
-		arg.Scheduleid,
-		arg.Workflowid,
-		arg.Parentworkflowrunid,
-		arg.Parentsteprunid,
+		arg.ScheduleId,
+		arg.WorkflowId,
+		arg.ParentWorkflowRunId,
+		arg.ParentStepRunId,
 		arg.AdditionalMetadata,
 		arg.Statuses,
 		arg.Includescheduled,
@@ -249,7 +250,7 @@ type CreateWorkflowTriggerScheduledRefForWorkflowParams struct {
 	Additionalmetadata []byte                                 `json:"additionalmetadata"`
 	Method             NullWorkflowTriggerScheduledRefMethods `json:"method"`
 	Priority           pgtype.Int4                            `json:"priority"`
-	Workflowid         pgtype.UUID                            `json:"workflowid"`
+	Workflowid         uuid.UUID                              `json:"workflowid"`
 }
 
 func (q *Queries) CreateWorkflowTriggerScheduledRefForWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowTriggerScheduledRefForWorkflowParams) (*WorkflowTriggerScheduledRef, error) {
@@ -288,7 +289,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) DeleteScheduledWorkflow(ctx context.Context, db DBTX, scheduleid pgtype.UUID) error {
+func (q *Queries) DeleteScheduledWorkflow(ctx context.Context, db DBTX, scheduleid uuid.UUID) error {
 	_, err := db.Exec(ctx, deleteScheduledWorkflow, scheduleid)
 	return err
 }
@@ -299,7 +300,7 @@ WHERE
     "id" = $1::uuid
 `
 
-func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, id pgtype.UUID) error {
+func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, id uuid.UUID) error {
 	_, err := db.Exec(ctx, deleteWorkflowTriggerCronRef, id)
 	return err
 }
@@ -322,12 +323,12 @@ WHERE
 `
 
 type GetScheduledWorkflowMetaByIdsParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Ids      []pgtype.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Ids      []uuid.UUID `json:"ids"`
 }
 
 type GetScheduledWorkflowMetaByIdsRow struct {
-	ID              pgtype.UUID                        `json:"id"`
+	ID              uuid.UUID                          `json:"id"`
 	Method          WorkflowTriggerScheduledRefMethods `json:"method"`
 	HasTriggeredRun bool                               `json:"hasTriggeredRun"`
 }
@@ -405,9 +406,9 @@ LIMIT
 `
 
 type ListCronWorkflowsParams struct {
-	Tenantid           pgtype.UUID `json:"tenantid"`
-	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
-	Workflowid         pgtype.UUID `json:"workflowid"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
+	CronTriggerId      *uuid.UUID  `json:"cronTriggerId"`
+	WorkflowId         *uuid.UUID  `json:"workflowId"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	CronName           pgtype.Text `json:"cronName"`
 	WorkflowName       pgtype.Text `json:"workflowName"`
@@ -417,21 +418,21 @@ type ListCronWorkflowsParams struct {
 }
 
 type ListCronWorkflowsRow struct {
-	WorkflowVersionId   pgtype.UUID                   `json:"workflowVersionId"`
+	WorkflowVersionId   uuid.UUID                     `json:"workflowVersionId"`
 	WorkflowName        string                        `json:"workflowName"`
-	WorkflowId          pgtype.UUID                   `json:"workflowId"`
-	TenantId            pgtype.UUID                   `json:"tenantId"`
-	TriggerId           pgtype.UUID                   `json:"triggerId"`
-	CronId              pgtype.UUID                   `json:"cronId"`
-	ID                  pgtype.UUID                   `json:"id"`
+	WorkflowId          uuid.UUID                     `json:"workflowId"`
+	TenantId            uuid.UUID                     `json:"tenantId"`
+	TriggerId           uuid.UUID                     `json:"triggerId"`
+	CronId              uuid.UUID                     `json:"cronId"`
+	ID                  uuid.UUID                     `json:"id"`
 	CreatedAt           pgtype.Timestamp              `json:"createdAt"`
 	UpdatedAt           pgtype.Timestamp              `json:"updatedAt"`
 	DeletedAt           pgtype.Timestamp              `json:"deletedAt"`
-	WorkflowVersionId_2 pgtype.UUID                   `json:"workflowVersionId_2"`
-	TenantId_2          pgtype.UUID                   `json:"tenantId_2"`
-	ParentId            pgtype.UUID                   `json:"parentId"`
+	WorkflowVersionId_2 uuid.UUID                     `json:"workflowVersionId_2"`
+	TenantId_2          uuid.UUID                     `json:"tenantId_2"`
+	ParentId            uuid.UUID                     `json:"parentId"`
 	Cron                string                        `json:"cron"`
-	TickerId            pgtype.UUID                   `json:"tickerId"`
+	TickerId            *uuid.UUID                    `json:"tickerId"`
 	Input               []byte                        `json:"input"`
 	Enabled             bool                          `json:"enabled"`
 	AdditionalMetadata  []byte                        `json:"additionalMetadata"`
@@ -439,7 +440,7 @@ type ListCronWorkflowsRow struct {
 	DeletedAt_2         pgtype.Timestamp              `json:"deletedAt_2"`
 	UpdatedAt_2         pgtype.Timestamp              `json:"updatedAt_2"`
 	Name                pgtype.Text                   `json:"name"`
-	ID_2                pgtype.UUID                   `json:"id_2"`
+	ID_2                uuid.UUID                     `json:"id_2"`
 	Method              WorkflowTriggerCronRefMethods `json:"method"`
 	Priority            int32                         `json:"priority"`
 }
@@ -448,8 +449,8 @@ type ListCronWorkflowsRow struct {
 func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listCronWorkflows,
 		arg.Tenantid,
-		arg.Crontriggerid,
-		arg.Workflowid,
+		arg.CronTriggerId,
+		arg.WorkflowId,
 		arg.AdditionalMetadata,
 		arg.CronName,
 		arg.WorkflowName,
@@ -546,11 +547,11 @@ LIMIT
 `
 
 type ListScheduledWorkflowsParams struct {
-	Tenantid            pgtype.UUID `json:"tenantid"`
-	Scheduleid          pgtype.UUID `json:"scheduleid"`
-	Workflowid          pgtype.UUID `json:"workflowid"`
-	Parentworkflowrunid pgtype.UUID `json:"parentworkflowrunid"`
-	Parentsteprunid     pgtype.UUID `json:"parentsteprunid"`
+	Tenantid            uuid.UUID   `json:"tenantid"`
+	ScheduleId          *uuid.UUID  `json:"scheduleId"`
+	WorkflowId          *uuid.UUID  `json:"workflowId"`
+	ParentWorkflowRunId *uuid.UUID  `json:"parentWorkflowRunId"`
+	ParentStepRunId     *uuid.UUID  `json:"parentStepRunId"`
 	AdditionalMetadata  []byte      `json:"additionalMetadata"`
 	Statuses            []string    `json:"statuses"`
 	Includescheduled    bool        `json:"includescheduled"`
@@ -561,18 +562,18 @@ type ListScheduledWorkflowsParams struct {
 
 type ListScheduledWorkflowsRow struct {
 	Name                 string                             `json:"name"`
-	WorkflowId           pgtype.UUID                        `json:"workflowId"`
-	WorkflowVersionId    pgtype.UUID                        `json:"workflowVersionId"`
-	TenantId             pgtype.UUID                        `json:"tenantId"`
-	ID                   pgtype.UUID                        `json:"id"`
-	ParentId             pgtype.UUID                        `json:"parentId"`
+	WorkflowId           uuid.UUID                          `json:"workflowId"`
+	WorkflowVersionId    uuid.UUID                          `json:"workflowVersionId"`
+	TenantId             uuid.UUID                          `json:"tenantId"`
+	ID                   uuid.UUID                          `json:"id"`
+	ParentId             uuid.UUID                          `json:"parentId"`
 	TriggerAt            pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId             pgtype.UUID                        `json:"tickerId"`
+	TickerId             *uuid.UUID                         `json:"tickerId"`
 	Input                []byte                             `json:"input"`
 	ChildIndex           pgtype.Int4                        `json:"childIndex"`
 	ChildKey             pgtype.Text                        `json:"childKey"`
-	ParentStepRunId      pgtype.UUID                        `json:"parentStepRunId"`
-	ParentWorkflowRunId  pgtype.UUID                        `json:"parentWorkflowRunId"`
+	ParentStepRunId      *uuid.UUID                         `json:"parentStepRunId"`
+	ParentWorkflowRunId  *uuid.UUID                         `json:"parentWorkflowRunId"`
 	AdditionalMetadata   []byte                             `json:"additionalMetadata"`
 	CreatedAt            pgtype.Timestamp                   `json:"createdAt"`
 	DeletedAt            pgtype.Timestamp                   `json:"deletedAt"`
@@ -581,17 +582,17 @@ type ListScheduledWorkflowsRow struct {
 	Priority             int32                              `json:"priority"`
 	WorkflowRunCreatedAt pgtype.Timestamp                   `json:"workflowRunCreatedAt"`
 	WorkflowRunStatus    NullWorkflowRunStatus              `json:"workflowRunStatus"`
-	WorkflowRunId        pgtype.UUID                        `json:"workflowRunId"`
+	WorkflowRunId        *uuid.UUID                         `json:"workflowRunId"`
 	WorkflowRunName      pgtype.Text                        `json:"workflowRunName"`
 }
 
 func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listScheduledWorkflows,
 		arg.Tenantid,
-		arg.Scheduleid,
-		arg.Workflowid,
-		arg.Parentworkflowrunid,
-		arg.Parentsteprunid,
+		arg.ScheduleId,
+		arg.WorkflowId,
+		arg.ParentWorkflowRunId,
+		arg.ParentStepRunId,
 		arg.AdditionalMetadata,
 		arg.Statuses,
 		arg.Includescheduled,
@@ -650,7 +651,7 @@ WHERE
 
 type UpdateScheduledWorkflowParams struct {
 	Triggerat  pgtype.Timestamp `json:"triggerat"`
-	Scheduleid pgtype.UUID      `json:"scheduleid"`
+	Scheduleid uuid.UUID        `json:"scheduleid"`
 }
 
 func (q *Queries) UpdateScheduledWorkflow(ctx context.Context, db DBTX, arg UpdateScheduledWorkflowParams) error {

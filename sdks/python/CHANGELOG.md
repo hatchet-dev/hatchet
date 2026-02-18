@@ -5,6 +5,94 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.1] - 2026-02-17
+
+### Fixed
+- Fixes internal registration of durable slots
+
+## [1.25.0] - 2026-02-17
+
+### Added
+
+- Adds a `CancellationToken` class for coordinating cancellation across async and sync operations. The token provides both `asyncio.Event` and `threading.Event` primitives, and supports registering child workflow run IDs and callbacks.
+- Adds a `CancellationReason` enum with structured reasons for cancellation (`user_requested`, `timeout`, `parent_cancelled`, `workflow_cancelled`, `token_cancelled`).
+- Adds a `CancelledError` exception (inherits from `BaseException`, mirroring `asyncio.CancelledError`) for sync code paths.
+- Adds `cancellation_grace_period` and `cancellation_warning_threshold` configuration options to `ClientConfig` for controlling cancellation timing behavior.
+- Adds `await_with_cancellation` and `race_against_token` utility functions for racing awaitables against cancellation tokens.
+- The `Context` now exposes a `cancellation_token` property, allowing tasks to observe and react to cancellation signals directly.
+
+### Changed
+
+- The `Context.exit_flag` is now backed by a `CancellationToken` instead of a plain boolean. The property is maintained for backwards compatibility.
+- Durable context `aio_wait_for` now respects the cancellation token, raising `asyncio.CancelledError` if the task is cancelled while waiting.
+
+## [1.24.0] - 2026-02-13
+
+### Added
+
+- Webhooks client for managing incoming webhooks: create, list, get, update, and delete methods for webhooks, so external systems (e.g. GitHub, Stripe) can trigger workflows via HTTP.
+
+## [1.23.4] - 2026-02-13
+
+### Changed
+
+- Fixes cases where raising exception classes or exceptions with no message would cause the whole error including stack trace to be converted to an empty string.
+- When an error is raised because a workflow has no tasks it now includes the workflows name.
+
+## [1.23.3] - 2026-02-12
+
+### Added
+
+- Adds type-hinted `Standalone.output_validator` and `Standalone.output_validator_type` properties to support easier type-safety and match the `input_validator` property pattern on `BaseWorkflow`.
+- Adds type-hinted `Task.output_validator` and `Task.output_validator_type` properties to support easier type-safety and match the patterns on `BaseWorkflow/Standalone`.
+- Adds parameterized unit tests documenting current retry behavior of the Python SDK’s tenacity retry predicate for REST and gRPC errors.
+
+
+## [1.23.2] - 2026-02-11
+
+### Changed
+
+- Improves error handling for REST transport-level failures by raising typed exceptions for timeouts, connection, TLS, and protocol errors while preserving existing diagnostics.
+
+
+## [1.23.1] - 2026-02-10
+
+### Changed
+
+- Fixes a bug introduced in v1.21.0 where the `BaseWorkflow.input_validator` class property became incorrectly typed. Now separate properties are available for the type adapter and the underlying type.
+
+
+## [1.23.0] - 2026-02-05
+
+### Internal Only
+
+- Updated gRPC/REST contract field names to snake_case for consistency across SDKs.
+
+
+## [1.22.16] - 2026-02-05
+
+### Changed
+
+- Changes the python SDK to use `inspect.iscoroutinefunction` instead of `asyncio.iscoroutinefunction` which is deprecated.
+- Improves error diagnostics for transport-level failures in the REST client, such as SSL, connection, and timeout errors, by surfacing additional context.
+
+## [1.22.15] - 2026-02-02
+
+### Added
+
+- Adds `task_name` and `workflow_name` properties to the `Context` and `DurableContext` classes to allow tasks and lifespans to access their own names.
+
+### Changed
+
+- Fixes a bug to allow `ContextVars` to be used in lifespans
+- Improves worker shutdown + cleanup logic to avoid leaking semaphores in the action listener process.
+
+## [1.22.14] - 2026-01-31
+
+### Changed
+
+- Allows `None` to be sent from `send_step_action_event` to help limit an internal error on the engine.
+
 ## [1.22.13] - 2026-01-29
 
 ### Added

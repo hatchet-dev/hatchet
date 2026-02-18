@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -51,22 +50,22 @@ type UserRepository interface {
 	RegisterCreateCallback(callback UnscopedCallback[*UserCreateCallbackOpts])
 
 	// GetUserByID returns the user with the given id
-	GetUserByID(ctx context.Context, id string) (*sqlcv1.User, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (*sqlcv1.User, error)
 
 	// GetUserByEmail returns the user with the given email
 	GetUserByEmail(ctx context.Context, email string) (*sqlcv1.User, error)
 
 	// GetUserPassword returns the user password with the given id
-	GetUserPassword(ctx context.Context, id string) (*sqlcv1.UserPassword, error)
+	GetUserPassword(ctx context.Context, id uuid.UUID) (*sqlcv1.UserPassword, error)
 
 	// CreateUser creates a new user with the given options
 	CreateUser(ctx context.Context, opts *CreateUserOpts) (*sqlcv1.User, error)
 
 	// UpdateUser updates the user with the given email
-	UpdateUser(ctx context.Context, id string, opts *UpdateUserOpts) (*sqlcv1.User, error)
+	UpdateUser(ctx context.Context, id uuid.UUID, opts *UpdateUserOpts) (*sqlcv1.User, error)
 
 	// ListTenantMemberships returns the list of tenant memberships for the given user
-	ListTenantMemberships(ctx context.Context, userId string) ([]*sqlcv1.PopulateTenantMembersRow, error)
+	ListTenantMemberships(ctx context.Context, userId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 }
 
 func HashPassword(pw string) (*string, error) {
@@ -86,6 +85,10 @@ func StringPtr(s string) *string {
 
 func BoolPtr(b bool) *bool {
 	return &b
+}
+
+func Int32Ptr(i int32) *int32 {
+	return &i
 }
 
 func VerifyPassword(hashedPW, candidate string) (bool, error) {
@@ -114,8 +117,8 @@ func (r *userRepository) RegisterCreateCallback(callback UnscopedCallback[*UserC
 	r.createCallbacks = append(r.createCallbacks, callback)
 }
 
-func (r *userRepository) GetUserByID(ctx context.Context, id string) (*sqlcv1.User, error) {
-	return r.queries.GetUserByID(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+func (r *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*sqlcv1.User, error) {
+	return r.queries.GetUserByID(ctx, r.pool, id)
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*sqlcv1.User, error) {
@@ -124,8 +127,8 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*sql
 	return r.queries.GetUserByEmail(ctx, r.pool, emailLower)
 }
 
-func (r *userRepository) GetUserPassword(ctx context.Context, id string) (*sqlcv1.UserPassword, error) {
-	return r.queries.GetUserPassword(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+func (r *userRepository) GetUserPassword(ctx context.Context, id uuid.UUID) (*sqlcv1.UserPassword, error) {
+	return r.queries.GetUserPassword(ctx, r.pool, id)
 }
 
 func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (*sqlcv1.User, error) {
@@ -133,10 +136,10 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 		return nil, err
 	}
 
-	userId := uuid.New().String()
+	userId := uuid.New()
 
 	params := sqlcv1.CreateUserParams{
-		ID:    sqlchelpers.UUIDFromStr(userId),
+		ID:    userId,
 		Email: strings.ToLower(opts.Email),
 	}
 
@@ -164,7 +167,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 
 	if opts.Password != nil {
 		_, err := r.queries.CreateUserPassword(ctx, tx, sqlcv1.CreateUserPasswordParams{
-			Userid: sqlchelpers.UUIDFromStr(userId),
+			Userid: userId,
 			Hash:   *opts.Password,
 		})
 
@@ -175,7 +178,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 
 	if opts.OAuth != nil {
 		createOAuthParams := sqlcv1.CreateUserOAuthParams{
-			Userid:         sqlchelpers.UUIDFromStr(userId),
+			Userid:         userId,
 			Provider:       opts.OAuth.Provider,
 			Provideruserid: opts.OAuth.ProviderUserId,
 			Accesstoken:    opts.OAuth.AccessToken,
@@ -207,13 +210,13 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 	return user, nil
 }
 
-func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *UpdateUserOpts) (*sqlcv1.User, error) {
+func (r *userRepository) UpdateUser(ctx context.Context, id uuid.UUID, opts *UpdateUserOpts) (*sqlcv1.User, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	params := sqlcv1.UpdateUserParams{
-		ID: sqlchelpers.UUIDFromStr(id),
+		ID: id,
 	}
 
 	if opts.EmailVerified != nil {
@@ -240,7 +243,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *Update
 
 	if opts.Password != nil {
 		_, err := r.queries.UpdateUserPassword(ctx, tx, sqlcv1.UpdateUserPasswordParams{
-			Userid: sqlchelpers.UUIDFromStr(id),
+			Userid: id,
 			Hash:   *opts.Password,
 		})
 
@@ -251,7 +254,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *Update
 
 	if opts.OAuth != nil {
 		createOAuthParams := sqlcv1.UpsertUserOAuthParams{
-			Userid:         sqlchelpers.UUIDFromStr(id),
+			Userid:         id,
 			Provider:       opts.OAuth.Provider,
 			Provideruserid: opts.OAuth.ProviderUserId,
 			Accesstoken:    opts.OAuth.AccessToken,
@@ -276,14 +279,14 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *Update
 	return user, nil
 }
 
-func (r *userRepository) ListTenantMemberships(ctx context.Context, userId string) ([]*sqlcv1.PopulateTenantMembersRow, error) {
-	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, sqlchelpers.UUIDFromStr(userId))
+func (r *userRepository) ListTenantMemberships(ctx context.Context, userId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
+	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, userId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]pgtype.UUID, len(memberships))
+	ids := make([]uuid.UUID, len(memberships))
 
 	for i, m := range memberships {
 		ids[i] = m.ID

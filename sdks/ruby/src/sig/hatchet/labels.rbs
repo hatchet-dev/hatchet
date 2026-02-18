@@ -1,0 +1,25 @@
+module Hatchet
+  module WorkerLabelComparator
+    EQUAL: Symbol
+    NOT_EQUAL: Symbol
+    GREATER_THAN: Symbol
+    LESS_THAN: Symbol
+    GREATER_THAN_OR_EQUAL: Symbol
+    LESS_THAN_OR_EQUAL: Symbol
+  end
+
+  class DesiredWorkerLabel
+    attr_reader value: String | Integer
+    attr_reader weight: Integer
+    attr_reader required: bool
+    attr_reader comparator: Symbol
+
+    def initialize: (value: String | Integer, ?weight: Integer, ?required: bool, ?comparator: Symbol) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+  end
+
+  module StickyStrategy
+    SOFT: Symbol
+    HARD: Symbol
+  end
+end
