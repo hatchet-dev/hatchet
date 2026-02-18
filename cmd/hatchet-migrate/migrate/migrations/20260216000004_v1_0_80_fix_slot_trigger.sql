@@ -43,33 +43,6 @@ END;
 $$
 LANGUAGE plpgsql;
 
--- Clean up any spurious 'default' slots that were created for durable tasks
--- by the old trigger. These are rows where a task has both a 'default' and another
--- slot type (like 'durable'), and the step only requested the non-default type.
-DELETE FROM v1_task_runtime_slot d
-USING v1_task_runtime_slot other
-JOIN v1_task_runtime tr
-  ON tr.task_id = other.task_id
-  AND tr.task_inserted_at = other.task_inserted_at
-  AND tr.retry_count = other.retry_count
-JOIN v1_task t
-  ON t.id = tr.task_id
-  AND t.inserted_at = tr.task_inserted_at
-JOIN v1_step_slot_request req
-  ON req.step_id = t.step_id
-  AND req.tenant_id = t.tenant_id
-WHERE d.task_id = other.task_id
-  AND d.task_inserted_at = other.task_inserted_at
-  AND d.retry_count = other.retry_count
-  AND d.slot_type = 'default'
-  AND other.slot_type <> 'default'
-  AND NOT EXISTS (
-      SELECT 1 FROM v1_step_slot_request r
-      WHERE r.step_id = t.step_id
-        AND r.tenant_id = t.tenant_id
-        AND r.slot_type = 'default'
-  );
-
 -- +goose StatementEnd
 
 -- +goose Down
