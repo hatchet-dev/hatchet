@@ -160,10 +160,3 @@ If you don't have a database snapshot or prefer a more targeted rollback, you ca
   lose their data). For production-critical workloads, prefer restoring from a
   snapshot when possible.
 </Callout>
-
-## Best Practices
-
-- **Always snapshot before upgrading.** Even if you plan to use down migrations, having a snapshot as a backup gives you a reliable safety net.
-- **Test in staging first.** Run the full upgrade cycle (snapshot, upgrade, verify, and optionally downgrade) in a staging environment before touching production.
-- **Keep snapshots until the upgrade is verified.** Don't delete your pre-upgrade snapshot until you've confirmed the new version is stable in production for a reasonable period.
-- **Pin your versions.** Always use explicit version tags (e.g., `v0.72.0`) rather than `latest` to avoid unexpected upgrades.
