@@ -319,7 +319,7 @@ WITH input AS (
 		signal_external_id,
 		signal_key,
 		durable_event_log_entry_node_id,
-		durable_event_log_entry_branch_id_id
+		durable_event_log_entry_branch_id
     FROM
         (
             SELECT
