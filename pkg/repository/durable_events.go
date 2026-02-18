@@ -25,9 +25,10 @@ type EventLogEntryWithPayloads struct {
 	AlreadyExisted bool
 }
 
-type TaskExternalIdNodeId struct {
+type TaskExternalIdNodeIdBranchId struct {
 	TaskExternalId uuid.UUID `validate:"required"`
 	NodeId         int64     `validate:"required"`
+	BranchId       int64     `validate:"required"`
 }
 
 type SatisfiedEventWithPayload struct {
@@ -60,7 +61,7 @@ type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
 	HandleReset(ctx context.Context, tenantId, taskExternalId uuid.UUID, nodeId, invocationCount int64) (*IngestDurableTaskEventResult, error)
 
-	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeId) ([]*SatisfiedEventWithPayload, error)
+	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 }
 
 type durableEventsRepository struct {
@@ -110,6 +111,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		Durabletaskid:         opts.DurableTaskId,
 		Durabletaskinsertedat: opts.DurableTaskInsertedAt,
 		Nodeid:                opts.NodeId,
+		Branchid:              opts.BranchId,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -198,13 +200,14 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	}, nil
 }
 
-func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeId) ([]*SatisfiedEventWithPayload, error) {
+func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error) {
 	if len(events) == 0 {
 		return nil, nil
 	}
 
 	taskExternalIds := make([]uuid.UUID, len(events))
 	nodeIds := make([]int64, len(events))
+	branchIds := make([]int64, len(events))
 	isSatisfieds := make([]bool, len(events))
 
 	for i, e := range events {
@@ -214,12 +217,14 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 		taskExternalIds[i] = e.TaskExternalId
 		nodeIds[i] = e.NodeId
+		branchIds[i] = e.BranchId
 		isSatisfieds[i] = true
 	}
 
 	rows, err := r.queries.ListSatisfiedEntries(ctx, r.pool, sqlcv1.ListSatisfiedEntriesParams{
 		Taskexternalids: taskExternalIds,
 		Nodeids:         nodeIds,
+		Branchids:       branchIds,
 	})
 
 	if err != nil {
@@ -645,6 +650,7 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 		Nodeid:                nodeId,
+		Branchid:              logFile.LatestBranchID,
 	})
 
 	if err != nil {

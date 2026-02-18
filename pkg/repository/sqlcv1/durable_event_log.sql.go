@@ -171,17 +171,24 @@ SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_in
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
-  AND node_id = $3::BIGINT
+  AND branch_id = $3::BIGINT
+  AND node_id = $4::BIGINT
 `
 
 type GetDurableEventLogEntryParams struct {
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Branchid              int64              `json:"branchid"`
 	Nodeid                int64              `json:"nodeid"`
 }
 
 func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetDurableEventLogEntryParams) (*V1DurableEventLogEntry, error) {
-	row := db.QueryRow(ctx, getDurableEventLogEntry, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Nodeid)
+	row := db.QueryRow(ctx, getDurableEventLogEntry,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Branchid,
+		arg.Nodeid,
+	)
 	var i V1DurableEventLogEntry
 	err := row.Scan(
 		&i.TenantID,
@@ -205,20 +212,25 @@ WITH tasks AS (
     SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff
     FROM v1_lookup_table lt
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
-    WHERE lt.external_id = ANY($2::UUID[])
+    WHERE lt.external_id = ANY($1::UUID[])
+), nodes_and_branches AS (
+    SELECT
+        UNNEST($2::BIGINT[]) AS node_id,
+        UNNEST($3::BIGINT[]) AS branch_id
 )
 
 SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.idempotency_key, e.is_satisfied, t.external_id AS task_external_id
 FROM v1_durable_event_log_entry e
 JOIN tasks t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
-    e.node_id = ANY($1::BIGINT[])
+    (e.branch_id, e.node_id) IN (SELECT branch_id, node_id FROM nodes_and_branches)
     AND e.is_satisfied
 `
 
 type ListSatisfiedEntriesParams struct {
-	Nodeids         []int64     `json:"nodeids"`
 	Taskexternalids []uuid.UUID `json:"taskexternalids"`
+	Nodeids         []int64     `json:"nodeids"`
+	Branchids       []int64     `json:"branchids"`
 }
 
 type ListSatisfiedEntriesRow struct {
@@ -238,7 +250,7 @@ type ListSatisfiedEntriesRow struct {
 }
 
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
-	rows, err := db.Query(ctx, listSatisfiedEntries, arg.Nodeids, arg.Taskexternalids)
+	rows, err := db.Query(ctx, listSatisfiedEntries, arg.Taskexternalids, arg.Nodeids, arg.Branchids)
 	if err != nil {
 		return nil, err
 	}

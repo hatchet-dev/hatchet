@@ -48,6 +48,7 @@ SELECT *
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND branch_id = @branchId::BIGINT
   AND node_id = @nodeId::BIGINT;
 
 -- name: CreateDurableEventLogEntry :one
@@ -105,12 +106,16 @@ WITH tasks AS (
     FROM v1_lookup_table lt
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
     WHERE lt.external_id = ANY(@taskExternalIds::UUID[])
+), nodes_and_branches AS (
+    SELECT
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@branchIds::BIGINT[]) AS branch_id
 )
 
 SELECT e.*, t.external_id AS task_external_id
 FROM v1_durable_event_log_entry e
 JOIN tasks t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
-    e.node_id = ANY(@nodeIds::BIGINT[])
+    (e.branch_id, e.node_id) IN (SELECT branch_id, node_id FROM nodes_and_branches)
     AND e.is_satisfied
 ;
