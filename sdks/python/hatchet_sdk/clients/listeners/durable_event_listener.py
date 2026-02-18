@@ -237,6 +237,9 @@ class DurableEventListener:
     async def _handle_response(self, response: DurableTaskResponse) -> None:
         if response.HasField("register_worker"):
             pass
+        if response.HasField("reset"):
+            print("Received reset response for durable task ")
+            # pass
         elif response.HasField("trigger_ack"):
             trigger_ack = response.trigger_ack
             event_key = (

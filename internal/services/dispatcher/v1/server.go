@@ -410,6 +410,9 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	case *contracts.DurableTaskRequest_WorkerStatus:
 		return d.handleWorkerStatus(ctx, invocation, msg.WorkerStatus)
 
+	case *contracts.DurableTaskRequest_Reset_:
+		return d.handleReset(ctx, invocation, msg.Reset_)
+
 	default:
 		return status.Errorf(codes.InvalidArgument, "unknown message type: %T", msg)
 	}
@@ -608,6 +611,14 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 ) error {
 	// todo: implement eviction here
 
+	return nil
+}
+
+func (d *DispatcherServiceImpl) handleReset(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskResetRequest,
+) error {
 	return nil
 }
 
