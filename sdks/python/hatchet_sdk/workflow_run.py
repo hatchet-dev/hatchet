@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     RunEventListenerClient,
@@ -22,7 +23,6 @@ from hatchet_sdk.worker.durable_eviction.instrumentation import (
 )
 
 if TYPE_CHECKING:
-    from hatchet_sdk.cancellation import CancellationToken
     from hatchet_sdk.clients.admin import AdminClient
 
 
@@ -94,11 +94,6 @@ class WorkflowRunRef:
         :raises ValueError: If the workflow run is not found.
         """
         from hatchet_sdk.clients.admin import RunStatus
-
-        logger.debug(
-            f"WorkflowRunRef.result: waiting for {self.workflow_run_id}, "
-            f"token={cancellation_token is not None}"
-        )
 
         retries = 0
 

@@ -15,6 +15,7 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskAwaitedCompletedEntry,
+    DurableTaskErrorType,
     DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
     DurableTaskEventRequest,
@@ -26,9 +27,12 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
+from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 
 
 class DurableTaskEventAck(BaseModel):
@@ -46,7 +50,7 @@ class RestoreEvictedTaskResult(BaseModel):
     requeued: bool
 
 
-class DurableTaskCallbackResult(BaseModel):
+class DurableTaskEventLogEntryResult(BaseModel):
     durable_task_external_id: str
     node_id: int
     payload: JSONSerializableMapping | None
@@ -86,7 +90,7 @@ class DurableEventListener:
             tuple[str, int], asyncio.Future[DurableTaskEvictionAck]
         ] = {}
         self._pending_callbacks: dict[
-            tuple[str, int, int], asyncio.Future[DurableTaskCallbackResult]
+            tuple[str, int, int], asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
@@ -98,6 +102,28 @@ class DurableEventListener:
     def worker_id(self) -> str | None:
         return self._worker_id
 
+    async def _connect(self) -> None:
+        if self._conn is not None:
+            with suppress(Exception):
+                await self._conn.close()
+
+        logger.info("durable event listener connecting...")
+
+        self._conn = new_conn(self.config, aio=True)
+        self._stub = V1DispatcherStub(self._conn)
+        self._request_queue = asyncio.Queue()
+
+        self._stream = cast(
+            grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
+            self._stub.DurableTask(
+                self._request_iterator(),  # type: ignore[arg-type]
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        await self._register_worker()
+        logger.info("durable event listener connected")
+
     async def start(self, worker_id: str) -> None:
         async with self._start_lock:
             if self._running:
@@ -105,23 +131,11 @@ class DurableEventListener:
 
             self._worker_id = worker_id
             self._running = True
-            self._request_queue = asyncio.Queue()
 
-            self._conn = new_conn(self.config, aio=True)
-            self._stub = V1DispatcherStub(self._conn)
-
-            self._stream = cast(
-                grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
-                self._stub.DurableTask(
-                    self._request_iterator(),  # type: ignore[arg-type]
-                    metadata=get_metadata(self.token),
-                ),
-            )
+            await self._connect()
 
             self._receive_task = asyncio.create_task(self._receive_loop())
             self._send_task = asyncio.create_task(self._send_loop())
-
-            await self._register_worker()
 
     async def ensure_started(self, worker_id: str) -> None:
         if not self._running:
@@ -180,28 +194,66 @@ class DurableEventListener:
         )
         await self._request_queue.put(request)
 
-    async def _receive_loop(self) -> None:
-        if not self._stream:
-            return
+    def _fail_pending_acks(self, exc: Exception) -> None:
+        for future in self._pending_event_acks.values():
+            if not future.done():
+                future.set_exception(exc)
+        self._pending_event_acks.clear()
 
-        try:
-            async for response in self._stream:
-                await self._handle_response(response)
-        except grpc.aio.AioRpcError as e:
-            if e.code() != grpc.StatusCode.CANCELLED:
-                logger.error(
-                    f"DurableTask stream error: code={e.code()}, details={e.details()}"
+    async def _receive_loop(self) -> None:
+        while self._running:
+            if not self._stream:
+                await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                continue
+
+            try:
+                async for response in self._stream:
+                    await self._handle_response(response)
+
+                if self._running:
+                    logger.warning(
+                        f"durable event listener disconnected (EOF), reconnecting in {DEFAULT_RECONNECT_INTERVAL}s..."
+                    )
+                    self._fail_pending_acks(
+                        ConnectionResetError("durable stream disconnected")
+                    )
+                    await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                    await self._connect()
+
+            except grpc.aio.AioRpcError as e:
+                if e.code() == grpc.StatusCode.CANCELLED:
+                    break
+                logger.warning(
+                    f"durable event listener disconnected: code={e.code()}, details={e.details()}, reconnecting in {DEFAULT_RECONNECT_INTERVAL}s..."
                 )
-        except asyncio.CancelledError:
-            logger.debug("Receive loop cancelled")
-        except Exception as e:
-            logger.exception(f"Unexpected error in receive loop: {e}")
+                if self._running:
+                    self._fail_pending_acks(
+                        ConnectionResetError(
+                            f"durable stream error: {e.code()} {e.details()}"
+                        )
+                    )
+                    await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                    try:
+                        await self._connect()
+                    except Exception:
+                        logger.exception("failed to reconnect durable event listener")
+
+            except asyncio.CancelledError:
+                break
+
+            except Exception as e:
+                logger.exception(f"unexpected error in durable event listener: {e}")
+                if self._running:
+                    self._fail_pending_acks(e)
+                    await asyncio.sleep(DEFAULT_RECONNECT_INTERVAL)
+                    try:
+                        await self._connect()
+                    except Exception:
+                        logger.exception("failed to reconnect durable event listener")
 
     async def _handle_response(self, response: DurableTaskResponse) -> None:
         if response.HasField("register_worker"):
-            logger.info(
-                f"Registered durable task worker: {response.register_worker.worker_id}"
-            )
+            pass
         elif response.HasField("trigger_ack"):
             trigger_ack = response.trigger_ack
             event_key = (
@@ -239,10 +291,52 @@ class DurableEventListener:
                 completed.node_id,
             )
             if completed_key in self._pending_callbacks:
-                future = self._pending_callbacks[completed_key]
-                if not future.done():
-                    future.set_result(DurableTaskCallbackResult.from_proto(completed))
+                completed_future = self._pending_callbacks[completed_key]
+                if not completed_future.done():
+                    completed_future.set_result(
+                        DurableTaskEventLogEntryResult.from_proto(completed)
+                    )
                 del self._pending_callbacks[completed_key]
+        elif response.HasField("error"):
+            error = response.error
+            exc: Exception
+
+            if (
+                error.error_type
+                == DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_NONDETERMINISM
+            ):
+                exc = NonDeterminismError(
+                    task_external_id=error.durable_task_external_id,
+                    invocation_count=error.invocation_count,
+                    message=error.error_message,
+                    node_id=error.node_id,
+                )
+            else:
+                ## fallthrough, this shouldn't happen unless we add an error type to the engine and the SDK
+                ## hasn't been updated to handle it
+                exc = Exception(
+                    "Unspecified durable task error: "
+                    + error.error_message
+                    + f" (type: {error.error_type})"
+                )
+
+            event_key = (error.durable_task_external_id, error.invocation_count)
+            if event_key in self._pending_event_acks:
+                error_pending_ack_future = self._pending_event_acks.pop(event_key)
+                if not error_pending_ack_future.done():
+                    error_pending_ack_future.set_exception(exc)
+
+            callback_key = (
+                error.durable_task_external_id,
+                error.invocation_count,
+                error.node_id,
+            )
+            if callback_key in self._pending_callbacks:
+                error_pending_callback_future = self._pending_callbacks.pop(
+                    callback_key
+                )
+                if not error_pending_callback_future.done():
+                    error_pending_callback_future.set_exception(exc)
 
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:
@@ -354,11 +448,11 @@ class DurableEventListener:
         durable_task_external_id: str,
         invocation_count: int,
         node_id: int,
-    ) -> DurableTaskCallbackResult:
+    ) -> DurableTaskEventLogEntryResult:
         key = (durable_task_external_id, invocation_count, node_id)
 
         if key not in self._pending_callbacks:
-            future: asyncio.Future[DurableTaskCallbackResult] = asyncio.Future()
+            future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
 
         return await self._pending_callbacks[key]

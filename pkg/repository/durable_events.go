@@ -1,9 +1,13 @@
 package repository
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -67,19 +71,44 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 	}
 }
 
+type NonDeterminismError struct {
+	ExpectedIdempotencyKey []byte
+	ActualIdempotencyKey   []byte
+	NodeId                 int64
+	TaskExternalId         uuid.UUID
+}
+
+func (m *NonDeterminismError) Error() string {
+	return fmt.Sprintf("non-determinism detected for durable event log entry in task %s at node id %d", m.TaskExternalId.String(), m.NodeId)
+}
+
+type GetOrCreateLogEntryOpts struct {
+	DurableTaskInsertedAt pgtype.Timestamptz
+	Kind                  sqlcv1.V1DurableEventLogKind
+	IdempotencyKey        []byte
+	ParentNodeId          pgtype.Int8
+	DurableTaskId         int64
+	NodeId                int64
+	BranchId              int64
+	TenantId              uuid.UUID
+	DurableTaskExternalId uuid.UUID
+	IsSatisfied           bool
+}
+
 func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
 	tenantId uuid.UUID,
-	params sqlcv1.CreateDurableEventLogEntryParams,
+	params GetOrCreateLogEntryOpts,
 	inputPayload []byte,
 	resultPayload []byte,
 ) (*EventLogEntryWithPayloads, error) {
+	entryExternalId := uuid.New()
 	alreadyExisted := true
 	entry, err := r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
-		Durabletaskid:         params.Durabletaskid,
-		Durabletaskinsertedat: params.Durabletaskinsertedat,
-		Nodeid:                params.Nodeid,
+		Durabletaskid:         params.DurableTaskId,
+		Durabletaskinsertedat: params.DurableTaskInsertedAt,
+		Nodeid:                params.NodeId,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -87,16 +116,16 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExisted = false
 		entry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
-			Tenantid:              params.Tenantid,
-			Externalid:            params.Externalid,
-			Durabletaskid:         params.Durabletaskid,
-			Durabletaskinsertedat: params.Durabletaskinsertedat,
+			Tenantid:              params.TenantId,
+			Externalid:            entryExternalId,
+			Durabletaskid:         params.DurableTaskId,
+			Durabletaskinsertedat: params.DurableTaskInsertedAt,
 			Kind:                  params.Kind,
-			Nodeid:                params.Nodeid,
+			Nodeid:                params.NodeId,
 			ParentNodeId:          params.ParentNodeId,
-			Branchid:              params.Branchid,
-			Datahash:              params.Datahash,
-			Datahashalg:           params.Datahashalg,
+			Branchid:              params.BranchId,
+			Idempotencykey:        params.IdempotencyKey,
+			Issatisfied:           params.IsSatisfied,
 		})
 
 		if err != nil {
@@ -131,7 +160,18 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		incomingIdempotencyKey := params.IdempotencyKey
+		existingIdempotencyKey := entry.IdempotencyKey
 
+		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
+			return nil, &NonDeterminismError{
+				NodeId:                 params.NodeId,
+				TaskExternalId:         params.DurableTaskExternalId,
+				ExpectedIdempotencyKey: existingIdempotencyKey,
+				ActualIdempotencyKey:   incomingIdempotencyKey,
+			}
+		}
 	}
 
 	if alreadyExisted {
@@ -183,19 +223,34 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		return nil, fmt.Errorf("failed to list satisfied entries: %w", err)
 	}
 
-	result := make([]*SatisfiedEventWithPayload, 0, len(rows))
+	retrievePayloadOpts := make([]RetrievePayloadOpts, len(rows))
 
-	for _, row := range rows {
-		payload, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
+	for i, row := range rows {
+		retrievePayloadOpts[i] = RetrievePayloadOpts{
 			Id:         row.ID,
 			InsertedAt: row.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
-		})
-		if err != nil {
-			r.l.Warn().Err(err).Msgf("failed to retrieve payload for entry %d", row.NodeID)
-			payload = nil
 		}
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrievePayloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for satisfied callbacks: %w", err)
+	}
+
+	result := make([]*SatisfiedEventWithPayload, 0, len(rows))
+
+	for _, row := range rows {
+		retrieveOpt := RetrievePayloadOpts{
+			Id:         row.ID,
+			InsertedAt: row.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+			TenantId:   tenantId,
+		}
+
+		payload := payloads[retrieveOpt]
 
 		result = append(result, &SatisfiedEventWithPayload{
 			TaskExternalId: row.TaskExternalID,
@@ -209,6 +264,71 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
+}
+
+func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEventOpts) ([]byte, error) {
+	// todo: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
+	dataToHash := []byte(opts.Kind)
+
+	if opts.TriggerOpts != nil {
+		dataToHash = append(dataToHash, opts.TriggerOpts.Data...)
+		dataToHash = append(dataToHash, []byte(opts.TriggerOpts.WorkflowName)...)
+	}
+
+	if opts.WaitForConditions != nil {
+		sort.Slice(opts.WaitForConditions, func(i, j int) bool {
+			condI := opts.WaitForConditions[i]
+			condJ := opts.WaitForConditions[j]
+
+			if condI.Expression != condJ.Expression {
+				return condI.Expression < condJ.Expression
+			}
+
+			if condI.ReadableDataKey != condJ.ReadableDataKey {
+				return condI.ReadableDataKey < condJ.ReadableDataKey
+			}
+
+			if condI.Kind != condJ.Kind {
+				return condI.Kind < condJ.Kind
+			}
+
+			if condI.SleepFor != nil && condJ.SleepFor != nil {
+				if *condI.SleepFor != *condJ.SleepFor {
+					return *condI.SleepFor < *condJ.SleepFor
+				}
+			}
+
+			if condI.UserEventKey != nil && condJ.UserEventKey != nil {
+				if *condI.UserEventKey != *condJ.UserEventKey {
+					return *condI.UserEventKey < *condJ.UserEventKey
+				}
+			}
+
+			return false
+		})
+
+		for _, cond := range opts.WaitForConditions {
+			toHash := cond.Expression + cond.ReadableDataKey + string(cond.Kind)
+
+			if cond.SleepFor != nil {
+				toHash += *cond.SleepFor
+			}
+
+			if cond.UserEventKey != nil {
+				toHash += *cond.UserEventKey
+			}
+
+			dataToHash = append(dataToHash, []byte(toHash)...)
+		}
+	}
+
+	h := sha256.New()
+	h.Write(dataToHash)
+	hashBytes := h.Sum(nil)
+	idempotencyKey := make([]byte, hex.EncodedLen(len(hashBytes)))
+	hex.Encode(idempotencyKey, hashBytes)
+
+	return idempotencyKey, nil
 }
 
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
@@ -298,22 +418,27 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
+	idempotencyKey, err := r.createIdempotencyKey(opts)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create idempotency key: %w", err)
+	}
+
 	logEntry, err := r.getOrCreateEventLogEntry(
 		ctx,
 		tx,
 		opts.TenantId,
-		sqlcv1.CreateDurableEventLogEntryParams{
-			Tenantid:              opts.TenantId,
-			Externalid:            uuid.New(),
-			Durabletaskid:         task.ID,
-			Durabletaskinsertedat: task.InsertedAt,
+		GetOrCreateLogEntryOpts{
+			TenantId:              opts.TenantId,
+			DurableTaskExternalId: task.ExternalID,
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
 			Kind:                  opts.Kind,
-			Nodeid:                nodeId,
+			NodeId:                nodeId,
 			ParentNodeId:          parentNodeId,
-			Branchid:              branchId,
-			Issatisfied:           isSatisfied,
-			Datahash:              nil, // todo: implement this for nondeterminism check
-			Datahashalg:           "",
+			BranchId:              branchId,
+			IsSatisfied:           isSatisfied,
+			IdempotencyKey:        idempotencyKey,
 		},
 		opts.Payload,
 		resultPayload,

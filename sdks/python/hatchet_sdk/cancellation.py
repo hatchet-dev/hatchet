@@ -5,13 +5,9 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 from hatchet_sdk.exceptions import CancellationReason
 from hatchet_sdk.logger import logger
-
-if TYPE_CHECKING:
-    pass
 
 
 class CancellationToken:
@@ -70,21 +66,12 @@ class CancellationToken:
         - Signal both async and sync events
         - Invoke all registered callbacks
 
-        Args:
-            reason: The reason for cancellation.
+
+        :param reason: The reason for cancellation.
         """
         with self._lock:
             if self._cancelled:
-                logger.debug(
-                    f"CancellationToken: cancel() called but already cancelled, "
-                    f"reason={self._reason.value if self._reason else 'none'}"
-                )
                 return
-
-            logger.debug(
-                f"CancellationToken: cancel() called, reason={reason.value}, "
-                f"{len(self._child_run_ids)} children registered"
-            )
 
             self._cancelled = True
             self._reason = reason
@@ -99,12 +86,9 @@ class CancellationToken:
 
         for callback in callbacks:
             try:
-                logger.debug(f"CancellationToken: invoking callback {callback}")
                 callback()
             except Exception as e:  # noqa: PERF203
                 logger.warning(f"CancellationToken: callback raised exception: {e}")
-
-        logger.debug(f"CancellationToken: cancel() complete, reason={reason.value}")
 
     @property
     def is_cancelled(self) -> bool:
@@ -133,19 +117,11 @@ class CancellationToken:
         """
         Block until cancelled (for use in sync code).
 
-        Args:
-            timeout: Maximum time to wait in seconds. None means wait forever.
+        :param timeout: Maximum time to wait in seconds. None means wait forever.
 
-        Returns:
-            True if the token was cancelled (event was set), False if timeout expired.
+        :returns: True if the token was cancelled (event was set), False if timeout expired.
         """
-        result = self._sync_event.wait(timeout)
-        if result:
-            logger.debug(
-                f"CancellationToken: sync wait interrupted by cancellation, "
-                f"reason={self._reason.value if self._reason else 'none'}"
-            )
-        return result
+        return self._sync_event.wait(timeout)
 
     def register_child(self, run_id: str) -> None:
         """
@@ -154,11 +130,9 @@ class CancellationToken:
         When the parent is cancelled, these child run IDs can be used to cancel
         the child workflows as well.
 
-        Args:
-            run_id: The workflow run ID of the child workflow.
+        :param run_id: The workflow run ID of the child workflow.
         """
         with self._lock:
-            logger.debug(f"CancellationToken: registering child workflow {run_id}")
             self._child_run_ids.append(run_id)
 
     @property
@@ -172,8 +146,7 @@ class CancellationToken:
 
         If the token is already cancelled, the callback will be invoked immediately.
 
-        Args:
-            callback: A callable that takes no arguments.
+        :param callback: A callable that takes no arguments.
         """
         with self._lock:
             if self._cancelled:
@@ -183,9 +156,6 @@ class CancellationToken:
                 self._callbacks.append(callback)
 
         if invoke_now:
-            logger.debug(
-                f"CancellationToken: invoking callback immediately (already cancelled): {callback}"
-            )
             try:
                 callback()
             except Exception as e:

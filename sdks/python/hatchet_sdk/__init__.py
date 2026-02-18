@@ -157,6 +157,7 @@ from hatchet_sdk.exceptions import (
     CancelledError,
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
+    NonDeterminismError,
     NonRetryableException,
     TaskRunError,
 )
@@ -239,6 +240,7 @@ __all__ = [
     "LogLineList",
     "LogLineOrderByDirection",
     "LogLineOrderByField",
+    "NonDeterminismError",
     "NonRetryableException",
     "OTelAttribute",
     "OpenTelemetryConfig",

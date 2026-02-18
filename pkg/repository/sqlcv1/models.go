@@ -3078,8 +3078,7 @@ type V1DurableEventLogEntry struct {
 	NodeID                int64                 `json:"node_id"`
 	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
 	BranchID              int64                 `json:"branch_id"`
-	DataHash              []byte                `json:"data_hash"`
-	DataHashAlg           pgtype.Text           `json:"data_hash_alg"`
+	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
 }
 
