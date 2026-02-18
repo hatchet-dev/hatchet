@@ -113,7 +113,8 @@ SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL
 
 ALTER TABLE v1_match
     ADD COLUMN signal_task_external_id UUID,
-    ADD COLUMN durable_event_log_entry_node_id BIGINT
+    ADD COLUMN durable_event_log_entry_node_id BIGINT,
+    ADD COLUMN durable_event_log_entry_branch_id BIGINT
 ;
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
@@ -130,7 +131,9 @@ DROP TYPE v1_durable_event_log_kind;
 
 ALTER TABLE v1_match
     DROP COLUMN signal_task_external_id,
-    DROP COLUMN durable_event_log_entry_node_id;
+    DROP COLUMN durable_event_log_entry_node_id,
+    DROP COLUMN durable_event_log_entry_branch_id
+;
 
 ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
 

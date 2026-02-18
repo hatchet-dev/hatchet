@@ -428,6 +428,33 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
+func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.ResetDurableTaskRequest) (*contracts.ResetDurableTaskResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(req.TaskExternalId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid task_external_id")
+	}
+
+	result, err := a.repo.DurableEvents().HandleReset(ctx, tenantId, taskExternalId, req.NodeId, 0)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to reset durable task: %v", err)
+	}
+
+	if a.tw != nil && (len(result.CreatedTasks) > 0 || len(result.CreatedDAGs) > 0) {
+		if sigErr := a.tw.SignalCreated(ctx, tenantId, result.CreatedTasks, result.CreatedDAGs); sigErr != nil {
+			a.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable task reset")
+		}
+	}
+
+	return &contracts.ResetDurableTaskResponse{
+		TaskExternalId: taskExternalId.String(),
+		NodeId:         result.NodeId,
+		BranchId:       result.EventLogFile.LatestBranchID,
+	}, nil
+}
+
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID

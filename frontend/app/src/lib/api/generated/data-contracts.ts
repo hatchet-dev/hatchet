@@ -665,6 +665,41 @@ export interface V1WorkflowRunDetails {
   workflowConfig?: object;
 }
 
+export interface V1ResetDurableTaskRequest {
+  /**
+   * The external id of the durable task to reset.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id to replay from.
+   * @format int64
+   */
+  nodeId: number;
+}
+
+export interface V1ResetDurableTaskResponse {
+  /**
+   * The external id of the durable task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id of the new entry.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id of the new entry.
+   * @format int64
+   */
+  branchId: number;
+}
+
 export interface V1TaskTiming {
   metadata: APIResourceMeta;
   /** The depth of the task in the waterfall. */

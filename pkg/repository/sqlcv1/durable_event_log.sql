@@ -78,7 +78,7 @@ VALUES (
     @idempotencyKey::BYTEA,
     @isSatisfied::BOOLEAN
 )
-ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
+ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
 RETURNING *
 ;
 
@@ -88,7 +88,8 @@ WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST(@nodeIds::BIGINT[]) AS node_id
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@branchIds::BIGINT[]) AS branch_id
 )
 
 UPDATE v1_durable_event_log_entry
@@ -97,6 +98,7 @@ FROM inputs
 WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
   AND v1_durable_event_log_entry.node_id = inputs.node_id
+  AND v1_durable_event_log_entry.branch_id = inputs.branch_id
 RETURNING v1_durable_event_log_entry.*
 ;
 

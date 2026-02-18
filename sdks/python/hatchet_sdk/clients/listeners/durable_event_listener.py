@@ -18,6 +18,7 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskEventRequest,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
+    DurableTaskResetRequest,
     DurableTaskResponse,
     DurableTaskWorkerStatusRequest,
 )
@@ -33,6 +34,11 @@ DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 
 class DurableTaskEventAck(BaseModel):
     invocation_count: int
+    durable_task_external_id: str
+    node_id: int
+
+
+class DurableTaskResetResult(BaseModel):
     durable_task_external_id: str
     node_id: int
 
@@ -75,6 +81,9 @@ class DurableEventListener:
         ] = {}
         self._pending_callbacks: dict[
             tuple[str, int], asyncio.Future[DurableTaskEventLogEntryResult]
+        ] = {}
+        self._pending_resets: dict[
+            tuple[str, int], asyncio.Future[DurableTaskResetResult]
         ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
@@ -237,9 +246,21 @@ class DurableEventListener:
     async def _handle_response(self, response: DurableTaskResponse) -> None:
         if response.HasField("register_worker"):
             pass
-        if response.HasField("reset"):
-            print("Received reset response for durable task ")
-            # pass
+        elif response.HasField("reset"):
+            reset = response.reset
+            reset_key = (
+                reset.durable_task_external_id,
+                int(reset.node_id),
+            )
+            if reset_key in self._pending_resets:
+                reset_future = self._pending_resets.pop(reset_key)
+                if not reset_future.done():
+                    reset_future.set_result(
+                        DurableTaskResetResult(
+                            durable_task_external_id=reset.durable_task_external_id,
+                            node_id=int(reset.node_id),
+                        )
+                    )
         elif response.HasField("trigger_ack"):
             trigger_ack = response.trigger_ack
             event_key = (
@@ -372,3 +393,25 @@ class DurableEventListener:
             self._pending_callbacks[key] = future
 
         return await self._pending_callbacks[key]
+
+    async def send_reset(
+        self,
+        durable_task_external_id: str,
+        node_id: int,
+    ) -> DurableTaskResetResult:
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        key = (durable_task_external_id, node_id)
+        future: asyncio.Future[DurableTaskResetResult] = asyncio.Future()
+        self._pending_resets[key] = future
+
+        request = DurableTaskRequest(
+            reset=DurableTaskResetRequest(
+                durable_task_external_id=durable_task_external_id,
+                node_id=str(node_id),
+            )
+        )
+        await self._request_queue.put(request)
+
+        return await future

@@ -27,6 +27,7 @@ type AdminServiceClient interface {
 	ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error)
 	GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error)
+	ResetDurableTask(ctx context.Context, in *ResetDurableTaskRequest, opts ...grpc.CallOption) (*ResetDurableTaskResponse, error)
 }
 
 type adminServiceClient struct {
@@ -82,6 +83,15 @@ func (c *adminServiceClient) GetRunDetails(ctx context.Context, in *GetRunDetail
 	return out, nil
 }
 
+func (c *adminServiceClient) ResetDurableTask(ctx context.Context, in *ResetDurableTaskRequest, opts ...grpc.CallOption) (*ResetDurableTaskResponse, error) {
+	out := new(ResetDurableTaskResponse)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/ResetDurableTask", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility
@@ -91,6 +101,7 @@ type AdminServiceServer interface {
 	ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error)
 	GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error)
+	ResetDurableTask(context.Context, *ResetDurableTaskRequest) (*ResetDurableTaskResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -112,6 +123,9 @@ func (UnimplementedAdminServiceServer) TriggerWorkflowRun(context.Context, *Trig
 }
 func (UnimplementedAdminServiceServer) GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRunDetails not implemented")
+}
+func (UnimplementedAdminServiceServer) ResetDurableTask(context.Context, *ResetDurableTaskRequest) (*ResetDurableTaskResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetDurableTask not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 
@@ -216,6 +230,24 @@ func _AdminService_GetRunDetails_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ResetDurableTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetDurableTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ResetDurableTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.AdminService/ResetDurableTask",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ResetDurableTask(ctx, req.(*ResetDurableTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -242,6 +274,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRunDetails",
 			Handler:    _AdminService_GetRunDetails_Handler,
+		},
+		{
+			MethodName: "ResetDurableTask",
+			Handler:    _AdminService_ResetDurableTask_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

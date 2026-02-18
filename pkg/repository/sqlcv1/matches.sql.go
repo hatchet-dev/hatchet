@@ -227,7 +227,7 @@ WITH match_counts AS (
     GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
-        m.id, m.tenant_id, m.kind, m.is_satisfied, m.existing_data, m.signal_task_id, m.signal_task_inserted_at, m.signal_task_external_id, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_workflow_run_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at, m.trigger_priority, m.durable_event_log_entry_node_id,
+        m.id, m.tenant_id, m.kind, m.is_satisfied, m.existing_data, m.signal_task_id, m.signal_task_inserted_at, m.signal_task_external_id, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_workflow_run_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at, m.trigger_priority, m.durable_event_log_entry_node_id, m.durable_event_log_entry_branch_id,
         CASE WHEN
             (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
             WHEN (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups) THEN 'CANCEL'
@@ -293,7 +293,7 @@ WITH match_counts AS (
         id IN (SELECT id FROM deleted_conditions)
 )
 SELECT
-    rm.id, rm.tenant_id, rm.kind, rm.is_satisfied, rm.existing_data, rm.signal_task_id, rm.signal_task_inserted_at, rm.signal_task_external_id, rm.signal_external_id, rm.signal_key, rm.trigger_dag_id, rm.trigger_dag_inserted_at, rm.trigger_step_id, rm.trigger_step_index, rm.trigger_external_id, rm.trigger_workflow_run_id, rm.trigger_parent_task_external_id, rm.trigger_parent_task_id, rm.trigger_parent_task_inserted_at, rm.trigger_child_index, rm.trigger_child_key, rm.trigger_existing_task_id, rm.trigger_existing_task_inserted_at, rm.trigger_priority, rm.durable_event_log_entry_node_id, rm.action,
+    rm.id, rm.tenant_id, rm.kind, rm.is_satisfied, rm.existing_data, rm.signal_task_id, rm.signal_task_inserted_at, rm.signal_task_external_id, rm.signal_external_id, rm.signal_key, rm.trigger_dag_id, rm.trigger_dag_inserted_at, rm.trigger_step_id, rm.trigger_step_index, rm.trigger_external_id, rm.trigger_workflow_run_id, rm.trigger_parent_task_external_id, rm.trigger_parent_task_id, rm.trigger_parent_task_inserted_at, rm.trigger_child_index, rm.trigger_child_key, rm.trigger_existing_task_id, rm.trigger_existing_task_inserted_at, rm.trigger_priority, rm.durable_event_log_entry_node_id, rm.durable_event_log_entry_branch_id, rm.action,
     COALESCE(rm.existing_data || d.mc_aggregated_data, d.mc_aggregated_data)::jsonb AS mc_aggregated_data
 FROM
     result_matches rm
@@ -327,6 +327,7 @@ type SaveSatisfiedMatchConditionsRow struct {
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz     `json:"trigger_existing_task_inserted_at"`
 	TriggerPriority               pgtype.Int4            `json:"trigger_priority"`
 	DurableEventLogEntryNodeID    pgtype.Int8            `json:"durable_event_log_entry_node_id"`
+	DurableEventLogEntryBranchID  pgtype.Int8            `json:"durable_event_log_entry_branch_id"`
 	Action                        V1MatchConditionAction `json:"action"`
 	McAggregatedData              []byte                 `json:"mc_aggregated_data"`
 }
@@ -370,6 +371,7 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 			&i.TriggerExistingTaskInsertedAt,
 			&i.TriggerPriority,
 			&i.DurableEventLogEntryNodeID,
+			&i.DurableEventLogEntryBranchID,
 			&i.Action,
 			&i.McAggregatedData,
 		); err != nil {

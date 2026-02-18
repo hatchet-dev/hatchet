@@ -108,6 +108,8 @@ import {
   V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
+  V1ResetDurableTaskRequest,
+  V1ResetDurableTaskResponse,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -489,6 +491,29 @@ export class Api<
   ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Reset a durable task from a specific node, creating a new branch and re-processing its matches.
+   *
+   * @tags Workflow Runs
+   * @name V1DurableTaskReset
+   * @summary Reset durable task
+   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/reset
+   * @secure
+   */
+  v1DurableTaskReset = (
+    tenant: string,
+    data: V1ResetDurableTaskRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1ResetDurableTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/reset`,
       method: "POST",
       body: data,
       secure: true,

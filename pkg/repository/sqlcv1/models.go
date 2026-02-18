@@ -3252,6 +3252,7 @@ type V1Match struct {
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
 	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
 	DurableEventLogEntryNodeID    pgtype.Int8        `json:"durable_event_log_entry_node_id"`
+	DurableEventLogEntryBranchID  pgtype.Int8        `json:"durable_event_log_entry_branch_id"`
 }
 
 type V1MatchCondition struct {

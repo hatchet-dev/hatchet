@@ -550,6 +550,7 @@ CREATE TABLE v1_match (
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
     durable_event_log_entry_node_id bigint,
+    durable_event_log_entry_branch_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 

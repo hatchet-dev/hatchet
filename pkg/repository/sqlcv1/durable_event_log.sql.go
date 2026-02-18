@@ -39,7 +39,7 @@ VALUES (
     $9::BYTEA,
     $10::BOOLEAN
 )
-ON CONFLICT (durable_task_id, durable_task_inserted_at, node_id) DO NOTHING
+ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
 RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, idempotency_key, is_satisfied
 `
 
@@ -288,7 +288,8 @@ WITH inputs AS (
     SELECT
         UNNEST($1::BIGINT[]) AS durable_task_id,
         UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::BIGINT[]) AS node_id
+        UNNEST($3::BIGINT[]) AS node_id,
+        UNNEST($4::BIGINT[]) AS branch_id
 )
 
 UPDATE v1_durable_event_log_entry
@@ -297,6 +298,7 @@ FROM inputs
 WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
   AND v1_durable_event_log_entry.node_id = inputs.node_id
+  AND v1_durable_event_log_entry.branch_id = inputs.branch_id
 RETURNING v1_durable_event_log_entry.tenant_id, v1_durable_event_log_entry.external_id, v1_durable_event_log_entry.inserted_at, v1_durable_event_log_entry.id, v1_durable_event_log_entry.durable_task_id, v1_durable_event_log_entry.durable_task_inserted_at, v1_durable_event_log_entry.kind, v1_durable_event_log_entry.node_id, v1_durable_event_log_entry.parent_node_id, v1_durable_event_log_entry.branch_id, v1_durable_event_log_entry.idempotency_key, v1_durable_event_log_entry.is_satisfied
 `
 
@@ -304,10 +306,16 @@ type UpdateDurableEventLogEntriesSatisfiedParams struct {
 	Durabletaskids         []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Nodeids                []int64              `json:"nodeids"`
+	Branchids              []int64              `json:"branchids"`
 }
 
 func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogEntriesSatisfiedParams) ([]*V1DurableEventLogEntry, error) {
-	rows, err := db.Query(ctx, updateDurableEventLogEntriesSatisfied, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Nodeids)
+	rows, err := db.Query(ctx, updateDurableEventLogEntriesSatisfied,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Nodeids,
+		arg.Branchids,
+	)
 	if err != nil {
 		return nil, err
 	}
