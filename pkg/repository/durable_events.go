@@ -121,7 +121,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		return nil, err
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		alreadyExisted = false
-		entry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
+		entry, err = r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
 			Tenantid:              opts.TenantId,
 			Externalid:            entryExternalId,
 			Durabletaskid:         opts.DurableTaskId,
@@ -473,13 +473,13 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	if !logEntry.AlreadyExisted {
 		switch opts.Kind {
 		case sqlcv1.V1DurableEventLogKindWAITFOR:
-			err := r.handleWaitFor(ctx, tx, opts.TenantId, nodeId, opts.WaitForConditions, task)
+			err := r.handleWaitFor(ctx, tx, opts.TenantId, branchId, nodeId, opts.WaitForConditions, task)
 
 			if err != nil {
 				return nil, fmt.Errorf("failed to handle wait for conditions: %w", err)
 			}
 		case sqlcv1.V1DurableEventLogKindRUN:
-			spawnedDAGs, spawnedTasks, err = r.handleTriggerRuns(ctx, optTx, opts.TenantId, nodeId, opts.TriggerOpts, task)
+			spawnedDAGs, spawnedTasks, err = r.handleTriggerRuns(ctx, optTx, opts.TenantId, branchId, nodeId, opts.TriggerOpts, task)
 
 			if err != nil {
 				return nil, fmt.Errorf("failed to handle trigger runs: %w", err)
@@ -515,7 +515,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}, nil
 }
 
-func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, nodeId int64, waitForConditions []CreateExternalSignalConditionOpt, task *sqlcv1.FlattenExternalIdsRow) error {
+func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, branchId, nodeId int64, waitForConditions []CreateExternalSignalConditionOpt, task *sqlcv1.FlattenExternalIdsRow) error {
 	if waitForConditions == nil {
 		return nil
 	}
@@ -528,19 +528,20 @@ func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.D
 	signalKey := getDurableTaskSignalKey(taskExternalId, nodeId)
 
 	createMatchOpts := []ExternalCreateSignalMatchOpts{{
-		Conditions:                 waitForConditions,
-		SignalTaskId:               task.ID,
-		SignalTaskInsertedAt:       task.InsertedAt,
-		SignalTaskExternalId:       task.ExternalID,
-		SignalExternalId:           taskExternalId,
-		SignalKey:                  signalKey,
-		DurableEventLogEntryNodeId: &nodeId,
+		Conditions:                   waitForConditions,
+		SignalTaskId:                 task.ID,
+		SignalTaskInsertedAt:         task.InsertedAt,
+		SignalTaskExternalId:         task.ExternalID,
+		SignalExternalId:             taskExternalId,
+		SignalKey:                    signalKey,
+		DurableEventLogEntryNodeId:   &nodeId,
+		DurableEventLogEntryBranchId: &branchId,
 	}}
 
 	return r.registerSignalMatchConditions(ctx, tx, tenantId, createMatchOpts)
 }
 
-func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, nodeId int64, triggerOpts *WorkflowNameTriggerOpts, task *sqlcv1.FlattenExternalIdsRow) ([]*DAGWithData, []*V1TaskWithPayload, error) {
+func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, branchId, nodeId int64, triggerOpts *WorkflowNameTriggerOpts, task *sqlcv1.FlattenExternalIdsRow) ([]*DAGWithData, []*V1TaskWithPayload, error) {
 	if triggerOpts == nil {
 		return nil, nil, fmt.Errorf("trigger options cannot be nil for RUN kind durable event log entry")
 	}
@@ -595,14 +596,15 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 		runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
 
 		err = r.createEventMatches(ctx, tx.tx, tenantId, []CreateMatchOpts{{
-			Kind:                       sqlcv1.V1MatchKindSIGNAL,
-			Conditions:                 conditions,
-			SignalTaskId:               &taskId,
-			SignalTaskInsertedAt:       task.InsertedAt,
-			SignalExternalId:           &taskExternalId,
-			SignalTaskExternalId:       &taskExternalId,
-			SignalKey:                  &runEventLogEntrySignalKey,
-			DurableEventLogEntryNodeId: &nodeId,
+			Kind:                         sqlcv1.V1MatchKindSIGNAL,
+			Conditions:                   conditions,
+			SignalTaskId:                 &taskId,
+			SignalTaskInsertedAt:         task.InsertedAt,
+			SignalExternalId:             &taskExternalId,
+			SignalTaskExternalId:         &taskExternalId,
+			SignalKey:                    &runEventLogEntrySignalKey,
+			DurableEventLogEntryNodeId:   &nodeId,
+			DurableEventLogEntryBranchId: &branchId,
 		}})
 
 		if err != nil {
@@ -733,7 +735,7 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 			return nil, fmt.Errorf("failed to unmarshal wait for conditions: %w", err)
 		}
 
-		err = r.handleWaitFor(ctx, tx, tenantId, nodeId, waitForConditions, task)
+		err = r.handleWaitFor(ctx, tx, tenantId, logFile.LatestBranchID, nodeId, waitForConditions, task)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to handle wait for conditions: %w", err)
@@ -745,7 +747,7 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 			return nil, fmt.Errorf("failed to unmarshal trigger opts: %w", err)
 		}
 
-		spawnedDAGs, spawnedTasks, err = r.handleTriggerRuns(ctx, optTx, tenantId, nodeId, &triggerOpts, task)
+		spawnedDAGs, spawnedTasks, err = r.handleTriggerRuns(ctx, optTx, tenantId, logFile.LatestBranchID, nodeId, &triggerOpts, task)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to handle trigger runs: %w", err)

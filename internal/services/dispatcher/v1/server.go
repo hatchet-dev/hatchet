@@ -581,7 +581,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 				InvocationCount:       req.InvocationCount,
 				DurableTaskExternalId: req.DurableTaskExternalId,
 				NodeId:                ingestionResult.NodeId,
-				BranchId:              ingestionResult.NodeId,
+				BranchId:              ingestionResult.BranchId,
 			},
 		},
 	})
