@@ -103,17 +103,35 @@ class DurableTaskWorkerStatusRequest(_message.Message):
     waiting_entries: _containers.RepeatedCompositeFieldContainer[DurableTaskAwaitedCompletedEntry]
     def __init__(self, worker_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ..., waiting_entries: _Optional[_Iterable[_Union[DurableTaskAwaitedCompletedEntry, _Mapping]]] = ...) -> None: ...
 
+class DurableTaskResetRequest(_message.Message):
+    __slots__ = ("durable_task_external_id", "node_id")
+    DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    durable_task_external_id: str
+    node_id: str
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[str] = ...) -> None: ...
+
+class DurableTaskResetResponse(_message.Message):
+    __slots__ = ("durable_task_external_id", "node_id")
+    DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    durable_task_external_id: str
+    node_id: str
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[str] = ...) -> None: ...
+
 class DurableTaskRequest(_message.Message):
-    __slots__ = ("register_worker", "event", "evict_invocation", "worker_status")
+    __slots__ = ("register_worker", "event", "evict_invocation", "worker_status", "reset")
     REGISTER_WORKER_FIELD_NUMBER: _ClassVar[int]
     EVENT_FIELD_NUMBER: _ClassVar[int]
     EVICT_INVOCATION_FIELD_NUMBER: _ClassVar[int]
     WORKER_STATUS_FIELD_NUMBER: _ClassVar[int]
+    RESET_FIELD_NUMBER: _ClassVar[int]
     register_worker: DurableTaskRequestRegisterWorker
     event: DurableTaskEventRequest
     evict_invocation: DurableTaskEvictInvocationRequest
     worker_status: DurableTaskWorkerStatusRequest
-    def __init__(self, register_worker: _Optional[_Union[DurableTaskRequestRegisterWorker, _Mapping]] = ..., event: _Optional[_Union[DurableTaskEventRequest, _Mapping]] = ..., evict_invocation: _Optional[_Union[DurableTaskEvictInvocationRequest, _Mapping]] = ..., worker_status: _Optional[_Union[DurableTaskWorkerStatusRequest, _Mapping]] = ...) -> None: ...
+    reset: DurableTaskResetRequest
+    def __init__(self, register_worker: _Optional[_Union[DurableTaskRequestRegisterWorker, _Mapping]] = ..., event: _Optional[_Union[DurableTaskEventRequest, _Mapping]] = ..., evict_invocation: _Optional[_Union[DurableTaskEvictInvocationRequest, _Mapping]] = ..., worker_status: _Optional[_Union[DurableTaskWorkerStatusRequest, _Mapping]] = ..., reset: _Optional[_Union[DurableTaskResetRequest, _Mapping]] = ...) -> None: ...
 
 class DurableTaskErrorResponse(_message.Message):
     __slots__ = ("durable_task_external_id", "invocation_count", "node_id", "error_type", "error_message")
@@ -130,16 +148,18 @@ class DurableTaskErrorResponse(_message.Message):
     def __init__(self, durable_task_external_id: _Optional[str] = ..., invocation_count: _Optional[int] = ..., node_id: _Optional[int] = ..., error_type: _Optional[_Union[DurableTaskErrorType, str]] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class DurableTaskResponse(_message.Message):
-    __slots__ = ("register_worker", "trigger_ack", "entry_completed", "error")
+    __slots__ = ("register_worker", "trigger_ack", "entry_completed", "error", "reset")
     REGISTER_WORKER_FIELD_NUMBER: _ClassVar[int]
     TRIGGER_ACK_FIELD_NUMBER: _ClassVar[int]
     ENTRY_COMPLETED_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
+    RESET_FIELD_NUMBER: _ClassVar[int]
     register_worker: DurableTaskResponseRegisterWorker
     trigger_ack: DurableTaskEventAckResponse
     entry_completed: DurableTaskEventLogEntryCompletedResponse
     error: DurableTaskErrorResponse
-    def __init__(self, register_worker: _Optional[_Union[DurableTaskResponseRegisterWorker, _Mapping]] = ..., trigger_ack: _Optional[_Union[DurableTaskEventAckResponse, _Mapping]] = ..., entry_completed: _Optional[_Union[DurableTaskEventLogEntryCompletedResponse, _Mapping]] = ..., error: _Optional[_Union[DurableTaskErrorResponse, _Mapping]] = ...) -> None: ...
+    reset: DurableTaskResetResponse
+    def __init__(self, register_worker: _Optional[_Union[DurableTaskResponseRegisterWorker, _Mapping]] = ..., trigger_ack: _Optional[_Union[DurableTaskEventAckResponse, _Mapping]] = ..., entry_completed: _Optional[_Union[DurableTaskEventLogEntryCompletedResponse, _Mapping]] = ..., error: _Optional[_Union[DurableTaskErrorResponse, _Mapping]] = ..., reset: _Optional[_Union[DurableTaskResetResponse, _Mapping]] = ...) -> None: ...
 
 class RegisterDurableEventRequest(_message.Message):
     __slots__ = ("task_id", "signal_key", "conditions")
