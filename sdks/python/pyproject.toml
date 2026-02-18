@@ -1,6 +1,10 @@
 [tool.poetry]
 name = "hatchet-sdk"
+<<<<<<< HEAD
 version = "1.25.0"
+=======
+version = "1.24.1"
+>>>>>>> d3e0365c (bump: patch version updates for Python and TypeScript SDKs)
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 authors = [
   "Alexander Belanger <alexander@hatchet.run>",
