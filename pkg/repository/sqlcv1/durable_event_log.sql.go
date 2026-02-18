@@ -327,27 +327,30 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 	return items, nil
 }
 
-const updateLogFileNodeIdInvocationCount = `-- name: UpdateLogFileNodeIdInvocationCount :one
+const updateLogFile = `-- name: UpdateLogFile :one
 UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
-    latest_invocation_count = COALESCE($2::BIGINT, v1_durable_event_log_file.latest_invocation_count)
-WHERE durable_task_id = $3::BIGINT
-  AND durable_task_inserted_at = $4::TIMESTAMPTZ
+    latest_invocation_count = COALESCE($2::BIGINT, v1_durable_event_log_file.latest_invocation_count),
+    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id)
+WHERE durable_task_id = $4::BIGINT
+  AND durable_task_inserted_at = $5::TIMESTAMPTZ
 RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
 `
 
-type UpdateLogFileNodeIdInvocationCountParams struct {
+type UpdateLogFileParams struct {
 	NodeId                pgtype.Int8        `json:"nodeId"`
 	InvocationCount       pgtype.Int8        `json:"invocationCount"`
+	BranchId              pgtype.Int8        `json:"branchId"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }
 
-func (q *Queries) UpdateLogFileNodeIdInvocationCount(ctx context.Context, db DBTX, arg UpdateLogFileNodeIdInvocationCountParams) (*V1DurableEventLogFile, error) {
-	row := db.QueryRow(ctx, updateLogFileNodeIdInvocationCount,
+func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileParams) (*V1DurableEventLogFile, error) {
+	row := db.QueryRow(ctx, updateLogFile,
 		arg.NodeId,
 		arg.InvocationCount,
+		arg.BranchId,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 	)

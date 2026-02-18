@@ -57,6 +57,7 @@ type IngestDurableTaskEventResult struct {
 
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
+	HandleReset(ctx context.Context, tx sqlcv1.DBTX, tenantId, taskExternalId uuid.UUID, nodeId, invocationCount int64) error
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeId) ([]*SatisfiedEventWithPayload, error)
 }
@@ -376,7 +377,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	var nodeId int64
 	if isNewInvocation {
-		newNode, err := r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
+		newNode, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
 			NodeId:                sqlchelpers.ToBigInt(1),
 			InvocationCount:       sqlchelpers.ToBigInt(opts.InvocationCount),
 			Durabletaskid:         task.ID,
@@ -471,7 +472,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	logFile, err = r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
+	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
 		NodeId:                sqlchelpers.ToBigInt(nodeId),
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
@@ -586,4 +587,74 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	}
 
 	return createdDAGs, createdTasks, nil
+}
+
+func (r *durableEventsRepository) HandleReset(ctx context.Context, tx sqlcv1.DBTX, tenantId, taskExternalId uuid.UUID, nodeId, invocationCount int64) error {
+	tasks, err := r.queries.FlattenExternalIds(ctx, tx, sqlcv1.FlattenExternalIdsParams{
+		Externalids: []uuid.UUID{taskExternalId},
+		Tenantid:    tenantId,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to flatten external ids: %w", err)
+	}
+
+	if len(tasks) == 0 {
+		return fmt.Errorf("no task found with external id %s", taskExternalId.String())
+	}
+
+	if len(tasks) > 1 {
+		return fmt.Errorf("multiple tasks found with external id %s", taskExternalId.String())
+	}
+
+	task := tasks[0]
+
+	// todo: use advisory lock here, factor this into a method
+	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to lock log file: %w", err)
+	}
+
+	previousEntry, err := r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Nodeid:                nodeId,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to get previous log entry: %w", err)
+	}
+
+	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
+		BranchId:        sqlchelpers.ToBigInt(logFile.LatestBranchID + 1),
+		NodeId:          sqlchelpers.ToBigInt(nodeId),
+		InvocationCount: sqlchelpers.ToBigInt(invocationCount + 1),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to update log file for reset: %w", err)
+	}
+
+	newEntry, err := r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
+		Tenantid:              tenantId,
+		Externalid:            uuid.New(),
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Kind:                  previousEntry.Kind,
+		Nodeid:                nodeId,
+		ParentNodeId:          previousEntry.ParentNodeID,
+		Branchid:              logFile.LatestBranchID,
+		Idempotencykey:        previousEntry.IdempotencyKey,
+		Issatisfied:           false,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create new log entry for reset: %w", err)
+	}
+
+	return nil
 }

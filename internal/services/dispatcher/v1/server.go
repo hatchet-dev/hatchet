@@ -619,6 +619,7 @@ func (d *DispatcherServiceImpl) handleReset(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskResetRequest,
 ) error {
+	// when we get a reset request, we should create a copy of the node id and increment the branch id
 	return nil
 }
 
