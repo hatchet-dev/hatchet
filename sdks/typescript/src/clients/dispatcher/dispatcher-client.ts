@@ -16,6 +16,7 @@ import { Logger } from '@hatchet/util/logger';
 
 import { retrier } from '@hatchet/util/retrier';
 import { HATCHET_VERSION } from '@hatchet/version';
+import { SlotConfig, SlotType } from '@hatchet/v1/slot-types';
 import { ActionListener } from './action-listener';
 
 export type WorkerLabels = Record<string, string | number | undefined>;
@@ -24,6 +25,12 @@ interface GetActionListenerOptions {
   workerName: string;
   services: string[];
   actions: string[];
+  slotConfig?: SlotConfig;
+  /** @deprecated use slotConfig */
+  slots?: number;
+  /** @deprecated use slotConfig */
+  durableSlots?: number;
+  /** @deprecated use slots */
   maxRuns?: number;
   labels: Record<string, string | number | undefined>;
 }
@@ -57,15 +64,36 @@ export class DispatcherClient {
 
   async getActionListener(options: GetActionListenerOptions) {
     // Register the worker
-    const { maxRuns, ...rest } = options;
+    const slotConfig =
+      options.slotConfig ||
+      (options.slots || options.durableSlots || options.maxRuns
+        ? {
+            ...(options.slots || options.maxRuns
+              ? { [SlotType.Default]: options.slots || options.maxRuns || 0 }
+              : {}),
+            ...(options.durableSlots ? { [SlotType.Durable]: options.durableSlots } : {}),
+          }
+        : undefined);
+
     const registration = await this.client.register({
-      ...rest,
-      slots: maxRuns,
+      workerName: options.workerName,
+      services: options.services,
+      actions: options.actions,
+      slotConfig,
       labels: options.labels ? mapLabels(options.labels) : undefined,
       runtimeInfo: this.getRuntimeInfo(),
     });
 
     return new ActionListener(this, registration.workerId);
+  }
+
+  /**
+   * Calls the GetVersion RPC. Returns the engine semantic version string.
+   * Throws a gRPC error with code UNIMPLEMENTED on older engines.
+   */
+  async getVersion(): Promise<string> {
+    const response = await this.client.getVersion({});
+    return response.version;
   }
 
   async sendStepActionEvent(in_: StepActionEventInput) {
@@ -120,7 +148,7 @@ export class DispatcherClient {
   }
 }
 
-function mapLabels(in_: WorkerLabels): Record<string, PbWorkerAffinityConfig> {
+export function mapLabels(in_: WorkerLabels): Record<string, PbWorkerAffinityConfig> {
   return Object.entries(in_).reduce<Record<string, PbWorkerAffinityConfig>>(
     (acc, [key, value]) => ({
       ...acc,

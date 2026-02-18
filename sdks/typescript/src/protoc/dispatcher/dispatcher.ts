@@ -347,7 +347,10 @@ export interface WorkerRegisterRequest {
   actions: string[];
   /** (optional) the services for this worker */
   services: string[];
-  /** (optional) the number of slots this worker can handle */
+  /**
+   * (optional) the number of default slots this worker can handle
+   * deprecated: use slot_config instead
+   */
   slots?: number | undefined;
   /** (optional) worker labels (i.e. state or other metadata) */
   labels: { [key: string]: WorkerLabels };
@@ -355,11 +358,18 @@ export interface WorkerRegisterRequest {
   webhookId?: string | undefined;
   /** (optional) information regarding the runtime environment of the worker */
   runtimeInfo?: RuntimeInfo | undefined;
+  /** (optional) slot config for this worker (slot_type -> units) */
+  slotConfig: { [key: string]: number };
 }
 
 export interface WorkerRegisterRequest_LabelsEntry {
   key: string;
   value: WorkerLabels | undefined;
+}
+
+export interface WorkerRegisterRequest_SlotConfigEntry {
+  key: string;
+  value: number;
 }
 
 export interface WorkerRegisterResponse {
@@ -586,6 +596,12 @@ export interface ReleaseSlotRequest {
 
 export interface ReleaseSlotResponse {}
 
+export interface GetVersionRequest {}
+
+export interface GetVersionResponse {
+  version: string;
+}
+
 function createBaseWorkerLabels(): WorkerLabels {
   return { strValue: undefined, intValue: undefined };
 }
@@ -803,6 +819,7 @@ function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
     labels: {},
     webhookId: undefined,
     runtimeInfo: undefined,
+    slotConfig: {},
   };
 }
 
@@ -832,6 +849,12 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.runtimeInfo !== undefined) {
       RuntimeInfo.encode(message.runtimeInfo, writer.uint32(58).fork()).join();
     }
+    Object.entries(message.slotConfig).forEach(([key, value]) => {
+      WorkerRegisterRequest_SlotConfigEntry.encode(
+        { key: key as any, value },
+        writer.uint32(74).fork()
+      ).join();
+    });
     return writer;
   },
 
@@ -901,6 +924,17 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
           message.runtimeInfo = RuntimeInfo.decode(reader, reader.uint32());
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          const entry9 = WorkerRegisterRequest_SlotConfigEntry.decode(reader, reader.uint32());
+          if (entry9.value !== undefined) {
+            message.slotConfig[entry9.key] = entry9.value;
+          }
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -931,6 +965,15 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
         : {},
       webhookId: isSet(object.webhookId) ? globalThis.String(object.webhookId) : undefined,
       runtimeInfo: isSet(object.runtimeInfo) ? RuntimeInfo.fromJSON(object.runtimeInfo) : undefined,
+      slotConfig: isObject(object.slotConfig)
+        ? Object.entries(object.slotConfig).reduce<{ [key: string]: number }>(
+            (acc, [key, value]) => {
+              acc[key] = Number(value);
+              return acc;
+            },
+            {}
+          )
+        : {},
     };
   },
 
@@ -963,6 +1006,15 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     if (message.runtimeInfo !== undefined) {
       obj.runtimeInfo = RuntimeInfo.toJSON(message.runtimeInfo);
     }
+    if (message.slotConfig) {
+      const entries = Object.entries(message.slotConfig);
+      if (entries.length > 0) {
+        obj.slotConfig = {};
+        entries.forEach(([k, v]) => {
+          obj.slotConfig[k] = Math.round(v);
+        });
+      }
+    }
     return obj;
   },
 
@@ -989,6 +1041,15 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       object.runtimeInfo !== undefined && object.runtimeInfo !== null
         ? RuntimeInfo.fromPartial(object.runtimeInfo)
         : undefined;
+    message.slotConfig = Object.entries(object.slotConfig ?? {}).reduce<{ [key: string]: number }>(
+      (acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = globalThis.Number(value);
+        }
+        return acc;
+      },
+      {}
+    );
     return message;
   },
 };
@@ -1076,6 +1137,93 @@ export const WorkerRegisterRequest_LabelsEntry: MessageFns<WorkerRegisterRequest
     return message;
   },
 };
+
+function createBaseWorkerRegisterRequest_SlotConfigEntry(): WorkerRegisterRequest_SlotConfigEntry {
+  return { key: '', value: 0 };
+}
+
+export const WorkerRegisterRequest_SlotConfigEntry: MessageFns<WorkerRegisterRequest_SlotConfigEntry> =
+  {
+    encode(
+      message: WorkerRegisterRequest_SlotConfigEntry,
+      writer: BinaryWriter = new BinaryWriter()
+    ): BinaryWriter {
+      if (message.key !== '') {
+        writer.uint32(10).string(message.key);
+      }
+      if (message.value !== 0) {
+        writer.uint32(16).int32(message.value);
+      }
+      return writer;
+    },
+
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number
+    ): WorkerRegisterRequest_SlotConfigEntry {
+      const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.key = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.value = reader.int32();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    },
+
+    fromJSON(object: any): WorkerRegisterRequest_SlotConfigEntry {
+      return {
+        key: isSet(object.key) ? globalThis.String(object.key) : '',
+        value: isSet(object.value) ? globalThis.Number(object.value) : 0,
+      };
+    },
+
+    toJSON(message: WorkerRegisterRequest_SlotConfigEntry): unknown {
+      const obj: any = {};
+      if (message.key !== '') {
+        obj.key = message.key;
+      }
+      if (message.value !== 0) {
+        obj.value = Math.round(message.value);
+      }
+      return obj;
+    },
+
+    create(
+      base?: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>
+    ): WorkerRegisterRequest_SlotConfigEntry {
+      return WorkerRegisterRequest_SlotConfigEntry.fromPartial(base ?? {});
+    },
+    fromPartial(
+      object: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>
+    ): WorkerRegisterRequest_SlotConfigEntry {
+      const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
+      message.key = object.key ?? '';
+      message.value = object.value ?? 0;
+      return message;
+    },
+  };
 
 function createBaseWorkerRegisterResponse(): WorkerRegisterResponse {
   return { tenantId: '', workerId: '', workerName: '' };
@@ -3660,6 +3808,107 @@ export const ReleaseSlotResponse: MessageFns<ReleaseSlotResponse> = {
   },
 };
 
+function createBaseGetVersionRequest(): GetVersionRequest {
+  return {};
+}
+
+export const GetVersionRequest: MessageFns<GetVersionRequest> = {
+  encode(_: GetVersionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetVersionRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetVersionRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): GetVersionRequest {
+    return {};
+  },
+
+  toJSON(_: GetVersionRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetVersionRequest>): GetVersionRequest {
+    return GetVersionRequest.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<GetVersionRequest>): GetVersionRequest {
+    const message = createBaseGetVersionRequest();
+    return message;
+  },
+};
+
+function createBaseGetVersionResponse(): GetVersionResponse {
+  return { version: '' };
+}
+
+export const GetVersionResponse: MessageFns<GetVersionResponse> = {
+  encode(message: GetVersionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.version !== '') {
+      writer.uint32(10).string(message.version);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetVersionResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetVersionResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.version = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetVersionResponse {
+    return { version: isSet(object.version) ? globalThis.String(object.version) : '' };
+  },
+
+  toJSON(message: GetVersionResponse): unknown {
+    const obj: any = {};
+    if (message.version !== '') {
+      obj.version = message.version;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GetVersionResponse>): GetVersionResponse {
+    return GetVersionResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetVersionResponse>): GetVersionResponse {
+    const message = createBaseGetVersionResponse();
+    message.version = object.version ?? '';
+    return message;
+  },
+};
+
 export type DispatcherDefinition = typeof DispatcherDefinition;
 export const DispatcherDefinition = {
   name: 'Dispatcher',
@@ -3774,6 +4023,19 @@ export const DispatcherDefinition = {
       responseStream: false,
       options: {},
     },
+    /**
+     * GetVersion returns the dispatcher protocol version as a simple integer.
+     * SDKs use this to determine feature support (e.g. slot_config registration).
+     * Old engines that do not implement this RPC will return UNIMPLEMENTED.
+     */
+    getVersion: {
+      name: 'GetVersion',
+      requestType: GetVersionRequest,
+      requestStream: false,
+      responseType: GetVersionResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -3835,6 +4097,15 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
     request: UpsertWorkerLabelsRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<UpsertWorkerLabelsResponse>>;
+  /**
+   * GetVersion returns the dispatcher protocol version as a simple integer.
+   * SDKs use this to determine feature support (e.g. slot_config registration).
+   * Old engines that do not implement this RPC will return UNIMPLEMENTED.
+   */
+  getVersion(
+    request: GetVersionRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<GetVersionResponse>>;
 }
 
 export interface DispatcherClient<CallOptionsExt = {}> {
@@ -3895,6 +4166,15 @@ export interface DispatcherClient<CallOptionsExt = {}> {
     request: DeepPartial<UpsertWorkerLabelsRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<UpsertWorkerLabelsResponse>;
+  /**
+   * GetVersion returns the dispatcher protocol version as a simple integer.
+   * SDKs use this to determine feature support (e.g. slot_config registration).
+   * Old engines that do not implement this RPC will return UNIMPLEMENTED.
+   */
+  getVersion(
+    request: DeepPartial<GetVersionRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<GetVersionResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

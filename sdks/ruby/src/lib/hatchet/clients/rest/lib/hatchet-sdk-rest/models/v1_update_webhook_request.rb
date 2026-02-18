@@ -76,8 +76,6 @@ module HatchetSdkRest
 
       if attributes.key?(:'event_key_expression')
         self.event_key_expression = attributes[:'event_key_expression']
-      else
-        self.event_key_expression = nil
       end
 
       if attributes.key?(:'scope_expression')
@@ -94,10 +92,6 @@ module HatchetSdkRest
     def list_invalid_properties
       warn '[DEPRECATED] the `list_invalid_properties` method is obsolete'
       invalid_properties = Array.new
-      if @event_key_expression.nil?
-        invalid_properties.push('invalid value for "event_key_expression", event_key_expression cannot be nil.')
-      end
-
       invalid_properties
     end
 
@@ -105,18 +99,7 @@ module HatchetSdkRest
     # @return true if the model is valid
     def valid?
       warn '[DEPRECATED] the `valid?` method is obsolete'
-      return false if @event_key_expression.nil?
       true
-    end
-
-    # Custom attribute writer method with validation
-    # @param [Object] event_key_expression Value to be assigned
-    def event_key_expression=(event_key_expression)
-      if event_key_expression.nil?
-        fail ArgumentError, 'event_key_expression cannot be nil'
-      end
-
-      @event_key_expression = event_key_expression
     end
 
     # Checks equality by comparing each attribute.

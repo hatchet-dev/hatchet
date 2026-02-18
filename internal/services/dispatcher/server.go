@@ -53,9 +53,20 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
+	if len(request.SlotConfig) > 0 {
+		opts.SlotConfig = request.SlotConfig
+	} else {
+		// default to 100 slots
+		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: 100}
+	}
+
+	// fixme: deprecated remove in a future release feb6 2026
 	if request.Slots != nil {
-		mr := int(*request.Slots)
-		opts.MaxRuns = &mr
+		if len(request.SlotConfig) > 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "either slot_config or slots (deprecated) must be provided, not both")
+		}
+
+		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: *request.Slots}
 	}
 
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
@@ -639,4 +650,10 @@ func UnmarshalPayload[T any](payload interface{}) (T, error) {
 	}
 
 	return result, nil
+}
+
+func (s *DispatcherImpl) GetVersion(ctx context.Context, req *contracts.GetVersionRequest) (*contracts.GetVersionResponse, error) {
+	return &contracts.GetVersionResponse{
+		Version: s.version,
+	}, nil
 }
