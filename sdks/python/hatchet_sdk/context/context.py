@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 from warnings import warn
 
 from hatchet_sdk.cancellation import CancellationToken
@@ -30,6 +30,9 @@ from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.cancellation import await_with_cancellation
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.worker.durable_eviction.instrumentation import (
+    aio_durable_eviction_wait,
+)
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -337,8 +340,7 @@ class Context:
 
         :return: The attempt number of the current task run.
         """
-
-        return self.retry_count + 1
+        return self.action.retry_count + 1
 
     @property
     def max_attempts(self) -> int:
@@ -540,25 +542,27 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        invocation_count = self.attempt_number
-
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            ## todo: figure out how to store this invocation count properly
-            invocation_count=invocation_count,
+            # TODO-DURABLE: this is not correct on engine, this will dupe runs spawned from this task
+            invocation_count=self.action.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
             payload=None,
             wait_for_conditions=conditions_proto,
         )
         node_id = ack.node_id
 
-        result = await await_with_cancellation(
-            self.durable_event_listener.wait_for_callback(
-                durable_task_external_id=self.step_run_id,
-                node_id=node_id,
-            ),
-            self.cancellation_token,
-        )
+        async with aio_durable_eviction_wait(
+            "durable_event", f"{self.step_run_id}:{signal_key}"
+        ):
+            result = await await_with_cancellation(
+                self.durable_event_listener.wait_for_callback(
+                    durable_task_external_id=self.step_run_id,
+                    invocation_count=self.action.invocation_count,
+                    node_id=node_id,
+                ),
+                self.cancellation_token,
+            )
 
         return result.payload or {}
 
@@ -581,12 +585,11 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
-    ## todo: instrumentor for this
     async def _spawn_child(
         self,
         workflow: "BaseWorkflow[TWorkflowInput]",
         input: TWorkflowInput = cast(Any, EmptyModel()),
-        options: "TriggerWorkflowOptions" | None = None,
+        options: Optional["TriggerWorkflowOptions"] = None,
     ) -> dict[str, Any]:
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
@@ -595,7 +598,8 @@ class DurableContext(Context):
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            invocation_count=self.attempt_number,
+            # TODO-DURABLE: this is not correct on engine, this will dupe runs spawned from this task
+            invocation_count=self.action.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
             workflow_name=workflow.config.name,
@@ -604,10 +608,18 @@ class DurableContext(Context):
 
         node_id = ack.node_id
 
-        result = await self.durable_event_listener.wait_for_callback(
-            durable_task_external_id=self.step_run_id,
-            node_id=node_id,
-        )
+        async with aio_durable_eviction_wait(
+            "spawn_child", f"{self.step_run_id}:{node_id}"
+        ):
+            result = await await_with_cancellation(
+                self.durable_event_listener.wait_for_callback(
+                    durable_task_external_id=self.step_run_id,
+                    # TODO-DURABLE: this is not correct on engine, this will dupe runs spawned from this task
+                    invocation_count=self.action.invocation_count,
+                    node_id=node_id,
+                ),
+                self.cancellation_token,
+            )
 
         return result.payload or {}
 

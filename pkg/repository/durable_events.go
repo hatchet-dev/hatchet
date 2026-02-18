@@ -41,7 +41,7 @@ type IngestDurableTaskEventOpts struct {
 	Kind              sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
 	Payload           []byte
 	WaitForConditions []CreateExternalSignalConditionOpt
-	InvocationCount   int64
+	InvocationCount   int32
 	TriggerOpts       *WorkflowNameTriggerOpts
 }
 
@@ -72,10 +72,10 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 }
 
 type NonDeterminismError struct {
-	NodeId                 int64
-	TaskExternalId         uuid.UUID
 	ExpectedIdempotencyKey []byte
 	ActualIdempotencyKey   []byte
+	NodeId                 int64
+	TaskExternalId         uuid.UUID
 }
 
 func (m *NonDeterminismError) Error() string {
@@ -83,15 +83,15 @@ func (m *NonDeterminismError) Error() string {
 }
 
 type GetOrCreateLogEntryOpts struct {
-	TenantId              uuid.UUID
-	DurableTaskExternalId uuid.UUID
-	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
 	Kind                  sqlcv1.V1DurableEventLogKind
-	NodeId                int64
-	ParentNodeId          pgtype.Int8
-	BranchId              int64
 	IdempotencyKey        []byte
+	ParentNodeId          pgtype.Int8
+	DurableTaskId         int64
+	NodeId                int64
+	BranchId              int64
+	TenantId              uuid.UUID
+	DurableTaskExternalId uuid.UUID
 	IsSatisfied           bool
 }
 
@@ -348,6 +348,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	// take a lock of the log file so nothing else can concurrently write to it and e.g. increment the node id or branch
 	// id while this tx is running
+	// TODO-DURABLE: use this in the dispatcher to lock while incrementing the invocation count
 	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
@@ -378,7 +379,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	if isNewInvocation {
 		newNode, err := r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
 			NodeId:                sqlchelpers.ToBigInt(1),
-			InvocationCount:       sqlchelpers.ToBigInt(opts.InvocationCount),
+			InvocationCount:       sqlchelpers.ToInt(opts.InvocationCount),
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
 		})

@@ -350,6 +350,7 @@ def test_all_reasons_exist() -> None:
     assert CancellationReason.PARENT_CANCELLED.value == "parent_cancelled"
     assert CancellationReason.WORKFLOW_CANCELLED.value == "workflow_cancelled"
     assert CancellationReason.TOKEN_CANCELLED.value == "token_cancelled"
+    assert CancellationReason.EVICTED.value == "evicted"
 
 
 def test_reasons_are_strings() -> None:

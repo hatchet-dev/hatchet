@@ -248,19 +248,20 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
-		TenantId:          tenantID.String(),
-		JobId:             task.StepID.String(), // FIXME
-		JobName:           task.StepReadableID,
-		JobRunId:          task.ExternalID.String(), // FIXME
-		TaskId:            task.StepID.String(),
-		TaskRunExternalId: task.ExternalID.String(),
-		ActionId:          task.ActionID,
-		TaskName:          task.StepReadableID,
-		WorkflowRunId:     task.WorkflowRunID.String(),
-		RetryCount:        retryCount,
-		Priority:          task.Priority.Int32,
-		WorkflowId:        &workflowId,
-		WorkflowVersionId: &workflowVersionId,
+		TenantId:               tenantID.String(),
+		JobId:                  task.StepID.String(), // FIXME
+		JobName:                task.StepReadableID,
+		JobRunId:               task.ExternalID.String(), // FIXME
+		TaskId:                 task.StepID.String(),
+		TaskRunExternalId:      task.ExternalID.String(),
+		ActionId:               task.ActionID,
+		TaskName:               task.StepReadableID,
+		WorkflowRunId:          task.WorkflowRunID.String(),
+		RetryCount:             retryCount,
+		Priority:               task.Priority.Int32,
+		WorkflowId:             &workflowId,
+		WorkflowVersionId:      &workflowVersionId,
+		DurableInvocationCount: task.DurableInvocationCount,
 	}
 
 	if task.AdditionalMetadata != nil {

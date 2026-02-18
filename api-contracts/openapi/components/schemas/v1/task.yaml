@@ -279,6 +279,9 @@ V1TaskEventType:
     - FAILED
     - RETRYING
     - CANCELLED
+    - CANCELLING
+    - CANCELLED_CONFIRMED
+    - CANCELLATION_FAILED
     - TIMED_OUT
     - REASSIGNED
     - SLOT_RELEASED
@@ -291,6 +294,8 @@ V1TaskEventType:
     - QUEUED
     - SKIPPED
     - COULD_NOT_SEND_TO_WORKER
+    - DURABLE_EVICTED
+    - DURABLE_RESTORING
 
 V1TaskRunMetrics:
   type: array

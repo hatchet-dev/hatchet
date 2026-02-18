@@ -14,7 +14,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -532,6 +534,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		}
 	}
 
+	// should this return the latest invocation count?
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		TenantId:          invocation.tenantId,
 		Task:              task,
@@ -589,6 +592,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
 			ingestionResult.NodeId,
+			task.DurableInvocationCount,
 			ingestionResult.EventLogEntry.ResultPayload,
 		)
 
@@ -606,9 +610,50 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
-	// todo: implement eviction here
+	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+	}
 
-	return nil
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+
+	_, err = d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		RetryCount: task.RetryCount,
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to evict task: %v", err)
+	}
+
+	msg, err := tasktypes.MonitoringEventMessageFromInternal(
+		invocation.tenantId,
+		tasktypes.CreateMonitoringEventPayload{
+			TaskId:         task.ID,
+			RetryCount:     task.RetryCount,
+			EventTimestamp: time.Now(),
+			EventType:      sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			EventPayload:   "",
+			EventMessage:   "Evicted via DurableTask stream",
+		},
+	)
+	if err != nil {
+		d.l.Warn().Err(err).Msg("failed to build DURABLE_EVICTED monitoring message")
+	} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		d.l.Warn().Err(err).Msg("failed to publish DURABLE_EVICTED to OLAP")
+	}
+
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_EvictionAck{
+			EvictionAck: &contracts.DurableTaskEvictionAckResponse{
+				InvocationCount:       req.InvocationCount,
+				DurableTaskExternalId: req.DurableTaskExternalId,
+			},
+		},
+	})
 }
 
 func (d *DispatcherServiceImpl) handleWorkerStatus(
@@ -621,6 +666,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingEntries))
+	invocationCounts := make(map[string]int32)
 	for _, cb := range req.WaitingEntries {
 		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
 		if err != nil {
@@ -631,6 +677,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			TaskExternalId: taskExternalId,
 			NodeId:         cb.NodeId,
 		})
+		invocationCounts[fmt.Sprintf("%s/%d", taskExternalId, cb.NodeId)] = cb.InvocationCount
 	}
 
 	if len(waiting) == 0 {
@@ -643,12 +690,14 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	for _, cb := range callbacks {
+		key := fmt.Sprintf("%s/%d", cb.TaskExternalId, cb.NodeID)
 		if err := invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_EntryCompleted{
 				EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 					DurableTaskExternalId: cb.TaskExternalId.String(),
 					NodeId:                cb.NodeID,
 					Payload:               cb.Result,
+					InvocationCount:       invocationCounts[key],
 				},
 			},
 		}); err != nil {
@@ -659,7 +708,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	return nil
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, invocationCount int32, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
@@ -671,6 +720,7 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
 				Payload:               payload,
+				InvocationCount:       invocationCount,
 			},
 		},
 	})

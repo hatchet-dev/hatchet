@@ -8,6 +8,9 @@ import grpc.aio
 from pydantic import BaseModel
 
 from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
+from hatchet_sdk.clients.rest.api.task_api import TaskApi
+from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.configuration import Configuration
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
@@ -16,6 +19,7 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
     DurableTaskEventRequest,
+    DurableTaskEvictInvocationRequest,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
@@ -35,6 +39,15 @@ class DurableTaskEventAck(BaseModel):
     invocation_count: int
     durable_task_external_id: str
     node_id: int
+
+
+class DurableTaskEvictionAck(BaseModel):
+    invocation_count: int
+    durable_task_external_id: str
+
+
+class RestoreEvictedTaskResult(BaseModel):
+    requeued: bool
 
 
 class DurableTaskEventLogEntryResult(BaseModel):
@@ -73,8 +86,11 @@ class DurableEventListener:
         self._pending_event_acks: dict[
             tuple[str, int], asyncio.Future[DurableTaskEventAck]
         ] = {}
+        self._pending_eviction_acks: dict[
+            tuple[str, int], asyncio.Future[DurableTaskEvictionAck]
+        ] = {}
         self._pending_callbacks: dict[
-            tuple[str, int], asyncio.Future[DurableTaskEventLogEntryResult]
+            tuple[str, int, int], asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
@@ -164,9 +180,10 @@ class DurableEventListener:
         waiting = [
             DurableTaskAwaitedCompletedEntry(
                 durable_task_external_id=task_ext_id,
+                invocation_count=invocation_count,
                 node_id=node_id,
             )
-            for (task_ext_id, node_id) in self._pending_callbacks
+            for (task_ext_id, invocation_count, node_id) in self._pending_callbacks
         ]
 
         request = DurableTaskRequest(
@@ -252,10 +269,25 @@ class DurableEventListener:
                     )
                 )
                 del self._pending_event_acks[event_key]
+        elif response.HasField("eviction_ack"):
+            eviction_ack = response.eviction_ack
+            event_key = (
+                eviction_ack.durable_task_external_id,
+                eviction_ack.invocation_count,
+            )
+            if event_key in self._pending_eviction_acks:
+                self._pending_eviction_acks[event_key].set_result(
+                    DurableTaskEvictionAck(
+                        invocation_count=eviction_ack.invocation_count,
+                        durable_task_external_id=eviction_ack.durable_task_external_id,
+                    )
+                )
+                del self._pending_eviction_acks[event_key]
         elif response.HasField("entry_completed"):
             completed = response.entry_completed
             completed_key = (
                 completed.durable_task_external_id,
+                completed.invocation_count,
                 completed.node_id,
             )
             if completed_key in self._pending_callbacks:
@@ -294,7 +326,11 @@ class DurableEventListener:
                 if not error_pending_ack_future.done():
                     error_pending_ack_future.set_exception(exc)
 
-            callback_key = (error.durable_task_external_id, error.node_id)
+            callback_key = (
+                error.durable_task_external_id,
+                error.invocation_count,
+                error.node_id,
+            )
             if callback_key in self._pending_callbacks:
                 error_pending_callback_future = self._pending_callbacks.pop(
                     callback_key
@@ -357,12 +393,63 @@ class DurableEventListener:
 
         return await future
 
+    async def send_evict_invocation(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+    ) -> DurableTaskEvictionAck:
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        key = (durable_task_external_id, invocation_count)
+        future: asyncio.Future[DurableTaskEvictionAck] = asyncio.Future()
+        self._pending_eviction_acks[key] = future
+
+        request = DurableTaskRequest(
+            evict_invocation=DurableTaskEvictInvocationRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+            )
+        )
+        await self._request_queue.put(request)
+
+        return await future
+
+    async def restore_task(self, task_run_external_id: str) -> RestoreEvictedTaskResult:
+        """Restore an evicted durable task by requeueing it at highest priority."""
+        api_config = Configuration(
+            host=self.config.server_url,
+            access_token=self.config.token,
+        )
+        api_config.datetime_format = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+        def _restore() -> RestoreEvictedTaskResult:
+            with ApiClient(api_config) as client:
+                task_api = TaskApi(client)
+                resp = task_api.v1_task_restore(task_run_external_id)
+                return RestoreEvictedTaskResult(requeued=resp.requeued)
+
+        return await asyncio.to_thread(_restore)
+
+    def clear_pending_for_task(self, durable_task_external_id: str) -> None:
+        for d in (
+            self._pending_callbacks,
+            self._pending_event_acks,
+            self._pending_eviction_acks,
+        ):
+            to_remove = [k for k in d if k[0] == durable_task_external_id]
+            for k in to_remove:
+                future = d.pop(k)
+                if not future.done():
+                    future.cancel()
+
     async def wait_for_callback(
         self,
         durable_task_external_id: str,
+        invocation_count: int,
         node_id: int,
     ) -> DurableTaskEventLogEntryResult:
-        key = (durable_task_external_id, node_id)
+        key = (durable_task_external_id, invocation_count, node_id)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()

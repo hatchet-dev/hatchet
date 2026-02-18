@@ -688,7 +688,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 
 	// handle cancellations
 	for _, cancelled := range res.Cancelled {
-		eventType := sqlcv1.V1EventTypeOlapCANCELLED
+		eventType := sqlcv1.V1EventTypeOlapCANCELLING
 		eventMessage := ""
 		shouldNotify := true
 
@@ -696,7 +696,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 			eventType = sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT
 			shouldNotify = false
 		} else {
-			eventMessage = "Cancelled due to concurrency strategy"
+			eventMessage = "Cancelling due to concurrency strategy"
 		}
 
 		msg, err := tasktypes.CancelledTaskMessage(

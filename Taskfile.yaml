@@ -101,6 +101,16 @@ tasks:
     dotenv: [.env]
     cmds:
       - SEED_DEVELOPMENT=true go run ./cmd/hatchet-admin seed-cypress
+  stop-dev:
+    desc: Kill all processes spawned by start-dev (caddy, engine, api, nodemon, vite).
+    cmds:
+      - pkill -f 'caddy run' || true
+      - pkill -f 'nodemon.*hatchet' || true
+      - pkill -f 'cmd/hatchet-engine' || true
+      - pkill -f 'exe/hatchet-engine' || true
+      - pkill -f 'cmd/hatchet-api' || true
+      - pkill -f 'exe/hatchet-api' || true
+      - pkill -f 'vite.*frontend/app' || true
   start-dev:
     deps:
       - task: goose-migrate

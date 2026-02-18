@@ -20,6 +20,7 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
+    RestoreEvictedTaskResult,
 )
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
@@ -27,6 +28,8 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
+    STEP_EVENT_TYPE_CANCELLATION_FAILED,
+    STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
@@ -46,6 +49,8 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_admin_client,
     ctx_cancellation_token,
     ctx_durable_context,
+    ctx_durable_eviction_manager,
+    ctx_is_durable,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -61,9 +66,16 @@ from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
+from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
+from hatchet_sdk.worker.durable_eviction.manager import (
+    DEFAULT_DURABLE_EVICTION_CONFIG,
+    DurableEvictionConfig,
+    DurableEvictionManager,
+)
 from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
+    ContextVarToCopyBool,
     ContextVarToCopyDict,
     ContextVarToCopyInt,
     ContextVarToCopyStr,
@@ -85,19 +97,32 @@ class Runner:
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int,
+        durable_slots: int,
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        durable_eviction_config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
 
         self.slots = slots
+        self.durable_slots = durable_slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
         self.cancellations = BoundedDict[str, bool](maxsize=1000)
+        # Persist cancellation reasons beyond context cleanup, so cancellation actions which
+        # arrive after local cancellation (e.g. durable eviction) can still emit correct reasons.
+        self.cancellation_reasons = BoundedDict[str, str](maxsize=1000)
+        # Per-run background cancellation supervision (warning/grace/force-cancel).
+        # This is triggered by the CancellationToken itself, so it applies uniformly to:
+        # - engine CANCEL_STEP_RUN actions
+        # - durable eviction local cancellations
+        # - user-requested cancellations
+        self._cancellation_supervisors: dict[ActionKey, asyncio.Task[None]] = {}
+        self._cancellation_started_at: dict[ActionKey, float] = {}
         self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
@@ -143,6 +168,15 @@ class Runner:
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
 
+        # Durable eviction manager (no-op unless durable runs are registered).
+        self.durable_eviction_manager = DurableEvictionManager(
+            durable_slots=self.durable_slots,
+            cancel_remote=self.runs_client.aio_cancel,
+            request_eviction_with_ack=self._request_eviction_ack,
+            config=durable_eviction_config,
+        )
+        self.durable_eviction_manager.start()
+
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
 
@@ -180,10 +214,40 @@ class Runner:
         self, action: Action, t: Task[TWorkflowInput, R]
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
-            self.cleanup_run_id(action.key)
-            was_cancelled = self.cancellations.pop(action.key, False)
+            key = action.key
 
-            if was_cancelled or task.cancelled():
+            # Prefer the live token reason (important for local cancellations like durable eviction),
+            # then fall back to any stored reason.
+            ctx = self.contexts.get(key)
+            token_reason: str | None = None
+            if ctx is not None and ctx.cancellation_token.reason is not None:
+                token_reason = ctx.cancellation_token.reason.value
+
+            reason = token_reason or self.cancellation_reasons.get(
+                key,
+                CancellationReason.WORKFLOW_CANCELLED.value,
+            )
+
+            # Keep cleanup semantics consistent with prior behavior: clean up immediately,
+            # but only after we've captured any useful context (like token reason).
+            self.cleanup_run_id(key)
+
+            was_cancelled = self.cancellations.pop(key, False)
+            task_cancelled = task.cancelled()
+
+            if was_cancelled or task_cancelled:
+                # Confirm cancellation once the step has unwound locally. This intentionally
+                # does not depend on asyncio Task.cancelled(), because well-behaved code may
+                # observe the token and exit by returning.
+                if was_cancelled:
+                    self.event_queue.put(
+                        ActionEvent(
+                            action=action,
+                            type=STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+                            payload=json.dumps({"reason": reason}),
+                            should_not_retry=False,
+                        )
+                    )
                 return
 
             try:
@@ -277,6 +341,10 @@ class Runner:
             ctx if isinstance(ctx, DurableContext) and task.is_durable else None
         )
         ctx_cancellation_token.set(ctx.cancellation_token)
+        ctx_is_durable.set(bool(task.is_durable))
+        ctx_durable_eviction_manager.set(
+            self.durable_eviction_manager if task.is_durable else None
+        )
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
@@ -328,6 +396,12 @@ class Runner:
                             var=ContextVarToCopyToken(
                                 name="ctx_cancellation_token",
                                 value=ctx.cancellation_token,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyBool(
+                                name="ctx_is_durable",
+                                value=bool(task.is_durable),
                             )
                         ),
                     ],
@@ -385,6 +459,18 @@ class Runner:
         logger.debug("started thread pool monitoring background task")
 
     def cleanup_run_id(self, key: ActionKey) -> None:
+        # Ensure we don't leak eviction records.
+        self.durable_eviction_manager.unregister_run(key)
+
+        ctx = self.contexts.get(key)
+        if ctx is not None:
+            self.durable_event_listener.clear_pending_for_task(ctx.step_run_id)
+
+        supervisor = self._cancellation_supervisors.pop(key, None)
+        if supervisor is not None and not supervisor.done():
+            supervisor.cancel()
+        self._cancellation_started_at.pop(key, None)
+
         if key in self.tasks:
             del self.tasks[key]
 
@@ -396,6 +482,156 @@ class Runner:
                 self.cancellations[key] = True
 
             del self.contexts[key]
+
+    def _ensure_cancellation_supervision(self, action: Action) -> None:
+        """
+        Ensure a single cancellation supervision task exists for this run.
+
+        The supervision task waits for the run's cancellation token to be cancelled and then
+        performs time-based checks (warning threshold + grace period) and best-effort force
+        cancellation of the underlying asyncio task / sync thread.
+        """
+        key = action.key
+        existing = self._cancellation_supervisors.get(key)
+        if existing is not None and not existing.done():
+            return
+
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(self._supervise_cancellation(action))
+        self._cancellation_supervisors[key] = task
+
+        # Avoid leaking completed supervisor tasks for late-arriving cancel actions
+        # (e.g. engine cancel arrives after cleanup, so ctx is already gone).
+        def _cleanup_done(_t: asyncio.Task[None]) -> None:
+            if self._cancellation_supervisors.get(key) is _t:
+                self._cancellation_supervisors.pop(key, None)
+
+        task.add_done_callback(_cleanup_done)
+
+    async def _supervise_cancellation(self, action: Action) -> None:
+        """
+        Wait for token cancellation, then enforce warning/grace checks.
+
+        This is intentionally decoupled from the engine CANCEL_STEP_RUN action handler so
+        SDK-local cancellations (e.g. durable eviction) follow the same behavior.
+        """
+        key = action.key
+        ctx = self.contexts.get(key)
+        if ctx is None:
+            return
+
+        token = ctx.cancellation_token
+
+        try:
+            await token.aio_wait()
+        except asyncio.CancelledError:
+            return
+
+        cancel_started_at = time.monotonic()
+        self._cancellation_started_at[key] = cancel_started_at
+
+        reason = (
+            token.reason.value
+            if token.reason is not None
+            else self.cancellation_reasons.get(
+                key, CancellationReason.WORKFLOW_CANCELLED.value
+            )
+        )
+        # Persist the reason so later engine cancel actions can still find it after cleanup.
+        self.cancellation_reasons[key] = reason
+
+        grace_period = self.config.cancellation_grace_period.total_seconds()
+        warning_threshold = self.config.cancellation_warning_threshold.total_seconds()
+        grace_period_ms = round(grace_period * 1000)
+        warning_threshold_ms = round(warning_threshold * 1000)
+
+        # Wait until warning threshold
+        await asyncio.sleep(warning_threshold)
+        elapsed = time.monotonic() - cancel_started_at
+        elapsed_ms = round(elapsed * 1000)
+
+        task_running = key in self.tasks and not self.tasks[key].done()
+        if not task_running:
+            return
+
+        logger.warning(
+            f"Cancellation: task {action.action_id} has not cancelled after "
+            f"{elapsed_ms}ms (warning threshold {warning_threshold_ms}ms). "
+            f"Consider checking for blocking operations. "
+            f"See https://docs.hatchet.run/home/cancellation"
+        )
+
+        # Continue waiting until grace period only if task is still running
+        remaining = grace_period - elapsed
+        if remaining > 0:
+            await asyncio.sleep(remaining)
+
+        sent_cancellation_failed = False
+
+        # Force cancel if still running after grace period
+        if key in self.tasks and not self.tasks[key].done():
+            logger.debug(
+                f"Cancellation: force-cancelling task {action.action_id} "
+                f"after grace period ({grace_period_ms}ms)"
+            )
+            self.tasks[key].cancel()
+
+        # Check if thread is still running
+        thread = self.threads.get(key)
+        if thread is not None:
+            if self.config.enable_force_kill_sync_threads:
+                logger.debug(
+                    f"Cancellation: force-killing thread for {action.action_id}"
+                )
+                self.force_kill_thread(thread)
+                await asyncio.sleep(1)
+
+            if thread.is_alive():
+                logger.warning(
+                    f"Cancellation: thread {thread.ident} with key {key} is still running "
+                    f"after cancellation. This could cause the thread pool to get blocked "
+                    f"and prevent new tasks from running."
+                )
+
+                total_elapsed_ms = round((time.monotonic() - cancel_started_at) * 1000)
+                await self.dispatcher_client.send_step_action_event(
+                    action,
+                    STEP_EVENT_TYPE_CANCELLATION_FAILED,
+                    json.dumps(
+                        {
+                            "reason": reason,
+                            "elapsed_ms": total_elapsed_ms,
+                            "phase": "thread_still_alive",
+                        }
+                    ),
+                    should_not_retry=False,
+                )
+                sent_cancellation_failed = True
+
+        # Emit a failure monitoring event for grace-period exceedance. This covers async tasks
+        # that ignore cancellation, and also provides a consistent signal even when we can't
+        # conclusively determine liveness (e.g. no thread key).
+        total_elapsed = time.monotonic() - cancel_started_at
+        total_elapsed_ms = round(total_elapsed * 1000)
+        if total_elapsed > grace_period:
+            logger.warning(
+                f"Cancellation: cancellation of {action.action_id} took {total_elapsed_ms}ms "
+                f"(exceeded grace period of {grace_period_ms}ms)"
+            )
+
+            if not sent_cancellation_failed:
+                await self.dispatcher_client.send_step_action_event(
+                    action,
+                    STEP_EVENT_TYPE_CANCELLATION_FAILED,
+                    json.dumps(
+                        {
+                            "reason": reason,
+                            "elapsed_ms": total_elapsed_ms,
+                            "phase": "grace_period_exceeded",
+                        }
+                    ),
+                    should_not_retry=False,
+                )
 
     @overload
     def create_context(
@@ -445,6 +681,16 @@ class Runner:
             )
 
             self.contexts[action.key] = context
+            # Start cancellation supervision early so warning/grace checks are consistent
+            # for both engine cancellations and SDK-local cancellations (e.g. durable eviction).
+            self._ensure_cancellation_supervision(action)
+            if action_func.is_durable:
+                self.durable_eviction_manager.register_run(
+                    action.key,
+                    step_run_id=action.step_run_id,
+                    token=context.cancellation_token,
+                    eviction=action_func.durable_eviction,
+                )
             self.event_queue.put(
                 ActionEvent(
                     action=action,
@@ -512,76 +758,78 @@ class Runner:
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_cancel_action(self, action: Action) -> None:
         key = action.key
-        start_time = time.monotonic()
 
-        logger.info(
-            f"received cancel action for {action.action_id}, "
-            f"reason={CancellationReason.WORKFLOW_CANCELLED.value}"
+        # Prefer the SDK-local cancellation token reason if it was already set
+        # (e.g. durable eviction cancels the local token before the engine cancel arrives).
+        reason = (
+            self.contexts[key].cancellation_token.reason
+            if key in self.contexts
+            and self.contexts[key].cancellation_token.reason is not None
+            else self.cancellation_reasons.get(
+                key, CancellationReason.WORKFLOW_CANCELLED
+            )
         )
 
-        try:
-            if key in self.contexts:
-                ctx = self.contexts[key]
-
-                ctx._set_cancellation_flag(CancellationReason.WORKFLOW_CANCELLED)
-                self.cancellations[key] = True
-                # Note: Child workflows are not cancelled here - they run independently
-                # and are managed by Hatchet's normal cancellation mechanisms
-
-            # Wait with supervision (using timedelta configs)
-            grace_period = self.config.cancellation_grace_period.total_seconds()
-            warning_threshold = (
-                self.config.cancellation_warning_threshold.total_seconds()
+        # Persist the reason so we can still reference it after context cleanup.
+        reason_str: str = (
+            reason.value
+            if isinstance(reason, CancellationReason)
+            else (
+                reason
+                if isinstance(reason, str)
+                else CancellationReason.WORKFLOW_CANCELLED.value
             )
-            grace_period_ms = round(grace_period * 1000)
-            warning_threshold_ms = round(warning_threshold * 1000)
+        )
+        self.cancellation_reasons[key] = reason_str
 
-            # Wait until warning threshold
-            await asyncio.sleep(warning_threshold)
-            elapsed = time.monotonic() - start_time
-            elapsed_ms = round(elapsed * 1000)
+        logger.info(
+            f"Cancellation: received cancel action for {action.action_id}, "
+            f"reason={reason}"
+        )
 
-            # Check if the task has not yet exited despite the cancellation signal.
-            task_still_running = key in self.tasks and not self.tasks[key].done()
+        # Trigger the cancellation token to signal the context to stop
+        if key in self.contexts:
+            ctx = self.contexts[key]
+            child_count = len(ctx.cancellation_token.child_run_ids)
+            logger.debug(
+                f"Cancellation: triggering token for {action.action_id}, "
+                f"reason={reason}, "
+                f"{child_count} children registered"
+            )
+            cancel_reason = CancellationReason.WORKFLOW_CANCELLED
+            try:
+                cancel_reason = CancellationReason(reason_str)
+            except Exception:
+                # Be defensive: if we receive an unknown reason string from the engine,
+                # still cancel the token with a sensible default.
+                cancel_reason = CancellationReason.WORKFLOW_CANCELLED
 
-            if task_still_running:
-                logger.warning(
-                    f"task {action.action_id} has not cancelled after "
-                    f"{elapsed_ms}ms (warning threshold {warning_threshold_ms}ms). "
-                    f"Consider checking for blocking operations. "
-                    f"See https://docs.hatchet.run/home/cancellation"
-                )
+            ctx._set_cancellation_flag(cancel_reason)
+            self.cancellations[key] = True
+        else:
+            logger.debug(f"Cancellation: no context found for {action.action_id}")
 
-                remaining = grace_period - elapsed
-                if remaining > 0:
-                    await asyncio.sleep(remaining)
+        # Ensure our uniform warning/grace/force-cancel supervision exists. This is
+        # triggered by the cancellation token itself, so it also covers SDK-local
+        # cancellations (e.g. durable eviction) even if an engine cancel arrives late.
+        self._ensure_cancellation_supervision(action)
 
-                if key in self.tasks and not self.tasks[key].done():
-                    self.tasks[key].cancel()
+    async def _request_eviction_ack(
+        self, key: ActionKey, rec: DurableRunRecord
+    ) -> None:
+        ctx = self.contexts.get(key)
+        if ctx is None:
+            return
 
-                if key in self.threads:
-                    thread = self.threads[key]
-
-                    if self.config.enable_force_kill_sync_threads:
-                        self.force_kill_thread(thread)
-                        await asyncio.sleep(1)
-
-                    if thread.is_alive():
-                        logger.warning(
-                            f"thread {thread.ident} with key {key} is still running "
-                            f"after cancellation. This could cause the thread pool to get blocked "
-                            f"and prevent new tasks from running."
-                        )
-
-                total_elapsed = time.monotonic() - start_time
-                total_elapsed_ms = round(total_elapsed * 1000)
-                if total_elapsed > grace_period:
-                    logger.warning(
-                        f"cancellation of {action.action_id} took {total_elapsed_ms}ms "
-                        f"(exceeded grace period of {grace_period_ms}ms)"
-                    )
-        finally:
-            self.cleanup_run_id(key)
+        # So step_run_callback sees the correct reason after unwinding.
+        self.cancellation_reasons[key] = CancellationReason.EVICTED.value
+        await self.durable_event_listener.ensure_started(ctx.action.worker_id)
+        # TODO-DURABLE: this is not correct on engine
+        invocation_count = ctx.action.invocation_count
+        await self.durable_event_listener.send_evict_invocation(
+            durable_task_external_id=rec.step_run_id,
+            invocation_count=invocation_count,
+        )
 
     def serialize_output(self, output: Any) -> str | None:
         if not output:
@@ -635,3 +883,9 @@ class Runner:
             logger.info(f"waiting for {running} tasks to finish...")
             await asyncio.sleep(1)
             running = len(self.tasks.keys())
+
+    async def restore_evicted_task(
+        self, task_run_external_id: str
+    ) -> RestoreEvictedTaskResult:
+        """Restore an evicted durable task by requeueing it at highest priority."""
+        return await self.durable_event_listener.restore_task(task_run_external_id)

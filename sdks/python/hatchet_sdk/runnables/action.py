@@ -73,6 +73,7 @@ class Action(BaseModel):
     parent_workflow_run_id: str | None = None
 
     priority: int | None = None
+    durable_invocation_count: int = 0
 
     def _dump_payload_to_str(self) -> str:
         try:
@@ -110,10 +111,16 @@ class Action(BaseModel):
         }
 
     @property
+    def invocation_count(self) -> int:
+        """Global durable invocation count (from server). Used for durable protocol only."""
+        # TODO-DURABLE: this is not correct, but is a hack to align with the incorrect invocation count on engine
+        return self.retry_count + 1 + self.durable_invocation_count
+
+    @property
     def key(self) -> ActionKey:
         """
-        This key is used to uniquely identify a single step run by its id + retry count.
+        This key is used to uniquely identify a single step run by its id + invocation count.
         It's used when storing references to a task, a context, etc. in a dictionary so that
         we can look up those items in the dictionary by a unique key.
         """
-        return f"{self.step_run_id}/{self.retry_count}"
+        return f"{self.step_run_id}/{self.invocation_count}"

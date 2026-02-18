@@ -729,11 +729,6 @@ WITH input AS (
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE
-), deleted_slots AS (
-    DELETE FROM
-        v1_task_runtime_slot
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 ), deleted_runtimes AS (
     DELETE FROM
         v1_task_runtime

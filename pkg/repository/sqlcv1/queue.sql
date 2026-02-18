@@ -192,27 +192,37 @@ WITH input AS (
                 UNNEST(@workerIds::uuid[]) AS worker_id
         ) AS subquery
     ORDER BY id
+), incremented_tasks AS (
+    -- TODO-DURABLE: matt and i are debating if this belongs here,
+    -- or if this should belong in the dispatcher
+    -- case for: this will ALWAYS increment on any action that could lead to a task running
+    -- case against: lots of irrelevant updates on this table, should be scoped to feature
+    UPDATE v1_task
+    SET durable_invocation_count = durable_invocation_count + 1
+    WHERE (id, inserted_at) IN (SELECT id, inserted_at FROM input)
+        AND inserted_at >= @minTaskInsertedAt::timestamptz
+    RETURNING *
 ), updated_tasks AS (
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
+        t.durable_invocation_count,
         i.worker_id,
         t.tenant_id,
         t.step_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
-        v1_task t
+        incremented_tasks t
     JOIN
         input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
-    WHERE
-        t.inserted_at >= @minTaskInsertedAt::timestamptz
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (
         task_id,
         task_inserted_at,
         retry_count,
+        durable_invocation_count,
         worker_id,
         tenant_id,
         timeout_at
@@ -221,13 +231,22 @@ WITH input AS (
         t.id,
         t.inserted_at,
         t.retry_count,
+        t.durable_invocation_count,
         t.worker_id,
         @tenantId::uuid,
         t.timeout_at
     FROM
         updated_tasks t
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-    -- only return the task ids that were successfully assigned
+    -- un-evict evicted tasks
+    -- TODO: think through this really carefully when you're not exhausted from a 7am sfo flight
+    -- I'm wondering if this makes more sense as an update CTE and union...
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+    SET
+        evicted_at = NULL,
+        durable_invocation_count = EXCLUDED.durable_invocation_count,
+        worker_id = EXCLUDED.worker_id,
+        timeout_at = EXCLUDED.timeout_at
+    WHERE v1_task_runtime.evicted_at IS NOT NULL
     RETURNING task_id, worker_id
 ), slot_requests AS (
     SELECT

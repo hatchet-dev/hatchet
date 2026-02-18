@@ -9,7 +9,7 @@ FOR UPDATE;
 UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id),
-    latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::BIGINT, v1_durable_event_log_file.latest_invocation_count)
+    latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::INTEGER, v1_durable_event_log_file.latest_invocation_count)
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;

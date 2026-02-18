@@ -1,7 +1,9 @@
 package v1
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -124,6 +126,27 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 		payload.EventType = sqlcv1.V1EventTypeOlapFAILED
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		payload.EventType = sqlcv1.V1EventTypeOlapSTARTED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED_CONFIRMED:
+		// If a worker reports "cancelled" with reason=evicted, treat it as a durable eviction
+		// (purely informational; should not move the run into a CANCELLED status on the frontend).
+		// TODO-DURABLE: This is a hack to get the durable eviction event type to work. We should remove this once we have a proper durable eviction event types.
+		if isEvictedReason(request.EventPayload) {
+			payload.EventType = sqlcv1.V1EventTypeOlapDURABLEEVICTED
+		} else {
+			payload.EventType = sqlcv1.V1EventTypeOlapCANCELLEDCONFIRMED
+		}
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED:
+		if isEvictedReason(request.EventPayload) {
+			payload.EventType = sqlcv1.V1EventTypeOlapDURABLEEVICTED
+		} else {
+			payload.EventType = sqlcv1.V1EventTypeOlapCANCELLATIONFAILED
+		}
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING:
+		if isEvictedReason(request.EventPayload) {
+			payload.EventType = sqlcv1.V1EventTypeOlapDURABLEEVICTED
+		} else {
+			payload.EventType = sqlcv1.V1EventTypeOlapCANCELLING
+		}
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	}
@@ -135,6 +158,32 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 		true,
 		payload,
 	)
+}
+
+func isEvictedReason(eventPayload string) bool {
+	if eventPayload == "" {
+		return false
+	}
+
+	var p struct {
+		Reason string `json:"reason"`
+	}
+
+	if err := json.Unmarshal([]byte(eventPayload), &p); err != nil {
+		return false
+	}
+
+	reason := strings.ToLower(strings.TrimSpace(p.Reason))
+
+	// TODO-DURABLE: This is a hack to get the durable eviction event type to work. We should remove this once we have a proper durable eviction event types.
+	// Python SDK uses CancellationReason.EVICTED.value ("evicted").
+	// Be defensive in case other SDKs/versions use slightly different strings.
+	switch reason {
+	case "evicted", "durable_evicted", "durable-evicted":
+		return true
+	default:
+		return false
+	}
 }
 
 func MonitoringEventMessageFromInternal(tenantId uuid.UUID, payload CreateMonitoringEventPayload) (*msgqueue.Message, error) {

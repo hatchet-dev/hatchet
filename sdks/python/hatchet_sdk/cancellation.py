@@ -108,6 +108,11 @@ class CancellationToken:
         """
         await self._get_async_event().wait()
 
+        logger.debug(
+            f"CancellationToken: async wait completed (cancelled), "
+            f"reason={self._reason.value if self._reason else 'none'}"
+        )
+
     def wait(self, timeout: float | None = None) -> bool:
         """
         Block until cancelled (for use in sync code).

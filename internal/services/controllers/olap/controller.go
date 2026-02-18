@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -708,7 +709,19 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		case sqlcv1.V1EventTypeOlapFAILED:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
 		case sqlcv1.V1EventTypeOlapCANCELLED:
+			// Backwards compatibility (older clients).
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCANCELLED)
+		case sqlcv1.V1EventTypeOlapCANCELLING:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCANCELLED)
+		case sqlcv1.V1EventTypeOlapCANCELLEDCONFIRMED:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCANCELLED)
+		case sqlcv1.V1EventTypeOlapCANCELLATIONFAILED:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCANCELLED)
+		case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
+			// TODO-DURABLE: i'm not sure what we want to do here for status...
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+		case sqlcv1.V1EventTypeOlapDURABLERESTORING:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
 		case sqlcv1.V1EventTypeOlapTIMEDOUT:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
 		case sqlcv1.V1EventTypeOlapRATELIMITERROR:
@@ -743,6 +756,50 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			ExternalID:             eventExternalIds[i],
 		}
 
+		// For worker-emitted monitoring events, we often only get structured JSON in `event_payload`.
+		// The public API exposes the human message (`additional__event_message`) but not the data field,
+		// so derive a message from the payload when none was provided.
+		if eventMessages[i] == "" && eventPayloads[i] != "" {
+			switch eventTypes[i] {
+			case sqlcv1.V1EventTypeOlapCANCELLING, sqlcv1.V1EventTypeOlapCANCELLEDCONFIRMED, sqlcv1.V1EventTypeOlapCANCELLATIONFAILED:
+				var payload struct {
+					Reason    string `json:"reason"`
+					ElapsedMs *int   `json:"elapsed_ms"`
+				}
+				if err := json.Unmarshal([]byte(eventPayloads[i]), &payload); err == nil {
+					if payload.Reason != "" || payload.ElapsedMs != nil {
+						msg := fmt.Sprintf("reason=%s", payload.Reason)
+						if payload.Reason == "" {
+							msg = "reason=unknown"
+						}
+						if payload.ElapsedMs != nil {
+							msg = fmt.Sprintf("%s elapsed_ms=%d", msg, *payload.ElapsedMs)
+						}
+						event.AdditionalEventMessage = sqlchelpers.TextFromStr(msg)
+					}
+				}
+			case sqlcv1.V1EventTypeOlapDURABLEEVICTED, sqlcv1.V1EventTypeOlapDURABLERESTORING:
+				var payload struct {
+					Reason     string  `json:"reason"`
+					WaitKind   *string `json:"wait_kind"`
+					ResourceId *string `json:"resource_id"`
+				}
+				if err := json.Unmarshal([]byte(eventPayloads[i]), &payload); err == nil {
+					msg := payload.Reason
+					if msg == "" {
+						msg = "durable"
+					}
+					if payload.WaitKind != nil && *payload.WaitKind != "" {
+						msg = fmt.Sprintf("%s wait_kind=%s", msg, *payload.WaitKind)
+					}
+					if payload.ResourceId != nil && *payload.ResourceId != "" {
+						msg = fmt.Sprintf("%s resource_id=%s", msg, *payload.ResourceId)
+					}
+					event.AdditionalEventMessage = sqlchelpers.TextFromStr(msg)
+				}
+			}
+		}
+
 		switch eventTypes[i] {
 		case sqlcv1.V1EventTypeOlapFINISHED:
 			if eventPayloads[i] != "" {
@@ -751,8 +808,16 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		case sqlcv1.V1EventTypeOlapFAILED:
 			errorMsg := strings.ReplaceAll(eventPayloads[i], "\x00", "")
 			event.ErrorMessage = sqlchelpers.TextFromStr(errorMsg)
-		case sqlcv1.V1EventTypeOlapCANCELLED:
-			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
+		case sqlcv1.V1EventTypeOlapCANCELLED,
+			sqlcv1.V1EventTypeOlapCANCELLING,
+			sqlcv1.V1EventTypeOlapCANCELLEDCONFIRMED,
+			sqlcv1.V1EventTypeOlapCANCELLATIONFAILED,
+			sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			sqlcv1.V1EventTypeOlapDURABLERESTORING:
+			// Keep message in `additional__event_message`, and store structured details in `additional__event_data`.
+			if eventPayloads[i] != "" {
+				event.AdditionalEventData = sqlchelpers.TextFromStr(eventPayloads[i])
+			}
 		}
 
 		opts = append(opts, event)

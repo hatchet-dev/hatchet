@@ -170,7 +170,8 @@ WITH lookup_rows AS (
         t.child_index,
         t.child_key,
         t.step_readable_id,
-        l.external_id AS workflow_run_external_id
+        l.external_id AS workflow_run_external_id,
+        t.durable_invocation_count
     FROM
         lookup_rows l
     JOIN
@@ -194,7 +195,8 @@ SELECT
     t.child_index,
     t.child_key,
     t.step_readable_id,
-    t.external_id AS workflow_run_external_id
+    t.external_id AS workflow_run_external_id,
+    t.durable_invocation_count
 FROM
     lookup_rows l
 JOIN
@@ -395,6 +397,8 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        -- TODO: think through reassign case...
+        AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
 )
@@ -828,6 +832,43 @@ WHERE
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
 ;
 
+-- name: PreflightCheckTasksForRestore :many
+-- Checks whether tasks can be woken by ensuring that they don't have any active runtimes or retry queue items.
+-- NOTE: unlike replay, this intentionally ignores concurrency slots because restore is allowed to keep/transfer them.
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at
+), relevant_tasks AS (
+    SELECT *
+    FROM
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
+    WHERE
+        -- prune partitions with minInsertedAt
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+)
+SELECT t.id, t.dag_id
+FROM relevant_tasks t
+LEFT JOIN
+    v1_task_runtime tr ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+LEFT JOIN
+    v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+WHERE
+    t.tenant_id = @tenantId::uuid
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event e
+        WHERE
+            -- prune partitions with minInsertedAt
+            e.task_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+            AND (e.task_id, e.task_inserted_at, e.retry_count) = (t.id, t.inserted_at, t.retry_count)
+            AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
+    )
+    AND (tr.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
+;
+
 -- name: ListAllTasksInDags :many
 SELECT
     t.id,
@@ -954,9 +995,115 @@ WHERE
 RETURNING
     v1_task_runtime.*;
 
+-- name: EvictTask :one
+-- Marks a task as evicted in v1_task_runtime and releases worker slots.
+WITH locked_runtime AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count
+    FROM
+        v1_task_runtime
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+        AND retry_count = @retryCount::int
+        AND evicted_at IS NULL
+    FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+        AND retry_count = @retryCount::int
+), updated_runtime AS (
+    UPDATE v1_task_runtime
+    SET evicted_at = NOW()
+    WHERE (task_id, task_inserted_at, retry_count)
+        IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
+    RETURNING 1
+)
+SELECT
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
+
+-- TODO-Durable: i need to think through this further...
+-- name: RestoreEvictedTask :one
+-- Restores an evicted task by inserting it directly into the assignment queue.
+-- The evicted runtime row stays (evicted_at set); when the queue item is assigned,
+-- the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.
+-- durable_invocation_count is incremented at assignment time in UpdateTasksToAssigned.
+WITH evicted_runtime AS (
+    SELECT
+        r.task_id,
+        r.task_inserted_at,
+        r.retry_count
+    FROM
+        v1_task_runtime r
+    WHERE
+        r.tenant_id = @tenantId::uuid
+        AND r.task_id = @taskId::bigint
+        AND r.task_inserted_at = @taskInsertedAt::timestamptz
+        AND r.retry_count = @retryCount::int
+        AND r.evicted_at IS NOT NULL
+    FOR UPDATE
+), selected_task AS (
+    SELECT
+        t.*
+    FROM
+        v1_task t
+    WHERE
+        t.id = @taskId::bigint
+        AND t.inserted_at = @taskInsertedAt::timestamptz
+        AND EXISTS (SELECT 1 FROM evicted_runtime)
+), inserted_qi AS (
+    INSERT INTO v1_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+    )
+    SELECT
+        t.tenant_id,
+        t.queue,
+        t.id,
+        t.inserted_at,
+        t.external_id,
+        t.action_id,
+        t.step_id,
+        t.workflow_id,
+        t.workflow_run_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
+        t.step_timeout,
+        4,
+        t.sticky,
+        t.desired_worker_id,
+        t.retry_count
+    FROM
+        selected_task t
+    RETURNING queue
+)
+SELECT
+    COALESCE((SELECT 1 FROM evicted_runtime LIMIT 1), 0)::int AS "wasEvicted",
+    COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued",
+    COALESCE((SELECT queue FROM inserted_qi LIMIT 1), '')::text AS "queue";
+
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
 -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
+
 WITH input AS (
     SELECT
         UNNEST(@concurrencyParentStrategyIds::bigint[]) AS parent_strategy_id,

@@ -38,6 +38,9 @@ class StepActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     STEP_EVENT_TYPE_COMPLETED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_FAILED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_ACKNOWLEDGED: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_CANCELLING: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_CANCELLED_CONFIRMED: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_CANCELLATION_FAILED: _ClassVar[StepActionEventType]
 
 class ResourceType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -75,6 +78,9 @@ STEP_EVENT_TYPE_STARTED: StepActionEventType
 STEP_EVENT_TYPE_COMPLETED: StepActionEventType
 STEP_EVENT_TYPE_FAILED: StepActionEventType
 STEP_EVENT_TYPE_ACKNOWLEDGED: StepActionEventType
+STEP_EVENT_TYPE_CANCELLING: StepActionEventType
+STEP_EVENT_TYPE_CANCELLED_CONFIRMED: StepActionEventType
+STEP_EVENT_TYPE_CANCELLATION_FAILED: StepActionEventType
 RESOURCE_TYPE_UNKNOWN: ResourceType
 RESOURCE_TYPE_STEP_RUN: ResourceType
 RESOURCE_TYPE_WORKFLOW_RUN: ResourceType
@@ -177,7 +183,7 @@ class UpsertWorkerLabelsResponse(_message.Message):
     def __init__(self, tenant_id: _Optional[str] = ..., worker_id: _Optional[str] = ...) -> None: ...
 
 class AssignedAction(_message.Message):
-    __slots__ = ("tenant_id", "workflow_run_id", "get_group_key_run_id", "job_id", "job_name", "job_run_id", "task_id", "task_run_external_id", "action_id", "action_type", "action_payload", "task_name", "retry_count", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflow_id", "workflow_version_id")
+    __slots__ = ("tenant_id", "workflow_run_id", "get_group_key_run_id", "job_id", "job_name", "job_run_id", "task_id", "task_run_external_id", "action_id", "action_type", "action_payload", "task_name", "retry_count", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflow_id", "workflow_version_id", "durable_invocation_count")
     TENANT_ID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     GET_GROUP_KEY_RUN_ID_FIELD_NUMBER: _ClassVar[int]
@@ -198,6 +204,7 @@ class AssignedAction(_message.Message):
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     WORKFLOW_ID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOW_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
+    DURABLE_INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     tenant_id: str
     workflow_run_id: str
     get_group_key_run_id: str
@@ -218,7 +225,8 @@ class AssignedAction(_message.Message):
     priority: int
     workflow_id: str
     workflow_version_id: str
-    def __init__(self, tenant_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., action_type: _Optional[_Union[ActionType, str]] = ..., action_payload: _Optional[str] = ..., task_name: _Optional[str] = ..., retry_count: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflow_id: _Optional[str] = ..., workflow_version_id: _Optional[str] = ...) -> None: ...
+    durable_invocation_count: int
+    def __init__(self, tenant_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., action_type: _Optional[_Union[ActionType, str]] = ..., action_payload: _Optional[str] = ..., task_name: _Optional[str] = ..., retry_count: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflow_id: _Optional[str] = ..., workflow_version_id: _Optional[str] = ..., durable_invocation_count: _Optional[int] = ...) -> None: ...
 
 class WorkerListenRequest(_message.Message):
     __slots__ = ("worker_id",)
@@ -409,6 +417,18 @@ class ReleaseSlotRequest(_message.Message):
 class ReleaseSlotResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class RestoreEvictedTaskRequest(_message.Message):
+    __slots__ = ("task_run_external_id",)
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    task_run_external_id: str
+    def __init__(self, task_run_external_id: _Optional[str] = ...) -> None: ...
+
+class RestoreEvictedTaskResponse(_message.Message):
+    __slots__ = ("requeued",)
+    REQUEUED_FIELD_NUMBER: _ClassVar[int]
+    requeued: bool
+    def __init__(self, requeued: bool = ...) -> None: ...
 
 class GetVersionRequest(_message.Message):
     __slots__ = ()

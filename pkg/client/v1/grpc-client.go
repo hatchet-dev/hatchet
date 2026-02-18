@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	grpcMetadata "google.golang.org/grpc/metadata"
 
+	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
@@ -21,8 +22,9 @@ import (
 )
 
 type GRPCClient struct {
-	l     *zerolog.Logger
-	admin admincontracts.AdminServiceClient
+	l          *zerolog.Logger
+	admin      admincontracts.AdminServiceClient
+	dispatcher dispatchercontracts.DispatcherClient
 }
 
 type clientOpts struct {
@@ -145,13 +147,18 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 	}
 
 	return &GRPCClient{
-		l:     opts.l,
-		admin: admincontracts.NewAdminServiceClient(conn),
+		l:          opts.l,
+		admin:      admincontracts.NewAdminServiceClient(conn),
+		dispatcher: dispatchercontracts.NewDispatcherClient(conn),
 	}, nil
 }
 
 func (c *GRPCClient) Admin() admincontracts.AdminServiceClient {
 	return c.admin
+}
+
+func (c *GRPCClient) Dispatcher() dispatchercontracts.DispatcherClient {
+	return c.dispatcher
 }
 
 func AuthContext(ctx context.Context, token string) context.Context {

@@ -305,6 +305,7 @@ CREATE TABLE v1_task (
     concurrency_keys TEXT[],
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
+    durable_invocation_count INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -417,6 +418,8 @@ CREATE TABLE v1_task_runtime (
     worker_id UUID,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
+    evicted_at TIMESTAMPTZ DEFAULT NULL,
+    durable_invocation_count INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -424,6 +427,8 @@ CREATE TABLE v1_task_runtime (
 CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC) WHERE worker_id IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
+
+CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
 
 alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',
@@ -2277,7 +2282,7 @@ CREATE TABLE v1_durable_event_log_file (
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
 
-    latest_invocation_count BIGINT NOT NULL,
+    latest_invocation_count INTEGER NOT NULL,
 
     latest_inserted_at TIMESTAMPTZ NOT NULL,
     -- A monotonically increasing node id for this durable event log scoped to the durable task.

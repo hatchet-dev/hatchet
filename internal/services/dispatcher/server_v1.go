@@ -595,9 +595,39 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskCompleted(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleTaskFailed(ctx, task, retryCount, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED:
+		// Monitoring-only events: publish to OLAP, but do not affect task execution status.
+		return s.handleTaskMonitoringOnly(ctx, task, retryCount, request)
 	}
 
 	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
+}
+
+func (s *DispatcherImpl) handleTaskMonitoringOnly(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+		tenantId,
+		task.ID,
+		retryCount,
+		request,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
@@ -816,6 +846,37 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 	}
 
 	return &contracts.ReleaseSlotResponse{}, nil
+}
+
+func (d *DispatcherImpl) restoreEvictedTaskV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+	}
+
+	// TODO-DURABLE: we probably shouldn't do this lookup here
+	task, err := d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to look up task %s: %v", taskExternalId, err)
+	}
+
+	// TODO-DURABLE: use the latest invocation count, this is not correct
+	invocationCount := task.RetryCount + 1 + task.DurableInvocationCount
+
+	restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, taskExternalId, invocationCount, "Woken by user")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create restore message: %v", err)
+	}
+
+	if err := d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to publish restore message: %v", err)
+	}
+
+	return &contracts.RestoreEvictedTaskResponse{
+		Requeued: true,
+	}, nil
 }
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {

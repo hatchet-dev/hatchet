@@ -1096,6 +1096,11 @@ const (
 	V1EventTypeOlapRATELIMITERROR       V1EventTypeOlap = "RATE_LIMIT_ERROR"
 	V1EventTypeOlapSKIPPED              V1EventTypeOlap = "SKIPPED"
 	V1EventTypeOlapCOULDNOTSENDTOWORKER V1EventTypeOlap = "COULD_NOT_SEND_TO_WORKER"
+	V1EventTypeOlapCANCELLING           V1EventTypeOlap = "CANCELLING"
+	V1EventTypeOlapCANCELLEDCONFIRMED   V1EventTypeOlap = "CANCELLED_CONFIRMED"
+	V1EventTypeOlapCANCELLATIONFAILED   V1EventTypeOlap = "CANCELLATION_FAILED"
+	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
+	V1EventTypeOlapDURABLERESTORING     V1EventTypeOlap = "DURABLE_RESTORING"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {
@@ -3081,7 +3086,7 @@ type V1DurableEventLogFile struct {
 	TenantID                      uuid.UUID          `json:"tenant_id"`
 	DurableTaskID                 int64              `json:"durable_task_id"`
 	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
-	LatestInvocationCount         int64              `json:"latest_invocation_count"`
+	LatestInvocationCount         int32              `json:"latest_invocation_count"`
 	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
 	LatestNodeID                  int64              `json:"latest_node_id"`
 	LatestBranchID                int64              `json:"latest_branch_id"`
@@ -3467,6 +3472,7 @@ type V1Task struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
+	DurableInvocationCount       int32              `json:"durable_invocation_count"`
 }
 
 type V1TaskEvent struct {
@@ -3525,12 +3531,14 @@ type V1TaskExpressionEval struct {
 }
 
 type V1TaskRuntime struct {
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	WorkerID       *uuid.UUID         `json:"worker_id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
+	TaskID                 int64              `json:"task_id"`
+	TaskInsertedAt         pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount             int32              `json:"retry_count"`
+	WorkerID               *uuid.UUID         `json:"worker_id"`
+	TenantID               uuid.UUID          `json:"tenant_id"`
+	TimeoutAt              pgtype.Timestamp   `json:"timeout_at"`
+	EvictedAt              pgtype.Timestamptz `json:"evicted_at"`
+	DurableInvocationCount int32              `json:"durable_invocation_count"`
 }
 
 type V1TaskRuntimeSlot struct {

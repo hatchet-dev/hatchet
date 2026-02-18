@@ -36,7 +36,7 @@ message DurableTaskEventRequest {
     // incremented by one since the previous invocation. This allows the server (and the worker) to have a way of
     // differentiating between different attempts of the same task running in different places, to prevent race conditions
     // and other problems from duplication. It also allows for older invocations to be evicted cleanly
-    int64 invocation_count = 1;
+    int32 invocation_count = 1;
     string durable_task_external_id = 2;
     DurableTaskEventKind kind = 3;
     optional bytes payload = 4;
@@ -47,7 +47,7 @@ message DurableTaskEventRequest {
 }
 
 message DurableTaskEventAckResponse {
-    int64 invocation_count = 1;
+    int32 invocation_count = 1;
     string durable_task_external_id = 2;
     int64 node_id = 3;
 }
@@ -56,16 +56,24 @@ message DurableTaskEventLogEntryCompletedResponse {
     string durable_task_external_id = 1;
     int64 node_id = 2;
     bytes payload = 3;
+    int32 invocation_count = 4;
 }
 
 message DurableTaskEvictInvocationRequest {
-    int64 invocation_count = 1;
+    int32 invocation_count = 1;
+    string durable_task_external_id = 2;
+}
+
+// Sent by the server after recording eviction for an evict_invocation request.
+message DurableTaskEvictionAckResponse {
+    int32 invocation_count = 1;
     string durable_task_external_id = 2;
 }
 
 message DurableTaskAwaitedCompletedEntry {
     string durable_task_external_id = 1;
     int64 node_id = 2;
+    int32 invocation_count = 3;
 }
 
 message DurableTaskWorkerStatusRequest {
@@ -91,7 +99,7 @@ enum DurableTaskErrorType {
 
 message DurableTaskErrorResponse {
     string durable_task_external_id = 1;
-    int64 invocation_count = 2;
+    int32 invocation_count = 2;
     int64 node_id = 3;
     DurableTaskErrorType error_type = 4;
     string error_message = 5;
@@ -102,7 +110,8 @@ message DurableTaskResponse {
         DurableTaskResponseRegisterWorker register_worker = 1;
         DurableTaskEventAckResponse trigger_ack = 2;
         DurableTaskEventLogEntryCompletedResponse entry_completed = 3;
-        DurableTaskErrorResponse error = 4;
+        DurableTaskEvictionAckResponse eviction_ack = 4;
+        DurableTaskErrorResponse error = 5;
     }
 }
 

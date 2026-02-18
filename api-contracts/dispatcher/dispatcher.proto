@@ -32,6 +32,8 @@ service Dispatcher {
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 
+    rpc RestoreEvictedTask(RestoreEvictedTaskRequest) returns (RestoreEvictedTaskResponse) {}
+
     rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
 
     // GetVersion returns the dispatcher protocol version as a simple integer.
@@ -184,6 +186,9 @@ message AssignedAction {
 
     // (optional) the workflow version id
     optional string workflow_version_id = 20;
+
+    // the number of times this durable task has been restored from eviction
+    int32 durable_invocation_count = 21;
 }
 
 message WorkerListenRequest {
@@ -238,6 +243,10 @@ enum StepActionEventType {
     STEP_EVENT_TYPE_COMPLETED = 2;
     STEP_EVENT_TYPE_FAILED = 3;
     STEP_EVENT_TYPE_ACKNOWLEDGED = 4;
+    // Monitoring-only events (used for OLAP observability)
+    STEP_EVENT_TYPE_CANCELLING = 9;
+    STEP_EVENT_TYPE_CANCELLED_CONFIRMED = 5;
+    STEP_EVENT_TYPE_CANCELLATION_FAILED = 6;
 }
 
 message StepActionEvent {
@@ -412,6 +421,14 @@ message ReleaseSlotRequest {
 }
 
 message ReleaseSlotResponse {}
+
+message RestoreEvictedTaskRequest {
+    string task_run_external_id = 1;
+}
+
+message RestoreEvictedTaskResponse {
+    bool requeued = 1;
+}
 
 message GetVersionRequest {}
 

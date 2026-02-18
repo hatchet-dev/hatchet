@@ -202,7 +202,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 
 const listSatisfiedEntries = `-- name: ListSatisfiedEntries :many
 WITH tasks AS (
-    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff
+    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff, t.durable_invocation_count
     FROM v1_lookup_table lt
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
     WHERE lt.external_id = ANY($2::UUID[])
@@ -331,7 +331,7 @@ const updateLogFileNodeIdInvocationCount = `-- name: UpdateLogFileNodeIdInvocati
 UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
-    latest_invocation_count = COALESCE($2::BIGINT, v1_durable_event_log_file.latest_invocation_count)
+    latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count)
 WHERE durable_task_id = $3::BIGINT
   AND durable_task_inserted_at = $4::TIMESTAMPTZ
 RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
@@ -339,7 +339,7 @@ RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocatio
 
 type UpdateLogFileNodeIdInvocationCountParams struct {
 	NodeId                pgtype.Int8        `json:"nodeId"`
-	InvocationCount       pgtype.Int8        `json:"invocationCount"`
+	InvocationCount       pgtype.Int4        `json:"invocationCount"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }

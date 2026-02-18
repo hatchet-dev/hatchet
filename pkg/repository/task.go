@@ -255,6 +255,11 @@ type TaskRepository interface {
 
 	ReleaseSlot(ctx context.Context, tenantId, externalId uuid.UUID) (*sqlcv1.V1TaskRuntime, error)
 
+	// Durable eviction support
+	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error)
+
+	RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (requeued bool, queue string, err error)
+
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
@@ -1566,6 +1571,58 @@ func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, external
 	}
 
 	return resp, nil
+}
+
+func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return false, err
+	}
+
+	defer rollback()
+
+	evicted, err := r.queries.EvictTask(ctx, tx, sqlcv1.EvictTaskParams{
+		Tenantid:       tenantId,
+		Taskid:         task.Id,
+		Taskinsertedat: task.InsertedAt,
+		Retrycount:     task.RetryCount,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, err
+	}
+
+	return evicted > 0, nil
+}
+
+func (r *TaskRepositoryImpl) RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, string, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return false, "", err
+	}
+
+	defer rollback()
+
+	row, err := r.queries.RestoreEvictedTask(ctx, tx, sqlcv1.RestoreEvictedTaskParams{
+		Tenantid:       tenantId,
+		Taskid:         task.Id,
+		Taskinsertedat: task.InsertedAt,
+		Retrycount:     task.RetryCount,
+	})
+	if err != nil {
+		return false, "", err
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, "", err
+	}
+
+	return row.Queued > 0, row.Queue, nil
 }
 
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {

@@ -66,14 +66,16 @@ class DurableTaskEventAckResponse(_message.Message):
     def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
-    __slots__ = ("durable_task_external_id", "node_id", "payload")
+    __slots__ = ("durable_task_external_id", "node_id", "payload", "invocation_count")
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     durable_task_external_id: str
     node_id: int
     payload: bytes
-    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., payload: _Optional[bytes] = ...) -> None: ...
+    invocation_count: int
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., payload: _Optional[bytes] = ..., invocation_count: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEvictInvocationRequest(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id")
@@ -83,13 +85,23 @@ class DurableTaskEvictInvocationRequest(_message.Message):
     durable_task_external_id: str
     def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ...) -> None: ...
 
+class DurableTaskEvictionAckResponse(_message.Message):
+    __slots__ = ("invocation_count", "durable_task_external_id")
+    INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
+    DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    invocation_count: int
+    durable_task_external_id: str
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ...) -> None: ...
+
 class DurableTaskAwaitedCompletedEntry(_message.Message):
-    __slots__ = ("durable_task_external_id", "node_id")
+    __slots__ = ("durable_task_external_id", "node_id", "invocation_count")
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     durable_task_external_id: str
     node_id: int
-    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
+    invocation_count: int
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., invocation_count: _Optional[int] = ...) -> None: ...
 
 class DurableTaskWorkerStatusRequest(_message.Message):
     __slots__ = ("worker_id", "node_id", "branch_id", "waiting_entries")
@@ -130,16 +142,18 @@ class DurableTaskErrorResponse(_message.Message):
     def __init__(self, durable_task_external_id: _Optional[str] = ..., invocation_count: _Optional[int] = ..., node_id: _Optional[int] = ..., error_type: _Optional[_Union[DurableTaskErrorType, str]] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class DurableTaskResponse(_message.Message):
-    __slots__ = ("register_worker", "trigger_ack", "entry_completed", "error")
+    __slots__ = ("register_worker", "trigger_ack", "entry_completed", "eviction_ack", "error")
     REGISTER_WORKER_FIELD_NUMBER: _ClassVar[int]
     TRIGGER_ACK_FIELD_NUMBER: _ClassVar[int]
     ENTRY_COMPLETED_FIELD_NUMBER: _ClassVar[int]
+    EVICTION_ACK_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     register_worker: DurableTaskResponseRegisterWorker
     trigger_ack: DurableTaskEventAckResponse
     entry_completed: DurableTaskEventLogEntryCompletedResponse
+    eviction_ack: DurableTaskEvictionAckResponse
     error: DurableTaskErrorResponse
-    def __init__(self, register_worker: _Optional[_Union[DurableTaskResponseRegisterWorker, _Mapping]] = ..., trigger_ack: _Optional[_Union[DurableTaskEventAckResponse, _Mapping]] = ..., entry_completed: _Optional[_Union[DurableTaskEventLogEntryCompletedResponse, _Mapping]] = ..., error: _Optional[_Union[DurableTaskErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, register_worker: _Optional[_Union[DurableTaskResponseRegisterWorker, _Mapping]] = ..., trigger_ack: _Optional[_Union[DurableTaskEventAckResponse, _Mapping]] = ..., entry_completed: _Optional[_Union[DurableTaskEventLogEntryCompletedResponse, _Mapping]] = ..., eviction_ack: _Optional[_Union[DurableTaskEvictionAckResponse, _Mapping]] = ..., error: _Optional[_Union[DurableTaskErrorResponse, _Mapping]] = ...) -> None: ...
 
 class RegisterDurableEventRequest(_message.Message):
     __slots__ = ("task_id", "signal_key", "conditions")

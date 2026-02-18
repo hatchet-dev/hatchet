@@ -276,6 +276,9 @@ from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
 from hatchet_sdk.clients.rest.models.v1_task_point_metric import V1TaskPointMetric
 from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
+from hatchet_sdk.clients.rest.models.v1_task_restore200_response import (
+    V1TaskRestore200Response,
+)
 from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
 from hatchet_sdk.clients.rest.models.v1_task_run_status import V1TaskRunStatus
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
