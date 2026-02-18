@@ -75,12 +75,23 @@ message DurableTaskWorkerStatusRequest {
     repeated DurableTaskAwaitedCompletedEntry waiting_entries = 4;
 }
 
+message DurableTaskResetRequest {
+    string durable_task_external_id = 1;
+    string node_id = 2;
+}
+
+message DurableTaskResetResponse {
+     string durable_task_external_id = 1;
+     string node_id = 2;
+}
+
 message DurableTaskRequest {
     oneof message {
         DurableTaskRequestRegisterWorker register_worker = 1;
         DurableTaskEventRequest event = 2;
         DurableTaskEvictInvocationRequest evict_invocation = 3;
         DurableTaskWorkerStatusRequest worker_status = 4;
+        DurableTaskResetRequest reset = 5;
     }
 }
 
@@ -103,6 +114,7 @@ message DurableTaskResponse {
         DurableTaskEventAckResponse trigger_ack = 2;
         DurableTaskEventLogEntryCompletedResponse entry_completed = 3;
         DurableTaskErrorResponse error = 4;
+        DurableTaskResetResponse reset = 5;
     }
 }
 
