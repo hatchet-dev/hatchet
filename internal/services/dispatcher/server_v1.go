@@ -861,7 +861,7 @@ func (d *DispatcherImpl) restoreEvictedTaskV1(ctx context.Context, tenant *sqlcv
 		return nil, status.Errorf(codes.Internal, "failed to look up task %s: %v", taskExternalId, err)
 	}
 
-	invocationCount := int64(task.RetryCount) + 1 + int64(task.DurableInvocationCount)
+	invocationCount := task.RetryCount + 1 + task.DurableInvocationCount
 
 	restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, taskExternalId, invocationCount, "Woken by user")
 	if err != nil {

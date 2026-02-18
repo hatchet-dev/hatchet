@@ -21,7 +21,11 @@ def simple5(input: EmptyModel, ctx: Context) -> dict[str, str]:
     ),
 )
 async def simple_durable5(input: EmptyModel, ctx: DurableContext) -> dict[str, str]:
+    print("\033[34mcheckpoint 1\033[0m")
     await simple5.aio_run()
+    print("\033[34mcheckpoint 2\033[0m")
+    await simple5.aio_run()
+    print("\033[34mcheckpoint 3\033[0m")
     return {"result": "Hello, world!"}
 
 

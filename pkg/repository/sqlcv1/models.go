@@ -3087,7 +3087,7 @@ type V1DurableEventLogFile struct {
 	TenantID                      uuid.UUID          `json:"tenant_id"`
 	DurableTaskID                 int64              `json:"durable_task_id"`
 	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
-	LatestInvocationCount         int64              `json:"latest_invocation_count"`
+	LatestInvocationCount         int32              `json:"latest_invocation_count"`
 	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
 	LatestNodeID                  int64              `json:"latest_node_id"`
 	LatestBranchID                int64              `json:"latest_branch_id"`

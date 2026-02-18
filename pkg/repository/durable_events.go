@@ -37,7 +37,7 @@ type IngestDurableTaskEventOpts struct {
 	Kind              sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
 	Payload           []byte
 	WaitForConditions []CreateExternalSignalConditionOpt
-	InvocationCount   int64
+	InvocationCount   int32
 	TriggerOpts       *WorkflowNameTriggerOpts
 }
 
@@ -258,7 +258,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	if isNewInvocation {
 		newNode, err := r.queries.UpdateLogFileNodeIdInvocationCount(ctx, tx, sqlcv1.UpdateLogFileNodeIdInvocationCountParams{
 			NodeId:                sqlchelpers.ToBigInt(1),
-			InvocationCount:       sqlchelpers.ToBigInt(opts.InvocationCount),
+			InvocationCount:       sqlchelpers.ToInt(opts.InvocationCount),
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
 		})

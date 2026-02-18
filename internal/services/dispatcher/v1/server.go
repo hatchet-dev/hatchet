@@ -657,7 +657,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			TaskExternalId: taskExternalId,
 			NodeId:         cb.NodeId,
 		})
-		invocationCounts[fmt.Sprintf("%s/%d", taskExternalId, cb.NodeId)] = int32(cb.InvocationCount) //nolint: gosec
+		invocationCounts[fmt.Sprintf("%s/%d", taskExternalId, cb.NodeId)] = cb.InvocationCount
 	}
 
 	if len(waiting) == 0 {
@@ -677,7 +677,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 					DurableTaskExternalId: cb.TaskExternalId.String(),
 					NodeId:                cb.NodeID,
 					Payload:               cb.Result,
-					InvocationCount:       int64(invocationCounts[key]),
+					InvocationCount:       invocationCounts[key],
 				},
 			},
 		}); err != nil {
@@ -700,7 +700,7 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
 				Payload:               payload,
-				InvocationCount:       int64(invocationCount), //nolint: gosec
+				InvocationCount:       invocationCount,
 			},
 		},
 	})

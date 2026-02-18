@@ -39,7 +39,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 	tc.l.Warn().Msgf("  found %d dispatcher mappings for %d tasks", len(idInsertedAtToDispatcherId), len(idInsertedAtTuples))
 
 	// Look up invocation counts for all unique task external IDs.
-	taskInvocationCounts := make(map[uuid.UUID]int64)
+	taskInvocationCounts := make(map[uuid.UUID]int32)
 	for _, cb := range callbacks {
 		if _, ok := taskInvocationCounts[cb.DurableTaskExternalId]; ok {
 			continue
@@ -51,7 +51,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 			continue
 		}
 
-		taskInvocationCounts[cb.DurableTaskExternalId] = int64(task.RetryCount) + 1 + int64(task.DurableInvocationCount)
+		taskInvocationCounts[cb.DurableTaskExternalId] = task.RetryCount + 1 + task.DurableInvocationCount
 	}
 
 	dispatcherToMsgs := make(map[uuid.UUID][]*msgqueue.Message)
@@ -122,7 +122,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 			continue
 		}
 
-		currentInvocationCount := int64(task.RetryCount) + 1 + int64(task.DurableInvocationCount)
+		currentInvocationCount := task.RetryCount + 1 + task.DurableInvocationCount
 		tc.l.Warn().Msgf("  looked up task: id=%d retryCount=%d durableInvocationCount=%d currentInvocationCount=%d",
 			task.ID, task.RetryCount, task.DurableInvocationCount, currentInvocationCount)
 

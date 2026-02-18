@@ -218,10 +218,10 @@ type CandidateFinalizedPayload struct {
 type DurableRestoreTaskPayload struct {
 	Reason          string
 	TaskExternalId  uuid.UUID
-	InvocationCount int64
+	InvocationCount int32
 }
 
-func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int64, reason string) (*msgqueue.Message, error) {
+func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int32, reason string) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDDurableRestoreTask,
@@ -238,12 +238,12 @@ func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, inv
 type DurableCallbackCompletedPayload struct {
 	TaskExternalId  uuid.UUID
 	NodeId          int64
-	InvocationCount int64
+	InvocationCount int32
 	Payload         []byte
 }
 
 func DurableCallbackCompletedMessage(
-	tenantId, taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte,
+	tenantId, taskExternalId uuid.UUID, nodeId int64, invocationCount int32, payload []byte,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,

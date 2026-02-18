@@ -2282,7 +2282,7 @@ CREATE TABLE v1_durable_event_log_file (
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
 
-    latest_invocation_count BIGINT NOT NULL,
+    latest_invocation_count INTEGER NOT NULL,
 
     latest_inserted_at TIMESTAMPTZ NOT NULL,
     -- A monotonically increasing node id for this durable event log scoped to the durable task.

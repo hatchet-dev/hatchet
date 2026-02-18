@@ -414,7 +414,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		err := d.durableCallbackFn(
 			payload.TaskExternalId,
 			payload.NodeId,
-			int32(payload.InvocationCount), // nolint: gosec
+			payload.InvocationCount,
 			payload.Payload,
 		)
 
