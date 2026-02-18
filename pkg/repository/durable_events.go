@@ -33,6 +33,7 @@ type TaskExternalIdNodeIdBranchId struct {
 
 type SatisfiedEventWithPayload struct {
 	TaskExternalId uuid.UUID
+	BranchID       int64
 	NodeID         int64
 	Result         []byte
 }
@@ -48,6 +49,7 @@ type IngestDurableTaskEventOpts struct {
 }
 
 type IngestDurableTaskEventResult struct {
+	BranchId      int64
 	NodeId        int64
 	EventLogEntry *EventLogEntryWithPayloads
 	EventLogFile  *sqlcv1.V1DurableEventLogFile
@@ -76,6 +78,7 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 
 type NonDeterminismError struct {
 	NodeId                 int64
+	BranchId               int64
 	TaskExternalId         uuid.UUID
 	ExpectedIdempotencyKey []byte
 	ActualIdempotencyKey   []byte
@@ -169,6 +172,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 
 		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
 			return nil, &NonDeterminismError{
+				BranchId:               opts.BranchId,
 				NodeId:                 opts.NodeId,
 				TaskExternalId:         opts.DurableTaskExternalId,
 				ExpectedIdempotencyKey: existingIdempotencyKey,
@@ -263,6 +267,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		result = append(result, &SatisfiedEventWithPayload{
 			TaskExternalId: row.TaskExternalID,
 			NodeID:         row.NodeID,
+			BranchID:       row.BranchID,
 			Result:         payload,
 		})
 	}
@@ -502,6 +507,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	return &IngestDurableTaskEventResult{
 		NodeId:        nodeId,
+		BranchId:      branchId,
 		EventLogFile:  logFile,
 		EventLogEntry: logEntry,
 		CreatedTasks:  spawnedTasks,
@@ -766,6 +772,7 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 
 	return &IngestDurableTaskEventResult{
 		NodeId:        nodeId,
+		BranchId:      logEntry.Entry.BranchID,
 		EventLogFile:  logFile,
 		EventLogEntry: logEntry,
 		CreatedTasks:  spawnedTasks,

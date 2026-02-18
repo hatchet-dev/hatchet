@@ -551,6 +551,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			Message: &contracts.DurableTaskResponse_Error{
 				Error: &contracts.DurableTaskErrorResponse{
 					DurableTaskExternalId: taskExternalId.String(),
+					BranchId:              nde.BranchId,
 					NodeId:                nde.NodeId,
 					InvocationCount:       req.InvocationCount,
 					ErrorType:             contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM,
@@ -580,6 +581,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 				InvocationCount:       req.InvocationCount,
 				DurableTaskExternalId: req.DurableTaskExternalId,
 				NodeId:                ingestionResult.NodeId,
+				BranchId:              ingestionResult.NodeId,
 			},
 		},
 	})
@@ -591,6 +593,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	if ingestionResult.EventLogEntry.Entry.IsSatisfied {
 		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
+			ingestionResult.BranchId,
 			ingestionResult.NodeId,
 			ingestionResult.EventLogEntry.ResultPayload,
 		)
@@ -661,6 +664,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 					DurableTaskExternalId: cb.TaskExternalId.String(),
 					NodeId:                cb.NodeID,
+					BranchId:              cb.BranchID,
 					Payload:               cb.Result,
 				},
 			},
@@ -672,7 +676,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	return nil
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, branchId, nodeId int64, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
@@ -683,6 +687,7 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 			EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
+				BranchId:              branchId,
 				Payload:               payload,
 			},
 		},

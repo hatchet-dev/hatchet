@@ -49,13 +49,15 @@ message DurableTaskEventRequest {
 message DurableTaskEventAckResponse {
     int64 invocation_count = 1;
     string durable_task_external_id = 2;
-    int64 node_id = 3;
+    int64 branch_id = 3;
+    int64 node_id = 4;
 }
 
 message DurableTaskEventLogEntryCompletedResponse {
     string durable_task_external_id = 1;
-    int64 node_id = 2;
-    bytes payload = 3;
+    int64 branch_id = 2;
+    int64 node_id = 3;
+    bytes payload = 4;
 }
 
 message DurableTaskEvictInvocationRequest {
@@ -71,9 +73,7 @@ message DurableTaskAwaitedCompletedEntry {
 
 message DurableTaskWorkerStatusRequest {
     string worker_id = 1;
-    int64 node_id = 2;
-    int64 branch_id = 3;
-    repeated DurableTaskAwaitedCompletedEntry waiting_entries = 4;
+    repeated DurableTaskAwaitedCompletedEntry waiting_entries = 2;
 }
 
 message DurableTaskResetRequest {
@@ -104,9 +104,10 @@ enum DurableTaskErrorType {
 message DurableTaskErrorResponse {
     string durable_task_external_id = 1;
     int64 invocation_count = 2;
-    int64 node_id = 3;
-    DurableTaskErrorType error_type = 4;
-    string error_message = 5;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+    DurableTaskErrorType error_type = 5;
+    string error_message = 6;
 }
 
 message DurableTaskResponse {

@@ -551,11 +551,13 @@ class DurableContext(Context):
             wait_for_conditions=conditions_proto,
         )
         node_id = ack.node_id
+        branch_id = ack.branch_id
 
         result = await await_with_cancellation(
             self.durable_event_listener.wait_for_callback(
                 durable_task_external_id=self.step_run_id,
                 node_id=node_id,
+                branch_id=branch_id,
             ),
             self.cancellation_token,
         )
@@ -602,11 +604,10 @@ class DurableContext(Context):
             trigger_workflow_opts=options,
         )
 
-        node_id = ack.node_id
-
         result = await self.durable_event_listener.wait_for_callback(
             durable_task_external_id=self.step_run_id,
-            node_id=node_id,
+            node_id=ack.node_id,
+            branch_id=ack.branch_id,
         )
 
         return result.payload or {}
