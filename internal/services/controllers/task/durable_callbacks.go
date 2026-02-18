@@ -45,12 +45,14 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 			continue
 		}
 
+		// TODO-DURABLE: we probably shouldn't do this lookup here
 		task, err := tc.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, cb.DurableTaskExternalId, true)
 		if err != nil {
 			tc.l.Error().Err(err).Msgf("failed to look up task %s for invocation count", cb.DurableTaskExternalId)
 			continue
 		}
 
+		// TODO-DURABLE: use the latest invocation count, this is not correct
 		taskInvocationCounts[cb.DurableTaskExternalId] = task.RetryCount + 1 + task.DurableInvocationCount
 	}
 
@@ -122,7 +124,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 			continue
 		}
 
-		currentInvocationCount := task.RetryCount + 1 + task.DurableInvocationCount
+		currentInvocationCount := task.DurableInvocationCount
 		tc.l.Warn().Msgf("  looked up task: id=%d retryCount=%d durableInvocationCount=%d currentInvocationCount=%d",
 			task.ID, task.RetryCount, task.DurableInvocationCount, currentInvocationCount)
 

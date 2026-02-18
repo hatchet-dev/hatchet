@@ -817,9 +817,9 @@ class Runner:
 
         # So step_run_callback sees the correct reason after unwinding.
         self.cancellation_reasons[key] = CancellationReason.EVICTED.value
-        # TODO-DURABLE: what is ensure started....
         await self.durable_event_listener.ensure_started(ctx.action.worker_id)
-        invocation_count = ctx.action.retry_count + 1
+        # TODO-DURABLE: this is not correct on engine
+        invocation_count = ctx.action.invocation_count
         await self.durable_event_listener.send_evict_invocation(
             durable_task_external_id=rec.step_run_id,
             invocation_count=invocation_count,

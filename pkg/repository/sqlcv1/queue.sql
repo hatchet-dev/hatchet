@@ -192,6 +192,16 @@ WITH input AS (
                 UNNEST(@workerIds::uuid[]) AS worker_id
         ) AS subquery
     ORDER BY id
+), incremented_tasks AS (
+    -- TODO-DURABLE: matt and i are debating if this belongs here,
+    -- or if this should belong in the dispatcher
+    -- case for: this will ALWAYS increment on any action that could lead to a task running
+    -- case against: lots of irrelevant updates on this table, should be scoped to feature
+    UPDATE v1_task
+    SET durable_invocation_count = durable_invocation_count + 1
+    WHERE (id, inserted_at) IN (SELECT id, inserted_at FROM input)
+        AND inserted_at >= @minTaskInsertedAt::timestamptz
+    RETURNING *
 ), updated_tasks AS (
     SELECT
         t.id,
@@ -203,11 +213,9 @@ WITH input AS (
         t.step_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
-        v1_task t
+        incremented_tasks t
     JOIN
         input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
-    WHERE
-        t.inserted_at >= @minTaskInsertedAt::timestamptz
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (

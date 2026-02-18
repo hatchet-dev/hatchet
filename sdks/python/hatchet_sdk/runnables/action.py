@@ -114,7 +114,8 @@ class Action(BaseModel):
 
     @property
     def invocation_count(self) -> int:
-        # TODO: does this make any sense?
+        """Global durable invocation count (from server). Used for durable protocol only."""
+        # TODO-DURABLE: this is not correct, but is a hack to align with the incorrect invocation count on engine
         return self.retry_count + 1 + self.durable_invocation_count
 
     @property

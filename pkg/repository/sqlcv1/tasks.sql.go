@@ -2690,13 +2690,15 @@ WITH evicted_runtime AS (
         AND r.retry_count = $4::int
         AND r.evicted_at IS NOT NULL
     FOR UPDATE
-), incremented_task AS (
-    UPDATE v1_task
-    SET durable_invocation_count = durable_invocation_count + 1
-    WHERE id = $2::bigint
-        AND inserted_at = $3::timestamptz
+), selected_task AS (
+    SELECT
+        t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff, t.durable_invocation_count
+    FROM
+        v1_task t
+    WHERE
+        t.id = $2::bigint
+        AND t.inserted_at = $3::timestamptz
         AND EXISTS (SELECT 1 FROM evicted_runtime)
-    RETURNING id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, durable_invocation_count
 ), inserted_qi AS (
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -2732,7 +2734,7 @@ WITH evicted_runtime AS (
         t.desired_worker_id,
         t.retry_count
     FROM
-        incremented_task t
+        selected_task t
     RETURNING queue
 )
 SELECT
@@ -2754,12 +2756,11 @@ type RestoreEvictedTaskRow struct {
 	Queue      string `json:"queue"`
 }
 
-// TODO: think through this further...
+// TODO-Durable: i need to think through this further...
 // Restores an evicted task by inserting it directly into the assignment queue.
 // The evicted runtime row stays (evicted_at set); when the queue item is assigned,
 // the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.
-// Increments durable_invocation_count so the SDK sends a higher invocation_count,
-// causing the engine to detect isNewInvocation=true and replay the durable event log.
+// durable_invocation_count is incremented at assignment time in UpdateTasksToAssigned.
 func (q *Queries) RestoreEvictedTask(ctx context.Context, db DBTX, arg RestoreEvictedTaskParams) (*RestoreEvictedTaskRow, error) {
 	row := db.QueryRow(ctx, restoreEvictedTask,
 		arg.Tenantid,

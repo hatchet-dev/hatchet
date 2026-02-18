@@ -228,6 +228,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	// take a lock of the log file so nothing else can concurrently write to it and e.g. increment the node id or branch
 	// id while this tx is running
+	// TODO-DURABLE: use this in the dispatcher to lock while incrementing the invocation count
 	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,

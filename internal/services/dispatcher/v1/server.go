@@ -534,6 +534,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		}
 	}
 
+	// should this return the latest invocation count?
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		TenantId:          invocation.tenantId,
 		Task:              task,

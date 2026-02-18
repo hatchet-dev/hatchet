@@ -1028,13 +1028,12 @@ WITH locked_runtime AS (
 SELECT
     COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
 
--- TODO: think through this further...
+-- TODO-Durable: i need to think through this further...
 -- name: RestoreEvictedTask :one
 -- Restores an evicted task by inserting it directly into the assignment queue.
 -- The evicted runtime row stays (evicted_at set); when the queue item is assigned,
 -- the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.
--- Increments durable_invocation_count so the SDK sends a higher invocation_count,
--- causing the engine to detect isNewInvocation=true and replay the durable event log.
+-- durable_invocation_count is incremented at assignment time in UpdateTasksToAssigned.
 WITH evicted_runtime AS (
     SELECT
         r.task_id,
@@ -1049,13 +1048,15 @@ WITH evicted_runtime AS (
         AND r.retry_count = @retryCount::int
         AND r.evicted_at IS NOT NULL
     FOR UPDATE
-), incremented_task AS (
-    UPDATE v1_task
-    SET durable_invocation_count = durable_invocation_count + 1
-    WHERE id = @taskId::bigint
-        AND inserted_at = @taskInsertedAt::timestamptz
+), selected_task AS (
+    SELECT
+        t.*
+    FROM
+        v1_task t
+    WHERE
+        t.id = @taskId::bigint
+        AND t.inserted_at = @taskInsertedAt::timestamptz
         AND EXISTS (SELECT 1 FROM evicted_runtime)
-    RETURNING *
 ), inserted_qi AS (
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -1091,7 +1092,7 @@ WITH evicted_runtime AS (
         t.desired_worker_id,
         t.retry_count
     FROM
-        incremented_task t
+        selected_task t
     RETURNING queue
 )
 SELECT

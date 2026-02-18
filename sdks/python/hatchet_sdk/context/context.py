@@ -341,8 +341,7 @@ class Context:
 
         :return: The attempt number of the current task run.
         """
-
-        return self.action.invocation_count
+        return self.action.retry_count + 1
 
     @property
     def max_attempts(self) -> int:
@@ -548,7 +547,9 @@ class DurableContext(Context):
         )
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            invocation_count=self.attempt_number,
+            # TODO-DURABLE: this is not correct on engine, this will dupe runs spawned from this task
+
+            invocation_count=self.action.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
             payload=None,
             wait_for_conditions=conditions_proto,
@@ -561,7 +562,7 @@ class DurableContext(Context):
             result = await await_with_cancellation(
                 self.durable_event_listener.wait_for_callback(
                     durable_task_external_id=self.step_run_id,
-                    invocation_count=self.attempt_number,
+                    invocation_count=self.action.invocation_count,
                     node_id=node_id,
                 ),
                 self.cancellation_token,
@@ -601,7 +602,8 @@ class DurableContext(Context):
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            invocation_count=self.attempt_number,
+            # TODO-DURABLE: this is not correct on engine, this will dupe runs spawned from this task
+            invocation_count=self.action.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
             workflow_name=workflow.config.name,
@@ -616,7 +618,8 @@ class DurableContext(Context):
             result = await await_with_cancellation(
                 self.durable_event_listener.wait_for_callback(
                     durable_task_external_id=self.step_run_id,
-                    invocation_count=self.attempt_number,
+                    # TODO-DURABLE: this is not correct on engine, this will dupe runs spawned from this task
+                    invocation_count=self.action.invocation_count,
                     node_id=node_id,
                 ),
                 self.cancellation_token,

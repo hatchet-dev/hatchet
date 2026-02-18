@@ -856,11 +856,13 @@ func (d *DispatcherImpl) restoreEvictedTaskV1(ctx context.Context, tenant *sqlcv
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
 	}
 
+	// TODO-DURABLE: we probably shouldn't do this lookup here
 	task, err := d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to look up task %s: %v", taskExternalId, err)
 	}
 
+	// TODO-DURABLE: use the latest invocation count, this is not correct
 	invocationCount := task.RetryCount + 1 + task.DurableInvocationCount
 
 	restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, taskExternalId, invocationCount, "Woken by user")
