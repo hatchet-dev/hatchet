@@ -107,7 +107,7 @@ func (payload *Payload) VerifyPayload() error {
 
 	decodedPem, _ := pem.Decode(body)
 	if decodedPem == nil {
-		return errors.New("The decoded PEM file was empty!")
+		return errors.New("the decoded PEM file was empty")
 	}
 
 	parsedCertificate, err := x509.ParseCertificate(decodedPem.Bytes)
@@ -122,7 +122,7 @@ func (payload *Payload) VerifyPayload() error {
 func (payload *Payload) Subscribe() (ConfirmSubscriptionResponse, error) {
 	var response ConfirmSubscriptionResponse
 	if payload.SubscribeURL == "" {
-		return response, errors.New("Payload does not have a SubscribeURL!")
+		return response, errors.New("payload does not have a SubscribeURL")
 	}
 
 	resp, err := http.Get(payload.SubscribeURL)
