@@ -46,7 +46,8 @@ var rootCmd = &cobra.Command{
 }
 
 // Version will be linked by an ldflag during build
-var Version = "v0.1.0-alpha.0"
+// FIXME: automate this version update on tag, we use it to version the engine for sdks
+var Version = "v0.78.23"
 
 func main() {
 	rootCmd.PersistentFlags().BoolVar(
