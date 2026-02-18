@@ -22,26 +22,18 @@ COPY /cmd ./cmd
 
 RUN go generate ./...
 
-# OpenAPI bundle environment
-# -------------------------
-FROM node:22-alpine as build-openapi
+# OpenAPI bundle environment (uses openapi-core only to avoid Redoc/React/styled-components)
+# ----------------------------------------------------------------------------------------
+FROM node:22-alpine AS build-openapi
 WORKDIR /openapi
 
 COPY /api-contracts/openapi ./openapi
+COPY /hack/oas/bundle-openapi.mjs ./bundle-openapi.mjs
 
-RUN echo '{ \
-    "name": "hack-for-redocly-cli-bug", \
-    "version": "1.0.0", \
-    "dependencies": { \
-    "@redocly/cli": "2.14.7" \
-    }, \
-    "overrides": { \
-    "mobx-react": "9.2.0" \
-    } \
-    }' > package.json && \
-    npm install -g npm@8.1 @redocly/cli@2.14.7 && \
-    npx @redocly/cli@2.14.7 bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml > /dev/null && \
-    rm package.json
+RUN echo '{ "type": "module", "dependencies": { "@redocly/openapi-core": "2.14.7", "yaml": "2.7.0" } }' > package.json && \
+    npm install && \
+    node bundle-openapi.mjs && \
+    rm -f package.json package-lock.json bundle-openapi.mjs
 
 # Go build environment
 # --------------------
