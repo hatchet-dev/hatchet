@@ -346,6 +346,27 @@ func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEve
 	return idempotencyKey, nil
 }
 
+func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+	lockKey := fmt.Sprintf("durable_log_file:%d:%s", durableTaskId, durableTaskInsertedAt.Time.String())
+
+	lockAcquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash(lockKey))
+
+	if err != nil || !lockAcquired {
+		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+
+	logFile, err := r.queries.GetLogFile(ctx, tx, sqlcv1.GetLogFileParams{
+		Durabletaskid:         durableTaskId,
+		Durabletaskinsertedat: durableTaskInsertedAt,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to lock log file: %w", err)
+	}
+
+	return logFile, nil
+}
+
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, fmt.Errorf("invalid opts: %w", err)
@@ -361,18 +382,13 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	tx := optTx.tx
 
-	// take a lock of the log file so nothing else can concurrently write to it and e.g. increment the node id or branch
-	// id while this tx is running
-	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
-		Durabletaskid:         task.ID,
-		Durabletaskinsertedat: task.InsertedAt,
-	})
+	logFile, err := r.getAndLockLogFile(ctx, tx, task.ID, task.InsertedAt)
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if logFile == nil {
 		logFile, err = r.queries.CreateEventLogFile(ctx, tx, sqlcv1.CreateEventLogFileParams{
 			Tenantid:              opts.TenantId,
 			Durabletaskid:         task.ID,
@@ -654,13 +670,9 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 
 	task := tasks[0]
 
-	// todo: use advisory lock here, factor this into a method
-	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
-		Durabletaskid:         task.ID,
-		Durabletaskinsertedat: task.InsertedAt,
-	})
+	logFile, err := r.getAndLockLogFile(ctx, tx, task.ID, task.InsertedAt)
 
-	if err != nil {
+	if err != nil || logFile == nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 

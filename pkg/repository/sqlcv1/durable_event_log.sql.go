@@ -142,35 +142,6 @@ func (q *Queries) CreateEventLogFile(ctx context.Context, db DBTX, arg CreateEve
 	return &i, err
 }
 
-const getAndLockLogFile = `-- name: GetAndLockLogFile :one
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
-FROM v1_durable_event_log_file
-WHERE durable_task_id = $1::BIGINT
-    AND durable_task_inserted_at = $2::TIMESTAMPTZ
-FOR UPDATE
-`
-
-type GetAndLockLogFileParams struct {
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-}
-
-func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLockLogFileParams) (*V1DurableEventLogFile, error) {
-	row := db.QueryRow(ctx, getAndLockLogFile, arg.Durabletaskid, arg.Durabletaskinsertedat)
-	var i V1DurableEventLogFile
-	err := row.Scan(
-		&i.TenantID,
-		&i.DurableTaskID,
-		&i.DurableTaskInsertedAt,
-		&i.LatestInvocationCount,
-		&i.LatestInsertedAt,
-		&i.LatestNodeID,
-		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
-	)
-	return &i, err
-}
-
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
 SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, idempotency_key, is_satisfied
 FROM v1_durable_event_log_entry
@@ -209,6 +180,34 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 		&i.ParentBranchID,
 		&i.IdempotencyKey,
 		&i.IsSatisfied,
+	)
+	return &i, err
+}
+
+const getLogFile = `-- name: GetLogFile :one
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+FROM v1_durable_event_log_file
+WHERE durable_task_id = $1::BIGINT
+    AND durable_task_inserted_at = $2::TIMESTAMPTZ
+`
+
+type GetLogFileParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+}
+
+func (q *Queries) GetLogFile(ctx context.Context, db DBTX, arg GetLogFileParams) (*V1DurableEventLogFile, error) {
+	row := db.QueryRow(ctx, getLogFile, arg.Durabletaskid, arg.Durabletaskinsertedat)
+	var i V1DurableEventLogFile
+	err := row.Scan(
+		&i.TenantID,
+		&i.DurableTaskID,
+		&i.DurableTaskInsertedAt,
+		&i.LatestInvocationCount,
+		&i.LatestInsertedAt,
+		&i.LatestNodeID,
+		&i.LatestBranchID,
+		&i.LatestBranchFirstParentNodeID,
 	)
 	return &i, err
 }

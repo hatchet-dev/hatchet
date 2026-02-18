@@ -1,9 +1,9 @@
--- name: GetAndLockLogFile :one
+-- name: GetLogFile :one
 SELECT *
 FROM v1_durable_event_log_file
 WHERE durable_task_id = @durableTaskId::BIGINT
     AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-FOR UPDATE;
+;
 
 -- name: UpdateLogFile :one
 UPDATE v1_durable_event_log_file
