@@ -590,7 +590,6 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
-    ## todo: instrumentor for this
     async def _spawn_child(
         self,
         workflow: "BaseWorkflow[TWorkflowInput]",
@@ -613,10 +612,16 @@ class DurableContext(Context):
 
         node_id = ack.node_id
 
-        result = await self.durable_event_listener.wait_for_callback(
-            durable_task_external_id=self.step_run_id,
-            node_id=node_id,
-        )
+        async with aio_durable_eviction_wait(
+            "spawn_child", f"{self.step_run_id}:{node_id}"
+        ):
+            result = await await_with_cancellation(
+                self.durable_event_listener.wait_for_callback(
+                    durable_task_external_id=self.step_run_id,
+                    node_id=node_id,
+                ),
+                self.cancellation_token,
+            )
 
         return result.payload or {}
 
