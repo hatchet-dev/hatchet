@@ -84,12 +84,14 @@ class DurableTaskEvictInvocationRequest(_message.Message):
     def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ...) -> None: ...
 
 class DurableTaskAwaitedCompletedEntry(_message.Message):
-    __slots__ = ("durable_task_external_id", "node_id")
+    __slots__ = ("durable_task_external_id", "branch_id", "node_id")
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     durable_task_external_id: str
+    branch_id: int
     node_id: int
-    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ...) -> None: ...
 
 class DurableTaskWorkerStatusRequest(_message.Message):
     __slots__ = ("worker_id", "node_id", "branch_id", "waiting_entries")
