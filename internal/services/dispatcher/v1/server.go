@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,7 +15,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -622,8 +625,64 @@ func (d *DispatcherServiceImpl) handleReset(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskResetRequest,
 ) error {
-	// when we get a reset request, we should create a copy of the node id and increment the branch id
-	return nil
+	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+	}
+
+	nodeId, err := strconv.ParseInt(req.NodeId, 10, 64)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid node_id: %v", err)
+	}
+
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+
+	result, err := d.repo.DurableEvents().HandleReset(ctx, invocation.tenantId, taskExternalId, nodeId, 0)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to reset durable task: %v", err)
+	}
+
+	if len(result.CreatedTasks) > 0 || len(result.CreatedDAGs) > 0 {
+		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, result.CreatedTasks, result.CreatedDAGs); sigErr != nil {
+			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable task reset")
+		}
+	}
+
+	// Replay the task so a worker picks it up and re-executes from the top.
+	// Nodes before the reset point will fast-forward (idempotency keys match cached entries),
+	// and the reset node will block on the new unsatisfied branch entry.
+	replayPayload := tasktypes.ReplayTasksPayload{
+		Tasks: []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			WorkflowRunExternalId: task.WorkflowRunExternalID,
+			TaskExternalId:        task.ExternalID,
+		}},
+	}
+
+	msg, err := msgqueue.NewTenantMessage(invocation.tenantId, msgqueue.MsgIDReplayTasks, false, true, replayPayload)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to create replay message: %v", err)
+	}
+
+	if err := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return status.Errorf(codes.Internal, "failed to send replay message: %v", err)
+	}
+
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_Reset_{
+			Reset_: &contracts.DurableTaskResetResponse{
+				DurableTaskExternalId: req.DurableTaskExternalId,
+				NodeId:                req.NodeId,
+			},
+		},
+	})
 }
 
 func (d *DispatcherServiceImpl) handleWorkerStatus(

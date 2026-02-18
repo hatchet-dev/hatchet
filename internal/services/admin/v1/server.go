@@ -437,6 +437,11 @@ func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.
 		return nil, status.Error(codes.InvalidArgument, "invalid task_external_id")
 	}
 
+	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+
 	result, err := a.repo.DurableEvents().HandleReset(ctx, tenantId, taskExternalId, req.NodeId, 0)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to reset durable task: %v", err)
@@ -446,6 +451,30 @@ func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.
 		if sigErr := a.tw.SignalCreated(ctx, tenantId, result.CreatedTasks, result.CreatedDAGs); sigErr != nil {
 			a.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable task reset")
 		}
+	}
+
+	// Replay the task so a worker picks it up and re-executes from the top.
+	// Nodes before the reset point will fast-forward (idempotency keys match cached entries),
+	// and the reset node will block on the new unsatisfied branch entry.
+	replayPayload := tasktypes.ReplayTasksPayload{
+		Tasks: []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			WorkflowRunExternalId: task.WorkflowRunExternalID,
+			TaskExternalId:        task.ExternalID,
+		}},
+	}
+
+	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDReplayTasks, false, true, replayPayload)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create replay message: %v", err)
+	}
+
+	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to send replay message: %v", err)
 	}
 
 	return &contracts.ResetDurableTaskResponse{
