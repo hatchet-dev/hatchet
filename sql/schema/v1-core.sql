@@ -2320,7 +2320,7 @@ CREATE TABLE v1_durable_event_log_entry (
     branch_id BIGINT NOT NULL,
     -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
     -- to determine whether or not there's been a non-determinism error
-    idempotency_key BYTEA,
+    idempotency_key BYTEA NOT NULL,
     -- Access patterns:
     -- Definite: we'll query directly for the node_id when a durable task is replaying its log
     -- Possible: we may want to query a range of node_ids for a durable task
