@@ -664,8 +664,6 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
-	parentBranchId := logFile.LatestBranchID
-
 	previousEntry, err := r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
@@ -721,6 +719,15 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 	inputPayload := payloads[previousInputOpts]
 	resultPayload := payloads[previousResultOpts]
 
+	var resetParentNodeId *int64
+	var resetParentBranchId *int64
+	if previousEntry.ParentNodeID.Valid {
+		resetParentNodeId = &previousEntry.ParentNodeID.Int64
+	}
+	if previousEntry.ParentBranchID.Valid {
+		resetParentBranchId = &previousEntry.ParentBranchID.Int64
+	}
+
 	logEntry, err := r.getOrCreateEventLogEntry(ctx, tx, GetOrCreateLogEntryOpts{
 		TenantId:              tenantId,
 		DurableTaskExternalId: taskExternalId,
@@ -728,8 +735,8 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 		DurableTaskInsertedAt: task.InsertedAt,
 		Kind:                  previousEntry.Kind,
 		NodeId:                nodeId,
-		ParentNodeId:          &nodeId,
-		ParentBranchId:        &parentBranchId,
+		ParentNodeId:          resetParentNodeId,
+		ParentBranchId:        resetParentBranchId,
 		BranchId:              logFile.LatestBranchID,
 		IdempotencyKey:        previousEntry.IdempotencyKey,
 		IsSatisfied:           false,
