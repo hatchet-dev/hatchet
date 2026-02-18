@@ -33,14 +33,14 @@ RUN echo '{ \
     "name": "hack-for-redocly-cli-bug", \
     "version": "1.0.0", \
     "dependencies": { \
-    "@redocly/cli": "latest" \
+    "@redocly/cli": "2.14.7" \
     }, \
     "overrides": { \
     "mobx-react": "9.2.0" \
     } \
     }' > package.json && \
-    npm install -g npm@8.1 @redocly/cli@latest && \
-    npx @redocly/cli@latest bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml && \
+    npm install -g npm@8.1 @redocly/cli@2.14.7 && \
+    npx @redocly/cli@2.14.7 bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml > /dev/null && \
     rm package.json
 
 # Go build environment
