@@ -409,9 +409,20 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		nodeId = logFile.LatestNodeID + 1
 	}
 
-	parentNodeId := logFile.LatestNodeID
+	var parentNodeId *int64
+	if !isNewInvocation {
+		p := logFile.LatestNodeID
+		parentNodeId = &p
+	}
+
 	branchId := logFile.LatestBranchID
 	parentBranchId := logFile.LatestBranchID
+
+	if logFile.LatestBranchFirstParentNodeID > 0 && nodeId < logFile.LatestBranchFirstParentNodeID {
+		parentBranch := logFile.LatestBranchID - 1
+		branchId = parentBranch
+		parentBranchId = parentBranch
+	}
 
 	var inputPayload []byte
 	var resultPayload []byte
@@ -452,7 +463,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			DurableTaskInsertedAt: task.InsertedAt,
 			Kind:                  opts.Kind,
 			NodeId:                nodeId,
-			ParentNodeId:          &parentNodeId,
+			ParentNodeId:          parentNodeId,
 			ParentBranchId:        &parentBranchId,
 			BranchId:              branchId,
 			IsSatisfied:           isSatisfied,
@@ -695,11 +706,12 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 	newInvocationCount := invocationCount + 1
 
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-		BranchId:              sqlchelpers.ToBigInt(&newBranchId),
-		NodeId:                sqlchelpers.ToBigInt(&nodeId),
-		InvocationCount:       sqlchelpers.ToBigInt(&newInvocationCount),
-		Durabletaskid:         task.ID,
-		Durabletaskinsertedat: task.InsertedAt,
+		BranchId:                sqlchelpers.ToBigInt(&newBranchId),
+		NodeId:                  sqlchelpers.ToBigInt(&nodeId),
+		InvocationCount:         sqlchelpers.ToBigInt(&newInvocationCount),
+		BranchFirstParentNodeId: sqlchelpers.ToBigInt(&nodeId),
+		Durabletaskid:           task.ID,
+		Durabletaskinsertedat:   task.InsertedAt,
 	})
 
 	if err != nil {
@@ -709,12 +721,6 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 	inputPayload := payloads[previousInputOpts]
 	resultPayload := payloads[previousResultOpts]
 
-	var parentNodeId *int64
-
-	if previousEntry.ParentNodeID.Valid {
-		parentNodeId = &previousEntry.ParentNodeID.Int64
-	}
-
 	logEntry, err := r.getOrCreateEventLogEntry(ctx, tx, GetOrCreateLogEntryOpts{
 		TenantId:              tenantId,
 		DurableTaskExternalId: taskExternalId,
@@ -722,7 +728,7 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 		DurableTaskInsertedAt: task.InsertedAt,
 		Kind:                  previousEntry.Kind,
 		NodeId:                nodeId,
-		ParentNodeId:          parentNodeId,
+		ParentNodeId:          &nodeId,
 		ParentBranchId:        &parentBranchId,
 		BranchId:              logFile.LatestBranchID,
 		IdempotencyKey:        previousEntry.IdempotencyKey,

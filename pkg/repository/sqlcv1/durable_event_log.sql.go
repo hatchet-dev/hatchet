@@ -361,18 +361,20 @@ UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
     latest_invocation_count = COALESCE($2::BIGINT, v1_durable_event_log_file.latest_invocation_count),
-    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id)
-WHERE durable_task_id = $4::BIGINT
-  AND durable_task_inserted_at = $5::TIMESTAMPTZ
+    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id),
+    latest_branch_first_parent_node_id = COALESCE($4::BIGINT, v1_durable_event_log_file.latest_branch_first_parent_node_id)
+WHERE durable_task_id = $5::BIGINT
+  AND durable_task_inserted_at = $6::TIMESTAMPTZ
 RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
 `
 
 type UpdateLogFileParams struct {
-	NodeId                pgtype.Int8        `json:"nodeId"`
-	InvocationCount       pgtype.Int8        `json:"invocationCount"`
-	BranchId              pgtype.Int8        `json:"branchId"`
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	NodeId                  pgtype.Int8        `json:"nodeId"`
+	InvocationCount         pgtype.Int8        `json:"invocationCount"`
+	BranchId                pgtype.Int8        `json:"branchId"`
+	BranchFirstParentNodeId pgtype.Int8        `json:"branchFirstParentNodeId"`
+	Durabletaskid           int64              `json:"durabletaskid"`
+	Durabletaskinsertedat   pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }
 
 func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileParams) (*V1DurableEventLogFile, error) {
@@ -380,6 +382,7 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		arg.NodeId,
 		arg.InvocationCount,
 		arg.BranchId,
+		arg.BranchFirstParentNodeId,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 	)
