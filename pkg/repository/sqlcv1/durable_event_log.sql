@@ -62,6 +62,7 @@ INSERT INTO v1_durable_event_log_entry (
     node_id,
     parent_node_id,
     branch_id,
+    parent_branch_id,
     idempotency_key,
     is_satisfied
 )
@@ -75,6 +76,7 @@ VALUES (
     @nodeId::BIGINT,
     sqlc.narg('parentNodeId')::BIGINT,
     @branchId::BIGINT,
+    sqlc.narg('parentBranchId')::BIGINT,
     @idempotencyKey::BYTEA,
     @isSatisfied::BOOLEAN
 )

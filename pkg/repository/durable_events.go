@@ -131,6 +131,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			Nodeid:                opts.NodeId,
 			ParentNodeId:          sqlchelpers.ToBigInt(opts.ParentNodeId),
 			Branchid:              opts.BranchId,
+			ParentBranchId:        sqlchelpers.ToBigInt(opts.ParentBranchId),
 			Idempotencykey:        opts.IdempotencyKey,
 			Issatisfied:           opts.IsSatisfied,
 		})
