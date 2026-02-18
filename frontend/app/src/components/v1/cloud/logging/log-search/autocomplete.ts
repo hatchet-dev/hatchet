@@ -31,7 +31,7 @@ export interface AutocompleteState {
 
 export function getAutocomplete(
   query: string,
-  availableAttempts?: number[],
+  availableAttempts: number[],
 ): AutocompleteState {
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';

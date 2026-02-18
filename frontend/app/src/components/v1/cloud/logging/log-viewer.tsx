@@ -1,8 +1,8 @@
+import { AnsiLine } from './ansi-line';
 import { LogLine } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import Convert from 'ansi-to-html';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -14,19 +14,6 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   second: '2-digit',
   hour12: false,
 };
-
-const ansiConverter = new Convert({
-  newline: true,
-  escapeXML: true,
-  colors: {
-    1: 'var(--terminal-red)',
-    2: 'var(--terminal-green)',
-    3: 'var(--terminal-yellow)',
-    4: 'var(--terminal-blue)',
-    5: 'var(--terminal-magenta)',
-    6: 'var(--terminal-cyan)',
-  },
-});
 
 const LEVEL_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   {
@@ -269,9 +256,9 @@ export function LogViewer({
         </div>
 
         {/* Data rows */}
-        {sortedLogs.map((log, idx) => (
+        {sortedLogs.map((log) => (
           <div
-            key={`${log.timestamp}-${idx}`}
+            key={`${log.timestamp}-${log.instance ?? ''}-${log.attempt ?? ''}`}
             className="col-span-full items-baseline grid grid-cols-subgrid border-b border-border/40 hover:bg-muted/30 transition-colors group"
             style={{ gridColumn: `1 / span ${colCount}` }}
           >
@@ -303,12 +290,9 @@ export function LogViewer({
                 {log.attempt ?? '—'}
               </div>
             )}
-            <div
-              className="px-3 py-1.5 font-mono text-xs text-foreground truncate group-hover:whitespace-normal group-hover:break-words [&_span]:inline"
-              dangerouslySetInnerHTML={{
-                __html: ansiConverter.toHtml(log.line || ''),
-              }}
-            />
+            <div className="px-3 py-1.5 font-mono text-xs text-foreground truncate group-hover:whitespace-normal group-hover:break-words">
+              <AnsiLine text={log.line ?? ''} />
+            </div>
           </div>
         ))}
       </div>

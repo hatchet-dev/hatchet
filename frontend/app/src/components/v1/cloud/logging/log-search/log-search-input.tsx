@@ -13,13 +13,11 @@ export function LogSearchInput({
   const { queryString, setQueryString, availableAttempts } = useLogsContext();
 
   return (
-    <SearchBarWithFilters<AutocompleteSuggestion>
+    <SearchBarWithFilters<AutocompleteSuggestion, number[]>
       value={queryString}
       onChange={setQueryString}
       onSubmit={setQueryString}
-      getAutocomplete={(query, context) =>
-        getAutocomplete(query, context as number[] | undefined)
-      }
+      getAutocomplete={getAutocomplete}
       applySuggestion={applySuggestion}
       autocompleteContext={availableAttempts}
       placeholder={placeholder}

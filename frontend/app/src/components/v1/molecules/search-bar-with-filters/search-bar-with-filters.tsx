@@ -53,19 +53,34 @@ export interface CustomFilterInputProps {
 
 export interface SearchBarWithFiltersProps<
   TSuggestion extends SearchSuggestion,
+  TContext,
 > {
   // Value control
   value: string;
+  /**
+   * Called when a complete filter value is selected from the dropdown, or when
+   * the input is cleared. NOT called on every keystroke — the component buffers
+   * input locally and only notifies the parent on meaningful state changes.
+   *
+   * Also serves as the fallback for Enter when `onSubmit` is not provided.
+   */
   onChange: (value: string) => void;
+  /**
+   * Called when Enter is pressed while the dropdown is closed or has no
+   * suggestions (i.e. the user wants to search with the current free-text
+   * value as-is). When the dropdown is open, Enter autocompletes instead.
+   *
+   * If omitted, `onChange` is used as a fallback.
+   */
   onSubmit?: (value: string) => void;
 
   // Autocomplete functions (domain-specific)
   getAutocomplete: (
     query: string,
-    context?: unknown,
+    context: TContext,
   ) => AutocompleteResult<TSuggestion>;
   applySuggestion: (query: string, suggestion: TSuggestion) => string;
-  autocompleteContext?: unknown;
+  autocompleteContext: TContext;
 
   // Custom rendering
   renderSuggestion?: (
@@ -136,7 +151,10 @@ const parseFilterSegments = (
 // Component
 // ============================================================================
 
-export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
+export function SearchBarWithFilters<
+  TSuggestion extends SearchSuggestion,
+  TContext,
+>({
   value,
   onChange,
   onSubmit,
@@ -151,7 +169,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
   searchIcon,
   clearIcon,
   popoverClassName,
-}: SearchBarWithFiltersProps<TSuggestion>) {
+}: SearchBarWithFiltersProps<TSuggestion, TContext>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const justSelectedRef = useRef(false);
@@ -167,6 +185,15 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
+
+  // Clear any pending blur timeout when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const segments = useMemo(
     () =>
@@ -193,7 +220,10 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
     return () => input.removeEventListener('scroll', syncScroll);
   }, [localValue, hasColoredFilters]);
 
-  const { suggestions } = getAutocomplete(localValue, autocompleteContext);
+  const { suggestions } = useMemo(
+    () => getAutocomplete(localValue, autocompleteContext),
+    [getAutocomplete, localValue, autocompleteContext],
+  );
 
   // Reset selection when suggestions change (e.g., from keys to values after selecting a key)
   useEffect(() => {
@@ -231,28 +261,6 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
       onChange(localValue);
     }
   }, [localValue, onChange, onSubmit]);
-
-  // const handleFilterChipClick = useCallback(
-  //   (filterKey: string) => {
-  //     if (onFilterChipClick) {
-  //       onFilterChipClick(filterKey);
-  //       return;
-  //     }
-
-  //     const newValue = localValue ? `${localValue} ${filterKey}` : filterKey;
-  //     setLocalValue(newValue);
-  //     // Don't call onChange - user is still building the filter
-  //     setIsOpen(true);
-  //     setTimeout(() => {
-  //       const input = inputRef.current;
-  //       if (input) {
-  //         input.focus();
-  //         input.setSelectionRange(newValue.length, newValue.length);
-  //       }
-  //     }, 0);
-  //   },
-  //   [localValue, onFilterChipClick],
-  // );
 
   const handleSelect = useCallback(
     (index: number) => {
@@ -477,6 +485,7 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               <button
                 type="button"
                 onClick={handleClear}
+                aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 data-cy="search-bar-clear"
               >
@@ -532,39 +541,6 @@ export function SearchBarWithFilters<TSuggestion extends SearchSuggestion>({
               </CommandList>
             </Command>
           )}
-          {/* {filterChips && filterChips.length > 0 && (
-            <div
-              className={cn(
-                'flex flex-col gap-2 px-3 py-2 text-xs',
-                suggestions.length > 0 && 'border-t',
-              )}
-              data-cy="search-bar-filter-chips"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">
-                  Available filters:
-                </span>
-                {filterChips.map((chip) => (
-                  <Button
-                    key={chip.key}
-                    variant="outline"
-                    size="xs"
-                    className="h-auto px-2 py-0.5 text-xs"
-                    onClick={() => handleFilterChipClick(chip.key)}
-                    data-cy={`filter-chip-${chip.key.replace(':', '')}`}
-                  >
-                    {chip.label}
-                  </Button>
-                ))}
-              </div>
-              <div className="text-muted-foreground space-y-1">
-                <div>
-                  Arrow keys to navigate, tab or enter to autocomplete. Type any
-                  text for full-text search.
-                </div>
-              </div>
-            </div>
-          )} */}
         </PopoverContent>
       </Popover>
     </div>
