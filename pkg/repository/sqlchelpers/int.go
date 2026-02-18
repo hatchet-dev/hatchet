@@ -9,9 +9,15 @@ func ToInt(i int32) pgtype.Int4 {
 	}
 }
 
-func ToBigInt(i int64) pgtype.Int8 {
+func ToBigInt(i *int64) pgtype.Int8 {
+	if i == nil {
+		return pgtype.Int8{
+			Valid: false,
+		}
+	}
+
 	return pgtype.Int8{
 		Valid: true,
-		Int64: i,
+		Int64: *i,
 	}
 }
