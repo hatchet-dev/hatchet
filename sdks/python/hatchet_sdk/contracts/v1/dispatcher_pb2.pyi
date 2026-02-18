@@ -59,14 +59,16 @@ class DurableTaskEventAckResponse(_message.Message):
     def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
-    __slots__ = ("durable_task_external_id", "node_id", "payload")
+    __slots__ = ("durable_task_external_id", "node_id", "payload", "invocation_count")
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     durable_task_external_id: str
     node_id: int
     payload: bytes
-    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., payload: _Optional[bytes] = ...) -> None: ...
+    invocation_count: int
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., payload: _Optional[bytes] = ..., invocation_count: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEvictInvocationRequest(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id")
@@ -85,12 +87,14 @@ class DurableTaskEvictionAckResponse(_message.Message):
     def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ...) -> None: ...
 
 class DurableTaskAwaitedCompletedEntry(_message.Message):
-    __slots__ = ("durable_task_external_id", "node_id")
+    __slots__ = ("durable_task_external_id", "node_id", "invocation_count")
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     durable_task_external_id: str
     node_id: int
-    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
+    invocation_count: int
+    def __init__(self, durable_task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., invocation_count: _Optional[int] = ...) -> None: ...
 
 class DurableTaskWorkerStatusRequest(_message.Message):
     __slots__ = ("worker_id", "node_id", "branch_id", "waiting_entries")

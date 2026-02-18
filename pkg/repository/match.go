@@ -159,6 +159,7 @@ type SatisfiedEntry struct {
 	DurableTaskInsertedAt pgtype.Timestamptz
 	NodeId                int64
 	Data                  []byte
+	InvocationCount       int64
 }
 
 type MatchRepository interface {

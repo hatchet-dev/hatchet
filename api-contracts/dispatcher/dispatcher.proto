@@ -186,6 +186,9 @@ message AssignedAction {
 
     // (optional) the workflow version id
     optional string workflow_version_id = 20;
+
+    // the number of times this durable task has been restored from eviction
+    int32 durable_invocation_count = 21;
 }
 
 message WorkerListenRequest {

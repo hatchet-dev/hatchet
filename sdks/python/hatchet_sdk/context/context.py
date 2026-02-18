@@ -342,7 +342,7 @@ class Context:
         :return: The attempt number of the current task run.
         """
 
-        return self.retry_count + 1
+        return self.action.invocation_count
 
     @property
     def max_attempts(self) -> int:
@@ -546,12 +546,9 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        invocation_count = self.attempt_number
-
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            ## todo: figure out how to store this invocation count properly
-            invocation_count=invocation_count,
+            invocation_count=self.attempt_number,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
             payload=None,
             wait_for_conditions=conditions_proto,
@@ -564,6 +561,7 @@ class DurableContext(Context):
             result = await await_with_cancellation(
                 self.durable_event_listener.wait_for_callback(
                     durable_task_external_id=self.step_run_id,
+                    invocation_count=self.attempt_number,
                     node_id=node_id,
                 ),
                 self.cancellation_token,
@@ -618,6 +616,7 @@ class DurableContext(Context):
             result = await await_with_cancellation(
                 self.durable_event_listener.wait_for_callback(
                     durable_task_external_id=self.step_run_id,
+                    invocation_count=self.attempt_number,
                     node_id=node_id,
                 ),
                 self.cancellation_token,

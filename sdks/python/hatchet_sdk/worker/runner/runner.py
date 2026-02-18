@@ -166,7 +166,7 @@ class Runner:
         self.durable_eviction_manager = DurableEvictionManager(
             durable_slots=self.durable_slots,
             cancel_remote=self.runs_client.aio_cancel,
-            request_eviction_ack=self._request_eviction_ack,
+            request_eviction_with_ack=self._request_eviction_ack,
             config=durable_eviction_config,
         )
         self.durable_eviction_manager.start()
@@ -455,6 +455,10 @@ class Runner:
     def cleanup_run_id(self, key: ActionKey) -> None:
         # Ensure we don't leak eviction records.
         self.durable_eviction_manager.unregister_run(key)
+
+        ctx = self.contexts.get(key)
+        if ctx is not None:
+            self.durable_event_listener.clear_pending_for_task(ctx.step_run_id)
 
         supervisor = self._cancellation_supervisors.pop(key, None)
         if supervisor is not None and not supervisor.done():

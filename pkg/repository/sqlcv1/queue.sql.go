@@ -865,6 +865,7 @@ WITH input AS (
         t.id,
         t.inserted_at,
         t.retry_count,
+        t.durable_invocation_count,
         i.worker_id,
         t.tenant_id,
         t.step_id,
@@ -881,6 +882,7 @@ WITH input AS (
         task_id,
         task_inserted_at,
         retry_count,
+        durable_invocation_count,
         worker_id,
         tenant_id,
         timeout_at
@@ -889,6 +891,7 @@ WITH input AS (
         t.id,
         t.inserted_at,
         t.retry_count,
+        t.durable_invocation_count,
         t.worker_id,
         $5::uuid,
         t.timeout_at
@@ -900,6 +903,7 @@ WITH input AS (
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
     SET
         evicted_at = NULL,
+        durable_invocation_count = EXCLUDED.durable_invocation_count,
         worker_id = EXCLUDED.worker_id,
         timeout_at = EXCLUDED.timeout_at
     WHERE v1_task_runtime.evicted_at IS NOT NULL

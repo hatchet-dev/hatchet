@@ -305,6 +305,7 @@ CREATE TABLE v1_task (
     concurrency_keys TEXT[],
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
+    durable_invocation_count INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -418,6 +419,7 @@ CREATE TABLE v1_task_runtime (
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
     evicted_at TIMESTAMPTZ DEFAULT NULL,
+    durable_invocation_count INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );

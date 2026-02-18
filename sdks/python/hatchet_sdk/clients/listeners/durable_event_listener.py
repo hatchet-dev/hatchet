@@ -86,7 +86,7 @@ class DurableEventListener:
             tuple[str, int], asyncio.Future[DurableTaskEvictionAck]
         ] = {}
         self._pending_callbacks: dict[
-            tuple[str, int], asyncio.Future[DurableTaskCallbackResult]
+            tuple[str, int, int], asyncio.Future[DurableTaskCallbackResult]
         ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
@@ -166,9 +166,10 @@ class DurableEventListener:
         waiting = [
             DurableTaskAwaitedCompletedEntry(
                 durable_task_external_id=task_ext_id,
+                invocation_count=invocation_count,
                 node_id=node_id,
             )
-            for (task_ext_id, node_id) in self._pending_callbacks
+            for (task_ext_id, invocation_count, node_id) in self._pending_callbacks
         ]
 
         request = DurableTaskRequest(
@@ -234,6 +235,7 @@ class DurableEventListener:
             completed = response.entry_completed
             completed_key = (
                 completed.durable_task_external_id,
+                completed.invocation_count,
                 completed.node_id,
             )
             if completed_key in self._pending_callbacks:
@@ -335,12 +337,25 @@ class DurableEventListener:
 
         return await asyncio.to_thread(_restore)
 
+    def clear_pending_for_task(self, durable_task_external_id: str) -> None:
+        for d in (
+            self._pending_callbacks,
+            self._pending_event_acks,
+            self._pending_eviction_acks,
+        ):
+            to_remove = [k for k in d if k[0] == durable_task_external_id]
+            for k in to_remove:
+                future = d.pop(k)
+                if not future.done():
+                    future.cancel()
+
     async def wait_for_callback(
         self,
         durable_task_external_id: str,
+        invocation_count: int,
         node_id: int,
     ) -> DurableTaskCallbackResult:
-        key = (durable_task_external_id, node_id)
+        key = (durable_task_external_id, invocation_count, node_id)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskCallbackResult] = asyncio.Future()

@@ -170,7 +170,8 @@ WITH lookup_rows AS (
         t.child_index,
         t.child_key,
         t.step_readable_id,
-        l.external_id AS workflow_run_external_id
+        l.external_id AS workflow_run_external_id,
+        t.durable_invocation_count
     FROM
         lookup_rows l
     JOIN
@@ -194,7 +195,8 @@ SELECT
     t.child_index,
     t.child_key,
     t.step_readable_id,
-    t.external_id AS workflow_run_external_id
+    t.external_id AS workflow_run_external_id,
+    t.durable_invocation_count
 FROM
     lookup_rows l
 JOIN
@@ -1031,6 +1033,8 @@ SELECT
 -- Restores an evicted task by inserting it directly into the assignment queue.
 -- The evicted runtime row stays (evicted_at set); when the queue item is assigned,
 -- the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.
+-- Increments durable_invocation_count so the SDK sends a higher invocation_count,
+-- causing the engine to detect isNewInvocation=true and replay the durable event log.
 WITH evicted_runtime AS (
     SELECT
         r.task_id,
@@ -1045,6 +1049,13 @@ WITH evicted_runtime AS (
         AND r.retry_count = @retryCount::int
         AND r.evicted_at IS NOT NULL
     FOR UPDATE
+), incremented_task AS (
+    UPDATE v1_task
+    SET durable_invocation_count = durable_invocation_count + 1
+    WHERE id = @taskId::bigint
+        AND inserted_at = @taskInsertedAt::timestamptz
+        AND EXISTS (SELECT 1 FROM evicted_runtime)
+    RETURNING *
 ), inserted_qi AS (
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -1080,23 +1091,13 @@ WITH evicted_runtime AS (
         t.desired_worker_id,
         t.retry_count
     FROM
-        v1_task t
-    WHERE
-        t.id = @taskId::bigint
-        AND t.inserted_at = @taskInsertedAt::timestamptz
-        AND EXISTS (SELECT 1 FROM evicted_runtime)
+        incremented_task t
     RETURNING queue
-), reset_log_file AS (
-    UPDATE v1_durable_event_log_file
-    SET latest_node_id = 0
-    WHERE durable_task_id = @taskId::bigint
-      AND durable_task_inserted_at = @taskInsertedAt::timestamptz
-      AND EXISTS (SELECT 1 FROM inserted_qi)
 )
 SELECT
     COALESCE((SELECT 1 FROM evicted_runtime LIMIT 1), 0)::int AS "wasEvicted",
     COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued",
-    COALESCE((SELECT queue FROM inserted_qi LIMIT 1), '') AS "queue";
+    COALESCE((SELECT queue FROM inserted_qi LIMIT 1), '')::text AS "queue";
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.

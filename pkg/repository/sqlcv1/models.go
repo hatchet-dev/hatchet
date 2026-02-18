@@ -3473,6 +3473,7 @@ type V1Task struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
+	DurableInvocationCount       int32              `json:"durable_invocation_count"`
 }
 
 type V1TaskEvent struct {
@@ -3531,13 +3532,14 @@ type V1TaskExpressionEval struct {
 }
 
 type V1TaskRuntime struct {
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	WorkerID       *uuid.UUID         `json:"worker_id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
-	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
+	TaskID                 int64              `json:"task_id"`
+	TaskInsertedAt         pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount             int32              `json:"retry_count"`
+	WorkerID               *uuid.UUID         `json:"worker_id"`
+	TenantID               uuid.UUID          `json:"tenant_id"`
+	TimeoutAt              pgtype.Timestamp   `json:"timeout_at"`
+	EvictedAt              pgtype.Timestamptz `json:"evicted_at"`
+	DurableInvocationCount int32              `json:"durable_invocation_count"`
 }
 
 type V1TaskRuntimeSlot struct {

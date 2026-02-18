@@ -814,7 +814,7 @@ WITH tasks AS (
 )
 
 SELECT
-    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.tenant_id, rt.timeout_at, rt.evicted_at,
+    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.tenant_id, rt.timeout_at, rt.evicted_at, rt.durable_invocation_count,
     w."durableTaskDispatcherId"
 FROM v1_task_runtime rt
 JOIN "Worker" w ON rt.worker_id = w.id
@@ -841,6 +841,7 @@ type ListDurableTaskDispatcherIdsForTasksRow struct {
 	TenantID                uuid.UUID          `json:"tenant_id"`
 	TimeoutAt               pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt               pgtype.Timestamptz `json:"evicted_at"`
+	DurableInvocationCount  int32              `json:"durable_invocation_count"`
 	DurableTaskDispatcherId *uuid.UUID         `json:"durableTaskDispatcherId"`
 }
 
@@ -861,6 +862,7 @@ func (q *Queries) ListDurableTaskDispatcherIdsForTasks(ctx context.Context, db D
 			&i.TenantID,
 			&i.TimeoutAt,
 			&i.EvictedAt,
+			&i.DurableInvocationCount,
 			&i.DurableTaskDispatcherId,
 		); err != nil {
 			return nil, err

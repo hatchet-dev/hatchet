@@ -38,9 +38,27 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 
 	tc.l.Warn().Msgf("  found %d dispatcher mappings for %d tasks", len(idInsertedAtToDispatcherId), len(idInsertedAtTuples))
 
+	// Look up invocation counts for all unique task external IDs.
+	taskInvocationCounts := make(map[uuid.UUID]int64)
+	for _, cb := range callbacks {
+		if _, ok := taskInvocationCounts[cb.DurableTaskExternalId]; ok {
+			continue
+		}
+
+		task, err := tc.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, cb.DurableTaskExternalId, true)
+		if err != nil {
+			tc.l.Error().Err(err).Msgf("failed to look up task %s for invocation count", cb.DurableTaskExternalId)
+			continue
+		}
+
+		taskInvocationCounts[cb.DurableTaskExternalId] = int64(task.RetryCount) + 1 + int64(task.DurableInvocationCount)
+	}
+
 	dispatcherToMsgs := make(map[uuid.UUID][]*msgqueue.Message)
 
 	for _, cb := range callbacks {
+		invocationCount := taskInvocationCounts[cb.DurableTaskExternalId]
+
 		key := v1.IdInsertedAt{
 			ID:         cb.DurableTaskId,
 			InsertedAt: cb.DurableTaskInsertedAt,
@@ -51,7 +69,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 		if !ok {
 			tc.l.Warn().Msgf("could not find dispatcher id for task %d inserted at %s, publishing restore", cb.DurableTaskId, cb.DurableTaskInsertedAt.Time)
 
-			restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, cb.DurableTaskExternalId, "callback satisfied, no dispatcher")
+			restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, cb.DurableTaskExternalId, invocationCount, "callback satisfied, no dispatcher")
 			if err != nil {
 				tc.l.Error().Err(err).Msgf("failed to create restore message for task %s", cb.DurableTaskExternalId)
 				continue
@@ -68,6 +86,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 			tenantId,
 			cb.DurableTaskExternalId,
 			cb.NodeId,
+			invocationCount,
 			cb.Data,
 		)
 		if err != nil {
@@ -95,7 +114,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 	tc.l.Warn().Msgf("handleDurableRestoreTask: received %d restore messages", len(msgs))
 
 	for _, msg := range msgs {
-		tc.l.Warn().Msgf("  restoring task externalId=%s reason=%s", msg.TaskExternalId, msg.Reason)
+		tc.l.Warn().Msgf("  restoring task externalId=%s invocationCount=%d reason=%s", msg.TaskExternalId, msg.InvocationCount, msg.Reason)
 
 		task, err := tc.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, msg.TaskExternalId, true)
 		if err != nil {
@@ -103,7 +122,15 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 			continue
 		}
 
-		tc.l.Warn().Msgf("  looked up task: id=%d retryCount=%d", task.ID, task.RetryCount)
+		currentInvocationCount := int64(task.RetryCount) + 1 + int64(task.DurableInvocationCount)
+		tc.l.Warn().Msgf("  looked up task: id=%d retryCount=%d durableInvocationCount=%d currentInvocationCount=%d",
+			task.ID, task.RetryCount, task.DurableInvocationCount, currentInvocationCount)
+
+		if msg.InvocationCount > 0 && msg.InvocationCount < currentInvocationCount {
+			tc.l.Warn().Msgf("  rejecting stale restore for %s: msg invocation %d < current %d",
+				msg.TaskExternalId, msg.InvocationCount, currentInvocationCount)
+			continue
+		}
 
 		requeued, queue, err := tc.repov1.Tasks().RestoreEvictedTask(ctx, tenantId, v1.TaskIdInsertedAtRetryCount{
 			Id:         task.ID,

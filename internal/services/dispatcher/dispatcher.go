@@ -50,7 +50,7 @@ type DispatcherImpl struct {
 	workers      *workers
 	a            *hatcheterrors.Wrapped
 
-	durableCallbackFn func(taskExternalId uuid.UUID, nodeId int64, payload []byte) error
+	durableCallbackFn func(taskExternalId uuid.UUID, nodeId int64, invocationCount int32, payload []byte) error
 	version           string
 }
 
@@ -397,7 +397,7 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 	return d.dispatcherId
 }
 
-func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int64, []byte) error) {
+func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int64, int32, []byte) error) {
 	d.durableCallbackFn = fn
 }
 
@@ -414,13 +414,14 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		err := d.durableCallbackFn(
 			payload.TaskExternalId,
 			payload.NodeId,
+			int32(payload.InvocationCount), // nolint: gosec
 			payload.Payload,
 		)
 
 		if err != nil {
 			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s, publishing restore", payload.TaskExternalId)
 
-			restoreMsg, msgErr := tasktypes.DurableRestoreTaskMessage(tenantId, payload.TaskExternalId, "callback delivery failed")
+			restoreMsg, msgErr := tasktypes.DurableRestoreTaskMessage(tenantId, payload.TaskExternalId, payload.InvocationCount, "callback delivery failed")
 			if msgErr != nil {
 				d.l.Error().Err(msgErr).Msgf("failed to create restore message for task %s", payload.TaskExternalId)
 				continue

@@ -572,6 +572,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
 			ingestionResult.NodeId,
+			task.DurableInvocationCount,
 			ingestionResult.EventLogEntry.ResultPayload,
 		)
 
@@ -645,6 +646,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingEntries))
+	invocationCounts := make(map[string]int32)
 	for _, cb := range req.WaitingEntries {
 		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
 		if err != nil {
@@ -655,6 +657,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			TaskExternalId: taskExternalId,
 			NodeId:         cb.NodeId,
 		})
+		invocationCounts[fmt.Sprintf("%s/%d", taskExternalId, cb.NodeId)] = int32(cb.InvocationCount) //nolint: gosec
 	}
 
 	if len(waiting) == 0 {
@@ -667,12 +670,14 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	for _, cb := range callbacks {
+		key := fmt.Sprintf("%s/%d", cb.TaskExternalId, cb.NodeID)
 		if err := invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_EntryCompleted{
 				EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 					DurableTaskExternalId: cb.TaskExternalId.String(),
 					NodeId:                cb.NodeID,
 					Payload:               cb.Result,
+					InvocationCount:       int64(invocationCounts[key]),
 				},
 			},
 		}); err != nil {
@@ -683,7 +688,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	return nil
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, invocationCount int32, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
@@ -695,6 +700,7 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 				DurableTaskExternalId: taskExternalId.String(),
 				NodeId:                nodeId,
 				Payload:               payload,
+				InvocationCount:       int64(invocationCount), //nolint: gosec
 			},
 		},
 	})

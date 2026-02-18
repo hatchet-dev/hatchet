@@ -216,20 +216,21 @@ type CandidateFinalizedPayload struct {
 }
 
 type DurableRestoreTaskPayload struct {
-	Reason         string
-	TaskExternalId uuid.UUID
+	Reason          string
+	TaskExternalId  uuid.UUID
+	InvocationCount int64
 }
 
-func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, reason string) (*msgqueue.Message, error) {
-	// TODO-DURABLE: we likely will need to put the invocation_attempt on this message and reject old attempts downstream
+func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int64, reason string) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDDurableRestoreTask,
 		false,
 		true,
 		DurableRestoreTaskPayload{
-			TaskExternalId: taskExternalId,
-			Reason:         reason,
+			TaskExternalId:  taskExternalId,
+			InvocationCount: invocationCount,
+			Reason:          reason,
 		},
 	)
 }
@@ -242,7 +243,7 @@ type DurableCallbackCompletedPayload struct {
 }
 
 func DurableCallbackCompletedMessage(
-	tenantId, taskExternalId uuid.UUID, nodeId int64, payload []byte,
+	tenantId, taskExternalId uuid.UUID, nodeId int64, invocationCount int64, payload []byte,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -250,9 +251,10 @@ func DurableCallbackCompletedMessage(
 		false,
 		true,
 		DurableCallbackCompletedPayload{
-			TaskExternalId: taskExternalId,
-			NodeId:         nodeId,
-			Payload:        payload,
+			TaskExternalId:  taskExternalId,
+			NodeId:          nodeId,
+			InvocationCount: invocationCount,
+			Payload:         payload,
 		},
 	)
 }

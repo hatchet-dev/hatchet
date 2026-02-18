@@ -40,13 +40,15 @@ class DurableEvictionManager:
         *,
         durable_slots: int,
         cancel_remote: Callable[[str], Awaitable[None]],
-        request_eviction_ack: Callable[[ActionKey, DurableRunRecord], Awaitable[None]],
+        request_eviction_with_ack: Callable[
+            [ActionKey, DurableRunRecord], Awaitable[None]
+        ],
         config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
         cache: DurableEvictionCache | None = None,
     ) -> None:
         self._durable_slots = durable_slots
         self._cancel_remote = cancel_remote
-        self._request_eviction_ack = request_eviction_ack
+        self._request_eviction_with_ack = request_eviction_with_ack
         self._config = config
         self._cache: DurableEvictionCache = cache or InMemoryDurableEvictionCache()
 
@@ -157,10 +159,12 @@ class DurableEvictionManager:
                 )
 
                 # Notify server via DurableTask stream and wait for ack before unwinding.
-                await self._request_eviction_ack(key, rec)
+                await self._request_eviction_with_ack(key, rec)
 
                 # Unwind locally (causes waits to raise).
                 rec.token.cancel(CancellationReason.EVICTED)
+
+                self.unregister_run(key)
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
