@@ -258,7 +258,7 @@ type TaskRepository interface {
 	// Durable eviction support
 	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error)
 
-	RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error)
+	RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (requeued bool, queue string, err error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
@@ -1599,11 +1599,11 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 	return evicted > 0, nil
 }
 
-func (r *TaskRepositoryImpl) RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error) {
+func (r *TaskRepositoryImpl) RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, string, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 
 	defer rollback()
@@ -1615,14 +1615,14 @@ func (r *TaskRepositoryImpl) RestoreEvictedTask(ctx context.Context, tenantId uu
 		Retrycount:     task.RetryCount,
 	})
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 
 	if err := commit(ctx); err != nil {
-		return false, err
+		return false, "", err
 	}
 
-	return row.Queued > 0, nil
+	return row.Queued > 0, row.Queue, nil
 }
 
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {

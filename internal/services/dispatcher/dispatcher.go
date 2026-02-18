@@ -406,6 +406,8 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		return nil
 	}
 
+	tenantId := task.TenantID
+
 	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](task.Payloads)
 
 	for _, payload := range payloads {
@@ -416,7 +418,17 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		)
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
+			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s, publishing restore", payload.TaskExternalId)
+
+			restoreMsg, msgErr := tasktypes.DurableRestoreTaskMessage(tenantId, payload.TaskExternalId, "callback delivery failed")
+			if msgErr != nil {
+				d.l.Error().Err(msgErr).Msgf("failed to create restore message for task %s", payload.TaskExternalId)
+				continue
+			}
+
+			if sendErr := d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); sendErr != nil {
+				d.l.Error().Err(sendErr).Msgf("failed to publish restore message for task %s", payload.TaskExternalId)
+			}
 		}
 	}
 

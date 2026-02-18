@@ -1085,15 +1085,23 @@ WITH evicted_runtime AS (
         t.id = @taskId::bigint
         AND t.inserted_at = @taskInsertedAt::timestamptz
         AND EXISTS (SELECT 1 FROM evicted_runtime)
-    RETURNING 1
+    RETURNING queue
+), reset_log_file AS (
+    UPDATE v1_durable_event_log_file
+    SET latest_node_id = 0
+    WHERE durable_task_id = @taskId::bigint
+      AND durable_task_inserted_at = @taskInsertedAt::timestamptz
+      AND EXISTS (SELECT 1 FROM inserted_qi)
 )
 SELECT
     COALESCE((SELECT 1 FROM evicted_runtime LIMIT 1), 0)::int AS "wasEvicted",
-    COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued";
+    COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued",
+    COALESCE((SELECT queue FROM inserted_qi LIMIT 1), '') AS "queue";
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
 -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
+
 WITH input AS (
     SELECT
         UNNEST(@concurrencyParentStrategyIds::bigint[]) AS parent_strategy_id,

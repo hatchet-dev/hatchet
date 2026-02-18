@@ -856,46 +856,17 @@ func (d *DispatcherImpl) restoreEvictedTaskV1(ctx context.Context, tenant *sqlcv
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
 	}
 
-	// waking is a user-driven action, so we can safely skip the cache
-	task, err := d.getSingleTask(ctx, tenantId, taskExternalId, true)
+	restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, taskExternalId, "Woken by user")
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to create restore message: %v", err)
 	}
 
-	// Restore should behave like replay (reset task attempt) but without touching replay's preflight rules.
-	// We keep holding concurrency slots, so restore uses a dedicated path in the durable-eviction repo methods.
-	requeued, err := d.repov1.Tasks().RestoreEvictedTask(ctx, tenantId, v1.TaskIdInsertedAtRetryCount{
-		Id:         task.ID,
-		InsertedAt: task.InsertedAt,
-		RetryCount: task.RetryCount,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Emit DURABLE_RESTORING for observability / UI inference.
-	if requeued {
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
-				EventTimestamp: time.Now(),
-				EventType:      sqlcv1.V1EventTypeOlapDURABLERESTORING,
-				EventMessage:   "Woken by user",
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-			return nil, err
-		}
+	if err := d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to publish restore message: %v", err)
 	}
 
 	return &contracts.RestoreEvictedTaskResponse{
-		Requeued: requeued,
+		Requeued: true,
 	}, nil
 }
 

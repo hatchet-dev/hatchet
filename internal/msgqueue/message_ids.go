@@ -4,6 +4,7 @@ package msgqueue
 const (
 	MsgIDCancelTasks                  = "cancel-tasks"
 	MsgIDDurableCallbackCompleted     = "durable-callback-completed"
+	MsgIDDurableRestoreTask           = "durable-restore-task"
 	MsgIDCELEvaluationFailure         = "cel-evaluation-failure"
 	MsgIDCheckTenantQueue             = "check-tenant-queue"
 	MsgIDNewWorker                    = "new-worker"

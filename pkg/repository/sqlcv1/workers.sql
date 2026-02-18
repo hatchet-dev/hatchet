@@ -492,6 +492,7 @@ FROM v1_task_runtime rt
 JOIN "Worker" w ON rt.worker_id = w.id
 WHERE
     rt.tenant_id = @tenantId::uuid
+    AND rt.evicted_at IS NULL
     AND (rt.task_id, rt.task_inserted_at) IN (
         SELECT task_id, task_inserted_at
         FROM tasks

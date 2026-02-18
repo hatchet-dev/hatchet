@@ -437,6 +437,9 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessInternalEvents(context.Background(), tenantId, payloads)
 	case msgqueue.MsgIDTaskTrigger:
 		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
+	case msgqueue.MsgIDDurableRestoreTask:
+		// TODO: should we be using context.Background() here?
+		return tc.handleDurableRestoreTask(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -482,6 +485,11 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
+
+	tc.l.Warn().Msgf("handleTaskCompleted: %d internal events from %d completed tasks", len(res.InternalEvents), len(msgs))
+	for i, ev := range res.InternalEvents {
+		tc.l.Warn().Msgf("  internal event[%d]: taskExternalId=%s type=%s key=%s", i, ev.TaskExternalID, ev.EventType, ev.EventKey)
+	}
 
 	return tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
@@ -1062,6 +1070,8 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
 
+	tc.l.Warn().Msgf("handleProcessInternalEvents: received %d internal events", len(msgs))
+
 	return tc.processInternalEvents(ctx, tenantId, msgs)
 }
 
@@ -1127,6 +1137,9 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	if err != nil {
 		return fmt.Errorf("could not process internal event matches: %w", err)
 	}
+
+	tc.l.Warn().Msgf("processInternalEvents: %d candidates -> %d created, %d replayed, %d satisfied durable entries",
+		len(candidateMatches), len(matchResult.CreatedTasks), len(matchResult.ReplayedTasks), len(matchResult.SatisfiedDurableEventLogEntries))
 
 	if len(matchResult.CreatedTasks) > 0 {
 		err = tc.signaler.SignalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)

@@ -215,6 +215,25 @@ type CandidateFinalizedPayload struct {
 	WorkflowRunId uuid.UUID `validate:"required"`
 }
 
+type DurableRestoreTaskPayload struct {
+	Reason         string
+	TaskExternalId uuid.UUID
+}
+
+func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, reason string) (*msgqueue.Message, error) {
+	// TODO-DURABLE: we likely will need to put the invocation_attempt on this message and reject old attempts downstream
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDDurableRestoreTask,
+		false,
+		true,
+		DurableRestoreTaskPayload{
+			TaskExternalId: taskExternalId,
+			Reason:         reason,
+		},
+	)
+}
+
 type DurableCallbackCompletedPayload struct {
 	TaskExternalId  uuid.UUID
 	NodeId          int64

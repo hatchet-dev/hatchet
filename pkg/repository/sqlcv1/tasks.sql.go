@@ -2721,11 +2721,18 @@ WITH evicted_runtime AS (
         t.id = $2::bigint
         AND t.inserted_at = $3::timestamptz
         AND EXISTS (SELECT 1 FROM evicted_runtime)
-    RETURNING 1
+    RETURNING queue
+), reset_log_file AS (
+    UPDATE v1_durable_event_log_file
+    SET latest_node_id = 0
+    WHERE durable_task_id = $2::bigint
+      AND durable_task_inserted_at = $3::timestamptz
+      AND EXISTS (SELECT 1 FROM inserted_qi)
 )
 SELECT
     COALESCE((SELECT 1 FROM evicted_runtime LIMIT 1), 0)::int AS "wasEvicted",
-    COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued"
+    COALESCE((SELECT 1 FROM inserted_qi LIMIT 1), 0)::int AS "queued",
+    COALESCE((SELECT queue FROM inserted_qi LIMIT 1), '') AS "queue"
 `
 
 type RestoreEvictedTaskParams struct {
@@ -2736,8 +2743,9 @@ type RestoreEvictedTaskParams struct {
 }
 
 type RestoreEvictedTaskRow struct {
-	WasEvicted int32 `json:"wasEvicted"`
-	Queued     int32 `json:"queued"`
+	WasEvicted int32  `json:"wasEvicted"`
+	Queued     int32  `json:"queued"`
+	Queue      string `json:"queue"`
 }
 
 // TODO: think through this further...
@@ -2752,6 +2760,6 @@ func (q *Queries) RestoreEvictedTask(ctx context.Context, db DBTX, arg RestoreEv
 		arg.Retrycount,
 	)
 	var i RestoreEvictedTaskRow
-	err := row.Scan(&i.WasEvicted, &i.Queued)
+	err := row.Scan(&i.WasEvicted, &i.Queued, &i.Queue)
 	return &i, err
 }
