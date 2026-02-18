@@ -105,7 +105,7 @@ CREATE TABLE v1_durable_event_log_entry (
     -- times through the lifecycle of a event, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
 
-    CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
+    CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
 SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE, 80);
