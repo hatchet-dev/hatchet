@@ -20,6 +20,7 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
+    RestoreEvictedTaskResult,
 )
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
@@ -29,9 +30,7 @@ from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_CANCELLATION_FAILED,
     STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
-    STEP_EVENT_TYPE_CANCELLING,
     STEP_EVENT_TYPE_COMPLETED,
-    STEP_EVENT_TYPE_DURABLE_EVICTED,
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
@@ -167,8 +166,7 @@ class Runner:
         self.durable_eviction_manager = DurableEvictionManager(
             durable_slots=self.durable_slots,
             cancel_remote=self.runs_client.aio_cancel,
-            on_eviction_selected=self._emit_durable_evicted,
-            on_eviction_cancelled=self._emit_durable_eviction_cancelling,
+            request_eviction_ack=self._request_eviction_ack,
             config=durable_eviction_config,
         )
         self.durable_eviction_manager.start()
@@ -806,50 +804,21 @@ class Runner:
         # cancellations (e.g. durable eviction) even if an engine cancel arrives late.
         self._ensure_cancellation_supervision(action)
 
-    async def _emit_durable_evicted(
+    async def _request_eviction_ack(
         self, key: ActionKey, rec: DurableRunRecord
     ) -> None:
         ctx = self.contexts.get(key)
         if ctx is None:
             return
 
-        ttl_seconds: float | None = None
-        if rec.eviction is not None and rec.eviction.ttl is not None:
-            ttl_seconds = rec.eviction.ttl.total_seconds()
-
-        await self.dispatcher_client.send_step_action_event(
-            ctx.action,
-            STEP_EVENT_TYPE_DURABLE_EVICTED,
-            json.dumps(
-                {
-                    "reason": CancellationReason.EVICTED.value,
-                    "wait_kind": rec.wait_kind,
-                    "resource_id": rec.wait_resource_id,
-                    "ttl_seconds": ttl_seconds,
-                    "capacity_allowed": (
-                        rec.eviction.allow_capacity_eviction if rec.eviction else None
-                    ),
-                }
-            ),
-            should_not_retry=False,
-        )
-
-    async def _emit_durable_eviction_cancelling(
-        self, key: ActionKey, rec: DurableRunRecord
-    ) -> None:
-        ctx = self.contexts.get(key)
-        if ctx is None:
-            return
-
-        # Ensure later cancellation handling can still find the correct reason,
-        # even if the engine cancel action arrives after cleanup.
+        # So step_run_callback sees the correct reason after unwinding.
         self.cancellation_reasons[key] = CancellationReason.EVICTED.value
-
-        await self.dispatcher_client.send_step_action_event(
-            ctx.action,
-            STEP_EVENT_TYPE_CANCELLING,
-            json.dumps({"reason": CancellationReason.EVICTED.value}),
-            should_not_retry=False,
+        # TODO-DURABLE: what is ensure started....
+        await self.durable_event_listener.ensure_started(ctx.action.worker_id)
+        invocation_count = ctx.action.retry_count + 1
+        await self.durable_event_listener.send_evict_invocation(
+            durable_task_external_id=rec.step_run_id,
+            invocation_count=invocation_count,
         )
 
     def serialize_output(self, output: Any) -> str | None:
@@ -904,3 +873,9 @@ class Runner:
             logger.info(f"waiting for {running} tasks to finish...")
             await asyncio.sleep(1)
             running = len(self.tasks.keys())
+
+    async def restore_evicted_task(
+        self, task_run_external_id: str
+    ) -> RestoreEvictedTaskResult:
+        """Restore an evicted durable task by requeueing it at highest priority."""
+        return await self.durable_event_listener.restore_task(task_run_external_id)

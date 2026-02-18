@@ -141,10 +141,6 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 		} else {
 			payload.EventType = sqlcv1.V1EventTypeOlapCANCELLATIONFAILED
 		}
-	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED:
-		payload.EventType = sqlcv1.V1EventTypeOlapDURABLEEVICTED
-	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESTORING:
-		payload.EventType = sqlcv1.V1EventTypeOlapDURABLERESTORING
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING:
 		if isEvictedReason(request.EventPayload) {
 			payload.EventType = sqlcv1.V1EventTypeOlapDURABLEEVICTED

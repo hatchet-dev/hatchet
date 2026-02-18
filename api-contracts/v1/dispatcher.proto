@@ -63,6 +63,12 @@ message DurableTaskEvictInvocationRequest {
     string durable_task_external_id = 2;
 }
 
+// Sent by the server after recording eviction for an evict_invocation request.
+message DurableTaskEvictionAckResponse {
+    int64 invocation_count = 1;
+    string durable_task_external_id = 2;
+}
+
 message DurableTaskAwaitedCompletedEntry {
     string durable_task_external_id = 1;
     int64 node_id = 2;
@@ -89,6 +95,7 @@ message DurableTaskResponse {
         DurableTaskResponseRegisterWorker register_worker = 1;
         DurableTaskEventAckResponse trigger_ack = 2;
         DurableTaskEventLogEntryCompletedResponse entry_completed = 3;
+        DurableTaskEvictionAckResponse eviction_ack = 4;
     }
 }
 

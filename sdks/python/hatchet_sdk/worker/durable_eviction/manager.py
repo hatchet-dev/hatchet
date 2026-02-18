@@ -40,19 +40,13 @@ class DurableEvictionManager:
         *,
         durable_slots: int,
         cancel_remote: Callable[[str], Awaitable[None]],
-        on_eviction_selected: (
-            Callable[[ActionKey, DurableRunRecord], Awaitable[None]] | None
-        ) = None,
-        on_eviction_cancelled: (
-            Callable[[ActionKey, DurableRunRecord], Awaitable[None]] | None
-        ) = None,
+        request_eviction_ack: Callable[[ActionKey, DurableRunRecord], Awaitable[None]],
         config: DurableEvictionConfig = DEFAULT_DURABLE_EVICTION_CONFIG,
         cache: DurableEvictionCache | None = None,
     ) -> None:
         self._durable_slots = durable_slots
         self._cancel_remote = cancel_remote
-        self._on_eviction_selected = on_eviction_selected
-        self._on_eviction_cancelled = on_eviction_cancelled
+        self._request_eviction_ack = request_eviction_ack
         self._config = config
         self._cache: DurableEvictionCache = cache or InMemoryDurableEvictionCache()
 
@@ -162,30 +156,11 @@ class DurableEvictionManager:
                     f"capacity_allowed={rec.eviction.allow_capacity_eviction}"
                 )
 
-                # Observability hook: emitted when selected from eviction cache.
-                # Best-effort; eviction should proceed even if this fails.
-                if self._on_eviction_selected is not None:
-                    try:
-                        await self._on_eviction_selected(key, rec)
-                    except Exception:
-                        logger.exception(
-                            "DurableEvictionManager: error emitting eviction event"
-                        )
+                # Notify server via DurableTask stream and wait for ack before unwinding.
+                await self._request_eviction_ack(key, rec)
 
-                # TODO-DURABLE: the eviction event is not optional, and we need to ack it before unwinding locally.
-
-                # Unwind locally ASAP (causes waits to raise).
+                # Unwind locally (causes waits to raise).
                 rec.token.cancel(CancellationReason.EVICTED)
-
-                # Observability hook: emitted when we actually cancel locally.
-                # Best-effort; eviction should proceed even if this fails.
-                if self._on_eviction_cancelled is not None:
-                    try:
-                        await self._on_eviction_cancelled(key, rec)
-                    except Exception:
-                        logger.exception(
-                            "DurableEvictionManager: error emitting eviction cancellation event"
-                        )
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)

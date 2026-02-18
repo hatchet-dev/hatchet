@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 from warnings import warn
 
 from hatchet_sdk.cancellation import CancellationToken
@@ -595,7 +595,7 @@ class DurableContext(Context):
         self,
         workflow: "BaseWorkflow[TWorkflowInput]",
         input: TWorkflowInput = cast(Any, EmptyModel()),
-        options: "TriggerWorkflowOptions" | None = None,
+        options: Optional["TriggerWorkflowOptions"] = None,
     ) -> dict[str, Any]:
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")

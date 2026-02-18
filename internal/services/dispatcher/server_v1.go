@@ -595,10 +595,6 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskCompleted(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleTaskFailed(ctx, task, retryCount, request)
-	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_EVICTED:
-		return s.handleTaskDurableEvicted(ctx, task, retryCount, request)
-	case contracts.StepActionEventType_STEP_EVENT_TYPE_DURABLE_RESTORING:
-		return s.handleTaskDurableRestoring(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED_CONFIRMED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLING,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLATION_FAILED:
@@ -620,74 +616,6 @@ func (s *DispatcherImpl) handleTaskMonitoringOnly(inputCtx context.Context, task
 		request,
 	)
 
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-		return nil, err
-	}
-
-	return &contracts.ActionEventResponse{
-		TenantId: tenantId.String(),
-		WorkerId: request.WorkerId,
-	}, nil
-}
-
-func (s *DispatcherImpl) handleTaskDurableEvicted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID
-
-	_, err := s.repov1.Tasks().EvictTask(inputCtx, tenantId, v1.TaskIdInsertedAtRetryCount{
-		Id:         task.ID,
-		InsertedAt: task.InsertedAt,
-		RetryCount: retryCount,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-		tenantId,
-		task.ID,
-		retryCount,
-		request,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-		return nil, err
-	}
-
-	return &contracts.ActionEventResponse{
-		TenantId: tenantId.String(),
-		WorkerId: request.WorkerId,
-	}, nil
-}
-
-func (s *DispatcherImpl) handleTaskDurableRestoring(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID
-
-	// DURABLE_RESTORING should actually "restore" the task: remove from evicted + requeue with highest priority.
-	// This keeps behavior consistent with the TEMP restore endpoint.
-	_, err := s.repov1.Tasks().RestoreEvictedTask(inputCtx, tenantId, v1.TaskIdInsertedAtRetryCount{
-		Id:         task.ID,
-		InsertedAt: task.InsertedAt,
-		RetryCount: retryCount,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-		tenantId,
-		task.ID,
-		retryCount,
-		request,
-	)
 	if err != nil {
 		return nil, err
 	}
