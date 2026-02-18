@@ -93,14 +93,9 @@ CREATE TABLE v1_durable_event_log_entry (
     parent_node_id BIGINT,
     -- The branch id when this event was first seen. A durable event log can be a part of many branches.
     branch_id BIGINT NOT NULL,
-    -- Todo: Associated data for this event should be stored in the v1_payload table!
-    -- data JSONB,
-    -- The hash of the data stored in the v1_payload table to check non-determinism violations.
-    -- This can be null for event types that don't have associated data.
-    -- TODO: we can add CHECK CONSTRAINT for event types that require data_hash to be non-null.
-    data_hash BYTEA,
-    -- Can discuss: adds some flexibility for future hash algorithms
-    data_hash_alg TEXT,
+    -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
+    -- to determine whether or not there's been a non-determinism error
+    idempotency_key BYTEA NOT NULL,
     -- Access patterns:
     -- Definite: we'll query directly for the node_id when a durable task is replaying its log
     -- Possible: we may want to query a range of node_ids for a durable task

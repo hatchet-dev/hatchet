@@ -542,7 +542,26 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		TriggerOpts:       triggerOpts,
 	})
 
-	if err != nil {
+	var nde *v1.NonDeterminismError
+	if err != nil && errors.As(err, &nde) {
+		sendErr := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_Error{
+				Error: &contracts.DurableTaskErrorResponse{
+					DurableTaskExternalId: taskExternalId.String(),
+					NodeId:                nde.NodeId,
+					InvocationCount:       req.InvocationCount,
+					ErrorType:             contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM,
+					ErrorMessage:          nde.Error(),
+				},
+			},
+		})
+
+		if sendErr != nil {
+			return fmt.Errorf("failed to send non-determinism error to worker: %w", sendErr)
+		}
+
+		return nil
+	} else if err != nil {
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
 	}
 

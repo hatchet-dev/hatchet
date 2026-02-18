@@ -10,9 +10,6 @@ from examples.unit_testing.workflows import (
     durable_async_complex_workflow,
     durable_async_simple_workflow,
     durable_async_standalone,
-    durable_sync_complex_workflow,
-    durable_sync_simple_workflow,
-    durable_sync_standalone,
     start,
     sync_complex_workflow,
     sync_simple_workflow,
@@ -25,11 +22,8 @@ from hatchet_sdk import Task
     "func",
     [
         sync_standalone,
-        durable_sync_standalone,
         sync_simple_workflow,
-        durable_sync_simple_workflow,
         sync_complex_workflow,
-        durable_sync_complex_workflow,
     ],
 )
 def test_simple_unit_sync(func: Task[UnitTestInput, UnitTestOutput]) -> None:

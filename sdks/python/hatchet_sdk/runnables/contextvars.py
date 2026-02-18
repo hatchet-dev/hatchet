@@ -6,11 +6,11 @@ from collections import Counter
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
-    from hatchet_sdk.cancellation import CancellationToken
     from hatchet_sdk.clients.admin import AdminClient
     from hatchet_sdk.context.context import DurableContext
 

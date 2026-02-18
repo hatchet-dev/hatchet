@@ -84,11 +84,25 @@ message DurableTaskRequest {
     }
 }
 
+enum DurableTaskErrorType {
+    DURABLE_TASK_ERROR_TYPE_UNSPECIFIED = 0;
+    DURABLE_TASK_ERROR_TYPE_NONDETERMINISM = 1;
+}
+
+message DurableTaskErrorResponse {
+    string durable_task_external_id = 1;
+    int64 invocation_count = 2;
+    int64 node_id = 3;
+    DurableTaskErrorType error_type = 4;
+    string error_message = 5;
+}
+
 message DurableTaskResponse {
     oneof message {
         DurableTaskResponseRegisterWorker register_worker = 1;
         DurableTaskEventAckResponse trigger_ack = 2;
         DurableTaskEventLogEntryCompletedResponse entry_completed = 3;
+        DurableTaskErrorResponse error = 4;
     }
 }
 

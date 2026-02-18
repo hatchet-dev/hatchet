@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Generic, Literal, TypeVar
+from typing import Generic, Literal, TypeVar
 
 import grpc
 import grpc.aio
 
+from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.event_ts import (
     ThreadSafeEvent,
     UnexpectedEOF,
@@ -17,9 +18,6 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.cancellation import race_against_token
-
-if TYPE_CHECKING:
-    from hatchet_sdk.cancellation import CancellationToken
 
 DEFAULT_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_LISTENER_RETRY_COUNT = 5
@@ -237,17 +235,11 @@ class PooledListener(Generic[R, T, L], ABC):
             if not self.listener_task or self.listener_task.done():
                 self.listener_task = asyncio.create_task(self._init_producer())
 
-            logger.debug(
-                f"PooledListener.subscribe: waiting for event on id={id}, "
-                f"subscription_id={subscription_id}, token={cancellation_token is not None}"
-            )
-
             if cancellation_token:
                 result_task = asyncio.create_task(self.events[subscription_id].get())
                 return await race_against_token(result_task, cancellation_token)
             return await self.events[subscription_id].get()
         except asyncio.CancelledError:
-            logger.debug(f"PooledListener.subscribe: externally cancelled for id={id}")
             raise
         finally:
             if subscription_id:

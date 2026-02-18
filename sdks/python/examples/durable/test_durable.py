@@ -11,6 +11,8 @@ from examples.durable.worker import (
     durable_workflow,
     wait_for_sleep_twice,
     durable_spawn_dag,
+    durable_non_determinism,
+    hatchet,
 )
 from hatchet_sdk import Hatchet
 
@@ -134,3 +136,23 @@ async def test_durable_spawn_dag() -> None:
     assert result["sleep_duration"] <= 2
     assert result["spawn_duration"] >= 5
     assert result["spawn_duration"] <= 10
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_non_determinism() -> None:
+    ref = await durable_non_determinism.aio_run_no_wait()
+    result = await ref.aio_result()
+
+    assert result.sleep_time > result.attempt_number
+    assert (  ## headroom to prevent flakiness
+        result.sleep_time < result.attempt_number * 3
+    )
+    assert not result.non_determinism_detected
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+
+    replayed_result = await ref.aio_result()
+
+    assert replayed_result.non_determinism_detected
+    assert replayed_result.node_id == 1
+    assert replayed_result.attempt_number == 2
