@@ -74,6 +74,7 @@ CREATE TYPE v1_durable_event_log_kind AS ENUM (
 
 CREATE TABLE v1_durable_event_log_entry (
     tenant_id UUID NOT NULL,
+
     -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
@@ -93,6 +94,8 @@ CREATE TABLE v1_durable_event_log_entry (
     parent_node_id BIGINT,
     -- The branch id when this event was first seen. A durable event log can be a part of many branches.
     branch_id BIGINT NOT NULL,
+    -- The parent branch id which should be linked to a new branch to its parent branch. This can be null.
+    parent_branch_id BIGINT,
     -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
     -- to determine whether or not there's been a non-determinism error
     idempotency_key BYTEA NOT NULL,
@@ -101,12 +104,13 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Possible: we may want to query a range of node_ids for a durable task
     -- Possible: we may want to query a range of inserted_ats for a durable task
 
-    -- Whether this event has been seen by the engine or not. Note that is_satisfied _may_ change multiple
-    -- times through the lifecycle of a event, and readers should not assume that once it's true it will always be true.
+    -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
+    -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
 
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
 
 SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE, 80);
 SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE, 80);
