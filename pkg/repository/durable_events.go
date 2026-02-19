@@ -288,7 +288,7 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEventOpts) ([]byte, error) {
-	// todo: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
+	// TODO-DURABLE: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
 	dataToHash := []byte(opts.Kind)
 
 	if opts.TriggerOpts != nil {
@@ -523,7 +523,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				return nil, fmt.Errorf("failed to handle trigger runs: %w", err)
 			}
 		case sqlcv1.V1DurableEventLogKindMEMO:
-			// todo: memo here
+			// TODO-DURABLE: memo here
 		default:
 			return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 		}

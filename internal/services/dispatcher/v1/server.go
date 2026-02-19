@@ -609,7 +609,7 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
-	// todo: implement eviction here
+	// TODO-DURABLE: implement eviction here
 
 	return nil
 }
