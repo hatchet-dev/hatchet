@@ -2278,7 +2278,7 @@ CREATE TABLE v1_durable_event_log_file (
     durable_task_id BIGINT NOT NULL,
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
 
-    latest_invocation_count BIGINT NOT NULL,
+    latest_invocation_count INTEGER NOT NULL,
 
     latest_inserted_at TIMESTAMPTZ NOT NULL,
     -- A monotonically increasing node id for this durable event log scoped to the durable task.
@@ -2323,6 +2323,9 @@ CREATE TABLE v1_durable_event_log_entry (
     parent_branch_id BIGINT,
     -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
     -- to determine whether or not there's been a non-determinism error
+
+    invocation_count INTEGER NOT NULL,
+
     idempotency_key BYTEA NOT NULL,
     -- Access patterns:
     -- Definite: we'll query directly for the node_id when a durable task is replaying its log

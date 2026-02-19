@@ -61,7 +61,7 @@ NodeId = int
 BranchId = int
 InvocationCount = int
 
-PendingCallback = tuple[TaskExternalId, BranchId, NodeId]
+PendingCallback = tuple[TaskExternalId, InvocationCount, BranchId, NodeId]
 PendingEventAck = tuple[TaskExternalId, InvocationCount]
 
 
@@ -177,7 +177,7 @@ class DurableEventListener:
                 node_id=node_id,
                 branch_id=branch_id,
             )
-            for (task_ext_id, branch_id, node_id) in self._pending_callbacks
+            for (task_ext_id, _, branch_id, node_id) in self._pending_callbacks
         ]
 
         request = DurableTaskRequest(
@@ -268,6 +268,7 @@ class DurableEventListener:
             completed = response.entry_completed
             completed_key = (
                 completed.durable_task_external_id,
+                completed.InvocationCount,
                 completed.branch_id,
                 completed.node_id,
             )

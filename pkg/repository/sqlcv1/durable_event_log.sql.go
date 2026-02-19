@@ -24,6 +24,7 @@ INSERT INTO v1_durable_event_log_entry (
     parent_node_id,
     branch_id,
     parent_branch_id,
+    invocation_count,
     idempotency_key,
     is_satisfied
 )
@@ -38,11 +39,12 @@ VALUES (
     $7::BIGINT,
     $8::BIGINT,
     $9::BIGINT,
-    $10::BYTEA,
-    $11::BOOLEAN
+    $10::INTEGER,
+    $11::BYTEA,
+    $12::BOOLEAN
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, idempotency_key, is_satisfied
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
 `
 
 type CreateDurableEventLogEntryParams struct {
@@ -55,6 +57,7 @@ type CreateDurableEventLogEntryParams struct {
 	ParentNodeId          pgtype.Int8           `json:"parentNodeId"`
 	Branchid              int64                 `json:"branchid"`
 	ParentBranchId        pgtype.Int8           `json:"parentBranchId"`
+	Invocationcount       int32                 `json:"invocationcount"`
 	Idempotencykey        []byte                `json:"idempotencykey"`
 	Issatisfied           bool                  `json:"issatisfied"`
 }
@@ -70,6 +73,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 		arg.ParentNodeId,
 		arg.Branchid,
 		arg.ParentBranchId,
+		arg.Invocationcount,
 		arg.Idempotencykey,
 		arg.Issatisfied,
 	)
@@ -86,6 +90,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 		&i.ParentNodeID,
 		&i.BranchID,
 		&i.ParentBranchID,
+		&i.InvocationCount,
 		&i.IdempotencyKey,
 		&i.IsSatisfied,
 	)
@@ -143,7 +148,7 @@ func (q *Queries) CreateEventLogFile(ctx context.Context, db DBTX, arg CreateEve
 }
 
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, idempotency_key, is_satisfied
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -178,6 +183,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 		&i.ParentNodeID,
 		&i.BranchID,
 		&i.ParentBranchID,
+		&i.InvocationCount,
 		&i.IdempotencyKey,
 		&i.IsSatisfied,
 	)
@@ -224,7 +230,7 @@ WITH tasks AS (
         UNNEST($3::BIGINT[]) AS branch_id
 )
 
-SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.parent_branch_id, e.idempotency_key, e.is_satisfied, t.external_id AS task_external_id
+SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.parent_branch_id, e.invocation_count, e.idempotency_key, e.is_satisfied, t.external_id AS task_external_id
 FROM v1_durable_event_log_entry e
 JOIN tasks t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
@@ -250,6 +256,7 @@ type ListSatisfiedEntriesRow struct {
 	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
 	BranchID              int64                 `json:"branch_id"`
 	ParentBranchID        pgtype.Int8           `json:"parent_branch_id"`
+	InvocationCount       int32                 `json:"invocation_count"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
 	TaskExternalID        uuid.UUID             `json:"task_external_id"`
@@ -276,6 +283,7 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 			&i.ParentNodeID,
 			&i.BranchID,
 			&i.ParentBranchID,
+			&i.InvocationCount,
 			&i.IdempotencyKey,
 			&i.IsSatisfied,
 			&i.TaskExternalID,
@@ -306,7 +314,7 @@ WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
   AND v1_durable_event_log_entry.node_id = inputs.node_id
   AND v1_durable_event_log_entry.branch_id = inputs.branch_id
-RETURNING v1_durable_event_log_entry.tenant_id, v1_durable_event_log_entry.external_id, v1_durable_event_log_entry.inserted_at, v1_durable_event_log_entry.id, v1_durable_event_log_entry.durable_task_id, v1_durable_event_log_entry.durable_task_inserted_at, v1_durable_event_log_entry.kind, v1_durable_event_log_entry.node_id, v1_durable_event_log_entry.parent_node_id, v1_durable_event_log_entry.branch_id, v1_durable_event_log_entry.parent_branch_id, v1_durable_event_log_entry.idempotency_key, v1_durable_event_log_entry.is_satisfied
+RETURNING v1_durable_event_log_entry.tenant_id, v1_durable_event_log_entry.external_id, v1_durable_event_log_entry.inserted_at, v1_durable_event_log_entry.id, v1_durable_event_log_entry.durable_task_id, v1_durable_event_log_entry.durable_task_inserted_at, v1_durable_event_log_entry.kind, v1_durable_event_log_entry.node_id, v1_durable_event_log_entry.parent_node_id, v1_durable_event_log_entry.branch_id, v1_durable_event_log_entry.parent_branch_id, v1_durable_event_log_entry.invocation_count, v1_durable_event_log_entry.idempotency_key, v1_durable_event_log_entry.is_satisfied
 `
 
 type UpdateDurableEventLogEntriesSatisfiedParams struct {
@@ -342,6 +350,7 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 			&i.ParentNodeID,
 			&i.BranchID,
 			&i.ParentBranchID,
+			&i.InvocationCount,
 			&i.IdempotencyKey,
 			&i.IsSatisfied,
 		); err != nil {
@@ -359,7 +368,7 @@ const updateLogFile = `-- name: UpdateLogFile :one
 UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
-    latest_invocation_count = COALESCE($2::BIGINT, v1_durable_event_log_file.latest_invocation_count),
+    latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id),
     latest_branch_first_parent_node_id = COALESCE($4::BIGINT, v1_durable_event_log_file.latest_branch_first_parent_node_id)
 WHERE durable_task_id = $5::BIGINT
@@ -369,7 +378,7 @@ RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocatio
 
 type UpdateLogFileParams struct {
 	NodeId                  pgtype.Int8        `json:"nodeId"`
-	InvocationCount         pgtype.Int8        `json:"invocationCount"`
+	InvocationCount         pgtype.Int4        `json:"invocationCount"`
 	BranchId                pgtype.Int8        `json:"branchId"`
 	BranchFirstParentNodeId pgtype.Int8        `json:"branchFirstParentNodeId"`
 	Durabletaskid           int64              `json:"durabletaskid"`

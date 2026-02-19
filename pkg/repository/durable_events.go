@@ -32,10 +32,11 @@ type TaskExternalIdNodeIdBranchId struct {
 }
 
 type SatisfiedEventWithPayload struct {
-	TaskExternalId uuid.UUID
-	BranchID       int64
-	NodeID         int64
-	Result         []byte
+	TaskExternalId  uuid.UUID
+	InvocationCount int32
+	BranchID        int64
+	NodeID          int64
+	Result          []byte
 }
 
 type IngestDurableTaskEventOpts struct {
@@ -44,7 +45,7 @@ type IngestDurableTaskEventOpts struct {
 	Kind              sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
 	Payload           []byte
 	WaitForConditions []CreateExternalSignalConditionOpt
-	InvocationCount   int64
+	InvocationCount   int32
 	TriggerOpts       *WorkflowNameTriggerOpts
 }
 
@@ -104,6 +105,7 @@ type GetOrCreateLogEntryOpts struct {
 	ParentNodeId          *int64
 	BranchId              int64
 	ParentBranchId        *int64
+	InvocationCount       int32
 	IdempotencyKey        []byte
 	IsSatisfied           bool
 	InputPayload          []byte
@@ -140,6 +142,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			ParentBranchId:        sqlchelpers.ToBigInt(opts.ParentBranchId),
 			Idempotencykey:        opts.IdempotencyKey,
 			Issatisfied:           opts.IsSatisfied,
+			Invocationcount:       opts.InvocationCount,
 		})
 
 		if err != nil {
@@ -273,10 +276,11 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		payload := payloads[retrieveOpt]
 
 		result = append(result, &SatisfiedEventWithPayload{
-			TaskExternalId: row.TaskExternalID,
-			NodeID:         row.NodeID,
-			BranchID:       row.BranchID,
-			Result:         payload,
+			TaskExternalId:  row.TaskExternalID,
+			NodeID:          row.NodeID,
+			BranchID:        row.BranchID,
+			InvocationCount: row.InvocationCount,
+			Result:          payload,
 		})
 	}
 
@@ -418,7 +422,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		one := int64(1)
 		newNode, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
 			NodeId:                sqlchelpers.ToBigInt(&one),
-			InvocationCount:       sqlchelpers.ToBigInt(&opts.InvocationCount),
+			InvocationCount:       sqlchelpers.ToInt(&opts.InvocationCount),
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
 		})
@@ -678,7 +682,7 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
 		BranchId:                sqlchelpers.ToBigInt(&newBranchId),
 		NodeId:                  sqlchelpers.ToBigInt(&zero),
-		InvocationCount:         sqlchelpers.ToBigInt(&newInvocationCount),
+		InvocationCount:         sqlchelpers.ToInt(&newInvocationCount),
 		BranchFirstParentNodeId: sqlchelpers.ToBigInt(&lastFastForwardedNode),
 		Durabletaskid:           task.ID,
 		Durabletaskinsertedat:   task.InsertedAt,

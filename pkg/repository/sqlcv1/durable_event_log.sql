@@ -9,7 +9,7 @@ WHERE durable_task_id = @durableTaskId::BIGINT
 UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id),
-    latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::BIGINT, v1_durable_event_log_file.latest_invocation_count),
+    latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE(sqlc.narg('branchId')::BIGINT, v1_durable_event_log_file.latest_branch_id),
     latest_branch_first_parent_node_id = COALESCE(sqlc.narg('branchFirstParentNodeId')::BIGINT, v1_durable_event_log_file.latest_branch_first_parent_node_id)
 WHERE durable_task_id = @durableTaskId::BIGINT
@@ -64,6 +64,7 @@ INSERT INTO v1_durable_event_log_entry (
     parent_node_id,
     branch_id,
     parent_branch_id,
+    invocation_count,
     idempotency_key,
     is_satisfied
 )
@@ -78,6 +79,7 @@ VALUES (
     sqlc.narg('parentNodeId')::BIGINT,
     @branchId::BIGINT,
     sqlc.narg('parentBranchId')::BIGINT,
+    @invocationCount::INTEGER,
     @idempotencyKey::BYTEA,
     @isSatisfied::BOOLEAN
 )
