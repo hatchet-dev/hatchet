@@ -219,7 +219,7 @@ type DurableCallbackCompletedPayload struct {
 	TaskExternalId  uuid.UUID
 	BranchId        int64
 	NodeId          int64
-	InvocationCount int64
+	InvocationCount int32
 	Payload         []byte
 }
 
