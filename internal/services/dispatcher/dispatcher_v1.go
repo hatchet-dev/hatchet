@@ -122,11 +122,40 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 	taskIds := make([]int64, 0, len(tasks))
 
+	incrementInvocationCountOpts := make([]v1.IncrementDurableTaskInvocationCountsOpts, 0)
+
 	for _, assigned := range tasks {
 		taskIdToData[assigned.Task.ID] = &V1TaskWithPayloadAndInvocationCount{
 			V1TaskWithPayload: assigned.Task,
 		}
 		taskIds = append(taskIds, assigned.Task.ID)
+
+		if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
+			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IncrementDurableTaskInvocationCountsOpts{
+				TaskId:     assigned.Task.ID,
+				TenantId:   assigned.Task.TenantID,
+				InsertedAt: assigned.Task.InsertedAt,
+			})
+		}
+	}
+
+	if len(incrementInvocationCountOpts) > 0 {
+		invocationCounts, err := d.repov1.DurableEvents().IncrementDurableTaskInvocationCounts(ctx, incrementInvocationCountOpts)
+
+		if err != nil {
+			for _, assigned := range tasks {
+				requeue(assigned.Task.V1Task)
+			}
+
+			d.l.Error().Err(err).Msgf("could not increment durable task invocation counts for %d tasks", len(incrementInvocationCountOpts))
+			return err
+		}
+
+		for _, opt := range incrementInvocationCountOpts {
+			if count, ok := invocationCounts[opt]; ok {
+				taskIdToData[opt.TaskId].InvocationCount = count
+			}
+		}
 	}
 
 	// this is one of the core differences from handleTaskBulkAssignedTask: we run this synchronously
