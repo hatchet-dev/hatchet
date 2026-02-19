@@ -1,5 +1,6 @@
 import { generateTenantSlug } from './generate-tenant-slug';
 import { NewOrganizationInputForm } from './new-organization-input-form';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { cloudApi } from '@/lib/api/api';
 import {
   Organization,
@@ -55,6 +56,7 @@ export function NewOrganizationSaverForm({
   const [isSaving, setIsSaving] = useState(false);
   const { isCloudEnabled, refetchTenantMemberships, refetchOrganizations } =
     useAppContext();
+  const { capture } = useAnalytics();
 
   if (!isCloudEnabled) {
     // I feel like there should be an assert here instead
@@ -74,7 +76,13 @@ export function NewOrganizationSaverForm({
       refetchTenantMemberships,
       refetchOrganizations,
     })
-      .then(afterSave)
+      .then((result) => {
+        capture('onboarding_tenant_created', {
+          tenant_type: 'cloud',
+          is_cloud: true,
+        });
+        afterSave(result);
+      })
       .catch(handleApiError)
       .finally(() => setIsSaving(false));
   };
