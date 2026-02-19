@@ -669,6 +669,8 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid
 	}
 
 	newBranchId := logFile.LatestBranchID + 1
+
+	// TODO-DURABLE: we probably don't want to do this here - probably should only be incremented on the dispatcher
 	newInvocationCount := logFile.LatestInvocationCount + 1
 	lastFastForwardedNode := nodeId - 1
 	zero := int64(0)
