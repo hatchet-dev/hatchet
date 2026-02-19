@@ -681,17 +681,6 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
-	_, err = r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
-		Durabletaskid:         task.ID,
-		Durabletaskinsertedat: task.InsertedAt,
-		Nodeid:                nodeId,
-		Branchid:              logFile.LatestBranchID,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("reset node %d not found on branch %d: %w", nodeId, logFile.LatestBranchID, err)
-	}
-
 	newBranchId := logFile.LatestBranchID + 1
 	newInvocationCount := logFile.LatestInvocationCount + 1
 	lastFastForwardedNode := nodeId - 1
