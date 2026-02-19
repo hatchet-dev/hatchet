@@ -159,6 +159,7 @@ type SatisfiedEntry struct {
 	DurableTaskExternalId uuid.UUID
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
+	InvocationCount       int32
 	NodeId                int64
 	BranchId              int64
 	Data                  []byte
@@ -763,6 +764,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				initialEntry.Data = extracted
 			}
 		}
+
+		initialEntry.InvocationCount = cb.InvocationCount
 
 		if len(initialEntry.Data) > 0 {
 			payloadsToStore = append(payloadsToStore, StorePayloadOpts{

@@ -49,6 +49,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 		msg, err := tasktypes.DurableCallbackCompletedMessage(
 			tenantId,
 			cb.DurableTaskExternalId,
+			cb.InvocationCount,
 			cb.BranchId,
 			cb.NodeId,
 			cb.Data,
