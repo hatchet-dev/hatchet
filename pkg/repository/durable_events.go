@@ -61,7 +61,7 @@ type IngestDurableTaskEventResult struct {
 
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
-	HandleReset(ctx context.Context, tenantId, taskExternalId uuid.UUID, nodeId, invocationCount int64) (*IngestDurableTaskEventResult, error)
+	HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*IngestDurableTaskEventResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 }
@@ -647,7 +647,7 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	return createdDAGs, createdTasks, nil
 }
 
-func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, taskExternalId uuid.UUID, nodeId, invocationCount int64) (*IngestDurableTaskEventResult, error) {
+func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*IngestDurableTaskEventResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -655,25 +655,6 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId, tas
 	defer optTx.Rollback()
 
 	tx := optTx.tx
-
-	tasks, err := r.queries.FlattenExternalIds(ctx, tx, sqlcv1.FlattenExternalIdsParams{
-		Externalids: []uuid.UUID{taskExternalId},
-		Tenantid:    tenantId,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
-	}
-
-	if len(tasks) == 0 {
-		return nil, fmt.Errorf("no task found with external id %s", taskExternalId.String())
-	}
-
-	if len(tasks) > 1 {
-		return nil, fmt.Errorf("multiple tasks found with external id %s", taskExternalId.String())
-	}
-
-	task := tasks[0]
 
 	logFile, err := r.getAndLockLogFile(ctx, tx, task.ID, task.InsertedAt)
 

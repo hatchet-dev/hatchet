@@ -442,7 +442,7 @@ func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	result, err := a.repo.DurableEvents().HandleReset(ctx, tenantId, taskExternalId, req.NodeId, 0)
+	result, err := a.repo.DurableEvents().HandleReset(ctx, tenantId, req.NodeId, task)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to reset durable task: %v", err)
 	}
@@ -453,9 +453,6 @@ func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.
 		}
 	}
 
-	// Replay the task so a worker picks it up and re-executes from the top.
-	// Nodes before the reset point will fast-forward (idempotency keys match cached entries),
-	// and the reset node will block on the new unsatisfied branch entry.
 	replayPayload := tasktypes.ReplayTasksPayload{
 		Tasks: []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{{
 			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
