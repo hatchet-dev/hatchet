@@ -62,6 +62,7 @@ ephemeral_workflow = hatchet.workflow(name="EphemeralWorkflow")
 # > Add durable task
 EVENT_KEY = "durable-example:event"
 SLEEP_TIME = 5
+REPLAY_RESET_SLEEP_TIME = 3
 
 
 @durable_workflow.task()
@@ -241,6 +242,35 @@ async def durable_non_determinism(
     )
 
 
+class ReplayResetResponse(BaseModel):
+    sleep_1_duration: float
+    sleep_2_duration: float
+    sleep_3_duration: float
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=20))
+async def durable_replay_reset(
+    input: EmptyModel, ctx: DurableContext
+) -> ReplayResetResponse:
+    start = time.time()
+    await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))
+    sleep_1_duration = time.time() - start
+
+    start = time.time()
+    await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))
+    sleep_2_duration = time.time() - start
+
+    start = time.time()
+    await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))
+    sleep_3_duration = time.time() - start
+
+    return ReplayResetResponse(
+        sleep_1_duration=sleep_1_duration,
+        sleep_2_duration=sleep_2_duration,
+        sleep_3_duration=sleep_3_duration,
+    )
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
@@ -252,6 +282,7 @@ def main() -> None:
             durable_with_spawn,
             durable_sleep_event_spawn,
             durable_non_determinism,
+            durable_replay_reset,
         ],
     )
     worker.start()

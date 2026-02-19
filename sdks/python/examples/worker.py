@@ -39,6 +39,7 @@ from examples.durable.worker import (
     dag_child_workflow,
     durable_spawn_dag,
     durable_non_determinism,
+    durable_replay_reset,
 )
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
@@ -123,6 +124,7 @@ def main() -> None:
             durable_spawn_dag,
             dag_child_workflow,
             durable_non_determinism,
+            durable_replay_reset,
         ],
         lifespan=lifespan,
     )
