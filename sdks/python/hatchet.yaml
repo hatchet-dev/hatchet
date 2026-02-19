@@ -1,0 +1,5 @@
+dev:
+  runCmd: "poetry run python examples/dev/worker.py"
+  files:
+    - "**/*.py"
+  reload: true
