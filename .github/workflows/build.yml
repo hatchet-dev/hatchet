@@ -2,18 +2,18 @@ name: build
 on:
   pull_request:
     paths-ignore:
-      - 'sdks/**'
-      - 'frontend/docs/**'
-      - 'frontend/**/generated/**'
-      - 'examples/**'
+      - "sdks/**"
+      - "frontend/docs/**"
+      - "frontend/**/generated/**"
+      - "examples/**"
 
 jobs:
   frontend:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
@@ -74,7 +74,7 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build migrate
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build migrate
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
@@ -90,8 +90,8 @@ jobs:
     runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -130,8 +130,8 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -170,8 +170,8 @@ jobs:
     runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -194,8 +194,8 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -218,7 +218,7 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build loadtest
         run: docker build -f ./build/package/loadtest.dockerfile .
 
@@ -226,6 +226,6 @@ jobs:
     runs-on: ubicloud-standard-4-arm
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build loadtest
         run: docker build -f ./build/package/loadtest.dockerfile .
