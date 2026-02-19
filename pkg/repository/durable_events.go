@@ -384,11 +384,14 @@ func (r *durableEventsRepository) IncrementDurableTaskInvocationCounts(ctx conte
 		}
 
 		newInvocationCount := logFile.LatestInvocationCount + 1
+		zero := int64(0)
 
 		updatedLogFile, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
 			Durabletaskid:         opt.TaskId,
 			Durabletaskinsertedat: opt.InsertedAt,
 			InvocationCount:       sqlchelpers.ToInt(&newInvocationCount),
+			// Reset node ID to 0 so the first event in this invocation gets node 1
+			NodeId: sqlchelpers.ToBigInt(&zero),
 		})
 
 		if err != nil {
@@ -721,16 +724,12 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid
 	}
 
 	newBranchId := logFile.LatestBranchID + 1
-
-	// TODO-DURABLE: we probably don't want to do this here - probably should only be incremented on the dispatcher
-	newInvocationCount := logFile.LatestInvocationCount + 1
 	lastFastForwardedNode := nodeId - 1
 	zero := int64(0)
 
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
 		BranchId:                sqlchelpers.ToBigInt(&newBranchId),
 		NodeId:                  sqlchelpers.ToBigInt(&zero),
-		InvocationCount:         sqlchelpers.ToInt(&newInvocationCount),
 		BranchFirstParentNodeId: sqlchelpers.ToBigInt(&lastFastForwardedNode),
 		Durabletaskid:           task.ID,
 		Durabletaskinsertedat:   task.InsertedAt,
