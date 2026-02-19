@@ -59,9 +59,15 @@ type IngestDurableTaskEventResult struct {
 	CreatedDAGs  []*DAGWithData
 }
 
+type HandleResetResult struct {
+	NodeId       int64
+	BranchId     int64
+	EventLogFile *sqlcv1.V1DurableEventLogFile
+}
+
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
-	HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*IngestDurableTaskEventResult, error)
+	HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleResetResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 }
@@ -647,7 +653,7 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	return createdDAGs, createdTasks, nil
 }
 
-func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*IngestDurableTaskEventResult, error) {
+func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleResetResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -684,7 +690,7 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	return &IngestDurableTaskEventResult{
+	return &HandleResetResult{
 		NodeId:       nodeId,
 		BranchId:     newBranchId,
 		EventLogFile: logFile,

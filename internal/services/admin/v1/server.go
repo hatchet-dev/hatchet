@@ -443,14 +443,9 @@ func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.
 	}
 
 	result, err := a.repo.DurableEvents().HandleReset(ctx, tenantId, req.NodeId, task)
+
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to reset durable task: %v", err)
-	}
-
-	if a.tw != nil && (len(result.CreatedTasks) > 0 || len(result.CreatedDAGs) > 0) {
-		if sigErr := a.tw.SignalCreated(ctx, tenantId, result.CreatedTasks, result.CreatedDAGs); sigErr != nil {
-			a.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable task reset")
-		}
 	}
 
 	replayPayload := tasktypes.ReplayTasksPayload{
