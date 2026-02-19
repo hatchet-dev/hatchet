@@ -305,6 +305,7 @@ CREATE TABLE v1_task (
     concurrency_keys TEXT[],
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
+    is_durable BOOLEAN,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

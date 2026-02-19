@@ -124,6 +124,9 @@ ALTER TABLE v1_match
     ADD COLUMN durable_event_log_entry_branch_id BIGINT
 ;
 
+-- needs to be nullable so we don't have to backfill
+ALTER TABLE v1_task ADD COLUMN is_durable BOOLEAN;
+
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA';
 
@@ -141,6 +144,8 @@ ALTER TABLE v1_match
     DROP COLUMN durable_event_log_entry_node_id,
     DROP COLUMN durable_event_log_entry_branch_id
 ;
+
+ALTER TABLE v1_task DROP COLUMN is_durable;
 
 ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
 
