@@ -63,7 +63,7 @@ ephemeral_workflow = hatchet.workflow(name="EphemeralWorkflow")
 # > Add durable task
 EVENT_KEY = "durable-example:event"
 SLEEP_TIME = 5
-REPLAY_RESET_SLEEP_TIME = 3
+REPLAY_RESET_SLEEP_TIME = 1
 
 
 @durable_workflow.task()
