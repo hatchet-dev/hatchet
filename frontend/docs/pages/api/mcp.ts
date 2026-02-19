@@ -311,6 +311,102 @@ function handleToolsList(id: string | number | null): JsonRpcResponse {
             properties: {},
           },
         },
+        {
+          name: "hatchet_setup_cli",
+          description:
+            "Get instructions for installing the Hatchet CLI and setting up a profile. Call this first if the CLI is not yet installed or no profile exists. Returns step-by-step instructions the agent should follow using shell commands.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              profile: {
+                type: "string",
+                description: "Desired profile name to create (e.g. local, staging, production)",
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: "hatchet_start_worker",
+          description:
+            "Get instructions for starting a Hatchet worker in dev mode using the CLI. The worker must be running before any workflows can be triggered. Returns step-by-step instructions the agent should follow using shell commands.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              profile: {
+                type: "string",
+                description: "Hatchet CLI profile name to use (passed as -p flag)",
+              },
+            },
+            required: ["profile"],
+          },
+        },
+        {
+          name: "hatchet_trigger_and_watch",
+          description:
+            "Get instructions for triggering a Hatchet workflow and polling until it completes or fails. Returns step-by-step instructions the agent should follow using shell commands.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              profile: {
+                type: "string",
+                description: "Hatchet CLI profile name to use (passed as -p flag)",
+              },
+              workflow_name: {
+                type: "string",
+                description: "Name of the workflow to trigger",
+              },
+              input: {
+                type: "string",
+                description: "JSON string to use as workflow input",
+              },
+            },
+            required: ["profile", "workflow_name", "input"],
+          },
+        },
+        {
+          name: "hatchet_debug_run",
+          description:
+            "Get instructions for debugging a Hatchet run that failed, is stuck, or behaved unexpectedly. Returns step-by-step diagnostic instructions the agent should follow using shell commands.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              profile: {
+                type: "string",
+                description: "Hatchet CLI profile name to use (passed as -p flag)",
+              },
+              run_id: {
+                type: "string",
+                description: "The UUID of the run to debug",
+              },
+            },
+            required: ["profile", "run_id"],
+          },
+        },
+        {
+          name: "hatchet_replay_run",
+          description:
+            "Get instructions for replaying a Hatchet run, optionally with modified input. Returns step-by-step instructions the agent should follow using shell commands.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              profile: {
+                type: "string",
+                description: "Hatchet CLI profile name to use (passed as -p flag)",
+              },
+              run_id: {
+                type: "string",
+                description: "The UUID of the run to replay",
+              },
+              new_input: {
+                type: "string",
+                description:
+                  "Optional new JSON input. If omitted, the run is replayed with the original input.",
+              },
+            },
+            required: ["profile", "run_id"],
+          },
+        },
       ],
     },
   };
@@ -329,6 +425,26 @@ function handleToolsCall(
 
   if (toolName === "get_full_docs") {
     return handleGetFullDocs(id);
+  }
+
+  if (toolName === "hatchet_setup_cli") {
+    return handleAgentInstructions(id, "setup-cli", args);
+  }
+
+  if (toolName === "hatchet_start_worker") {
+    return handleAgentInstructions(id, "start-worker", args);
+  }
+
+  if (toolName === "hatchet_trigger_and_watch") {
+    return handleAgentInstructions(id, "trigger-and-watch", args);
+  }
+
+  if (toolName === "hatchet_debug_run") {
+    return handleAgentInstructions(id, "debug-run", args);
+  }
+
+  if (toolName === "hatchet_replay_run") {
+    return handleAgentInstructions(id, "replay-run", args);
   }
 
   return {
@@ -467,6 +583,68 @@ function handleGetFullDocs(id: string | number | null): JsonRpcResponse {
     id,
     result: {
       content: [{ type: "text", text: content }],
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Agent instruction tools
+// ---------------------------------------------------------------------------
+const PAGES_DIR = path.join(process.cwd(), "pages", "agent-instructions");
+
+function readAgentPage(slug: string): string | null {
+  // Try generated markdown first, fall back to MDX source
+  const llmsPath = path.join(LLMS_DIR, "agent-instructions", `${slug}.md`);
+  if (fs.existsSync(llmsPath)) {
+    return fs.readFileSync(llmsPath, "utf-8");
+  }
+  const mdxPath = path.join(PAGES_DIR, `${slug}.mdx`);
+  if (fs.existsSync(mdxPath)) {
+    return fs.readFileSync(mdxPath, "utf-8");
+  }
+  return null;
+}
+
+function templateReplace(content: string, args: Record<string, unknown>): string {
+  let result = content;
+  const profile = (args.profile as string) || "";
+  const runId = (args.run_id as string) || "";
+  const workflowName = (args.workflow_name as string) || "";
+  const input = (args.input as string) || "{}";
+  const newInput = (args.new_input as string) || "";
+
+  if (profile) result = result.replace(/HATCHET_PROFILE/g, profile);
+  if (runId) result = result.replace(/RUN_ID/g, runId);
+  if (workflowName) result = result.replace(/WORKFLOW_NAME/g, workflowName);
+  if (newInput) result = result.replace(/NEW_INPUT_JSON/g, newInput);
+  result = result.replace(/INPUT_JSON/g, input);
+
+  return result;
+}
+
+function handleAgentInstructions(
+  id: string | number | null,
+  slug: string,
+  args: Record<string, unknown>,
+): JsonRpcResponse {
+  const content = readAgentPage(slug);
+  if (!content) {
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: {
+        code: -32603,
+        message: `Agent instructions not found: ${slug}`,
+      },
+    };
+  }
+
+  const text = templateReplace(content, args);
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      content: [{ type: "text", text }],
     },
   };
 }
