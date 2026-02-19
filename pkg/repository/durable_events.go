@@ -53,8 +53,9 @@ type IngestDurableTaskEventResult struct {
 	BranchId        int64
 	NodeId          int64
 	InvocationCount int32
-	EventLogEntry   *EventLogEntryWithPayloads
-	EventLogFile    *sqlcv1.V1DurableEventLogFile
+
+	IsSatisfied   bool
+	ResultPayload []byte
 
 	// Populated for RUNTRIGGERED: the tasks/DAGs created by the child spawn.
 	CreatedTasks []*V1TaskWithPayload
@@ -553,8 +554,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		NodeId:          nodeId,
 		BranchId:        branchId,
 		InvocationCount: opts.InvocationCount,
-		EventLogFile:    logFile,
-		EventLogEntry:   logEntry,
+		IsSatisfied:     logEntry.Entry.IsSatisfied,
+		ResultPayload:   logEntry.ResultPayload,
 		CreatedTasks:    spawnedTasks,
 		CreatedDAGs:     spawnedDAGs,
 	}, nil

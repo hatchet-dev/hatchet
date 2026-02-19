@@ -587,13 +587,13 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
 	}
 
-	if ingestionResult.EventLogEntry.Entry.IsSatisfied {
+	if ingestionResult.IsSatisfied {
 		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
 			ingestionResult.InvocationCount,
 			ingestionResult.BranchId,
 			ingestionResult.NodeId,
-			ingestionResult.EventLogEntry.ResultPayload,
+			ingestionResult.ResultPayload,
 		)
 
 		if err != nil {
