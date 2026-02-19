@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixes internal registration of durable slots
 
-## [1.25.0] - 2026-02-17
+## [1.25.0] - 2026-02-17 **YANKED ON 2/19/26**
 
 ### Added
 
