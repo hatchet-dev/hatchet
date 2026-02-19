@@ -89,6 +89,15 @@ const organizationsRoute = createRoute({
   ),
 });
 
+const organizationsNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'organizations/new',
+  component: lazyRouteComponent(
+    () => import('./pages/organizations/new'),
+    'default',
+  ),
+});
+
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
@@ -104,6 +113,15 @@ const onboardingCreateTenantRoute = createRoute({
   path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-tenant'),
+    'default',
+  ),
+});
+
+const onboardingCreateOrganizationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'onboarding/create-organization',
+  component: lazyRouteComponent(
+    () => import('./pages/onboarding/create-organization'),
     'default',
   ),
 });
@@ -558,8 +576,10 @@ const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
   onboardingVerifyRoute,
   organizationsRoute,
+  organizationsNewRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
+    onboardingCreateOrganizationRoute,
     onboardingInvitesRoute,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
@@ -587,8 +607,10 @@ export const appRoutes = {
   authRegisterRoute,
   onboardingVerifyRoute,
   organizationsRoute,
+  organizationsNewRoute,
   authenticatedRoute,
   onboardingCreateTenantRoute,
+  onboardingCreateOrganizationRoute,
   onboardingInvitesRoute,
   tenantRoute,
   tenantEventsRoute,
