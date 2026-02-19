@@ -191,6 +191,7 @@ If no run ID is provided, requires --since flag and cancels runs matching the fi
   hatchet runs cancel --since 24h --workflow my-workflow -o json`,
 	Run: func(cmd *cobra.Command, args []string) {
 		isJSON := isJSONOutput(cmd)
+		yes, _ := cmd.Flags().GetBool("yes")
 		_, hatchetClient := clientFromCmd(cmd)
 
 		ctx := cmd.Context()
@@ -204,7 +205,7 @@ If no run ID is provided, requires --since flag and cancels runs matching the fi
 				cli.Logger.Fatalf("invalid run ID %q: %v", runID, err)
 			}
 
-			if !isJSON {
+			if !isJSON && !yes {
 				// Try to get run name for confirmation
 				runName := shortID(runID)
 				runResp, _ := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
@@ -251,7 +252,7 @@ If no run ID is provided, requires --since flag and cancels runs matching the fi
 			cli.Logger.Fatalf("%v", err)
 		}
 
-		if !isJSON {
+		if !isJSON && !yes {
 			count := countMatchingRuns(ctx, hatchetClient, tenantUUID, listParams)
 			if count == 0 {
 				fmt.Println(styles.Muted.Render("No runs match your filters."))
@@ -303,6 +304,7 @@ If no run ID is provided, requires --since flag and replays runs matching the fi
   hatchet runs replay --since 24h -o json`,
 	Run: func(cmd *cobra.Command, args []string) {
 		isJSON := isJSONOutput(cmd)
+		yes, _ := cmd.Flags().GetBool("yes")
 		_, hatchetClient := clientFromCmd(cmd)
 
 		ctx := cmd.Context()
@@ -316,7 +318,7 @@ If no run ID is provided, requires --since flag and replays runs matching the fi
 				cli.Logger.Fatalf("invalid run ID %q: %v", runID, err)
 			}
 
-			if !isJSON {
+			if !isJSON && !yes {
 				runName := shortID(runID)
 				runResp, _ := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
 				if runResp != nil && runResp.JSON200 != nil {
@@ -362,7 +364,7 @@ If no run ID is provided, requires --since flag and replays runs matching the fi
 			cli.Logger.Fatalf("%v", err)
 		}
 
-		if !isJSON {
+		if !isJSON && !yes {
 			count := countMatchingRuns(ctx, hatchetClient, tenantUUID, listParams)
 			if count == 0 {
 				fmt.Println(styles.Muted.Render("No runs match your filters."))
@@ -702,7 +704,7 @@ func init() {
 	runsCmd.PersistentFlags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
 
 	// runs list flags
-	runsListCmd.Flags().StringP("since", "s", "1h", "Show runs since this duration ago (e.g. 1h, 24h, 7d)")
+	runsListCmd.Flags().StringP("since", "s", "24h", "Show runs since this duration ago (e.g. 1h, 24h, 7d)")
 	runsListCmd.Flags().String("until", "", "Show runs until this duration ago (e.g. 30m)")
 	runsListCmd.Flags().StringP("workflow", "w", "", "Filter by workflow name or ID")
 	runsListCmd.Flags().StringSlice("status", nil, "Filter by status (QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED)")
@@ -715,12 +717,14 @@ func init() {
 	runsCancelCmd.Flags().String("until", "", "Cancel runs until this duration ago")
 	runsCancelCmd.Flags().StringP("workflow", "w", "", "Filter by workflow name or ID")
 	runsCancelCmd.Flags().StringSlice("status", nil, "Filter by status (QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED)")
+	runsCancelCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 
 	// runs replay flags (same as cancel)
 	runsReplayCmd.Flags().StringP("since", "s", "", "Replay runs since this duration ago (e.g. 1h, 24h) [required for bulk replay]")
 	runsReplayCmd.Flags().String("until", "", "Replay runs until this duration ago")
 	runsReplayCmd.Flags().StringP("workflow", "w", "", "Filter by workflow name or ID")
 	runsReplayCmd.Flags().StringSlice("status", nil, "Filter by status (QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED)")
+	runsReplayCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
 
 	// runs logs flags
 	runsLogsCmd.Flags().Int64("tail", 0, "Number of most recent log lines to show (0 = all)")
