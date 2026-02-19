@@ -421,6 +421,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		if err != nil {
 			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s, publishing restore", payload.TaskExternalId)
 
+			// TODO-DURABLE: all these messages should be reconsidered for the user to understand what happened
 			restoreMsg, msgErr := tasktypes.DurableRestoreTaskMessage(tenantId, payload.TaskExternalId, payload.InvocationCount, "callback delivery failed")
 			if msgErr != nil {
 				d.l.Error().Err(msgErr).Msgf("failed to create restore message for task %s", payload.TaskExternalId)

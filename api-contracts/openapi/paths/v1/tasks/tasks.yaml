@@ -114,7 +114,7 @@ getTask:
 restoreTask:
   post:
     x-resources: ["tenant", "task"]
-    description: TEMP. Restores an evicted durable task by requeueing it at highest priority.
+    description: TODO-DURABLE consider removing this endpoint. Restores an evicted durable task by requeueing it at highest priority.
     operationId: v1-task:restore
     parameters:
       - description: The task id

@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// TODO-DURABLE: i'm not sure we want to keep this endpoint but it was useful for test
 func (t *TasksService) V1TaskRestore(ctx echo.Context, request gen.V1TaskRestoreRequestObject) (gen.V1TaskRestoreResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 

@@ -1966,7 +1966,7 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        -- TODO: think through reassign case...
+        -- TODO-DURABLE: think through reassign case...
         AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE($2::integer, 1000)

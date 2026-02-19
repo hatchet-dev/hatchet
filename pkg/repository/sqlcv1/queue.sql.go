@@ -906,7 +906,7 @@ WITH input AS (
     FROM
         updated_tasks t
     -- un-evict evicted tasks
-    -- TODO: think through this really carefully when you're not exhausted from a 7am sfo flight
+    -- TODO-DURABLE: think through this really carefully when you're not exhausted from a 7am sfo flight
     -- I'm wondering if this makes more sense as an update CTE and union...
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
     SET
