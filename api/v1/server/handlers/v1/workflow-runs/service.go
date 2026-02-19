@@ -11,9 +11,9 @@ import (
 )
 
 type V1WorkflowRunsService struct {
-	config                 *server.ServerConfig
-	proxyTrigger           *proxy.Proxy[admincontracts.TriggerWorkflowRunRequest, admincontracts.TriggerWorkflowRunResponse]
-	proxyResetDurableTask  *proxy.Proxy[admincontracts.ResetDurableTaskRequest, admincontracts.ResetDurableTaskResponse]
+	config                *server.ServerConfig
+	proxyTrigger          *proxy.Proxy[admincontracts.TriggerWorkflowRunRequest, admincontracts.TriggerWorkflowRunResponse]
+	proxyResetDurableTask *proxy.Proxy[admincontracts.ResetDurableTaskRequest, admincontracts.ResetDurableTaskResponse]
 }
 
 func NewV1WorkflowRunsService(config *server.ServerConfig) *V1WorkflowRunsService {
