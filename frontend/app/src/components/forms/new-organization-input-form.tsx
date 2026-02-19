@@ -1,47 +1,33 @@
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
-type OrganizationAndTenantFormProps = {
+type NewOrganizationInputFormProps = {
   defaultOrganizationName?: string;
   defaultTenantName?: string;
-} & (
-  | {
-      isCloudEnabled: true;
-      onSubmit: (values: {
-        organizationName: string;
-        tenantName: string;
-      }) => void;
-    }
-  | {
-      isCloudEnabled: false;
-      onSubmit: (values: { tenantName: string }) => void;
-    }
-);
+  isSaving?: boolean;
+  onSubmit: (values: { organizationName: string; tenantName: string }) => void;
+};
 
-export function OrganizationAndTenantForm({
+export function NewOrganizationInputForm({
   defaultOrganizationName = '',
   defaultTenantName = '',
   onSubmit,
-  isCloudEnabled,
-}: OrganizationAndTenantFormProps) {
+  isSaving = false,
+}: NewOrganizationInputFormProps) {
   const [organizationName, setOrganizationName] = useState(
     defaultOrganizationName,
   );
   const [tenantName, setTenantName] = useState(defaultTenantName);
 
-  const submit = isCloudEnabled
-    ? () => onSubmit({ organizationName, tenantName })
-    : () => onSubmit({ tenantName });
-
-  const canSubmit = useMemo(
-    () => !!(isCloudEnabled ? organizationName && tenantName : tenantName),
-    [isCloudEnabled, organizationName, tenantName],
-  );
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({ organizationName, tenantName });
+  };
 
   return (
-    <div className="grid gap-4 max-w-lg w-full">
+    <form onSubmit={handleSubmit} className="grid gap-4 max-w-lg w-full">
       <div className="grid gap-2">
         <Label htmlFor="organization-name">Organization Name</Label>
         <Input
@@ -54,6 +40,8 @@ export function OrganizationAndTenantForm({
           spellCheck={false}
           value={organizationName}
           onChange={(e) => setOrganizationName(e.target.value)}
+          disabled={isSaving}
+          required
         />
       </div>
 
@@ -68,12 +56,14 @@ export function OrganizationAndTenantForm({
           spellCheck={false}
           value={tenantName}
           onChange={(e) => setTenantName(e.target.value)}
+          disabled={isSaving}
+          required
         />
       </div>
 
-      <Button className="w-full" onClick={submit} disabled={!canSubmit}>
-        Create
+      <Button type="submit" className="w-full" disabled={isSaving}>
+        {isSaving ? 'Creating...' : 'Create'}
       </Button>
-    </div>
+    </form>
   );
 }

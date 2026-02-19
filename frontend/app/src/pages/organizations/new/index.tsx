@@ -1,8 +1,12 @@
-import { OrganizationAndTenantForm } from '@/components/forms/organization-and-tenant-form';
+import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
 import { Button } from '@/components/v1/ui/button';
+import { appRoutes } from '@/router';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from '@tanstack/react-router';
 
 export default function OrganizationsNew() {
+  const navigate = useNavigate();
+
   return (
     <div className="max-h-full overflow-y-auto">
       <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -22,10 +26,12 @@ export default function OrganizationsNew() {
         </h1>
 
         <div className="flex justify-center">
-          <OrganizationAndTenantForm
-            isCloudEnabled={true}
-            onSubmit={(values) => {
-              console.log(values);
+          <NewOrganizationSaverForm
+            afterSave={({ organization, tenant }) => {
+              navigate({
+                to: appRoutes.tenantOverviewRoute.to,
+                params: { tenant: tenant.id },
+              });
             }}
           />
         </div>

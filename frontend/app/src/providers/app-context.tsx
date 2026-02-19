@@ -26,7 +26,7 @@ import {
  * for user, tenant, and organization data across the application.
  */
 
-interface AppContextValue {
+export interface AppContextValue {
   // User data
   user: User | undefined;
   isUserLoading: boolean;
@@ -38,10 +38,12 @@ interface AppContextValue {
   tenantId: string | undefined;
   isTenantLoading: boolean;
   membership: string | undefined;
+  refetchTenantMemberships: () => void;
 
   // Organization data (cloud only)
   organizations: OrganizationForUserList | undefined;
   isOrganizationsLoading: boolean;
+  refetchOrganizations: () => void;
   isCloudEnabled: boolean;
 
   // Helper to get organization for current tenant
@@ -133,10 +135,12 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       tenantId,
       isTenantLoading: membershipsQuery.isLoading,
       membership: membership?.role,
+      refetchTenantMemberships: membershipsQuery.refetch,
 
       // Organizations
       organizations: organizationsQuery.data,
       isOrganizationsLoading: organizationsQuery.isLoading,
+      refetchOrganizations: organizationsQuery.refetch,
       isCloudEnabled,
 
       // Helpers
