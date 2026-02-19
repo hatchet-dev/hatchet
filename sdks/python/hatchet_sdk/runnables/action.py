@@ -73,6 +73,7 @@ class Action(BaseModel):
     parent_workflow_run_id: str | None = None
 
     priority: int | None = None
+    durable_task_invocation_count: int | None = None
 
     def _dump_payload_to_str(self) -> str:
         try:

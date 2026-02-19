@@ -251,6 +251,7 @@ class ActionListener:
                         priority=assigned_action.priority,
                         workflow_version_id=assigned_action.workflow_version_id,
                         workflow_id=assigned_action.workflow_id,
+                        durable_task_invocation_count=assigned_action.durable_task_invocation_count,
                     )
 
                     yield action

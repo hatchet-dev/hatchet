@@ -69,8 +69,9 @@ type HandleResetResult struct {
 }
 
 type IncrementDurableTaskInvocationCountsOpts struct {
-	TenantId uuid.UUID
-	TaskId   int64
+	TenantId   uuid.UUID
+	TaskId     int64
+	InsertedAt pgtype.Timestamptz
 }
 
 type DurableEventsRepository interface {
@@ -373,29 +374,36 @@ func (r *durableEventsRepository) IncrementDurableTaskInvocationCounts(ctx conte
 
 	defer rollback()
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, taskId, taskInsertedAt)
+	result := make(map[IncrementDurableTaskInvocationCountsOpts]*int32, len(opts))
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to get and lock log file: %w", err)
-	}
+	for _, opt := range opts {
+		logFile, err := r.getAndLockLogFile(ctx, tx, opt.TenantId, opt.TaskId, opt.InsertedAt)
 
-	newInvocationCount := logFile.LatestInvocationCount + 1
+		if err != nil {
+			return nil, fmt.Errorf("failed to get and lock log file for task %d: %w", opt.TaskId, err)
+		}
 
-	updatedLogFile, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-		Durabletaskid:         taskId,
-		Durabletaskinsertedat: taskInsertedAt,
-		InvocationCount:       sqlchelpers.ToInt(&newInvocationCount),
-	})
+		newInvocationCount := logFile.LatestInvocationCount + 1
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to update log file with new invocation count: %w", err)
+		updatedLogFile, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
+			Durabletaskid:         opt.TaskId,
+			Durabletaskinsertedat: opt.InsertedAt,
+			InvocationCount:       sqlchelpers.ToInt(&newInvocationCount),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to update log file for task %d: %w", opt.TaskId, err)
+		}
+
+		count := updatedLogFile.LatestInvocationCount
+		result[opt] = &count
 	}
 
 	if err := commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return &updatedLogFile.LatestInvocationCount, nil
+	return result, nil
 }
 
 func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {

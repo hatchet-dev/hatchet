@@ -119,11 +119,13 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 	}
 
 	// we already have payloads; no lookups necessary. we can just send them to the worker
-	taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
+	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 	taskIds := make([]int64, 0, len(tasks))
 
 	for _, assigned := range tasks {
-		taskIdToData[assigned.Task.ID] = assigned.Task
+		taskIdToData[assigned.Task.ID] = &V1TaskWithPayloadAndInvocationCount{
+			V1TaskWithPayload: assigned.Task,
+		}
 		taskIds = append(taskIds, assigned.Task.ID)
 	}
 
@@ -166,8 +168,9 @@ func (d *DispatcherImpl) populateTaskData(
 	for _, task := range bulkDatas {
 		if task.IsDurable.Valid && task.IsDurable.Bool {
 			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IncrementDurableTaskInvocationCountsOpts{
-				TaskId:   task.ID,
-				TenantId: task.TenantID,
+				TaskId:     task.ID,
+				TenantId:   task.TenantID,
+				InsertedAt: task.InsertedAt,
 			})
 		}
 	}
@@ -300,8 +303,9 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 
 		invocationCount := invocationCounts[v1.IncrementDurableTaskInvocationCountsOpts{
-			TaskId:   task.ID,
-			TenantId: task.TenantID,
+			TaskId:     task.ID,
+			TenantId:   task.TenantID,
+			InsertedAt: task.InsertedAt,
 		}]
 
 		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
@@ -321,8 +325,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	requeue func(task *sqlcv1.V1Task),
 	tenantId, workerId uuid.UUID,
 	taskIds []int64,
-	tasks map[int64]*v1.V1TaskWithPayload,
-	taskToInvocationCount map[int64]*int32,
+	tasks map[int64]*V1TaskWithPayloadAndInvocationCount,
 ) error {
 	// get the worker for this task
 	workers, err := d.workers.Get(workerId)
@@ -341,8 +344,6 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			continue
 		}
 
-		invocationCount := taskToInvocationCount[taskId]
-
 		innerEg.Go(func() error {
 			// if we've reached the context deadline, this should be requeued
 			if ctx.Err() != nil {
@@ -354,7 +355,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			var success bool
 
 			for i, w := range workers {
-				err := w.StartTaskFromBulk(ctx, tenantId, task, invocationCount)
+				err := w.StartTaskFromBulk(ctx, tenantId, task.V1TaskWithPayload, task.InvocationCount)
 
 				if err != nil {
 					multiErr = multierror.Append(

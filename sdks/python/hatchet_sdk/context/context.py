@@ -540,11 +540,9 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        invocation_count = self.attempt_number
-
+        invocation_count = self.action.durable_task_invocation_count or 1
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            ## todo: figure out how to store this invocation count properly
             invocation_count=invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
             payload=None,
@@ -558,7 +556,7 @@ class DurableContext(Context):
                 durable_task_external_id=self.step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
-                invocation_count=invocation_count,
+                invocation_count=self.action.durable_task_invocation_count or 1,
             ),
             self.cancellation_token,
         )
@@ -598,8 +596,8 @@ class DurableContext(Context):
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            ## fixme: use real invocation count here
-            invocation_count=self.attempt_number,
+            invocation_count=self.action.durable_task_invocation_count
+            or self.attempt_number,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
             workflow_name=workflow.config.name,
@@ -610,8 +608,7 @@ class DurableContext(Context):
             durable_task_external_id=self.step_run_id,
             node_id=ack.node_id,
             branch_id=ack.branch_id,
-            ## fixme: use real invocation count here
-            invocation_count=self.attempt_number,
+            invocation_count=self.action.durable_task_invocation_count or 1,
         )
 
         return result.payload or {}
