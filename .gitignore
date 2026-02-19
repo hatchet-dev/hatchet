@@ -102,4 +102,4 @@ frontend/docs/lib/generated/
 
 # Scripts
 hack/dev/psql-connect.sh
-.claude/CLAUDE.md
+CLAUDE.md
