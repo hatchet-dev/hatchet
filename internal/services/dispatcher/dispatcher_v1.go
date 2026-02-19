@@ -139,12 +139,17 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 	return err
 }
 
+type V1TaskWithPayloadAndInvocationCount struct {
+	*v1.V1TaskWithPayload
+	InvocationCount *int32 // only used for durable tasks
+}
+
 func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
 	taskIds []int64,
-) (map[int64]*v1.V1TaskWithPayload, error) {
+) (map[int64]*V1TaskWithPayloadAndInvocationCount, error) {
 	bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, tenantId, taskIds)
 
 	if err != nil {
@@ -154,6 +159,32 @@ func (d *DispatcherImpl) populateTaskData(
 
 		d.l.Error().Err(err).Msgf("could not bulk list step run data:")
 		return nil, err
+	}
+
+	incrementInvocationCountOpts := make([]v1.IncrementDurableTaskInvocationCountsOpts, 0)
+
+	for _, task := range bulkDatas {
+		if task.IsDurable.Valid && task.IsDurable.Bool {
+			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IncrementDurableTaskInvocationCountsOpts{
+				TaskId:   task.ID,
+				TenantId: task.TenantID,
+			})
+		}
+	}
+
+	invocationCounts := make(map[v1.IncrementDurableTaskInvocationCountsOpts]*int32)
+
+	if len(incrementInvocationCountOpts) > 0 {
+		invocationCounts, err = d.repov1.DurableEvents().IncrementDurableTaskInvocationCounts(ctx, incrementInvocationCountOpts)
+
+		if err != nil {
+			for _, task := range bulkDatas {
+				requeue(task)
+			}
+
+			d.l.Error().Err(err).Msgf("could not increment durable task invocation counts for %d tasks", len(incrementInvocationCountOpts))
+			return nil, err
+		}
 	}
 
 	parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, tenantId, bulkDatas)
@@ -252,7 +283,7 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 	}
 
-	taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
+	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
@@ -268,9 +299,17 @@ func (d *DispatcherImpl) populateTaskData(
 			input = task.Input
 		}
 
-		taskIdToData[task.ID] = &v1.V1TaskWithPayload{
-			V1Task:  task,
-			Payload: input,
+		invocationCount := invocationCounts[v1.IncrementDurableTaskInvocationCountsOpts{
+			TaskId:   task.ID,
+			TenantId: task.TenantID,
+		}]
+
+		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
+			&v1.V1TaskWithPayload{
+				V1Task:  task,
+				Payload: input,
+			},
+			invocationCount,
 		}
 	}
 
@@ -283,6 +322,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	tenantId, workerId uuid.UUID,
 	taskIds []int64,
 	tasks map[int64]*v1.V1TaskWithPayload,
+	taskToInvocationCount map[int64]*int32,
 ) error {
 	// get the worker for this task
 	workers, err := d.workers.Get(workerId)
@@ -301,6 +341,8 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			continue
 		}
 
+		invocationCount := taskToInvocationCount[taskId]
+
 		innerEg.Go(func() error {
 			// if we've reached the context deadline, this should be requeued
 			if ctx.Err() != nil {
@@ -312,7 +354,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			var success bool
 
 			for i, w := range workers {
-				err := w.StartTaskFromBulk(ctx, tenantId, task)
+				err := w.StartTaskFromBulk(ctx, tenantId, task, invocationCount)
 
 				if err != nil {
 					multiErr = multierror.Append(

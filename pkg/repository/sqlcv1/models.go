@@ -3470,6 +3470,7 @@ type V1Task struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
+	IsDurable                    pgtype.Bool        `json:"is_durable"`
 }
 
 type V1TaskEvent struct {

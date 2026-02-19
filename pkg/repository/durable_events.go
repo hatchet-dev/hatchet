@@ -68,11 +68,17 @@ type HandleResetResult struct {
 	EventLogFile *sqlcv1.V1DurableEventLogFile
 }
 
+type IncrementDurableTaskInvocationCountsOpts struct {
+	TenantId uuid.UUID
+	TaskId   int64
+}
+
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
 	HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleResetResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
+	IncrementDurableTaskInvocationCounts(ctx context.Context, opts []IncrementDurableTaskInvocationCountsOpts) (map[IncrementDurableTaskInvocationCountsOpts]*int32, error)
 }
 
 type durableEventsRepository struct {
@@ -358,7 +364,41 @@ func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEve
 	return idempotencyKey, nil
 }
 
-func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+func (r *durableEventsRepository) IncrementDurableTaskInvocationCounts(ctx context.Context, opts []IncrementDurableTaskInvocationCountsOpts) (map[IncrementDurableTaskInvocationCountsOpts]*int32, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare tx: %w", err)
+	}
+
+	defer rollback()
+
+	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, taskId, taskInsertedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get and lock log file: %w", err)
+	}
+
+	newInvocationCount := logFile.LatestInvocationCount + 1
+
+	updatedLogFile, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
+		Durabletaskid:         taskId,
+		Durabletaskinsertedat: taskInsertedAt,
+		InvocationCount:       sqlchelpers.ToInt(&newInvocationCount),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update log file with new invocation count: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return &updatedLogFile.LatestInvocationCount, nil
+}
+
+func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
 	lockKey := fmt.Sprintf("durable_log_file:%d:%s", durableTaskId, durableTaskInsertedAt.Time.String())
 
 	lockAcquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash(lockKey))
@@ -375,7 +415,15 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	} else if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		logFile, err = r.queries.CreateEventLogFile(ctx, tx, sqlcv1.CreateEventLogFileParams{
+			Durabletaskid:         durableTaskId,
+			Durabletaskinsertedat: durableTaskInsertedAt,
+			Tenantid:              tenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create log file: %w", err)
+		}
 	}
 
 	return logFile, nil
@@ -396,22 +444,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	tx := optTx.tx
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, task.ID, task.InsertedAt)
+	logFile, err := r.getAndLockLogFile(ctx, tx, opts.TenantId, task.ID, task.InsertedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
-	}
-
-	if logFile == nil {
-		logFile, err = r.queries.CreateEventLogFile(ctx, tx, sqlcv1.CreateEventLogFileParams{
-			Tenantid:              opts.TenantId,
-			Durabletaskid:         task.ID,
-			Durabletaskinsertedat: task.InsertedAt,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to get or create event log file: %w", err)
-		}
 	}
 
 	// TODO-DURABLE probably need to grab the previous entry here, if it exists, to determine how to increment?
@@ -670,9 +706,9 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid
 
 	tx := optTx.tx
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, task.ID, task.InsertedAt)
+	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
 
-	if err != nil || logFile == nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
