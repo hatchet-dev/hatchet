@@ -33,14 +33,25 @@ func NewClientFromProfile(profile *profileconfig.Profile, logger *zerolog.Logger
 	return client.NewFromConfigFile(configFile, client.WithLogger(logger)) //nolint:staticcheck
 }
 
+// clientCmdConfig holds CLI flag values used to create a Hatchet client.
+type clientCmdConfig struct {
+	Profile string
+}
+
+// readClientCmdConfig reads client-related flags from a command into a config struct.
+func readClientCmdConfig(cmd *cobra.Command) clientCmdConfig {
+	profile, _ := cmd.Flags().GetString("profile")
+	return clientCmdConfig{Profile: profile}
+}
+
 // clientFromCmd selects a profile and returns a Hatchet client.
 // The profile is read from the --profile flag if present, otherwise selected interactively.
 func clientFromCmd(cmd *cobra.Command) (string, client.Client) { //nolint:staticcheck
-	profileFlag, _ := cmd.Flags().GetString("profile")
+	cfg := readClientCmdConfig(cmd)
 
 	var selectedProfile string
-	if profileFlag != "" {
-		selectedProfile = profileFlag
+	if cfg.Profile != "" {
+		selectedProfile = cfg.Profile
 	} else {
 		selectedProfile = selectProfileForm(true)
 		if selectedProfile == "" {

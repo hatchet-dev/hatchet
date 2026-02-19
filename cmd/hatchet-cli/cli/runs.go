@@ -430,18 +430,6 @@ var runsLogsCmd = &cobra.Command{
 		sinceStr, _ := cmd.Flags().GetString("since")
 		follow, _ := cmd.Flags().GetBool("follow")
 
-		// Build log params from flags
-		buildLogParams := func(since *time.Time, limit *int64) *rest.V1LogLineListParams {
-			p := &rest.V1LogLineListParams{}
-			if since != nil {
-				p.Since = since
-			}
-			if limit != nil && *limit > 0 {
-				p.Limit = limit
-			}
-			return p
-		}
-
 		var sinceTime *time.Time
 		if sinceStr != "" {
 			var t time.Time
@@ -452,11 +440,6 @@ var runsLogsCmd = &cobra.Command{
 			sinceTime = &t
 		}
 
-		var tailLimit *int64
-		if tail > 0 {
-			tailLimit = &tail
-		}
-
 		type logEntry struct {
 			Task      string    `json:"task"`
 			Timestamp time.Time `json:"timestamp"`
@@ -464,14 +447,18 @@ var runsLogsCmd = &cobra.Command{
 			Message   string    `json:"message"`
 		}
 
-		// fetchLogs fetches logs for the run, optionally filtering by since time
-		fetchLogs := func(since *time.Time, limit *int64) ([]logEntry, error) {
-			params := buildLogParams(since, limit)
-
+		// fetchLogs fetches logs for the run. pollLimit is set during follow-mode polling
+		// to avoid dropping logs between polls (nil means apply --tail logic instead).
+		fetchLogs := func(since *time.Time, pollLimit *int64) ([]logEntry, error) {
 			// Try to fetch as a workflow run (DAG)
 			runResp, fetchErr := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
 			if fetchErr == nil && runResp.JSON200 != nil {
-				// DAG run: iterate tasks
+				// DAG run: fetch all logs per task then apply --tail to the merged list,
+				// rather than limiting per-task (which would give wrong "newest N overall").
+				params := &rest.V1LogLineListParams{Since: since}
+				if pollLimit != nil {
+					params.Limit = pollLimit
+				}
 				var allLogs []logEntry
 				for _, task := range runResp.JSON200.Tasks {
 					taskUUID, parseErr := uuid.Parse(task.Metadata.Id)
@@ -502,10 +489,30 @@ var runsLogsCmd = &cobra.Command{
 				sort.Slice(allLogs, func(i, j int) bool {
 					return allLogs[i].Timestamp.Before(allLogs[j].Timestamp)
 				})
+				// Apply --tail to merged result after sorting
+				if tail > 0 && pollLimit == nil && int64(len(allLogs)) > tail {
+					allLogs = allLogs[int64(len(allLogs))-tail:]
+				}
 				return allLogs, nil
 			}
 
-			// Fall back: treat run ID as a task ID directly (single task run)
+			// Fall back: treat run ID as a task ID directly (single task run).
+			// Use DESC ordering when --tail is set so the API returns the newest N lines,
+			// then reverse for chronological display.
+			var params *rest.V1LogLineListParams
+			if tail > 0 && pollLimit == nil {
+				descDir := rest.V1LogLineOrderByDirectionDESC
+				params = &rest.V1LogLineListParams{
+					Since:            since,
+					Limit:            &tail,
+					OrderByDirection: &descDir,
+				}
+			} else {
+				params = &rest.V1LogLineListParams{Since: since}
+				if pollLimit != nil {
+					params.Limit = pollLimit
+				}
+			}
 			logsResp, logsErr := hatchetClient.API().V1LogLineListWithResponse(
 				ctx,
 				runUUID,
@@ -530,6 +537,12 @@ var runsLogsCmd = &cobra.Command{
 					Message:   logLine.Message,
 				})
 			}
+			// Reverse DESC results back to chronological order
+			if tail > 0 && pollLimit == nil {
+				for i, j := 0, len(allLogs)-1; i < j; i, j = i+1, j-1 {
+					allLogs[i], allLogs[j] = allLogs[j], allLogs[i]
+				}
+			}
 			return allLogs, nil
 		}
 
@@ -553,7 +566,7 @@ var runsLogsCmd = &cobra.Command{
 		}
 
 		// Initial fetch
-		allLogs, err := fetchLogs(sinceTime, tailLimit)
+		allLogs, err := fetchLogs(sinceTime, nil)
 		if err != nil {
 			cli.Logger.Fatalf("%v", err)
 		}
@@ -597,9 +610,11 @@ var runsLogsCmd = &cobra.Command{
 			case <-sigCh:
 				return
 			case <-ticker.C:
-				// Add a small buffer to avoid re-fetching the last line
+				// Add a small buffer to avoid re-fetching the last line.
+				// Use a high explicit limit so fast-producing tasks don't drop logs.
 				pollSince := lastTimestamp.Add(time.Millisecond)
-				newLogs, err := fetchLogs(&pollSince, nil)
+				highLimit := int64(10000)
+				newLogs, err := fetchLogs(&pollSince, &highLimit)
 				if err != nil || len(newLogs) == 0 {
 					continue
 				}
@@ -728,6 +743,9 @@ func parseSinceDuration(s string) (time.Time, error) {
 	// Try standard Go duration (e.g., "1h", "30m", "2h30m")
 	d, err := time.ParseDuration(s)
 	if err == nil {
+		if d <= 0 {
+			return time.Time{}, fmt.Errorf("duration must be positive (e.g. 1h, 24h)")
+		}
 		return time.Now().Add(-d), nil
 	}
 
@@ -779,7 +797,9 @@ func resolveWorkflowID(ctx context.Context, hatchetClient client.Client, nameOrI
 		return openapi_types.UUID{}, fmt.Errorf("invalid tenant ID: %w", err)
 	}
 
-	resp, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{})
+	resp, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
+		Name: &nameOrID,
+	})
 	if err != nil {
 		return openapi_types.UUID{}, fmt.Errorf("failed to fetch workflows: %w", err)
 	}
@@ -857,7 +877,10 @@ func buildFilterAndParams(ctx context.Context, cmd *cobra.Command, hatchetClient
 	return filter, listParams, nil
 }
 
-// countMatchingRuns counts the total number of runs matching the given params using limit=1
+// countMatchingRuns estimates the total number of runs matching the given params.
+// It uses limit=1 and reads NumPages as a proxy for total count. Note: this is an
+// approximation — the actual number affected by cancel/replay may differ slightly if
+// run statuses change between this count call and the subsequent operation.
 func countMatchingRuns(ctx context.Context, hatchetClient client.Client, tenantUUID openapi_types.UUID, params *rest.V1WorkflowRunListParams) int64 { //nolint:staticcheck
 	limit := int64(1)
 	countParams := *params
