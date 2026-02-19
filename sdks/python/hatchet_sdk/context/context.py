@@ -540,10 +540,9 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        invocation_count = self.action.durable_task_invocation_count or 1
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            invocation_count=invocation_count,
+            invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
             payload=None,
             wait_for_conditions=conditions_proto,
@@ -556,7 +555,7 @@ class DurableContext(Context):
                 durable_task_external_id=self.step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
-                invocation_count=self.action.durable_task_invocation_count or 1,
+                invocation_count=self.invocation_count,
             ),
             self.cancellation_token,
         )
@@ -596,8 +595,7 @@ class DurableContext(Context):
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            invocation_count=self.action.durable_task_invocation_count
-            or self.attempt_number,
+            invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
             workflow_name=workflow.config.name,
@@ -608,7 +606,7 @@ class DurableContext(Context):
             durable_task_external_id=self.step_run_id,
             node_id=ack.node_id,
             branch_id=ack.branch_id,
-            invocation_count=self.action.durable_task_invocation_count or 1,
+            invocation_count=self.invocation_count,
         )
 
         return result.payload or {}
@@ -618,3 +616,7 @@ class DurableContext(Context):
             raise ValueError("Durable task client is not available")
 
         await self.durable_event_listener.ensure_started(self.action.worker_id)
+
+    @property
+    def invocation_count(self) -> int:
+        return self.action.durable_task_invocation_count or 1
