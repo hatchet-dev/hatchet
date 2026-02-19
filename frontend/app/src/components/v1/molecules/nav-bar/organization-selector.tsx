@@ -27,7 +27,7 @@ import {
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
-import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate, Link } from '@tanstack/react-router';
 import { useState, useMemo } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -216,11 +216,6 @@ export function OrganizationSelector({
     );
   };
 
-  const handleCreateOrgClick = () => {
-    setOpen(false);
-    navigate({ to: appRoutes.organizationsNewRoute.to });
-  };
-
   // Group memberships by organization
   const { currentOrgData, otherOrgsData, standaloneTenants } = useMemo(() => {
     const orgMap = new Map<string, TenantMember[]>();
@@ -351,10 +346,15 @@ export function OrganizationSelector({
                       variant="outline"
                       size="sm"
                       fullWidth
-                      onClick={handleCreateOrgClick}
                       leftIcon={<PlusIcon className="size-4" />}
+                      asChild
                     >
-                      Create Organization
+                      <Link
+                        to={appRoutes.organizationsNewRoute.to}
+                        onClick={() => setOpen(false)}
+                      >
+                        Create Organization
+                      </Link>
                     </Button>
                   </div>
                 </CommandGroup>
