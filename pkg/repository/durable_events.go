@@ -408,7 +408,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	// probably need to grab the previous entry here, if it exists, to determine how to increment?
+	// TODO-DURABLE probably need to grab the previous entry here, if it exists, to determine how to increment?
 	// basically need some way to figure out that we've reached a branching point
 	// maybe we need to use `latest_branch_first_parent_node_id` for this?
 	isNewInvocation := logFile.LatestInvocationCount < opts.InvocationCount
