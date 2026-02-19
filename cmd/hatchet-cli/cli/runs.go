@@ -236,7 +236,7 @@ If no run ID is provided, requires --since flag and cancels runs matching the fi
 				if resp.JSON200.Ids != nil {
 					count = len(*resp.JSON200.Ids)
 				}
-				fmt.Println(styles.SuccessMessage(fmt.Sprintf("Cancelled %d task(s)", count)))
+				fmt.Println(styles.SuccessMessage(fmt.Sprintf("Cancelled %d run(s)", count)))
 			}
 			return
 		}
@@ -281,7 +281,7 @@ If no run ID is provided, requires --since flag and cancels runs matching the fi
 			if resp.JSON200.Ids != nil {
 				count = len(*resp.JSON200.Ids)
 			}
-			fmt.Println(styles.SuccessMessage(fmt.Sprintf("Cancelled %d task(s)", count)))
+			fmt.Println(styles.SuccessMessage(fmt.Sprintf("Cancelled %d run(s)", count)))
 		}
 	},
 }
@@ -348,7 +348,7 @@ If no run ID is provided, requires --since flag and replays runs matching the fi
 				if resp.JSON200.Ids != nil {
 					count = len(*resp.JSON200.Ids)
 				}
-				fmt.Println(styles.SuccessMessage(fmt.Sprintf("Replayed %d task(s)", count)))
+				fmt.Println(styles.SuccessMessage(fmt.Sprintf("Replayed %d run(s)", count)))
 			}
 			return
 		}
@@ -393,7 +393,7 @@ If no run ID is provided, requires --since flag and replays runs matching the fi
 			if resp.JSON200.Ids != nil {
 				count = len(*resp.JSON200.Ids)
 			}
-			fmt.Println(styles.SuccessMessage(fmt.Sprintf("Replayed %d task(s)", count)))
+			fmt.Println(styles.SuccessMessage(fmt.Sprintf("Replayed %d run(s)", count)))
 		}
 	},
 }
