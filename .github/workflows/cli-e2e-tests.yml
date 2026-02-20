@@ -3,6 +3,7 @@ name: cli-e2e-tests
 on:
   pull_request:
     paths:
+      - ".github/workflows/cli-e2e-tests.yml"
       - "cmd/hatchet-cli/cli/templates/**"
       - "cmd/hatchet-cli/cli/quickstart.go"
       - "cmd/hatchet-cli/cli/internal/templater/**"
@@ -16,6 +17,7 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/cli-e2e-tests.yml"
       - "cmd/hatchet-cli/cli/templates/**"
       - "cmd/hatchet-cli/cli/quickstart.go"
       - "cmd/hatchet-cli/cli/internal/templater/**"
@@ -42,7 +44,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          python-version: "3.13" # pinned because of poetry dependency issue
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
