@@ -25,17 +25,13 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.runnables.types import (
-        EmptyModel,
-        R,
-        TWorkflowInput,
-    )
     from hatchet_sdk.runnables.workflow import (
         BaseWorkflow,
     )
