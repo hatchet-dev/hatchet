@@ -79,7 +79,6 @@ type DurableEventsRepository interface {
 	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
-	IncrementDurableTaskInvocationCounts(ctx context.Context, opts []IncrementDurableTaskInvocationCountsOpts) (map[IncrementDurableTaskInvocationCountsOpts]*int32, error)
 }
 
 type durableEventsRepository struct {
@@ -365,15 +364,7 @@ func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEve
 	return idempotencyKey, nil
 }
 
-func (r *durableEventsRepository) IncrementDurableTaskInvocationCounts(ctx context.Context, opts []IncrementDurableTaskInvocationCountsOpts) (map[IncrementDurableTaskInvocationCountsOpts]*int32, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare tx: %w", err)
-	}
-
-	defer rollback()
-
+func (r *sharedRepository) incrementDurableTaskInvocationCounts(ctx context.Context, tx sqlcv1.DBTX, opts []IncrementDurableTaskInvocationCountsOpts) (map[IncrementDurableTaskInvocationCountsOpts]*int32, error) {
 	taskIds := make([]int64, len(opts))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	tenantIds := make([]uuid.UUID, len(opts))
@@ -392,10 +383,6 @@ func (r *durableEventsRepository) IncrementDurableTaskInvocationCounts(ctx conte
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to increment invocation counts: %w", err)
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	result := make(map[IncrementDurableTaskInvocationCountsOpts]*int32, len(opts))
