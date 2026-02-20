@@ -1,7 +1,6 @@
 import time
 from typing import TYPE_CHECKING, Any
 
-from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     RunEventListenerClient,

@@ -19,7 +19,6 @@ from typing import (
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
-from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -41,11 +40,8 @@ from hatchet_sdk.contracts.workflows.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.contextvars import (
-    ctx_cancellation_token,
     ctx_durable_context,
 )
-from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -1318,7 +1314,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :returns: The extracted result of the workflow execution.
         """
-        from hatchet_sdk.runnables.contextvars import ctx_durable_context
         from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         durable_ctx = ctx_durable_context.get()

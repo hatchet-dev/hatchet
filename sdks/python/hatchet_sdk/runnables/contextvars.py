@@ -2,10 +2,13 @@ import asyncio
 import threading
 from collections import Counter
 from contextvars import ContextVar
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.context.context import DurableContext
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None
@@ -21,7 +24,7 @@ ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar
 ctx_task_retry_count: ContextVar[int | None] = ContextVar(
     "ctx_task_retry_count", default=0
 )
-ctx_durable_context: ContextVar[DurableContext | None] = ContextVar(
+ctx_durable_context: ContextVar["DurableContext | None"] = ContextVar(
     "ctx_durable_context", default=None
 )
 

@@ -6,7 +6,6 @@ from typing import Generic, Literal, TypeVar
 import grpc
 import grpc.aio
 
-from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.event_ts import (
     ThreadSafeEvent,
     UnexpectedEOF,
