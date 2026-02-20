@@ -55,6 +55,7 @@
     "@types/lodash": "^4.17.20",
     "ansi-to-html": "^0.7.2",
     "axios": "^1.12.0",
+    "better-emitter": "^4.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^0.2.1",

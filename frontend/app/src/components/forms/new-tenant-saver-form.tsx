@@ -83,12 +83,6 @@ export function NewTenantSaverForm({
   } = useAppContext();
   const { capture } = useAnalytics();
 
-  if (isOrganizationsLoading) {
-    return <></>;
-  }
-
-  assert(organizations);
-
   const { handleApiError } = useApiError();
 
   const handleSubmit = (values: {
@@ -113,6 +107,12 @@ export function NewTenantSaverForm({
       .catch(handleApiError)
       .finally(() => setIsSaving(false));
   };
+
+  if (isOrganizationsLoading) {
+    return <></>;
+  }
+
+  assert(organizations);
 
   return (
     <NewTenantInputForm

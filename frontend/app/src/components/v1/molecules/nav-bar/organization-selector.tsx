@@ -11,6 +11,7 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant, TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
@@ -68,11 +69,8 @@ function OrganizationGroup({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate({
-      to: appRoutes.onboardingCreateTenantRoute.to,
-      params: {
-        organizationId: organization.metadata.id,
-      },
+    globalEmitter.emit('new-tenant', {
+      defaultOrganizationId: organization.metadata.id,
     });
   };
 

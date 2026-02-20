@@ -40,6 +40,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
+import { globalEmitter } from '@/lib/global-emitter';
 import {
   OrganizationMember,
   ManagementToken,
@@ -320,9 +321,8 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  navigate({
-                    to: appRoutes.onboardingCreateTenantRoute.to,
-                    search: { organizationId: organization.metadata.id },
+                  globalEmitter.emit('new-tenant', {
+                    defaultOrganizationId: organization.metadata.id,
                   });
                 }}
                 leftIcon={<PlusIcon className="size-4" />}
@@ -505,9 +505,8 @@ export default function OrganizationPage() {
                 </p>
                 <Button
                   onClick={() => {
-                    navigate({
-                      to: appRoutes.onboardingCreateTenantRoute.to,
-                      search: { organizationId: organization.metadata.id },
+                    globalEmitter.emit('new-tenant', {
+                      defaultOrganizationId: organization.metadata.id,
                     });
                   }}
                   leftIcon={<PlusIcon className="size-4" />}

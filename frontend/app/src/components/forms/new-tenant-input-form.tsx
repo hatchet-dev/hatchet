@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import assert from '@/lib/assert';
 import { useState } from 'react';
 
 type NewTenantInputFormProps = {
@@ -40,14 +41,19 @@ export function NewTenantInputForm({
   onSubmit,
 }: NewTenantInputFormProps) {
   const [tenantName, setTenantName] = useState(defaultTenantName);
-  const [organizationId, setOrganizationId] = useState(defaultOrganizationId);
+  const [organizationId, setOrganizationId] = useState(
+    defaultOrganizationId || undefined,
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    assert(organizationId);
     isCloudEnabled
-      ? onSubmit({ tenantName, organizationId })
+      ? onSubmit({ tenantName, organizationId: organizationId! })
       : onSubmit({ tenantName });
   };
+
+  const shouldFocusOrganization = isCloudEnabled && !defaultOrganizationId;
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4 max-w-lg w-full">
@@ -55,12 +61,16 @@ export function NewTenantInputForm({
         <div className="grid gap-2">
           <Label htmlFor="organization-select">Organization</Label>
           <Select
+            name="organizationId"
             value={organizationId}
             onValueChange={setOrganizationId}
             disabled={isSaving}
             required
           >
-            <SelectTrigger id="organization-select">
+            <SelectTrigger
+              id="organization-select"
+              autoFocus={shouldFocusOrganization}
+            >
               <SelectValue placeholder="Select an organization" />
             </SelectTrigger>
             <SelectContent>
@@ -82,7 +92,7 @@ export function NewTenantInputForm({
           type="text"
           autoCapitalize="none"
           autoCorrect="off"
-          autoFocus={true}
+          autoFocus={!shouldFocusOrganization}
           spellCheck={false}
           value={tenantName}
           onChange={(e) => setTenantName(e.target.value)}
