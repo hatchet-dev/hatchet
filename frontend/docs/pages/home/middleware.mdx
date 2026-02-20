@@ -46,9 +46,9 @@ Middleware lets you run logic **before** and **after** every task on a client, w
 
     <Snippet src={snippets.typescript.middleware.client.init_a_client_with_middleware} />
 
-    ### Chaining Pre Hooks
+    ### Chaining Middleware
 
-    You can pass an array of functions to `pre` to run multiple hooks in sequence. Each hook's return value is merged into the input for subsequent hooks and the task itself.
+    You can chain multiple `.withMiddleware()` calls to run hooks in sequence. Each hook's return value is merged into the input for subsequent hooks and the task itself.
 
     <Snippet src={snippets.typescript.middleware.client.chaining_middleware} />
 

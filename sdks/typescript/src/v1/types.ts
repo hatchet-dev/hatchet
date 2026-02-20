@@ -17,6 +17,16 @@ export interface WorkflowOutputType {
   [key: string]: JsonObject;
 }
 
+/**
+ * When middleware is defined, its return type already includes the base fields
+ * (because middleware spreads the original value: `{ ...input, extra }`).
+ * Use `Base` as a fallback when no middleware is attached.
+ */
+export type Resolved<
+  Base extends Record<string, any>,
+  Middleware extends Record<string, any>,
+> = [keyof Middleware] extends [never] ? Base : Middleware;
+
 // Helper type to check if a type is a valid workflow output structure
 type IsValidWorkflowOutput<T> = T extends Record<string, JsonObject> ? true : false;
 

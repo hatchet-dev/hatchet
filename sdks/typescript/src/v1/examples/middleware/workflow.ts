@@ -21,20 +21,4 @@ export const taskWithMiddleware = hatchetWithMiddleware.task<TaskInput, TaskOutp
       };
   },
 });
-
-async function main() {
-  const result = await taskWithMiddleware.run({
-    message: 'hello',
-    first: 1,
-    second: 2,
-  });
-
-  console.log('result', result.message); // string  (from TaskOutput)
-  console.log('result', result.extra);   // number  (from GlobalOutputType)
-  console.log('result', result.additionalData);   // number  (from Post Middleware)
-}
-
-if (require.main === module) {
-  main();
-}
 // !!

@@ -17,11 +17,11 @@ export const hatchetWithMiddleware = HatchetClient.init<GlobalInputType, GlobalO
         // This middleware will be run before every task
         pre: (input, ctx) => {
             input.first;
-            return { dependency: 'abc-123' };
+            return { ...input, dependency: 'abc-123' };
         },
         // This middleware will be run after every task
         post: (output, ctx, input) => {
-            return { additionalData: 2 };
+            return { ...output, additionalData: 2 };
         },
     });
 
@@ -30,23 +30,20 @@ export const hatchetWithMiddleware = HatchetClient.init<GlobalInputType, GlobalO
 // > Chaining middleware
 export const hatchetWithMiddlewareChaining = HatchetClient.init<GlobalInputType>()
     .withMiddleware({
-        // These middleware will be run in order before every task
-        pre: [
-            (input, ctx) => {
-                input.first;
-                return { first: 1 };
-            },
-            (input, ctx) => {
-                return { second: 2 };
-            },
-        ],
-        // These middleware will be run in order after every task
-        post: [
-            (output, ctx, input) => {
-                return { firstExtra: 3 };
-            },
-            (output, ctx, input) => {
-                return { secondExtra: 4 };
-            }
-        ],
+        pre: (input, ctx) => {
+            input.first;
+            return { ...input, dependency: 'abc-123' };
+        },
+        post: (output, ctx, input) => {
+            return { ...output, firstExtra: 3 };
+        },
+    })
+    .withMiddleware({
+        pre: (input, ctx) => {
+            input.dependency; // available from previous middleware
+            return { ...input, anotherDep: true };
+        },
+        post: (output, ctx, input) => {
+            return { ...output, secondExtra: 4 };
+        },
     });

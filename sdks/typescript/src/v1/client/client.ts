@@ -39,7 +39,7 @@ import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
-import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
+import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType, Resolved } from '../types';
 import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
 import { FiltersClient } from './features/filters';
@@ -190,7 +190,7 @@ export class HatchetClient<
    * Use this after `init<T, U>()` to get full middleware return-type inference
    * that TypeScript can't provide when global types are explicitly set on `init`.
    */
-  withMiddleware<const M extends TaskMiddleware<GlobalInput, GlobalOutput>>(
+  withMiddleware<const M extends TaskMiddleware<Resolved<GlobalInput, MiddlewarePre>, Resolved<GlobalOutput, MiddlewarePost>>>(
     middleware: M
   ): HatchetClient<GlobalInput, GlobalOutput, MiddlewarePre & InferMiddlewarePre<M>, MiddlewarePost & InferMiddlewarePost<M>> {
     const existing: TaskMiddleware = (this._config as any).middleware || {};
@@ -226,8 +226,8 @@ export class HatchetClient<
    */
   workflow<I extends InputType = UnknownInputType, O extends StrictWorkflowOutputType = {}>(
     options: CreateWorkflowOpts
-  ): WorkflowDeclaration<I, O, GlobalInput & MiddlewarePre> {
-    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, GlobalInput & MiddlewarePre>;
+  ): WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewarePre>> {
+    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewarePre>>;
   }
 
   /**
@@ -239,7 +239,7 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance
    */
   task<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateTaskWorkflowOpts<I & GlobalInput & MiddlewarePre, MergeIfNonEmpty<O, GlobalOutput>>
+    options: CreateTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewarePre>, MergeIfNonEmpty<O, GlobalOutput>>
   ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewarePre, MiddlewarePost>;
 
   /**
@@ -280,7 +280,7 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance for a durable task
    */
   durableTask<I extends InputType, O extends OutputType>(
-    options: CreateDurableTaskWorkflowOpts<I & GlobalInput & MiddlewarePre, MergeIfNonEmpty<O, GlobalOutput>>
+    options: CreateDurableTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewarePre>, MergeIfNonEmpty<O, GlobalOutput>>
   ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewarePre, MiddlewarePost>;
 
   /**
