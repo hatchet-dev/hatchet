@@ -190,11 +190,11 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	incrementInvocationCountOpts := make([]v1.IdInsertedAt, 0)
+	getInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
 	for _, task := range bulkDatas {
 		if task.IsDurable.Valid && task.IsDurable.Bool {
-			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IdInsertedAt{
+			getInvocationCountOpts = append(getInvocationCountOpts, v1.IdInsertedAt{
 				ID:         task.ID,
 				InsertedAt: task.InsertedAt,
 			})
@@ -203,15 +203,15 @@ func (d *DispatcherImpl) populateTaskData(
 
 	invocationCounts := make(map[v1.IdInsertedAt]*int32)
 
-	if len(incrementInvocationCountOpts) > 0 {
-		invocationCounts, err = d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, incrementInvocationCountOpts)
+	if len(getInvocationCountOpts) > 0 {
+		invocationCounts, err = d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, getInvocationCountOpts)
 
 		if err != nil {
 			for _, task := range bulkDatas {
 				requeue(task)
 			}
 
-			d.l.Error().Err(err).Msgf("could not increment durable task invocation counts for %d tasks", len(incrementInvocationCountOpts))
+			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(getInvocationCountOpts))
 			return nil, err
 		}
 	}
