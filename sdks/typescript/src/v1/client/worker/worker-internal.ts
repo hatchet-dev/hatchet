@@ -575,12 +575,15 @@ export class V1Worker {
         const middleware = this.client.config.middleware;
 
         if (middleware?.pre) {
-          const extra = await middleware.pre(context.input, context as any);
-          if (extra !== undefined) {
-            const merged = { ...(context.input as any), ...extra };
-            (context as any).input = merged;
-            if ((context as any).data && typeof (context as any).data === 'object') {
-              (context as any).data.input = merged;
+          const hooks = Array.isArray(middleware.pre) ? middleware.pre : [middleware.pre];
+          for (const hook of hooks) {
+            const extra = await hook(context.input, context as any);
+            if (extra !== undefined) {
+              const merged = { ...(context.input as any), ...extra };
+              (context as any).input = merged;
+              if ((context as any).data && typeof (context as any).data === 'object') {
+                (context as any).data.input = merged;
+              }
             }
           }
         }
@@ -588,9 +591,12 @@ export class V1Worker {
         let result: any = await step(context);
 
         if (middleware?.post) {
-          const extra = await middleware.post(result, context as any, context.input);
-          if (extra !== undefined) {
-            result = { ...result, ...extra };
+          const hooks = Array.isArray(middleware.post) ? middleware.post : [middleware.post];
+          for (const hook of hooks) {
+            const extra = await hook(result, context as any, context.input);
+            if (extra !== undefined) {
+              result = { ...result, ...extra };
+            }
           }
         }
 

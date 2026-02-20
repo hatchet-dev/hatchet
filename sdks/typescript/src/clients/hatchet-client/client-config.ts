@@ -36,26 +36,52 @@ export const ClientConfigSchema = z.object({
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
 
+export type PreHookFn = (input: any, ctx: any) => Record<string, any> | void | Promise<Record<string, any> | void>;
+export type PostHookFn = (output: any, ctx: any, input: any) => Record<string, any> | void | Promise<Record<string, any> | void>;
+
 /**
  * Middleware hooks that run before/after every task invocation.
  *
- * `pre`  returns only the **extra fields** to merge into the task's input.
- * `post` returns only the **extra fields** to merge into the task's output.
+ * Each hook can be a single function or an array of functions.
+ * When an array is provided the functions run in order and each
+ * result is merged into the value (input for `pre`, output for `post`).
  *
- * Return `void` (or `undefined`) from either hook to skip merging.
+ * Each function returns only the **extra fields** to merge.
+ * Return `void` (or `undefined`) from a hook to skip merging.
  */
-export type TaskMiddleware<
-  PreAdd extends Record<string, any> = {},
-  PostAdd extends Record<string, any> = {},
-> = {
-  pre?: (input: any, ctx: any) => PreAdd | void | Promise<PreAdd | void>;
-  post?: (output: any, ctx: any, input: any) => PostAdd | void | Promise<PostAdd | void>;
+export type TaskMiddleware = {
+  pre?: PreHookFn | readonly PreHookFn[];
+  post?: PostHookFn | readonly PostHookFn[];
 };
+
+type NonVoidReturn<F> = F extends (...args: any[]) => infer R
+  ? Exclude<Awaited<R>, void | undefined>
+  : {};
+
+type MergeReturns<T> = T extends readonly [infer F, ...infer Rest]
+  ? NonVoidReturn<F> & MergeReturns<Rest>
+  : {};
+
+export type InferMiddlewarePre<M> = M extends { pre: infer P }
+  ? P extends (...args: any[]) => any
+    ? NonVoidReturn<P>
+    : P extends readonly any[]
+      ? MergeReturns<P>
+      : {}
+  : {};
+
+export type InferMiddlewarePost<M> = M extends { post: infer P }
+  ? P extends (...args: any[]) => any
+    ? NonVoidReturn<P>
+    : P extends readonly any[]
+      ? MergeReturns<P>
+      : {}
+  : {};
 
 export type ClientConfig = z.infer<typeof ClientConfigSchema> & {
   credentials?: ChannelCredentials;
 } & {
   logger: LogConstructor;
-  middleware?: TaskMiddleware<any, any>;
+  middleware?: TaskMiddleware;
 };
 export type ClientTLSConfig = z.infer<typeof ClientTLSConfigSchema>;

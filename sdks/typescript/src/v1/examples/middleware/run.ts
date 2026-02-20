@@ -1,17 +1,15 @@
-/* eslint-disable no-console */
-import { retries } from './workflow';
+import { taskWithMiddleware } from "./workflow";
 
 async function main() {
-  try {
-    const res = await retries.run({});
-    console.log(res);
-  } catch (e) {
-    console.log('error', e);
-  }
+  const result = await taskWithMiddleware.run({
+      message: 'hello',
+  });
+
+  console.log('result', result.extra);   // number  (from post middleware)
+  console.log('result', result.message); // string  (from TaskWithMiddlewareOutput)
 }
 
 if (require.main === module) {
-  main()
-    .catch(console.error)
-    .finally(() => process.exit(0));
+  main();
 }
+// !!

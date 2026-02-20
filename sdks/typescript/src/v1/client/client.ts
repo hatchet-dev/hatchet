@@ -6,6 +6,8 @@ import {
   HatchetClientOptions,
   LegacyHatchetClient,
   TaskMiddleware,
+  InferMiddlewarePre,
+  InferMiddlewarePost,
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -162,15 +164,15 @@ export class HatchetClient<
    * @param axiosConfig - Optional Axios configuration for HTTP requests
    * @returns A new Hatchet client instance
    */
-  static init<
-    Pre extends Record<string, any> = {},
-    Post extends Record<string, any> = {},
-  >(
-    config?: Partial<ClientConfig> & { middleware?: TaskMiddleware<Pre, Post> },
+  static init<const M extends TaskMiddleware = {}>(
+    config?: Partial<ClientConfig> & { middleware?: M },
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient<Pre, Post> {
-    return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<Pre, Post>;
+  ): HatchetClient<InferMiddlewarePre<M>, InferMiddlewarePost<M>> {
+    return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<
+      InferMiddlewarePre<M>,
+      InferMiddlewarePost<M>
+    >;
   }
 
   private _config: ClientConfig;

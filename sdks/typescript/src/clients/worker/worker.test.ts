@@ -181,6 +181,68 @@ describe('Worker', () => {
       );
     });
 
+    it('should apply array of pre/post hooks in order', async () => {
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
+
+      const order: string[] = [];
+      const seenInputs: any[] = [];
+
+      hatchet.config.middleware = {
+        pre: [
+          (_input: any, _ctx: any) => {
+            order.push('pre1');
+            return { a: 1 };
+          },
+          (_input: any, _ctx: any) => {
+            order.push('pre2');
+            return { b: 2 };
+          },
+        ],
+        post: [
+          (_output: any, _ctx: any, _input: any) => {
+            order.push('post1');
+            return { x: 10 };
+          },
+          (_output: any, _ctx: any, _input: any) => {
+            order.push('post2');
+            return { y: 20 };
+          },
+        ],
+      };
+
+      const getActionEventSpy = jest.spyOn(worker, 'getStepActionEvent');
+
+      jest.spyOn(worker.client.dispatcher, 'sendStepActionEvent').mockResolvedValue({
+        tenantId: 'TENANT_ID',
+        workerId: 'WORKER_ID',
+      });
+
+      const startSpy = jest.fn().mockImplementation((ctx: any) => {
+        order.push('step');
+        seenInputs.push(ctx.input);
+        return { ok: true };
+      });
+
+      worker.action_registry = {
+        [mockStart.actionId]: startSpy,
+      };
+
+      worker.handleStartStepRun(mockStart);
+      await sleep(100);
+
+      expect(order).toEqual(['pre1', 'pre2', 'step', 'post1', 'post2']);
+      expect(seenInputs[0]).toEqual(expect.objectContaining({ a: 1, b: 2 }));
+
+      expect(getActionEventSpy).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
+        false,
+        { ok: true, x: 10, y: 20 },
+        0
+      );
+    });
+
     it('should treat middleware errors as task errors', async () => {
       const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 

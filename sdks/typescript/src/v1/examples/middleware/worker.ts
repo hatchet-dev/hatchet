@@ -1,9 +1,9 @@
-import { hatchet } from '../hatchet-client';
-import { retries } from './workflow';
+import { hatchetWithMiddleware } from './client';
+import { taskWithMiddleware } from './workflow';
 
 async function main() {
-  const worker = await hatchet.worker('always-fail-worker', {
-    workflows: [retries],
+  const worker = await hatchetWithMiddleware.worker('task-with-middleware', {
+    workflows: [taskWithMiddleware],
   });
 
   await worker.start();

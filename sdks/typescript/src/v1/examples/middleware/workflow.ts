@@ -1,50 +1,20 @@
-/* eslint-disable no-console */
-import { hatchet } from '../hatchet-client';
+import { hatchetWithMiddleware } from "./client";
 
-// > Simple Step Retries
-export const retries = hatchet.task({
-  name: 'retries',
-  retries: 3,
-  fn: async (_, ctx) => {
-    throw new Error('intentional failure');
+type TaskInput = {
+  message: string;
+};
+
+type TaskOutput = {
+  message: string;
+};
+
+// Note: for type safety with middleware, we need to explicitly specify the input and output types in the generic parameters
+export const taskWithMiddleware = hatchetWithMiddleware.task<TaskInput, TaskOutput>({
+  name: 'task-with-middleware',
+  fn: (input, _ctx) => {
+      console.log('task', input.data);      // number    (from first pre hook)
+      console.log('task', input.requestId); // string    (from second pre hook)
+      console.log('task', input.message);   // string    (from TaskWithMiddlewareInput)
+      return { message: input.message };
   },
 });
-// !!
-
-// > Retries with Count
-export const retriesWithCount = hatchet.task({
-  name: 'retriesWithCount',
-  retries: 3,
-  fn: async (_, ctx) => {
-    // > Get the current retry count
-    const retryCount = ctx.retryCount();
-
-    console.log(`Retry count: ${retryCount}`);
-
-    if (retryCount < 2) {
-      throw new Error('intentional failure');
-    }
-
-    return {
-      message: 'success',
-    };
-  },
-});
-// !!
-
-// > Retries with Backoff
-export const withBackoff = hatchet.task({
-  name: 'withBackoff',
-  retries: 10,
-  backoff: {
-    // 👀 Maximum number of seconds to wait between retries
-    maxSeconds: 10,
-    // 👀 Factor to increase the wait time between retries.
-    // This sequence will be 2s, 4s, 8s, 10s, 10s, 10s... due to the maxSeconds limit
-    factor: 2,
-  },
-  fn: async () => {
-    throw new Error('intentional failure');
-  },
-});
-// !!
