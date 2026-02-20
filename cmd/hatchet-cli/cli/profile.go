@@ -319,6 +319,7 @@ func init() {
 	profileRemoveCmd.Flags().StringP("name", "n", "", "Name of the profile to remove (prompted if not provided)")
 
 	// Add flags to profile show command
+	profileShowCmd.Flags().StringP("name", "n", "", "Name of the profile to show (prompted if not provided)")
 	profileShowCmd.Flags().Bool("show-token", false, "Show the full token (default: masked)")
 
 	// Add flags to profile update command
