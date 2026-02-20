@@ -662,6 +662,7 @@ WITH input AS (
         relevant_events
     WHERE
         readable_status = 'COMPLETED'
+        AND event_type = 'FINISHED'
     ORDER BY
         task_id, event_timestamp DESC
 )
