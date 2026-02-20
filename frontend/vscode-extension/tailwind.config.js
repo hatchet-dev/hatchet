@@ -3,8 +3,7 @@ module.exports = {
   darkMode: 'class',
   content: [
     './src/webview/**/*.{ts,tsx}',
-    // Scan the shared dag-visualizer package for class names
-    '../packages/dag-visualizer/src/**/*.{ts,tsx}',
+    './src/dag-visualizer/**/*.{ts,tsx}',
   ],
   theme: {
     extend: {
