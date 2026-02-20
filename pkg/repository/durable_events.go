@@ -62,7 +62,7 @@ type IngestDurableTaskEventResult struct {
 	CreatedDAGs  []*DAGWithData
 }
 
-type HandleResetResult struct {
+type HandleForkResult struct {
 	NodeId       int64
 	BranchId     int64
 	EventLogFile *sqlcv1.V1DurableEventLogFile
@@ -76,7 +76,7 @@ type IncrementDurableTaskInvocationCountsOpts struct {
 
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
-	HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleResetResult, error)
+	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	IncrementDurableTaskInvocationCounts(ctx context.Context, opts []IncrementDurableTaskInvocationCountsOpts) (map[IncrementDurableTaskInvocationCountsOpts]*int32, error)
@@ -390,7 +390,7 @@ func (r *durableEventsRepository) IncrementDurableTaskInvocationCounts(ctx conte
 			Durabletaskid:         opt.TaskId,
 			Durabletaskinsertedat: opt.InsertedAt,
 			InvocationCount:       sqlchelpers.ToInt(&newInvocationCount),
-			// Reset node ID to 0 so the first event in this invocation gets node 1
+			// Fork node ID to 0 so the first event in this invocation gets node 1
 			NodeId: sqlchelpers.ToBigInt(&zero),
 		})
 
@@ -477,7 +477,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to reset latest node id for new invocation: %w", err)
+			return nil, fmt.Errorf("failed to fork latest node id for new invocation: %w", err)
 		}
 
 		nodeId = newNode.LatestNodeID
@@ -708,7 +708,7 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	return createdDAGs, createdTasks, nil
 }
 
-func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleResetResult, error) {
+func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -736,14 +736,14 @@ func (r *durableEventsRepository) HandleReset(ctx context.Context, tenantId uuid
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to update log file for reset: %w", err)
+		return nil, fmt.Errorf("failed to update log file for fork: %w", err)
 	}
 
 	if err := optTx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
-	return &HandleResetResult{
+	return &HandleForkResult{
 		NodeId:       nodeId,
 		BranchId:     newBranchId,
 		EventLogFile: logFile,
