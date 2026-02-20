@@ -1,17 +1,13 @@
-from __future__ import annotations
-
 import asyncio
 import threading
 from collections import Counter
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
-from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
-    from hatchet_sdk.clients.admin import AdminClient
     from hatchet_sdk.context.context import DurableContext
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
@@ -28,16 +24,10 @@ ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar
 ctx_task_retry_count: ContextVar[int | None] = ContextVar(
     "ctx_task_retry_count", default=0
 )
-ctx_durable_context: ContextVar[DurableContext | None] = ContextVar(
+ctx_durable_context: ContextVar["DurableContext | None"] = ContextVar(
     "ctx_durable_context", default=None
 )
-ctx_admin_client: ContextVar[AdminClient | None] = ContextVar(
-    "ctx_admin_client", default=None
-)
 
-ctx_cancellation_token: ContextVar[CancellationToken | None] = ContextVar(
-    "ctx_cancellation_token", default=None
-)
 
 workflow_spawn_indices = Counter[ActionKey]()
 spawn_index_lock = asyncio.Lock()
