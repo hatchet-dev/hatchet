@@ -17,7 +17,11 @@ import { useMemo, useCallback } from 'react';
  * Gets organization data from context, but keeps all mutation logic here.
  */
 export function useOrganizations() {
-  const { organizations: organizationData, isCloudEnabled } = useAppContext();
+  const {
+    organizations: organizationData,
+    organizationsAreLoaded,
+    isCloudEnabled,
+  } = useAppContext();
   const { handleApiError } = useApiError({});
 
   // Re-query for mutations (will revalidate the context)
@@ -31,8 +35,8 @@ export function useOrganizations() {
   });
 
   const organizations = useMemo(
-    () => organizationData?.rows || [],
-    [organizationData?.rows],
+    () => (organizationsAreLoaded ? organizationData : []),
+    [organizationsAreLoaded, organizationData],
   );
 
   const getOrganizationForTenant = useCallback(

@@ -18,6 +18,7 @@ import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { useAppContext } from '@/providers/app-context';
 import { PostHogProvider } from '@/providers/posthog';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -77,10 +78,14 @@ function AuthenticatedInner() {
   const isOnboardingCreateTenantPage = Boolean(
     matchRoute({ to: appRoutes.onboardingCreateTenantRoute.to }),
   );
+  const isOnboardingCreateOrganizationPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingCreateOrganizationRoute.to }),
+  );
   const isOnboardingPage =
     isOnboardingVerifyEmailPage ||
     isOnboardingInvitesPage ||
-    isOnboardingCreateTenantPage;
+    isOnboardingCreateTenantPage ||
+    isOnboardingCreateOrganizationPage;
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -111,6 +116,9 @@ function AuthenticatedInner() {
     user: currentUser,
     memberships: listMembershipsQuery.data?.rows,
   });
+
+  const { isCloudEnabled, organizationsAreLoaded, organizations } =
+    useAppContext();
 
   useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
@@ -149,13 +157,36 @@ function AuthenticatedInner() {
       return;
     }
 
-    if (
+    const needToWaitForOrganizations =
+      isCloudEnabled && !organizationsAreLoaded;
+    const okayToMakeOnboardingRedirectDecisions =
       !isPendingInvitesLoading &&
-      listMembershipsQuery.data?.rows?.length === 0 &&
-      !isOnboardingPage
-    ) {
-      navigate({ to: appRoutes.onboardingCreateTenantRoute.to, replace: true });
-      return;
+      !isOnboardingPage &&
+      listMembershipsQuery.isSuccess &&
+      !needToWaitForOrganizations;
+
+    if (okayToMakeOnboardingRedirectDecisions) {
+      const shouldHaveAnOrganizationButDoesnt =
+        organizationsAreLoaded && organizations.length === 0;
+
+      if (shouldHaveAnOrganizationButDoesnt) {
+        navigate({
+          to: appRoutes.onboardingCreateOrganizationRoute.to,
+          replace: true,
+        });
+        return;
+      }
+
+      const hasNoTenantMemberships =
+        listMembershipsQuery.data.rows?.length === 0;
+
+      if (hasNoTenantMemberships) {
+        navigate({
+          to: appRoutes.onboardingCreateTenantRoute.to,
+          replace: true,
+        });
+        return;
+      }
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
@@ -234,7 +265,6 @@ function AuthenticatedInner() {
 
   useEffect(() =>
     globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
-      console.log('got new-tenant event', defaultOrganizationId);
       setDefaultOrganizationId(defaultOrganizationId);
       setNewTenantModalOpen(true);
     }),

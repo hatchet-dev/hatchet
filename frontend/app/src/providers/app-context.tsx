@@ -1,6 +1,7 @@
 import { queries, Tenant, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
+import assert from '@/lib/assert';
 import { lastTenantAtom } from '@/lib/atoms';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
@@ -26,7 +27,7 @@ import {
  * for user, tenant, and organization data across the application.
  */
 
-export interface AppContextValue {
+export type AppContextValue = {
   // User data
   user: User | undefined;
   isUserLoading: boolean;
@@ -40,9 +41,6 @@ export interface AppContextValue {
   membership: string | undefined;
   refetchTenantMemberships: () => void;
 
-  // Organization data (cloud only)
-  organizations: OrganizationForUserList | undefined;
-  isOrganizationsLoading: boolean;
   refetchOrganizations: () => void;
   isCloudEnabled: boolean;
 
@@ -50,7 +48,22 @@ export interface AppContextValue {
   getCurrentOrganization: () =>
     | OrganizationForUserList['rows'][number]
     | undefined;
-}
+} & OrganizationPossibilties;
+
+type OrganizationPossibilties = {
+  isOrganizationsLoading: boolean;
+} & (
+  | {
+      isCloudEnabled: true;
+      organizationsAreLoaded: true;
+      organizations: OrganizationForUserList['rows'];
+    }
+  | {
+      isCloudEnabled: boolean;
+      organizationsAreLoaded: false;
+      organizations: null;
+    }
+);
 
 const AppContext = createContext<AppContextValue | null>(null);
 
@@ -88,6 +101,10 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     enabled: isCloudEnabled,
   });
 
+  const organizations = organizationsQuery.isSuccess
+    ? organizationsQuery.data?.rows || []
+    : null;
+
   // Compute current membership and tenant
   const membership = useMemo(() => {
     if (!tenantId || !membershipsQuery.data?.rows) {
@@ -122,6 +139,28 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     [tenantId, organizationsQuery.data?.rows],
   );
 
+  const organizationsAreLoaded = organizationsQuery.isSuccess;
+
+  const organizationPossibilties: OrganizationPossibilties = useMemo(() => {
+    const isOrganizationsLoading = organizationsQuery.isLoading;
+    if (organizationsAreLoaded) {
+      assert(organizations && isCloudEnabled);
+      return {
+        isOrganizationsLoading,
+        isCloudEnabled,
+        organizationsAreLoaded,
+        organizations,
+      };
+    }
+
+    return {
+      isOrganizationsLoading,
+      isCloudEnabled,
+      organizationsAreLoaded: false,
+      organizations: null,
+    };
+  }, [organizationsAreLoaded, organizations, isCloudEnabled]);
+
   const value = useMemo<AppContextValue>(
     () => ({
       // User
@@ -137,11 +176,8 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       membership: membership?.role,
       refetchTenantMemberships: membershipsQuery.refetch,
 
-      // Organizations
-      organizations: organizationsQuery.data,
-      isOrganizationsLoading: organizationsQuery.isLoading,
       refetchOrganizations: organizationsQuery.refetch,
-      isCloudEnabled,
+      ...organizationPossibilties,
 
       // Helpers
       getCurrentOrganization,

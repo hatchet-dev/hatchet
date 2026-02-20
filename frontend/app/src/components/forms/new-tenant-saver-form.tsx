@@ -76,8 +76,8 @@ export function NewTenantSaverForm({
   const [isSaving, setIsSaving] = useState(false);
   const {
     isCloudEnabled,
-    organizations,
-    isOrganizationsLoading,
+    organizations: organizations,
+    organizationsAreLoaded,
     refetchTenantMemberships,
     refetchOrganizations,
   } = useAppContext();
@@ -108,11 +108,9 @@ export function NewTenantSaverForm({
       .finally(() => setIsSaving(false));
   };
 
-  if (isOrganizationsLoading) {
+  if (!organizationsAreLoaded) {
     return <></>;
   }
-
-  assert(organizations);
 
   return (
     <NewTenantInputForm
@@ -120,7 +118,7 @@ export function NewTenantSaverForm({
       defaultOrganizationId={defaultOrganizationId}
       isSaving={isSaving}
       isCloudEnabled={isCloudEnabled}
-      organizations={organizations.rows}
+      organizations={organizations}
       onSubmit={handleSubmit}
     />
   );
