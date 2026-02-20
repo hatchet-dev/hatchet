@@ -96,6 +96,10 @@ const (
 	ViewTypeRuns ViewType = iota
 	ViewTypeWorkflows
 	ViewTypeWorkers
+	ViewTypeRateLimits
+	ViewTypeScheduledRuns
+	ViewTypeCronJobs
+	ViewTypeWebhooks
 )
 
 // viewOption represents a selectable view in the view selector
@@ -110,6 +114,10 @@ var availableViews = []viewOption{
 	{Type: ViewTypeRuns, Name: "Runs", Description: "View task runs"},
 	{Type: ViewTypeWorkflows, Name: "Workflows", Description: "View workflows"},
 	{Type: ViewTypeWorkers, Name: "Workers", Description: "View workers"},
+	{Type: ViewTypeRateLimits, Name: "Rate Limits", Description: "View rate limit usage"},
+	{Type: ViewTypeScheduledRuns, Name: "Scheduled Runs", Description: "View scheduled runs"},
+	{Type: ViewTypeCronJobs, Name: "Cron Jobs", Description: "View cron jobs"},
+	{Type: ViewTypeWebhooks, Name: "Webhooks", Description: "View webhooks"},
 }
 
 // tuiModel is the root model that manages different views
@@ -337,16 +345,20 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Navigate to appropriate view based on detected type
 		var newView tui.View
-		if msg.Type == "task" {
+		switch {
+		case msg.Type == "task" && msg.TaskData != nil:
 			// Single task view
 			taskView := tui.NewSingleTaskView(m.ctx, msg.TaskData.Metadata.Id)
 			taskView.SetSize(m.width, m.height)
 			newView = taskView
-		} else {
+		case msg.Type == "dag" && msg.DAGData != nil:
 			// DAG workflow run view
 			dagView := tui.NewRunDetailsView(m.ctx, msg.DAGData.Run.Metadata.Id)
 			dagView.SetSize(m.width, m.height)
 			newView = dagView
+		default:
+			// Unknown type or missing data — stay on current view
+			return m, nil
 		}
 
 		m.currentView = newView
@@ -531,15 +543,20 @@ func (m tuiModel) detectRunType(runID string) tea.Cmd {
 			}
 		}
 
-		// Both failed
+		// Both failed — return the most informative error available
 		if taskResult != nil && taskResult.err != nil {
 			return tui.RunTypeDetectedMsg{
 				Error: taskResult.err,
 			}
 		}
-
+		if dagResult != nil && dagResult.err != nil {
+			return tui.RunTypeDetectedMsg{
+				Error: dagResult.err,
+			}
+		}
+		// Both returned non-200 without a network error (e.g. run not yet started)
 		return tui.RunTypeDetectedMsg{
-			Error: dagResult.err,
+			Error: fmt.Errorf("run %q not found", runID),
 		}
 	}
 }
@@ -553,6 +570,14 @@ func (m tuiModel) createViewForType(viewType ViewType) tui.View {
 		return tui.NewWorkflowsView(m.ctx)
 	case ViewTypeWorkers:
 		return tui.NewWorkersView(m.ctx)
+	case ViewTypeRateLimits:
+		return tui.NewRateLimitsView(m.ctx)
+	case ViewTypeScheduledRuns:
+		return tui.NewScheduledRunsView(m.ctx)
+	case ViewTypeCronJobs:
+		return tui.NewCronJobsView(m.ctx)
+	case ViewTypeWebhooks:
+		return tui.NewWebhooksView(m.ctx)
 	default:
 		return tui.NewRunsListView(m.ctx)
 	}
