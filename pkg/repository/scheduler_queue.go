@@ -327,7 +327,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	}
 
 	if len(incrementInvocationCountOpts) > 0 {
-		_, err := d.incrementDurableTaskInvocationCounts(ctx, tx, []IncrementDurableTaskInvocationCountsOpts{})
+		_, err := d.incrementDurableTaskInvocationCounts(ctx, tx, incrementInvocationCountOpts)
 
 		if err != nil {
 			return nil, nil, err

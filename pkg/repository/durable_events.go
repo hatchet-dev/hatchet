@@ -405,6 +405,7 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
+		Tenantid:              tenantId,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
