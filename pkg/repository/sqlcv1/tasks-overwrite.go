@@ -153,7 +153,7 @@ type CreateTasksParams struct {
 	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
 	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
-	ParentTaskExternalIds        []uuid.UUID          `json:"parentTaskExternalIds"`
+	ParentTaskExternalIds        []*uuid.UUID         `json:"parentTaskExternalIds"`
 	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
 	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
 	ChildIndex                   []pgtype.Int8        `json:"childIndex"`

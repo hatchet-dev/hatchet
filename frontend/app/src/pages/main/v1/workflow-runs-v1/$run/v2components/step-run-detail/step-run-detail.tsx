@@ -13,7 +13,6 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
-import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
   TabsContent,
@@ -38,6 +37,7 @@ export enum TabOption {
   Logs = 'logs',
   Waterfall = 'waterfall',
   AdditionalMetadata = 'additional-metadata',
+  Activity = 'activity',
 }
 
 interface TaskRunDetailProps {
@@ -228,6 +228,9 @@ export const TaskRunDetail = ({
             }}
           >
             <TabsList layout="underlined">
+              <TabsTrigger variant="underlined" value={TabOption.Activity}>
+                Activity
+              </TabsTrigger>
               <TabsTrigger variant="underlined" value={TabOption.Output}>
                 Output
               </TabsTrigger>
@@ -260,6 +263,14 @@ export const TaskRunDetail = ({
             </TabsList>
             <TabsContent value={TabOption.Output}>
               <V1StepRunOutput taskRunId={taskRunId} />
+            </TabsContent>
+            <TabsContent value={TabOption.Activity}>
+              <div className="py-4">
+                <StepRunEvents
+                  taskRunId={taskRunId}
+                  fallbackTaskDisplayName={taskRun.displayName}
+                />
+              </div>
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
               <div className="flex flex-col h-96">
@@ -314,16 +325,6 @@ export const TaskRunDetail = ({
           </TabsContent>
         )}
       </Tabs>
-      <Separator className="my-4" />
-      <div className="mb-2 flex flex-col gap-y-2">
-        <h3 className="flex flex-row items-center gap-4 text-lg font-semibold leading-tight text-foreground">
-          Events
-        </h3>
-        <StepRunEvents
-          taskRunId={taskRunId}
-          fallbackTaskDisplayName={taskRun.displayName}
-        />
-      </div>
     </div>
   );
 };

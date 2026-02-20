@@ -2441,7 +2441,7 @@ SELECT
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
-    o.external_id::UUID AS output_event_external_id,
+    o.external_id AS output_event_external_id,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -2502,7 +2502,7 @@ type PopulateSingleTaskRunDataRow struct {
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
-	OutputEventExternalID uuid.UUID            `json:"output_event_external_id"`
+	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
 	Output                []byte               `json:"output"`
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	SpawnedChildren       pgtype.Int8          `json:"spawned_children"`
@@ -2670,15 +2670,17 @@ WITH input AS (
         e.task_id, e.retry_count DESC
 ), task_output AS (
     SELECT
+        DISTINCT ON (task_id)
         task_id,
-        MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
-        MAX(external_id::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id
+        output,
+        external_id AS output_event_external_id
     FROM
         relevant_events
     WHERE
         readable_status = 'COMPLETED'
-    GROUP BY
-        task_id
+        AND event_type = 'FINISHED'
+    ORDER BY
+        task_id, event_timestamp DESC
 )
 SELECT
     t.tenant_id,
@@ -2712,7 +2714,7 @@ SELECT
         WHEN $1::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB as output,
-    o.output_event_external_id::UUID AS output_event_external_id
+    o.output_event_external_id AS output_event_external_id
 FROM
     tasks t
 LEFT JOIN
@@ -2761,7 +2763,7 @@ type PopulateTaskRunDataRow struct {
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	RetryCount            int32                `json:"retry_count"`
 	Output                []byte               `json:"output"`
-	OutputEventExternalID uuid.UUID            `json:"output_event_external_id"`
+	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
