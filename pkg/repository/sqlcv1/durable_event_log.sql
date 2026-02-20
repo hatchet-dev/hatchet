@@ -147,3 +147,19 @@ WHERE
     (e.branch_id, e.node_id) IN (SELECT branch_id, node_id FROM nodes_and_branches)
     AND e.is_satisfied
 ;
+
+-- name: GetDurableTaskLogFiles :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
+SELECT *
+FROM v1_durable_event_log_file lf
+WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
+    SELECT durable_task_id, durable_task_inserted_at, tenant_id
+    FROM inputs
+)
+;

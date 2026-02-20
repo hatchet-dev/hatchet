@@ -79,6 +79,7 @@ type DurableEventsRepository interface {
 	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
+	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 }
 
 type durableEventsRepository struct {
@@ -731,4 +732,43 @@ func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.
 		BranchId:     newBranchId,
 		EventLogFile: logFile,
 	}, nil
+}
+
+func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+
+	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	tenantIds := make([]uuid.UUID, len(tasks))
+
+	for i, t := range tasks {
+		taskIds[i] = t.ID
+		taskInsertedAts[i] = t.InsertedAt
+		tenantIds[i] = tenantId
+	}
+
+	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, r.pool, sqlcv1.GetDurableTaskLogFilesParams{
+		Durabletaskids:         taskIds,
+		Durabletaskinsertedats: taskInsertedAts,
+		Tenantids:              tenantIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get log files: %w", err)
+	}
+
+	result := make(map[IdInsertedAt]*int32, len(tasks))
+
+	for _, logFile := range logFiles {
+		key := IdInsertedAt{
+			ID:         logFile.DurableTaskID,
+			InsertedAt: logFile.DurableTaskInsertedAt,
+		}
+
+		result[key] = &logFile.LatestInvocationCount
+	}
+
+	return result, nil
 }

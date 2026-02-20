@@ -868,7 +868,8 @@ WITH input AS (
         i.worker_id,
         t.tenant_id,
         t.step_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at,
+        t.is_durable
     FROM
         v1_task t
     JOIN
@@ -896,7 +897,7 @@ WITH input AS (
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
-    RETURNING task_id, worker_id
+    RETURNING task_id, task_inserted_at, retry_count, worker_id
 ), slot_requests AS (
     SELECT
         t.id,
@@ -936,9 +937,13 @@ WITH input AS (
 )
 SELECT
     asr.task_id,
-    asr.worker_id
+    asr.task_inserted_at,
+    asr.worker_id,
+    ut.is_durable
 FROM
     assigned_tasks asr
+JOIN
+    updated_tasks ut ON (asr.task_id, asr.task_inserted_at, asr.retry_count) = (ut.id, ut.inserted_at, ut.retry_count)
 `
 
 type UpdateTasksToAssignedParams struct {
@@ -950,8 +955,10 @@ type UpdateTasksToAssignedParams struct {
 }
 
 type UpdateTasksToAssignedRow struct {
-	TaskID   int64      `json:"task_id"`
-	WorkerID *uuid.UUID `json:"worker_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	WorkerID       *uuid.UUID         `json:"worker_id"`
+	IsDurable      pgtype.Bool        `json:"is_durable"`
 }
 
 func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg UpdateTasksToAssignedParams) ([]*UpdateTasksToAssignedRow, error) {
@@ -969,7 +976,12 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 	var items []*UpdateTasksToAssignedRow
 	for rows.Next() {
 		var i UpdateTasksToAssignedRow
-		if err := rows.Scan(&i.TaskID, &i.WorkerID); err != nil {
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.WorkerID,
+			&i.IsDurable,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

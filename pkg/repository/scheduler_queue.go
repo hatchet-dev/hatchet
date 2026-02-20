@@ -278,6 +278,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	}
 
 	taskIds := make([]int64, 0, len(r.Assigned))
+	tenantIds := make([]uuid.UUID, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
 	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
 
@@ -289,6 +290,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if _, ok := queuedItemsMap[id]; ok {
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
 			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
+			tenantIds = append(tenantIds, tenantId)
 			workerIds = append(workerIds, assignedItem.WorkerId)
 
 			if assignedItem.QueueItem.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignedItem.QueueItem.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
@@ -310,6 +312,26 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	if err != nil {
 		return nil, nil, err
+	}
+
+	incrementInvocationCountOpts := make([]IncrementDurableTaskInvocationCountsOpts, 0)
+
+	for _, t := range updatedTasks {
+		if t.IsDurable.Valid && t.IsDurable.Bool {
+			incrementInvocationCountOpts = append(incrementInvocationCountOpts, IncrementDurableTaskInvocationCountsOpts{
+				TaskId:         t.TaskID,
+				TaskInsertedAt: t.TaskInsertedAt,
+				TenantId:       tenantId,
+			})
+		}
+	}
+
+	if len(incrementInvocationCountOpts) > 0 {
+		_, err := d.incrementDurableTaskInvocationCounts(ctx, tx, []IncrementDurableTaskInvocationCountsOpts{})
+
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	timeAfterUpdateStepRuns := time.Since(checkpoint)

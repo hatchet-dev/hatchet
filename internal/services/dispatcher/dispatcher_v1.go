@@ -122,7 +122,7 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 	taskIds := make([]int64, 0, len(tasks))
 
-	incrementInvocationCountOpts := make([]v1.IncrementDurableTaskInvocationCountsOpts, 0)
+	getDurableInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
 	for _, assigned := range tasks {
 		taskIdToData[assigned.Task.ID] = &V1TaskWithPayloadAndInvocationCount{
@@ -131,29 +131,27 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 		taskIds = append(taskIds, assigned.Task.ID)
 
 		if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
-			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IncrementDurableTaskInvocationCountsOpts{
-				TaskId:         assigned.Task.ID,
-				TenantId:       assigned.Task.TenantID,
-				TaskInsertedAt: assigned.Task.InsertedAt,
+			getDurableInvocationCountOpts = append(getDurableInvocationCountOpts, v1.IdInsertedAt{
+				ID:         assigned.Task.ID,
+				InsertedAt: assigned.Task.InsertedAt,
 			})
 		}
 	}
 
-	if len(incrementInvocationCountOpts) > 0 {
-		invocationCounts, err := d.repov1.DurableEvents().IncrementDurableTaskInvocationCounts(ctx, incrementInvocationCountOpts)
+	if len(getDurableInvocationCountOpts) > 0 {
+		invocationCounts, err := d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, getDurableInvocationCountOpts)
 
 		if err != nil {
+			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(getDurableInvocationCountOpts))
+		} else {
 			for _, assigned := range tasks {
-				requeue(assigned.Task.V1Task)
-			}
-
-			d.l.Error().Err(err).Msgf("could not increment durable task invocation counts for %d tasks", len(incrementInvocationCountOpts))
-			return err
-		}
-
-		for _, opt := range incrementInvocationCountOpts {
-			if count, ok := invocationCounts[opt]; ok {
-				taskIdToData[opt.TaskId].InvocationCount = count
+				if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
+					count := invocationCounts[v1.IdInsertedAt{
+						ID:         assigned.Task.ID,
+						InsertedAt: assigned.Task.InsertedAt,
+					}]
+					taskIdToData[assigned.Task.ID].InvocationCount = count
+				}
 			}
 		}
 	}
@@ -192,22 +190,21 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	incrementInvocationCountOpts := make([]v1.IncrementDurableTaskInvocationCountsOpts, 0)
+	incrementInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
 	for _, task := range bulkDatas {
 		if task.IsDurable.Valid && task.IsDurable.Bool {
-			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IncrementDurableTaskInvocationCountsOpts{
-				TaskId:         task.ID,
-				TenantId:       task.TenantID,
-				TaskInsertedAt: task.InsertedAt,
+			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IdInsertedAt{
+				ID:         task.ID,
+				InsertedAt: task.InsertedAt,
 			})
 		}
 	}
 
-	invocationCounts := make(map[v1.IncrementDurableTaskInvocationCountsOpts]*int32)
+	invocationCounts := make(map[v1.IdInsertedAt]*int32)
 
 	if len(incrementInvocationCountOpts) > 0 {
-		invocationCounts, err = d.repov1.DurableEvents().IncrementDurableTaskInvocationCounts(ctx, incrementInvocationCountOpts)
+		invocationCounts, err = d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, incrementInvocationCountOpts)
 
 		if err != nil {
 			for _, task := range bulkDatas {
@@ -331,10 +328,9 @@ func (d *DispatcherImpl) populateTaskData(
 			input = task.Input
 		}
 
-		invocationCount := invocationCounts[v1.IncrementDurableTaskInvocationCountsOpts{
-			TaskId:         task.ID,
-			TenantId:       task.TenantID,
-			TaskInsertedAt: task.InsertedAt,
+		invocationCount := invocationCounts[v1.IdInsertedAt{
+			ID:         task.ID,
+			InsertedAt: task.InsertedAt,
 		}]
 
 		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
