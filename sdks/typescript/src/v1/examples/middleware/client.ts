@@ -2,12 +2,16 @@
 import { HatchetClient } from '@hatchet/v1';
 
 
-export type GlobalType = {
+export type GlobalInputType = {
     first: number;
     second: number;
 };
 
-export const hatchetWithMiddleware = HatchetClient.init<GlobalType>({
+export type GlobalOutputType = {
+    extra: number;
+};
+
+export const hatchetWithMiddleware = HatchetClient.init<GlobalInputType, GlobalOutputType>({
     middleware: {
         pre: (_input, _ctx) => {
             _input.first;
@@ -24,7 +28,7 @@ export const hatchetWithMiddleware = HatchetClient.init<GlobalType>({
 
 
 // > Chaining middleware
-export const hatchetWithMiddlewareChaining = HatchetClient.init<GlobalType>({
+export const hatchetWithMiddlewareChaining = HatchetClient.init<GlobalInputType>({
     middleware: {
         pre: [
             (_input, _ctx) => {

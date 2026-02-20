@@ -67,9 +67,9 @@ export type PostHookFn<TOutput = any, TInput = any> = (output: TOutput, ctx: Con
  * Each function returns only the **extra fields** to merge.
  * Return `void` (or `undefined`) from a hook to skip merging.
  */
-export type TaskMiddleware<T = any> = {
-  pre?: PreHookFn<T> | readonly PreHookFn<T>[];
-  post?: PostHookFn<any, T> | readonly PostHookFn<any, T>[];
+export type TaskMiddleware<TInput = any, TOutput = any> = {
+  pre?: PreHookFn<TInput> | readonly PreHookFn<TInput>[];
+  post?: PostHookFn<TOutput, TInput> | readonly PostHookFn<TOutput, TInput>[];
 };
 
 type NonVoidReturn<F> = F extends (...args: any[]) => infer R

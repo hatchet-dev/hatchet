@@ -8,6 +8,7 @@ async function main() {
   });
 
   console.log('result', result.message); // string  (from TaskOutput)
+  console.log('result', result.extra);   // number  (from GlobalOutputType)
 }
 
 if (require.main === module) {
