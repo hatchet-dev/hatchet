@@ -147,6 +147,38 @@ func (q *Queries) CreateEventLogFile(ctx context.Context, db DBTX, arg CreateEve
 	return &i, err
 }
 
+const getAndLockLogFile = `-- name: GetAndLockLogFile :one
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+FROM v1_durable_event_log_file
+WHERE
+    durable_task_id = $1::BIGINT
+    AND durable_task_inserted_at = $2::TIMESTAMPTZ
+    AND tenant_id = $3::UUID
+FOR UPDATE
+`
+
+type GetAndLockLogFileParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Tenantid              uuid.UUID          `json:"tenantid"`
+}
+
+func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLockLogFileParams) (*V1DurableEventLogFile, error) {
+	row := db.QueryRow(ctx, getAndLockLogFile, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Tenantid)
+	var i V1DurableEventLogFile
+	err := row.Scan(
+		&i.TenantID,
+		&i.DurableTaskID,
+		&i.DurableTaskInsertedAt,
+		&i.LatestInvocationCount,
+		&i.LatestInsertedAt,
+		&i.LatestNodeID,
+		&i.LatestBranchID,
+		&i.LatestBranchFirstParentNodeID,
+	)
+	return &i, err
+}
+
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
 SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
 FROM v1_durable_event_log_entry
@@ -190,32 +222,57 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 	return &i, err
 }
 
-const getLogFile = `-- name: GetLogFile :one
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
-FROM v1_durable_event_log_file
-WHERE durable_task_id = $1::BIGINT
-    AND durable_task_inserted_at = $2::TIMESTAMPTZ
+const incrementLogFileInvocationCounts = `-- name: IncrementLogFileInvocationCounts :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS durable_task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($3::UUID[]) AS tenant_id
+)
+
+UPDATE v1_durable_event_log_file
+SET
+    latest_invocation_count = latest_invocation_count + 1
+FROM inputs
+WHERE v1_durable_event_log_file.durable_task_id = inputs.durable_task_id
+  AND v1_durable_event_log_file.durable_task_inserted_at = inputs.durable_task_inserted_at
+  AND v1_durable_event_log_file.tenant_id = inputs.tenant_id
+RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id, v1_durable_event_log_file.latest_branch_first_parent_node_id
 `
 
-type GetLogFileParams struct {
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+type IncrementLogFileInvocationCountsParams struct {
+	Durabletaskids         []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Tenantids              []uuid.UUID          `json:"tenantids"`
 }
 
-func (q *Queries) GetLogFile(ctx context.Context, db DBTX, arg GetLogFileParams) (*V1DurableEventLogFile, error) {
-	row := db.QueryRow(ctx, getLogFile, arg.Durabletaskid, arg.Durabletaskinsertedat)
-	var i V1DurableEventLogFile
-	err := row.Scan(
-		&i.TenantID,
-		&i.DurableTaskID,
-		&i.DurableTaskInsertedAt,
-		&i.LatestInvocationCount,
-		&i.LatestInsertedAt,
-		&i.LatestNodeID,
-		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
-	)
-	return &i, err
+func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX, arg IncrementLogFileInvocationCountsParams) ([]*V1DurableEventLogFile, error) {
+	rows, err := db.Query(ctx, incrementLogFileInvocationCounts, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Tenantids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1DurableEventLogFile
+	for rows.Next() {
+		var i V1DurableEventLogFile
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.LatestInvocationCount,
+			&i.LatestInsertedAt,
+			&i.LatestNodeID,
+			&i.LatestBranchID,
+			&i.LatestBranchFirstParentNodeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listSatisfiedEntries = `-- name: ListSatisfiedEntries :many

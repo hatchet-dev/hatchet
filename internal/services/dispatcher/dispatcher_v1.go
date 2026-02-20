@@ -132,9 +132,9 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 
 		if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
 			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IncrementDurableTaskInvocationCountsOpts{
-				TaskId:     assigned.Task.ID,
-				TenantId:   assigned.Task.TenantID,
-				InsertedAt: assigned.Task.InsertedAt,
+				TaskId:         assigned.Task.ID,
+				TenantId:       assigned.Task.TenantID,
+				TaskInsertedAt: assigned.Task.InsertedAt,
 			})
 		}
 	}
@@ -197,9 +197,9 @@ func (d *DispatcherImpl) populateTaskData(
 	for _, task := range bulkDatas {
 		if task.IsDurable.Valid && task.IsDurable.Bool {
 			incrementInvocationCountOpts = append(incrementInvocationCountOpts, v1.IncrementDurableTaskInvocationCountsOpts{
-				TaskId:     task.ID,
-				TenantId:   task.TenantID,
-				InsertedAt: task.InsertedAt,
+				TaskId:         task.ID,
+				TenantId:       task.TenantID,
+				TaskInsertedAt: task.InsertedAt,
 			})
 		}
 	}
@@ -332,9 +332,9 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 
 		invocationCount := invocationCounts[v1.IncrementDurableTaskInvocationCountsOpts{
-			TaskId:     task.ID,
-			TenantId:   task.TenantID,
-			InsertedAt: task.InsertedAt,
+			TaskId:         task.ID,
+			TenantId:       task.TenantID,
+			TaskInsertedAt: task.InsertedAt,
 		}]
 
 		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{

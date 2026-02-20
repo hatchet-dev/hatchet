@@ -1,8 +1,29 @@
--- name: GetLogFile :one
+-- name: GetAndLockLogFile :one
 SELECT *
 FROM v1_durable_event_log_file
-WHERE durable_task_id = @durableTaskId::BIGINT
+WHERE
+    durable_task_id = @durableTaskId::BIGINT
     AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+    AND tenant_id = @tenantId::UUID
+FOR UPDATE
+;
+
+-- name: IncrementLogFileInvocationCounts :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
+UPDATE v1_durable_event_log_file
+SET
+    latest_invocation_count = latest_invocation_count + 1
+FROM inputs
+WHERE v1_durable_event_log_file.durable_task_id = inputs.durable_task_id
+  AND v1_durable_event_log_file.durable_task_inserted_at = inputs.durable_task_inserted_at
+  AND v1_durable_event_log_file.tenant_id = inputs.tenant_id
+RETURNING v1_durable_event_log_file.*
 ;
 
 -- name: UpdateLogFile :one

@@ -69,9 +69,9 @@ type HandleForkResult struct {
 }
 
 type IncrementDurableTaskInvocationCountsOpts struct {
-	TenantId   uuid.UUID
-	TaskId     int64
-	InsertedAt pgtype.Timestamptz
+	TenantId       uuid.UUID
+	TaskId         int64
+	TaskInsertedAt pgtype.Timestamptz
 }
 
 type DurableEventsRepository interface {
@@ -374,51 +374,47 @@ func (r *durableEventsRepository) IncrementDurableTaskInvocationCounts(ctx conte
 
 	defer rollback()
 
-	result := make(map[IncrementDurableTaskInvocationCountsOpts]*int32, len(opts))
+	taskIds := make([]int64, len(opts))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
+	tenantIds := make([]uuid.UUID, len(opts))
 
-	for _, opt := range opts {
-		logFile, err := r.getAndLockLogFile(ctx, tx, opt.TenantId, opt.TaskId, opt.InsertedAt)
+	for i, opt := range opts {
+		taskIds[i] = opt.TaskId
+		taskInsertedAts[i] = opt.TaskInsertedAt
+		tenantIds[i] = opt.TenantId
+	}
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to get and lock log file for task %d: %w", opt.TaskId, err)
-		}
+	logFiles, err := r.queries.IncrementLogFileInvocationCounts(ctx, tx, sqlcv1.IncrementLogFileInvocationCountsParams{
+		Durabletaskids:         taskIds,
+		Durabletaskinsertedats: taskInsertedAts,
+		Tenantids:              tenantIds,
+	})
 
-		newInvocationCount := logFile.LatestInvocationCount + 1
-		zero := int64(0)
-
-		updatedLogFile, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-			Durabletaskid:         opt.TaskId,
-			Durabletaskinsertedat: opt.InsertedAt,
-			InvocationCount:       sqlchelpers.ToInt(&newInvocationCount),
-			// Fork node ID to 0 so the first event in this invocation gets node 1
-			NodeId: sqlchelpers.ToBigInt(&zero),
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to update log file for task %d: %w", opt.TaskId, err)
-		}
-
-		count := updatedLogFile.LatestInvocationCount
-		result[opt] = &count
+	if err != nil {
+		return nil, fmt.Errorf("failed to increment invocation counts: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	result := make(map[IncrementDurableTaskInvocationCountsOpts]*int32, len(opts))
+
+	for _, logFile := range logFiles {
+		opt := IncrementDurableTaskInvocationCountsOpts{
+			TenantId:       logFile.TenantID,
+			TaskId:         logFile.DurableTaskID,
+			TaskInsertedAt: logFile.DurableTaskInsertedAt,
+		}
+
+		result[opt] = &logFile.LatestInvocationCount
+	}
+
 	return result, nil
 }
 
 func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
-	lockKey := fmt.Sprintf("durable_log_file:%d:%s", durableTaskId, durableTaskInsertedAt.Time.String())
-
-	lockAcquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash(lockKey))
-
-	if err != nil || !lockAcquired {
-		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
-	}
-
-	logFile, err := r.queries.GetLogFile(ctx, tx, sqlcv1.GetLogFileParams{
+	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 	})
