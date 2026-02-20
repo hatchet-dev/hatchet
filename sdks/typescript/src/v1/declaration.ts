@@ -738,9 +738,19 @@ export class WorkflowDeclaration<
   }
 }
 
+/**
+ * A standalone task workflow that can be run, scheduled, or triggered via cron.
+ *
+ * @template I - The task-specific input type.
+ * @template O - The task output type.
+ * @template GlobalInput - Global input type from the client, merged into all run/schedule/cron input signatures.
+ * @template MiddlewarePre - Extra fields added to the task fn input by pre-middleware hooks.
+ * @template MiddlewarePost - Extra fields merged into the task output by post-middleware hooks.
+ */
 export class TaskWorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
+  GlobalInput extends Record<string, any> = {},
   MiddlewarePre extends Record<string, any> = {},
   MiddlewarePost extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
@@ -756,25 +766,44 @@ export class TaskWorkflowDeclaration<
     });
   }
 
-  async run(input: I, options?: RunOpts): Promise<O & MiddlewarePost>;
-  async run(input: I[], options?: RunOpts): Promise<(O & MiddlewarePost)[]>;
-  async run(input: I | I[], options?: RunOpts): Promise<(O & MiddlewarePost) | (O & MiddlewarePost)[]> {
+  /**
+   * Triggers a task run and waits for the result.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the task output merged with post-middleware fields.
+   */
+  async runAndWait(input: I & GlobalInput, options?: RunOpts): Promise<O & MiddlewarePost>;
+  async runAndWait(input: (I & GlobalInput)[], options?: RunOpts): Promise<(O & MiddlewarePost)[]>;
+  async runAndWait(input: (I & GlobalInput) | (I & GlobalInput)[], options?: RunOpts): Promise<(O & MiddlewarePost) | (O & MiddlewarePost)[]> {
+    return Array.isArray(input)
+      ? (super.runAndWait(input, options, this._standalone_task_name) as Promise<(O & MiddlewarePost)[]>)
+      : (super.runAndWait(input, options, this._standalone_task_name) as Promise<O & MiddlewarePost>);
+  }
+
+  /**
+   * Triggers a task run and waits for the result.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the task output merged with post-middleware fields.
+   */
+  async run(input: I & GlobalInput, options?: RunOpts): Promise<O & MiddlewarePost>;
+  async run(input: (I & GlobalInput)[], options?: RunOpts): Promise<(O & MiddlewarePost)[]>;
+  async run(input: (I & GlobalInput) | (I & GlobalInput)[], options?: RunOpts): Promise<(O & MiddlewarePost) | (O & MiddlewarePost)[]> {
     return Array.isArray(input)
       ? (super.run(input, options, this._standalone_task_name) as Promise<(O & MiddlewarePost)[]>)
       : (super.run(input, options, this._standalone_task_name) as Promise<O & MiddlewarePost>);
   }
 
   /**
-   * Triggers a workflow run without waiting for completion.
-   * @param input The input data for the workflow.
-   * @param options Optional configuration for this workflow run.
-   * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
-   * @throws Error if the workflow is not bound to a Hatchet client.
+   * Triggers a task run without waiting for completion.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A WorkflowRunRef containing the run ID and methods to get results.
    */
-  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O & MiddlewarePost>>;
-  async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O & MiddlewarePost>[]>;
+  async runNoWait(input: I & GlobalInput, options?: RunOpts): Promise<WorkflowRunRef<O & MiddlewarePost>>;
+  async runNoWait(input: (I & GlobalInput)[], options?: RunOpts): Promise<WorkflowRunRef<O & MiddlewarePost>[]>;
   async runNoWait(
-    input: I | I[],
+    input: (I & GlobalInput) | (I & GlobalInput)[],
     options?: RunOpts
   ): Promise<WorkflowRunRef<O & MiddlewarePost> | WorkflowRunRef<O & MiddlewarePost>[]> {
     return Array.isArray(input)
@@ -782,6 +811,41 @@ export class TaskWorkflowDeclaration<
       : (super.runNoWait(input, options, this._standalone_task_name) as Promise<WorkflowRunRef<O & MiddlewarePost>>);
   }
 
+  /**
+   * Schedules the task to run at a specific date and time.
+   * @param enqueueAt - The date when the task should be triggered.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   */
+  async schedule(enqueueAt: Date, input: I & GlobalInput, options?: RunOpts): Promise<ScheduledWorkflows> {
+    return super.schedule(enqueueAt, input, options);
+  }
+
+  /**
+   * Schedules the task to run after a specified delay.
+   * @param duration - The delay in seconds before the task should run.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   */
+  async delay(duration: number, input: I & GlobalInput, options?: RunOpts): Promise<ScheduledWorkflows> {
+    return super.delay(duration, input, options);
+  }
+
+  /**
+   * Creates a cron schedule for the task.
+   * @param name - The name of the cron schedule.
+   * @param expression - The cron expression defining the schedule.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the cron workflow details.
+   */
+  async cron(name: string, expression: string, input: I & GlobalInput, options?: RunOpts): Promise<CronWorkflows> {
+    return super.cron(name, expression, input, options);
+  }
+
+  /** Returns the underlying task definition for this declaration. */
   get taskDef() {
     return this.definition._tasks[0];
   }

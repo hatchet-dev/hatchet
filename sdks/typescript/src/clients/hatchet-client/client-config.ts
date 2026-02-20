@@ -1,5 +1,6 @@
 import { ChannelCredentials } from 'nice-grpc';
 import { z } from 'zod';
+import type { Context } from '@hatchet/v1/client/worker/context';
 import { Logger, LogLevel } from '@util/logger';
 
 const ClientTLSConfigSchema = z.object({
@@ -36,8 +37,25 @@ export const ClientConfigSchema = z.object({
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
 
-export type PreHookFn = (input: any, ctx: any) => Record<string, any> | void | Promise<Record<string, any> | void>;
-export type PostHookFn = (output: any, ctx: any, input: any) => Record<string, any> | void | Promise<Record<string, any> | void>;
+/**
+ * A middleware function that runs before every task invocation.
+ * Returns extra fields to merge into the task input, or void to skip.
+ * @template T - The expected input type for the hook.
+ * @param input - The current task input.
+ * @param ctx - The task execution context.
+ * @returns Extra fields to merge into input, or void.
+ */
+export type PreHookFn<T = any> = (input: T, ctx: Context<any>) => Record<string, any> | void | Promise<Record<string, any> | void>;
+
+/**
+ * A middleware function that runs after every task invocation.
+ * Returns extra fields to merge into the task output, or void to skip.
+ * @param output - The task output.
+ * @param ctx - The task execution context.
+ * @param input - The original task input.
+ * @returns Extra fields to merge into output, or void.
+ */
+export type PostHookFn<TOutput = any, TInput = any> = (output: TOutput, ctx: Context<any>, input: TInput) => Record<string, any> | void | Promise<Record<string, any> | void>;
 
 /**
  * Middleware hooks that run before/after every task invocation.
@@ -49,9 +67,9 @@ export type PostHookFn = (output: any, ctx: any, input: any) => Record<string, a
  * Each function returns only the **extra fields** to merge.
  * Return `void` (or `undefined`) from a hook to skip merging.
  */
-export type TaskMiddleware = {
-  pre?: PreHookFn | readonly PreHookFn[];
-  post?: PostHookFn | readonly PostHookFn[];
+export type TaskMiddleware<T = any> = {
+  pre?: PreHookFn<T> | readonly PreHookFn<T>[];
+  post?: PostHookFn<any, T> | readonly PostHookFn<any, T>[];
 };
 
 type NonVoidReturn<F> = F extends (...args: any[]) => infer R

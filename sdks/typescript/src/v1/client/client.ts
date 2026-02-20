@@ -52,8 +52,13 @@ import { WebhooksClient } from './features/webhooks';
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
  * It provides methods for creating and executing workflows, as well as managing workers.
+ *
+ * @template GlobalInput - Global input type required by all tasks. Set via `init<T>()`. Defaults to `{}`.
+ * @template MiddlewarePre - Extra fields merged into task input by pre-middleware hooks. Inferred from middleware config.
+ * @template MiddlewarePost - Extra fields merged into task output by post-middleware hooks. Inferred from middleware config.
  */
 export class HatchetClient<
+  GlobalInput extends Record<string, any> = {},
   MiddlewarePre extends Record<string, any> = {},
   MiddlewarePost extends Record<string, any> = {},
 > implements IHatchetClient {
@@ -159,17 +164,20 @@ export class HatchetClient<
 
   /**
    * Static factory method to create a new Hatchet client instance.
-   * @param config - Optional configuration for the client
-   * @param options - Optional client options
-   * @param axiosConfig - Optional Axios configuration for HTTP requests
-   * @returns A new Hatchet client instance
+   * @template T - Global input type required by all tasks created from this client. Defaults to `{}`.
+   * @template M - Inferred middleware configuration type (do not set explicitly).
+   * @param config - Optional configuration for the client, including middleware hooks.
+   * @param options - Optional client options.
+   * @param axiosConfig - Optional Axios configuration for HTTP requests.
+   * @returns A new Hatchet client instance typed with the global input and middleware types.
    */
-  static init<const M extends TaskMiddleware = {}>(
-    config?: Partial<ClientConfig> & { middleware?: M },
+  static init<T extends Record<string, any> = {}, const M extends TaskMiddleware<T> = TaskMiddleware<T>>(
+    config?: Omit<Partial<ClientConfig>, 'middleware'> & { middleware?: M },
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient<InferMiddlewarePre<M>, InferMiddlewarePost<M>> {
+  ): HatchetClient<T, InferMiddlewarePre<M>, InferMiddlewarePost<M>> {
     return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<
+      T,
       InferMiddlewarePre<M>,
       InferMiddlewarePost<M>
     >;
@@ -191,8 +199,8 @@ export class HatchetClient<
    */
   workflow<I extends InputType = UnknownInputType, O extends StrictWorkflowOutputType = {}>(
     options: CreateWorkflowOpts
-  ): WorkflowDeclaration<I, O, MiddlewarePre> {
-    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, MiddlewarePre>;
+  ): WorkflowDeclaration<I, O, GlobalInput & MiddlewarePre> {
+    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, GlobalInput & MiddlewarePre>;
   }
 
   /**
@@ -204,8 +212,8 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance
    */
   task<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateTaskWorkflowOpts<I & MiddlewarePre, O>
-  ): TaskWorkflowDeclaration<I, O, MiddlewarePre, MiddlewarePost>;
+    options: CreateTaskWorkflowOpts<I & GlobalInput & MiddlewarePre, O>
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, MiddlewarePre, MiddlewarePost>;
 
   /**
    * Creates a new task workflow with types inferred from the function parameter.
@@ -227,7 +235,7 @@ export class HatchetClient<
     options: {
       fn: Fn;
     } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'>
-  ): TaskWorkflowDeclaration<I, O, MiddlewarePre, MiddlewarePost>;
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, MiddlewarePre, MiddlewarePost>;
 
   /**
    * Implementation of the task method.
@@ -245,8 +253,8 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance for a durable task
    */
   durableTask<I extends InputType, O extends OutputType>(
-    options: CreateDurableTaskWorkflowOpts<I, O>
-  ): TaskWorkflowDeclaration<I, O>;
+    options: CreateDurableTaskWorkflowOpts<I & GlobalInput & MiddlewarePre, O>
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, MiddlewarePre, MiddlewarePost>;
 
   /**
    * Creates a new durable task workflow with types inferred from the function parameter.
@@ -268,7 +276,7 @@ export class HatchetClient<
     options: {
       fn: Fn;
     } & Omit<CreateDurableTaskWorkflowOpts<I, O>, 'fn'>
-  ): TaskWorkflowDeclaration<I, O>;
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, MiddlewarePre, MiddlewarePost>;
 
   /**
    * Implementation of the durableTask method.

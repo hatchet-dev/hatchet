@@ -8,13 +8,18 @@ type TaskOutput = {
   message: string;
 };
 
-// Note: for type safety with middleware, we need to explicitly specify the input and output types in the generic parameters
 export const taskWithMiddleware = hatchetWithMiddleware.task<TaskInput, TaskOutput>({
   name: 'task-with-middleware',
   fn: (input, _ctx) => {
-      console.log('task', input.data);      // number    (from first pre hook)
-      console.log('task', input.requestId); // string    (from second pre hook)
-      console.log('task', input.message);   // string    (from TaskWithMiddlewareInput)
+      console.log('task', input.message); // string  (from TaskInput)
+      console.log('task', input.first);   // number  (from GlobalType)
+      console.log('task', input.second);  // number  (from GlobalType)
       return { message: input.message };
   },
+});
+
+taskWithMiddleware.run({
+  message: 'hello',
+  first: 1,
+  second: 2,
 });
