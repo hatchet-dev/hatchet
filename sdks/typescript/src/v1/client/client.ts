@@ -188,6 +188,25 @@ export class HatchetClient<
     >;
   }
 
+  /**
+   * Attaches middleware to this client and returns a re-typed instance
+   * with inferred pre/post middleware types.
+   *
+   * Use this after `init<T, U>()` to get full middleware return-type inference
+   * that TypeScript can't provide when global types are explicitly set on `init`.
+   */
+  withMiddleware<const M extends TaskMiddleware<GlobalInput, GlobalOutput>>(
+    middleware: M
+  ): HatchetClient<GlobalInput, GlobalOutput, InferMiddlewarePre<M>, InferMiddlewarePost<M>> {
+    (this._config as any).middleware = middleware;
+    return this as unknown as HatchetClient<
+      GlobalInput,
+      GlobalOutput,
+      InferMiddlewarePre<M>,
+      InferMiddlewarePost<M>
+    >;
+  }
+
   private _config: ClientConfig;
 
   get config() {

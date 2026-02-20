@@ -11,8 +11,8 @@ export type GlobalOutputType = {
     extra: number;
 };
 
-export const hatchetWithMiddleware = HatchetClient.init<GlobalInputType, GlobalOutputType>({
-    middleware: {
+export const hatchetWithMiddleware = HatchetClient.init<GlobalInputType, GlobalOutputType>()
+    .withMiddleware({
         pre: (_input, _ctx) => {
             _input.first;
             return { requestId: 'abc-123' };
@@ -20,8 +20,7 @@ export const hatchetWithMiddleware = HatchetClient.init<GlobalInputType, GlobalO
         post: (_output, _ctx, _input) => {
             return { extra: 2 };
         },
-    },
-});
+    });
 
 // !!
 
