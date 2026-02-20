@@ -12,7 +12,6 @@ on:
       - "cmd/hatchet-cli/cli/*_e2e_test.go"
       - "cmd/hatchet-cli/cli/tui/**"
       - "cmd/hatchet-cli/cli/testharness/**"
-      - ".github/workflows/cli-e2e-tests.yml"
   push:
     branches:
       - main

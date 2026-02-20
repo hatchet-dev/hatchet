@@ -108,6 +108,7 @@ var cronCreateCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		isJSON := isJSONOutput(cmd)
 		_, hatchetClient := clientFromCmd(cmd)
+		ctx := cmd.Context()
 
 		workflowStr, _ := cmd.Flags().GetString("workflow")
 		cronExpr, _ := cmd.Flags().GetString("cron")
@@ -116,14 +117,15 @@ var cronCreateCmd = &cobra.Command{
 		inputFile, _ := cmd.Flags().GetString("input-file")
 
 		if !isJSON {
-			// Interactive mode
+			// Interactive mode: show workflow selector first, then remaining fields
+			if workflowStr == "" {
+				workflowStr = promptSelectWorkflow(ctx, hatchetClient)
+				if workflowStr == "" {
+					cli.Logger.Fatal("no workflow selected")
+				}
+			}
+
 			form := huh.NewForm(
-				huh.NewGroup(
-					huh.NewInput().
-						Title("Workflow name or ID").
-						Value(&workflowStr).
-						Placeholder("my-workflow"),
-				),
 				huh.NewGroup(
 					huh.NewInput().
 						Title("Cron expression").
@@ -171,7 +173,6 @@ var cronCreateCmd = &cobra.Command{
 			}
 		}
 
-		ctx := cmd.Context()
 		tenantUUID := clientTenantUUID(hatchetClient)
 
 		// Resolve workflow name (the create endpoint uses name as path param, not UUID)
@@ -206,15 +207,60 @@ var cronCreateCmd = &cobra.Command{
 }
 
 var cronDeleteCmd = &cobra.Command{
-	Use:   "delete <cron-id>",
+	Use:   "delete [cron-id]",
 	Short: "Delete a cron job",
-	Long:  `Delete a cron job by ID. Use --yes to skip confirmation.`,
-	Args:  cobra.ExactArgs(1),
+	Long:  `Delete a cron job by ID. Omit the ID to pick from a list interactively. Use --yes to skip confirmation.`,
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		cronID := args[0]
 		isJSON := isJSONOutput(cmd)
 		yes, _ := cmd.Flags().GetBool("yes")
 		_, hatchetClient := clientFromCmd(cmd)
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+
+		var cronID string
+		if len(args) == 1 {
+			cronID = args[0]
+		} else if !isJSON {
+			// No ID provided — show an interactive selector
+			limit := int64(100)
+			listResp, listErr := hatchetClient.API().CronWorkflowListWithResponse(ctx, tenantUUID, &rest.CronWorkflowListParams{
+				Limit: &limit,
+			})
+			if listErr != nil {
+				cli.Logger.Fatalf("failed to list cron jobs: %v", listErr)
+			}
+			if listResp.JSON200 == nil || listResp.JSON200.Rows == nil || len(*listResp.JSON200.Rows) == 0 {
+				cli.Logger.Fatal("no cron jobs found")
+			}
+
+			var options []huh.Option[string]
+			for _, cron := range *listResp.JSON200.Rows {
+				name := cron.Metadata.Id
+				if cron.Name != nil && *cron.Name != "" {
+					name = *cron.Name
+				}
+				label := fmt.Sprintf("%s  (%s)", name, cron.Cron)
+				options = append(options, huh.NewOption(label, cron.Metadata.Id))
+			}
+
+			height := len(options)
+			if height > 10 {
+				height = 10
+			}
+			form := huh.NewForm(huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select a cron job to delete").
+					Options(options...).
+					Height(height).
+					Value(&cronID),
+			)).WithTheme(styles.HatchetTheme())
+			if formErr := form.Run(); formErr != nil {
+				cli.Logger.Fatalf("selection cancelled: %v", formErr)
+			}
+		} else {
+			cli.Logger.Fatal("cron job ID is required in JSON mode")
+		}
 
 		cronUUID, err := uuid.Parse(cronID)
 		if err != nil {
@@ -228,8 +274,6 @@ var cronDeleteCmd = &cobra.Command{
 			}
 		}
 
-		ctx := cmd.Context()
-		tenantUUID := clientTenantUUID(hatchetClient)
 		resp, err := hatchetClient.API().WorkflowCronDeleteWithResponse(ctx, tenantUUID, cronUUID)
 		if err != nil {
 			cli.Logger.Fatalf("failed to delete cron job: %v", err)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/spf13/cobra"
@@ -967,6 +968,68 @@ func resolveWorkflowName(ctx context.Context, hatchetClient client.Client, nameO
 	}
 
 	return resp.JSON200.Name, nil
+}
+
+// promptSelectWorkflow fetches the list of workflows and shows an interactive selector.
+// Returns the selected workflow name, or "" if no workflows are found or the form is cancelled.
+func promptSelectWorkflow(ctx context.Context, hatchetClient client.Client) string { //nolint:staticcheck
+	tenantUUID := clientTenantUUID(hatchetClient)
+	limit := 200
+	offset := 0
+	resp, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
+		Limit:  &limit,
+		Offset: &offset,
+	})
+	if err != nil || resp.JSON200 == nil || resp.JSON200.Rows == nil || len(*resp.JSON200.Rows) == 0 {
+		return ""
+	}
+
+	var options []huh.Option[string]
+	for _, wf := range *resp.JSON200.Rows {
+		options = append(options, huh.NewOption(wf.Name, wf.Name))
+	}
+
+	height := len(options)
+	if height > 10 {
+		height = 10
+	}
+
+	var selected string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select a workflow").
+				Options(options...).
+				Height(height).
+				Value(&selected),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	if err := form.Run(); err != nil {
+		return ""
+	}
+	return selected
+}
+
+// parseDurationFuture parses a duration string (e.g. "1h", "30m", "7d") for use with future times.
+// Returns the duration to add to time.Now() to get the trigger time.
+func parseDurationFuture(s string) (time.Duration, error) {
+	// Try standard Go duration
+	d, err := time.ParseDuration(s)
+	if err == nil {
+		if d <= 0 {
+			return 0, fmt.Errorf("duration must be positive (e.g. 1h, 30m)")
+		}
+		return d, nil
+	}
+	// Try days (e.g. "7d")
+	if strings.HasSuffix(s, "d") {
+		days, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
+		if err == nil && days > 0 {
+			return time.Duration(days) * 24 * time.Hour, nil
+		}
+	}
+	return 0, fmt.Errorf("invalid duration %q (use e.g. 5m, 2h, 7d)", s)
 }
 
 // buildFilterAndParams builds a V1TaskFilter and V1WorkflowRunListParams from command flags

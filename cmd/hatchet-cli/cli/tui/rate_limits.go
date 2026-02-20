@@ -74,15 +74,16 @@ func NewRateLimitsView(ctx ViewContext) *RateLimitsView {
 	s.Cell = lipgloss.NewStyle()
 	t.SetStyles(s)
 
-	// Style: highlight rows where usage >= 80% in yellow, >= 90% in red
+	// Style: Value is remaining capacity. Red when exhausted (0), yellow when <=10% remaining.
 	t.SetStyleFunc(func(row, col int) lipgloss.Style {
 		if row < len(v.rateLimits) {
 			rl := v.rateLimits[row]
 			if rl.LimitValue > 0 {
-				usage := float64(rl.Value) / float64(rl.LimitValue)
-				if usage >= 0.9 {
+				if rl.Value == 0 {
 					return lipgloss.NewStyle().Foreground(styles.StatusFailedColor)
-				} else if usage >= 0.8 {
+				}
+				remaining := float64(rl.Value) / float64(rl.LimitValue)
+				if remaining <= 0.1 {
 					return lipgloss.NewStyle().Foreground(styles.StatusInProgressColor)
 				}
 			}

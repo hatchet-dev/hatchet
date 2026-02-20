@@ -29,6 +29,13 @@ func NewTUI(t *testing.T, h *CLIHarness) *TUIHarness {
 	}
 }
 
+// shellEscape returns a single-quoted POSIX shell-safe version of s.
+// Any single quotes within s are escaped by ending the current single-quoted
+// string, inserting an escaped single quote, and reopening the single-quoted string.
+func shellEscape(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // Start launches the TUI command in a new tmux session.
 // args are passed to the hatchet binary (e.g., "tui", "--profile", "local").
 func (th *TUIHarness) Start(args ...string) {
@@ -36,7 +43,11 @@ func (th *TUIHarness) Start(args ...string) {
 
 	fullArgs := append([]string{th.harness.BinaryPath}, args...)
 	fullArgs = append(fullArgs, "--profile", th.harness.Profile)
-	cmdStr := strings.Join(fullArgs, " ")
+	escaped := make([]string, len(fullArgs))
+	for i, a := range fullArgs {
+		escaped[i] = shellEscape(a)
+	}
+	cmdStr := strings.Join(escaped, " ")
 
 	// Create a new tmux session (detached)
 	cmd := exec.Command("tmux", "new-session",
