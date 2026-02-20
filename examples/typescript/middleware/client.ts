@@ -1,5 +1,5 @@
 // > Init a client with middleware
-import { HatchetClient } from '@hatchet/v1';
+import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
 
 
 // These types will be merged into all task input and output types
@@ -24,7 +24,6 @@ export const hatchetWithMiddleware = HatchetClient.init<GlobalInputType, GlobalO
             return { additionalData: 2 };
         },
     });
-// !!
 
 
 
@@ -51,4 +50,3 @@ export const hatchetWithMiddlewareChaining = HatchetClient.init<GlobalInputType>
             }
         ],
     });
-// !!
