@@ -181,6 +181,6 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
         ]
     ):
         if ix + 1 < node_id:
-            assert dur < REPLAY_RESET_SLEEP_TIME
+            assert dur < (REPLAY_RESET_SLEEP_TIME / 2)
         else:
             assert dur >= REPLAY_RESET_SLEEP_TIME
