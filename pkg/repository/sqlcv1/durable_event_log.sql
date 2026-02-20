@@ -18,7 +18,8 @@ WITH inputs AS (
 
 UPDATE v1_durable_event_log_file
 SET
-    latest_invocation_count = latest_invocation_count + 1
+    latest_invocation_count = latest_invocation_count + 1,
+    latest_node_id = 0
 FROM inputs
 WHERE v1_durable_event_log_file.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_file.durable_task_inserted_at = inputs.durable_task_inserted_at
