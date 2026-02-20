@@ -401,6 +401,8 @@ class Task(Generic[TWorkflowInput, R]):
             concurrency=[t.to_proto() for t in concurrency],
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
+            is_durable=self.is_durable,
+            slot_requests=self.slot_requests,
         )
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:

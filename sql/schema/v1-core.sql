@@ -445,6 +445,8 @@ CREATE TABLE v1_worker_slot_config (
     PRIMARY KEY (tenant_id, worker_id, slot_type)
 );
 
+CREATE INDEX v1_worker_slot_config_worker_id_idx ON v1_worker_slot_config (worker_id);
+
 -- v1_step_slot_request stores per-step slot requests.
 CREATE TABLE v1_step_slot_request (
     tenant_id UUID NOT NULL,
