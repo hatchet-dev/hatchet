@@ -60,7 +60,7 @@ jobs:
         working-directory: frontend/vscode-extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: pnpm publish --no-dependencies
+        run: pnpm run publish
 
       - name: Upload .vsix as release artifact
         uses: softprops/action-gh-release@v2

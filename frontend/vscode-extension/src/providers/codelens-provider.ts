@@ -136,13 +136,23 @@ export class HatchetCodeLensProvider implements vscode.CodeLensProvider {
       return [];
     }
 
+    // Parse the full workflow list once and index by varName so we don't
+    // re-run the heavy parser once per declaration inside the map below.
+    let allWorkflows: ParsedWorkflow[];
+    try {
+      allWorkflows = parseWorkflowsForDocument(text, document.languageId, document.fileName);
+    } catch {
+      allWorkflows = [];
+    }
+    const workflowByVarName = new Map(allWorkflows.map((w) => [w.varName, w]));
+
     return decls.map((decl) => {
-      const fallback = computeFallbackWorkflow(
-        text,
-        document.languageId,
-        document.fileName,
-        decl,
-      );
+      const fallback: ParsedWorkflow = workflowByVarName.get(decl.varName) ?? {
+        name: decl.name,
+        varName: decl.varName,
+        declarationLine: decl.declarationLine,
+        tasks: [],
+      };
 
       const range = new vscode.Range(
         decl.declarationLine,

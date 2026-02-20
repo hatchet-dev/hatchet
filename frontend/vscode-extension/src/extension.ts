@@ -51,10 +51,18 @@ export function activate(context: vscode.ExtensionContext): void {
           documentUri = doc.uri;
         }
 
+        const targetUri = documentUri ?? activeEditor?.document.uri;
+        if (!targetUri) {
+          vscode.window.showErrorMessage(
+            'Hatchet: Unable to determine the source document for this workflow.',
+          );
+          return;
+        }
+
         DagPanel.createOrShow(
           context.extensionUri,
           decl,
-          documentUri ?? activeEditor?.document.uri ?? vscode.Uri.file(''),
+          targetUri,
           fallback ?? {
             name: decl.name,
             varName: decl.varName,
@@ -77,7 +85,9 @@ export function activate(context: vscode.ExtensionContext): void {
       const text = doc.getText();
       const decls = tryDetectDeclarations(doc);
       if (decls.length > 0) {
-        const decl = decls[0];
+        // Prefer the workflow the panel is already showing; fall back to first.
+        const decl =
+          decls.find((d) => d.varName === DagPanel.currentVarName) ?? decls[0];
         const fallback = computeFallbackWorkflow(text, doc.languageId, doc.fileName, decl);
         DagPanel.scheduleUpdate(decl, fallback, doc.uri);
       }

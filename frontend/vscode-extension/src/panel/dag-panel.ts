@@ -80,6 +80,11 @@ export class DagPanel {
 
   // ─── Public API ───────────────────────────────────────────────────────────
 
+  /** The varName of the workflow currently displayed, or undefined if no panel is open. */
+  static get currentVarName(): string | undefined {
+    return DagPanel._current?._decl?.varName;
+  }
+
   static createOrShow(
     extensionUri: vscode.Uri,
     decl: WorkflowDeclaration,
@@ -207,13 +212,13 @@ export class DagPanel {
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'none';
              script-src 'nonce-${nonce}';
-             style-src ${webview.cspSource} 'unsafe-inline';
+             style-src ${webview.cspSource} 'nonce-${nonce}';
              img-src ${webview.cspSource} data:;
              font-src ${webview.cspSource};" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hatchet DAG</title>
   <link rel="stylesheet" href="${styleUri}" />
-  <style>
+  <style nonce="${nonce}">
     html, body {
       height: 100%;
       margin: 0;

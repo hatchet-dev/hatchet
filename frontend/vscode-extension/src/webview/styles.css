@@ -26,7 +26,6 @@
 }
 
 /* ── Light theme ──────────────────────────────────────────────────────────── */
-.vscode-light :root,
 html:not(.dark) {
   --background:       0 0% 100%;
   --foreground:       222 47% 5%;
