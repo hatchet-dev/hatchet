@@ -42,3 +42,5 @@ export type StrictWorkflowOutputType<T = any> =
 
 // Symbol used for the error message
 declare const ERROR_WORKFLOW_OUTPUT: unique symbol;
+
+export type { TaskMiddleware as HatchetMiddleware } from '@hatchet/clients/hatchet-client/client-config';
