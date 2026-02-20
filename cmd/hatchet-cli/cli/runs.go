@@ -627,6 +627,127 @@ var runsLogsCmd = &cobra.Command{
 	},
 }
 
+var runsListChildrenCmd = &cobra.Command{
+	Use:     "list-children <run-id>",
+	Aliases: []string{"children"},
+	Short:   "List children of a run",
+	Long: `List the children of a run.
+
+If the run is a DAG, lists the constituent tasks that belong to it.
+If the run is a task, lists spawned child workflow runs.`,
+	Args: cobra.ExactArgs(1),
+	Example: `  # List children of a DAG run
+  hatchet runs list-children 8ff4f149-099e-4c16-a8d1-0535f8c79b83 --profile local
+
+  # List spawned child runs of a task
+  hatchet runs list-children abc12345-... --profile local
+
+  # JSON output
+  hatchet runs list-children 8ff4f149-099e-4c16-a8d1-0535f8c79b83 -o json`,
+	Run: func(cmd *cobra.Command, args []string) {
+		runID := args[0]
+		isJSON := isJSONOutput(cmd)
+		_, hatchetClient := clientFromCmd(cmd)
+
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+
+		runUUID, err := uuid.Parse(runID)
+		if err != nil {
+			cli.Logger.Fatalf("invalid run ID %q: %v", runID, err)
+		}
+
+		limit, _ := cmd.Flags().GetInt64("limit")
+		offset, _ := cmd.Flags().GetInt64("offset")
+
+		// Detect run type: try V1TaskGet first. If it succeeds the ID is a task;
+		// if it fails or returns nothing, fall through to treat it as a DAG run.
+		taskResp, taskErr := hatchetClient.API().V1TaskGetWithResponse(ctx, runUUID, &rest.V1TaskGetParams{})
+		if taskErr == nil && taskResp.JSON200 != nil {
+			// It's a task — list spawned child workflow runs using the task's external ID.
+			taskExternalID := taskResp.JSON200.TaskExternalId
+			childRunsResp, childErr := hatchetClient.API().V1WorkflowRunListWithResponse(ctx, tenantUUID, &rest.V1WorkflowRunListParams{
+				ParentTaskExternalId: &taskExternalID,
+				Limit:                &limit,
+				Offset:               &offset,
+			})
+			if childErr != nil {
+				cli.Logger.Fatalf("failed to list child runs: %v", childErr)
+			}
+			if childRunsResp.JSON200 == nil {
+				cli.Logger.Fatalf("unexpected response from API (status %d): %s", childRunsResp.StatusCode(), string(childRunsResp.Body))
+			}
+
+			if isJSON {
+				printJSON(childRunsResp.JSON200)
+				return
+			}
+
+			rows := childRunsResp.JSON200.Rows
+			if len(rows) == 0 {
+				fmt.Println("No child runs found.")
+				return
+			}
+			fmt.Printf("%-38s  %-25s  %-12s  %s\n", "Run ID", "Name", "Status", "Duration")
+			for _, run := range rows {
+				dur := ""
+				if run.Duration != nil {
+					dur = fmt.Sprintf("%dms", *run.Duration)
+				}
+				fmt.Printf("%-38s  %-25s  %-12s  %s\n",
+					run.Metadata.Id,
+					run.DisplayName,
+					string(run.Status),
+					dur,
+				)
+			}
+			return
+		}
+
+		// Not a task (or task fetch failed) — treat as a DAG run and list its constituent tasks.
+		dagTasksResp, err := hatchetClient.API().V1DagListTasksWithResponse(ctx, &rest.V1DagListTasksParams{
+			DagIds: []openapi_types.UUID{runUUID},
+			Tenant: tenantUUID,
+		})
+		if err != nil {
+			cli.Logger.Fatalf("failed to list children: %v", err)
+		}
+		if dagTasksResp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d): %s", dagTasksResp.StatusCode(), string(dagTasksResp.Body))
+		}
+
+		var tasks []rest.V1TaskSummary
+		for _, dag := range *dagTasksResp.JSON200 {
+			if dag.Children != nil {
+				tasks = append(tasks, *dag.Children...)
+			}
+		}
+
+		if isJSON {
+			printJSON(map[string]any{"rows": tasks})
+			return
+		}
+
+		if len(tasks) == 0 {
+			fmt.Println("No tasks found for this DAG run.")
+			return
+		}
+		fmt.Printf("%-38s  %-25s  %-12s  %s\n", "Task ID", "Name", "Status", "Duration")
+		for _, task := range tasks {
+			dur := ""
+			if task.Duration != nil {
+				dur = fmt.Sprintf("%dms", *task.Duration)
+			}
+			fmt.Printf("%-38s  %-25s  %-12s  %s\n",
+				task.Metadata.Id,
+				task.DisplayName,
+				string(task.Status),
+				dur,
+			)
+		}
+	},
+}
+
 var runsEventsCmd = &cobra.Command{
 	Use:   "events <run-id>",
 	Short: "Print events from a run",
@@ -697,7 +818,7 @@ var runsEventsCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(runsCmd)
-	runsCmd.AddCommand(runsListCmd, runsGetCmd, runsCancelCmd, runsReplayCmd, runsLogsCmd, runsEventsCmd)
+	runsCmd.AddCommand(runsListCmd, runsGetCmd, runsCancelCmd, runsReplayCmd, runsLogsCmd, runsEventsCmd, runsListChildrenCmd)
 
 	// Persistent flags on parent (inherited by all subcommands)
 	runsCmd.PersistentFlags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
@@ -725,6 +846,10 @@ func init() {
 	runsReplayCmd.Flags().StringP("workflow", "w", "", "Filter by workflow name or ID")
 	runsReplayCmd.Flags().StringSlice("status", nil, "Filter by status (QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED)")
 	runsReplayCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
+
+	// runs list-children flags
+	runsListChildrenCmd.Flags().Int64("limit", 50, "Number of results to return (for task children)")
+	runsListChildrenCmd.Flags().Int64("offset", 0, "Offset for pagination (for task children)")
 
 	// runs logs flags
 	runsLogsCmd.Flags().Int64("tail", 0, "Number of most recent log lines to show (0 = all)")
@@ -933,7 +1058,7 @@ func confirmAction(message string) bool {
 }
 
 // printJSON marshals and prints v as indented JSON to stdout
-func printJSON(v interface{}) {
+func printJSON(v any) {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		cli.Logger.Fatalf("failed to marshal JSON: %v", err)
