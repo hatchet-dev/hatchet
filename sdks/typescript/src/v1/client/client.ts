@@ -169,23 +169,18 @@ export class HatchetClient<
   /**
    * Static factory method to create a new Hatchet client instance.
    * @template T - Global input type required by all tasks created from this client. Defaults to `{}`.
-   * @template M - Inferred middleware configuration type (do not set explicitly).
-   * @param config - Optional configuration for the client, including middleware hooks.
+   * @template U - Global output type required by all tasks created from this client. Defaults to `{}`.
+   * @param config - Optional configuration for the client.
    * @param options - Optional client options.
    * @param axiosConfig - Optional Axios configuration for HTTP requests.
-   * @returns A new Hatchet client instance typed with the global input and middleware types.
+   * @returns A new Hatchet client instance. Chain `.withMiddleware()` to attach typed middleware.
    */
-  static init<T extends Record<string, any> = {}, U extends Record<string, any> = {}, const M extends TaskMiddleware<T, U> = TaskMiddleware<T, U>>(
-    config?: Omit<Partial<ClientConfig>, 'middleware'> & { middleware?: M },
+  static init<T extends Record<string, any> = {}, U extends Record<string, any> = {}>(
+    config?: Omit<Partial<ClientConfig>, 'middleware'>,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient<T, U, InferMiddlewarePre<M>, InferMiddlewarePost<M>> {
-    return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<
-      T,
-      U,
-      InferMiddlewarePre<M>,
-      InferMiddlewarePost<M>
-    >;
+  ): HatchetClient<T, U> {
+    return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<T, U>;
   }
 
   /**
@@ -197,13 +192,21 @@ export class HatchetClient<
    */
   withMiddleware<const M extends TaskMiddleware<GlobalInput, GlobalOutput>>(
     middleware: M
-  ): HatchetClient<GlobalInput, GlobalOutput, InferMiddlewarePre<M>, InferMiddlewarePost<M>> {
-    (this._config as any).middleware = middleware;
+  ): HatchetClient<GlobalInput, GlobalOutput, MiddlewarePre & InferMiddlewarePre<M>, MiddlewarePost & InferMiddlewarePost<M>> {
+    const existing: TaskMiddleware = (this._config as any).middleware || {};
+    const toArray = <T>(v: T | readonly T[] | undefined): T[] =>
+      v == null ? [] : Array.isArray(v) ? [...v] : [v as T];
+
+    (this._config as any).middleware = {
+      pre: [...toArray(existing.pre), ...toArray(middleware.pre)],
+      post: [...toArray(existing.post), ...toArray(middleware.post)],
+    };
+
     return this as unknown as HatchetClient<
       GlobalInput,
       GlobalOutput,
-      InferMiddlewarePre<M>,
-      InferMiddlewarePost<M>
+      MiddlewarePre & InferMiddlewarePre<M>,
+      MiddlewarePost & InferMiddlewarePost<M>
     >;
   }
 
