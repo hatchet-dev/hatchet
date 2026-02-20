@@ -11,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *V1WorkflowRunsService) V1DurableTaskFork(ctx echo.Context, request gen.V1DurableTaskForkRequestObject) (gen.V1ForkDurableTaskResponse, error) {
+func (t *V1WorkflowRunsService) V1DurableTaskFork(ctx echo.Context, request gen.V1DurableTaskForkRequestObject) (gen.V1DurableTaskForkResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	grpcReq := &contracts.ForkDurableTaskRequest{
