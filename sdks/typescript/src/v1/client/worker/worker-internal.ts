@@ -574,8 +574,8 @@ export class V1Worker {
         });
         const middleware = this.client.config.middleware;
 
-        if (middleware?.pre) {
-          const hooks = Array.isArray(middleware.pre) ? middleware.pre : [middleware.pre];
+        if (middleware?.before) {
+          const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];
           for (const hook of hooks) {
             const returned = await hook(context.input, context as any);
             if (returned !== undefined) {
@@ -589,8 +589,8 @@ export class V1Worker {
 
         let result: any = await step(context);
 
-        if (middleware?.post) {
-          const hooks = Array.isArray(middleware.post) ? middleware.post : [middleware.post];
+        if (middleware?.after) {
+          const hooks = Array.isArray(middleware.after) ? middleware.after : [middleware.after];
           for (const hook of hooks) {
             const returned = await hook(result, context as any, context.input);
             if (returned !== undefined) {

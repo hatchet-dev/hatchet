@@ -12,13 +12,13 @@ describe('middleware-e2e', () => {
     }
   });
 
-  it('should inject pre middleware fields into task input and post middleware fields into output', async () => {
+  it('should inject before middleware fields into task input and after middleware fields into output', async () => {
     const client = HatchetClient.init<{ first: number; second: number }, { extra: number }>()
       .withMiddleware({
-        pre: (input) => {
+        before: (input) => {
           return { ...input, dependency: `dep-${input.first}-${input.second}` };
         },
-        post: (output) => {
+        after: (output) => {
           return { ...output, additionalData: 42 };
         },
       });
@@ -54,10 +54,10 @@ describe('middleware-e2e', () => {
   it('should strip fields not included in middleware return when input is not spread', async () => {
     const client = HatchetClient.init<{ first: number; second: number }>()
       .withMiddleware({
-        pre: (input) => {
+        before: (input) => {
           return { dependency: `dep-${input.first}-${input.second}` };
         },
-        post: (output) => {
+        after: (output) => {
           return { additionalData: 99 };
         },
       });
@@ -80,27 +80,25 @@ describe('middleware-e2e', () => {
 
     const result = await task.run({ first: 10, second: 20 });
 
-    // pre middleware stripped original input — task only received { dependency }
     expect(result.additionalData).toBe(99);
-    // post middleware stripped task output — result only has { additionalData }
     expect((result as any).result).toBeUndefined();
   }, 60000);
 
   it('should chain multiple withMiddleware calls with accumulated context', async () => {
     const client = HatchetClient.init<{ value: number }>()
       .withMiddleware({
-        pre: (input) => {
+        before: (input) => {
           return { ...input, doubled: input.value * 2 };
         },
-        post: (output) => {
+        after: (output) => {
           return { ...output, postFirst: true };
         },
       })
       .withMiddleware({
-        pre: (input) => {
+        before: (input) => {
           return { ...input, quadrupled: input.doubled * 2 };
         },
-        post: (output) => {
+        after: (output) => {
           return { ...output, postSecond: true };
         },
       });

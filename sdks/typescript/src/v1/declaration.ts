@@ -585,7 +585,7 @@ export class BaseWorkflowDeclaration<
 export class WorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
-  MiddlewarePre extends Record<string, any> = {},
+  MiddlewareBefore extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   /**
    * Adds a task to the workflow.
@@ -600,10 +600,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I & MiddlewarePre,
-          ctx: Context<I & MiddlewarePre>
+          input: I & MiddlewareBefore,
+          ctx: Context<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I & MiddlewarePre, ctx: Context<I & MiddlewarePre>) => void,
+      : (input: I & MiddlewareBefore, ctx: Context<I & MiddlewareBefore>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -714,10 +714,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I & MiddlewarePre,
-          ctx: DurableContext<I & MiddlewarePre>
+          input: I & MiddlewareBefore,
+          ctx: DurableContext<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I & MiddlewarePre, ctx: DurableContext<I & MiddlewarePre>) => void,
+      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -744,16 +744,16 @@ export class WorkflowDeclaration<
  * @template I - The task-specific input type.
  * @template O - The task output type.
  * @template GlobalInput - Global input type from the client, merged into all run/schedule/cron input signatures.
- * @template MiddlewarePre - Extra fields added to the task fn input by pre-middleware hooks.
- * @template MiddlewarePost - Extra fields merged into the task output by post-middleware hooks.
+ * @template MiddlewareBefore - Extra fields added to the task fn input by pre-middleware hooks.
+ * @template MiddlewareAfter - Extra fields merged into the task output by post-middleware hooks.
  */
 export class TaskWorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   GlobalInput extends Record<string, any> = {},
   GlobalOutput extends Record<string, any> = {},
-  MiddlewarePre extends Record<string, any> = {},
-  MiddlewarePost extends Record<string, any> = {},
+  MiddlewareBefore extends Record<string, any> = {},
+  MiddlewareAfter extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   _standalone_task_name: string;
 
@@ -773,12 +773,12 @@ export class TaskWorkflowDeclaration<
    * @param options - Optional configuration for this task run.
    * @returns A promise that resolves with the task output merged with post-middleware fields.
    */
-  async runAndWait(input: I & GlobalInput, options?: RunOpts): Promise<O & Resolved<GlobalOutput, MiddlewarePost>>;
-  async runAndWait(input: (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewarePost>)[]>;
-  async runAndWait(input: (I & GlobalInput) | (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewarePost>) | (O & Resolved<GlobalOutput, MiddlewarePost>)[]> {
+  async runAndWait(input: I & GlobalInput, options?: RunOpts): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  async runAndWait(input: (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  async runAndWait(input: (I & GlobalInput) | (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]> {
     return Array.isArray(input)
-      ? (super.runAndWait(input, options, this._standalone_task_name) as Promise<(O & Resolved<GlobalOutput, MiddlewarePost>)[]>)
-      : (super.runAndWait(input, options, this._standalone_task_name) as Promise<O & Resolved<GlobalOutput, MiddlewarePost>>);
+      ? (super.runAndWait(input, options, this._standalone_task_name) as Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>)
+      : (super.runAndWait(input, options, this._standalone_task_name) as Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>);
   }
 
   /**
@@ -787,12 +787,12 @@ export class TaskWorkflowDeclaration<
    * @param options - Optional configuration for this task run.
    * @returns A promise that resolves with the task output merged with post-middleware fields.
    */
-  async run(input: I & GlobalInput, options?: RunOpts): Promise<O & Resolved<GlobalOutput, MiddlewarePost>>;
-  async run(input: (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewarePost>)[]>;
-  async run(input: (I & GlobalInput) | (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewarePost>) | (O & Resolved<GlobalOutput, MiddlewarePost>)[]> {
+  async run(input: I & GlobalInput, options?: RunOpts): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  async run(input: (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  async run(input: (I & GlobalInput) | (I & GlobalInput)[], options?: RunOpts): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]> {
     return Array.isArray(input)
-      ? (super.run(input, options, this._standalone_task_name) as Promise<(O & Resolved<GlobalOutput, MiddlewarePost>)[]>)
-      : (super.run(input, options, this._standalone_task_name) as Promise<O & Resolved<GlobalOutput, MiddlewarePost>>);
+      ? (super.run(input, options, this._standalone_task_name) as Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>)
+      : (super.run(input, options, this._standalone_task_name) as Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>);
   }
 
   /**
@@ -801,15 +801,15 @@ export class TaskWorkflowDeclaration<
    * @param options - Optional configuration for this task run.
    * @returns A WorkflowRunRef containing the run ID and methods to get results.
    */
-  async runNoWait(input: I & GlobalInput, options?: RunOpts): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewarePost>>>;
-  async runNoWait(input: (I & GlobalInput)[], options?: RunOpts): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewarePost>>[]>;
+  async runNoWait(input: I & GlobalInput, options?: RunOpts): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>>;
+  async runNoWait(input: (I & GlobalInput)[], options?: RunOpts): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]>;
   async runNoWait(
     input: (I & GlobalInput) | (I & GlobalInput)[],
     options?: RunOpts
-  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewarePost>> | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewarePost>>[]> {
+  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>> | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]> {
     return Array.isArray(input)
-      ? (super.runNoWait(input, options, this._standalone_task_name) as Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewarePost>>[]>)
-      : (super.runNoWait(input, options, this._standalone_task_name) as Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewarePost>>>);
+      ? (super.runNoWait(input, options, this._standalone_task_name) as Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]>)
+      : (super.runNoWait(input, options, this._standalone_task_name) as Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>>);
   }
 
   /**

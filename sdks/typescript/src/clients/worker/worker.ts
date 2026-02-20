@@ -254,8 +254,8 @@ export class V0Worker {
       const run = async () => {
         const middleware = this.client.config.middleware;
 
-        if (middleware?.pre) {
-          const hooks = Array.isArray(middleware.pre) ? middleware.pre : [middleware.pre];
+        if (middleware?.before) {
+          const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];
           for (const hook of hooks) {
             const extra = await hook(context.input, context as any);
             if (extra !== undefined) {
@@ -270,8 +270,8 @@ export class V0Worker {
 
         let result: any = await step(context);
 
-        if (middleware?.post) {
-          const hooks = Array.isArray(middleware.post) ? middleware.post : [middleware.post];
+        if (middleware?.after) {
+          const hooks = Array.isArray(middleware.after) ? middleware.after : [middleware.after];
           for (const hook of hooks) {
             const extra = await hook(result, context as any, context.input);
             if (extra !== undefined) {

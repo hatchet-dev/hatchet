@@ -33,13 +33,13 @@ function decrypt(ciphertext: string, iv: string, tag: string): string {
 type EncryptedInput = { __encrypted?: EncryptedEnvelope };
 
 const e2eEncryption: HatchetMiddleware<EncryptedInput> = {
-  pre: (input) => {
+  before: (input) => {
     if (!input.__encrypted) return input;
     const { ciphertext, iv, tag } = input.__encrypted;
     const decrypted = JSON.parse(decrypt(ciphertext, iv, tag));
     return { ...input, ...decrypted, __encrypted: undefined };
   },
-  post: (output) => {
+  after: (output) => {
     const payload = JSON.stringify(output);
     return { __encrypted: encrypt(payload) };
   },
@@ -78,14 +78,14 @@ async function downloadFromS3(url: string): Promise<unknown> {
 type S3Input = { __s3Url?: string };
 
 const s3Offload: HatchetMiddleware<S3Input> = {
-  pre: async (input) => {
+  before: async (input) => {
     if (input.__s3Url) {
       const restored = await downloadFromS3(input.__s3Url) as Record<string, any>;
       return { ...restored, __s3Url: undefined };
     }
     return input;
   },
-  post: async (output) => {
+  after: async (output) => {
     const serialized = JSON.stringify(output);
     if (serialized.length > PAYLOAD_THRESHOLD) {
       const url = await uploadToS3(output);

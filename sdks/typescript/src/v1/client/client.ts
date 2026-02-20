@@ -6,8 +6,8 @@ import {
   HatchetClientOptions,
   LegacyHatchetClient,
   TaskMiddleware,
-  InferMiddlewarePre,
-  InferMiddlewarePost,
+  InferMiddlewareBefore,
+  InferMiddlewareAfter,
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -57,14 +57,14 @@ type MergeIfNonEmpty<Base, Extra extends Record<string, any>> =
  * It provides methods for creating and executing workflows, as well as managing workers.
  *
  * @template GlobalInput - Global input type required by all tasks. Set via `init<T>()`. Defaults to `{}`.
- * @template MiddlewarePre - Extra fields merged into task input by pre-middleware hooks. Inferred from middleware config.
- * @template MiddlewarePost - Extra fields merged into task output by post-middleware hooks. Inferred from middleware config.
+ * @template MiddlewareBefore - Extra fields merged into task input by pre-middleware hooks. Inferred from middleware config.
+ * @template MiddlewareAfter - Extra fields merged into task output by post-middleware hooks. Inferred from middleware config.
  */
 export class HatchetClient<
   GlobalInput extends Record<string, any> = {},
   GlobalOutput extends Record<string, any> = {},
-  MiddlewarePre extends Record<string, any> = {},
-  MiddlewarePost extends Record<string, any> = {},
+  MiddlewareBefore extends Record<string, any> = {},
+  MiddlewareAfter extends Record<string, any> = {},
 > implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: LegacyHatchetClient;
@@ -190,23 +190,23 @@ export class HatchetClient<
    * Use this after `init<T, U>()` to get full middleware return-type inference
    * that TypeScript can't provide when global types are explicitly set on `init`.
    */
-  withMiddleware<const M extends TaskMiddleware<Resolved<GlobalInput, MiddlewarePre>, Resolved<GlobalOutput, MiddlewarePost>>>(
+  withMiddleware<const M extends TaskMiddleware<Resolved<GlobalInput, MiddlewareBefore>, Resolved<GlobalOutput, MiddlewareAfter>>>(
     middleware: M
-  ): HatchetClient<GlobalInput, GlobalOutput, MiddlewarePre & InferMiddlewarePre<M>, MiddlewarePost & InferMiddlewarePost<M>> {
+  ): HatchetClient<GlobalInput, GlobalOutput, MiddlewareBefore & InferMiddlewareBefore<M>, MiddlewareAfter & InferMiddlewareAfter<M>> {
     const existing: TaskMiddleware = (this._config as any).middleware || {};
     const toArray = <T>(v: T | readonly T[] | undefined): T[] =>
       v == null ? [] : Array.isArray(v) ? [...v] : [v as T];
 
     (this._config as any).middleware = {
-      pre: [...toArray(existing.pre), ...toArray(middleware.pre)],
-      post: [...toArray(existing.post), ...toArray(middleware.post)],
+      before: [...toArray(existing.before), ...toArray(middleware.before)],
+      after: [...toArray(existing.after), ...toArray(middleware.after)],
     };
 
     return this as unknown as HatchetClient<
       GlobalInput,
       GlobalOutput,
-      MiddlewarePre & InferMiddlewarePre<M>,
-      MiddlewarePost & InferMiddlewarePost<M>
+      MiddlewareBefore & InferMiddlewareBefore<M>,
+      MiddlewareAfter & InferMiddlewareAfter<M>
     >;
   }
 
@@ -226,8 +226,8 @@ export class HatchetClient<
    */
   workflow<I extends InputType = UnknownInputType, O extends StrictWorkflowOutputType = {}>(
     options: CreateWorkflowOpts
-  ): WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewarePre>> {
-    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewarePre>>;
+  ): WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewareBefore>> {
+    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewareBefore>>;
   }
 
   /**
@@ -239,8 +239,8 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance
    */
   task<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewarePre>, MergeIfNonEmpty<O, GlobalOutput>>
-  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewarePre, MiddlewarePost>;
+    options: CreateTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewareBefore>, MergeIfNonEmpty<O, GlobalOutput>>
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Creates a new task workflow with types inferred from the function parameter.
@@ -262,7 +262,7 @@ export class HatchetClient<
     options: {
       fn: Fn;
     } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'>
-  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewarePre, MiddlewarePost>;
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Implementation of the task method.
@@ -280,8 +280,8 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance for a durable task
    */
   durableTask<I extends InputType, O extends OutputType>(
-    options: CreateDurableTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewarePre>, MergeIfNonEmpty<O, GlobalOutput>>
-  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewarePre, MiddlewarePost>;
+    options: CreateDurableTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewareBefore>, MergeIfNonEmpty<O, GlobalOutput>>
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Creates a new durable task workflow with types inferred from the function parameter.
@@ -303,7 +303,7 @@ export class HatchetClient<
     options: {
       fn: Fn;
     } & Omit<CreateDurableTaskWorkflowOpts<I, O>, 'fn'>
-  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewarePre, MiddlewarePost>;
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Implementation of the durableTask method.
