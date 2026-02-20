@@ -46,22 +46,11 @@ from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
 from hatchet_sdk.clients.rest.models.get_step_run_diff_response import (
     GetStepRunDiffResponse,
 )
-from hatchet_sdk.clients.rest.models.github_app_installation import (
-    GithubAppInstallation,
-)
-from hatchet_sdk.clients.rest.models.github_branch import GithubBranch
-from hatchet_sdk.clients.rest.models.github_repo import GithubRepo
 from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.job_run import JobRun
 from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
-from hatchet_sdk.clients.rest.models.link_github_repository_request import (
-    LinkGithubRepositoryRequest,
-)
 from hatchet_sdk.clients.rest.models.list_api_tokens_response import (
     ListAPITokensResponse,
-)
-from hatchet_sdk.clients.rest.models.list_github_app_installations_response import (
-    ListGithubAppInstallationsResponse,
 )
 from hatchet_sdk.clients.rest.models.list_pull_requests_response import (
     ListPullRequestsResponse,
@@ -112,9 +101,6 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_deployment_config import (
-    WorkflowDeploymentConfig,
-)
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
