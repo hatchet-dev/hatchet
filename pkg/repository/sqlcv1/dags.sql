@@ -45,7 +45,7 @@ SELECT
     i.display_name,
     i.workflow_id,
     i.workflow_version_id,
-    i.parent_task_external_id
+    NULLIF(i.parent_task_external_id, '00000000-0000-0000-0000-000000000000'::uuid)
 FROM
     input i
 RETURNING
