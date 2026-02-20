@@ -31,6 +31,7 @@ export type AppContextValue = {
   // User data
   user: User | undefined;
   isUserLoading: boolean;
+  isUserLoaded: boolean;
   userError: unknown;
   isUserError: boolean;
 
@@ -165,6 +166,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     () => ({
       // User
       user: currentUserQuery.data,
+      isUserLoaded: currentUserQuery.isSuccess,
       isUserLoading: currentUserQuery.isLoading,
       userError: currentUserQuery.error,
       isUserError: currentUserQuery.isError,

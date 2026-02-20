@@ -1,9 +1,15 @@
 import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
+import { useAppContext } from '@/providers/app-context';
 import { appRoutes } from '@/router';
 import { useNavigate } from '@tanstack/react-router';
 
 export default function CreateOrganization() {
   const navigate = useNavigate();
+  const { user, isUserLoaded } = useAppContext();
+
+  if (!isUserLoaded) {
+    return <></>;
+  }
 
   return (
     <div className="max-h-full overflow-y-auto">
@@ -14,6 +20,7 @@ export default function CreateOrganization() {
 
         <div className="flex justify-center">
           <NewOrganizationSaverForm
+            defaultOrganizationName={user?.name}
             afterSave={({ organization, tenant }) => {
               navigate({
                 to: appRoutes.tenantOverviewRoute.to,
