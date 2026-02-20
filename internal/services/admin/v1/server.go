@@ -428,7 +428,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
-func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.ResetDurableTaskRequest) (*contracts.ResetDurableTaskResponse, error) {
+func (a *AdminServiceImpl) ForkDurableTask(ctx context.Context, req *contracts.ForkDurableTaskRequest) (*contracts.ForkDurableTaskResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -442,10 +442,10 @@ func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	result, err := a.repo.DurableEvents().HandleReset(ctx, tenantId, req.NodeId, task)
+	result, err := a.repo.DurableEvents().HandleFork(ctx, tenantId, req.NodeId, task)
 
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to reset durable task: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to fork durable task: %v", err)
 	}
 
 	replayPayload := tasktypes.ReplayTasksPayload{
@@ -469,7 +469,7 @@ func (a *AdminServiceImpl) ResetDurableTask(ctx context.Context, req *contracts.
 		return nil, status.Errorf(codes.Internal, "failed to send replay message: %v", err)
 	}
 
-	return &contracts.ResetDurableTaskResponse{
+	return &contracts.ForkDurableTaskResponse{
 		TaskExternalId: taskExternalId.String(),
 		NodeId:         result.NodeId,
 		BranchId:       result.EventLogFile.LatestBranchID,

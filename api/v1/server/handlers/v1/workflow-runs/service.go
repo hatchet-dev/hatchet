@@ -11,9 +11,9 @@ import (
 )
 
 type V1WorkflowRunsService struct {
-	config                *server.ServerConfig
-	proxyTrigger          *proxy.Proxy[admincontracts.TriggerWorkflowRunRequest, admincontracts.TriggerWorkflowRunResponse]
-	proxyResetDurableTask *proxy.Proxy[admincontracts.ResetDurableTaskRequest, admincontracts.ResetDurableTaskResponse]
+	config               *server.ServerConfig
+	proxyTrigger         *proxy.Proxy[admincontracts.TriggerWorkflowRunRequest, admincontracts.TriggerWorkflowRunResponse]
+	proxyForkDurableTask *proxy.Proxy[admincontracts.ForkDurableTaskRequest, admincontracts.ForkDurableTaskResponse]
 }
 
 func NewV1WorkflowRunsService(config *server.ServerConfig) *V1WorkflowRunsService {
@@ -21,13 +21,13 @@ func NewV1WorkflowRunsService(config *server.ServerConfig) *V1WorkflowRunsServic
 		return cli.Admin().TriggerWorkflowRun(ctx, in)
 	})
 
-	proxyResetDurableTask := proxy.NewProxy(config, func(ctx context.Context, cli *client.GRPCClient, in *admincontracts.ResetDurableTaskRequest) (*admincontracts.ResetDurableTaskResponse, error) {
-		return cli.Admin().ResetDurableTask(ctx, in)
+	proxyForkDurableTask := proxy.NewProxy(config, func(ctx context.Context, cli *client.GRPCClient, in *admincontracts.ForkDurableTaskRequest) (*admincontracts.ForkDurableTaskResponse, error) {
+		return cli.Admin().ForkDurableTask(ctx, in)
 	})
 
 	return &V1WorkflowRunsService{
-		config:                config,
-		proxyTrigger:          proxyTrigger,
-		proxyResetDurableTask: proxyResetDurableTask,
+		config:               config,
+		proxyTrigger:         proxyTrigger,
+		proxyForkDurableTask: proxyForkDurableTask,
 	}
 }

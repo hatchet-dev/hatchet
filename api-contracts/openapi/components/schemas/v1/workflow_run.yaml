@@ -145,14 +145,14 @@ V1TriggerWorkflowRunRequest:
     - workflowName
     - input
 
-V1ResetDurableTaskRequest:
+V1ForkDurableTaskRequest:
   properties:
     taskExternalId:
       type: string
       format: uuid
       minLength: 36
       maxLength: 36
-      description: The external id of the durable task to reset.
+      description: The external id of the durable task to fork.
     nodeId:
       type: integer
       format: int64
@@ -161,7 +161,7 @@ V1ResetDurableTaskRequest:
     - taskExternalId
     - nodeId
 
-V1ResetDurableTaskResponse:
+V1ForkDurableTaskResponse:
   properties:
     taskExternalId:
       type: string

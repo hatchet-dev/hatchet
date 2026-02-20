@@ -262,6 +262,12 @@ from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
 )
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
+from hatchet_sdk.clients.rest.models.v1_fork_durable_task_request import (
+    V1ForkDurableTaskRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_fork_durable_task_response import (
+    V1ForkDurableTaskResponse,
+)
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
@@ -270,12 +276,6 @@ from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
 )
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
 from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
-from hatchet_sdk.clients.rest.models.v1_reset_durable_task_request import (
-    V1ResetDurableTaskRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_reset_durable_task_response import (
-    V1ResetDurableTaskResponse,
-)
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType

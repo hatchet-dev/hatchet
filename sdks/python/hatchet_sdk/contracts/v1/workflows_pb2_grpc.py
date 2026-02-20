@@ -60,10 +60,10 @@ class AdminServiceStub(object):
                 request_serializer=v1_dot_workflows__pb2.GetRunDetailsRequest.SerializeToString,
                 response_deserializer=v1_dot_workflows__pb2.GetRunDetailsResponse.FromString,
                 _registered_method=True)
-        self.ResetDurableTask = channel.unary_unary(
-                '/v1.AdminService/ResetDurableTask',
-                request_serializer=v1_dot_workflows__pb2.ResetDurableTaskRequest.SerializeToString,
-                response_deserializer=v1_dot_workflows__pb2.ResetDurableTaskResponse.FromString,
+        self.ForkDurableTask = channel.unary_unary(
+                '/v1.AdminService/ForkDurableTask',
+                request_serializer=v1_dot_workflows__pb2.ForkDurableTaskRequest.SerializeToString,
+                response_deserializer=v1_dot_workflows__pb2.ForkDurableTaskResponse.FromString,
                 _registered_method=True)
 
 
@@ -101,7 +101,7 @@ class AdminServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ResetDurableTask(self, request, context):
+    def ForkDurableTask(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -135,10 +135,10 @@ def add_AdminServiceServicer_to_server(servicer, server):
                     request_deserializer=v1_dot_workflows__pb2.GetRunDetailsRequest.FromString,
                     response_serializer=v1_dot_workflows__pb2.GetRunDetailsResponse.SerializeToString,
             ),
-            'ResetDurableTask': grpc.unary_unary_rpc_method_handler(
-                    servicer.ResetDurableTask,
-                    request_deserializer=v1_dot_workflows__pb2.ResetDurableTaskRequest.FromString,
-                    response_serializer=v1_dot_workflows__pb2.ResetDurableTaskResponse.SerializeToString,
+            'ForkDurableTask': grpc.unary_unary_rpc_method_handler(
+                    servicer.ForkDurableTask,
+                    request_deserializer=v1_dot_workflows__pb2.ForkDurableTaskRequest.FromString,
+                    response_serializer=v1_dot_workflows__pb2.ForkDurableTaskResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -288,7 +288,7 @@ class AdminService(object):
             _registered_method=True)
 
     @staticmethod
-    def ResetDurableTask(request,
+    def ForkDurableTask(request,
             target,
             options=(),
             channel_credentials=None,
@@ -301,9 +301,9 @@ class AdminService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/v1.AdminService/ResetDurableTask',
-            v1_dot_workflows__pb2.ResetDurableTaskRequest.SerializeToString,
-            v1_dot_workflows__pb2.ResetDurableTaskResponse.FromString,
+            '/v1.AdminService/ForkDurableTask',
+            v1_dot_workflows__pb2.ForkDurableTaskRequest.SerializeToString,
+            v1_dot_workflows__pb2.ForkDurableTaskResponse.FromString,
             options,
             channel_credentials,
             insecure,

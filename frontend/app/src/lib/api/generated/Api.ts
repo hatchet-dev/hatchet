@@ -103,13 +103,13 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
+  V1ForkDurableTaskRequest,
+  V1ForkDurableTaskResponse,
   V1LogLineLevel,
   V1LogLineList,
   V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
-  V1ResetDurableTaskRequest,
-  V1ResetDurableTaskResponse,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -499,21 +499,21 @@ export class Api<
       ...params,
     });
   /**
-   * @description Reset a durable task from a specific node, creating a new branch and re-processing its matches.
+   * @description Fork a durable task from a specific node, creating a new branch and re-processing its matches.
    *
    * @tags Workflow Runs
-   * @name V1DurableTaskReset
-   * @summary Reset durable task
-   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/reset
+   * @name V1DurableTaskFork
+   * @summary Fork durable task
+   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/fork
    * @secure
    */
-  v1DurableTaskReset = (
+  v1DurableTaskFork = (
     tenant: string,
-    data: V1ResetDurableTaskRequest,
+    data: V1ForkDurableTaskRequest,
     params: RequestParams = {},
   ) =>
-    this.request<V1ResetDurableTaskResponse, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/reset`,
+    this.request<V1ForkDurableTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/fork`,
       method: "POST",
       body: data,
       secure: true,

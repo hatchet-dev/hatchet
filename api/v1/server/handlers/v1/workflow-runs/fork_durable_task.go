@@ -11,15 +11,15 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *V1WorkflowRunsService) V1DurableTaskReset(ctx echo.Context, request gen.V1DurableTaskResetRequestObject) (gen.V1DurableTaskResetResponseObject, error) {
+func (t *V1WorkflowRunsService) V1DurableTaskFork(ctx echo.Context, request gen.V1DurableTaskForkRequestObject) (gen.V1ForkDurableTaskResponse, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	grpcReq := &contracts.ResetDurableTaskRequest{
+	grpcReq := &contracts.ForkDurableTaskRequest{
 		TaskExternalId: request.Body.TaskExternalId.String(),
 		NodeId:         request.Body.NodeId,
 	}
 
-	resp, err := t.proxyResetDurableTask.Do(
+	resp, err := t.proxyForkDurableTask.Do(
 		ctx.Request().Context(),
 		tenant,
 		grpcReq,
@@ -29,7 +29,7 @@ func (t *V1WorkflowRunsService) V1DurableTaskReset(ctx echo.Context, request gen
 		if e, ok := status.FromError(err); ok {
 			switch e.Code() {
 			case codes.InvalidArgument:
-				return gen.V1DurableTaskReset400JSONResponse(
+				return gen.V1DurableTaskFork400JSONResponse(
 					apierrors.NewAPIErrors(e.Message()),
 				), nil
 			}
@@ -38,7 +38,7 @@ func (t *V1WorkflowRunsService) V1DurableTaskReset(ctx echo.Context, request gen
 		return nil, err
 	}
 
-	return gen.V1DurableTaskReset200JSONResponse{
+	return gen.V1DurableTaskFork200JSONResponse{
 		TaskExternalId: request.Body.TaskExternalId,
 		NodeId:         resp.NodeId,
 		BranchId:       resp.BranchId,

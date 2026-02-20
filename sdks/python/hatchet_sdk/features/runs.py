@@ -17,13 +17,13 @@ from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
+from hatchet_sdk.clients.rest.models.v1_fork_durable_task_request import (
+    V1ForkDurableTaskRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_fork_durable_task_response import (
+    V1ForkDurableTaskResponse,
+)
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
-from hatchet_sdk.clients.rest.models.v1_reset_durable_task_request import (
-    V1ResetDurableTaskRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_reset_durable_task_response import (
-    V1ResetDurableTaskResponse,
-)
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -864,7 +864,7 @@ class RunsClient(BaseRestClient):
 
     def reset_durable_task(
         self, task_external_id: str, node_id: int
-    ) -> V1ResetDurableTaskResponse:
+    ) -> V1ForkDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
 
@@ -873,9 +873,9 @@ class RunsClient(BaseRestClient):
         :return: The reset response containing the new node_id and branch_id.
         """
         with self.client() as client:
-            return self._wra(client).v1_durable_task_reset(
+            return self._wra(client).v1_durable_task_fork(
                 tenant=self.client_config.tenant_id,
-                v1_reset_durable_task_request=V1ResetDurableTaskRequest(
+                v1_fork_durable_task_request=V1ForkDurableTaskRequest(
                     taskExternalId=task_external_id,
                     nodeId=node_id,
                 ),
@@ -883,7 +883,7 @@ class RunsClient(BaseRestClient):
 
     async def aio_reset_durable_task(
         self, task_external_id: str, node_id: int
-    ) -> V1ResetDurableTaskResponse:
+    ) -> V1ForkDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
 

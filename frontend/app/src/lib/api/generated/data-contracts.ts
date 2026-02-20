@@ -665,9 +665,9 @@ export interface V1WorkflowRunDetails {
   workflowConfig?: object;
 }
 
-export interface V1ResetDurableTaskRequest {
+export interface V1ForkDurableTaskRequest {
   /**
-   * The external id of the durable task to reset.
+   * The external id of the durable task to fork.
    * @format uuid
    * @minLength 36
    * @maxLength 36
@@ -680,7 +680,7 @@ export interface V1ResetDurableTaskRequest {
   nodeId: number;
 }
 
-export interface V1ResetDurableTaskResponse {
+export interface V1ForkDurableTaskResponse {
   /**
    * The external id of the durable task.
    * @format uuid

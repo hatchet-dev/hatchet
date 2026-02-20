@@ -20,11 +20,11 @@ from datetime import datetime
 from pydantic import Field, StrictBool, StrictInt, StrictStr
 from typing import List, Optional
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.v1_reset_durable_task_request import (
-    V1ResetDurableTaskRequest,
+from hatchet_sdk.clients.rest.models.v1_fork_durable_task_request import (
+    V1ForkDurableTaskRequest,
 )
-from hatchet_sdk.clients.rest.models.v1_reset_durable_task_response import (
-    V1ResetDurableTaskResponse,
+from hatchet_sdk.clients.rest.models.v1_fork_durable_task_response import (
+    V1ForkDurableTaskResponse,
 )
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
@@ -56,7 +56,7 @@ class WorkflowRunsApi:
         self.api_client = api_client
 
     @validate_call
-    def v1_durable_task_reset(
+    def v1_durable_task_fork(
         self,
         tenant: Annotated[
             str,
@@ -64,8 +64,8 @@ class WorkflowRunsApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        v1_reset_durable_task_request: Annotated[
-            V1ResetDurableTaskRequest, Field(description="The reset request")
+        v1_fork_durable_task_request: Annotated[
+            V1ForkDurableTaskRequest, Field(description="The fork request")
         ],
         _request_timeout: Union[
             None,
@@ -78,15 +78,15 @@ class WorkflowRunsApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> V1ResetDurableTaskResponse:
-        """Reset durable task
+    ) -> V1ForkDurableTaskResponse:
+        """Fork durable task
 
-        Reset a durable task from a specific node, creating a new branch and re-processing its matches.
+        Fork a durable task from a specific node, creating a new branch and re-processing its matches.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param v1_reset_durable_task_request: The reset request (required)
-        :type v1_reset_durable_task_request: V1ResetDurableTaskRequest
+        :param v1_fork_durable_task_request: The fork request (required)
+        :type v1_fork_durable_task_request: V1ForkDurableTaskRequest
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -109,9 +109,9 @@ class WorkflowRunsApi:
         :return: Returns the result object.
         """  # noqa: E501
 
-        _param = self._v1_durable_task_reset_serialize(
+        _param = self._v1_durable_task_fork_serialize(
             tenant=tenant,
-            v1_reset_durable_task_request=v1_reset_durable_task_request,
+            v1_fork_durable_task_request=v1_fork_durable_task_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -119,7 +119,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1ResetDurableTaskResponse",
+            "200": "V1ForkDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -133,7 +133,7 @@ class WorkflowRunsApi:
         ).data
 
     @validate_call
-    def v1_durable_task_reset_with_http_info(
+    def v1_durable_task_fork_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -141,8 +141,8 @@ class WorkflowRunsApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        v1_reset_durable_task_request: Annotated[
-            V1ResetDurableTaskRequest, Field(description="The reset request")
+        v1_fork_durable_task_request: Annotated[
+            V1ForkDurableTaskRequest, Field(description="The fork request")
         ],
         _request_timeout: Union[
             None,
@@ -155,15 +155,15 @@ class WorkflowRunsApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[V1ResetDurableTaskResponse]:
-        """Reset durable task
+    ) -> ApiResponse[V1ForkDurableTaskResponse]:
+        """Fork durable task
 
-        Reset a durable task from a specific node, creating a new branch and re-processing its matches.
+        Fork a durable task from a specific node, creating a new branch and re-processing its matches.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param v1_reset_durable_task_request: The reset request (required)
-        :type v1_reset_durable_task_request: V1ResetDurableTaskRequest
+        :param v1_fork_durable_task_request: The fork request (required)
+        :type v1_fork_durable_task_request: V1ForkDurableTaskRequest
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -186,9 +186,9 @@ class WorkflowRunsApi:
         :return: Returns the result object.
         """  # noqa: E501
 
-        _param = self._v1_durable_task_reset_serialize(
+        _param = self._v1_durable_task_fork_serialize(
             tenant=tenant,
-            v1_reset_durable_task_request=v1_reset_durable_task_request,
+            v1_fork_durable_task_request=v1_fork_durable_task_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -196,7 +196,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1ResetDurableTaskResponse",
+            "200": "V1ForkDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -210,7 +210,7 @@ class WorkflowRunsApi:
         )
 
     @validate_call
-    def v1_durable_task_reset_without_preload_content(
+    def v1_durable_task_fork_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -218,8 +218,8 @@ class WorkflowRunsApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        v1_reset_durable_task_request: Annotated[
-            V1ResetDurableTaskRequest, Field(description="The reset request")
+        v1_fork_durable_task_request: Annotated[
+            V1ForkDurableTaskRequest, Field(description="The fork request")
         ],
         _request_timeout: Union[
             None,
@@ -233,14 +233,14 @@ class WorkflowRunsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Reset durable task
+        """Fork durable task
 
-        Reset a durable task from a specific node, creating a new branch and re-processing its matches.
+        Fork a durable task from a specific node, creating a new branch and re-processing its matches.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param v1_reset_durable_task_request: The reset request (required)
-        :type v1_reset_durable_task_request: V1ResetDurableTaskRequest
+        :param v1_fork_durable_task_request: The fork request (required)
+        :type v1_fork_durable_task_request: V1ForkDurableTaskRequest
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -263,9 +263,9 @@ class WorkflowRunsApi:
         :return: Returns the result object.
         """  # noqa: E501
 
-        _param = self._v1_durable_task_reset_serialize(
+        _param = self._v1_durable_task_fork_serialize(
             tenant=tenant,
-            v1_reset_durable_task_request=v1_reset_durable_task_request,
+            v1_fork_durable_task_request=v1_fork_durable_task_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -273,7 +273,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1ResetDurableTaskResponse",
+            "200": "V1ForkDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -282,10 +282,10 @@ class WorkflowRunsApi:
         )
         return response_data.response
 
-    def _v1_durable_task_reset_serialize(
+    def _v1_durable_task_fork_serialize(
         self,
         tenant,
-        v1_reset_durable_task_request,
+        v1_fork_durable_task_request,
         _request_auth,
         _content_type,
         _headers,
@@ -312,8 +312,8 @@ class WorkflowRunsApi:
         # process the header parameters
         # process the form parameters
         # process the body parameter
-        if v1_reset_durable_task_request is not None:
-            _body_params = v1_reset_durable_task_request
+        if v1_fork_durable_task_request is not None:
+            _body_params = v1_fork_durable_task_request
 
         # set the HTTP header `Accept`
         if "Accept" not in _header_params:
@@ -336,7 +336,7 @@ class WorkflowRunsApi:
 
         return self.api_client.param_serialize(
             method="POST",
-            resource_path="/api/v1/stable/tenants/{tenant}/durable-tasks/reset",
+            resource_path="/api/v1/stable/tenants/{tenant}/durable-tasks/fork",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
