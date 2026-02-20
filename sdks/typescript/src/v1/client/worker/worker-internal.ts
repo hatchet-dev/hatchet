@@ -572,7 +572,29 @@ export class V1Worker {
           childIndex: 0,
           desiredWorkerId: this.workerId || '',
         });
-        return step(context);
+        const middleware = this.client.config.middleware;
+
+        if (middleware?.pre) {
+          const extra = await middleware.pre(context.input, context as any);
+          if (extra !== undefined) {
+            const merged = { ...(context.input as any), ...extra };
+            (context as any).input = merged;
+            if ((context as any).data && typeof (context as any).data === 'object') {
+              (context as any).data.input = merged;
+            }
+          }
+        }
+
+        let result: any = await step(context);
+
+        if (middleware?.post) {
+          const extra = await middleware.post(result, context as any, context.input);
+          if (extra !== undefined) {
+            result = { ...result, ...extra };
+          }
+        }
+
+        return result;
       };
 
       const success = async (result: any) => {

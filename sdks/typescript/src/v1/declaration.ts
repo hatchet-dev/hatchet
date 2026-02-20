@@ -585,6 +585,7 @@ export class BaseWorkflowDeclaration<
 export class WorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
+  MiddlewarePre extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   /**
    * Adds a task to the workflow.
@@ -599,10 +600,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I,
-          ctx: Context<I>
+          input: I & MiddlewarePre,
+          ctx: Context<I & MiddlewarePre>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: Context<I>) => void,
+      : (input: I & MiddlewarePre, ctx: Context<I & MiddlewarePre>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -713,10 +714,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I,
-          ctx: DurableContext<I>
+          input: I & MiddlewarePre,
+          ctx: DurableContext<I & MiddlewarePre>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: DurableContext<I>) => void,
+      : (input: I & MiddlewarePre, ctx: DurableContext<I & MiddlewarePre>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -740,10 +741,12 @@ export class WorkflowDeclaration<
 export class TaskWorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
+  MiddlewarePre extends Record<string, any> = {},
+  MiddlewarePost extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   _standalone_task_name: string;
 
-  constructor(options: CreateTaskWorkflowOpts<I, O>, client?: IHatchetClient) {
+  constructor(options: CreateTaskWorkflowOpts<any, any>, client?: IHatchetClient) {
     super({ ...options }, client);
 
     this._standalone_task_name = options.name;
@@ -753,13 +756,12 @@ export class TaskWorkflowDeclaration<
     });
   }
 
-  async run(input: I, options?: RunOpts): Promise<O>;
-  async run(input: I[], options?: RunOpts): Promise<O[]>;
-  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
-    // note: typescript is not smart enough to infer that input is an array
+  async run(input: I, options?: RunOpts): Promise<O & MiddlewarePost>;
+  async run(input: I[], options?: RunOpts): Promise<(O & MiddlewarePost)[]>;
+  async run(input: I | I[], options?: RunOpts): Promise<(O & MiddlewarePost) | (O & MiddlewarePost)[]> {
     return Array.isArray(input)
-      ? super.run(input, options, this._standalone_task_name)
-      : super.run(input, options, this._standalone_task_name);
+      ? (super.run(input, options, this._standalone_task_name) as Promise<(O & MiddlewarePost)[]>)
+      : (super.run(input, options, this._standalone_task_name) as Promise<O & MiddlewarePost>);
   }
 
   /**
@@ -769,16 +771,15 @@ export class TaskWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>>;
-  async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O>[]>;
+  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O & MiddlewarePost>>;
+  async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O & MiddlewarePost>[]>;
   async runNoWait(
     input: I | I[],
     options?: RunOpts
-  ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
-    // note: typescript is not smart enough to infer that input is an array
+  ): Promise<WorkflowRunRef<O & MiddlewarePost> | WorkflowRunRef<O & MiddlewarePost>[]> {
     return Array.isArray(input)
-      ? super.runNoWait(input, options, this._standalone_task_name)
-      : super.runNoWait(input, options, this._standalone_task_name);
+      ? (super.runNoWait(input, options, this._standalone_task_name) as Promise<WorkflowRunRef<O & MiddlewarePost>[]>)
+      : (super.runNoWait(input, options, this._standalone_task_name) as Promise<WorkflowRunRef<O & MiddlewarePost>>);
   }
 
   get taskDef() {

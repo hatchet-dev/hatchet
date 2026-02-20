@@ -128,6 +128,95 @@ describe('Worker', () => {
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
 
+    it('should apply middleware pre/post (merge semantics)', async () => {
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
+
+      const order: string[] = [];
+      const seenInputs: any[] = [];
+
+      hatchet.config.middleware = {
+        pre: (_input: any, ctx: any) => {
+          order.push('pre');
+          expect(ctx.taskRunExternalId()).toBe(mockStart.taskRunExternalId);
+          return { data: 2 };
+        },
+        post: (_output: any, _ctx: any, input: any) => {
+          order.push('post');
+          return { observed: input.data };
+        },
+      };
+
+      const getActionEventSpy = jest.spyOn(worker, 'getStepActionEvent');
+
+      jest.spyOn(worker.client.dispatcher, 'sendStepActionEvent').mockResolvedValue({
+        tenantId: 'TENANT_ID',
+        workerId: 'WORKER_ID',
+      });
+
+      const startSpy = jest.fn().mockImplementation((ctx: any) => {
+        order.push('step');
+        seenInputs.push(ctx.input);
+        return { ok: true };
+      });
+
+      worker.action_registry = {
+        [mockStart.actionId]: startSpy,
+      };
+
+      worker.handleStartStepRun(mockStart);
+      await sleep(100);
+
+      expect(order).toEqual(['pre', 'step', 'post']);
+      // pre merges { data: 2 } into existing input
+      expect(seenInputs[0]).toEqual(expect.objectContaining({ data: 2 }));
+
+      // post merges { observed: 2 } into the task result { ok: true }
+      expect(getActionEventSpy).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
+        false,
+        { ok: true, observed: 2 },
+        0
+      );
+    });
+
+    it('should treat middleware errors as task errors', async () => {
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
+
+      hatchet.config.middleware = {
+        pre: () => {
+          throw new Error('middleware exploded');
+        },
+      };
+
+      const getActionEventSpy = jest.spyOn(worker, 'getStepActionEvent');
+
+      jest.spyOn(worker.client.dispatcher, 'sendStepActionEvent').mockResolvedValue({
+        tenantId: 'TENANT_ID',
+        workerId: 'WORKER_ID',
+      });
+
+      const startSpy = jest.fn();
+
+      worker.action_registry = {
+        [mockStart.actionId]: startSpy,
+      };
+
+      worker.handleStartStepRun(mockStart);
+      await sleep(100);
+
+      expect(startSpy).not.toHaveBeenCalled();
+      expect(getActionEventSpy).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        StepActionEventType.STEP_EVENT_TYPE_FAILED,
+        false,
+        expect.anything(),
+        0
+      );
+    });
+
     it('should fail gracefully', async () => {
       const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 

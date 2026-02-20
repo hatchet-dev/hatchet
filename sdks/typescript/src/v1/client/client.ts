@@ -5,6 +5,7 @@ import {
   ClientConfigSchema,
   HatchetClientOptions,
   LegacyHatchetClient,
+  TaskMiddleware,
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -50,7 +51,10 @@ import { WebhooksClient } from './features/webhooks';
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
  * It provides methods for creating and executing workflows, as well as managing workers.
  */
-export class HatchetClient implements IHatchetClient {
+export class HatchetClient<
+  MiddlewarePre extends Record<string, any> = {},
+  MiddlewarePost extends Record<string, any> = {},
+> implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: LegacyHatchetClient;
   _api: Api;
@@ -158,12 +162,15 @@ export class HatchetClient implements IHatchetClient {
    * @param axiosConfig - Optional Axios configuration for HTTP requests
    * @returns A new Hatchet client instance
    */
-  static init(
-    config?: Partial<ClientConfig>,
+  static init<
+    Pre extends Record<string, any> = {},
+    Post extends Record<string, any> = {},
+  >(
+    config?: Partial<ClientConfig> & { middleware?: TaskMiddleware<Pre, Post> },
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient {
-    return new HatchetClient(config, options, axiosConfig);
+  ): HatchetClient<Pre, Post> {
+    return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<Pre, Post>;
   }
 
   private _config: ClientConfig;
@@ -182,8 +189,8 @@ export class HatchetClient implements IHatchetClient {
    */
   workflow<I extends InputType = UnknownInputType, O extends StrictWorkflowOutputType = {}>(
     options: CreateWorkflowOpts
-  ): WorkflowDeclaration<I, O> {
-    return CreateWorkflow<I, O>(options, this);
+  ): WorkflowDeclaration<I, O, MiddlewarePre> {
+    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, MiddlewarePre>;
   }
 
   /**
@@ -195,8 +202,8 @@ export class HatchetClient implements IHatchetClient {
    * @returns A TaskWorkflowDeclaration instance
    */
   task<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateTaskWorkflowOpts<I, O>
-  ): TaskWorkflowDeclaration<I, O>;
+    options: CreateTaskWorkflowOpts<I & MiddlewarePre, O>
+  ): TaskWorkflowDeclaration<I, O, MiddlewarePre, MiddlewarePost>;
 
   /**
    * Creates a new task workflow with types inferred from the function parameter.
@@ -218,7 +225,7 @@ export class HatchetClient implements IHatchetClient {
     options: {
       fn: Fn;
     } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'>
-  ): TaskWorkflowDeclaration<I, O>;
+  ): TaskWorkflowDeclaration<I, O, MiddlewarePre, MiddlewarePost>;
 
   /**
    * Implementation of the task method.
