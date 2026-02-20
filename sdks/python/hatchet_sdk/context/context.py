@@ -25,17 +25,13 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.runnables.types import (
-        EmptyModel,
-        R,
-        TWorkflowInput,
-    )
     from hatchet_sdk.runnables.workflow import (
         BaseWorkflow,
     )
@@ -506,21 +502,21 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        invocation_count = self.attempt_number
-
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            ## todo: figure out how to store this invocation count properly
-            invocation_count=invocation_count,
+            invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
             payload=None,
             wait_for_conditions=conditions_proto,
         )
         node_id = ack.node_id
+        branch_id = ack.branch_id
 
         result = await self.durable_event_listener.wait_for_callback(
             durable_task_external_id=self.step_run_id,
             node_id=node_id,
+            branch_id=branch_id,
+            invocation_count=self.invocation_count,
         )
 
         return result.payload or {}
@@ -553,18 +549,18 @@ class DurableContext(Context):
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
-            invocation_count=self.attempt_number,
+            invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
             payload=workflow._serialize_input(input),
             workflow_name=workflow.config.name,
             trigger_workflow_opts=options,
         )
 
-        node_id = ack.node_id
-
         result = await self.durable_event_listener.wait_for_callback(
             durable_task_external_id=self.step_run_id,
-            node_id=node_id,
+            node_id=ack.node_id,
+            branch_id=ack.branch_id,
+            invocation_count=self.invocation_count,
         )
 
         return result.payload or {}
@@ -574,3 +570,7 @@ class DurableContext(Context):
             raise ValueError("Durable task client is not available")
 
         await self.durable_event_listener.ensure_started(self.action.worker_id)
+
+    @property
+    def invocation_count(self) -> int:
+        return self.action.durable_task_invocation_count or 1

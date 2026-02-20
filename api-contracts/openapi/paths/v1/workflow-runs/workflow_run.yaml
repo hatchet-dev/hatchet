@@ -473,6 +473,51 @@ trigger:
     tags:
       - Workflow Runs
 
+forkDurableTask:
+  post:
+    x-resources: ["tenant"]
+    description: Fork a durable task from a specific node, creating a new branch and re-processing its matches.
+    operationId: v1-durable-task:fork
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1ForkDurableTaskRequest"
+      description: The fork request
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ForkDurableTaskResponse"
+        description: Successfully fork the durable task
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Fork durable task
+    tags:
+      - Workflow Runs
+
 getTimings:
   get:
     x-resources: ["tenant", "v1-workflow-run"]

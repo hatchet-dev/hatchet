@@ -50,7 +50,7 @@ CREATE TABLE v1_durable_event_log_file (
 
     latest_inserted_at TIMESTAMPTZ NOT NULL,
 
-    latest_invocation_count BIGINT NOT NULL,
+    latest_invocation_count INTEGER NOT NULL,
 
     -- A monotonically increasing node id for this durable event log scoped to the durable task.
     -- Starts at 0 and increments by 1 for each new entry.
@@ -74,6 +74,7 @@ CREATE TYPE v1_durable_event_log_kind AS ENUM (
 
 CREATE TABLE v1_durable_event_log_entry (
     tenant_id UUID NOT NULL,
+
     -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
@@ -93,28 +94,38 @@ CREATE TABLE v1_durable_event_log_entry (
     parent_node_id BIGINT,
     -- The branch id when this event was first seen. A durable event log can be a part of many branches.
     branch_id BIGINT NOT NULL,
+    -- The parent branch id which should be linked to a new branch to its parent branch. This can be null.
+    parent_branch_id BIGINT,
     -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
     -- to determine whether or not there's been a non-determinism error
+
+    invocation_count INTEGER NOT NULL,
+
     idempotency_key BYTEA NOT NULL,
     -- Access patterns:
     -- Definite: we'll query directly for the node_id when a durable task is replaying its log
     -- Possible: we may want to query a range of node_ids for a durable task
     -- Possible: we may want to query a range of inserted_ats for a durable task
 
-    -- Whether this event has been seen by the engine or not. Note that is_satisfied _may_ change multiple
-    -- times through the lifecycle of a event, and readers should not assume that once it's true it will always be true.
+    -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
+    -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
 
-    CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, node_id)
+    CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
 
 SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE, 80);
 SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE, 80);
 
 ALTER TABLE v1_match
     ADD COLUMN signal_task_external_id UUID,
-    ADD COLUMN durable_event_log_entry_node_id BIGINT
+    ADD COLUMN durable_event_log_entry_node_id BIGINT,
+    ADD COLUMN durable_event_log_entry_branch_id BIGINT
 ;
+
+-- needs to be nullable so we don't have to backfill
+ALTER TABLE v1_task ADD COLUMN is_durable BOOLEAN;
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA';
@@ -130,7 +141,11 @@ DROP TYPE v1_durable_event_log_kind;
 
 ALTER TABLE v1_match
     DROP COLUMN signal_task_external_id,
-    DROP COLUMN durable_event_log_entry_node_id;
+    DROP COLUMN durable_event_log_entry_node_id,
+    DROP COLUMN durable_event_log_entry_branch_id
+;
+
+ALTER TABLE v1_task DROP COLUMN is_durable;
 
 ALTER TABLE "Worker" DROP COLUMN "durableTaskDispatcherId";
 

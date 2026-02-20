@@ -3073,6 +3073,8 @@ type V1DurableEventLogEntry struct {
 	NodeID                int64                 `json:"node_id"`
 	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
 	BranchID              int64                 `json:"branch_id"`
+	ParentBranchID        pgtype.Int8           `json:"parent_branch_id"`
+	InvocationCount       int32                 `json:"invocation_count"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
 }
@@ -3081,7 +3083,7 @@ type V1DurableEventLogFile struct {
 	TenantID                      uuid.UUID          `json:"tenant_id"`
 	DurableTaskID                 int64              `json:"durable_task_id"`
 	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
-	LatestInvocationCount         int64              `json:"latest_invocation_count"`
+	LatestInvocationCount         int32              `json:"latest_invocation_count"`
 	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
 	LatestNodeID                  int64              `json:"latest_node_id"`
 	LatestBranchID                int64              `json:"latest_branch_id"`
@@ -3252,6 +3254,7 @@ type V1Match struct {
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
 	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
 	DurableEventLogEntryNodeID    pgtype.Int8        `json:"durable_event_log_entry_node_id"`
+	DurableEventLogEntryBranchID  pgtype.Int8        `json:"durable_event_log_entry_branch_id"`
 }
 
 type V1MatchCondition struct {
@@ -3467,6 +3470,7 @@ type V1Task struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
+	IsDurable                    pgtype.Bool        `json:"is_durable"`
 }
 
 type V1TaskEvent struct {

@@ -34,6 +34,7 @@ DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 class DurableTaskEventAck(BaseModel):
     invocation_count: int
     durable_task_external_id: str
+    branch_id: int
     node_id: int
 
 
@@ -55,6 +56,15 @@ class DurableTaskEventLogEntryResult(BaseModel):
         )
 
 
+TaskExternalId = str
+NodeId = int
+BranchId = int
+InvocationCount = int
+
+PendingCallback = tuple[TaskExternalId, BranchId, NodeId]
+PendingEventAck = tuple[TaskExternalId, InvocationCount]
+
+
 class DurableEventListener:
     def __init__(self, config: ClientConfig, admin_client: AdminClient):
         self.config = config
@@ -71,10 +81,10 @@ class DurableEventListener:
 
         self._request_queue: asyncio.Queue[DurableTaskRequest] | None = None
         self._pending_event_acks: dict[
-            tuple[str, int], asyncio.Future[DurableTaskEventAck]
+            PendingEventAck, asyncio.Future[DurableTaskEventAck]
         ] = {}
         self._pending_callbacks: dict[
-            tuple[str, int], asyncio.Future[DurableTaskEventLogEntryResult]
+            PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
@@ -165,8 +175,9 @@ class DurableEventListener:
             DurableTaskAwaitedCompletedEntry(
                 durable_task_external_id=task_ext_id,
                 node_id=node_id,
+                branch_id=branch_id,
             )
-            for (task_ext_id, node_id) in self._pending_callbacks
+            for (task_ext_id, branch_id, node_id) in self._pending_callbacks
         ]
 
         request = DurableTaskRequest(
@@ -249,6 +260,7 @@ class DurableEventListener:
                         invocation_count=trigger_ack.invocation_count,
                         durable_task_external_id=trigger_ack.durable_task_external_id,
                         node_id=trigger_ack.node_id,
+                        branch_id=trigger_ack.branch_id,
                     )
                 )
                 del self._pending_event_acks[event_key]
@@ -256,6 +268,7 @@ class DurableEventListener:
             completed = response.entry_completed
             completed_key = (
                 completed.durable_task_external_id,
+                completed.branch_id,
                 completed.node_id,
             )
             if completed_key in self._pending_callbacks:
@@ -294,7 +307,12 @@ class DurableEventListener:
                 if not error_pending_ack_future.done():
                     error_pending_ack_future.set_exception(exc)
 
-            callback_key = (error.durable_task_external_id, error.node_id)
+            callback_key = (
+                error.durable_task_external_id,
+                error.branch_id,
+                error.node_id,
+            )
+
             if callback_key in self._pending_callbacks:
                 error_pending_callback_future = self._pending_callbacks.pop(
                     callback_key
@@ -360,9 +378,11 @@ class DurableEventListener:
     async def wait_for_callback(
         self,
         durable_task_external_id: str,
+        invocation_count: int,
+        branch_id: int,
         node_id: int,
     ) -> DurableTaskEventLogEntryResult:
-        key = (durable_task_external_id, node_id)
+        key = (durable_task_external_id, branch_id, node_id)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()

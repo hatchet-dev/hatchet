@@ -200,7 +200,8 @@ WITH input AS (
         i.worker_id,
         t.tenant_id,
         t.step_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at,
+        t.is_durable
     FROM
         v1_task t
     JOIN
@@ -228,7 +229,7 @@ WITH input AS (
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
-    RETURNING task_id, worker_id
+    RETURNING task_id, task_inserted_at, retry_count, worker_id
 ), slot_requests AS (
     SELECT
         t.id,
@@ -268,9 +269,14 @@ WITH input AS (
 )
 SELECT
     asr.task_id,
-    asr.worker_id
+    asr.task_inserted_at,
+    asr.worker_id,
+    ut.is_durable
 FROM
-    assigned_tasks asr;
+    assigned_tasks asr
+JOIN
+    updated_tasks ut ON (asr.task_id, asr.task_inserted_at, asr.retry_count) = (ut.id, ut.inserted_at, ut.retry_count)
+;
 
 -- name: GetDesiredLabels :many
 SELECT

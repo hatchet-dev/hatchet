@@ -36,7 +36,7 @@ message DurableTaskEventRequest {
     // incremented by one since the previous invocation. This allows the server (and the worker) to have a way of
     // differentiating between different attempts of the same task running in different places, to prevent race conditions
     // and other problems from duplication. It also allows for older invocations to be evicted cleanly
-    int64 invocation_count = 1;
+    int32 invocation_count = 1;
     string durable_task_external_id = 2;
     DurableTaskEventKind kind = 3;
     optional bytes payload = 4;
@@ -47,33 +47,36 @@ message DurableTaskEventRequest {
 }
 
 message DurableTaskEventAckResponse {
-    int64 invocation_count = 1;
+    int32 invocation_count = 1;
     string durable_task_external_id = 2;
-    int64 node_id = 3;
+    int64 branch_id = 3;
+    int64 node_id = 4;
 }
 
 message DurableTaskEventLogEntryCompletedResponse {
     string durable_task_external_id = 1;
-    int64 node_id = 2;
-    bytes payload = 3;
+    int32 invocation_count = 2;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+    bytes payload = 5;
 }
 
 message DurableTaskEvictInvocationRequest {
-    int64 invocation_count = 1;
+    int32 invocation_count = 1;
     string durable_task_external_id = 2;
 }
 
 message DurableTaskAwaitedCompletedEntry {
     string durable_task_external_id = 1;
-    int64 node_id = 2;
+    int64 branch_id = 2;
+    int64 node_id = 3;
 }
 
 message DurableTaskWorkerStatusRequest {
     string worker_id = 1;
-    int64 node_id = 2;
-    int64 branch_id = 3;
-    repeated DurableTaskAwaitedCompletedEntry waiting_entries = 4;
+    repeated DurableTaskAwaitedCompletedEntry waiting_entries = 2;
 }
+
 
 message DurableTaskRequest {
     oneof message {
@@ -91,10 +94,11 @@ enum DurableTaskErrorType {
 
 message DurableTaskErrorResponse {
     string durable_task_external_id = 1;
-    int64 invocation_count = 2;
-    int64 node_id = 3;
-    DurableTaskErrorType error_type = 4;
-    string error_message = 5;
+    int32 invocation_count = 2;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+    DurableTaskErrorType error_type = 5;
+    string error_message = 6;
 }
 
 message DurableTaskResponse {

@@ -12,22 +12,34 @@ Do not edit the class manually.
 """  # noqa: E501
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from typing import Any, ClassVar, Dict, List
+from typing_extensions import Annotated
+from typing import Optional, Set
 from typing_extensions import Self
 
 
-class V1CreateWebhookRequestAPIKeyAllOfAuthType(BaseModel):
+class V1ForkDurableTaskResponse(BaseModel):
     """
-    V1CreateWebhookRequestAPIKeyAllOfAuthType
+    V1ForkDurableTaskResponse
     """  # noqa: E501
 
-    __properties: ClassVar[List[str]] = []
+    task_external_id: Annotated[
+        str, Field(min_length=36, strict=True, max_length=36)
+    ] = Field(
+        description="The external id of the durable task.", alias="taskExternalId"
+    )
+    node_id: StrictInt = Field(
+        description="The node id of the new entry.", alias="nodeId"
+    )
+    branch_id: StrictInt = Field(
+        description="The branch id of the new entry.", alias="branchId"
+    )
+    __properties: ClassVar[List[str]] = ["taskExternalId", "nodeId", "branchId"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -46,7 +58,7 @@ class V1CreateWebhookRequestAPIKeyAllOfAuthType(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of V1CreateWebhookRequestAPIKeyAllOfAuthType from a JSON string"""
+        """Create an instance of V1ForkDurableTaskResponse from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -70,12 +82,18 @@ class V1CreateWebhookRequestAPIKeyAllOfAuthType(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of V1CreateWebhookRequestAPIKeyAllOfAuthType from a dict"""
+        """Create an instance of V1ForkDurableTaskResponse from a dict"""
         if obj is None:
             return None
 
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({})
+        _obj = cls.model_validate(
+            {
+                "taskExternalId": obj.get("taskExternalId"),
+                "nodeId": obj.get("nodeId"),
+                "branchId": obj.get("branchId"),
+            }
+        )
         return _obj

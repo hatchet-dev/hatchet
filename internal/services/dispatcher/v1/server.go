@@ -548,6 +548,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			Message: &contracts.DurableTaskResponse_Error{
 				Error: &contracts.DurableTaskErrorResponse{
 					DurableTaskExternalId: taskExternalId.String(),
+					BranchId:              nde.BranchId,
 					NodeId:                nde.NodeId,
 					InvocationCount:       req.InvocationCount,
 					ErrorType:             contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM,
@@ -577,6 +578,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 				InvocationCount:       req.InvocationCount,
 				DurableTaskExternalId: req.DurableTaskExternalId,
 				NodeId:                ingestionResult.NodeId,
+				BranchId:              ingestionResult.BranchId,
 			},
 		},
 	})
@@ -585,11 +587,13 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
 	}
 
-	if ingestionResult.EventLogEntry.Entry.IsSatisfied {
+	if ingestionResult.IsSatisfied {
 		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
+			ingestionResult.InvocationCount,
+			ingestionResult.BranchId,
 			ingestionResult.NodeId,
-			ingestionResult.EventLogEntry.ResultPayload,
+			ingestionResult.ResultPayload,
 		)
 
 		if err != nil {
@@ -606,7 +610,7 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
-	// todo: implement eviction here
+	// TODO-DURABLE: implement eviction here
 
 	return nil
 }
@@ -620,16 +624,17 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		return nil
 	}
 
-	waiting := make([]v1.TaskExternalIdNodeId, 0, len(req.WaitingEntries))
+	waiting := make([]v1.TaskExternalIdNodeIdBranchId, 0, len(req.WaitingEntries))
 	for _, cb := range req.WaitingEntries {
 		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
 		if err != nil {
 			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status: %s", cb.DurableTaskExternalId)
 			continue
 		}
-		waiting = append(waiting, v1.TaskExternalIdNodeId{
+		waiting = append(waiting, v1.TaskExternalIdNodeIdBranchId{
 			TaskExternalId: taskExternalId,
 			NodeId:         cb.NodeId,
+			BranchId:       cb.BranchId,
 		})
 	}
 
@@ -647,7 +652,9 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			Message: &contracts.DurableTaskResponse_EntryCompleted{
 				EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 					DurableTaskExternalId: cb.TaskExternalId.String(),
+					InvocationCount:       cb.InvocationCount,
 					NodeId:                cb.NodeID,
+					BranchId:              cb.BranchID,
 					Payload:               cb.Result,
 				},
 			},
@@ -659,7 +666,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	return nil
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
@@ -669,7 +676,9 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 		Message: &contracts.DurableTaskResponse_EntryCompleted{
 			EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
 				DurableTaskExternalId: taskExternalId.String(),
+				InvocationCount:       invocationCount,
 				NodeId:                nodeId,
+				BranchId:              branchId,
 				Payload:               payload,
 			},
 		},

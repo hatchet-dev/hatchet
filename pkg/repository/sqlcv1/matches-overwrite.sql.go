@@ -318,7 +318,8 @@ WITH input AS (
 		signal_task_external_id,
 		signal_external_id,
 		signal_key,
-		durable_event_log_entry_node_id
+		durable_event_log_entry_node_id,
+		durable_event_log_entry_branch_id
     FROM
         (
             SELECT
@@ -329,7 +330,8 @@ WITH input AS (
 				unnest($5::uuid[]) AS signal_task_external_id,
                 unnest($6::uuid[]) AS signal_external_id,
                 unnest($7::text[]) AS signal_key,
-                unnest($8::bigint[]) AS durable_event_log_entry_node_id
+                unnest($8::bigint[]) AS durable_event_log_entry_node_id,
+                unnest($9::bigint[]) AS durable_event_log_entry_branch_id
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -340,7 +342,8 @@ INSERT INTO v1_match (
 	signal_task_external_id,
     signal_external_id,
     signal_key,
-    durable_event_log_entry_node_id
+    durable_event_log_entry_node_id,
+	durable_event_log_entry_branch_id
 )
 SELECT
     i.tenant_id,
@@ -350,22 +353,24 @@ SELECT
 	i.signal_task_external_id,
     i.signal_external_id,
     i.signal_key,
-    i.durable_event_log_entry_node_id
+    i.durable_event_log_entry_node_id,
+	i.durable_event_log_entry_branch_id
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, existing_data, signal_task_id, signal_task_inserted_at, signal_task_external_id, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_priority, durable_event_log_entry_node_id
+    id, tenant_id, kind, is_satisfied, existing_data, signal_task_id, signal_task_inserted_at, signal_task_external_id, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_priority, durable_event_log_entry_node_id, durable_event_log_entry_branch_id
 `
 
 type CreateMatchesForSignalTriggersParams struct {
-	Tenantids                   []uuid.UUID          `json:"tenantids"`
-	Kinds                       []string             `json:"kinds"`
-	Signaltaskids               []int64              `json:"signaltaskids"`
-	Signaltaskinsertedats       []pgtype.Timestamptz `json:"signaltaskinsertedats"`
-	Signaltaskexternalids       []*uuid.UUID         `json:"signaltaskexternalids"`
-	Signalexternalids           []uuid.UUID          `json:"signalexternalids"`
-	Signalkeys                  []string             `json:"signalkeys"`
-	Durableeventlogentrynodeids []*int64             `json:"durableeventlogentrynodeids"`
+	Tenantids                     []uuid.UUID          `json:"tenantids"`
+	Kinds                         []string             `json:"kinds"`
+	Signaltaskids                 []int64              `json:"signaltaskids"`
+	Signaltaskinsertedats         []pgtype.Timestamptz `json:"signaltaskinsertedats"`
+	Signaltaskexternalids         []*uuid.UUID         `json:"signaltaskexternalids"`
+	Signalexternalids             []uuid.UUID          `json:"signalexternalids"`
+	Signalkeys                    []string             `json:"signalkeys"`
+	Durableeventlogentrynodeids   []*int64             `json:"durableeventlogentrynodeids"`
+	Durableeventlogentrybranchids []*int64             `json:"durableeventlogentrybranchids"`
 }
 
 func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V1Match, error) {
@@ -378,6 +383,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 		arg.Signalexternalids,
 		arg.Signalkeys,
 		arg.Durableeventlogentrynodeids,
+		arg.Durableeventlogentrybranchids,
 	)
 	if err != nil {
 		return nil, err
@@ -412,6 +418,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 			&i.TriggerExistingTaskInsertedAt,
 			&i.TriggerPriority,
 			&i.DurableEventLogEntryNodeID,
+			&i.DurableEventLogEntryBranchID,
 		); err != nil {
 			return nil, err
 		}

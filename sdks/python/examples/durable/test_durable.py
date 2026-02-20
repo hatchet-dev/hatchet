@@ -6,13 +6,14 @@ import pytest
 from examples.durable.worker import (
     EVENT_KEY,
     SLEEP_TIME,
+    REPLAY_RESET_SLEEP_TIME,
     durable_sleep_event_spawn,
     durable_with_spawn,
     durable_workflow,
     wait_for_sleep_twice,
     durable_spawn_dag,
     durable_non_determinism,
-    hatchet,
+    durable_replay_reset,
 )
 from hatchet_sdk import Hatchet
 
@@ -139,7 +140,7 @@ async def test_durable_spawn_dag() -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_non_determinism() -> None:
+async def test_durable_non_determinism(hatchet: Hatchet) -> None:
     ref = await durable_non_determinism.aio_run_no_wait()
     result = await ref.aio_result()
 
@@ -156,3 +157,30 @@ async def test_durable_non_determinism() -> None:
     assert replayed_result.non_determinism_detected
     assert replayed_result.node_id == 1
     assert replayed_result.attempt_number == 2
+
+
+@pytest.mark.parametrize("node_id", [1, 2, 3])
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
+    ref = await durable_replay_reset.aio_run_no_wait()
+    result = await ref.aio_result()
+
+    assert result.sleep_1_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
+
+    await hatchet.runs.aio_reset_durable_task(ref.workflow_run_id, node_id=node_id)
+
+    result = await ref.aio_result()
+
+    for ix, dur in enumerate(
+        [
+            result.sleep_1_duration,
+            result.sleep_2_duration,
+            result.sleep_3_duration,
+        ]
+    ):
+        if ix + 1 < node_id:
+            assert dur < (REPLAY_RESET_SLEEP_TIME / 2)
+        else:
+            assert dur >= REPLAY_RESET_SLEEP_TIME

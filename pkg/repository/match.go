@@ -48,7 +48,8 @@ type ExternalCreateSignalMatchOpts struct {
 	SignalKey string `validate:"required"`
 
 	// Optional durable event log entry fields for durable WAIT_FOR
-	DurableEventLogEntryNodeId *int64
+	DurableEventLogEntryNodeId   *int64
+	DurableEventLogEntryBranchId *int64
 }
 
 type CreateExternalSignalConditionKind string
@@ -118,7 +119,8 @@ type CreateMatchOpts struct {
 	SignalKey *string
 
 	// Optional durable event log fields for durable WAIT_FOR
-	DurableEventLogEntryNodeId *int64
+	DurableEventLogEntryNodeId   *int64
+	DurableEventLogEntryBranchId *int64
 }
 
 type EventMatchResults struct {
@@ -157,7 +159,9 @@ type SatisfiedEntry struct {
 	DurableTaskExternalId uuid.UUID
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
+	InvocationCount       int32
 	NodeId                int64
+	BranchId              int64
 	Data                  []byte
 }
 
@@ -226,14 +230,15 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 		signalKey := signalMatch.SignalKey
 
 		eventMatches = append(eventMatches, CreateMatchOpts{
-			Kind:                       sqlcv1.V1MatchKindSIGNAL,
-			Conditions:                 conditions,
-			SignalTaskId:               &taskId,
-			SignalTaskInsertedAt:       signalMatch.SignalTaskInsertedAt,
-			SignalTaskExternalId:       &signalMatch.SignalTaskExternalId,
-			SignalExternalId:           &externalId,
-			SignalKey:                  &signalKey,
-			DurableEventLogEntryNodeId: signalMatch.DurableEventLogEntryNodeId,
+			Kind:                         sqlcv1.V1MatchKindSIGNAL,
+			Conditions:                   conditions,
+			SignalTaskId:                 &taskId,
+			SignalTaskInsertedAt:         signalMatch.SignalTaskInsertedAt,
+			SignalTaskExternalId:         &signalMatch.SignalTaskExternalId,
+			SignalExternalId:             &externalId,
+			SignalKey:                    &signalKey,
+			DurableEventLogEntryNodeId:   signalMatch.DurableEventLogEntryNodeId,
+			DurableEventLogEntryBranchId: signalMatch.DurableEventLogEntryBranchId,
 		})
 	}
 
@@ -354,6 +359,7 @@ type DurableTaskNodeIdKey struct {
 	DurableTaskId         int64
 	DurableTaskInsertedAt time.Time
 	NodeId                int64
+	BranchId              int64
 }
 
 func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
@@ -685,6 +691,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	durableTaskIds := make([]int64, 0)
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	durableTaskNodeIds := make([]int64, 0)
+	durableTaskBranchIds := make([]int64, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
 	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
 
@@ -693,6 +700,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		durableTaskId := match.SignalTaskID
 		durableTaskInsertedAt := match.SignalTaskInsertedAt
 		nodeId := match.DurableEventLogEntryNodeID
+		branchId := match.DurableEventLogEntryBranchID
 
 		if nodeId.Valid && durableTaskExternalId != nil {
 
@@ -700,6 +708,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				DurableTaskId:         durableTaskId.Int64,
 				DurableTaskInsertedAt: durableTaskInsertedAt.Time,
 				NodeId:                nodeId.Int64,
+				BranchId:              branchId.Int64,
 			}
 
 			cb := SatisfiedEntry{
@@ -707,6 +716,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				DurableTaskId:         durableTaskId.Int64,
 				DurableTaskInsertedAt: durableTaskInsertedAt,
 				NodeId:                nodeId.Int64,
+				BranchId:              branchId.Int64,
 				Data:                  match.McAggregatedData,
 			}
 
@@ -715,11 +725,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			durableTaskIds = append(durableTaskIds, durableTaskId.Int64)
 			durableTaskInsertedAts = append(durableTaskInsertedAts, durableTaskInsertedAt)
 			durableTaskNodeIds = append(durableTaskNodeIds, nodeId.Int64)
+			durableTaskBranchIds = append(durableTaskBranchIds, branchId.Int64)
 		}
 	}
 
 	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
 		Nodeids:                durableTaskNodeIds,
+		Branchids:              durableTaskBranchIds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
 	})
@@ -735,6 +747,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			DurableTaskId:         cb.DurableTaskID,
 			DurableTaskInsertedAt: cb.DurableTaskInsertedAt.Time,
 			NodeId:                cb.NodeID,
+			BranchId:              cb.BranchID,
 		}
 
 		initialEntry, ok := idInsertedAtNodeIdToSatisfiedEntry[key]
@@ -751,6 +764,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				initialEntry.Data = extracted
 			}
 		}
+
+		initialEntry.InvocationCount = cb.InvocationCount
 
 		if len(initialEntry.Data) > 0 {
 			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
@@ -1100,7 +1115,8 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		signalTaskIds := make([]int64, len(signalMatches))
 		signalTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
 		signalKeys := make([]string, len(signalMatches))
-		DurableLogEntryNodeIds := make([]*int64, len(signalMatches))
+		durableLogEntryNodeIds := make([]*int64, len(signalMatches))
+		durableLogEntryBranchIds := make([]*int64, len(signalMatches))
 		signalTaskExternalIds := make([]*uuid.UUID, len(signalMatches))
 
 		for i, match := range signalMatches {
@@ -1112,7 +1128,8 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			signalTaskExternalIds[i] = match.SignalTaskExternalId
 			signalKeys[i] = *match.SignalKey
 
-			DurableLogEntryNodeIds[i] = match.DurableEventLogEntryNodeId
+			durableLogEntryNodeIds[i] = match.DurableEventLogEntryNodeId
+			durableLogEntryBranchIds[i] = match.DurableEventLogEntryBranchId
 		}
 
 		// Create matches in the database
@@ -1120,13 +1137,14 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForSignalTriggersParams{
-				Tenantids:                   signalTenantIds,
-				Kinds:                       signalKinds,
-				Signaltaskids:               signalTaskIds,
-				Signaltaskinsertedats:       signalTaskInsertedAts,
-				Signaltaskexternalids:       signalTaskExternalIds,
-				Signalkeys:                  signalKeys,
-				Durableeventlogentrynodeids: DurableLogEntryNodeIds,
+				Tenantids:                     signalTenantIds,
+				Kinds:                         signalKinds,
+				Signaltaskids:                 signalTaskIds,
+				Signaltaskinsertedats:         signalTaskInsertedAts,
+				Signaltaskexternalids:         signalTaskExternalIds,
+				Signalkeys:                    signalKeys,
+				Durableeventlogentrynodeids:   durableLogEntryNodeIds,
+				Durableeventlogentrybranchids: durableLogEntryBranchIds,
 			},
 		)
 

@@ -25,6 +25,9 @@ mkdir -p $dst_dir
 
 tmp_dir=./tmp
 
+rm -rf hatchet_sdk/clients/rest/models
+rm -rf hatchet_sdk/clients/rest/api
+
 # generate into tmp folder
 openapi-generator-cli generate -i ../../bin/oas/openapi.yaml -g python -o ./tmp --skip-validate-spec \
     --global-property=apiTests=false \
