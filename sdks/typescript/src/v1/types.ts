@@ -18,9 +18,10 @@ export interface WorkflowOutputType {
 }
 
 /**
- * When middleware is defined, its return type already includes the base fields
- * (because middleware spreads the original value: `{ ...input, extra }`).
- * Use `Base` as a fallback when no middleware is attached.
+ * Resolves the effective type after middleware processing.
+ * Middleware return values replace (not merge) the original — if a hook
+ * omits fields by not spreading, those fields are stripped at runtime.
+ * Falls back to `Base` when no middleware is attached (`Middleware = {}`).
  */
 export type Resolved<
   Base extends Record<string, any>,

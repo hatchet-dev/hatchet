@@ -577,12 +577,11 @@ export class V1Worker {
         if (middleware?.pre) {
           const hooks = Array.isArray(middleware.pre) ? middleware.pre : [middleware.pre];
           for (const hook of hooks) {
-            const extra = await hook(context.input, context as any);
-            if (extra !== undefined) {
-              const merged = { ...(context.input as any), ...extra };
-              (context as any).input = merged;
+            const returned = await hook(context.input, context as any);
+            if (returned !== undefined) {
+              (context as any).input = returned;
               if ((context as any).data && typeof (context as any).data === 'object') {
-                (context as any).data.input = merged;
+                (context as any).data.input = returned;
               }
             }
           }
@@ -593,9 +592,9 @@ export class V1Worker {
         if (middleware?.post) {
           const hooks = Array.isArray(middleware.post) ? middleware.post : [middleware.post];
           for (const hook of hooks) {
-            const extra = await hook(result, context as any, context.input);
-            if (extra !== undefined) {
-              result = { ...result, ...extra };
+            const returned = await hook(result, context as any, context.input);
+            if (returned !== undefined) {
+              result = returned;
             }
           }
         }
