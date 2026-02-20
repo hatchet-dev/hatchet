@@ -96,6 +96,10 @@ const (
 	ViewTypeRuns ViewType = iota
 	ViewTypeWorkflows
 	ViewTypeWorkers
+	ViewTypeRateLimits
+	ViewTypeScheduledRuns
+	ViewTypeCronJobs
+	ViewTypeWebhooks
 )
 
 // viewOption represents a selectable view in the view selector
@@ -110,6 +114,10 @@ var availableViews = []viewOption{
 	{Type: ViewTypeRuns, Name: "Runs", Description: "View task runs"},
 	{Type: ViewTypeWorkflows, Name: "Workflows", Description: "View workflows"},
 	{Type: ViewTypeWorkers, Name: "Workers", Description: "View workers"},
+	{Type: ViewTypeRateLimits, Name: "Rate Limits", Description: "View rate limit usage"},
+	{Type: ViewTypeScheduledRuns, Name: "Scheduled Runs", Description: "View scheduled runs"},
+	{Type: ViewTypeCronJobs, Name: "Cron Jobs", Description: "View cron jobs"},
+	{Type: ViewTypeWebhooks, Name: "Webhooks", Description: "View webhook workers"},
 }
 
 // tuiModel is the root model that manages different views
@@ -553,6 +561,14 @@ func (m tuiModel) createViewForType(viewType ViewType) tui.View {
 		return tui.NewWorkflowsView(m.ctx)
 	case ViewTypeWorkers:
 		return tui.NewWorkersView(m.ctx)
+	case ViewTypeRateLimits:
+		return tui.NewRateLimitsView(m.ctx)
+	case ViewTypeScheduledRuns:
+		return tui.NewScheduledRunsView(m.ctx)
+	case ViewTypeCronJobs:
+		return tui.NewCronJobsView(m.ctx)
+	case ViewTypeWebhooks:
+		return tui.NewWebhooksView(m.ctx)
 	default:
 		return tui.NewRunsListView(m.ctx)
 	}

@@ -822,6 +822,28 @@ func resolveWorkflowID(ctx context.Context, hatchetClient client.Client, nameOrI
 	return openapi_types.UUID{}, fmt.Errorf("workflow %q not found", nameOrID)
 }
 
+// resolveWorkflowName returns the workflow name for a given name-or-UUID string.
+// The cron/scheduled create endpoints use the workflow name as a path parameter
+// (not the UUID), so this is needed when the user provides a UUID.
+func resolveWorkflowName(ctx context.Context, hatchetClient client.Client, nameOrID string) (string, error) { //nolint:staticcheck
+	// If it's not a UUID, assume it's already a name
+	parsed, err := uuid.Parse(nameOrID)
+	if err != nil {
+		return nameOrID, nil
+	}
+
+	// It's a UUID — look up the workflow to get its name
+	resp, err := hatchetClient.API().WorkflowGetWithResponse(ctx, parsed)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch workflow %q: %w", nameOrID, err)
+	}
+	if resp.JSON200 == nil {
+		return "", fmt.Errorf("workflow %q not found (status %d)", nameOrID, resp.StatusCode())
+	}
+
+	return resp.JSON200.Name, nil
+}
+
 // buildFilterAndParams builds a V1TaskFilter and V1WorkflowRunListParams from command flags
 func buildFilterAndParams(ctx context.Context, cmd *cobra.Command, hatchetClient client.Client) (*rest.V1TaskFilter, *rest.V1WorkflowRunListParams, error) { //nolint:staticcheck
 	sinceStr, _ := cmd.Flags().GetString("since")
