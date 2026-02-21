@@ -175,6 +175,9 @@ const config = {
       `https://github.com/hatchet-dev/hatchet/issues/new`,
   },
   footer: false,
+  toc: {
+    backToTop: true,
+  },
   sidebar: {
     defaultMenuCollapseLevel: 2,
     toggleButton: true,

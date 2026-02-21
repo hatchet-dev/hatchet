@@ -256,7 +256,7 @@ h3 {
   background-color: var(--background) !important;
 }
 
-nav {
+nav:not(.nextra-toc) {
   background-color: var(--background) !important;
 }
 
