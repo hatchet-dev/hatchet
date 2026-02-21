@@ -408,18 +408,8 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 		Tenantid:              tenantId,
 	})
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		logFile, err = r.queries.CreateEventLogFile(ctx, tx, sqlcv1.CreateEventLogFileParams{
-			Durabletaskid:         durableTaskId,
-			Durabletaskinsertedat: durableTaskInsertedAt,
-			Tenantid:              tenantId,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to create log file: %w", err)
-		}
 	}
 
 	return logFile, nil

@@ -16,14 +16,30 @@ WITH inputs AS (
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 
-UPDATE v1_durable_event_log_file
+INSERT INTO v1_durable_event_log_file (
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    latest_invocation_count,
+    latest_inserted_at,
+    latest_node_id,
+    latest_branch_id,
+    latest_branch_first_parent_node_id
+)
+SELECT
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    1,
+    NOW(),
+    0,
+    0,
+    0
+FROM inputs
+ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
     latest_invocation_count = latest_invocation_count + 1,
     latest_node_id = 0
-FROM inputs
-WHERE v1_durable_event_log_file.durable_task_id = inputs.durable_task_id
-  AND v1_durable_event_log_file.durable_task_inserted_at = inputs.durable_task_inserted_at
-  AND v1_durable_event_log_file.tenant_id = inputs.tenant_id
 RETURNING v1_durable_event_log_file.*
 ;
 
@@ -37,34 +53,6 @@ SET
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;
-
--- name: CreateEventLogFile :one
-INSERT INTO v1_durable_event_log_file (
-    tenant_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    latest_invocation_count,
-    latest_inserted_at,
-    latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
-) VALUES (
-    @tenantId::UUID,
-    @durableTaskId::BIGINT,
-    @durableTaskInsertedAt::TIMESTAMPTZ,
-    0,
-    NOW(),
-    1,
-    1,
-    0
-)
-ON CONFLICT (durable_task_id, durable_task_inserted_at)
-DO UPDATE SET
-    latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, EXCLUDED.latest_node_id),
-    latest_inserted_at = NOW(),
-    latest_invocation_count = GREATEST(v1_durable_event_log_file.latest_invocation_count, EXCLUDED.latest_invocation_count)
-RETURNING *
-;
 
 -- name: GetDurableEventLogEntry :one
 SELECT *

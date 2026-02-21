@@ -97,56 +97,6 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 	return &i, err
 }
 
-const createEventLogFile = `-- name: CreateEventLogFile :one
-INSERT INTO v1_durable_event_log_file (
-    tenant_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    latest_invocation_count,
-    latest_inserted_at,
-    latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
-) VALUES (
-    $1::UUID,
-    $2::BIGINT,
-    $3::TIMESTAMPTZ,
-    0,
-    NOW(),
-    1,
-    1,
-    0
-)
-ON CONFLICT (durable_task_id, durable_task_inserted_at)
-DO UPDATE SET
-    latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, EXCLUDED.latest_node_id),
-    latest_inserted_at = NOW(),
-    latest_invocation_count = GREATEST(v1_durable_event_log_file.latest_invocation_count, EXCLUDED.latest_invocation_count)
-RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
-`
-
-type CreateEventLogFileParams struct {
-	Tenantid              uuid.UUID          `json:"tenantid"`
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-}
-
-func (q *Queries) CreateEventLogFile(ctx context.Context, db DBTX, arg CreateEventLogFileParams) (*V1DurableEventLogFile, error) {
-	row := db.QueryRow(ctx, createEventLogFile, arg.Tenantid, arg.Durabletaskid, arg.Durabletaskinsertedat)
-	var i V1DurableEventLogFile
-	err := row.Scan(
-		&i.TenantID,
-		&i.DurableTaskID,
-		&i.DurableTaskInsertedAt,
-		&i.LatestInvocationCount,
-		&i.LatestInsertedAt,
-		&i.LatestNodeID,
-		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
-	)
-	return &i, err
-}
-
 const getAndLockLogFile = `-- name: GetAndLockLogFile :one
 SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
 FROM v1_durable_event_log_file
@@ -281,14 +231,30 @@ WITH inputs AS (
         UNNEST($3::UUID[]) AS tenant_id
 )
 
-UPDATE v1_durable_event_log_file
+INSERT INTO v1_durable_event_log_file (
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    latest_invocation_count,
+    latest_inserted_at,
+    latest_node_id,
+    latest_branch_id,
+    latest_branch_first_parent_node_id
+)
+SELECT
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    1,
+    NOW(),
+    0,
+    0,
+    0
+FROM inputs
+ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
     latest_invocation_count = latest_invocation_count + 1,
     latest_node_id = 0
-FROM inputs
-WHERE v1_durable_event_log_file.durable_task_id = inputs.durable_task_id
-  AND v1_durable_event_log_file.durable_task_inserted_at = inputs.durable_task_inserted_at
-  AND v1_durable_event_log_file.tenant_id = inputs.tenant_id
 RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id, v1_durable_event_log_file.latest_branch_first_parent_node_id
 `
 
