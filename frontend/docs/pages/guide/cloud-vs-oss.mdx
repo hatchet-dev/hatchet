@@ -1,0 +1,67 @@
+# Cloud vs OSS
+
+Hatchet is available as **Hatchet Cloud** (managed) and as **open source** (self-hosted). The programming model is the same: you write tasks/workflows in code and run workers that connect to Hatchet.
+
+This page helps you decide which deployment model fits your team.
+
+## Quick decision guide
+
+Choose **Hatchet Cloud** if you want:
+
+- the Hatchet control plane operated for you (upgrades, scaling, backups)
+- the fastest path to production
+- a status page and managed incident response
+
+Choose **self-hosted (OSS)** if you need:
+
+- full control over infrastructure and networking
+- strict data residency or air-gapped environments
+- a deployment you can customize and operate with your own tooling
+
+## What’s the same in both
+
+- **SDK + worker model**: your workers run your code and connect to Hatchet
+- **Durability + retries**: tasks are durably tracked and retry according to configuration
+- **Observability surfaces**: you can inspect runs, workers, and workflow history
+- **Core semantics**: the same workflows/tasks/concurrency patterns apply
+
+## What changes (operational responsibilities)
+
+### Hatchet Cloud (managed)
+
+Hatchet runs and operates the Hatchet services. You bring:
+
+- your worker processes
+- your application code that triggers workflows
+- your operational policies (timeouts, retries, concurrency, rate limits)
+
+For security and compliance documentation, see the **[Hatchet Trust Center](https://trust.hatchet.run/)**. For current incidents and historical uptime, see **[status.hatchet.run](https://status.hatchet.run/)**.
+
+### Self-hosted (OSS)
+
+You run and operate the Hatchet services and their dependencies. Typical responsibilities include:
+
+- provisioning and scaling the Hatchet services
+- managing PostgreSQL (and any optional components you deploy)
+- backups, upgrades, and monitoring
+- network security and access control for the API/DB
+
+If you’re planning production usage, start with:
+
+- [Self Hosting](/self-hosting)
+- [High Availability](/self-hosting/high-availability)
+- [Security](/guide/security)
+
+## Migrating between Cloud and self-hosted
+
+You can move between deployment models without rewriting worker code. In practice, migration usually means:
+
+- pointing workers and clients at a new endpoint
+- swapping credentials/tokens
+- validating environment-specific settings (TLS, networking, retention, etc.)
+
+## Next steps
+
+- **[Quickstart](/guide/quickstart)**: run a worker and trigger your first workflow
+- **[Architecture & Guarantees](/guide/architecture-and-guarantees)**: understand reliability semantics and tradeoffs
+- **[Self Hosting](/self-hosting)**: deploy Hatchet on your own infrastructure

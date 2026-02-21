@@ -1,0 +1,40 @@
+# Developer experience
+
+Hatchet is designed to be practical day-to-day: write workflows in code, run workers locally with a tight feedback loop, and debug production runs with good visibility.
+
+## Workflows as code
+
+You define tasks and workflows in your application code, then trigger them with input data. Hatchet handles the operational pieces you’d otherwise build yourself:
+
+- **Durability** (work isn’t lost on restarts)
+- **Retries/timeouts**
+- **Concurrency and rate limiting**
+- **Visibility into what ran, where, and why**
+
+## Dashboard (UI)
+
+The dashboard is where you go to understand “what is happening right now?”:
+
+- **Runs**: status, inputs/outputs, and execution history
+- **Workers**: connected workers and health
+- **Workflows**: definitions and recent activity
+- **Settings**: tenants, API tokens, configuration
+
+It’s useful for debugging, operational checks, and ad-hoc triggers.
+
+## CLI
+
+The [Hatchet CLI](/reference/cli) is the fastest way to develop and operate Hatchet from your terminal:
+
+- **`hatchet worker dev`**: run a local worker with hot reload
+- **`hatchet trigger`**: trigger a workflow from the command line (handy for smoke tests)
+- **`hatchet tui`**: terminal UI for runs/workers/workflows
+- **`hatchet profile`**: switch between tenants and environments
+
+See the [CLI reference](/reference/cli) for installation and the full command set.
+
+## Coding agents (MCP)
+
+If you use AI coding tools in your editor, Hatchet’s docs can be used via an [MCP (Model Context Protocol) server](/guide/using-coding-agents). We also publish “agent skills” (short, step-by-step playbooks) so coding agents can run common Hatchet workflows—like starting a worker, triggering a workflow, and debugging a run—without guessing at CLI usage.
+
+See [Using Coding Agents](/guide/using-coding-agents) for setup.

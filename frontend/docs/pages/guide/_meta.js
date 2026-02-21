@@ -1,15 +1,15 @@
 export default {
-  index: {
-    "display": "hidden",
-  },
-  "what-is-hatchet": {
-    title: "🪓 What is Hatchet?",
-    theme: { "collapsed": true },
-  },
-  "hatchet-cloud-quickstart": {
+  index:   "🪓 What is Hatchet?",
+  "--get-started": {
     title: "Get Started",
+    type: "separator",
+  },
+  quickstart: "Quickstart",
+  advanced: {
+    title: "Advanced",
     theme: { "collapsed": true },
   },
+  "using-coding-agents": "Using Coding Agents",
   "--guide": {
     title: "Fundamentals",
     type: "separator",
@@ -34,4 +34,14 @@ export default {
   },
   "worker-healthchecks": "Worker Health Checks",
   "autoscaling-workers": "Autoscaling Workers",
+  "--evaluate": {
+    title: "Evaluating Hatchet?",
+    type: "separator",
+  },
+  "architecture-and-guarantees": "Architecture & Guarantees",
+  "cloud-vs-oss": "Cloud vs OSS",
+  security: "Security",
+  "region-availability": "Region Availability",
+  uptime: "Uptime",
+  "developer-experience": "Developer Experience",
 };

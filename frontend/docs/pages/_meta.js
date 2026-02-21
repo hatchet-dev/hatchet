@@ -20,7 +20,6 @@ export default {
       toc: false,
     },
   },
-
   _setup: {
     display: "hidden",
   },

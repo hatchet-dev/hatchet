@@ -1,0 +1,28 @@
+# Security
+
+This page points you to Hatchet’s security resources and highlights the most important security considerations for Hatchet Cloud and self-hosted deployments.
+
+## Trust center
+
+Company-level security practices, compliance, and security documentation live in the **[Hatchet Trust Center](https://trust.hatchet.run/)**.
+
+## Hatchet Cloud
+
+Hatchet Cloud is Hatchet’s managed service. At a high level:
+
+- **Transport security**: API and worker traffic uses TLS.
+- **Authentication & isolation**: requests are authenticated, and tenants are isolated from each other.
+
+For the definitive, up-to-date details (controls, policies, and compliance documentation), refer to the **[Hatchet Trust Center](https://trust.hatchet.run/)**.
+
+## Self-hosted
+
+When you self-host Hatchet, your security posture depends on how you deploy and operate the Hatchet services and their dependencies. A practical baseline:
+
+- **Put TLS in front of the API**: terminate TLS at your ingress/load balancer (or directly on the API) and only expose it to the networks that need it.
+- **Treat tokens and DB credentials as secrets**: use a secrets manager and rotate credentials; avoid committing secrets into git or baking them into images.
+- **Limit network reachability**: restrict access to the Hatchet API and PostgreSQL to trusted networks (VPC, private subnets, or Kubernetes network policies).
+- **Use least privilege**: run Hatchet with the minimum DB permissions needed; don’t reuse “admin” DB credentials.
+- **Stay current**: keep Hatchet and dependencies up to date to pick up security fixes.
+
+See [Self Hosting](/self-hosting) for deployment and configuration guidance.
