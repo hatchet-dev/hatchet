@@ -299,11 +299,19 @@ export function LogViewer({
               )}
               <div
                 className={cn(
-                  'px-3 py-1.5 font-mono text-xs text-foreground truncate cursor-pointer',
+                  'px-3 py-1.5 font-mono text-xs text-foreground truncate',
                   selectedLogIndex === ix && 'whitespace-normal break-words',
                 )}
                 onClick={() => {
                   setSelectedLogIndex((prev) => (prev === ix ? undefined : ix));
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget;
+                  if (el.scrollWidth > el.clientWidth) {
+                    el.style.cursor = 'pointer';
+                  } else {
+                    el.style.cursor = 'default';
+                  }
                 }}
               >
                 {/* fixme: figure out how to use the type guard properly here */}
