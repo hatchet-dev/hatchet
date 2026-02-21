@@ -6,4 +6,11 @@ export default {
       toc: true,
     },
   },
+  cli: {
+    title: "CLI Reference",
+    type: "page",
+    theme: {
+      toc: true,
+    },
+  },
 };
