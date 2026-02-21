@@ -61,9 +61,21 @@ tasks:
   fmt-docs:
     dir: frontend/docs
     cmd: pnpm run prettier:fix && pnpm run prettier:check
+  sync-agent-instructions:
+    desc: Sync agent-instructions MDX files into hatchet-cli skill-assets references
+    cmds:
+      - |
+        src="frontend/docs/pages/agent-instructions"
+        dest="cmd/hatchet-cli/cli/skill-assets/hatchet-cli/references"
+        for f in "$src"/*.mdx; do
+          name=$(basename "$f" .mdx)
+          cp "$f" "$dest/$name.md"
+        done
+
   pre:
     aliases: [fmt]
     cmds:
+      - task: sync-agent-instructions
       - task: fmt-go
       - task: fmt-app
       - task: fmt-docs
@@ -160,11 +172,12 @@ tasks:
       - task: generate-api-server
       - task: generate-api-client
   generate-docs:
-      deps: [venv]
-      dir: frontend/snippets
-      cmds:
-        - 'source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py'
-        - task: fmt
+    deps: [venv]
+    dir: frontend/snippets
+    cmds:
+      - "source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py"
+      - task: fmt
+      - task: sync-agent-instructions
   generate-certs:
     cmds:
       - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
@@ -228,7 +241,7 @@ tasks:
     cmd: source .venv/bin/activate && pip install pre-commit && pre-commit install
   pre-commit-run:
     deps: [venv]
-    cmd: 'source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files'
+    cmd: "source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files"
   docs:
     cmds:
       - |

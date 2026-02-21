@@ -504,7 +504,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "downgrading versions",
     query: "downgrading versions",
-    expectAnyOf: ["self-hosting/downgrading-versions"],
+    expectAnyOf: ["self-hosting/downgrading-db-schema-manually"],
   },
   {
     name: "improving performance",
@@ -734,7 +734,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "downgrade → downgrading",
     query: "downgrade",
-    expectAnyOf: ["self-hosting/downgrading-versions"],
+    expectAnyOf: ["self-hosting/downgrading-db-schema-manually"],
     topN: 10,
   },
   {

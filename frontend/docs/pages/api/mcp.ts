@@ -302,15 +302,6 @@ function handleToolsList(id: string | number | null): JsonRpcResponse {
             required: ["query"],
           },
         },
-        {
-          name: "get_full_docs",
-          description:
-            "Get the complete Hatchet documentation as a single document. Useful for comprehensive context.",
-          inputSchema: {
-            type: "object",
-            properties: {},
-          },
-        },
       ],
     },
   };
@@ -469,6 +460,24 @@ function handleGetFullDocs(id: string | number | null): JsonRpcResponse {
       content: [{ type: "text", text: content }],
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Agent instruction tools
+// ---------------------------------------------------------------------------
+const PAGES_DIR = path.join(process.cwd(), "pages", "agent-instructions");
+
+function readAgentPage(slug: string): string | null {
+  // Try generated markdown first, fall back to MDX source
+  const llmsPath = path.join(LLMS_DIR, "agent-instructions", `${slug}.md`);
+  if (fs.existsSync(llmsPath)) {
+    return fs.readFileSync(llmsPath, "utf-8");
+  }
+  const mdxPath = path.join(PAGES_DIR, `${slug}.mdx`);
+  if (fs.existsSync(mdxPath)) {
+    return fs.readFileSync(mdxPath, "utf-8");
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

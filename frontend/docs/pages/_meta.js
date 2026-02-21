@@ -68,4 +68,12 @@ export default {
       toc: false,
     },
   },
+  "agent-instructions": {
+    title: "Agent Instructions",
+    type: "page",
+    display: "hidden",
+    theme: {
+      toc: false,
+    },
+  }
 };
