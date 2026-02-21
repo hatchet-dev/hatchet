@@ -437,7 +437,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	if logFile.LatestInvocationCount != opts.InvocationCount {
-		// todo: should evict this invocation if this happens
+		// TODO-DURABLE: should evict this invocation if this happens
 		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d. rejecting event write.", logFile.LatestInvocationCount, opts.InvocationCount)
 	}
 
