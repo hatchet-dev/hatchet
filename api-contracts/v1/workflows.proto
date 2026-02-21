@@ -47,6 +47,8 @@ message TriggerWorkflowRunRequest {
     bytes input = 2;
     bytes additional_metadata = 3;
     optional int32 priority = 4;
+    // (optional) idempotency key for deduplicating workflow runs
+    optional string idempotency_key = 5;
 }
 
 message TriggerWorkflowRunResponse {

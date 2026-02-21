@@ -7,7 +7,7 @@ from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
@@ -107,6 +107,13 @@ class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     desired_worker_id: str | None = None
     sticky: bool = False
     key: str | None = None
+    idempotency_key: str | None = None
+
+    @model_validator(mode="after")
+    def normalize_idempotency_key(self) -> "TriggerWorkflowOptions":
+        if self.idempotency_key is None and self.key is not None:
+            self.idempotency_key = self.key
+        return self
 
 
 class WorkflowRunTriggerConfig(BaseModel):
@@ -167,6 +174,7 @@ class AdminClient:
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
         priority: int | None = None
+        idempotency_key: str | None = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -194,7 +202,7 @@ class AdminClient:
 
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
-        return v0_workflow_protos.TriggerWorkflowRequest(
+        request = v0_workflow_protos.TriggerWorkflowRequest(
             name=workflow_name,
             input=payload_data,
             parent_id=_options.parent_id,
@@ -205,6 +213,14 @@ class AdminClient:
             desired_worker_id=_options.desired_worker_id,
             priority=_options.priority,
         )
+
+        if (
+            _options.idempotency_key
+            and "idempotency_key" in request.DESCRIPTOR.fields_by_name
+        ):
+            request.idempotency_key = _options.idempotency_key
+
+        return request
 
     def _parse_schedule(
         self, schedule: datetime | timestamp_pb2.Timestamp
@@ -372,6 +388,7 @@ class AdminClient:
             namespace=options.namespace,
             sticky=options.sticky,
             key=options.key,
+            idempotency_key=options.idempotency_key,
         )
 
         namespace = options.namespace or self.namespace

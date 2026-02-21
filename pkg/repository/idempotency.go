@@ -14,6 +14,8 @@ type IdempotencyKey string
 
 type IdempotencyRepository interface {
 	CreateIdempotencyKey(context context.Context, tenantId uuid.UUID, key string, expiresAt pgtype.Timestamptz) error
+	CreateIdempotencyKeys(context context.Context, tenantId uuid.UUID, keys []string, expiresAt pgtype.Timestamptz) error
+	DeleteIdempotencyKeysByExternalId(context context.Context, tenantId uuid.UUID, externalId uuid.UUID) error
 	EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error
 }
 
@@ -32,6 +34,25 @@ func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, te
 		Tenantid:  tenantId,
 		Key:       key,
 		Expiresat: expiresAt,
+	})
+}
+
+func (r *idempotencyRepository) CreateIdempotencyKeys(context context.Context, tenantId uuid.UUID, keys []string, expiresAt pgtype.Timestamptz) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	return r.queries.CreateIdempotencyKeys(context, r.pool, sqlcv1.CreateIdempotencyKeysParams{
+		Tenantid:  tenantId,
+		Keys:      keys,
+		Expiresat: expiresAt,
+	})
+}
+
+func (r *idempotencyRepository) DeleteIdempotencyKeysByExternalId(context context.Context, tenantId uuid.UUID, externalId uuid.UUID) error {
+	return r.queries.DeleteIdempotencyKeysByExternalId(context, r.pool, sqlcv1.DeleteIdempotencyKeysByExternalIdParams{
+		Tenantid:   tenantId,
+		Externalid: externalId,
 	})
 }
 

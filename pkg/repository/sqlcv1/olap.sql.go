@@ -3202,6 +3202,85 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
+const readWorkflowRunStatusByExternalId = `-- name: ReadWorkflowRunStatusByExternalId :one
+SELECT
+    r.tenant_id,
+    r.external_id,
+    r.readable_status
+FROM
+    v1_lookup_table_olap lt
+JOIN
+    v1_runs_olap r ON r.inserted_at = lt.inserted_at
+        AND (
+            (lt.dag_id IS NOT NULL AND r.id = lt.dag_id)
+            OR (lt.task_id IS NOT NULL AND r.id = lt.task_id)
+        )
+WHERE
+    lt.external_id = $1::uuid
+`
+
+type ReadWorkflowRunStatusByExternalIdRow struct {
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+}
+
+func (q *Queries) ReadWorkflowRunStatusByExternalId(ctx context.Context, db DBTX, workflowrunexternalid uuid.UUID) (*ReadWorkflowRunStatusByExternalIdRow, error) {
+	row := db.QueryRow(ctx, readWorkflowRunStatusByExternalId, workflowrunexternalid)
+	var i ReadWorkflowRunStatusByExternalIdRow
+	err := row.Scan(&i.TenantID, &i.ExternalID, &i.ReadableStatus)
+	return &i, err
+}
+
+const readWorkflowRunStatusesByExternalIds = `-- name: ReadWorkflowRunStatusesByExternalIds :many
+SELECT
+    r.tenant_id,
+    r.external_id,
+    r.readable_status
+FROM
+    v1_lookup_table_olap lt
+JOIN
+    v1_runs_olap r ON r.inserted_at = lt.inserted_at
+        AND (
+            (lt.dag_id IS NOT NULL AND r.id = lt.dag_id)
+            OR (lt.task_id IS NOT NULL AND r.id = lt.task_id)
+        )
+WHERE
+    lt.external_id = ANY($1::uuid[])
+    AND lt.tenant_id = $2::uuid
+`
+
+type ReadWorkflowRunStatusesByExternalIdsParams struct {
+	Workflowrunexternalids []uuid.UUID `json:"workflowrunexternalids"`
+	Tenantid               uuid.UUID   `json:"tenantid"`
+}
+
+type ReadWorkflowRunStatusesByExternalIdsRow struct {
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+}
+
+func (q *Queries) ReadWorkflowRunStatusesByExternalIds(ctx context.Context, db DBTX, arg ReadWorkflowRunStatusesByExternalIdsParams) ([]*ReadWorkflowRunStatusesByExternalIdsRow, error) {
+	rows, err := db.Query(ctx, readWorkflowRunStatusesByExternalIds, arg.Workflowrunexternalids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ReadWorkflowRunStatusesByExternalIdsRow
+	for rows.Next() {
+		var i ReadWorkflowRunStatusesByExternalIdsRow
+		if err := rows.Scan(&i.TenantID, &i.ExternalID, &i.ReadableStatus); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec
 WITH inputs AS (
     SELECT

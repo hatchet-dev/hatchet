@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +27,36 @@ import (
 )
 
 func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
+	t.Helper()
+
+	testPoolOnce.Do(func() {
+		testPoolErr = initTestPool(t)
+	})
+
+	require.NoError(t, testPoolErr)
+
+	testPoolMu.Lock()
+	t.Cleanup(func() {
+		testPoolMu.Unlock()
+	})
+
+	err := resetDatabase(context.Background(), testPool)
+	require.NoError(t, err)
+
+	return testPool, func() {}
+}
+
+var (
+	testPoolOnce sync.Once
+	testPoolMu   sync.Mutex
+	testPool     *pgxpool.Pool
+	testPoolErr  error
+
+	testContainer       *postgres.PostgresContainer
+	originalDatabaseURL string
+)
+
+func initTestPool(t *testing.T) error {
 	ctx := context.Background()
 
 	postgresContainer, err := postgres.Run(ctx,
@@ -38,23 +70,30 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 				WithStartupTimeout(30*time.Second),
 		),
 	)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
 	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
 	t.Logf("PostgreSQL container started with connection string: %s", connStr)
 
-	originalDatabaseURL := os.Getenv("DATABASE_URL")
-	err = os.Setenv("DATABASE_URL", connStr)
-	require.NoError(t, err)
+	originalDatabaseURL = os.Getenv("DATABASE_URL")
+	if err := os.Setenv("DATABASE_URL", connStr); err != nil {
+		return err
+	}
 
 	t.Log("Running database migration...")
 	migrate.RunMigrations(ctx)
 	t.Log("Migration completed successfully")
 
 	config, err := pgxpool.ParseConfig(connStr)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
 	// Set timezone to UTC for all test connections
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
@@ -63,22 +102,107 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
-	require.NoError(t, err)
-
-	err = pool.Ping(ctx)
-	require.NoError(t, err)
-
-	cleanup := func() {
-		pool.Close()
-		postgresContainer.Terminate(ctx)
-		if originalDatabaseURL != "" {
-			os.Setenv("DATABASE_URL", originalDatabaseURL)
-		} else {
-			os.Unsetenv("DATABASE_URL")
-		}
+	if err != nil {
+		return err
 	}
 
-	return pool, cleanup
+	if err := pool.Ping(ctx); err != nil {
+		return err
+	}
+
+	testPool = pool
+	testContainer = postgresContainer
+
+	return nil
+}
+
+func resetDatabase(ctx context.Context, pool *pgxpool.Pool) error {
+	if err := dropPartitionTables(ctx, pool); err != nil {
+		return err
+	}
+
+	rows, err := pool.Query(ctx, `
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public'
+    `)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return err
+		}
+		if table == "goose_db_version" {
+			continue
+		}
+		tables = append(tables, pgx.Identifier{table}.Sanitize())
+	}
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+
+	if len(tables) == 0 {
+		return nil
+	}
+
+	stmt := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))
+	if _, err = pool.Exec(ctx, stmt); err != nil {
+		return err
+	}
+
+	queries := sqlcv1.New()
+	today := time.Now().UTC()
+	return queries.CreatePartitions(ctx, pool, pgtype.Date{
+		Time:  today,
+		Valid: true,
+	})
+}
+
+func dropPartitionTables(ctx context.Context, pool *pgxpool.Pool) error {
+	rows, err := pool.Query(ctx, `
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public'
+          AND (
+            tablename ~ '^v1_task_[0-9]{8}$'
+            OR tablename ~ '^v1_dag_[0-9]{8}$'
+            OR tablename ~ '^v1_task_event_[0-9]{8}$'
+            OR tablename ~ '^v1_log_line_[0-9]{8}$'
+            OR tablename ~ '^v1_payload_[0-9]{8}$'
+            OR tablename ~ '^v1_event_[0-9]{8}$'
+            OR tablename ~ '^v1_event_lookup_table_[0-9]{8}$'
+            OR tablename ~ '^v1_event_to_run_[0-9]{8}$'
+          )
+    `)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return err
+		}
+		tables = append(tables, pgx.Identifier{table}.Sanitize())
+	}
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+
+	if len(tables) == 0 {
+		return nil
+	}
+
+	stmt := fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", strings.Join(tables, ", "))
+	_, err = pool.Exec(ctx, stmt)
+	return err
 }
 
 func createTaskRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {

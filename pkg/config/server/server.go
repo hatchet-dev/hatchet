@@ -296,6 +296,14 @@ type ConfigFileRuntime struct {
 	// to the core database, we only use them to trigger workflows. Enabling this will persist them to the core database.
 	EnableDurableUserEventLog bool `mapstructure:"enableDurableUserEventLog" json:"enableDurableUserEventLog,omitempty" default:"false"`
 
+	// IdempotencyKeyTTL controls how long idempotency keys are retained as a safety net. Keys are deleted on completion,
+	// but this TTL limits how long a stuck key can block requeues.
+	IdempotencyKeyTTL time.Duration `mapstructure:"idempotencyKeyTTL" json:"idempotencyKeyTTL,omitempty" default:"24h"`
+
+	// IdempotencyKeyDenyRecheckInterval controls how often we recheck terminal status for a claimed key
+	// before denying a duplicate enqueue.
+	IdempotencyKeyDenyRecheckInterval time.Duration `mapstructure:"idempotencyKeyDenyRecheckInterval" json:"idempotencyKeyDenyRecheckInterval,omitempty" default:"5m"`
+
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
 }
@@ -807,6 +815,8 @@ func BindAllEnv(v *viper.Viper) {
 
 	// enable durable user event log
 	_ = v.BindEnv("runtime.enableDurableUserEventLog", "SERVER_ENABLE_DURABLE_USER_EVENT_LOG")
+	_ = v.BindEnv("runtime.idempotencyKeyTTL", "SERVER_IDEMPOTENCY_KEY_TTL")
+	_ = v.BindEnv("runtime.idempotencyKeyDenyRecheckInterval", "SERVER_IDEMPOTENCY_KEY_DENY_RECHECK_INTERVAL")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")
