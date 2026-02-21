@@ -27,12 +27,6 @@ export default {
   },
   "workflows-overview": "Workflows (DAGs)",
   "durable-workflows-overview": "Durable Workflows",
-  "--patterns-and-use-cases": {
-    title: "Patterns and Use Cases",
-    type: "separator",
-  },
-  patterns: "Patterns",
-  "use-cases": "Use Cases",
   "--running-tasks": {
     title: "Ways of Running Tasks",
     type: "separator",
@@ -59,15 +53,4 @@ export default {
   },
   "worker-healthchecks": "Worker Health Checks",
   "autoscaling-workers": "Autoscaling Workers",
-  "--v1-migration-guides": {
-    title: "V1 Migration Guides",
-    type: "separator",
-  },
-  "v1-sdk-improvements": {
-    title: "SDK Improvements",
-  },
-  "migration-guide-engine": "Engine Migration Guide",
-  "migration-guide-python": "Python Migration Guide",
-  "migration-guide-typescript": "Typescript Migration Guide",
-  "migration-guide-go": "Go Migration Guide",
 };

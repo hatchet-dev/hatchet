@@ -39,10 +39,10 @@ Concurrency limits prevent overwhelming your infrastructure. Rate limits protect
 | **[Autoscaling](/guide/autoscaling-workers)**                | Scale workers up during batch processing, down when idle                |
 
 <Callout type="info">
-  The batch processing pattern is [Fanout](/guide/patterns/fanout) applied at
+  The batch processing pattern is [Fanout](/patterns/fanout) applied at
   scale. For fixed multi-stage processing (e.g., validate → transform → load),
   combine with [Pre-Determined
-  Pipelines](/guide/patterns/pre-determined-pipelines).
+  Pipelines](/patterns/pre-determined-pipelines).
 </Callout>
 
 ## Architecture
@@ -86,19 +86,19 @@ The parent awaits all children and aggregates results. You can see the status of
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Fanout" href="/guide/patterns/fanout">
+  <Cards.Card title="Fanout" href="/patterns/fanout">
     The core pattern behind batch processing, spawning N children from a parent.
   </Cards.Card>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/guide/patterns/pre-determined-pipelines"
+    href="/patterns/pre-determined-pipelines"
   >
     Chain batch processing with multi-stage transforms in a DAG.
   </Cards.Card>
-  <Cards.Card title="RAG & Indexing" href="/guide/use-cases/rag-and-indexing">
+  <Cards.Card title="RAG & Indexing" href="/patterns/rag-and-indexing">
     A specialized batch processing use case for document indexing pipelines.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/guide/patterns/cycles">
+  <Cards.Card title="Cycles" href="/patterns/cycles">
     Process paginated results one page at a time with iterative child spawning.
   </Cards.Card>
 </Cards>

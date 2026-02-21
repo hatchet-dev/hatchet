@@ -40,9 +40,9 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 
 <Callout type="info">
   RAG pipelines are a natural fit for [Pre-Determined
-  Pipelines](/guide/patterns/pre-determined-pipelines). The stages (ingest,
+  Pipelines](/patterns/pre-determined-pipelines). The stages (ingest,
   chunk, embed, index) are fixed and map directly to a DAG. Use
-  [Fanout](/guide/patterns/fanout) within the chunking stage to parallelize.
+  [Fanout](/patterns/fanout) within the chunking stage to parallelize.
 </Callout>
 
 ## Pipeline Architecture
@@ -89,18 +89,18 @@ For SaaS applications where multiple tenants share the same pipeline:
 <Cards>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/guide/patterns/pre-determined-pipelines"
+    href="/patterns/pre-determined-pipelines"
   >
     The fixed-stage DAG pattern that RAG pipelines are built on.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/guide/patterns/fanout">
+  <Cards.Card title="Fanout" href="/patterns/fanout">
     Parallelize document and chunk processing across your worker fleet.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/guide/patterns/cycles">
+  <Cards.Card title="Cycles" href="/patterns/cycles">
     Implement incremental indexing that re-crawls until all changes are
     processed.
   </Cards.Card>
-  <Cards.Card title="Batch Processing" href="/guide/use-cases/batch-processing">
+  <Cards.Card title="Batch Processing" href="/patterns/batch-processing">
     General-purpose batch processing patterns that apply to indexing workloads.
   </Cards.Card>
 </Cards>

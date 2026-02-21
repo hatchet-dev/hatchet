@@ -6,6 +6,13 @@ export default {
       toc: false,
     },
   },
+  patterns: {
+    title: "Patterns",
+    type: "page",
+    theme: {
+      toc: false,
+    },
+  },
   features: {
     title: "Features",
     type: "page",
@@ -13,6 +20,7 @@ export default {
       toc: false,
     },
   },
+
   _setup: {
     display: "hidden",
   },
@@ -23,36 +31,41 @@ export default {
       toc: false,
     },
   },
+  migrating: {
+    title: "Migrating",
+    type: "page",
+    theme: {
+      toc: false,
+    },
+  },
+  reference: {
+    title: "Reference",
+    type: "menu",
+    items: {
+      cli: {
+        title: "CLI Reference",
+        href: "/cli",
+        type: "page",
+      },
+      python: {
+        title: "Python SDK",
+        href: "/sdk/python/client",
+        type: "page",
+      },
+      go: {
+        title: "Go SDK",
+        href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",
+        type: "page",
+        newWindow: true,
+      }
+    },
+  },
   contributing: {
     title: "Contributing",
     type: "page",
     display: "hidden",
     theme: {
       toc: false,
-    },
-  },
-  cli: {
-    title: "CLI Reference",
-    type: "page",
-    theme: {
-      toc: false,
-    },
-  },
-  sdk: {
-    title: "SDK Reference",
-    type: "menu",
-    items: {
-      python: {
-        title: "Python",
-        href: "/sdk/python/client",
-        type: "page",
-      },
-      go: {
-        title: "Go",
-        href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",
-        type: "page",
-        newWindow: true,
-      },
     },
   },
 };

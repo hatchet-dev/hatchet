@@ -393,27 +393,27 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "migration python",
     query: "migration python",
-    expectAnyOf: ["guide/migration-guide-python"],
+    expectAnyOf: ["migrating/v0-to-v1/migration-guide-python"],
   },
   {
     name: "migration typescript",
     query: "migration typescript",
-    expectAnyOf: ["guide/migration-guide-typescript"],
+    expectAnyOf: ["migrating/v0-to-v1/migration-guide-typescript"],
   },
   {
     name: "migration go",
     query: "migration go",
-    expectAnyOf: ["guide/migration-guide-go"],
+    expectAnyOf: ["migrating/v0-to-v1/migration-guide-go"],
   },
   {
     name: "engine migration",
     query: "engine migration",
-    expectAnyOf: ["guide/migration-guide-engine"],
+    expectAnyOf: ["migrating/v0-to-v1/migration-guide-engine"],
   },
   {
     name: "SDK improvements",
     query: "SDK improvements",
-    expectAnyOf: ["guide/v1-sdk-improvements"],
+    expectAnyOf: ["migrating/v0-to-v1/v1-sdk-improvements"],
   },
 
   // -------------------------------------------------------------------------
@@ -568,7 +568,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "NewStandaloneTask — Go API",
     query: "NewStandaloneTask",
-    expectAnyOf: ["guide/your-first-task", "guide/migration-guide-go"],
+    expectAnyOf: ["guide/your-first-task", "migrating/v0-to-v1/migration-guide-go"],
   },
   {
     name: "DurableContext",
@@ -728,7 +728,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "upgrade → migration",
     query: "upgrade",
-    expectAnyOf: ["guide/migration-guide-python", "guide/migration-guide-typescript", "guide/migration-guide-go", "guide/migration-guide-engine"],
+    expectAnyOf: ["migrating/v0-to-v1/migration-guide-python", "migrating/v0-to-v1/migration-guide-typescript", "migrating/v0-to-v1/migration-guide-go", "migrating/v0-to-v1/migration-guide-engine"],
     topN: 10,
   },
   {
