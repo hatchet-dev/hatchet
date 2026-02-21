@@ -38,6 +38,13 @@ const MarkdownIcon = () => (
   </svg>
 );
 
+const CopyIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+  </svg>
+);
+
 function CopyClaudeButton({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -57,6 +64,43 @@ function CopyClaudeButton({ command }: { command: string }) {
     <a href="#" onClick={handleClick} style={pageLinkStyle} title="Add to Claude">
       <ClaudeIcon />
       <span className="page-action-label">{copied ? "Copied! Run in terminal" : "Add to Claude"}</span>
+    </a>
+  );
+}
+
+function CopyForLLMButton({ markdownHref, pathname }: { markdownHref: string; pathname: string }) {
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (loading || copied) return;
+      setLoading(true);
+      try {
+        const base = typeof window !== "undefined" ? window.location.origin : DEFAULT_ORIGIN;
+        const res = await fetch(`${base}${markdownHref}`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const text = await res.text();
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        posthog.capture("docs_copy_for_llm", { page: pathname });
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // no-op
+      } finally {
+        setLoading(false);
+      }
+    },
+    [markdownHref, pathname]
+  );
+
+  return (
+    <a href="#" onClick={handleClick} style={pageLinkStyle} title="Copy page as Markdown for LLM">
+      <CopyIcon />
+      <span className="page-action-label">
+        {loading ? "..." : copied ? "Copied!" : "Copy for LLM"}
+      </span>
     </a>
   );
 }
@@ -93,9 +137,10 @@ const config = {
 
     const fallbackTitle = "Hatchet Documentation";
 
-    // Build the path to the LLM-friendly markdown version of this page
+    // Build the path to the LLM-friendly markdown version of this page (include basePath so static file resolves)
     const pathname = router.pathname.replace(/^\//, "").replace(/\/$/, "") || "index";
-    const llmsMarkdownHref = `/llms/${pathname}.md`;
+    const base = router.basePath ? router.basePath.replace(/\/$/, "") : "";
+    const llmsMarkdownHref = `${base}/llms/${pathname}.md`;
 
     return (
       <>
@@ -124,7 +169,8 @@ const config = {
 
     const pathname =
       router.pathname.replace(/^\//, "").replace(/\/$/, "") || "index";
-    const llmsMarkdownHref = `/llms/${pathname}.md`;
+    const base = router.basePath ? router.basePath.replace(/\/$/, "") : "";
+    const llmsMarkdownHref = `${base}/llms/${pathname}.md`;
 
     const mcpUrl = `${origin}/api/mcp`;
     const cursorConfig = JSON.stringify({
@@ -143,9 +189,10 @@ const config = {
             <span className="page-action-label">Add to Cursor</span>
           </a>
           <CopyClaudeButton command={claudeCommand} />
+          <CopyForLLMButton markdownHref={llmsMarkdownHref} pathname={pathname} />
           <a href={llmsMarkdownHref} target="_blank" rel="noopener noreferrer" style={pageLinkStyle} onClick={() => posthog.capture("docs_view_markdown", { page: pathname })} title="View as Markdown">
             <MarkdownIcon />
-            <span className="page-action-label">Raw</span>
+            <span className="page-action-label">View as MD</span>
           </a>
         </div>
         {children}
