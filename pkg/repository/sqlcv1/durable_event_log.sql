@@ -38,7 +38,7 @@ SELECT
 FROM inputs
 ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
-    latest_invocation_count = latest_invocation_count + 1,
+    latest_invocation_count = EXCLUDED.latest_invocation_count + 1,
     latest_node_id = 0
 RETURNING v1_durable_event_log_file.*
 ;
