@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager, contextmanager
 from typing import Annotated, AsyncGenerator, Generator
+import sys
 
 from pydantic import BaseModel
 
@@ -13,6 +14,46 @@ SYNC_CM_DEPENDENCY_VALUE = "sync_cm_dependency_value"
 ASYNC_CM_DEPENDENCY_VALUE = "async_cm_dependency_value"
 CHAINED_CM_VALUE = "chained_cm_value"
 CHAINED_ASYNC_CM_VALUE = "chained_async_cm_value"
+
+if sys.version_info >= (3, 12):
+    from examples.dependency_injection.dependency_annotations312 import (
+        AsyncDepNoTypeAlias,
+        AsyncDepTypeAlias,
+        SyncDepNoTypeAlias,
+        AsyncDepTypeSyntax,
+        SyncDepTypeAlias,
+        SyncDepTypeSyntax,
+    )
+else:
+    from examples.dependency_injection.dependency_annotations310 import (
+        AsyncDepNoTypeAlias,
+        AsyncDepTypeAlias,
+        SyncDepNoTypeAlias,
+        AsyncDepTypeSyntax,
+        SyncDepTypeAlias,
+        SyncDepTypeSyntax,
+    )
+
+
+@hatchet.task()
+async def task_with_type_aliases(
+    _i: EmptyModel,
+    ctx: Context,
+    async_dep_no_type_alias: AsyncDepNoTypeAlias,
+    async_dep_type_alias: AsyncDepTypeAlias,
+    async_dep_type_syntax: AsyncDepTypeSyntax,
+    sync_dep_no_type_alias: SyncDepNoTypeAlias,
+    sync_dep_type_alias: SyncDepTypeAlias,
+    sync_dep_type_syntax: SyncDepTypeSyntax,
+) -> dict[str, bool]:
+    return {
+        "async_dep_no_type_alias": async_dep_no_type_alias,
+        "async_dep_type_alias": async_dep_type_alias,
+        "async_dep_type_syntax": async_dep_type_syntax,
+        "sync_dep_no_type_alias": sync_dep_no_type_alias,
+        "sync_dep_type_alias": sync_dep_type_alias,
+        "sync_dep_type_syntax": sync_dep_type_syntax,
+    }
 
 
 # > Declare dependencies
@@ -274,6 +315,7 @@ def main() -> None:
             durable_async_task_with_dependencies,
             durable_sync_task_with_dependencies,
             di_workflow,
+            task_with_type_aliases,
         ],
     )
     worker.start()

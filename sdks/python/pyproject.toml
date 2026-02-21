@@ -51,6 +51,7 @@ pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
 psycopg = { extras = ["pool"], version = "^3.2.6" }
 pytest-xdist = "^3.7.0"
+requests = "^2.32.5"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -100,6 +101,7 @@ exclude = [
   "hatchet_sdk/clients/rest/rest.py",
   "hatchet_sdk/v0/*",
   "site/*",
+  "examples/dependency_injection/dependency_annotations312.py",
 ]
 strict = true
 enable_error_code = [
@@ -201,7 +203,7 @@ exclude = [
 
 [tool.pydoclint]
 style = 'sphinx'
-exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*'
+exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py'
 arg-type-hints-in-docstring = false                    # Automatically checked by mypy and mkdocs
 check-return-types = false                             # Automatically checked by mypy and mkdocs
 

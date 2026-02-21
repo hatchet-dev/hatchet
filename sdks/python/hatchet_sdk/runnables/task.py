@@ -24,6 +24,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
+from typing_extensions import TypeAliasType
 
 from hatchet_sdk.conditions import (
     Action,
@@ -273,6 +274,8 @@ class Task(Generic[TWorkflowInput, R]):
         ) = None,
     ) -> DependencyToInject | None:
         annotation = param.annotation
+        if isinstance(annotation, TypeAliasType):
+            annotation = annotation.__value__
 
         if get_origin(annotation) is Annotated:
             args = get_args(annotation)
