@@ -34,9 +34,9 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 | **[Retry Policies](/features/retry-policies)** | Retry failed chunks individually without re-processing the whole pipeline      |
 | **[Concurrency](/features/concurrency)**       | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing               |
 | **[DAG Workflows](/features/dags)**            | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
-| **[Event Triggers](/guide/run-on-event)**      | Start indexing automatically when new documents arrive                         |
-| **[Cron Triggers](/guide/cron-runs)**          | Schedule periodic re-indexing or incremental updates                           |
-| **[Bulk Run](/guide/bulk-run)**                | Trigger indexing for thousands of documents in a single API call               |
+| **[Event Triggers](/features/run-on-event)**      | Start indexing automatically when new documents arrive                         |
+| **[Cron Triggers](/features/cron-runs)**          | Schedule periodic re-indexing or incremental updates                           |
+| **[Bulk Run](/features/bulk-run)**                | Trigger indexing for thousands of documents in a single API call               |
 
 <Callout type="info">
   RAG pipelines are a natural fit for [Pre-Determined

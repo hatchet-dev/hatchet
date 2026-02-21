@@ -1,4 +1,17 @@
 export default {
+  "--ways-of-running": {
+    title: "Ways of Running Tasks",
+    type: "separator",
+  },
+  "running-tasks": "Overview",
+  "run-with-results": "Run and Wait Trigger",
+  "run-no-wait": "Run Without Wait Trigger",
+  "scheduled-runs": "Scheduled Trigger",
+  "cron-runs": "Cron Trigger",
+  "run-on-event": "Event Trigger",
+  "bulk-run": "Bulk Run Many",
+  webhooks: "Webhooks",
+  "inter-service-triggering": "Inter-Service Triggering",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",

@@ -115,19 +115,19 @@ const nextConfig = {
       },
       {
         source: "/home/features/triggering-runs/event-trigger",
-        destination: "/v1/guide/run-on-event",
+        destination: "/v1/features/run-on-event",
         permanent: false,
         basePath: false,
       },
       {
         source: "/home/features/triggering-runs/cron-trigger",
-        destination: "/v1/guide/cron-runs",
+        destination: "/v1/features/cron-runs",
         permanent: false,
         basePath: false,
       },
       {
         source: "/home/features/triggering-runs/schedule-trigger",
-        destination: "/v1/guide/scheduled-runs",
+        destination: "/v1/features/scheduled-runs",
         permanent: false,
         basePath: false,
       },

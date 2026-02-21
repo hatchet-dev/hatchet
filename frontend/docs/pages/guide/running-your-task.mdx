@@ -24,9 +24,25 @@ With your task defined, you can import it wherever you need to use it and invoke
 </Tabs.Tab>
 </UniversalTabs>
 
-There are many ways to run a task, including:
+## Where you can trigger from
 
-- [Running a task with results](./run-with-results.mdx)
-- [Enqueuing a task](./run-no-wait.mdx)
-- [Scheduling a task](./scheduled-runs.mdx)
-- [Scheduling a task with a cron schedule](./cron-runs.mdx)
+You can trigger tasks in two main ways:
+
+- **Same codebase or monorepo** — Import your task or workflow and call `run`, `run_no_wait`, or other trigger methods directly. Your API server, CLI, or another service in the same repo can use the same task definition to enqueue or run tasks.
+- **External API or separate service (polyrepo)** — When the code that triggers the task cannot import the task definition (e.g. a different repo, language, or microservice), use a **stub**: a Hatchet task with the same name and input/output types but no implementation. The stub runs on the triggering service and enqueues work that your Hatchet workers execute. See [Inter-Service Triggering](/features/inter-service-triggering) for details.
+
+## Ways of running tasks
+
+Hatchet supports several trigger styles; pick the one that fits your use case. Full details are in [Features → Ways of Running Tasks](/features/running-tasks).
+
+| Style | Use case | Doc |
+|-------|----------|-----|
+| **Run and wait** | Call a task and get the result (e.g. fanout, LLM calls) | [Run and Wait Trigger](/features/run-with-results) |
+| **Fire and forget** | Enqueue without waiting (e.g. emails, long jobs) | [Run Without Wait Trigger](/features/run-no-wait) |
+| **Scheduled** | Run once at a specific time in the future | [Scheduled Trigger](/features/scheduled-runs) |
+| **Cron** | Run on a recurring schedule (daily, weekly, etc.) | [Cron Trigger](/features/cron-runs) |
+| **Events** | Run when an event is emitted (e.g. webhooks, queues) | [Event Trigger](/features/run-on-event) |
+| **Bulk** | Run the same task many times with different inputs | [Bulk Run Many](/features/bulk-run) |
+| **Webhooks** | Let external systems trigger workflows via HTTP | [Webhooks](/features/webhooks) |
+
+Next, explore [Run and Wait](/features/run-with-results) or [Fire and Forget](/features/run-no-wait) for the most common patterns, or [Inter-Service Triggering](/features/inter-service-triggering) to trigger from an external API using a stub.

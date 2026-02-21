@@ -5,7 +5,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Running with Results
 
-> This example assumes we have a [task](./your-first-task.mdx) registered on a running [worker](./workers.mdx).
+> This example assumes we have a [task](/guide/your-first-task) registered on a running [worker](/guide/workers).
 
 One method for running a task in Hatchet is to run it and wait for its result. Some example use cases for this type of task trigger include:
 
@@ -109,5 +109,5 @@ You can run multiple tasks in parallel by calling `Run` multiple times in gorout
 <Callout type="info">
   While you can run multiple tasks in parallel using the `Run` method, this is
   not recommended for large numbers of tasks. Instead, we recommend using [bulk
-  run methods](./bulk-run.mdx) for large parallel task execution.
+  run methods](/features/bulk-run) for large parallel task execution.
 </Callout>
