@@ -22,11 +22,12 @@ export default {
   "running-your-task": "Running Tasks",
   environments: "Environments",
   "--workflows": {
-    title: "Workflows",
+    title: "Durable Workflows",
     type: "separator",
   },
-  "workflows-overview": "Workflows (DAGs)",
-  "durable-workflows-overview": "Durable Workflows",
+  "what-is-a-durable-workflow": "What is a Durable Workflow?",
+  "durable-workflows-overview": "Durable Task Execution",
+  "workflows-overview": "Directed Acyclic Graphs",
   "--running-tasks": {
     title: "Ways of Running Tasks",
     type: "separator",

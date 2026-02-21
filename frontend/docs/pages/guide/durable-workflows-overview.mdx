@@ -1,9 +1,9 @@
 import { Callout, Cards, Steps } from "nextra/components";
 import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
 
-# Durable Workflows
+# Durable Task Execution
 
-A **durable workflow** is a long-running task that stores its progress in a durable event log. If the task is interrupted (such as a crash, a deployment, or a scaling event), it replays from its last checkpoint instead of starting over. This makes durable workflows ideal for tasks that require deterministic behavior and outcomes.
+A **durable task** is a long-running task that stores its progress in a durable event log. For the high-level concept—execution state, orchestrator responsibility, and the two flavors (durable tasks vs DAGs)—see [What is a Durable Workflow?](/guide/what-is-a-durable-workflow). If the task is interrupted (such as a crash, a deployment, or a scaling event), it replays from its last checkpoint instead of starting over. This makes durable workflows ideal for tasks that require deterministic behavior and outcomes.
 
 <DurableWorkflowDiagram />
 
