@@ -100,6 +100,8 @@ function parseMetaJs(filepath: string): Record<string, any> {
   content = content.replace(pattern, '$1"$2":');
   // Remove trailing commas before closing braces
   content = content.replace(/,(\s*\n?\s*})(\s*);?/g, "$1");
+  // Strip trailing semicolon from export default {...};
+  content = content.replace(/\s*;\s*$/, "");
 
   try {
     return JSON.parse(content);

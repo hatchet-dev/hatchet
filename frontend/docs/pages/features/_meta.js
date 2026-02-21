@@ -1,5 +1,4 @@
 export default {
-  "coding-agents": "Using Coding Agents",
   "--ways-of-running": {
     title: "Ways of Running Tasks",
     type: "separator",

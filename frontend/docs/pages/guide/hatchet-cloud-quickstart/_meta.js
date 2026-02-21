@@ -1,5 +1,8 @@
 export default {
-  index: "Overview",
-  setup: "Advanced Setup",
-  environments: "Environments",
+  index: "Quickstart",
+  advanced: {
+    title: "Advanced",
+    theme: { collapsed: true },
+  },
+  "coding-agents": "Using Coding Agents",
 };

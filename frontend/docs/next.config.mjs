@@ -21,31 +21,66 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // Root and app root → main guide page (never /home)
       {
         source: '/',
-        destination: '/v1/guide',
+        destination: '/v1/guide/what-is-hatchet',
         permanent: false,
         basePath: false,
       },
       {
-        source: '/',
-        destination: '/guide',
+        source: '/v1',
+        destination: '/v1/guide/what-is-hatchet',
         permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/v1/',
+        destination: '/v1/guide/what-is-hatchet',
+        permanent: false,
+        basePath: false,
       },
       {
         source: '/guide',
-        destination: '/guide/what-is-hatchet',
+        destination: '/v1/guide/what-is-hatchet',
         permanent: false,
+        basePath: false,
       },
       {
         source: '/guide/setup',
-        destination: '/guide/hatchet-cloud-quickstart/setup',
+        destination: '/v1/guide/hatchet-cloud-quickstart/advanced',
         permanent: true,
+        basePath: false,
       },
       {
         source: '/guide/environments',
-        destination: '/guide/hatchet-cloud-quickstart/environments',
+        destination: '/v1/guide/hatchet-cloud-quickstart/advanced/environments',
         permanent: true,
+        basePath: false,
+      },
+      {
+        source: '/v1/guide/hatchet-cloud-quickstart/advanced/setup',
+        destination: '/v1/guide/hatchet-cloud-quickstart/advanced',
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: '/guide/hatchet-cloud-quickstart/advanced/setup',
+        destination: '/v1/guide/hatchet-cloud-quickstart/advanced',
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: '/guide/hatchet-cloud-quickstart/setup',
+        destination: '/v1/guide/hatchet-cloud-quickstart/advanced',
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: '/guide/hatchet-cloud-quickstart/environments',
+        destination: '/v1/guide/hatchet-cloud-quickstart/advanced/environments',
+        permanent: true,
+        basePath: false,
       },
       {
         source: '/compute',
@@ -60,11 +95,6 @@ const nextConfig = {
         basePath: false,
       },
       {
-        source: '/:path((?!api|agent-instructions|home|cli|v1|v0|compute|sdk|contributing|self-hosting|launches|blog|llms|favicon\\.ico|.*\\.png|.*\\.gif|.*\\.svg|_next/.*|monitoring\-demo\.mp4).*)',
-        destination: '/home/:path*',
-        permanent: false,
-      },
-      {
         source: "/ingest/:path*",
         destination: "https://app.posthog.com/:path*",
         permanent: false,
@@ -77,7 +107,7 @@ const nextConfig = {
       },
       {
         source: "/home/basics/overview",
-        destination: "/v1/guide/hatchet-cloud-quickstart/setup",
+        destination: "/v1/guide/hatchet-cloud-quickstart/advanced",
         permanent: false,
         basePath: false,
       },
@@ -89,7 +119,7 @@ const nextConfig = {
       },
       {
         source: "/home/basics/environments",
-        destination: "/v1/guide/hatchet-cloud-quickstart/environments",
+        destination: "/v1/guide/hatchet-cloud-quickstart/advanced/environments",
         permanent: false,
         basePath: false,
       },

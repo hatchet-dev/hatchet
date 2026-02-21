@@ -6,15 +6,10 @@ export default {
     title: "🪓 What is Hatchet?",
     theme: { "collapsed": true },
   },
-  "--quickstart": {
-    title: "Setup",
-    type: "separator",
-  },
   "hatchet-cloud-quickstart": {
-    title: "Quickstart",
+    title: "Get Started",
     theme: { "collapsed": true },
   },
-  "install-docs-mcp": "Install Docs MCP",
   "--guide": {
     title: "Fundamentals",
     type: "separator",

@@ -80,18 +80,18 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "setup",
     query: "setup",
-    expectAnyOf: ["guide/hatchet-cloud-quickstart/setup", "guide/hatchet-cloud-quickstart"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart/advanced", "guide/hatchet-cloud-quickstart"],
   },
   {
     name: "getting started",
     query: "getting started",
-    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/hatchet-cloud-quickstart/setup"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/hatchet-cloud-quickstart/advanced"],
     topN: 10,
   },
   {
     name: "install",
     query: "install",
-    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/hatchet-cloud-quickstart/setup", "cli/index"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/hatchet-cloud-quickstart/advanced", "cli/index"],
     topN: 10,
   },
   {
@@ -134,7 +134,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "environments",
     query: "environments",
-    expectAnyOf: ["guide/hatchet-cloud-quickstart/environments"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart/advanced/environments"],
   },
 
   // -------------------------------------------------------------------------
