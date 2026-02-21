@@ -1,15 +1,18 @@
+---
+asIndexPage: true
+---
 import { Cards } from "nextra/components";
 
-# What is a Durable Workflow?
+# Durable Workflows
 
 A **durable workflow** is work whose execution state lives in Hatchet instead of in your process. When you run a durable workflow, the **orchestrator** owns that state: it records progress, survives your worker crashing or scaling down, and resumes from the last checkpoint so work is not lost or duplicated.
 
 ## Execution state in the orchestrator
 
-With ordinary tasks, “where we are” in the workflow lives in memory. If the process dies, that state is gone. With durable workflows, **execution state is stored durably** (e.g. in the Hatchet event log). Each logical step that changes state is recorded. The orchestrator can therefore:
+With ordinary tasks, "where we are" in the workflow lives in memory. If the process dies, that state is gone. With durable workflows, **execution state is stored durably** (e.g. in the Hatchet event log). Each logical step that changes state is recorded. The orchestrator can therefore:
 
-- **Recover from failures** — If a worker dies mid-run, Hatchet replays from the last recorded step and continues on another worker. You don’t restart from scratch.
-- **Handle long waits** — Steps like “wait 24 hours” or “wait for this external event” are recorded. The worker can release the slot; when the wait completes, the orchestrator reschedules the workflow and it continues from that point.
+- **Recover from failures** — If a worker dies mid-run, Hatchet replays from the last recorded step and continues on another worker. You don't restart from scratch.
+- **Handle long waits** — Steps like "wait 24 hours" or "wait for this external event" are recorded. The worker can release the slot; when the wait completes, the orchestrator reschedules the workflow and it continues from that point.
 - **Manage complex distributed state** — Multi-step, branching, or long-running flows are expressed as a sequence of durable steps. The orchestrator keeps that state consistent and replayable across workers and restarts.
 
 So the responsibility for **where we are** and **what has already happened** moves from your application to the Hatchet orchestrator. Your code describes the steps; Hatchet makes them durable and resumable.
@@ -24,10 +27,10 @@ Hatchet offers two ways to build durable workflows:
 Choose **durable tasks** when you need inline waits, loops, or dynamic control flow inside one unit of work. Choose **DAGs** when your workflow is a clear graph of tasks with known dependencies.
 
 <Cards>
-  <Cards.Card title="Durable Tasks" href="/guide/durable-workflows-overview">
+  <Cards.Card title="Durable Task Execution" href="/guide/durable-workflows/durable-task-execution">
     How durable task execution works: checkpoints, context, and when to use it.
   </Cards.Card>
-  <Cards.Card title="DAGs" href="/guide/workflows-overview">
+  <Cards.Card title="Directed Acyclic Graphs" href="/guide/durable-workflows/directed-acyclic-graph">
     Define multi-task workflows with dependencies and parallel execution.
   </Cards.Card>
 </Cards>

@@ -1,0 +1,91 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import BranchingDiagram from "@/components/BranchingDiagramWrapper";
+import PatternComparison from "@/components/PatternComparison";
+
+# Branching
+
+**Branching** lets your workflow take different paths based on conditions evaluated at runtime. A task can inspect the output of a parent task, wait for an external event, or sleep for a duration, and then decide whether to run, skip, or cancel downstream tasks. Only the relevant branch executes, while the other is skipped.
+
+<BranchingDiagram />
+
+## How It Works
+
+<Steps>
+
+### A task produces output
+
+An upstream task runs and returns a result (for example, a score, a flag, or a status value).
+
+### Conditions evaluate the output
+
+Downstream tasks declare conditions using `skip_if`, `wait_for`, or `cancel_if`. Hatchet evaluates these conditions against parent outputs, incoming events, or sleep timers.
+
+### One branch executes
+
+The branch whose condition is satisfied runs.
+
+</Steps>
+
+## Types of Conditions
+
+| Condition            | Behavior                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| **Parent condition** | Evaluate a CEL expression against a parent task's output (e.g. `value > 50`)       |
+| **Event condition**  | Wait for an external event, optionally filtered by a CEL expression on its payload |
+| **Sleep condition**  | Wait for a specified duration before continuing                                    |
+
+## Condition Operators
+
+| Operator    | Effect                                                                              |
+| ----------- | ----------------------------------------------------------------------------------- |
+| `wait_for`  | Task waits until the condition is satisfied before starting                         |
+| `skip_if`   | Task is skipped if the condition evaluates to true                                  |
+| `cancel_if` | Task and its downstream dependents are cancelled if the condition evaluates to true |
+
+<Callout type="info">
+  Branching is built using [Conditional Workflows](/features/conditional-workflows).
+  See that page for full code examples covering parent conditions, event
+  conditions, sleep conditions, or groups, and a complete branching workflow
+  walkthrough.
+</Callout>
+
+<Callout type="warning">
+  A task cancelled by `cancel_if` behaves like any other cancellation, and all
+  downstream tasks are cancelled as well. Use `skip_if` when you want downstream
+  tasks to still run and inspect the skip status.
+</Callout>
+
+## In Workflows vs Durable Workflows (WIP)
+
+## Use Cases
+
+<Cards>
+  <Cards.Card title="Feature Flag Routing" href="/features/conditional-workflows">
+    Read a feature flag in an upstream task and route the workflow down
+    different code paths based on its value.
+  </Cards.Card>
+  <Cards.Card
+    title="Human-in-the-Loop Approval"
+    href="/features/conditional-workflows"
+  >
+    Pause workflow execution until a human approves or rejects, then branch
+    accordingly.
+  </Cards.Card>
+  <Cards.Card title="A/B Testing Pipelines" href="/features/conditional-workflows">
+    Route data through different processing paths based on experiment
+    assignment.
+  </Cards.Card>
+  <Cards.Card
+    title="Error Recovery Branching"
+    href="/features/conditional-workflows"
+  >
+    Branch into a fallback path when an upstream task signals a degraded state.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Conditional Workflows](/features/conditional-workflows): full guide to conditions, or groups, and operators
+- [DAG Workflows](/features/dags): define task dependencies that branching builds on
+- [Fanout](/patterns/patterns/fanout): dynamically spawn tasks instead of choosing between fixed branches
+- [Pre-Determined Pipelines](/patterns/patterns/pre-determined-pipelines): fixed-structure pipelines without branching

@@ -1,0 +1,90 @@
+---
+asIndexPage: true
+---
+import { Tabs, Callout } from "nextra/components";
+
+# What is Hatchet?
+
+Hatchet is a modern orchestration platform that helps engineering teams build low-latency and high-throughput data ingestion and agentic AI pipelines.
+
+You write simple functions, called [tasks](/guide/your-first-task), in Python, Typescript, and Go and run them on [workers](/guide/workers) in your own infrastructure. You can compose these tasks into [parent/child relationships](/features/child-spawning) or predefined as [Directed Acyclic Graphs (DAGs)](/features/dags) to build more complex pipelines, which we call [workflows](/features/orchestration). All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
+
+Hatchet handles scheduling, complex assignment, fault tolerance, and observability so you can focus on building your application as you scale.
+
+## Patterns
+
+## Use-Cases
+
+While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
+
+- **Real-time data processing pipelines**: for example, data ingestion which is crucial for keeping LLM contexts up-to-date, or ETL pipelines that require fast execution and high throughput.
+- **AI agents**: a core number of Hatchet's features, like [webhooks](/guide/webhooks), [child spawning](/features/child-spawning), and [dynamic workflows](/features/child-spawning) are designed to support AI agents.
+- **Event-driven systems**: Hatchet's [eventing features](/guide/run-on-event) allow you to build event-driven architectures without requiring additional infrastructure.
+
+## Why Hatchet?
+
+⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](/features/rate-limits), [fairness](/features/concurrency), and [priorities](/features/priority) without complex configuration.
+
+🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](/features/durable-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
+
+🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
+
+If you plan on self-hosting or have requirements for an on-premise deployment, there are some additional considerations:
+
+🐘 **Minimal Infra Dependencies** - Hatchet is built on top of PostgreSQL and for simple workloads, [its all you need](/self-hosting/hatchet-lite).
+
+⬆️ **Fully Featured Open Source** - Hatchet is 100% MIT licensed, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](/self-hosting) when you need more control.
+
+## Hatchet vs. Alternatives
+
+Today, developers who need background task processing and workflow orchestration face two main options:
+
+1. Adopt external services like Temporal or Airflow, which are powerful but complex to run or introduce latency, or
+2. Use simple task queue libraries like Celery or BullMQ, which lack critical workflow features and become difficult to debug at scale.
+
+| Feature                                     | Hatchet | Celery     | Airflow    | Temporal     |
+| ------------------------------------------- | ------- | ---------- | ---------- | ------------ |
+| **Task Start Latency**                      | 25ms    | 5-100ms+   | 5-30s      | 25ms         |
+| **Concurrent Tasks**                        | 1000s   | Variable\* | Variable\* | 10000        |
+| **Code-First Workflows**                    | ✅      | ✅         | ✅         | ✅           |
+| **Cron Jobs and Scheduling**                | ✅      | ✅         | ✅         | ✅           |
+| **Priority Queues**                         | ✅      | ✅         | ✅         | ✅ (beta)    |
+| **Durable Sleep/Checkpoints**               | ✅      | ❌         | ❌         | ✅           |
+| **Sticky Assignment/Complex Routing Logic** | ✅      | ❌         | ❌         | ✅ (limited) |
+| **Event-Based Triggering**                  | ✅      | ❌         | ✅         | ❌           |
+| **Real-time Streaming**                     | ✅      | ❌         | ❌         | ❌           |
+| **Global Rate Limits**                      | ✅      | ❌         | ❌         | ❌           |
+| **Event Streaming**                         | ✅      | ❌         | ❌         | ❌           |
+
+\*Requires careful configuration and infrastructure scaling
+
+## Production Readiness
+
+Hatchet has been battle-tested in production environments, processing billions of tasks per month for scale-ups and enterprises across various industries. Our open source offering is deployed over 10k times per month, while Hatchet Cloud supports hundreds of companies running at scale.
+
+> "With Hatchet, we've scaled our indexing workflows effortlessly, reducing failed runs by 50% and doubling our user base in just two weeks!"
+> — Soohoon, Co-Founder @ Greptile
+
+> "Hatchet enables Aevy to process up to 50,000 documents in under an hour through optimized parallel execution, compared to nearly a week with our previous setup."
+> — Ymir, CTO @ Aevy
+
+## Quick Starts
+
+We have a number of quick start tutorials for getting up and running quickly with Hatchet:
+
+- [Hatchet Cloud Quickstart](/guide/hatchet-cloud-quickstart)
+- [Hatchet Self-Hosted Quickstarts](/guide/self-hosting)
+
+We also have guides for getting started with the Hatchet SDKs:
+
+- [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
+- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
+- [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
+
+## Learn More
+
+Ready to dive deeper? Explore these additional resources:
+
+**[Architecture & Guarantees](/guide/what-is-hatchet/architecture-and-guarantees)** - Learn how Hatchet is built, its guarantees, and when to use it.
+
+Or get started with the **[Hatchet Cloud Quickstart](/guide/hatchet-cloud-quickstart)** or **[self-hosting](/self-hosting)**.

@@ -1,0 +1,75 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import LongWaitDiagram from "@/components/LongWaitDiagramWrapper";
+import PatternComparison from "@/components/PatternComparison";
+
+# Long Waits
+
+A **long wait** is a workflow pattern where a task pauses execution for an extended period (hours, days, or even weeks) and then resumes exactly where it left off. Hatchet's durable tasks make this possible without holding a worker slot open: the task may be evicted during the wait and re-scheduled when the wait completes.
+
+<LongWaitDiagram />
+
+## How It Works
+
+<Steps>
+
+### Task performs initial work
+
+The durable task runs its logic up to the point where it needs to wait, preparing data, making API calls, or setting up state.
+
+### Task enters a long wait
+
+The task calls a durable sleep (for a fixed duration) or waits for a durable event (an external signal). During this time, the worker slot is freed, and the task is not consuming resources.
+
+### Task resumes and completes
+
+When the sleep expires or the event arrives, Hatchet re-schedules the task on an available worker. The task picks up exactly where it left off, with all prior state intact.
+
+</Steps>
+
+<Callout type="info">
+  Long waits require **durable tasks**. Regular tasks cannot pause and resume
+  across worker restarts. See [Durable Sleep](/features/durable-sleep) and [Durable
+  Events](/features/durable-events) for API details.
+</Callout>
+
+## Types of Long Waits
+
+| Type              | Mechanism            | Resumes When...                                                          |
+| ----------------- | -------------------- | ------------------------------------------------------------------------ |
+| **Durable Sleep** | `SleepFor(duration)` | The specified duration has elapsed                                       |
+| **Durable Event** | `WaitForEvent(key)`  | An external event matching the key (and optional CEL filter) is received |
+
+<Callout type="warning">
+  Durable sleeps are **exact**. If a task sleeps for 24 hours and is interrupted
+  after 23 hours, it will only sleep for 1 more hour on restart, not another
+  full 24 hours. This is what makes durable sleep different from a regular sleep
+  call.
+</Callout>
+
+## Use Cases
+
+<Cards>
+  <Cards.Card title="Delayed Notifications" href="/features/durable-sleep">
+    Send a follow-up email or push notification hours or days after an initial
+    action.
+  </Cards.Card>
+  <Cards.Card title="Human-in-the-Loop Approval" href="/features/durable-events">
+    Pause a workflow until a human approves, rejects, or provides input via an
+    external event.
+  </Cards.Card>
+  <Cards.Card title="Scheduled Follow-Ups" href="/features/durable-sleep">
+    Implement drip campaigns, trial expiration checks, or periodic status polls
+    with precise timing.
+  </Cards.Card>
+  <Cards.Card title="External System Callbacks" href="/features/durable-events">
+    Wait for a webhook, payment confirmation, or third-party API callback before
+    proceeding.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Durable Sleep](/features/durable-sleep): pause for a fixed duration with exact timing guarantees
+- [Durable Events](/features/durable-events): wait for external signals with optional CEL filters
+- [Conditional Workflows](/features/conditional-workflows): combine long waits with branching logic
+- [Cycles](/patterns/patterns/cycles): use long waits inside iterative loops

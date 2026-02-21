@@ -33,6 +33,21 @@ const nextConfig = {
         permanent: false,
       },
       {
+        source: '/guide',
+        destination: '/guide/what-is-hatchet',
+        permanent: false,
+      },
+      {
+        source: '/guide/setup',
+        destination: '/guide/hatchet-cloud-quickstart/setup',
+        permanent: true,
+      },
+      {
+        source: '/guide/environments',
+        destination: '/guide/hatchet-cloud-quickstart/environments',
+        permanent: true,
+      },
+      {
         source: '/compute',
         destination: '/v1/guide/compute',
         permanent: true,
@@ -52,7 +67,7 @@ const nextConfig = {
       },
       {
         source: "/home/basics/overview",
-        destination: "/v1/guide/setup",
+        destination: "/v1/guide/hatchet-cloud-quickstart/setup",
         permanent: false,
         basePath: false,
       },
@@ -64,7 +79,7 @@ const nextConfig = {
       },
       {
         source: "/home/basics/environments",
-        destination: "/v1/guide/environments",
+        destination: "/v1/guide/hatchet-cloud-quickstart/environments",
         permanent: false,
         basePath: false,
       },

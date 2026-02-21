@@ -75,34 +75,34 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "quickstart",
     query: "quickstart",
-    expectAnyOf: ["guide/hatchet-cloud-quickstart", "self-hosting/kubernetes-quickstart"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/hatchet-cloud-quickstart/index", "self-hosting/kubernetes-quickstart"],
   },
   {
     name: "setup",
     query: "setup",
-    expectAnyOf: ["guide/setup", "guide/hatchet-cloud-quickstart"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart/setup", "guide/hatchet-cloud-quickstart"],
   },
   {
     name: "getting started",
     query: "getting started",
-    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/setup"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/hatchet-cloud-quickstart/setup"],
     topN: 10,
   },
   {
     name: "install",
     query: "install",
-    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/setup", "cli/index"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart", "guide/hatchet-cloud-quickstart/setup", "cli/index"],
     topN: 10,
   },
   {
     name: "architecture",
     query: "architecture",
-    expectAnyOf: ["guide/architecture"],
+    expectAnyOf: ["guide/what-is-hatchet/architecture-and-guarantees"],
   },
   {
     name: "guarantees",
     query: "guarantees",
-    expectAnyOf: ["guide/guarantees-and-tradeoffs"],
+    expectAnyOf: ["guide/what-is-hatchet/architecture-and-guarantees"],
   },
 
   // -------------------------------------------------------------------------
@@ -134,7 +134,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "environments",
     query: "environments",
-    expectAnyOf: ["guide/environments"],
+    expectAnyOf: ["guide/hatchet-cloud-quickstart/environments"],
   },
 
   // -------------------------------------------------------------------------

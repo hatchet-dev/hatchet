@@ -179,8 +179,9 @@ const config = {
     backToTop: true,
   },
   sidebar: {
-    defaultMenuCollapseLevel: 2,
-    toggleButton: true,
+    defaultMenuCollapseLevel: 1,
+    toggleButton: false,
+    autoCollapse: true,
   },
   search: {
     component: Search,

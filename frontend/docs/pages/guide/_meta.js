@@ -1,17 +1,19 @@
 export default {
-  "--intro": {
-    title: "Why Hatchet?",
-    type: "separator",
+  index: {
+    "display": "hidden",
   },
-  index: "🪓 Welcome",
-  architecture: "Architecture",
-  "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
+  "what-is-hatchet": {
+    title: "🪓 What is Hatchet?",
+    theme: { "collapsed": true },
+  },
   "--quickstart": {
     title: "Setup",
     type: "separator",
   },
-  "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
-  setup: "Advanced Setup",
+  "hatchet-cloud-quickstart": {
+    title: "Quickstart",
+    theme: { "collapsed": true },
+  },
   "install-docs-mcp": "Install Docs MCP",
   "--guide": {
     title: "Fundamentals",
@@ -20,14 +22,10 @@ export default {
   "your-first-task": "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  environments: "Environments",
-  "--workflows": {
+  "durable-workflows": {
     title: "Durable Workflows",
-    type: "separator",
+    theme: { "collapsed": true },
   },
-  "what-is-a-durable-workflow": "What is a Durable Workflow?",
-  "durable-workflows-overview": "Durable Task Execution",
-  "workflows-overview": "Directed Acyclic Graphs",
   "--running-tasks": {
     title: "Ways of Running Tasks",
     type: "separator",
