@@ -1,6 +1,6 @@
 export default {
-  guide: {
-    title: "Guide",
+  essentials: {
+    title: "Essentials",
     type: "page",
     theme: {
       toc: false,

@@ -51,17 +51,17 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "hatchet.task( — defining a task",
     query: "hatchet.task(",
-    expectAnyOf: ["guide/your-first-task"],
+    expectAnyOf: ["essentials/your-first-task"],
   },
   {
     name: "hatchet.task — without parens",
     query: "hatchet.task",
-    expectAnyOf: ["guide/your-first-task"],
+    expectAnyOf: ["essentials/your-first-task"],
   },
   {
     name: "@hatchet.task() — Python decorator",
     query: "@hatchet.task()",
-    expectAnyOf: ["guide/your-first-task"],
+    expectAnyOf: ["essentials/your-first-task"],
   },
   {
     name: "hatchet.workflow — defining a workflow",
@@ -97,12 +97,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "architecture",
     query: "architecture",
-    expectAnyOf: ["guide/what-is-hatchet/architecture-and-guarantees"],
+    expectAnyOf: ["essentials/architecture-and-guarantees"],
   },
   {
     name: "guarantees",
     query: "guarantees",
-    expectAnyOf: ["guide/what-is-hatchet/architecture-and-guarantees"],
+    expectAnyOf: ["essentials/architecture-and-guarantees"],
   },
 
   // -------------------------------------------------------------------------
@@ -111,24 +111,24 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "define a task",
     query: "define a task",
-    expectAnyOf: ["guide/your-first-task"],
+    expectAnyOf: ["essentials/your-first-task"],
     topN: 10,
   },
   {
     name: "create worker",
     query: "create worker",
-    expectAnyOf: ["guide/workers"],
+    expectAnyOf: ["essentials/workers"],
     topN: 10,
   },
   {
     name: "worker",
     query: "worker",
-    expectAnyOf: ["guide/workers"],
+    expectAnyOf: ["essentials/workers"],
   },
   {
     name: "run task",
     query: "run task",
-    expectAnyOf: ["guide/running-your-task", "guide/running-tasks", "guide/run-with-results"],
+    expectAnyOf: ["essentials/running-your-task", "essentials/running-tasks", "essentials/run-with-results"],
     topN: 10,
   },
   {
@@ -143,43 +143,43 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "run with results",
     query: "run with results",
-    expectAnyOf: ["guide/run-with-results"],
+    expectAnyOf: ["essentials/run-with-results"],
   },
   {
     name: "run no wait",
     query: "run no wait",
-    expectAnyOf: ["guide/run-no-wait"],
+    expectAnyOf: ["essentials/run-no-wait"],
   },
   {
     name: "scheduled runs",
     query: "scheduled runs",
-    expectAnyOf: ["guide/scheduled-runs"],
+    expectAnyOf: ["essentials/scheduled-runs"],
   },
   {
     name: "cron",
     query: "cron",
-    expectAnyOf: ["guide/cron-runs"],
+    expectAnyOf: ["essentials/cron-runs"],
   },
   {
     name: "event trigger",
     query: "event trigger",
-    expectAnyOf: ["guide/run-on-event"],
+    expectAnyOf: ["essentials/run-on-event"],
     topN: 10,
   },
   {
     name: "bulk run",
     query: "bulk run",
-    expectAnyOf: ["guide/bulk-run"],
+    expectAnyOf: ["essentials/bulk-run"],
   },
   {
     name: "webhooks",
     query: "webhooks",
-    expectAnyOf: ["guide/webhooks"],
+    expectAnyOf: ["essentials/webhooks"],
   },
   {
     name: "inter-service",
     query: "inter-service",
-    expectAnyOf: ["guide/inter-service-triggering"],
+    expectAnyOf: ["essentials/inter-service-triggering"],
   },
 
   // -------------------------------------------------------------------------
@@ -310,18 +310,18 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "autoscaling workers",
     query: "autoscaling workers",
-    expectAnyOf: ["guide/autoscaling-workers"],
+    expectAnyOf: ["essentials/autoscaling-workers"],
   },
   {
     name: "worker health check",
     query: "worker health check",
-    expectAnyOf: ["guide/worker-healthchecks"],
+    expectAnyOf: ["essentials/worker-healthchecks"],
     topN: 10,
   },
   {
     name: "troubleshooting",
     query: "troubleshooting",
-    expectAnyOf: ["guide/troubleshooting-workers"],
+    expectAnyOf: ["essentials/troubleshooting-workers"],
   },
 
   // -------------------------------------------------------------------------
@@ -422,12 +422,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "docker compose",
     query: "docker compose",
-    expectAnyOf: ["self-hosting/docker-compose", "guide/docker"],
+    expectAnyOf: ["self-hosting/docker-compose", "essentials/docker"],
   },
   {
     name: "running with docker",
     query: "running with docker",
-    expectAnyOf: ["guide/docker", "self-hosting/docker-compose"],
+    expectAnyOf: ["essentials/docker", "self-hosting/docker-compose"],
     topN: 10,
   },
   {
@@ -548,17 +548,17 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "SimpleInput — Pydantic model",
     query: "SimpleInput",
-    expectAnyOf: ["guide/your-first-task"],
+    expectAnyOf: ["essentials/your-first-task"],
   },
   {
     name: "input_validator — Python arg",
     query: "input_validator",
-    expectAnyOf: ["sdk/python/pydantic", "guide/your-first-task"],
+    expectAnyOf: ["sdk/python/pydantic", "essentials/your-first-task"],
   },
   {
     name: "BaseModel — Pydantic",
     query: "BaseModel",
-    expectAnyOf: ["sdk/python/pydantic", "guide/your-first-task"],
+    expectAnyOf: ["sdk/python/pydantic", "essentials/your-first-task"],
   },
   {
     name: "ctx.spawn — child spawn",
@@ -568,7 +568,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "NewStandaloneTask — Go API",
     query: "NewStandaloneTask",
-    expectAnyOf: ["guide/your-first-task", "migrating/v0-to-v1/migration-guide-go"],
+    expectAnyOf: ["essentials/your-first-task", "migrating/v0-to-v1/migration-guide-go"],
   },
   {
     name: "DurableContext",
@@ -578,7 +578,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "aio_run — Python async run",
     query: "aio_run",
-    expectAnyOf: ["guide/your-first-task", "guide/run-with-results"],
+    expectAnyOf: ["essentials/your-first-task", "essentials/run-with-results"],
   },
 
   // -------------------------------------------------------------------------
@@ -587,7 +587,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "hatchet.task( — trailing paren",
     query: "hatchet.task(",
-    expectAnyOf: ["guide/your-first-task"],
+    expectAnyOf: ["essentials/your-first-task"],
     topN: 10,
   },
   {
@@ -599,7 +599,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: ".run() — dot prefix and parens",
     query: ".run()",
-    expectAnyOf: ["guide/your-first-task", "guide/run-with-results", "guide/running-your-task"],
+    expectAnyOf: ["essentials/your-first-task", "essentials/run-with-results", "essentials/running-your-task"],
     topN: 10,
   },
   {
@@ -619,7 +619,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "delay → scheduled/sleep",
     query: "delay",
-    expectAnyOf: ["features/durable-sleep", "guide/scheduled-runs"],
+    expectAnyOf: ["features/durable-sleep", "essentials/scheduled-runs"],
   },
   {
     name: "debounce → concurrency",
@@ -639,22 +639,22 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "fan out → child spawning",
     query: "fan out",
-    expectAnyOf: ["features/child-spawning", "guide/bulk-run"],
+    expectAnyOf: ["features/child-spawning", "essentials/bulk-run"],
   },
   {
     name: "parallel tasks",
     query: "parallel tasks",
-    expectAnyOf: ["features/child-spawning", "guide/run-with-results"],
+    expectAnyOf: ["features/child-spawning", "essentials/run-with-results"],
   },
   {
     name: "background job",
     query: "background job",
-    expectAnyOf: ["guide/your-first-task", "guide/run-no-wait", "guide/workers"],
+    expectAnyOf: ["essentials/your-first-task", "essentials/run-no-wait", "essentials/workers"],
   },
   {
     name: "recurring → cron",
     query: "recurring",
-    expectAnyOf: ["guide/cron-runs"],
+    expectAnyOf: ["essentials/cron-runs"],
   },
   {
     name: "error handling → retry/failure",
@@ -664,13 +664,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "fire and forget → run no wait",
     query: "fire and forget",
-    expectAnyOf: ["guide/run-no-wait"],
+    expectAnyOf: ["essentials/run-no-wait"],
     topN: 10,
   },
   {
     name: "scale workers → autoscaling",
     query: "scale workers",
-    expectAnyOf: ["guide/autoscaling-workers"],
+    expectAnyOf: ["essentials/autoscaling-workers"],
   },
   {
     name: "pipeline → DAG",
@@ -686,7 +686,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "batch → bulk run",
     query: "batch tasks",
-    expectAnyOf: ["guide/bulk-run"],
+    expectAnyOf: ["essentials/bulk-run"],
     topN: 10,
   },
   {
@@ -716,13 +716,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "debug → troubleshooting",
     query: "debug",
-    expectAnyOf: ["guide/troubleshooting-workers", "features/logging"],
+    expectAnyOf: ["essentials/troubleshooting-workers", "features/logging"],
     topN: 10,
   },
   {
     name: "deploy → docker/k8s",
     query: "deploy",
-    expectAnyOf: ["guide/docker", "self-hosting/docker-compose", "self-hosting/kubernetes-quickstart"],
+    expectAnyOf: ["essentials/docker", "self-hosting/docker-compose", "self-hosting/kubernetes-quickstart"],
     topN: 10,
   },
   {
@@ -759,7 +759,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "liveness → health checks",
     query: "liveness",
-    expectAnyOf: ["guide/worker-healthchecks"],
+    expectAnyOf: ["essentials/worker-healthchecks"],
     topN: 10,
   },
   {
@@ -771,7 +771,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "api call → inter-service",
     query: "api call between services",
-    expectAnyOf: ["guide/inter-service-triggering"],
+    expectAnyOf: ["essentials/inter-service-triggering"],
     topN: 10,
   },
   {
@@ -794,7 +794,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "how to run tasks in parallel",
     query: "how to run tasks in parallel",
-    expectAnyOf: ["features/child-spawning", "guide/run-with-results"],
+    expectAnyOf: ["features/child-spawning", "essentials/run-with-results"],
     topN: 10,
   },
   {
@@ -806,7 +806,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "how to set up cron job",
     query: "how to set up cron job",
-    expectAnyOf: ["guide/cron-runs"],
+    expectAnyOf: ["essentials/cron-runs"],
     topN: 10,
   },
   {

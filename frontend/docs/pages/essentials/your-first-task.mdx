@@ -36,7 +36,7 @@ The returned object is an instance of the `Task` class, which is the primary int
 With your task defined, you can import it wherever you need to use it and invoke it with the `run` method.
 
 <Callout type="warning">
-  NOTE: You must first [register the task on a worker](/guide/workers) before you
+  NOTE: You must first [register the task on a worker](/essentials/workers) before you
   can run it. Calling `your_task.run` will enqueue a task to be executed by a
   worker but it will wait indefinitely for the task to be executed.
 </Callout>
@@ -66,4 +66,4 @@ There are many ways to run a task, including:
 - [Scheduling a task with a cron schedule](/concepts/cron-runs)
 - [Event-driven task execution](/concepts/run-on-event)
 
-Now that you have defined a complete task, you can move on to [creating a worker to execute the task](/guide/workers).
+Now that you have defined a complete task, you can move on to [creating a worker to execute the task](/essentials/workers).

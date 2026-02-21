@@ -36,7 +36,7 @@ Concurrency limits prevent overwhelming your infrastructure. Rate limits protect
 | **[Concurrency](/concepts/concurrency)**                     | Limit how many items process simultaneously                             |
 | **[Rate Limits](/concepts/rate-limits)**                     | Throttle external API calls across all workers                          |
 | **[Priority](/concepts/priority)**                           | Urgent batches jump ahead of lower-priority work                        |
-| **[Autoscaling](/guide/autoscaling-workers)**                | Scale workers up during batch processing, down when idle                |
+| **[Autoscaling](/essentials/autoscaling-workers)**                | Scale workers up during batch processing, down when idle                |
 
 <Callout type="info">
   The batch processing pattern is [Fanout](/patterns/fanout) applied at
@@ -70,7 +70,7 @@ The parent awaits all children and aggregates results. You can see the status of
 <Callout type="warning">
   For batches with thousands of items, use **durable workflows** so the parent
   task doesn't hold a worker slot while waiting for all children to complete.
-  See [Durable Workflows](/guide/durable-workflows/durable-task-execution) for details.
+  See [Durable Workflows](/essentials/durable-workflows/durable-task-execution) for details.
 </Callout>
 
 ## Common Batch Patterns

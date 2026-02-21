@@ -10,7 +10,7 @@ export default {
     theme: { "collapsed": true },
   },
   "using-coding-agents": "Using Coding Agents",
-  "--guide": {
+  "--essentials": {
     title: "Fundamentals",
     type: "separator",
   },

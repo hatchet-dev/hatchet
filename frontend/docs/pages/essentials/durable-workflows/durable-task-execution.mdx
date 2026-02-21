@@ -3,7 +3,7 @@ import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
 
 # Durable Task Execution
 
-A **durable task** is a long-running task that stores its progress in a durable event log. For the high-level concept—execution state, orchestrator responsibility, and the two flavors (durable tasks vs DAGs)—see [Durable Workflows](/guide/durable-workflows). If the task is interrupted (such as a crash, a deployment, or a scaling event), it replays from its last checkpoint instead of starting over. This makes durable workflows ideal for tasks that require deterministic behavior and outcomes.
+A **durable task** is a long-running task that stores its progress in a durable event log. For the high-level concept—execution state, orchestrator responsibility, and the two flavors (durable tasks vs DAGs)—see [Durable Workflows](/essentials/durable-workflows). If the task is interrupted (such as a crash, a deployment, or a scaling event), it replays from its last checkpoint instead of starting over. This makes durable workflows ideal for tasks that require deterministic behavior and outcomes.
 
 <DurableWorkflowDiagram />
 
@@ -78,7 +78,7 @@ If your task calls `SleepFor` then `WaitForEvent`, don't later swap their order.
   <Cards.Card title="Durable Events" href="/concepts/durable-events">
     Wait for external signals with key matching and CEL filter expressions.
   </Cards.Card>
-  <Cards.Card title="Directed Acyclic Graphs" href="/guide/durable-workflows/directed-acyclic-graph">
+  <Cards.Card title="Directed Acyclic Graphs" href="/essentials/durable-workflows/directed-acyclic-graph">
     Compare with regular DAG workflows and understand when to use each.
   </Cards.Card>
   <Cards.Card title="Long Waits Pattern" href="/patterns/long-waits">
