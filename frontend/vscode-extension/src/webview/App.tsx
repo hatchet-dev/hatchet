@@ -54,6 +54,10 @@ export function App() {
     updateDarkClass();
 
     const handleMessage = (event: MessageEvent<IncomingMessage>) => {
+      // VS Code delivers extension-host messages with a vscode-webview:// origin.
+      // Our CSP (default-src 'none', no iframes, script-src nonce-only) already
+      // prevents any foreign frame or injected script from reaching this handler,
+      // so no origin guard is needed here.
       const msg = event.data;
       if (msg.type === 'setLoading') {
         setIsLoading(true);

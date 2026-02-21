@@ -41,9 +41,19 @@ export class LspAnalyzer {
       return makeFallback();
     }
 
+    // Cap at 500 to avoid runaway LSP results (e.g. generated files, node_modules).
+    const MAX_LOCATIONS = 500;
+    const safeLocations = locations.slice(0, MAX_LOCATIONS).filter((loc) =>
+      isWithinWorkspace(loc.uri),
+    );
+
+    if (safeLocations.length === 0) {
+      return makeFallback();
+    }
+
     const tasks: ParsedTask[] = [];
 
-    for (const location of locations) {
+    for (const location of safeLocations) {
       if (token.isCancellationRequested) break;
 
       try {
@@ -95,6 +105,19 @@ export class LspAnalyzer {
       usedFallback: false,
     };
   }
+}
+
+// ─── Workspace guard ─────────────────────────────────────────────────────────
+
+/**
+ * Return true if `uri` is under one of the currently open workspace folders.
+ * Prevents acting on LSP-supplied URIs that point outside the workspace.
+ */
+function isWithinWorkspace(uri: vscode.Uri): boolean {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || folders.length === 0) return false;
+  const uriStr = uri.toString();
+  return folders.some((f) => uriStr.startsWith(f.uri.toString()));
 }
 
 // ─── Location-level task extraction ──────────────────────────────────────────

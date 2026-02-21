@@ -177,7 +177,12 @@ export class DagPanel {
     const task = this._workflow?.tasks.find((t) => t.varId === stepId);
     if (!task || !this._documentUri) return;
 
-    const fileUri = task.fileUri ?? this._documentUri;
+    // If the task's fileUri was supplied by the LSP, verify it belongs to the
+    // open workspace before opening it to avoid path-traversal / open-redirect.
+    const taskFileUri = task.fileUri && isWithinWorkspace(task.fileUri)
+      ? task.fileUri
+      : undefined;
+    const fileUri = taskFileUri ?? this._documentUri;
 
     // Build a relative-path description for the quick-pick item
     const relPath = vscode.workspace.asRelativePath(fileUri, false);
@@ -271,6 +276,17 @@ function buildTaskActions(task: ParsedTask, fileDescription?: string): TaskActio
 }
 
 /**
+ * Return true if `uri` is under one of the currently open workspace folders.
+ * Used to guard against LSP-supplied URIs that point outside the workspace.
+ */
+function isWithinWorkspace(uri: vscode.Uri): boolean {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || folders.length === 0) return false;
+  const uriStr = uri.toString();
+  return folders.some((f) => uriStr.startsWith(f.uri.toString()));
+}
+
+/**
  * Open `uri` in the editor with the cursor placed on `line` (0-based)
  * and the line scrolled into the centre of the viewport.
  */
@@ -320,11 +336,8 @@ function workflowToShape(workflow: ParsedWorkflow): DagShape {
 }
 
 function getNonce(): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let nonce = '';
-  for (let i = 0; i < 32; i++) {
-    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return nonce;
+  // Use Node's crypto module for a cryptographically secure nonce.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { randomBytes } = require('crypto') as typeof import('crypto');
+  return randomBytes(16).toString('base64url');
 }

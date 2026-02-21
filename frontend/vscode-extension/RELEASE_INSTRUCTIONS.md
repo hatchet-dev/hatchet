@@ -2,17 +2,23 @@
 
 ## Before your first release
 
-### 1. Add the icon
+### 1. Verify the icon
 
-`assets/icon.png` must be a real **128×128 PNG** before `vsce package` will succeed.
-The file is currently a placeholder (`.gitkeep` only). Add the icon and commit it:
+`assets/icon.png` must be a **128×128 PNG**. The file already exists in the repo.
+If you ever need to replace it, verify the dimensions first:
 
 ```bash
-# Drop your 128x128 PNG in place, then:
-git add frontend/vscode-extension/assets/icon.png
+sips -g pixelWidth -g pixelHeight frontend/vscode-extension/assets/icon.png
+# Expected: pixelWidth: 128 / pixelHeight: 128
 ```
 
-`vsce package` will error with "The icon must be a PNG file" / "file not found" if the icon is missing or wrong size.
+If the dimensions are wrong, resize in place:
+
+```bash
+sips -z 128 128 frontend/vscode-extension/assets/icon.png
+```
+
+`vsce package` will error if the icon is missing or the wrong size.
 
 ### 2. Obtain a VS Code Marketplace Personal Access Token (PAT)
 
