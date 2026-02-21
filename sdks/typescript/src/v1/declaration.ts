@@ -1,3 +1,6 @@
+/**
+ * @module Runnables
+ */
 /* eslint-disable max-classes-per-file */
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
@@ -261,11 +264,13 @@ export class BaseWorkflowDeclaration<
 > {
   /**
    * The Hatchet client instance used to execute the workflow.
+   * @internal
    */
   client: IHatchetClient | undefined;
 
   /**
    * The internal workflow definition.
+   * @internal
    */
   definition: WorkflowDefinition;
 
@@ -781,6 +786,7 @@ export class TaskWorkflowDeclaration<
       : super.runNoWait(input, options, this._standalone_task_name);
   }
 
+  /** @internal */
   get taskDef() {
     return this.definition._tasks[0];
   }

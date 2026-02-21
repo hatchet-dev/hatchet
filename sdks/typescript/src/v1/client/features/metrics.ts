@@ -1,3 +1,6 @@
+/**
+ * @module Metrics Client
+ */
 import { HatchetClient } from '../client';
 
 export type TaskStatusMetrics = {

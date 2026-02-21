@@ -1,3 +1,6 @@
+/**
+ * @module Webhooks Client
+ */
 import {
   V1CreateWebhookRequest,
   V1CreateWebhookRequestBase,

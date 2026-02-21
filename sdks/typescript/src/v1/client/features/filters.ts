@@ -1,3 +1,6 @@
+/**
+ * @module Filters Client
+ */
 import { HatchetClient } from '../client';
 
 export type WorkflowIdScopePair = {

@@ -1,3 +1,6 @@
+/**
+ * @module Workers Client
+ */
 import { HatchetClient } from '../client';
 
 /**

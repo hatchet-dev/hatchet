@@ -1,6 +1,45 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["./src/index.ts"],
-  "out": "docs",
-  "plugin": ["typedoc-plugin-markdown"]
+  "entryPoints": [
+    "./src/v1/client/client.ts",
+    "./src/v1/client/worker/context.ts",
+    "./src/v1/declaration.ts",
+    "./src/v1/client/features/crons.ts",
+    "./src/v1/client/features/filters.ts",
+    "./src/v1/client/features/metrics.ts",
+    "./src/v1/client/features/ratelimits.ts",
+    "./src/v1/client/features/runs.ts",
+    "./src/v1/client/features/schedules.ts",
+    "./src/v1/client/features/workers.ts",
+    "./src/v1/client/features/workflows.ts",
+    "./src/v1/client/features/webhooks.ts"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "/tmp/hatchet-typescript/docs/gen",
+  "plugin": ["typedoc-plugin-markdown"],
+  "name": "Hatchet TypeScript SDK",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "excludeReferences": true,
+  "includeVersion": true,
+  "disableSources": true,
+  "sort": ["source-order"],
+  "hideGenerator": true,
+
+  // typedoc-plugin-markdown options
+  "router": "module",
+  "flattenOutputFiles": true,
+  "fileExtension": ".md",
+  "hidePageHeader": true,
+  "hideBreadcrumbs": true,
+  "useCodeBlocks": true,
+  "expandObjects": false,
+  "maxTypeConversionDepth": 3,
+  "parametersFormat": "table",
+  "enumMembersFormat": "table",
+  "typeDeclarationFormat": "table",
+  "propertiesFormat": "table",
+  "sanitizeComments": true
 }

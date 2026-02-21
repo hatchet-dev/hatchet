@@ -1,3 +1,6 @@
+/**
+ * @module Runs Client
+ */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { V1TaskStatus, V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
 import {
