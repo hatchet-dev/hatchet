@@ -29,20 +29,20 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 
 | Feature                                    | What it does for RAG                                                           |
 | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| **[Child Spawning](/home/child-spawning)** | Fan out to one task per document/chunk; process thousands in parallel          |
-| **[Rate Limits](/home/rate-limits)**       | Throttle embedding API calls across all workers to stay within provider limits |
-| **[Retry Policies](/home/retry-policies)** | Retry failed chunks individually without re-processing the whole pipeline      |
-| **[Concurrency](/home/concurrency)**       | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing               |
-| **[DAG Workflows](/home/dags)**            | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
-| **[Event Triggers](/home/run-on-event)**   | Start indexing automatically when new documents arrive                         |
-| **[Cron Triggers](/home/cron-runs)**       | Schedule periodic re-indexing or incremental updates                           |
-| **[Bulk Run](/home/bulk-run)**             | Trigger indexing for thousands of documents in a single API call               |
+| **[Child Spawning](/features/child-spawning)** | Fan out to one task per document/chunk; process thousands in parallel          |
+| **[Rate Limits](/features/rate-limits)**       | Throttle embedding API calls across all workers to stay within provider limits |
+| **[Retry Policies](/features/retry-policies)** | Retry failed chunks individually without re-processing the whole pipeline      |
+| **[Concurrency](/features/concurrency)**       | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing               |
+| **[DAG Workflows](/features/dags)**            | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
+| **[Event Triggers](/guide/run-on-event)**      | Start indexing automatically when new documents arrive                         |
+| **[Cron Triggers](/guide/cron-runs)**          | Schedule periodic re-indexing or incremental updates                           |
+| **[Bulk Run](/guide/bulk-run)**                | Trigger indexing for thousands of documents in a single API call               |
 
 <Callout type="info">
   RAG pipelines are a natural fit for [Pre-Determined
-  Pipelines](/home/patterns/pre-determined-pipelines). The stages (ingest,
+  Pipelines](/guide/patterns/pre-determined-pipelines). The stages (ingest,
   chunk, embed, index) are fixed and map directly to a DAG. Use
-  [Fanout](/home/patterns/fanout) within the chunking stage to parallelize.
+  [Fanout](/guide/patterns/fanout) within the chunking stage to parallelize.
 </Callout>
 
 ## Pipeline Architecture
@@ -73,7 +73,7 @@ A separate workflow handles user queries, generating query embeddings, searching
 
 <Callout type="warning">
   When fanning out to many chunks, ensure your workers have enough slots or use
-  [Concurrency Control](/home/concurrency) to limit how many run simultaneously.
+  [Concurrency Control](/features/concurrency) to limit how many run simultaneously.
 </Callout>
 
 ## Multi-Tenant Indexing
@@ -89,25 +89,25 @@ For SaaS applications where multiple tenants share the same pipeline:
 <Cards>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/home/patterns/pre-determined-pipelines"
+    href="/guide/patterns/pre-determined-pipelines"
   >
     The fixed-stage DAG pattern that RAG pipelines are built on.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/home/patterns/fanout">
+  <Cards.Card title="Fanout" href="/guide/patterns/fanout">
     Parallelize document and chunk processing across your worker fleet.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/home/patterns/cycles">
+  <Cards.Card title="Cycles" href="/guide/patterns/cycles">
     Implement incremental indexing that re-crawls until all changes are
     processed.
   </Cards.Card>
-  <Cards.Card title="Batch Processing" href="/home/use-cases/batch-processing">
+  <Cards.Card title="Batch Processing" href="/guide/use-cases/batch-processing">
     General-purpose batch processing patterns that apply to indexing workloads.
   </Cards.Card>
 </Cards>
 
 ## Next Steps
 
-- [DAG Workflows](/home/dags): define multi-stage pipelines with task dependencies
-- [Rate Limits](/home/rate-limits): configure rate limiting for embedding APIs
-- [Child Spawning](/home/child-spawning): fan out to per-document tasks
-- [Concurrency Control](/home/concurrency): fair scheduling for multi-tenant indexing
+- [DAG Workflows](/features/dags): define multi-stage pipelines with task dependencies
+- [Rate Limits](/features/rate-limits): configure rate limiting for embedding APIs
+- [Child Spawning](/features/child-spawning): fan out to per-document tasks
+- [Concurrency Control](/features/concurrency): fair scheduling for multi-tenant indexing

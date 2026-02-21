@@ -27,14 +27,14 @@ The parent may choose to await all child completions and aggregate their results
 </Steps>
 
 <Callout type="info">
-  Fanout is built on top of [Procedural Child Spawning](/home/child-spawning).
+  Fanout is built on top of [Procedural Child Spawning](/features/child-spawning).
   See that page for full code examples on defining tasks, spawning children,
   parallel execution, and error handling.
 </Callout>
 
 <Callout type="warning">
   When fanning out to large numbers of children, make sure your workers have
-  enough slots to handle the concurrent load. See [Worker Slots](/home/workers)
+  enough slots to handle the concurrent load. See [Worker Slots](/guide/workers)
   for details on configuring slot capacity.
 </Callout>
 
@@ -71,18 +71,18 @@ The parent may choose to await all child completions and aggregate their results
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="Batch Processing" href="/home/bulk-run">
+  <Cards.Card title="Batch Processing" href="/guide/bulk-run">
     Process thousands of items (images, documents, records) in parallel with
     automatic load distribution across workers.
   </Cards.Card>
-  <Cards.Card title="Map-Reduce Pipelines" href="/home/dags">
+  <Cards.Card title="Map-Reduce Pipelines" href="/features/dags">
     Fan out to map tasks, then reduce results in a downstream DAG step.
   </Cards.Card>
-  <Cards.Card title="Multi-Provider AI Inference" href="/home/child-spawning">
+  <Cards.Card title="Multi-Provider AI Inference" href="/features/child-spawning">
     Send the same prompt to multiple LLM providers concurrently and pick the
     best response.
   </Cards.Card>
-  <Cards.Card title="Notification Delivery" href="/home/rate-limits">
+  <Cards.Card title="Notification Delivery" href="/features/rate-limits">
     Fan out to send notifications to N users while respecting per-provider rate
     limits.
   </Cards.Card>
@@ -90,7 +90,7 @@ The parent may choose to await all child completions and aggregate their results
 
 ## Next Steps
 
-- [Procedural Child Spawning](/home/child-spawning): learn the full child task API
-- [DAG Workflows](/home/dags): combine fanout with declarative task dependencies
-- [Concurrency Control](/home/concurrency): limit how many children run simultaneously
-- [Rate Limits](/home/rate-limits): throttle child task execution rates
+- [Procedural Child Spawning](/features/child-spawning): learn the full child task API
+- [DAG Workflows](/features/dags): combine fanout with declarative task dependencies
+- [Concurrency Control](/features/concurrency): limit how many children run simultaneously
+- [Rate Limits](/features/rate-limits): throttle child task execution rates

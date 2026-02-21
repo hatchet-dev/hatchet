@@ -43,7 +43,7 @@ The branch whose condition is satisfied runs.
 | `cancel_if` | Task and its downstream dependents are cancelled if the condition evaluates to true |
 
 <Callout type="info">
-  Branching is built using [Conditional Workflows](/home/conditional-workflows).
+  Branching is built using [Conditional Workflows](/features/conditional-workflows).
   See that page for full code examples covering parent conditions, event
   conditions, sleep conditions, or groups, and a complete branching workflow
   walkthrough.
@@ -60,24 +60,24 @@ The branch whose condition is satisfied runs.
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="Feature Flag Routing" href="/home/conditional-workflows">
+  <Cards.Card title="Feature Flag Routing" href="/features/conditional-workflows">
     Read a feature flag in an upstream task and route the workflow down
     different code paths based on its value.
   </Cards.Card>
   <Cards.Card
     title="Human-in-the-Loop Approval"
-    href="/home/conditional-workflows"
+    href="/features/conditional-workflows"
   >
     Pause workflow execution until a human approves or rejects, then branch
     accordingly.
   </Cards.Card>
-  <Cards.Card title="A/B Testing Pipelines" href="/home/conditional-workflows">
+  <Cards.Card title="A/B Testing Pipelines" href="/features/conditional-workflows">
     Route data through different processing paths based on experiment
     assignment.
   </Cards.Card>
   <Cards.Card
     title="Error Recovery Branching"
-    href="/home/conditional-workflows"
+    href="/features/conditional-workflows"
   >
     Branch into a fallback path when an upstream task signals a degraded state.
   </Cards.Card>
@@ -85,7 +85,7 @@ The branch whose condition is satisfied runs.
 
 ## Next Steps
 
-- [Conditional Workflows](/home/conditional-workflows): full guide to conditions, or groups, and operators
-- [DAG Workflows](/home/dags): define task dependencies that branching builds on
-- [Fanout](/home/patterns/fanout): dynamically spawn tasks instead of choosing between fixed branches
-- [Pre-Determined Pipelines](/home/patterns/pre-determined-pipelines): fixed-structure pipelines without branching
+- [Conditional Workflows](/features/conditional-workflows): full guide to conditions, or groups, and operators
+- [DAG Workflows](/features/dags): define task dependencies that branching builds on
+- [Fanout](/guide/patterns/fanout): dynamically spawn tasks instead of choosing between fixed branches
+- [Pre-Determined Pipelines](/guide/patterns/pre-determined-pipelines): fixed-structure pipelines without branching

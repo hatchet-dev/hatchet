@@ -29,18 +29,18 @@ Hatchet matches events to registered task triggers, handles deduplication and fi
 
 | Feature                                                        | What it does for event-driven systems                               |
 | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| **[Event Triggers](/home/run-on-event)**                       | React to application events by name with optional payload filtering |
-| **[Webhooks](/home/webhooks)**                                 | Receive external HTTP webhooks and route them to tasks              |
-| **[Cron Triggers](/home/cron-runs)**                           | Schedule recurring tasks with cron expressions                      |
-| **[Scheduled Runs](/home/scheduled-runs)**                     | Trigger one-time future execution at a specific time                |
-| **[Concurrency](/home/concurrency)**                           | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies     |
-| **[Rate Limits](/home/rate-limits)**                           | Throttle downstream processing regardless of event volume           |
-| **[Inter-Service Triggering](/home/inter-service-triggering)** | Trigger tasks across different services and worker pools            |
-| **[Additional Metadata](/home/additional-metadata)**           | Tag events with metadata for filtering and observability            |
+| **[Event Triggers](/guide/run-on-event)**                       | React to application events by name with optional payload filtering |
+| **[Webhooks](/guide/webhooks)**                                 | Receive external HTTP webhooks and route them to tasks              |
+| **[Cron Triggers](/guide/cron-runs)**                            | Schedule recurring tasks with cron expressions                      |
+| **[Scheduled Runs](/guide/scheduled-runs)**                      | Trigger one-time future execution at a specific time                |
+| **[Concurrency](/features/concurrency)**                         | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies     |
+| **[Rate Limits](/features/rate-limits)**                         | Throttle downstream processing regardless of event volume           |
+| **[Inter-Service Triggering](/guide/inter-service-triggering)**  | Trigger tasks across different services and worker pools            |
+| **[Additional Metadata](/features/additional-metadata)**         | Tag events with metadata for filtering and observability            |
 
 <Callout type="info">
   Hatchet supports all common triggering patterns in a single system. See [Ways
-  of Running Tasks](/home/running-tasks) for the complete list of trigger types
+  of Running Tasks](/guide/running-tasks) for the complete list of trigger types
   and when to use each.
 </Callout>
 
@@ -85,18 +85,18 @@ Task outputs can trigger further events, spawn child tasks, or start downstream 
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Branching" href="/home/patterns/branching">
+  <Cards.Card title="Branching" href="/guide/patterns/branching">
     Route event-driven workflows down different paths based on event payload.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/home/patterns/fanout">
+  <Cards.Card title="Fanout" href="/guide/patterns/fanout">
     A single event triggers parallel processing across multiple workers.
   </Cards.Card>
-  <Cards.Card title="Long Waits" href="/home/patterns/long-waits">
+  <Cards.Card title="Long Waits" href="/guide/patterns/long-waits">
     Pause a workflow until an external event arrives, then resume.
   </Cards.Card>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/home/patterns/pre-determined-pipelines"
+    href="/guide/patterns/pre-determined-pipelines"
   >
     Chain event-triggered tasks into multi-stage processing pipelines.
   </Cards.Card>
@@ -104,7 +104,7 @@ Task outputs can trigger further events, spawn child tasks, or start downstream 
 
 ## Next Steps
 
-- [Event Triggers](/home/run-on-event): trigger tasks from application events
-- [Webhooks](/home/webhooks): receive and process external webhooks
-- [Cron Triggers](/home/cron-runs): set up recurring scheduled tasks
-- [Concurrency Control](/home/concurrency): configure spike protection
+- [Event Triggers](/guide/run-on-event): trigger tasks from application events
+- [Webhooks](/guide/webhooks): receive and process external webhooks
+- [Cron Triggers](/guide/cron-runs): set up recurring scheduled tasks
+- [Concurrency Control](/features/concurrency): configure spike protection

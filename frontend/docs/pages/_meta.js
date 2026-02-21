@@ -1,6 +1,13 @@
 export default {
-  home: {
+  guide: {
     title: "Guide",
+    type: "page",
+    theme: {
+      toc: false,
+    },
+  },
+  features: {
+    title: "Features",
     type: "page",
     theme: {
       toc: false,
@@ -31,13 +38,13 @@ export default {
       toc: false,
     },
   },
-  sdks: {
+  sdk: {
     title: "SDK Reference",
     type: "menu",
     items: {
       python: {
         title: "Python",
-        href: "/sdks/python/client",
+        href: "/sdk/python/client",
         type: "page",
       },
       go: {
