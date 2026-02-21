@@ -1,3 +1,6 @@
+/**
+ * @module Workflows Client
+ */
 import { Workflow } from '@hatchet/workflow';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import { isValidUUID } from '@util/uuid';

@@ -1,3 +1,6 @@
+/**
+ * @module Cron Client
+ */
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { Workflow } from '@hatchet/workflow';

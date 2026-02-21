@@ -1,3 +1,6 @@
+/**
+ * @module Schedules Client
+ */
 import {
   ScheduledWorkflows,
   ScheduledWorkflowsBulkDeleteFilter,

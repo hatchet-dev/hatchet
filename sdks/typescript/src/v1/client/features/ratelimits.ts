@@ -1,3 +1,6 @@
+/**
+ * @module Ratelimits Client
+ */
 import { RateLimitDuration } from '@hatchet/protoc/workflows';
 import {
   RateLimitOrderByField,
