@@ -89,7 +89,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		), nil
 	}
 
-	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
+	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, user)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to save authenticated session")

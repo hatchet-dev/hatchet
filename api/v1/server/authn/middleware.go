@@ -28,7 +28,7 @@ type AuthN struct {
 func NewAuthN(config *server.ServerConfig) *AuthN {
 	return &AuthN{
 		config:  config,
-		helpers: NewSessionHelpers(config),
+		helpers: NewSessionHelpers(config.SessionStore),
 		l:       config.Logger,
 	}
 }
@@ -149,8 +149,8 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
 		// if the session is new, make sure we write a Set-Cookie header to the response
 		if session.IsNew {
-			if err := saveNewSession(c, session); err != nil {
-				a.l.Error().Err(err).Msg("error saving unauthenticated session")
+			if saveErr := a.helpers.SaveNewSession(c, session); saveErr != nil {
+				a.l.Error().Err(saveErr).Msg("error saving unauthenticated session")
 				return fmt.Errorf("error saving unauthenticated session")
 			}
 

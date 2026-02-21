@@ -20,7 +20,7 @@ import (
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.UserUpdateGithubOauthCallbackRequestObject) (gen.UserUpdateGithubOauthCallbackResponseObject, error) {
-	isValid, _, err := authn.NewSessionHelpers(u.config).ValidateOAuthState(ctx, "github")
+	isValid, _, err := authn.NewSessionHelpers(u.config.SessionStore).ValidateOAuthState(ctx, "github")
 
 	if err != nil || !isValid {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Could not log in. Please try again and make sure cookies are enabled.")
@@ -54,7 +54,7 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
-	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
+	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, user)
 
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
