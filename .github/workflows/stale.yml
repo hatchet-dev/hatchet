@@ -11,7 +11,7 @@ jobs:
   stale:
     runs-on: ubicloud-standard-2
     steps:
-      - uses: actions/stale@v10
+      - uses: actions/stale@b5d41d4e1d5dceea10e7104786b73624c18a190f # v10.2.0
         with:
           stale-issue-message: 'This issue has been stale for 90 days. Please update the issue or comment to keep it active. Otherwise, it will be closed in 5 days.'
           days-before-stale: 90
