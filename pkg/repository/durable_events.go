@@ -408,18 +408,8 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 		Tenantid:              tenantId,
 	})
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		logFile, err = r.queries.CreateEventLogFile(ctx, tx, sqlcv1.CreateEventLogFileParams{
-			Durabletaskid:         durableTaskId,
-			Durabletaskinsertedat: durableTaskInsertedAt,
-			Tenantid:              tenantId,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to create log file: %w", err)
-		}
 	}
 
 	return logFile, nil
@@ -444,6 +434,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
+	}
+
+	if logFile.LatestInvocationCount != opts.InvocationCount {
+		// TODO-DURABLE: should evict this invocation if this happens
+		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d. rejecting event write.", logFile.LatestInvocationCount, opts.InvocationCount)
 	}
 
 	// TODO-DURABLE probably need to grab the previous entry here, if it exists, to determine how to increment?
