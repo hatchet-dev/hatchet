@@ -302,45 +302,6 @@ function handleToolsList(id: string | number | null): JsonRpcResponse {
             required: ["query"],
           },
         },
-        {
-          name: "get_full_docs",
-          description:
-            "Get the complete Hatchet documentation as a single document. Useful for comprehensive context.",
-          inputSchema: {
-            type: "object",
-            properties: {},
-          },
-        },
-        {
-          name: "hatchet_setup_cli",
-          description:
-            "Get instructions for installing the Hatchet CLI and setting up a profile. Call this first if the CLI is not yet installed or no profile exists. Returns step-by-step instructions the agent should follow using shell commands.",
-          inputSchema: { type: "object", properties: {} },
-        },
-        {
-          name: "hatchet_start_worker",
-          description:
-            "Get instructions for starting a Hatchet worker in dev mode using the CLI. The worker must be running before any workflows can be triggered. Returns step-by-step instructions the agent should follow using shell commands.",
-          inputSchema: { type: "object", properties: {} },
-        },
-        {
-          name: "hatchet_trigger_and_watch",
-          description:
-            "Get instructions for triggering a Hatchet workflow and polling until it completes or fails. Returns step-by-step instructions the agent should follow using shell commands.",
-          inputSchema: { type: "object", properties: {} },
-        },
-        {
-          name: "hatchet_debug_run",
-          description:
-            "Get instructions for debugging a Hatchet run that failed, is stuck, or behaved unexpectedly. Returns step-by-step diagnostic instructions the agent should follow using shell commands.",
-          inputSchema: { type: "object", properties: {} },
-        },
-        {
-          name: "hatchet_replay_run",
-          description:
-            "Get instructions for replaying a Hatchet run, optionally with modified input. Returns step-by-step instructions the agent should follow using shell commands.",
-          inputSchema: { type: "object", properties: {} },
-        },
       ],
     },
   };
@@ -359,26 +320,6 @@ function handleToolsCall(
 
   if (toolName === "get_full_docs") {
     return handleGetFullDocs(id);
-  }
-
-  if (toolName === "hatchet_setup_cli") {
-    return handleAgentInstructions(id, "setup-cli");
-  }
-
-  if (toolName === "hatchet_start_worker") {
-    return handleAgentInstructions(id, "start-worker");
-  }
-
-  if (toolName === "hatchet_trigger_and_watch") {
-    return handleAgentInstructions(id, "trigger-and-watch");
-  }
-
-  if (toolName === "hatchet_debug_run") {
-    return handleAgentInstructions(id, "debug-run");
-  }
-
-  if (toolName === "hatchet_replay_run") {
-    return handleAgentInstructions(id, "replay-run");
   }
 
   return {
@@ -537,31 +478,6 @@ function readAgentPage(slug: string): string | null {
     return fs.readFileSync(mdxPath, "utf-8");
   }
   return null;
-}
-
-function handleAgentInstructions(
-  id: string | number | null,
-  slug: string,
-): JsonRpcResponse {
-  const content = readAgentPage(slug);
-  if (!content) {
-    return {
-      jsonrpc: "2.0",
-      id,
-      error: {
-        code: -32603,
-        message: `Agent instructions not found: ${slug}`,
-      },
-    };
-  }
-
-  return {
-    jsonrpc: "2.0",
-    id,
-    result: {
-      content: [{ type: "text", text: content }],
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
