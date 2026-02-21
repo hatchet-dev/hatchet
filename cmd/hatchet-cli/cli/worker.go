@@ -7,13 +7,16 @@ import (
 	"os"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/worker"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/pm"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/tui"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	profileconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
@@ -75,15 +78,125 @@ var devCmd = &cobra.Command{
 	},
 }
 
+var workerListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List workers",
+	Long:  `List workers. Without --output json, launches the interactive TUI. With --output json, outputs raw JSON.`,
+	Example: `  # Launch interactive TUI (default)
+  hatchet worker list --profile local
+
+  # JSON output
+  hatchet worker list -o json`,
+	// Override parent PersistentPreRun — no hatchet.yaml required for listing
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {},
+	Run: func(cmd *cobra.Command, args []string) {
+		isJSON := isJSONOutput(cmd)
+		selectedProfile, hatchetClient := clientFromCmd(cmd)
+
+		if !isJSON {
+			tuiM := newTUIModel(selectedProfile, hatchetClient)
+			tuiM.currentViewType = ViewTypeWorkers
+			tuiM.currentView = tui.NewWorkersView(tuiM.ctx)
+			p := tea.NewProgram(tuiM, tea.WithAltScreen())
+			if _, err := p.Run(); err != nil {
+				cli.Logger.Fatalf("error running TUI: %v", err)
+			}
+			return
+		}
+
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+		resp, err := hatchetClient.API().WorkerListWithResponse(ctx, tenantUUID)
+		if err != nil {
+			cli.Logger.Fatalf("failed to list workers: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d)", resp.StatusCode())
+		}
+
+		printJSON(resp.JSON200)
+	},
+}
+
+var workerGetCmd = &cobra.Command{
+	Use:   "get <worker-id>",
+	Short: "Get worker details",
+	Long:  `Get details about a worker. Without --output json, launches the TUI navigated to the worker. With --output json, outputs raw JSON.`,
+	Args:  cobra.ExactArgs(1),
+	Example: `  # Launch TUI for a specific worker
+  hatchet worker get <worker-id> --profile local
+
+  # JSON output
+  hatchet worker get <worker-id> -o json`,
+	// Override parent PersistentPreRun — no hatchet.yaml required for get
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {},
+	Run: func(cmd *cobra.Command, args []string) {
+		workerID := args[0]
+		isJSON := isJSONOutput(cmd)
+		selectedProfile, hatchetClient := clientFromCmd(cmd)
+
+		if !isJSON {
+			base := newTUIModel(selectedProfile, hatchetClient)
+			base.currentViewType = ViewTypeWorkers
+			base.currentView = tui.NewWorkersView(base.ctx)
+			model := tuiModelWithInitialWorker{
+				tuiModel:        base,
+				initialWorkerID: workerID,
+			}
+			p := tea.NewProgram(model, tea.WithAltScreen())
+			if _, err := p.Run(); err != nil {
+				cli.Logger.Fatalf("error running TUI: %v", err)
+			}
+			return
+		}
+
+		workerUUID, err := uuid.Parse(workerID)
+		if err != nil {
+			cli.Logger.Fatalf("invalid worker ID %q: %v", workerID, err)
+		}
+
+		ctx := cmd.Context()
+		resp, err := hatchetClient.API().WorkerGetWithResponse(ctx, workerUUID)
+		if err != nil {
+			cli.Logger.Fatalf("failed to get worker: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("worker not found (status %d)", resp.StatusCode())
+		}
+
+		printJSON(resp.JSON200)
+	},
+}
+
+// tuiModelWithInitialWorker wraps tuiModel to navigate to a specific worker on init
+type tuiModelWithInitialWorker struct {
+	initialWorkerID string
+	tuiModel
+}
+
+func (m tuiModelWithInitialWorker) Init() tea.Cmd {
+	return tea.Batch(
+		m.tuiModel.Init(),
+		func() tea.Msg { return tui.NavigateToWorkerMsg{WorkerID: m.initialWorkerID} },
+	)
+}
+
 func init() {
 	rootCmd.AddCommand(workerCmd)
 
 	workerCmd.AddCommand(devCmd)
+	workerCmd.AddCommand(workerListCmd, workerGetCmd)
 
 	// Add flags for dev command
 	devCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
 	devCmd.Flags().Bool("no-reload", false, "Disable automatic reloading on file changes")
 	devCmd.Flags().StringP("run-cmd", "r", "", "Override the run command from hatchet.yaml")
+
+	// Add flags for list/get commands
+	workerListCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	workerListCmd.Flags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
+	workerGetCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	workerGetCmd.Flags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
 }
 
 func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileFlag string) {

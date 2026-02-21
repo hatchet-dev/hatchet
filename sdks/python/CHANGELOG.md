@@ -5,12 +5,19 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.2] - 2026-02-19
+
+### Fixed
+
+- Reverts cancellation changes in 1.25.0 that introduced a regression
+
 ## [1.25.1] - 2026-02-17
 
 ### Fixed
+
 - Fixes internal registration of durable slots
 
-## [1.25.0] - 2026-02-17
+## [1.25.0] - 2026-02-17 **YANKED ON 2/19/26**
 
 ### Added
 
@@ -47,13 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adds type-hinted `Task.output_validator` and `Task.output_validator_type` properties to support easier type-safety and match the patterns on `BaseWorkflow/Standalone`.
 - Adds parameterized unit tests documenting current retry behavior of the Python SDK’s tenacity retry predicate for REST and gRPC errors.
 
-
 ## [1.23.2] - 2026-02-11
 
 ### Changed
 
 - Improves error handling for REST transport-level failures by raising typed exceptions for timeouts, connection, TLS, and protocol errors while preserving existing diagnostics.
-
 
 ## [1.23.1] - 2026-02-10
 
@@ -61,13 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixes a bug introduced in v1.21.0 where the `BaseWorkflow.input_validator` class property became incorrectly typed. Now separate properties are available for the type adapter and the underlying type.
 
-
 ## [1.23.0] - 2026-02-05
 
 ### Internal Only
 
 - Updated gRPC/REST contract field names to snake_case for consistency across SDKs.
-
 
 ## [1.22.16] - 2026-02-05
 
