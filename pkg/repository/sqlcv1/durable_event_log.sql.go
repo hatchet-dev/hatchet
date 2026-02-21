@@ -248,7 +248,7 @@ SELECT
     1,
     NOW(),
     0,
-    0,
+    1,
     0
 FROM inputs
 ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
