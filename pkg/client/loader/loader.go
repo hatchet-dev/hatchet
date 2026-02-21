@@ -139,6 +139,7 @@ func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfi
 	return &client.ClientConfig{
 		TenantId:               cf.TenantId,
 		TLSConfig:              tlsConf,
+		Logger:                 cf.Logger,
 		Token:                  cf.Token,
 		ServerURL:              serverURL,
 		GRPCBroadcastAddress:   grpcBroadcastAddress,
