@@ -12,7 +12,7 @@ import (
 func (u *UserService) UserUpdateLogout(ctx echo.Context, request gen.UserUpdateLogoutRequestObject) (gen.UserUpdateLogoutResponseObject, error) {
 	user := ctx.Get("user").(*sqlcv1.User)
 
-	if err := authn.NewSessionHelpers(u.config).SaveUnauthenticated(ctx); err != nil {
+	if err := authn.NewSessionHelpers(u.config.SessionStore).SaveUnauthenticated(ctx); err != nil {
 		return nil, err
 	}
 

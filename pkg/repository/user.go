@@ -42,6 +42,8 @@ type UpdateUserOpts struct {
 
 type UserCreateCallbackOpts struct {
 	*sqlcv1.User
+	*sqlcv1.UserOAuth
+	*sqlcv1.UserPassword
 
 	CreateOpts *CreateUserOpts
 }
@@ -165,8 +167,10 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 		return nil, err
 	}
 
+	var userPassword *sqlcv1.UserPassword
+
 	if opts.Password != nil {
-		_, err := r.queries.CreateUserPassword(ctx, tx, sqlcv1.CreateUserPasswordParams{
+		userPassword, err = r.queries.CreateUserPassword(ctx, tx, sqlcv1.CreateUserPasswordParams{
 			Userid: userId,
 			Hash:   *opts.Password,
 		})
@@ -175,6 +179,8 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 			return nil, err
 		}
 	}
+
+	var userOAuth *sqlcv1.UserOAuth
 
 	if opts.OAuth != nil {
 		createOAuthParams := sqlcv1.CreateUserOAuthParams{
@@ -189,7 +195,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 			createOAuthParams.ExpiresAt = sqlchelpers.TimestampFromTime(*opts.OAuth.ExpiresAt)
 		}
 
-		_, err = r.queries.CreateUserOAuth(ctx, tx, createOAuthParams)
+		userOAuth, err = r.queries.CreateUserOAuth(ctx, tx, createOAuthParams)
 
 		if err != nil {
 			return nil, err
@@ -202,8 +208,10 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 
 	for _, cb := range r.createCallbacks {
 		cb.Do(r.l, &UserCreateCallbackOpts{
-			User:       user,
-			CreateOpts: opts,
+			User:         user,
+			UserPassword: userPassword,
+			UserOAuth:    userOAuth,
+			CreateOpts:   opts,
 		})
 	}
 

@@ -20,7 +20,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, nil, "Slack OAuth is not configured on this Hatchet instance.")
 	}
 
-	sh := authn.NewSessionHelpers(g.config)
+	sh := authn.NewSessionHelpers(g.config.SessionStore)
 
 	tenantId, err := sh.GetKeyUuid(ctx, "tenant")
 
