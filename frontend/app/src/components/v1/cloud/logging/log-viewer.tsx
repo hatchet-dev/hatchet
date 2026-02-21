@@ -88,6 +88,10 @@ const LevelBadge = ({ level }: { level: string }) => {
   );
 };
 
+function isNonEmpty<TValue>(value: TValue | null | undefined): value is TValue {
+  return value !== null && value !== undefined;
+}
+
 export function LogViewer({
   logs,
   onScrollToBottom,
@@ -102,6 +106,7 @@ export function LogViewer({
   const wasAtTopRef = useRef(true);
   const wasInTopRegionRef = useRef(false);
   const wasInBottomRegionRef = useRef(false);
+  const [selectedLogIndex, setSelectedLogIndex] = useState<number>();
 
   const sortedLogs = useMemo(() => {
     if (logs.length === 0) {
@@ -256,45 +261,56 @@ export function LogViewer({
         </div>
 
         {/* Data rows */}
-        {sortedLogs.map((log) => (
-          <div
-            key={`${log.timestamp}-${log.instance ?? ''}-${log.attempt ?? ''}`}
-            className="col-span-full items-baseline grid grid-cols-subgrid border-b border-border/40 hover:bg-muted/30 transition-colors group"
-            style={{ gridColumn: `1 / span ${colCount}` }}
-          >
-            <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-              {log.timestamp ? (
-                showRelativeTime ? (
-                  <RelativeDate date={log.timestamp} />
+        {sortedLogs
+          .filter((log) => isNonEmpty(log.line))
+          .map((log, ix) => (
+            <div
+              key={`${log.timestamp}-${log.instance ?? ''}-${log.attempt ?? ''}`}
+              className="col-span-full items-baseline grid grid-cols-subgrid border-b border-border/40 hover:bg-muted/30 transition-colors group"
+              style={{ gridColumn: `1 / span ${colCount}` }}
+            >
+              <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+                {log.timestamp ? (
+                  showRelativeTime ? (
+                    <RelativeDate date={log.timestamp} />
+                  ) : (
+                    formatTimestamp(log.timestamp)
+                  )
                 ) : (
-                  formatTimestamp(log.timestamp)
-                )
-              ) : (
-                '—'
-              )}
-            </div>
-            <div className="px-3 py-1.5 flex items-center">
-              {log.level ? (
-                <LevelBadge level={log.level} />
-              ) : (
-                <span className="text-xs text-muted-foreground/50">—</span>
-              )}
-            </div>
-            {hasInstance && (
-              <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground truncate">
-                {log.instance || '—'}
+                  '—'
+                )}
               </div>
-            )}
-            {hasAttempt && (
-              <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground text-center tabular-nums">
-                {log.attempt ?? '—'}
+              <div className="px-3 py-1.5 flex items-center">
+                {log.level ? (
+                  <LevelBadge level={log.level} />
+                ) : (
+                  <span className="text-xs text-muted-foreground/50">—</span>
+                )}
               </div>
-            )}
-            <div className="px-3 py-1.5 font-mono text-xs text-foreground truncate group-hover:whitespace-normal group-hover:break-words">
-              <AnsiLine text={log.line ?? ''} />
+              {hasInstance && (
+                <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground truncate">
+                  {log.instance || '—'}
+                </div>
+              )}
+              {hasAttempt && (
+                <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground text-center tabular-nums">
+                  {log.attempt ?? '—'}
+                </div>
+              )}
+              <div
+                className={cn(
+                  'px-3 py-1.5 font-mono text-xs text-foreground truncate cursor-pointer',
+                  selectedLogIndex === ix && 'whitespace-normal break-words',
+                )}
+                onClick={() => {
+                  setSelectedLogIndex((prev) => (prev === ix ? undefined : ix));
+                }}
+              >
+                {/* fixme: figure out how to use the type guard properly here */}
+                <AnsiLine text={log.line as string} />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
     </div>
   );
