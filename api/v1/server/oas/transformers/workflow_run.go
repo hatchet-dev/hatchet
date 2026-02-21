@@ -66,6 +66,11 @@ func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow) *gen.CronWorkflo
 		}
 	}
 
+	input := make(map[string]interface{})
+	if cron.Input != nil {
+		json.Unmarshal(cron.Input, &input)
+	}
+
 	res := &gen.CronWorkflows{
 		Metadata:           *toAPIMetadata(cron.ID_2, cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
 		WorkflowVersionId:  cron.WorkflowVersionId.String(),
@@ -78,6 +83,7 @@ func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow) *gen.CronWorkflo
 		Enabled:            cron.Enabled,
 		Method:             gen.CronWorkflowsMethod(cron.Method),
 		Priority:           &cron.Priority,
+		Input:              &input,
 	}
 
 	return res
