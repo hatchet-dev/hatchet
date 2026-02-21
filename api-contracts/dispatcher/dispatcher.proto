@@ -184,6 +184,9 @@ message AssignedAction {
 
     // (optional) the workflow version id
     optional string workflow_version_id = 20;
+
+    // (optional) the invocation count for durable task events (required for durable events, otherwise null)
+    optional int32 durable_task_invocation_count = 21;
 }
 
 message WorkerListenRequest {

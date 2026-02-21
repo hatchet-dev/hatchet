@@ -103,6 +103,8 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
+  V1ForkDurableTaskRequest,
+  V1ForkDurableTaskResponse,
   V1LogLineLevel,
   V1LogLineList,
   V1LogLineOrderByDirection,
@@ -489,6 +491,29 @@ export class Api<
   ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Fork a durable task from a specific node, creating a new branch and re-processing its matches.
+   *
+   * @tags Workflow Runs
+   * @name V1DurableTaskFork
+   * @summary Fork durable task
+   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/fork
+   * @secure
+   */
+  v1DurableTaskFork = (
+    tenant: string,
+    data: V1ForkDurableTaskRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1ForkDurableTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/fork`,
       method: "POST",
       body: data,
       secure: true,

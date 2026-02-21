@@ -136,6 +136,24 @@ class TriggerWorkflowRunResponse(_message.Message):
     external_id: str
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
+class ForkDurableTaskRequest(_message.Message):
+    __slots__ = ("task_external_id", "node_id")
+    TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    task_external_id: str
+    node_id: int
+    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
+
+class ForkDurableTaskResponse(_message.Message):
+    __slots__ = ("task_external_id", "node_id", "branch_id")
+    TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
+    task_external_id: str
+    node_id: int
+    branch_id: int
+    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
+
 class CreateWorkflowVersionRequest(_message.Message):
     __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema")
     NAME_FIELD_NUMBER: _ClassVar[int]

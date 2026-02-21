@@ -1755,6 +1755,7 @@ func (r *sharedRepository) insertTasks(
 	createExpressionOpts := make(map[uuid.UUID][]createTaskExpressionEvalOpt, 0)
 	workflowVersionIds := make([]uuid.UUID, len(tasks))
 	workflowRunIds := make([]uuid.UUID, len(tasks))
+	isDurables := make([]bool, len(tasks))
 
 	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
 
@@ -1781,6 +1782,7 @@ func (r *sharedRepository) insertTasks(
 		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff
 		workflowRunIds[i] = task.WorkflowRunId
+		isDurables[i] = stepConfig.IsDurable
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
@@ -2066,6 +2068,7 @@ func (r *sharedRepository) insertTasks(
 				WorkflowVersionIds:           make([]uuid.UUID, 0),
 				WorkflowRunIds:               make([]uuid.UUID, 0),
 				Inputs:                       make([][]byte, 0),
+				IsDurables:                   make([]bool, 0),
 			}
 		}
 
@@ -2101,7 +2104,10 @@ func (r *sharedRepository) insertTasks(
 		params.RetryMaxBackoff = append(params.RetryMaxBackoff, retryMaxBackoffs[i])
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
+		params.IsDurables = append(params.IsDurables, isDurables[i])
 
+		// TODO-DURABLE: Add `is_durable` to the `v1_task` and wire up the writes from the step into there
+		// then, on the dispatcher check if the task is durable, and if it is then lock and increment its invocation count on send
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
 			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
@@ -3154,6 +3160,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				SignalExternalId:     task.ParentTaskExternalID,
 				SignalTaskId:         &task.ParentTaskID.Int64,
 				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
+				SignalTaskExternalId: &task.ExternalID,
 				SignalKey:            &k,
 			})
 		}

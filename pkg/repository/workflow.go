@@ -557,7 +557,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		var priority pgtype.Int4
 
 		if opts.DefaultPriority != nil {
-			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
+			priority = sqlchelpers.ToInt(opts.DefaultPriority)
 		}
 
 		var oldWorkflowVersionId uuid.UUID
@@ -827,7 +827,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				}
 
 				if value.IntValue != nil {
-					opts.IntValue = sqlchelpers.ToInt(*value.IntValue)
+					opts.IntValue = sqlchelpers.ToInt(value.IntValue)
 				}
 
 				if value.StrValue != nil {
@@ -835,7 +835,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				}
 
 				if value.Weight != nil {
-					opts.Weight = sqlchelpers.ToInt(*value.Weight)
+					opts.Weight = sqlchelpers.ToInt(value.Weight)
 				}
 
 				if value.Required != nil {

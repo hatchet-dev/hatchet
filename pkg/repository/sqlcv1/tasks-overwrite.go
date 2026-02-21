@@ -11,7 +11,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable
     FROM
         (
             SELECT
@@ -48,7 +48,8 @@ WITH input AS (
 				unnest($30::double precision[]) AS retry_backoff_factor,
 				unnest($31::integer[]) AS retry_max_backoff,
 				unnest($32::uuid[]) AS workflow_version_id,
-				unnest($33::uuid[]) AS workflow_run_id
+				unnest($33::uuid[]) AS workflow_run_id,
+				unnest($34::boolean[]) AS is_durable
         ) AS subquery
 )
 INSERT INTO v1_task (
@@ -84,7 +85,8 @@ INSERT INTO v1_task (
 	retry_backoff_factor,
 	retry_max_backoff,
 	workflow_version_id,
-	workflow_run_id
+	workflow_run_id,
+	is_durable
 )
 SELECT
     i.tenant_id,
@@ -119,11 +121,12 @@ SELECT
 	i.retry_backoff_factor,
 	i.retry_max_backoff,
 	i.workflow_version_id,
-	i.workflow_run_id
+	i.workflow_run_id,
+	i.is_durable
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable
 `
 
 type CreateTasksParams struct {
@@ -163,6 +166,7 @@ type CreateTasksParams struct {
 	RetryMaxBackoff              []pgtype.Int4        `json:"retryMaxBackoff"`
 	WorkflowVersionIds           []uuid.UUID          `json:"workflowVersionIds"`
 	WorkflowRunIds               []uuid.UUID          `json:"workflowRunIds"`
+	IsDurables                   []bool               `json:"isDurables"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -213,6 +217,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.RetryMaxBackoff,
 		arg.WorkflowVersionIds,
 		arg.WorkflowRunIds,
+		arg.IsDurables,
 	)
 	if err != nil {
 		return nil, err
@@ -259,6 +264,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.RetryMaxBackoff,
 			&i.WorkflowVersionID,
 			&i.WorkflowRunID,
+			&i.IsDurable,
 		); err != nil {
 			return nil, err
 		}

@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import grpc
 import grpc.aio
@@ -17,6 +17,7 @@ from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -33,10 +34,6 @@ from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-
-if TYPE_CHECKING:
-    from hatchet_sdk.config import ClientConfig
-
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
@@ -118,7 +115,7 @@ class ActionListener:
                 )
 
                 if self.last_heartbeat_succeeded is False:
-                    logger.info("listener established")
+                    logger.info("action listener established")
 
                 now = time.time()
                 diff = now - self.time_last_hb_succeeded
@@ -254,6 +251,8 @@ class ActionListener:
                         priority=assigned_action.priority,
                         workflow_version_id=assigned_action.workflow_version_id,
                         workflow_id=assigned_action.workflow_id,
+                        durable_task_invocation_count=assigned_action.durable_task_invocation_count
+                        or None,
                     )
 
                     yield action
@@ -275,12 +274,7 @@ class ActionListener:
                     self.run_heartbeat = False
                     logger.info("ListenV2 not available, falling back to Listen")
                 else:
-                    # TODO retry
-                    if e.code() == grpc.StatusCode.UNAVAILABLE:
-                        logger.exception("action listener error")
-                    else:
-                        # Unknown error, report and break
-                        logger.exception("action listener error")
+                    logger.error("action listener error - reconnecting")
 
                     self.retries = self.retries + 1
 

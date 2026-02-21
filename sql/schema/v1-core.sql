@@ -40,7 +40,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION create_v1_range_partition(
     targetTableName text,
-    targetDate date
+    targetDate date,
+    fillfactor integer DEFAULT 100
 ) RETURNS integer
     LANGUAGE plpgsql AS
 $$
@@ -60,14 +61,15 @@ BEGIN
     EXECUTE
         format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
     EXECUTE
-        format('ALTER TABLE %s SET (
+        format('ALTER TABLE %I SET (
+            fillfactor = %s,
             autovacuum_vacuum_scale_factor = ''0.1'',
             autovacuum_analyze_scale_factor=''0.05'',
             autovacuum_vacuum_threshold=''25'',
             autovacuum_analyze_threshold=''25'',
             autovacuum_vacuum_cost_delay=''10'',
             autovacuum_vacuum_cost_limit=''1000''
-        )', newTableName);
+        )', newTableName, fillfactor);
     EXECUTE
         format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
     RETURN 1;
@@ -303,6 +305,7 @@ CREATE TABLE v1_task (
     concurrency_keys TEXT[],
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
+    is_durable BOOLEAN,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -528,6 +531,7 @@ CREATE TABLE v1_match (
     existing_data JSONB,
     signal_task_id bigint,
     signal_task_inserted_at timestamptz,
+    signal_task_external_id UUID,
     signal_external_id UUID,
     signal_key TEXT,
     -- references the parent DAG for the task, which we can use to get input + additional metadata
@@ -548,6 +552,8 @@ CREATE TABLE v1_match (
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
+    durable_event_log_entry_node_id bigint,
+    durable_event_log_entry_branch_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
@@ -1694,7 +1700,7 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT', 'DURABLE_EVENT_LOG_ENTRY_DATA', 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA');
 
 -- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
@@ -2263,3 +2269,75 @@ CREATE TABLE v1_event_to_run (
 
     PRIMARY KEY (event_id, event_seen_at, run_external_id)
 ) PARTITION BY RANGE(event_seen_at);
+
+-- v1_durable_event_log represents the log file for the durable event history
+-- of a durable task. This table stores metadata like sequence values for entries.
+--
+-- Important: writers to v1_durable_event_log_entry should lock this row to increment the sequence value.
+CREATE TABLE v1_durable_event_log_file (
+    tenant_id UUID NOT NULL,
+
+    -- The id and inserted_at of the durable task which created this entry
+    durable_task_id BIGINT NOT NULL,
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
+
+    latest_invocation_count INTEGER NOT NULL,
+
+    latest_inserted_at TIMESTAMPTZ NOT NULL,
+    -- A monotonically increasing node id for this durable event log scoped to the durable task.
+    -- Starts at 0 and increments by 1 for each new entry.
+    latest_node_id BIGINT NOT NULL,
+    -- The latest branch id. Branches represent different execution paths on a replay.
+    latest_branch_id BIGINT NOT NULL,
+    -- The parent node id which should be linked to the first node in a new branch to its parent node.
+    latest_branch_first_parent_node_id BIGINT NOT NULL,
+    CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
+) PARTITION BY RANGE(durable_task_inserted_at);
+
+CREATE TYPE v1_durable_event_log_kind AS ENUM (
+    'RUN',
+    'WAIT_FOR',
+    'MEMO'
+);
+
+CREATE TABLE v1_durable_event_log_entry (
+    tenant_id UUID NOT NULL,
+
+    -- need an external id for consistency with the payload store logic (unfortunately)
+    external_id UUID NOT NULL,
+    -- The id and inserted_at of the durable task which created this entry
+    -- The inserted_at time of this event from a DB clock perspective.
+    -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
+    inserted_at TIMESTAMPTZ NOT NULL,
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    durable_task_id BIGINT NOT NULL,
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
+
+    kind v1_durable_event_log_kind NOT NULL,
+    -- The node number in the durable event log. This represents a monotonically increasing
+    -- sequence value generated from v1_durable_event_log_file.latest_node_id
+    node_id BIGINT NOT NULL,
+    -- The parent node id for this event, if any. This can be null.
+    parent_node_id BIGINT,
+    -- The branch id when this event was first seen. A durable event log can be a part of many branches.
+    branch_id BIGINT NOT NULL,
+    -- The parent branch id which should be linked to a new branch to its parent branch. This can be null.
+    parent_branch_id BIGINT,
+    -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
+    -- to determine whether or not there's been a non-determinism error
+
+    invocation_count INTEGER NOT NULL,
+
+    idempotency_key BYTEA NOT NULL,
+    -- Access patterns:
+    -- Definite: we'll query directly for the node_id when a durable task is replaying its log
+    -- Possible: we may want to query a range of node_ids for a durable task
+    -- Possible: we may want to query a range of inserted_ats for a durable task
+
+    -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
+    -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
+    is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+
+    CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
+) PARTITION BY RANGE(durable_task_inserted_at);

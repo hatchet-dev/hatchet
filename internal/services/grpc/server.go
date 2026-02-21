@@ -24,7 +24,7 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"

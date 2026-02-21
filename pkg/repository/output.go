@@ -2,6 +2,7 @@ package repository
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -137,4 +138,28 @@ func newTaskEventFromBytes(b []byte) (*TaskOutputEvent, error) {
 	err := json.Unmarshal(b, &e)
 
 	return &e, err
+}
+
+func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
+	var outer map[string]map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &outer); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal match data: %w", err)
+	}
+
+	for _, keyMap := range outer {
+		for _, entries := range keyMap {
+			if len(entries) == 0 {
+				continue
+			}
+
+			var event TaskOutputEvent
+			if err := json.Unmarshal(entries[0], &event); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
+			}
+
+			return event.Output, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no entries found in match data")
 }

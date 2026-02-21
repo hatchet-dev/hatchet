@@ -17,7 +17,9 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
+from hatchet_sdk.clients.listeners.durable_event_listener import (
+    DurableEventListener,
+)
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
@@ -39,6 +41,7 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_durable_context,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -118,7 +121,15 @@ class Runner:
             admin_client=self.admin_client,
         )
         self.event_client = EventClient(self.config)
-        self.durable_event_listener = DurableEventListener(self.config)
+
+        has_durable_tasks = any(
+            task.is_durable for task in self.action_registry.values()
+        )
+        self.durable_event_listener: DurableEventListener | None = (
+            DurableEventListener(self.config, admin_client=self.admin_client)
+            if has_durable_tasks
+            else None
+        )
 
         self.worker_context = WorkerContext(
             labels=labels or {}, client=Client(config=config).dispatcher
@@ -136,6 +147,11 @@ class Runner:
     def run(self, action: Action) -> None:
         if self.worker_context.id() is None:
             self.worker_context._worker_id = action.worker_id
+
+            if self.durable_event_listener is not None:
+                self.durable_event_listener_task = asyncio.create_task(
+                    self.durable_event_listener.ensure_started(action.worker_id)
+                )
 
         t: asyncio.Task[Exception | None] | None = None
         match action.action_type:
@@ -251,6 +267,9 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
         ctx_task_retry_count.set(action.retry_count)
+        ctx_durable_context.set(
+            ctx if isinstance(ctx, DurableContext) and task.is_durable else None
+        )
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:

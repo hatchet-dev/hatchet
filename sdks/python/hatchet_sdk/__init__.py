@@ -4,9 +4,6 @@ from hatchet_sdk.clients.admin import (
     TriggerWorkflowOptions,
 )
 from hatchet_sdk.clients.events import PushEventOptions
-from hatchet_sdk.clients.listeners.durable_event_listener import (
-    RegisterDurableEventRequest,
-)
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     StepRunEventType,
@@ -49,22 +46,11 @@ from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
 from hatchet_sdk.clients.rest.models.get_step_run_diff_response import (
     GetStepRunDiffResponse,
 )
-from hatchet_sdk.clients.rest.models.github_app_installation import (
-    GithubAppInstallation,
-)
-from hatchet_sdk.clients.rest.models.github_branch import GithubBranch
-from hatchet_sdk.clients.rest.models.github_repo import GithubRepo
 from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.job_run import JobRun
 from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
-from hatchet_sdk.clients.rest.models.link_github_repository_request import (
-    LinkGithubRepositoryRequest,
-)
 from hatchet_sdk.clients.rest.models.list_api_tokens_response import (
     ListAPITokensResponse,
-)
-from hatchet_sdk.clients.rest.models.list_github_app_installations_response import (
-    ListGithubAppInstallationsResponse,
 )
 from hatchet_sdk.clients.rest.models.list_pull_requests_response import (
     ListPullRequestsResponse,
@@ -115,9 +101,6 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_deployment_config import (
-    WorkflowDeploymentConfig,
-)
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
@@ -149,7 +132,7 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.workflows_pb2 import (
+from hatchet_sdk.contracts.workflows.workflows_pb2 import (
     CreateWorkflowVersionOpts,
     RateLimitDuration,
     WorkerLabelComparator,
@@ -157,6 +140,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
+    NonDeterminismError,
     NonRetryableException,
     TaskRunError,
 )
@@ -236,6 +220,7 @@ __all__ = [
     "LogLineList",
     "LogLineOrderByDirection",
     "LogLineOrderByField",
+    "NonDeterminismError",
     "NonRetryableException",
     "OTelAttribute",
     "OpenTelemetryConfig",

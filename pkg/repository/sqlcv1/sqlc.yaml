@@ -36,6 +36,7 @@ sql:
       - pg_health.sql
       - users.sql
       - workflow_schedules.sql
+      - durable_event_log.sql
     schema:
       - ../../../sql/schema/v0.sql
       - ../../../sql/schema/v1-core.sql

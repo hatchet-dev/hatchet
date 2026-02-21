@@ -374,6 +374,10 @@ V1TaskRunStatus:
   $ref: "./workflow_run.yaml#/V1TaskRunStatus"
 V1TriggerWorkflowRunRequest:
   $ref: "./v1/workflow_run.yaml#/V1TriggerWorkflowRunRequest"
+V1ForkDurableTaskRequest:
+  $ref: "./v1/workflow_run.yaml#/V1ForkDurableTaskRequest"
+V1ForkDurableTaskResponse:
+  $ref: "./v1/workflow_run.yaml#/V1ForkDurableTaskResponse"
 V1LogLine:
   $ref: "./v1/logs.yaml#/V1LogLine"
 V1LogLineLevel:

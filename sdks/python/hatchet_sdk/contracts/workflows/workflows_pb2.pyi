@@ -1,6 +1,7 @@
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as _trigger_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -265,36 +266,14 @@ class WorkflowTriggerCronRef(_message.Message):
 class BulkTriggerWorkflowRequest(_message.Message):
     __slots__ = ("workflows",)
     WORKFLOWS_FIELD_NUMBER: _ClassVar[int]
-    workflows: _containers.RepeatedCompositeFieldContainer[TriggerWorkflowRequest]
-    def __init__(self, workflows: _Optional[_Iterable[_Union[TriggerWorkflowRequest, _Mapping]]] = ...) -> None: ...
+    workflows: _containers.RepeatedCompositeFieldContainer[_trigger_pb2.TriggerWorkflowRequest]
+    def __init__(self, workflows: _Optional[_Iterable[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]]] = ...) -> None: ...
 
 class BulkTriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_ids",)
     WORKFLOW_RUN_IDS_FIELD_NUMBER: _ClassVar[int]
     workflow_run_ids: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, workflow_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
-
-class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    INPUT_FIELD_NUMBER: _ClassVar[int]
-    PARENT_ID_FIELD_NUMBER: _ClassVar[int]
-    PARENT_TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
-    CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
-    CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
-    ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
-    DESIRED_WORKER_ID_FIELD_NUMBER: _ClassVar[int]
-    PRIORITY_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    input: str
-    parent_id: str
-    parent_task_run_external_id: str
-    child_index: int
-    child_key: str
-    additional_metadata: str
-    desired_worker_id: str
-    priority: int
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)

@@ -1,15 +1,13 @@
 import json
 from dataclasses import field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-
-if TYPE_CHECKING:
-    from hatchet_sdk.config import ClientConfig
 
 ActionKey = str
 
@@ -75,6 +73,7 @@ class Action(BaseModel):
     parent_workflow_run_id: str | None = None
 
     priority: int | None = None
+    durable_task_invocation_count: int | None = None
 
     def _dump_payload_to_str(self) -> str:
         try:

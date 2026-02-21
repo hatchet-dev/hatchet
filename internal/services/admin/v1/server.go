@@ -397,8 +397,14 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
+	re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
+
 	if err != nil {
-		return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		if isInvalidArgument {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+		} else {
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		}
 	}
 
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
@@ -419,6 +425,54 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	return &contracts.TriggerWorkflowRunResponse{
 		ExternalId: opt.ExternalId.String(),
+	}, nil
+}
+
+func (a *AdminServiceImpl) ForkDurableTask(ctx context.Context, req *contracts.ForkDurableTaskRequest) (*contracts.ForkDurableTaskResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(req.TaskExternalId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid task_external_id")
+	}
+
+	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+
+	result, err := a.repo.DurableEvents().HandleFork(ctx, tenantId, req.NodeId, task)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to fork durable task: %v", err)
+	}
+
+	replayPayload := tasktypes.ReplayTasksPayload{
+		Tasks: []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			WorkflowRunExternalId: task.WorkflowRunExternalID,
+			TaskExternalId:        task.ExternalID,
+		}},
+	}
+
+	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDReplayTasks, false, true, replayPayload)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create replay message: %v", err)
+	}
+
+	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to send replay message: %v", err)
+	}
+
+	return &contracts.ForkDurableTaskResponse{
+		TaskExternalId: taskExternalId.String(),
+		NodeId:         result.NodeId,
+		BranchId:       result.EventLogFile.LatestBranchID,
 	}, nil
 }
 

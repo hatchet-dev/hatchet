@@ -7,7 +7,10 @@ SELECT
     create_v1_range_partition('v1_payload', @date::date),
     create_v1_range_partition('v1_event', @date::date),
     create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
-    create_v1_range_partition('v1_event_to_run', @date::date);
+    create_v1_range_partition('v1_event_to_run', @date::date),
+    create_v1_range_partition('v1_durable_event_log_file', @date::date),
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80)
+;
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -25,6 +28,10 @@ WITH tomorrow_date AS (
     SELECT 'v1_payload_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_file_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_entry_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -56,6 +63,10 @@ WITH task_partitions AS (
     SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', @date::date) AS p
 ), event_to_run_partitions AS (
     SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
+), durable_event_log_file_partitions AS (
+    SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', @date::date) AS p
+), durable_event_log_entry_partitions AS (
+    SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
 )
 
 SELECT
@@ -111,6 +122,20 @@ SELECT
     *
 FROM
     event_to_run_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    durable_event_log_file_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    durable_event_log_entry_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one

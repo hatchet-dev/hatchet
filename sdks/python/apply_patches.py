@@ -52,7 +52,11 @@ def atomically_patch_file(
 
 
 def patch_contract_import_paths(content: str) -> str:
-    return apply_patch(content, r"\bfrom v1\b", "from hatchet_sdk.contracts.v1")
+    content = apply_patch(content, r"\bfrom v1\b", "from hatchet_sdk.contracts.v1")
+    content = apply_patch(
+        content, r"\bfrom workflows\b", "from hatchet_sdk.contracts.workflows"
+    )
+    return content
 
 
 def patch_grpc_dispatcher_import(content: str) -> str:
@@ -374,7 +378,6 @@ if __name__ == "__main__":
         patch_contract_import_paths,
         patch_grpc_dispatcher_import,
         patch_grpc_events_import,
-        patch_grpc_workflows_import,
         patch_grpc_init_signature,
     ]
 

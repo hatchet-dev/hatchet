@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -48,7 +49,9 @@ type DispatcherImpl struct {
 	dispatcherId uuid.UUID
 	workers      *workers
 	a            *hatcheterrors.Wrapped
-	version      string
+
+	durableCallbackFn func(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error
+	version           string
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -381,11 +384,45 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "task-cancelled":
 		err = d.a.WrapErr(d.handleTaskCancelled(ctx, task), map[string]interface{}{})
+	case msgqueue.MsgIDDurableCallbackCompleted:
+		err = d.a.WrapErr(d.handleDurableCallbackCompleted(ctx, task), map[string]interface{}{})
 	default:
 		err = fmt.Errorf("unknown task: %s", task.ID)
 	}
 
 	return err
+}
+
+func (d *DispatcherImpl) DispatcherId() uuid.UUID {
+	return d.dispatcherId
+}
+
+func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int32, int64, int64, []byte) error) {
+	d.durableCallbackFn = fn
+}
+
+func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
+	if d.durableCallbackFn == nil {
+		return nil
+	}
+
+	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](task.Payloads)
+
+	for _, payload := range payloads {
+		err := d.durableCallbackFn(
+			payload.TaskExternalId,
+			payload.InvocationCount,
+			payload.BranchId,
+			payload.NodeId,
+			payload.Payload,
+		)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
+		}
+	}
+
+	return nil
 }
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {

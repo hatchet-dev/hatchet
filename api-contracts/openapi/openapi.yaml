@@ -43,6 +43,8 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRunExternalIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs/trigger:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/trigger"
+  /api/v1/stable/tenants/{tenant}/durable-tasks/fork:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/forkDurableTask"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/status:

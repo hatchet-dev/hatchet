@@ -53,19 +53,13 @@ def emit_deprecation_notice(
 ) -> None:
     """Emit a time-aware deprecation notice.
 
-    Args:
-        feature:    A short identifier for the deprecated feature (used for
-                    deduplication so each feature only logs once per process).
-        message:    The human-readable deprecation message.
-        start:      The UTC datetime when the deprecation window began.
-        warn_days:  Days after *start* during which a warning is logged (default 90).
-        error_days: Days after *start* during which an error is logged.
-                    After this window, calls have a 20% chance of raising.
-                    If None (default), the error/raise phase is never reached —
-                    the notice stays at error-level logging indefinitely.
+    :param feature:    A short identifier for the deprecated feature (used for deduplication so each feature only logs once per process).
+    :param message:    The human-readable deprecation message.
+    :param start:      The UTC datetime when the deprecation window began.
+    :param warn_days:  Days after *start* during which a warning is logged (default 90).
+    :param error_days: Days after *start* during which an error is logged. After this window, calls have a 20% chance of raising. If None (default), the error/raise phase is never reached — the notice stays at error-level logging indefinitely.
 
-    Raises:
-        DeprecationError: After the error_days window, raised ~20% of the time.
+    :raises: DeprecationError: After the error_days window, raised ~20% of the time.
     """
     now = datetime.now(tz=timezone.utc)
     days_since = (now - start).days
@@ -80,7 +74,7 @@ def emit_deprecation_notice(
         # Phase 2: error-level log (indefinite when error_days is None)
         if feature not in _already_logged:
             logger.error(
-                f"{message} " "This fallback will be removed soon. Upgrade immediately."
+                f"{message} This fallback will be removed soon. Upgrade immediately."
             )
             _already_logged.add(feature)
 

@@ -2,12 +2,13 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v5.29.3
-// source: workflows.proto
+// source: workflows/workflows.proto
 
 package contracts
 
 import (
 	context "context"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -24,7 +25,7 @@ const _ = grpc.SupportPackageIsVersion7
 type WorkflowServiceClient interface {
 	PutWorkflow(ctx context.Context, in *PutWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error)
 	ScheduleWorkflow(ctx context.Context, in *ScheduleWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error)
-	TriggerWorkflow(ctx context.Context, in *TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error)
+	TriggerWorkflow(ctx context.Context, in *v1.TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error)
 	BulkTriggerWorkflow(ctx context.Context, in *BulkTriggerWorkflowRequest, opts ...grpc.CallOption) (*BulkTriggerWorkflowResponse, error)
 	PutRateLimit(ctx context.Context, in *PutRateLimitRequest, opts ...grpc.CallOption) (*PutRateLimitResponse, error)
 }
@@ -55,7 +56,7 @@ func (c *workflowServiceClient) ScheduleWorkflow(ctx context.Context, in *Schedu
 	return out, nil
 }
 
-func (c *workflowServiceClient) TriggerWorkflow(ctx context.Context, in *TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error) {
+func (c *workflowServiceClient) TriggerWorkflow(ctx context.Context, in *v1.TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error) {
 	out := new(TriggerWorkflowResponse)
 	err := c.cc.Invoke(ctx, "/WorkflowService/TriggerWorkflow", in, out, opts...)
 	if err != nil {
@@ -88,7 +89,7 @@ func (c *workflowServiceClient) PutRateLimit(ctx context.Context, in *PutRateLim
 type WorkflowServiceServer interface {
 	PutWorkflow(context.Context, *PutWorkflowRequest) (*WorkflowVersion, error)
 	ScheduleWorkflow(context.Context, *ScheduleWorkflowRequest) (*WorkflowVersion, error)
-	TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error)
+	TriggerWorkflow(context.Context, *v1.TriggerWorkflowRequest) (*TriggerWorkflowResponse, error)
 	BulkTriggerWorkflow(context.Context, *BulkTriggerWorkflowRequest) (*BulkTriggerWorkflowResponse, error)
 	PutRateLimit(context.Context, *PutRateLimitRequest) (*PutRateLimitResponse, error)
 	mustEmbedUnimplementedWorkflowServiceServer()
@@ -104,7 +105,7 @@ func (UnimplementedWorkflowServiceServer) PutWorkflow(context.Context, *PutWorkf
 func (UnimplementedWorkflowServiceServer) ScheduleWorkflow(context.Context, *ScheduleWorkflowRequest) (*WorkflowVersion, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ScheduleWorkflow not implemented")
 }
-func (UnimplementedWorkflowServiceServer) TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
+func (UnimplementedWorkflowServiceServer) TriggerWorkflow(context.Context, *v1.TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflow not implemented")
 }
 func (UnimplementedWorkflowServiceServer) BulkTriggerWorkflow(context.Context, *BulkTriggerWorkflowRequest) (*BulkTriggerWorkflowResponse, error) {
@@ -163,7 +164,7 @@ func _WorkflowService_ScheduleWorkflow_Handler(srv interface{}, ctx context.Cont
 }
 
 func _WorkflowService_TriggerWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TriggerWorkflowRequest)
+	in := new(v1.TriggerWorkflowRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -175,7 +176,7 @@ func _WorkflowService_TriggerWorkflow_Handler(srv interface{}, ctx context.Conte
 		FullMethod: "/WorkflowService/TriggerWorkflow",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WorkflowServiceServer).TriggerWorkflow(ctx, req.(*TriggerWorkflowRequest))
+		return srv.(WorkflowServiceServer).TriggerWorkflow(ctx, req.(*v1.TriggerWorkflowRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -245,5 +246,5 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "workflows.proto",
+	Metadata: "workflows/workflows.proto",
 }

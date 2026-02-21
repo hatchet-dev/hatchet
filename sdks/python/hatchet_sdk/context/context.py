@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from hatchet_sdk.clients.admin import AdminClient
+from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
@@ -12,25 +12,29 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
-    RegisterDurableEventRequest,
 )
 from hatchet_sdk.conditions import (
     OrGroup,
     SleepCondition,
     UserEventCondition,
+    build_conditions_proto,
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.runnables.types import R, TWorkflowInput
+    from hatchet_sdk.runnables.workflow import (
+        BaseWorkflow,
+    )
 
 
 class Context:
@@ -474,6 +478,7 @@ class DurableContext(Context):
 
         return index
 
+    ## todo: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -486,26 +491,35 @@ class DurableContext(Context):
         :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
-        :raises ValueError: If the durable event listener is not available.
+        :raises ValueError: If the durable task client is not available.
         """
         if self.durable_event_listener is None:
-            raise ValueError("Durable event listener is not available")
+            raise ValueError("Durable task client is not available")
 
-        task_id = self.step_run_id
+        await self._ensure_stream_started()
 
-        request = RegisterDurableEventRequest(
-            task_id=task_id,
-            signal_key=signal_key,
-            conditions=flatten_conditions(list(conditions)),
-            config=self.runs_client.client_config,
+        flat_conditions = flatten_conditions(list(conditions))
+        conditions_proto = build_conditions_proto(
+            flat_conditions, self.runs_client.client_config
+        )
+        ack = await self.durable_event_listener.send_event(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=self.invocation_count,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
+            payload=None,
+            wait_for_conditions=conditions_proto,
+        )
+        node_id = ack.node_id
+        branch_id = ack.branch_id
+
+        result = await self.durable_event_listener.wait_for_callback(
+            durable_task_external_id=self.step_run_id,
+            node_id=node_id,
+            branch_id=branch_id,
+            invocation_count=self.invocation_count,
         )
 
-        self.durable_event_listener.register_durable_event(request)
-
-        return await self.durable_event_listener.result(
-            task_id,
-            signal_key,
-        )
+        return result.payload or {}
 
     async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
         """
@@ -520,3 +534,43 @@ class DurableContext(Context):
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
+
+    ## todo: instrumentor for this
+    async def _spawn_child(
+        self,
+        workflow: "BaseWorkflow[TWorkflowInput]",
+        input: TWorkflowInput = cast(Any, EmptyModel()),
+        options: "TriggerWorkflowOptions" | None = None,
+    ) -> dict[str, Any]:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable task client is not available")
+
+        await self._ensure_stream_started()
+
+        ack = await self.durable_event_listener.send_event(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=self.invocation_count,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
+            payload=workflow._serialize_input(input),
+            workflow_name=workflow.config.name,
+            trigger_workflow_opts=options,
+        )
+
+        result = await self.durable_event_listener.wait_for_callback(
+            durable_task_external_id=self.step_run_id,
+            node_id=ack.node_id,
+            branch_id=ack.branch_id,
+            invocation_count=self.invocation_count,
+        )
+
+        return result.payload or {}
+
+    async def _ensure_stream_started(self) -> None:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable task client is not available")
+
+        await self.durable_event_listener.ensure_started(self.action.worker_id)
+
+    @property
+    def invocation_count(self) -> int:
+        return self.action.durable_task_invocation_count or 1
