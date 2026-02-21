@@ -446,6 +446,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
+	if logFile.LatestInvocationCount != opts.InvocationCount {
+		// todo: should evict this invocation if this happens
+		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d. rejecting event write.", logFile.LatestInvocationCount, opts.InvocationCount)
+	}
+
 	// TODO-DURABLE probably need to grab the previous entry here, if it exists, to determine how to increment?
 	// basically need some way to figure out that we've reached a branching point
 	// maybe we need to use `latest_branch_first_parent_node_id` for this?
