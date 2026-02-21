@@ -31,6 +31,18 @@ The returned object is an instance of the `Task` class, which is the primary int
 </Tabs.Tab>
 </UniversalTabs>
 
+## Concepts you can use with a task
+
+You can configure a task with the following concepts. Each links to full documentation.
+
+| Concept | Description |
+| --- | --- |
+| [Retries](/concepts/retry-policies) | Retry the task on failure, with optional backoff. |
+| [Timeouts](/concepts/timeouts) | Limit how long a task may wait to be scheduled or to run. |
+| [Concurrency](/concepts/concurrency) | Limit how many runs of this task execute at once. |
+| [Rate limits](/concepts/rate-limits) | Throttle task execution (e.g. per minute). |
+| [Worker affinity](/concepts/worker-affinity) | Prefer or require specific workers for this task. |
+
 ## Running a Task
 
 With your task defined, you can import it wherever you need to use it and invoke it with the `run` method.
