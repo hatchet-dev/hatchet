@@ -441,33 +441,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d. rejecting event write.", logFile.LatestInvocationCount, opts.InvocationCount)
 	}
 
-	// TODO-DURABLE probably need to grab the previous entry here, if it exists, to determine how to increment?
-	// basically need some way to figure out that we've reached a branching point
-	// maybe we need to use `latest_branch_first_parent_node_id` for this?
-	isNewInvocation := logFile.LatestInvocationCount < opts.InvocationCount
-
-	var nodeId int64
-	if isNewInvocation {
-		one := int64(1)
-		newNode, err := r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-			NodeId:                sqlchelpers.ToBigInt(&one),
-			InvocationCount:       sqlchelpers.ToInt(&opts.InvocationCount),
-			Durabletaskid:         task.ID,
-			Durabletaskinsertedat: task.InsertedAt,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to fork latest node id for new invocation: %w", err)
-		}
-
-		nodeId = newNode.LatestNodeID
-	} else {
-		// if it's not a new invocation, we need to increment the latest node id (of the current invocation)
-		nodeId = logFile.LatestNodeID + 1
-	}
+	nodeId := logFile.LatestNodeID + 1
 
 	var parentNodeId *int64
-	if !isNewInvocation && logFile.LatestNodeID > 0 {
+	if logFile.LatestNodeID > 0 {
 		p := logFile.LatestNodeID
 		parentNodeId = &p
 	}
