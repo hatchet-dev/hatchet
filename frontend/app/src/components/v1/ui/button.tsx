@@ -5,7 +5,7 @@ import {
   TooltipTrigger,
 } from './tooltip';
 import { cn } from '@/lib/utils';
-import { Slot } from '@radix-ui/react-slot';
+import { Slot, Slottable } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
@@ -93,7 +93,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               {...props}
             >
               {leftIcon && <span className="-ml-1 mr-2">{leftIcon}</span>}
-              {children}
+              <Slottable>{children}</Slottable>
               {rightIcon && <span className="-mr-1 ml-2">{rightIcon}</span>}
             </Comp>
           </TooltipTrigger>

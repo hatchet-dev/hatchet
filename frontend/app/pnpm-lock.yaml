@@ -114,6 +114,9 @@ importers:
       axios:
         specifier: ^1.12.0
         version: 1.12.0
+      better-emitter:
+        specifier: ^4.0.1
+        version: 4.0.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1984,6 +1987,10 @@ packages:
   bcrypt-pbkdf@1.0.2:
     resolution: {integrity: sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==}
 
+  better-emitter@4.0.1:
+    resolution: {integrity: sha512-zYW024hfcLp+6RupEfvYBVGiY9q43OzUFUbucyMY+cm7KPCgonPbG3v5TEOhwneJGHODe1aftYRNB9bZ0TNytA==}
+    engines: {node: '>=14.0.0'}
+
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
@@ -3115,6 +3122,9 @@ packages:
   jsx-ast-utils@3.3.5:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
     engines: {node: '>=4.0'}
+
+  key-master@4.0.0:
+    resolution: {integrity: sha512-yEO7Twi4tG9q/Y0WinAiMoeDHIGJTfB8/f8KwVbP9Sz74g+zn4CjIGWl9d3hn7TiLJQR4zd0s83jT/4m20HP3w==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -6167,6 +6177,10 @@ snapshots:
     dependencies:
       tweetnacl: 0.14.5
 
+  better-emitter@4.0.1:
+    dependencies:
+      key-master: 4.0.0
+
   binary-extensions@2.3.0: {}
 
   blob-util@2.0.2: {}
@@ -7456,6 +7470,8 @@ snapshots:
       array.prototype.flat: 1.3.3
       object.assign: 4.1.7
       object.values: 1.2.1
+
+  key-master@4.0.0: {}
 
   keyv@4.5.4:
     dependencies:

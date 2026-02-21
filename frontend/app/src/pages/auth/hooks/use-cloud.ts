@@ -3,15 +3,15 @@ import { APICloudMetadata } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
+
+const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
+  // @ts-expect-error errors is returned when this is oss
+  return !!cloudMeta && !cloudMeta?.errors;
+};
 
 export default function useCloud(tenantId?: string) {
   const { handleApiError } = useApiError({});
-
-  const checkIsCloudEnabled = useCallback((cloudMeta: APICloudMetadata) => {
-    // @ts-expect-error errors is returned when this is oss
-    return !!cloudMeta && !cloudMeta?.errors;
-  }, []);
 
   const cloudMetaQuery = useQuery({
     queryKey: ['cloud-metadata:get'],
@@ -19,7 +19,7 @@ export default function useCloud(tenantId?: string) {
     queryFn: async () => {
       try {
         const meta = await cloudApi.metadataGet();
-        if (!checkIsCloudEnabled(meta.data)) {
+        if (!metadataIndicatesCloudEnabled(meta.data)) {
           console.log('\x1b[33m🪓 Thanks for self-hosting Hatchet!\x1b[0m');
           console.log('For support, please contact support@hatchet.run,');
           console.log(
@@ -44,8 +44,8 @@ export default function useCloud(tenantId?: string) {
   }
 
   const isCloudEnabled = useMemo(() => {
-    return checkIsCloudEnabled(cloudMetaQuery.data?.data || {});
-  }, [cloudMetaQuery.data?.data, checkIsCloudEnabled]);
+    return metadataIndicatesCloudEnabled(cloudMetaQuery.data?.data || {});
+  }, [cloudMetaQuery.data?.data]);
 
   const featureFlagsQuery = useQuery({
     queryKey: ['feature-flags:list', tenantId],

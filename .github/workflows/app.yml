@@ -27,6 +27,28 @@ jobs:
         working-directory: frontend/app
         run: npm run lint:check
 
+  test:
+    runs-on: ubicloud-standard-2
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+      - name: Run unit tests
+        working-directory: frontend/app
+        run: pnpm run test:unit
+
   build:
     runs-on: ubicloud-standard-2
     steps:

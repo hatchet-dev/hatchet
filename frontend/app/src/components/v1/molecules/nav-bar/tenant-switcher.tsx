@@ -10,9 +10,9 @@ import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
+import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { appRoutes } from '@/router';
 import {
   BuildingOffice2Icon,
   // ChartBarSquareIcon,
@@ -25,7 +25,6 @@ import {
   PopoverContent,
   PopoverPortal,
 } from '@radix-ui/react-popover';
-import { Link } from '@tanstack/react-router';
 import React from 'react';
 import invariant from 'tiny-invariant';
 
@@ -141,15 +140,17 @@ export function TenantSwitcher({
               <>
                 <CommandSeparator />
                 <CommandList>
-                  <Link
-                    to={appRoutes.onboardingCreateTenantRoute.to}
+                  <CommandItem
+                    className="cursor-pointer text-sm"
                     data-cy="new-tenant"
+                    onSelect={() => {
+                      globalEmitter.emit('new-tenant', {});
+                      setOpen(false);
+                    }}
                   >
-                    <CommandItem className="cursor-pointer text-sm">
-                      <PlusCircledIcon className="mr-2 size-4" />
-                      New Tenant
-                    </CommandItem>
-                  </Link>
+                    <PlusCircledIcon className="mr-2 size-4" />
+                    New Tenant
+                  </CommandItem>
                 </CommandList>
               </>
             )}

@@ -1,15 +1,24 @@
+import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { lastTenantAtom } from '@/lib/atoms';
+import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { useAppContext } from '@/providers/app-context';
 import { PostHogProvider } from '@/providers/posthog';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -20,7 +29,7 @@ import {
 } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 
 const DevtoolsFooter = import.meta.env.DEV
   ? lazy(() => import('../devtools.tsx'))
@@ -34,6 +43,10 @@ function AuthenticatedInner() {
     isLoading: isUserLoading,
   } = useCurrentUser();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
+  const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
+  const [defaultOrganizationId, setDefaultOrganizationId] = useState<
+    string | undefined
+  >();
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],
@@ -65,10 +78,14 @@ function AuthenticatedInner() {
   const isOnboardingCreateTenantPage = Boolean(
     matchRoute({ to: appRoutes.onboardingCreateTenantRoute.to }),
   );
+  const isOnboardingCreateOrganizationPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingCreateOrganizationRoute.to }),
+  );
   const isOnboardingPage =
     isOnboardingVerifyEmailPage ||
     isOnboardingInvitesPage ||
-    isOnboardingCreateTenantPage;
+    isOnboardingCreateTenantPage ||
+    isOnboardingCreateOrganizationPage;
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -99,6 +116,9 @@ function AuthenticatedInner() {
     user: currentUser,
     memberships: listMembershipsQuery.data?.rows,
   });
+
+  const { isCloudEnabled, organizationsAreLoaded, organizations } =
+    useAppContext();
 
   useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
@@ -137,13 +157,36 @@ function AuthenticatedInner() {
       return;
     }
 
-    if (
+    const needToWaitForOrganizations =
+      isCloudEnabled && !organizationsAreLoaded;
+    const okayToMakeOnboardingRedirectDecisions =
       !isPendingInvitesLoading &&
-      listMembershipsQuery.data?.rows?.length === 0 &&
-      !isOnboardingPage
-    ) {
-      navigate({ to: appRoutes.onboardingCreateTenantRoute.to, replace: true });
-      return;
+      !isOnboardingPage &&
+      listMembershipsQuery.isSuccess &&
+      !needToWaitForOrganizations;
+
+    if (okayToMakeOnboardingRedirectDecisions) {
+      const shouldHaveAnOrganizationButDoesnt =
+        organizationsAreLoaded && organizations.length === 0;
+
+      if (shouldHaveAnOrganizationButDoesnt) {
+        navigate({
+          to: appRoutes.onboardingCreateOrganizationRoute.to,
+          replace: true,
+        });
+        return;
+      }
+
+      const hasNoTenantMemberships =
+        listMembershipsQuery.data.rows?.length === 0;
+
+      if (hasNoTenantMemberships) {
+        navigate({
+          to: appRoutes.onboardingCreateTenantRoute.to,
+          replace: true,
+        });
+        return;
+      }
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
@@ -220,6 +263,13 @@ function AuthenticatedInner() {
     }
   }, [isAuthPage, navigate, userError]);
 
+  useEffect(() =>
+    globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
+      setDefaultOrganizationId(defaultOrganizationId);
+      setNewTenantModalOpen(true);
+    }),
+  );
+
   return (
     <PostHogProvider user={currentUser}>
       <SupportChat user={currentUser}>
@@ -242,6 +292,31 @@ function AuthenticatedInner() {
         >
           <OutletWithContext context={ctx} />
         </AppLayout>
+
+        <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Create New Tenant</DialogTitle>
+            </DialogHeader>
+            <div className="flex justify-center">
+              <NewTenantSaverForm
+                defaultOrganizationId={defaultOrganizationId}
+                afterSave={(result) => {
+                  setDefaultOrganizationId(undefined);
+                  setNewTenantModalOpen(false);
+                  const tenantId =
+                    result.type === 'cloud'
+                      ? result.tenant.id
+                      : result.tenant.metadata.id;
+                  navigate({
+                    to: appRoutes.tenantOverviewRoute.to,
+                    params: { tenant: tenantId },
+                  });
+                }}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       </SupportChat>
     </PostHogProvider>
   );
