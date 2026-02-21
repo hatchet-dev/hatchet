@@ -44,12 +44,12 @@ export default {
     items: {
       cli: {
         title: "CLI Reference",
-        href: "/cli",
+        href: "/reference/cli",
         type: "page",
       },
       python: {
         title: "Python SDK",
-        href: "/sdk/python/client",
+        href: "/reference/python/client",
         type: "page",
       },
       go: {
