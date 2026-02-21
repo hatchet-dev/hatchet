@@ -94,6 +94,15 @@ class TenacityConfig(BaseSettings):
 
     max_attempts: int = 5
 
+    retry_transport_errors: bool = Field(
+        default=False,
+        description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",
+    )
+    retry_transport_methods: list[str] = Field(
+        default_factory=lambda: ["GET", "DELETE"],
+        description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
+    )
+
 
 DEFAULT_HOST_PORT = "localhost:7070"
 
