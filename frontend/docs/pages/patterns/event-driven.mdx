@@ -29,18 +29,18 @@ Hatchet matches events to registered task triggers, handles deduplication and fi
 
 | Feature                                                        | What it does for event-driven systems                               |
 | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| **[Event Triggers](/features/run-on-event)**                       | React to application events by name with optional payload filtering |
-| **[Webhooks](/features/webhooks)**                                 | Receive external HTTP webhooks and route them to tasks              |
-| **[Cron Triggers](/features/cron-runs)**                            | Schedule recurring tasks with cron expressions                      |
-| **[Scheduled Runs](/features/scheduled-runs)**                      | Trigger one-time future execution at a specific time                |
-| **[Concurrency](/features/concurrency)**                         | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies     |
-| **[Rate Limits](/features/rate-limits)**                         | Throttle downstream processing regardless of event volume           |
-| **[Inter-Service Triggering](/features/inter-service-triggering)**  | Trigger tasks across different services and worker pools            |
-| **[Additional Metadata](/features/additional-metadata)**         | Tag events with metadata for filtering and observability            |
+| **[Event Triggers](/concepts/run-on-event)**                       | React to application events by name with optional payload filtering |
+| **[Webhooks](/concepts/webhooks)**                                 | Receive external HTTP webhooks and route them to tasks              |
+| **[Cron Triggers](/concepts/cron-runs)**                            | Schedule recurring tasks with cron expressions                      |
+| **[Scheduled Runs](/concepts/scheduled-runs)**                      | Trigger one-time future execution at a specific time                |
+| **[Concurrency](/concepts/concurrency)**                         | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies     |
+| **[Rate Limits](/concepts/rate-limits)**                         | Throttle downstream processing regardless of event volume           |
+| **[Inter-Service Triggering](/concepts/inter-service-triggering)**  | Trigger tasks across different services and worker pools            |
+| **[Additional Metadata](/concepts/additional-metadata)**         | Tag events with metadata for filtering and observability            |
 
 <Callout type="info">
   Hatchet supports all common triggering patterns in a single system. See [Ways
-  of Running Tasks](/features/running-tasks) for the complete list of trigger types
+  of Running Tasks](/concepts/running-tasks) for the complete list of trigger types
   and when to use each.
 </Callout>
 
@@ -104,7 +104,7 @@ Task outputs can trigger further events, spawn child tasks, or start downstream 
 
 ## Next Steps
 
-- [Event Triggers](/features/run-on-event): trigger tasks from application events
-- [Webhooks](/features/webhooks): receive and process external webhooks
-- [Cron Triggers](/features/cron-runs): set up recurring scheduled tasks
-- [Concurrency Control](/features/concurrency): configure spike protection
+- [Event Triggers](/concepts/run-on-event): trigger tasks from application events
+- [Webhooks](/concepts/webhooks): receive and process external webhooks
+- [Cron Triggers](/concepts/cron-runs): set up recurring scheduled tasks
+- [Concurrency Control](/concepts/concurrency): configure spike protection

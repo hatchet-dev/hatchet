@@ -7,7 +7,7 @@ import { Tabs, Callout } from "nextra/components";
 
 Hatchet is a modern orchestration platform that helps engineering teams build low-latency and high-throughput data ingestion and agentic AI pipelines.
 
-You write simple functions, called [tasks](/guide/your-first-task), in Python, Typescript, and Go and run them on [workers](/guide/workers) in your own infrastructure. You can compose these tasks into [parent/child relationships](/features/child-spawning) or predefined as [Directed Acyclic Graphs (DAGs)](/features/dags) to build more complex pipelines, which we call [workflows](/features/orchestration). All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
+You write simple functions, called [tasks](/guide/your-first-task), in Python, Typescript, and Go and run them on [workers](/guide/workers) in your own infrastructure. You can compose these tasks into [parent/child relationships](/concepts/child-spawning) or predefined as [Directed Acyclic Graphs (DAGs)](/concepts/dags) to build more complex pipelines, which we call [workflows](/concepts/orchestration). All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
 
 Hatchet handles scheduling, complex assignment, fault tolerance, and observability so you can focus on building your application as you scale.
 
@@ -18,14 +18,14 @@ Hatchet handles scheduling, complex assignment, fault tolerance, and observabili
 While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
 
 - **Real-time data processing pipelines**: for example, data ingestion which is crucial for keeping LLM contexts up-to-date, or ETL pipelines that require fast execution and high throughput.
-- **AI agents**: a core number of Hatchet's features, like [webhooks](/features/webhooks), [child spawning](/features/child-spawning), and [dynamic workflows](/features/child-spawning) are designed to support AI agents.
-- **Event-driven systems**: Hatchet's [eventing features](/features/run-on-event) allow you to build event-driven architectures without requiring additional infrastructure.
+- **AI agents**: a core number of Hatchet's features, like [webhooks](/concepts/webhooks), [child spawning](/concepts/child-spawning), and [dynamic workflows](/concepts/child-spawning) are designed to support AI agents.
+- **Event-driven systems**: Hatchet's [eventing features](/concepts/run-on-event) allow you to build event-driven architectures without requiring additional infrastructure.
 
 ## Why Hatchet?
 
-⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](/features/rate-limits), [fairness](/features/concurrency), and [priorities](/features/priority) without complex configuration.
+⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](/concepts/rate-limits), [fairness](/concepts/concurrency), and [priorities](/concepts/priority) without complex configuration.
 
-🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](/features/durable-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
+🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](/concepts/durable-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
 
 🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
 

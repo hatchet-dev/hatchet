@@ -27,7 +27,7 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 </Steps>
 
 <Callout type="info">
-  Pre-determined pipelines are built using [DAG Workflows](/features/dags). See that
+  Pre-determined pipelines are built using [DAG Workflows](/concepts/dags). See that
   page for full code examples on defining workflows, adding tasks with
   dependencies, accessing parent outputs, and running workflows.
 </Callout>
@@ -46,19 +46,19 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="ETL Pipelines" href="/features/dags">
+  <Cards.Card title="ETL Pipelines" href="/concepts/dags">
     Extract data, transform it through multiple stages, and load it into a
     destination, each stage as a task with clear dependencies.
   </Cards.Card>
-  <Cards.Card title="CI/CD Workflows" href="/features/dags">
+  <Cards.Card title="CI/CD Workflows" href="/concepts/dags">
     Build, test, and deploy in sequence with parallel test suites that fan back
     into a deploy step.
   </Cards.Card>
-  <Cards.Card title="Document Processing" href="/features/dags">
+  <Cards.Card title="Document Processing" href="/concepts/dags">
     Parse, validate, enrich, and index documents through a fixed sequence of
     processing stages.
   </Cards.Card>
-  <Cards.Card title="Multi-Step AI Pipelines" href="/features/dags">
+  <Cards.Card title="Multi-Step AI Pipelines" href="/concepts/dags">
     Chain LLM calls with validation gates (generate, evaluate, refine) where
     each step depends on the previous.
   </Cards.Card>
@@ -66,7 +66,7 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 
 ## Next Steps
 
-- [DAG Workflows](/features/dags): full guide to defining workflows with task dependencies
+- [DAG Workflows](/concepts/dags): full guide to defining workflows with task dependencies
 - [Fanout](/patterns/fanout): dynamically spawn tasks at runtime instead
-- [Concurrency Control](/features/concurrency): limit concurrent task execution within a pipeline
-- [Procedural Child Spawning](/features/child-spawning): combine pipelines with dynamic child tasks
+- [Concurrency Control](/concepts/concurrency): limit concurrent task execution within a pipeline
+- [Procedural Child Spawning](/concepts/child-spawning): combine pipelines with dynamic child tasks

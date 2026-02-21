@@ -53,7 +53,7 @@ If your task calls `SleepFor` then `WaitForEvent`, don't later swap their order.
 </Steps>
 
 <Callout type="warning">
-  If your workflow can be expressed as a [DAG](/features/dags), prefer regular
+  If your workflow can be expressed as a [DAG](/concepts/dags), prefer regular
   workflows. DAGs are inherently deterministic and don't require you to think
   about replay safety. Use durable workflows when you need inline `SleepFor`,
   `WaitForEvent`, or logic that can't be expressed as a static graph.
@@ -72,10 +72,10 @@ If your task calls `SleepFor` then `WaitForEvent`, don't later swap their order.
 ## Next Steps
 
 <Cards>
-  <Cards.Card title="Durable Sleep" href="/features/durable-sleep">
+  <Cards.Card title="Durable Sleep" href="/concepts/durable-sleep">
     Pause tasks for exact durations with crash-safe timing guarantees.
   </Cards.Card>
-  <Cards.Card title="Durable Events" href="/features/durable-events">
+  <Cards.Card title="Durable Events" href="/concepts/durable-events">
     Wait for external signals with key matching and CEL filter expressions.
   </Cards.Card>
   <Cards.Card title="Directed Acyclic Graphs" href="/guide/durable-workflows/directed-acyclic-graph">

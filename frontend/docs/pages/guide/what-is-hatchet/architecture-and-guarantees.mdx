@@ -197,7 +197,7 @@ Hatchet is designed with the following core reliability guarantees:
 
 **Consistent state management.** All workflow state changes happen within PostgreSQL transactions, ensuring that your workflow dependencies resolve consistently and no tasks are lost during failures or deployments.
 
-**Predictable execution order.** The default task assignment strategy is First In First Out (FIFO) which can be modified with [concurrency policies](/features/concurrency), [rate limits](/features/rate-limits), and [priorities](/features/priority).
+**Predictable execution order.** The default task assignment strategy is First In First Out (FIFO) which can be modified with [concurrency policies](/concepts/concurrency), [rate limits](/concepts/rate-limits), and [priorities](/concepts/priority).
 
 **Operational resilience.** The engine and API servers are stateless, allowing them to restart without losing state and enabling horizontal scaling by simply adding more instances. Workers automatically reconnect after network issues and can be deployed anywhere—containers, VMs, or local development environments.
 

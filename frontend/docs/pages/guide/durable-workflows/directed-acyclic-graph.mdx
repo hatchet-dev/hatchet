@@ -19,7 +19,7 @@ Define which tasks depend on which. Hatchet automatically executes tasks in the 
 
 ### Automatic retries and error handling
 
-Each task has configurable [retry policies](/features/retry-policies) and [timeouts](/features/timeouts). If a task fails, Hatchet retries it without re-running already-completed tasks.
+Each task has configurable [retry policies](/concepts/retry-policies) and [timeouts](/concepts/timeouts). If a task fails, Hatchet retries it without re-running already-completed tasks.
 
 ### Full observability
 
@@ -39,7 +39,7 @@ Task outputs are stored and passed to downstream tasks. If a workflow is partial
 | **Dependency** | A parent-child relationship between tasks. A child task waits for its parents to complete                                                                                          |
 | **Input**      | Data passed to the workflow when it's triggered                                                                                                                                    |
 | **Output**     | Data returned by each task, accessible to downstream tasks                                                                                                                         |
-| **Trigger**    | How a workflow starts: [direct run](/features/run-with-results), [event](/features/run-on-event), [cron](/features/cron-runs), [schedule](/features/scheduled-runs), or [webhooks](/features/webhooks) |
+| **Trigger**    | How a workflow starts: [direct run](/concepts/run-with-results), [event](/concepts/run-on-event), [cron](/concepts/cron-runs), [schedule](/concepts/scheduled-runs), or [webhooks](/concepts/webhooks) |
 
 <Callout type="info">
   Workflows can be as simple as a single task or as complex as dozens of tasks
@@ -53,11 +53,11 @@ Task outputs are stored and passed to downstream tasks. If a workflow is partial
   <Cards.Card title="Durable Task Execution" href="/guide/durable-workflows/durable-task-execution">
     Learn how durable workflows checkpoint, pause, and resume across failures.
   </Cards.Card>
-  <Cards.Card title="DAGs in Detail" href="/features/dags">
+  <Cards.Card title="DAGs in Detail" href="/concepts/dags">
     Define multi-task workflows with dependencies, parent outputs, and parallel
     execution.
   </Cards.Card>
-  <Cards.Card title="Child Spawning" href="/features/child-spawning">
+  <Cards.Card title="Child Spawning" href="/concepts/child-spawning">
     Dynamically create child tasks at runtime for fan-out, loops, and agent
     patterns.
   </Cards.Card>

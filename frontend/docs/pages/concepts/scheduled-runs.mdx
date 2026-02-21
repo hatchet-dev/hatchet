@@ -15,8 +15,8 @@ Scheduled runs allow you to trigger a task at a specific time in the future. Som
 
 Hatchet supports scheduled runs to run on a schedule defined in a few different ways:
 
-- [Programmatically](/features/scheduled-runs#programmatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a task.
-- [Hatchet Dashboard](/features/scheduled-runs#managing-scheduled-runs-in-the-hatchet-dashboard): Manually create scheduled runs from the Hatchet Dashboard.
+- [Programmatically](/concepts/scheduled-runs#programmatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a task.
+- [Hatchet Dashboard](/concepts/scheduled-runs#managing-scheduled-runs-in-the-hatchet-dashboard): Manually create scheduled runs from the Hatchet Dashboard.
 
 <Callout type="warning">
   The scheduled time is when Hatchet **enqueues** the task, not when the run
@@ -178,4 +178,4 @@ When using scheduled runs, there are a few considerations to keep in mind:
 
 3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances when the service comes back online.
 
-4. **Overlapping Schedules**: If a task is still running when a second scheduled run is scheduled to start, Hatchet will start a new instance of the task or respect [concurrency](/features/concurrency) policy.
+4. **Overlapping Schedules**: If a task is still running when a second scheduled run is scheduled to start, Hatchet will start a new instance of the task or respect [concurrency](/concepts/concurrency) policy.

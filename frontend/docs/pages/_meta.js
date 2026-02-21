@@ -13,8 +13,8 @@ export default {
       toc: false,
     },
   },
-  features: {
-    title: "Features",
+  concepts: {
+    title: "Concepts",
     type: "page",
     theme: {
       toc: false,

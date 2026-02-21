@@ -30,13 +30,13 @@ Agents typically need to stream LLM tokens to a frontend as they're generated. U
 | Feature                                                   | What it does for agents                                                                    |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | **[Durable Execution](/guide/durable-workflows/durable-task-execution)** | Checkpoints tool calls, LLM responses, and loop iterations so agent state survives crashes |
-| **[Streaming](/features/streaming)**                      | Stream LLM tokens from workers to frontends in real-time                                   |
-| **[Durable Events](/features/durable-events)**            | Pause for human-in-the-loop feedback without holding worker slots                          |
-| **[Durable Sleep](/features/durable-sleep)**              | Schedule agent retries or delayed actions with exact timing                                |
-| **[Concurrency](/features/concurrency)**                  | Cancel stale runs, limit parallel agents per user                                          |
-| **[Rate Limits](/features/rate-limits)**                  | Stay within LLM provider API rate limits across all workers                                |
-| **[Child Spawning](/features/child-spawning)**            | Agents dynamically spawn sub-agents or tool-call tasks                                     |
-| **[Cancellation](/features/cancellation)**                | Stop long-running agents on user request                                                   |
+| **[Streaming](/concepts/streaming)**                      | Stream LLM tokens from workers to frontends in real-time                                   |
+| **[Durable Events](/concepts/durable-events)**            | Pause for human-in-the-loop feedback without holding worker slots                          |
+| **[Durable Sleep](/concepts/durable-sleep)**              | Schedule agent retries or delayed actions with exact timing                                |
+| **[Concurrency](/concepts/concurrency)**                  | Cancel stale runs, limit parallel agents per user                                          |
+| **[Rate Limits](/concepts/rate-limits)**                  | Stay within LLM provider API rate limits across all workers                                |
+| **[Child Spawning](/concepts/child-spawning)**            | Agents dynamically spawn sub-agents or tool-call tasks                                     |
+| **[Cancellation](/concepts/cancellation)**                | Stop long-running agents on user request                                                   |
 
 <Callout type="info">
   The agent loop pattern is a [Cycle](/patterns/cycles). Each iteration
@@ -69,7 +69,7 @@ The agent uses `WaitForEvent` to pause until the user sends another message, fre
 
 <Callout type="warning">
   Always set a **timeout** and **max iteration count** on agent loops. Without
-  bounds, an agent can loop indefinitely. See [Timeouts](/features/timeouts) for
+  bounds, an agent can loop indefinitely. See [Timeouts](/concepts/timeouts) for
   configuration.
 </Callout>
 
@@ -95,6 +95,6 @@ The agent uses `WaitForEvent` to pause until the user sends another message, fre
 ## Next Steps
 
 - [Durable Workflows](/guide/durable-workflows/durable-task-execution): understand checkpointing and replay
-- [Streaming](/features/streaming): set up real-time LLM output streaming
-- [Concurrency Control](/features/concurrency): configure CANCEL_IN_PROGRESS for chat agents
-- [Child Spawning](/features/child-spawning): spawn tool-call tasks from agent loops
+- [Streaming](/concepts/streaming): set up real-time LLM output streaming
+- [Concurrency Control](/concepts/concurrency): configure CANCEL_IN_PROGRESS for chat agents
+- [Child Spawning](/concepts/child-spawning): spawn tool-call tasks from agent loops
