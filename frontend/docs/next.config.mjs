@@ -31,7 +31,7 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/:path((?!api|home|cli|v1|v0|compute|sdk|contributing|self-hosting|launches|blog|llms|favicon\\.ico|.*\\.png|.*\\.gif|.*\\.svg|_next/.*|monitoring\-demo\.mp4).*)',
+        source: '/:path((?!api|agent-instructions|home|cli|v1|v0|compute|sdk|contributing|self-hosting|launches|blog|llms|favicon\\.ico|.*\\.png|.*\\.gif|.*\\.svg|_next/.*|monitoring\-demo\.mp4).*)',
         destination: '/home/:path*',
         permanent: false,
       },
@@ -39,6 +39,11 @@ const nextConfig = {
         source: "/ingest/:path*",
         destination: "https://app.posthog.com/:path*",
         permanent: false,
+      },
+      {
+        source: "/home/install-docs-mcp",
+        destination: "/home/coding-agents",
+        permanent: true,
       },
       {
         source: "/home/basics/overview",
