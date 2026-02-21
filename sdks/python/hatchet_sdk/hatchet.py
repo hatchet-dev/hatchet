@@ -57,7 +57,9 @@ class Hatchet:
 
     def __init__(
         self,
+        # todo[next major version]: add debug to the client config instead of being a top-level parameter
         debug: bool = False,
+        # todo[next major version]: remove this parameter
         client: Client | None = None,
         config: ClientConfig | None = None,
     ):
