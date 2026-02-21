@@ -41,10 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.23.4] - 2026-02-13
 
-### Changed
-
-- Fixes cases where raising exception classes or exceptions with no message would cause the whole error including stack trace to be converted to an empty string.
-- When an error is raised because a workflow has no tasks it now includes the workflows name.
+#### Changed
+- Python SDK `ClientConfig` token validation now raises `HatchetConfigurationError` instead of `ValueError` for invalid or missing configuration.
+- Minor field validators updated to improve clarity and robustness.
+- Updated package patch version to include these non-breaking improvements.
 
 ## [1.23.3] - 2026-02-12
 
