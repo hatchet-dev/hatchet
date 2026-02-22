@@ -230,9 +230,7 @@ WITH input AS (
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
     SET
         evicted_at = NULL,
-        -- TODO-DURABLE: should we be setting the worker_id here?
-        -- I think this should be NULL
-        worker_id = NULL,
+        worker_id = EXCLUDED.worker_id,
         timeout_at = EXCLUDED.timeout_at
     WHERE v1_task_runtime.evicted_at IS NOT NULL
     -- only return the task ids that were successfully assigned
