@@ -1,0 +1,27 @@
+import { Callout } from "nextra/components";
+
+# Preparing for Production
+
+Workers are long-lived processes, so treat them like any other production service. Give them enough CPU and memory that a spike in traffic won't starve tasks or trigger OOM kills, and tune [slots](/concepts/understanding-slots) based on what you actually observe rather than what seems reasonable on paper.
+
+Visibility matters more than most teams expect. Include workflow and task identifiers in your logs so you can trace a failure back to a specific run without guessing. Alert on missed heartbeats and rising error rates early—by the time throughput drops noticeably, the backlog is usually already deep. The Python SDK has built-in [health check endpoints](/concepts/worker-healthchecks) you can wire into your infrastructure.
+
+Tasks will fail. That's fine as long as failures are reported back to Hatchet accurately and your [retry policies](/concepts/retry-policies) match the kind of failure. Transient network errors are worth retrying; a bad input that will never parse is not. Making tasks idempotent wherever you can removes a whole class of retry-related bugs.
+
+If you're self-hosting, secure the connection between workers and the engine with TLS. If you're on Hatchet Cloud this is handled for you. Either way, keep credentials in a secret manager and rotate them on a schedule.
+
+Workers should start under a process manager or container orchestrator that will restart them automatically after a crash. Equally important is shutting down gracefully—give in-flight tasks time to finish or requeue before the process exits. Test both paths before you rely on them in production.
+
+Finally, keep your Hatchet SDK version in step with your engine version. Roll updates out gradually and watch for regressions before promoting to the full fleet.
+
+## Containerizing your workers
+
+Most production deployments run workers inside containers. See [Running with Docker](/concepts/docker) for example Dockerfiles across all supported languages.
+
+## Scaling
+
+As demand grows, you can scale workers horizontally. Hatchet provides a [Task Stats API](/concepts/autoscaling-workers) that exposes real-time queue depths, which you can feed into autoscalers like KEDA to add or remove workers automatically.
+
+## Troubleshooting
+
+If workers are not appearing in the dashboard, tasks are failing to send, or phantom workers are showing up, see the [troubleshooting guide](/essentials/troubleshooting-workers).

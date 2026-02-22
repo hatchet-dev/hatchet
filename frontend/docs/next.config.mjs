@@ -471,7 +471,44 @@ const nextConfig = {
         destination: "https://hatchet.run/blog",
         permanent: true,
         basePath: false,
-      }
+      },
+      // Essentials → Concepts moves
+      {
+        source: "/essentials/docker",
+        destination: "/v1/concepts/docker",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/v1/essentials/docker",
+        destination: "/v1/concepts/docker",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/essentials/worker-healthchecks",
+        destination: "/v1/concepts/worker-healthchecks",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/v1/essentials/worker-healthchecks",
+        destination: "/v1/concepts/worker-healthchecks",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/essentials/autoscaling-workers",
+        destination: "/v1/concepts/autoscaling-workers",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/v1/essentials/autoscaling-workers",
+        destination: "/v1/concepts/autoscaling-workers",
+        permanent: true,
+        basePath: false,
+      },
     ];
   },
 }

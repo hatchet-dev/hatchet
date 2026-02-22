@@ -145,26 +145,11 @@ And that's it! Once you run your script to start the worker, you'll see some log
   `debug` option on the Hatchet client is set to `True`
 </Callout>
 
-## Understanding Slots
+## Next steps
 
-Slots are the number of concurrent _task_ runs that a worker can execute, are are configured using the `slots` option on the worker. For instance, if you set `slots=5` on your worker, then your worker will be able to run five tasks concurrently before new tasks start needing to wait in the queue before being picked up. Increasing the number of `slots` on your worker, or the number of workers you run, will allow you to handle more concurrent work (and thus more throughput, in many cases).
+Now that you have a worker running, you can [run your first task](/essentials/running-your-task). When you're ready to go deeper:
 
-An important caveat is that slot-level concurrency is only helpful up to the point where the worker is not bottlenecked by another resource, such as CPU, memory, or network bandwidth. If your worker is bottlenecked by one of these resources, increasing the number of slots will not improve throughput.
-
-## Best Practices for Managing Workers
-
-To ensure a robust and efficient Hatchet implementation, consider the following best practices when managing your workers:
-
-1. **Reliability**: Deploy workers in a stable environment with sufficient resources to avoid resource contention and ensure reliable execution.
-
-2. **Monitoring and Logging**: Implement robust monitoring and logging mechanisms to track worker health, performance, and task execution status.
-
-3. **Error Handling**: Design workers to handle errors gracefully, report execution failures to Hatchet, and retry tasks based on configured policies.
-
-4. **Secure Communication**: Ensure secure communication between workers and the Hatchet engine, especially when distributed across different networks.
-
-5. **Lifecycle Management**: Implement proper lifecycle management for workers, including automatic restarts on critical failures and graceful shutdown procedures.
-
-6. **Scalability**: Plan for scalability by designing your system to easily add or remove workers based on demand, leveraging containerization, orchestration tools, or cloud auto-scaling features.
-
-7. **Consistent Updates**: Keep worker implementations up to date with the latest Hatchet SDKs and ensure compatibility with the Hatchet engine version.
+- [Understanding Slots](/concepts/understanding-slots) — control how many tasks a worker runs concurrently.
+- [Running with Docker](/concepts/docker) — containerize your workers for deployment.
+- [Worker Health Checks](/concepts/worker-healthchecks) — expose health and metrics endpoints.
+- [Preparing for Production](/essentials/production) — monitoring, error handling, scaling, and operational best practices.

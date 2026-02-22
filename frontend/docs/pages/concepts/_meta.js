@@ -1,9 +1,14 @@
 export default {
-  "--ways-of-running": {
-    title: "Ways of Running Tasks",
+  "getting-started": {
+    title: "Getting Started ↗",
+    href: "/essentials/quickstart",
+  },
+  "--runnables": {
+    title: "Runnables",
     type: "separator",
   },
-  "running-tasks": "Overview",
+  tasks: "Tasks",
+  workflows: "Durable Workflows",
   "run-with-results": "Run and Wait Trigger",
   "run-no-wait": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
@@ -12,6 +17,13 @@ export default {
   "bulk-run": "Bulk Run Many",
   webhooks: "Webhooks",
   "inter-service-triggering": "Inter-Service Triggering",
+  "--workers": {
+    title: "Workers",
+    type: "separator",
+  },
+  "understanding-slots": "Understanding Slots",
+  docker: "Running with Docker",
+  "autoscaling-workers": "Autoscaling Workers",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",
@@ -69,6 +81,7 @@ export default {
     title: "Observability",
     type: "separator",
   },
+  "worker-healthchecks": "Worker Health Checks",
   logging: "Logging",
   opentelemetry: "OpenTelemetry",
   "prometheus-metrics": "Prometheus Metrics",

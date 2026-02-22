@@ -21,19 +21,26 @@ export default {
     title: "Durable Workflows",
     theme: { "collapsed": true },
   },
-  "--deploying-workers": {
-    title: "Deploying Workers",
+  "--production": {
+    title: "Preparing for Production",
     type: "separator",
   },
-  docker: "Running with Docker",
+  "production": "Overview",
   "troubleshooting-workers": "Troubleshooting",
+  "autoscaling-workers": {
+    display: "hidden",
+  },
+  docker: {
+    display: "hidden",
+  },
   compute: {
     title: "Managed Compute",
     type: "page",
     display: "hidden",
   },
-  "worker-healthchecks": "Worker Health Checks",
-  "autoscaling-workers": "Autoscaling Workers",
+  "worker-healthchecks": {
+    display: "hidden",
+  },
   "--evaluate": {
     title: "Evaluating Hatchet?",
     type: "separator",

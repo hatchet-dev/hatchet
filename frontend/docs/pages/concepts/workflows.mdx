@@ -1,0 +1,37 @@
+import { Callout } from "nextra/components";
+
+# Workflows
+
+A workflow groups multiple [tasks](/concepts/tasks) into a single runnable unit with defined execution order. Instead of triggering tasks one at a time and wiring the results together yourself, you declare the shape of the work and let Hatchet handle scheduling, dependency resolution, and failure propagation.
+
+## Two styles of composition
+
+Hatchet supports two patterns for building workflows, and you can mix them within the same application.
+
+**Declarative (DAGs)** — You specify task dependencies up front. Hatchet builds a directed acyclic graph and runs tasks in the correct order, parallelizing wherever dependencies allow. This is the right choice when the shape of the work is known at definition time.
+
+See [Declarative Workflow Design (DAGs)](/concepts/dags) for details.
+
+**Procedural (child spawning)** — A running task spawns child tasks at runtime. This is useful when the number of tasks or their dependencies depend on data that is only available during execution, such as fan-out over a list of items or an AI agent that decides its next step dynamically.
+
+See [Procedural Child Spawning](/concepts/child-spawning) for details.
+
+## How workflows relate to tasks
+
+A workflow is triggered and observed the same way as a standalone task—`run`, `run_no_wait`, `schedule`, and the other trigger methods all work identically. The difference is that triggering a workflow enqueues its constituent tasks according to the dependency graph rather than running a single function.
+
+Each task inside a workflow can access the outputs of its parent tasks through the context object, so data flows naturally from one step to the next.
+
+## Configuration
+
+Workflow-level configuration (like concurrency or on-failure hooks) applies across all tasks in the workflow. Individual tasks can still carry their own retry policies, timeouts, and other settings, which override or extend the workflow-level defaults.
+
+| Concept | Scope |
+| --- | --- |
+| [Concurrency](/concepts/concurrency) | Limit concurrent runs of the entire workflow. |
+| [On-failure tasks](/concepts/on-failure-tasks) | Run a cleanup task when any task in the workflow fails. |
+| [Conditional workflows](/concepts/conditional-workflows) | Skip or gate tasks based on runtime conditions. |
+
+## Next steps
+
+Start with [DAGs](/concepts/dags) if your task dependencies are known ahead of time, or [child spawning](/concepts/child-spawning) if they are dynamic.
