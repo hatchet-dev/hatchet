@@ -19,7 +19,7 @@ hatchet = Hatchet(debug=True)
 
 
 EVICTION_TTL_SECONDS = 5
-LONG_SLEEP_SECONDS = 30
+LONG_SLEEP_SECONDS = 15
 
 
 @hatchet.durable_task(
