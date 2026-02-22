@@ -128,20 +128,20 @@ describe('Worker', () => {
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('should apply middleware pre/post (merge semantics)', async () => {
+    it('should apply middleware before/after (merge semantics)', async () => {
       const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       const order: string[] = [];
       const seenInputs: any[] = [];
 
       hatchet.config.middleware = {
-        pre: (_input: any, ctx: any) => {
-          order.push('pre');
+        before: (_input: any, ctx: any) => {
+          order.push('before');
           expect(ctx.taskRunExternalId()).toBe(mockStart.taskRunExternalId);
           return { data: 2 };
         },
-        post: (_output: any, _ctx: any, input: any) => {
-          order.push('post');
+        after: (_output: any, _ctx: any, input: any) => {
+          order.push('after');
           return { observed: input.data };
         },
       };
@@ -166,11 +166,11 @@ describe('Worker', () => {
       worker.handleStartStepRun(mockStart);
       await sleep(100);
 
-      expect(order).toEqual(['pre', 'step', 'post']);
-      // pre merges { data: 2 } into existing input
+      expect(order).toEqual(['before', 'step', 'after']);
+      // before merges { data: 2 } into existing input
       expect(seenInputs[0]).toEqual(expect.objectContaining({ data: 2 }));
 
-      // post merges { observed: 2 } into the task result { ok: true }
+      // after merges { observed: 2 } into the task result { ok: true }
       expect(getActionEventSpy).toHaveBeenNthCalledWith(
         2,
         expect.anything(),
@@ -181,30 +181,30 @@ describe('Worker', () => {
       );
     });
 
-    it('should apply array of pre/post hooks in order', async () => {
+    it('should apply array of before/after hooks in order', async () => {
       const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       const order: string[] = [];
       const seenInputs: any[] = [];
 
       hatchet.config.middleware = {
-        pre: [
+        before: [
           (_input: any, _ctx: any) => {
-            order.push('pre1');
+            order.push('before1');
             return { a: 1 };
           },
           (_input: any, _ctx: any) => {
-            order.push('pre2');
+            order.push('before2');
             return { b: 2 };
           },
         ],
-        post: [
+        after: [
           (_output: any, _ctx: any, _input: any) => {
-            order.push('post1');
+            order.push('after1');
             return { x: 10 };
           },
           (_output: any, _ctx: any, _input: any) => {
-            order.push('post2');
+            order.push('after2');
             return { y: 20 };
           },
         ],
@@ -230,7 +230,7 @@ describe('Worker', () => {
       worker.handleStartStepRun(mockStart);
       await sleep(100);
 
-      expect(order).toEqual(['pre1', 'pre2', 'step', 'post1', 'post2']);
+      expect(order).toEqual(['before1', 'before2', 'step', 'after1', 'after2']);
       expect(seenInputs[0]).toEqual(expect.objectContaining({ a: 1, b: 2 }));
 
       expect(getActionEventSpy).toHaveBeenNthCalledWith(
@@ -247,7 +247,7 @@ describe('Worker', () => {
       const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       hatchet.config.middleware = {
-        pre: () => {
+        before: () => {
           throw new Error('middleware exploded');
         },
       };
