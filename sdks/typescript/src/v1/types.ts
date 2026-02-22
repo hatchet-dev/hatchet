@@ -23,10 +23,11 @@ export interface WorkflowOutputType {
  * omits fields by not spreading, those fields are stripped at runtime.
  * Falls back to `Base` when no middleware is attached (`Middleware = {}`).
  */
-export type Resolved<
-  Base extends Record<string, any>,
-  Middleware extends Record<string, any>,
-> = [keyof Middleware] extends [never] ? Base : Middleware;
+export type Resolved<Base extends Record<string, any>, Middleware extends Record<string, any>> = [
+  keyof Middleware,
+] extends [never]
+  ? Base
+  : Middleware;
 
 // Helper type to check if a type is a valid workflow output structure
 type IsValidWorkflowOutput<T> = T extends Record<string, JsonObject> ? true : false;

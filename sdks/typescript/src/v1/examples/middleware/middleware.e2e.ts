@@ -13,15 +13,17 @@ describe('middleware-e2e', () => {
   });
 
   it('should inject before middleware fields into task input and after middleware fields into output', async () => {
-    const client = HatchetClient.init<{ first: number; second: number }, { extra: number }>()
-      .withMiddleware({
-        before: (input) => {
-          return { ...input, dependency: `dep-${input.first}-${input.second}` };
-        },
-        after: (output) => {
-          return { ...output, additionalData: 42 };
-        },
-      });
+    const client = HatchetClient.init<
+      { first: number; second: number },
+      { extra: number }
+    >().withMiddleware({
+      before: (input) => {
+        return { ...input, dependency: `dep-${input.first}-${input.second}` };
+      },
+      after: (output) => {
+        return { ...output, additionalData: 42 };
+      },
+    });
 
     const task = client.task<{ message: string }, { message: string; extra: number }>({
       name: 'middleware-e2e-single',
@@ -52,15 +54,14 @@ describe('middleware-e2e', () => {
   }, 60000);
 
   it('should strip fields not included in middleware return when input is not spread', async () => {
-    const client = HatchetClient.init<{ first: number; second: number }>()
-      .withMiddleware({
-        before: (input) => {
-          return { dependency: `dep-${input.first}-${input.second}` };
-        },
-        after: (output) => {
-          return { additionalData: 99 };
-        },
-      });
+    const client = HatchetClient.init<{ first: number; second: number }>().withMiddleware({
+      before: (input) => {
+        return { dependency: `dep-${input.first}-${input.second}` };
+      },
+      after: (output) => {
+        return { additionalData: 99 };
+      },
+    });
 
     const task = client.task<{}, { result: string }>({
       name: 'middleware-e2e-no-spread',

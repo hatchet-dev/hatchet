@@ -252,7 +252,7 @@ export class V0Worker {
       }
 
       const run = async () => {
-        const middleware = this.client.config.middleware;
+        const { middleware } = this.client.config;
 
         if (middleware?.before) {
           const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];

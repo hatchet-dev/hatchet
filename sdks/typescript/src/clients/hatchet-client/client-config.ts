@@ -45,7 +45,10 @@ export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
  * @param ctx - The task execution context.
  * @returns The new input value, or void to pass through unchanged.
  */
-export type BeforeHookFn<T = any> = (input: T, ctx: Context<any>) => Record<string, any> | void | Promise<Record<string, any> | void>;
+export type BeforeHookFn<T = any> = (
+  input: T,
+  ctx: Context<any>
+) => Record<string, any> | void | Promise<Record<string, any> | void>;
 
 /**
  * A middleware function that runs after every task invocation.
@@ -55,7 +58,11 @@ export type BeforeHookFn<T = any> = (input: T, ctx: Context<any>) => Record<stri
  * @param input - The task input (after before-hooks have run).
  * @returns The new output value, or void to pass through unchanged.
  */
-export type AfterHookFn<TOutput = any, TInput = any> = (output: TOutput, ctx: Context<any>, input: TInput) => Record<string, any> | void | Promise<Record<string, any> | void>;
+export type AfterHookFn<TOutput = any, TInput = any> = (
+  output: TOutput,
+  ctx: Context<any>,
+  input: TInput
+) => Record<string, any> | void | Promise<Record<string, any> | void>;
 
 /**
  * Middleware hooks that run before/after every task invocation.

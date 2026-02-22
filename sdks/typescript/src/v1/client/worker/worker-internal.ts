@@ -572,7 +572,7 @@ export class V1Worker {
           childIndex: 0,
           desiredWorkerId: this.workerId || '',
         });
-        const middleware = this.client.config.middleware;
+        const { middleware } = this.client.config;
 
         if (middleware?.before) {
           const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];

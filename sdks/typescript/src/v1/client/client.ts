@@ -39,7 +39,13 @@ import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
-import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType, Resolved } from '../types';
+import {
+  InputType,
+  OutputType,
+  UnknownInputType,
+  StrictWorkflowOutputType,
+  Resolved,
+} from '../types';
 import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
 import { FiltersClient } from './features/filters';
@@ -49,8 +55,9 @@ import { CELClient } from './features/cel';
 import { TenantClient } from './features/tenant';
 import { WebhooksClient } from './features/webhooks';
 
-type MergeIfNonEmpty<Base, Extra extends Record<string, any>> =
-  keyof Extra extends never ? Base : Base & Extra;
+type MergeIfNonEmpty<Base, Extra extends Record<string, any>> = keyof Extra extends never
+  ? Base
+  : Base & Extra;
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -65,7 +72,8 @@ export class HatchetClient<
   GlobalOutput extends Record<string, any> = {},
   MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
-> implements IHatchetClient {
+> implements IHatchetClient
+{
   /** The underlying v0 client instance */
   _v0: LegacyHatchetClient;
   _api: Api;
@@ -190,12 +198,25 @@ export class HatchetClient<
    * Use this after `init<T, U>()` to get full middleware return-type inference
    * that TypeScript can't provide when global types are explicitly set on `init`.
    */
-  withMiddleware<const M extends TaskMiddleware<Resolved<GlobalInput, MiddlewareBefore>, Resolved<GlobalOutput, MiddlewareAfter>>>(
+  withMiddleware<
+    const M extends TaskMiddleware<
+      Resolved<GlobalInput, MiddlewareBefore>,
+      Resolved<GlobalOutput, MiddlewareAfter>
+    >,
+  >(
     middleware: M
-  ): HatchetClient<GlobalInput, GlobalOutput, MiddlewareBefore & InferMiddlewareBefore<M>, MiddlewareAfter & InferMiddlewareAfter<M>> {
+  ): HatchetClient<
+    GlobalInput,
+    GlobalOutput,
+    MiddlewareBefore & InferMiddlewareBefore<M>,
+    MiddlewareAfter & InferMiddlewareAfter<M>
+  > {
     const existing: TaskMiddleware = (this._config as any).middleware || {};
-    const toArray = <T>(v: T | readonly T[] | undefined): T[] =>
-      v == null ? [] : Array.isArray(v) ? [...v] : [v as T];
+    const toArray = <T>(v: T | readonly T[] | undefined): T[] => {
+      if (v == null) return [];
+      if (Array.isArray(v)) return [...v];
+      return [v as T];
+    };
 
     (this._config as any).middleware = {
       before: [...toArray(existing.before), ...toArray(middleware.before)],
@@ -227,7 +248,11 @@ export class HatchetClient<
   workflow<I extends InputType = UnknownInputType, O extends StrictWorkflowOutputType = {}>(
     options: CreateWorkflowOpts
   ): WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewareBefore>> {
-    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewareBefore>>;
+    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<
+      I,
+      O,
+      Resolved<GlobalInput, MiddlewareBefore>
+    >;
   }
 
   /**
@@ -239,7 +264,10 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance
    */
   task<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewareBefore>, MergeIfNonEmpty<O, GlobalOutput>>
+    options: CreateTaskWorkflowOpts<
+      I & Resolved<GlobalInput, MiddlewareBefore>,
+      MergeIfNonEmpty<O, GlobalOutput>
+    >
   ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
@@ -280,7 +308,10 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance for a durable task
    */
   durableTask<I extends InputType, O extends OutputType>(
-    options: CreateDurableTaskWorkflowOpts<I & Resolved<GlobalInput, MiddlewareBefore>, MergeIfNonEmpty<O, GlobalOutput>>
+    options: CreateDurableTaskWorkflowOpts<
+      I & Resolved<GlobalInput, MiddlewareBefore>,
+      MergeIfNonEmpty<O, GlobalOutput>
+    >
   ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
