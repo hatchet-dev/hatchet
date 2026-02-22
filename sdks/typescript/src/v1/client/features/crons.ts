@@ -1,6 +1,3 @@
-/**
- * @module Cron Client
- */
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { Workflow } from '@hatchet/workflow';
@@ -13,6 +10,7 @@ import { workflowNameString, WorkflowsClient } from './workflows';
 
 /**
  * Schema for creating a Cron Trigger.
+ * @internal
  */
 export const CreateCronTriggerSchema = z.object({
   name: z.string(),
@@ -24,11 +22,12 @@ export const CreateCronTriggerSchema = z.object({
 
 /**
  * Type representing the input for creating a Cron.
+ * @internal
  */
 export type CreateCronInput = z.infer<typeof CreateCronTriggerSchema>;
 
 /**
- * Client for managing Cron Triggers.
+ * The cron client is a client for managing cron workflows within Hatchet.
  */
 export class CronClient {
   api: HatchetClient['api'];

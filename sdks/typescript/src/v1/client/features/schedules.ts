@@ -1,6 +1,3 @@
-/**
- * @module Schedules Client
- */
 import {
   ScheduledWorkflows,
   ScheduledWorkflowsBulkDeleteFilter,
@@ -18,6 +15,7 @@ import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
 /**
  * Schema for creating a Scheduled Run Trigger.
+ * @internal
  */
 export const CreateScheduledRunTriggerSchema = z.object({
   triggerAt: z.coerce.date(),
@@ -28,11 +26,13 @@ export const CreateScheduledRunTriggerSchema = z.object({
 
 /**
  * Type representing the input for creating a Cron.
+ * @internal
  */
 export type CreateScheduledRunInput = z.infer<typeof CreateScheduledRunTriggerSchema>;
 
 /**
  * Schema for updating (rescheduling) a Scheduled Run Trigger.
+ * @internal
  */
 export const UpdateScheduledRunTriggerSchema = z.object({
   triggerAt: z.coerce.date(),
@@ -41,7 +41,7 @@ export const UpdateScheduledRunTriggerSchema = z.object({
 export type UpdateScheduledRunInput = z.infer<typeof UpdateScheduledRunTriggerSchema>;
 
 /**
- * Client for managing Scheduled Runs.
+ * The scheduled client is a client for managing scheduled workflows within Hatchet
  */
 export class ScheduleClient {
   api: HatchetClient['api'];

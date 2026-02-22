@@ -1,6 +1,3 @@
-/**
- * @module Webhooks Client
- */
 import {
   V1CreateWebhookRequest,
   V1CreateWebhookRequestBase,
@@ -43,11 +40,11 @@ function toCreateWebhookRequest(options: CreateWebhookOptions): V1CreateWebhookR
 
 /**
  * Client for managing incoming webhooks in Hatchet.
- *
- * Webhooks allow external systems to trigger Hatchet workflows by sending HTTP
- * requests to dedicated endpoints. This enables real-time integration with
- * third-party services like GitHub, Stripe, Slack, or any system that can send
- * webhook events.
+*
+ * Webhooks allow external systems to trigger Hatchet workflows by sending
+ * HTTP requests to dedicated endpoints. This enables real-time integration
+ * with third-party services like GitHub, Stripe, Slack, or any system that
+ * can send webhook events.
  */
 export class WebhooksClient {
   api: HatchetClient['api'];
@@ -58,6 +55,11 @@ export class WebhooksClient {
     this.tenantId = client.tenantId;
   }
 
+  /**
+   * Lists all webhooks for the current tenant.
+   * @param options - The options for the list operation.
+   * @returns A promise that resolves to the list of webhooks.
+   */
   async list(options?: {
     limit?: number;
     offset?: number;
@@ -73,17 +75,33 @@ export class WebhooksClient {
     return response.data;
   }
 
+  /**
+   * Gets a webhook by its name.
+   * @param webhookName - The name of the webhook to get.
+   * @returns A promise that resolves to the webhook.
+   */
   async get(webhookName: string): Promise<V1Webhook> {
     const response = await this.api.v1WebhookGet(this.tenantId, webhookName);
     return response.data;
   }
 
+  /**
+   * Creates a new webhook.
+   * @param request - The request options for the create operation.
+   * @returns A promise that resolves to the created webhook.
+   */
   async create(request: CreateWebhookOptions): Promise<V1Webhook> {
     const payload = toCreateWebhookRequest(request);
     const response = await this.api.v1WebhookCreate(this.tenantId, payload);
     return response.data;
   }
 
+  /**
+   * Updates a webhook by its name.
+   * @param webhookName - The name of the webhook to update.
+   * @param options - The options for the update operation.
+   * @returns A promise that resolves to the updated webhook.
+   */
   async update(
     webhookName: string,
     options: Partial<V1UpdateWebhookRequest> = {}
@@ -96,6 +114,11 @@ export class WebhooksClient {
     return response.data;
   }
 
+  /**
+   * Deletes a webhook by its name.
+   * @param webhookName - The name of the webhook to delete.
+   * @returns A promise that resolves to the deleted webhook.
+   */
   async delete(webhookName: string): Promise<V1Webhook> {
     const response = await this.api.v1WebhookDelete(this.tenantId, webhookName);
     return response.data;

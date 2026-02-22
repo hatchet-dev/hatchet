@@ -1,6 +1,3 @@
-/**
- * @module Metrics Client
- */
 import { HatchetClient } from '../client';
 
 export type TaskStatusMetrics = {
@@ -12,7 +9,7 @@ export type TaskStatusMetrics = {
 };
 
 /**
- * MetricsClient is used to get metrics for workflows
+ * The metrics client is a client for reading metrics out of Hatchet’s metrics API.
  */
 export class MetricsClient {
   tenantId: string;
@@ -24,11 +21,10 @@ export class MetricsClient {
   }
 
   /**
-   * Get task/run status metrics for a tenant.
-   *
-   * This backs the dashboard "runs list" status count badges.
-   *
-   * Endpoint: GET /api/v1/stable/tenants/{tenant}/task-metrics
+   * Returns aggregate task run counts grouped by status (queued, running, completed, failed, cancelled)
+   * @param query - Filters for the metrics query (e.g. `since`, `until`, `workflow_ids`).
+   * @param requestParams - Optional request-level overrides (headers, signal, etc.).
+   * @returns Counts per status for the matched task runs.
    */
   async getTaskStatusMetrics(
     query: Parameters<typeof this.api.v1TaskListStatusMetrics>[1],
@@ -44,6 +40,11 @@ export class MetricsClient {
     );
   }
 
+  /**
+   * Returns the queue metrics for the current tenant.
+   * @param opts - The options for the request.
+   * @returns The queue metrics for the current tenant.
+   */
   async getQueueMetrics(opts?: Parameters<typeof this.api.tenantGetStepRunQueueMetrics>[1]) {
     const { data } = await this.api.tenantGetStepRunQueueMetrics(this.tenantId, opts);
     return data;
