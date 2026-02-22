@@ -1,0 +1,97 @@
+import { Callout } from "nextra/components";
+
+# Downgrading DB Schema Manually
+
+This guide explains how to safely downgrade your Hatchet DB schema to a previous version.
+
+<Callout type="info">
+  For production-critical workloads, see the [Upgrading and
+  Downgrading](/self-hosting/upgrading-downgrading) guide which covers database
+  snapshots, upgrading, and safe rollback strategies.
+</Callout>
+
+<Callout type="warning">
+  Downgrading may result in data loss. Always test downgrades in a
+  non-production environment first.
+</Callout>
+
+## Overview
+
+Downgrading Hatchet involves two steps:
+
+1. Running down migrations to revert database schema changes
+2. Deploying the older Hatchet version
+
+## Prerequisites
+
+- **Critical:** Backup your database before downgrading
+- Ensure the target version supports the current data in your database
+- Have access to run `hatchet-migrate` command
+- Verify that all migrations between your current version and target version have down migrations
+
+## Finding the Target Migration Version
+
+To downgrade to a specific Hatchet version, you need to identify the last migration that was included in that version.
+
+Visit the Hatchet GitHub repository for your target version:
+
+```
+https://github.com/hatchet-dev/hatchet/tree/{GIT_TAG}/cmd/hatchet-migrate/migrate/migrations
+```
+
+Replace `{GIT_TAG}` with your target version (e.g., `v0.71.0`).
+
+Find the last migration file in that directory - the timestamp at the beginning of the filename is your target migration version.
+
+**Example:**
+
+- Target Hatchet version: `v0.71.0`
+- Last migration file: `20250813183355_v1_0_36.sql`
+- Migration version: `20250813183355`
+
+## Running Down Migrations
+
+<Callout type="info">
+  Use a stable release of the `hatchet-migrate` binary (avoid alpha tags) from
+  the [Hatchet releases page](https://github.com/hatchet-dev/hatchet/tags) to
+  ensure down migrations work correctly.
+</Callout>
+
+Once you have identified the target migration version, use the `hatchet-migrate` command with the `--down` flag:
+
+```bash
+hatchet-migrate --down 20241023223039
+```
+
+This will:
+
+1. Connect to your database using the `DATABASE_URL` environment variable
+2. Check the current migration version
+3. Run all down migrations from the current version to the target version
+4. Display progress and confirm when complete
+
+## Deploying the Older Version
+
+After successfully running the down migrations, deploy the older Hatchet version:
+
+### Docker Compose
+
+Update your `docker-compose.yml`:
+
+```yaml
+services:
+  hatchet-engine:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:v0.71.0
+    # ... rest of configuration
+
+  hatchet-dashboard:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:v0.71.0
+    # ... rest of configuration
+```
+
+Then restart:
+
+```bash
+docker-compose down
+docker-compose up -d
+```

@@ -1,0 +1,59 @@
+import { Tabs, Callout } from "nextra/components";
+
+# Troubleshooting Hatchet Workers
+
+This guide covers common issues when deploying and operating Hatchet workers.
+
+## Quick debugging checklist
+
+Before diving into specific issues, run through these checks:
+
+1. **Verify your API token** — make sure `HATCHET_CLIENT_TOKEN` matches the token generated in the Hatchet dashboard for your tenant.
+2. **Check worker logs** — look for connection errors, heartbeat failures, or crash traces in your worker output.
+3. **Check the dashboard** — navigate to the Workers tab to see if your worker is registered and healthy.
+4. **Confirm network connectivity** — workers need to reach the Hatchet engine over gRPC. Firewalls, VPNs, or missing TLS configuration can block this.
+5. **Check SDK version** — ensure your SDK version is compatible with your engine version. Mismatches can cause subtle failures.
+
+## Could not send task to worker
+
+If you see this error in the event history of a task, it could mean several things:
+
+1. The worker is closing its network connection while the task is being sent. This could be caused by the worker crashing or going offline.
+
+2. The payload is too large for the worker to accept or the Hatchet engine to send. The default maximum payload size is 4MB. Consider reducing the size of the input data or output data of your tasks.
+
+3. The worker has a large backlog of tasks in-flight on the network connection and is rejecting new tasks. This can occur if workers are geographically distant from the Hatchet engine or if there are network issues causing delays. Hatchet Cloud runs by default in `us-west-2` (Oregon, USA), so consider deploying your workers in a region close to that for the best performance.
+
+   If you are self-hosting, you can increase the maximum backlog size via the `SERVER_GRPC_WORKER_STREAM_MAX_BACKLOG_SIZE` environment variable in your Hatchet engine configuration. The default is 20.
+
+## No workers visible in dashboard
+
+If you have deployed workers but they are not visible in the Hatchet dashboard, it is likely that:
+
+1. Your API token is invalid or incorrect. Ensure that the token you are using to start the worker matches the token generated in the Hatchet dashboard for your tenant.
+
+2. Worker heartbeats are not reaching the Hatchet engine. You will see noisy logs in the worker output if this is the case.
+
+## Tasks stuck in QUEUED state
+
+If tasks remain in the `QUEUED` state and never move to `RUNNING`:
+
+1. **No workers registered for the task** — check the Workers tab in the dashboard and confirm a worker is registered that handles the task name. If you recently renamed a task, make sure the worker has been restarted with the updated code.
+
+2. **All worker slots are full** — if every slot is occupied by other tasks, new tasks will wait in the queue. Check worker utilization in the dashboard or increase the [slot count](/concepts/workers#slots).
+
+3. **Concurrency or rate limit is blocking** — if you've configured [concurrency limits](/concepts/concurrency) or [rate limits](/concepts/rate-limits), tasks may be held back intentionally. Review your configuration.
+
+## Worker keeps disconnecting
+
+If your worker repeatedly connects and then drops:
+
+1. **Resource exhaustion** — the worker process may be running out of memory or CPU and getting killed by the OS or orchestrator (OOM kill). Check system logs and increase resource limits.
+
+2. **Network instability** — intermittent connectivity between the worker and the Hatchet engine will cause reconnection cycles. Check for packet loss or high latency between the worker and the engine.
+
+3. **Graceful shutdown not configured** — if your deployment platform sends `SIGTERM` and the worker doesn't handle it, in-flight tasks may be interrupted. Ensure your worker handles shutdown signals and gives tasks time to complete.
+
+## Phantom workers active in dashboard
+
+This is often due to workers still running in your deployed environment. We see this most often with very long termination periods for workers, or in local development environments where worker processes are leaking. If you are in a local development environment, you can usually view running Hatchet worker processes via `ps -a | grep worker` (or whatever your entrypoint binary is called) and kill them manually.

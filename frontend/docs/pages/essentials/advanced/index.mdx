@@ -1,0 +1,31 @@
+import Tabs from "../../_setup/tabs.mdx";
+import { Callout } from "nextra/components";
+
+# Advanced Setup
+
+<Callout type="info">
+  This guide is intended for users who want to explore Hatchet in more depth
+  beyond the quickstart. If you haven't already set up Hatchet, please see the
+  [Hatchet Cloud Quickstart](/essentials/quickstart) or the [Self-Hosting
+  Quickstart](/self-hosting) first.
+</Callout>
+
+## Set environment variables
+
+All Hatchet SDKs require the `HATCHET_CLIENT_TOKEN` environment variable to be set. This token is automatically created when you run a CLI command like `hatchet worker dev` or `hatchet trigger`, but if you're setting up a project manually, you'll need to set this variable yourself. You can generate an API token from the Hatchet frontend by navigating to the `Settings` tab and clicking on the `API Tokens` tab. Click the `Generate API Token` button to create a new token. Set this environment variable in your project, and **do not share it publicly**.
+
+```bash copy
+export HATCHET_CLIENT_TOKEN="<your-client-token>"
+```
+
+Additionally, if you are a self-hosted user provisioning without TLS enabled, you will need to set the `HATCHET_CLIENT_TLS_STRATEGY` environment variable to `none`. If you are on Hatchet Cloud, TLS is enabled by default, so this is not required.
+
+```bash copy
+export HATCHET_CLIENT_TLS_STRATEGY=none
+```
+
+## Setup your codebase
+
+<Tabs />
+
+Continue to the next section to learn how to [create your first task](/essentials/your-first-task)

@@ -1,0 +1,22 @@
+import { Bleed } from "nextra-theme-docs";
+
+# Managing Environments with Hatchet
+
+## Multiple Developers, One Orchestrator
+
+When multiple developers share a single Hatchet orchestrator, conflicts can arise as workflow runs and events intermingle. Without proper isolation, one developer's workflows might interfere with another's testing or development work.
+
+Hatchet provides three key solutions for managing this challenge: namespaces, multi-tenancy, and a local Hatchet instance.
+
+### Solution 1: Multi-Tenancy
+
+The easiest way to isolate environments for different developers or teams is to use Hatchet's multi-tenancy feature. Each tenant represents a separate environment with its own set of workflows and workers. To add a new tenant for each developer, create an organization and follow these steps:
+
+1. Access the organization dropdown in the dashboard (top right)
+2. Select the `+` icon next to your organization's name
+3. Generate a new token for that tenant
+4. Each developer configures their environment with their designated tenant token
+
+### Solution 2: Local Hatchet Instance
+
+If you are using Hatchet locally, you can create a local instance of Hatchet to manage your isolated local development environment. Follow instructions [here](/self-hosting/hatchet-lite) to get started.

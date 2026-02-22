@@ -1,0 +1,100 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import AgentLoopDiagram from "@/components/AgentLoopDiagramWrapper";
+
+# AI Agents
+
+AI agents follow a **reason-act-observe** loop that can run for minutes or hours. This page covers how to structure agent workflows in Hatchet so they survive interruptions, stream output to users, and don't exhaust resources.
+
+<AgentLoopDiagram />
+
+## What Makes Agents Different
+
+<Steps>
+
+### Long-running loops
+
+An agent loop may iterate dozens of times, calling an LLM, parsing tool calls, executing tools, and evaluating results. Durable execution checkpoints each step, so if a worker restarts mid-loop the agent resumes from its last checkpoint instead of starting over.
+
+### Streaming output
+
+Agents typically need to stream LLM tokens to a frontend as they're generated. Use `put_stream()` in your task to emit chunks, and `subscribe_to_stream()` on the client to receive them.
+
+### Concurrency and cancellation
+
+`CANCEL_IN_PROGRESS` concurrency cancels stale agent runs when a user sends a new message. Rate limits prevent exceeding LLM provider API quotas. Priority queues let interactive agent tasks run ahead of batch work.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                                                  | What it does for agents                                                                    |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **[Durable Execution](/concepts/durable-workflows/durable-task-execution)**              | Checkpoints tool calls, LLM responses, and loop iterations so agent state survives crashes |
+| **[Streaming](/concepts/streaming)**                                                     | Stream LLM tokens from workers to frontends in real-time                                   |
+| **[Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events)**  | Pause for human-in-the-loop feedback without holding worker slots                          |
+| **[Durable Sleep](/concepts/durable-workflows/durable-task-execution/durable-sleep)**    | Schedule agent retries or delayed actions with exact timing                                |
+| **[Concurrency](/concepts/concurrency)**                                                 | Cancel stale runs, limit parallel agents per user                                          |
+| **[Rate Limits](/concepts/rate-limits)**                                                 | Stay within LLM provider API rate limits across all workers                                |
+| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Agents dynamically spawn sub-agents or tool-call tasks                                     |
+| **[Cancellation](/concepts/cancellation)**                                               | Stop long-running agents on user request                                                   |
+
+<Callout type="info">
+  The agent loop pattern is a [Cycle](/patterns/cycles). Each iteration spawns a
+  new child run via `RunChild`. Combined with [Durable
+  Execution](/concepts/durable-workflows/durable-task-execution), completed
+  iterations survive crashes and slots are freed between iterations.
+</Callout>
+
+## Typical Agent Flow
+
+<Steps>
+
+### Receive user input
+
+A trigger (API call, webhook, or event) starts the agent workflow with the user's message and conversation context.
+
+### Reasoning loop
+
+The agent enters a durable task loop: call the LLM, parse tool calls, execute tools via child tasks, observe results, and decide whether to continue or respond.
+
+### Stream response
+
+As the LLM generates its final response, tokens are streamed through Hatchet to the frontend in real-time.
+
+### Wait for next input
+
+The agent uses `WaitForEvent` to pause until the user sends another message, freeing the worker slot for other work.
+
+</Steps>
+
+<Callout type="warning">
+  Always set a **timeout** and **max iteration count** on agent loops. Without
+  bounds, an agent can loop indefinitely. See [Timeouts](/concepts/timeouts) for
+  configuration.
+</Callout>
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Cycles" href="/patterns/cycles">
+    The core loop pattern behind agent reasoning, where a task re-spawns itself
+    until a goal is met.
+  </Cards.Card>
+  <Cards.Card title="Long Waits" href="/patterns/long-waits">
+    Pause agents for human feedback or scheduled retries without holding worker
+    slots.
+  </Cards.Card>
+  <Cards.Card title="Fanout" href="/patterns/fanout">
+    Agents that spawn parallel tool calls or sub-agent tasks.
+  </Cards.Card>
+  <Cards.Card title="Branching" href="/patterns/branching">
+    Route agent behavior based on LLM tool call decisions or user preferences.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Durable Workflows](/concepts/durable-workflows/durable-task-execution): understand checkpointing and replay
+- [Streaming](/concepts/streaming): set up real-time LLM output streaming
+- [Concurrency Control](/concepts/concurrency): configure CANCEL_IN_PROGRESS for chat agents
+- [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): spawn tool-call tasks from agent loops

@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Generic, Literal, TypeVar
+from typing import Generic, Literal, TypeVar
 
 import grpc
 import grpc.aio
@@ -16,10 +14,6 @@ from hatchet_sdk.clients.event_ts import (
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.cancellation import race_against_token
-
-if TYPE_CHECKING:
-    from hatchet_sdk.cancellation import CancellationToken
 
 DEFAULT_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_LISTENER_RETRY_COUNT = 5
@@ -42,7 +36,7 @@ class Subscription(Generic[T]):
         self.id = id
         self.queue: asyncio.Queue[T | SentinelValue] = asyncio.Queue()
 
-    async def __aiter__(self) -> Subscription[T]:
+    async def __aiter__(self) -> "Subscription[T]":
         return self
 
     async def __anext__(self) -> T | SentinelValue:
@@ -205,17 +199,7 @@ class PooledListener(Generic[R, T, L], ABC):
         del self.from_subscriptions[subscription_id]
         del self.events[subscription_id]
 
-    async def subscribe(
-        self, id: str, cancellation_token: CancellationToken | None = None
-    ) -> T:
-        """
-        Subscribe to events for the given ID.
-
-        :param id: The ID to subscribe to (e.g., workflow run ID).
-        :param cancellation_token: Optional cancellation token to abort the subscription wait.
-        :return: The event received for this ID.
-        :raises asyncio.CancelledError: If the cancellation token is triggered or if externally cancelled.
-        """
+    async def subscribe(self, id: str) -> T:
         subscription_id: int | None = None
 
         try:
@@ -237,17 +221,8 @@ class PooledListener(Generic[R, T, L], ABC):
             if not self.listener_task or self.listener_task.done():
                 self.listener_task = asyncio.create_task(self._init_producer())
 
-            logger.debug(
-                f"PooledListener.subscribe: waiting for event on id={id}, "
-                f"subscription_id={subscription_id}, token={cancellation_token is not None}"
-            )
-
-            if cancellation_token:
-                result_task = asyncio.create_task(self.events[subscription_id].get())
-                return await race_against_token(result_task, cancellation_token)
             return await self.events[subscription_id].get()
         except asyncio.CancelledError:
-            logger.debug(f"PooledListener.subscribe: externally cancelled for id={id}")
             raise
         finally:
             if subscription_id:
