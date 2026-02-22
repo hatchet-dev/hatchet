@@ -34,7 +34,6 @@ export default {
     title: "Workflows",
     type: "separator",
   },
-  orchestration: "Task Orchestration",
   dags: {
     title: "Directed Acyclic Graphs (DAGs)",
   },

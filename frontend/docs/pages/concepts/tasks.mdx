@@ -5,11 +5,11 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Tasks
 
-A task is the smallest unit of work in Hatchet. It wraps a single function—your application code—and gives Hatchet everything it needs to schedule, execute, retry, and observe that function across your infrastructure.
-
-When you define a task, you are telling Hatchet: "here is a piece of work that a worker can pick up." The task carries a name, the function to run, and optional configuration like retry policies, timeouts, and concurrency limits. Tasks are registered on [workers](/essentials/workers), which are the long-running processes that actually execute them.
+Everything you run in Hatchet is a **task** — a named function that you can trigger, retry, schedule, and observe. Tasks can be configured to handle the problems that come up in real systems: transient failures, resource contention, overloaded downstream services, and more.
 
 ## Defining a task
+
+At minimum, a task needs a name and a function. The returned object is a **runnable** — you'll use it directly to [trigger](/concepts/run-with-results) the task.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -26,7 +26,7 @@ When you define a task, you are telling Hatchet: "here is a piece of work that a
 </Tabs.Tab>
 </UniversalTabs>
 
-The returned object is the primary interface for interacting with the task—you use it to [run](/concepts/run-with-results), [enqueue](/concepts/run-no-wait), [schedule](/concepts/scheduled-runs), and otherwise trigger the task.
+When you define a task, you are telling Hatchet: "here is a piece of work that a worker can pick up." The task carries a name, the function to run, and optional configuration. Tasks are registered on [workers](/essentials/workers), which are the long-running processes that actually execute them.
 
 ## Task lifecycle
 
@@ -41,23 +41,59 @@ graph LR
     RUNNING -->|Failure + no retries| FAILED
 ```
 
-A task can also be **CANCELLED** at any point—either explicitly or by a [timeout](/concepts/timeouts) expiring.
+A task can also be **CANCELLED** at any point — either explicitly or by a [timeout](/concepts/timeouts) expiring.
 
-## What you can configure on a task
+## Triggering a task
 
-Tasks accept configuration that controls how Hatchet handles them at runtime:
+The runnable returned by a task definition supports several trigger methods:
 
-| Option | What it does |
+| Method | What it does |
 | --- | --- |
-| [Retries](/concepts/retry-policies) | Retry on failure, with optional backoff. |
-| [Timeouts](/concepts/timeouts) | Limit how long a task may wait to start or how long it may run. |
-| [Concurrency](/concepts/concurrency) | Control how many instances of this task run at once. |
-| [Rate limits](/concepts/rate-limits) | Throttle execution over a time window. |
-| [Worker affinity](/concepts/worker-affinity) | Prefer or require specific workers. |
+| [Run](/concepts/run-with-results) | Trigger the task and wait for the result. |
+| [Run no wait](/concepts/run-no-wait) | Enqueue the task and return immediately. |
+| [Schedule](/concepts/scheduled-runs) | Schedule the task to run at a specific time. |
+| [Cron](/concepts/cron-runs) | Run the task on a recurring schedule. |
+| [Bulk run](/concepts/bulk-run) | Trigger many instances of the task at once. |
+| [On event](/concepts/run-on-event) | Trigger the task automatically when an event is pushed. |
+| [Webhook](/concepts/webhooks) | Trigger the task from an external HTTP request. |
+
+## Configuring a task
+
+Tasks can be configured to handle common problems in distributed systems. For example, you might want to automatically retry a task when an external API returns a transient error, or limit how many instances of a task run at the same time to avoid overwhelming a downstream service.
+
+| Concept | What it does |
+| --- | --- |
+| [Retries](/concepts/retry-policies) | Retry the task on failure, with optional backoff. |
+| [Timeouts](/concepts/timeouts) | Limit how long a task may wait to be scheduled or to run. |
+| [Concurrency](/concepts/concurrency) | Limit how many runs of this task execute at once. |
+| [Rate limits](/concepts/rate-limits) | Throttle task execution over a time window. |
 | [Priority](/concepts/priority) | Influence scheduling order relative to other queued tasks. |
+| [Worker affinity](/concepts/worker-affinity) | Prefer or require specific workers for this task. |
 
-## Tasks vs. Workflows
+## Input and output
 
-A task on its own is a standalone runnable—you can trigger it, wait for its result, schedule it, or fire it off without waiting. When you need to coordinate multiple tasks together (run B after A, fan out across N inputs, etc.), you compose them into a [workflow](/concepts/workflows). Both share the same trigger interface (`run`, `run_no_wait`, `schedule`, etc.)—the difference is scope. A task does one thing; a workflow orchestrates many things.
+Every task receives an **input** — a JSON-serializable object passed when the task is triggered. The value you return from the task function becomes the task's **output**, which callers receive when they await the result.
+
+When a task is part of a [workflow](/concepts/workflows), its output is also available to downstream tasks through the context object, so data flows naturally from one step to the next. See [Accessing Parent Task Outputs](/concepts/dags#accessing-parent-task-outputs) for details.
+
+## The context object
+
+Every task function receives a **context** alongside its input. The context is your handle to the Hatchet runtime while the task is executing. Through it you can perform various operations:
+- **Runtime information** like the task's run ID, workflow ID, and more.
+- **Check for cancellation** and respond to it gracefully ([Cancellation](/concepts/cancellation)).
+- **Refresh timeouts** if a long-running operation needs more time ([Timeouts](/concepts/timeouts)).
+- **Release a worker slot** early to free capacity for other tasks ([Manual Slot Release](/concepts/manual-slot-release)).
+
+## How tasks execute on workers
+
+Tasks don't run on their own — they are assigned to and executed by [workers](/essentials/workers). A worker is a long-running process in your infrastructure that registers one or more tasks with Hatchet. When a task is triggered, Hatchet places it in a queue and assigns it to an available worker that has registered that task.
+
+Each worker has a fixed number of **slots** that determine how many tasks it can run concurrently. When all slots are occupied, new tasks stay queued until a slot opens up. You can control this behavior further with [concurrency limits](/concepts/concurrency), [rate limits](/concepts/rate-limits), and [priority](/concepts/priority).
+
+If you need tasks to run on specific workers — for example, because a worker has a GPU or a particular model loaded in memory — you can use [worker affinity](/concepts/worker-affinity) or [sticky assignment](/concepts/sticky-assignment) to influence where tasks are placed.
+
+## Tasks vs. workflows
+
+A task on its own is a standalone runnable — you can trigger it, wait for its result, schedule it, or fire it off without waiting. When you need to coordinate multiple tasks together (run B after A, fan out across N inputs, etc.), you compose them into a [workflow](/concepts/workflows). Both share the same trigger interface — the difference is scope. A task does one thing; a workflow orchestrates many things.
 
 Next, read about how tasks compose into [workflows](/concepts/workflows).
