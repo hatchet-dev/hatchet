@@ -252,7 +252,35 @@ export class V0Worker {
       }
 
       const run = async () => {
-        return step(context);
+        const { middleware } = this.client.config;
+
+        if (middleware?.before) {
+          const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];
+          for (const hook of hooks) {
+            const extra = await hook(context.input, context as any);
+            if (extra !== undefined) {
+              const merged = { ...(context.input as any), ...extra };
+              (context as any).input = merged;
+              if ((context as any).data && typeof (context as any).data === 'object') {
+                (context as any).data.input = merged;
+              }
+            }
+          }
+        }
+
+        let result: any = await step(context);
+
+        if (middleware?.after) {
+          const hooks = Array.isArray(middleware.after) ? middleware.after : [middleware.after];
+          for (const hook of hooks) {
+            const extra = await hook(result, context as any, context.input);
+            if (extra !== undefined) {
+              result = { ...result, ...extra };
+            }
+          }
+        }
+
+        return result;
       };
 
       const success = async (result: any) => {

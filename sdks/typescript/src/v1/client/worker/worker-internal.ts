@@ -572,7 +572,34 @@ export class V1Worker {
           childIndex: 0,
           desiredWorkerId: this.workerId || '',
         });
-        return step(context);
+        const { middleware } = this.client.config;
+
+        if (middleware?.before) {
+          const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];
+          for (const hook of hooks) {
+            const returned = await hook(context.input, context as any);
+            if (returned !== undefined) {
+              (context as any).input = returned;
+              if ((context as any).data && typeof (context as any).data === 'object') {
+                (context as any).data.input = returned;
+              }
+            }
+          }
+        }
+
+        let result: any = await step(context);
+
+        if (middleware?.after) {
+          const hooks = Array.isArray(middleware.after) ? middleware.after : [middleware.after];
+          for (const hook of hooks) {
+            const returned = await hook(result, context as any, context.input);
+            if (returned !== undefined) {
+              result = returned;
+            }
+          }
+        }
+
+        return result;
       };
 
       const success = async (result: any) => {

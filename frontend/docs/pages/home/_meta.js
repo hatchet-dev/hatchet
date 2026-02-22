@@ -118,6 +118,9 @@ export default {
   streaming: {
     title: "Streaming",
   },
+  middleware: {
+    title: "Middleware & Dependency Injection",
+  },
   "--v1-migration-guides": {
     title: "V1 Migration Guides",
     type: "separator",
@@ -136,6 +139,5 @@ export default {
   asyncio: "Asyncio",
   pydantic: "Pydantic",
   lifespans: "Lifespans",
-  "dependency-injection": "Dependency Injection",
   dataclasses: "Dataclass Support",
 };
