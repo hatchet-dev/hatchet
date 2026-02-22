@@ -44,8 +44,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 		dispatcherId, ok := idInsertedAtToDispatcherId[key]
 
 		if !ok {
-			// TODO-DURABLE: does invocation count matter here?
-			tc.l.Warn().Msgf("no dispatcher for task %d (evicted or worker gone), publishing restore message", cb.DurableTaskId)
+			tc.l.Debug().Msgf("no dispatcher for task %d (evicted or worker gone), publishing restore message", cb.DurableTaskId)
 
 			restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, cb.DurableTaskExternalId, "callback satisfied while task evicted")
 			if err != nil {
