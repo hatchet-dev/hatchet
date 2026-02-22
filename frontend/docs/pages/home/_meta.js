@@ -12,7 +12,7 @@ export default {
   },
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   setup: "Advanced Setup",
-  "install-docs-mcp": "Install Docs MCP",
+  "coding-agents": "Using Coding Agents",
   "--guide": {
     title: "Fundamentals",
     type: "separator",
