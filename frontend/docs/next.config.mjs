@@ -261,8 +261,13 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: "/concepts/:slug(conditional-workflows|on-failure-tasks|child-spawning|additional-metadata)",
+        source: "/concepts/:slug(on-failure-tasks|child-spawning|additional-metadata)",
         destination: "/concepts/durable-workflows/directed-acyclic-graphs/:slug",
+        permanent: true,
+      },
+      {
+        source: "/concepts/conditional-workflows",
+        destination: "/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions",
         permanent: true,
       },
       {
@@ -293,8 +298,14 @@ const nextConfig = {
         basePath: false,
       },
       {
-        source: "/home/:slug(conditional-workflows|on-failure-tasks|child-spawning|additional-metadata)",
+        source: "/home/:slug(on-failure-tasks|child-spawning|additional-metadata)",
         destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/:slug",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/home/conditional-workflows",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions",
         permanent: true,
         basePath: false,
       },
@@ -323,8 +334,14 @@ const nextConfig = {
         basePath: false,
       },
       {
-        source: "/:slug(conditional-workflows|on-failure-tasks|child-spawning|additional-metadata)",
+        source: "/:slug(on-failure-tasks|child-spawning|additional-metadata)",
         destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/:slug",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/conditional-workflows",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions",
         permanent: true,
         basePath: false,
       },

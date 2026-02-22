@@ -1,7 +1,8 @@
 export default {
   index: "Understanding Durable Execution",
-  "task-eviction": "Task Eviction",
-  "durable-events": "Wait For Event",
+  "child-spawning": "Child Spawning",
   "durable-sleep": "Durable Sleep",
+  "durable-events": "Wait For Events",
   "durable-best-practices": "Best Practices",
+  "task-eviction": "Task Eviction",
 };

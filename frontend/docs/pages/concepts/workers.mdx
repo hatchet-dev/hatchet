@@ -9,7 +9,7 @@ import UniversalTabs from "@/components/UniversalTabs";
   Just getting started? Check out the [essentials guide](/essentials/workers) to declare and start your first worker.
 </Callout>
 
-Workers are the processes that actually execute your [tasks](/concepts/tasks). Each worker is a long-running process in your infrastructure that maintains a persistent gRPC connection to the Hatchet engine. Workers receive task assignments, run your code, and report results back. You can run them locally during development, in containers, or on VMs — and scale them independently from the rest of your stack.
+Workers are the processes that actually execute your [tasks](/concepts/tasks). Each worker is a long-running process in your infrastructure that maintains a persistent gRPC connection to the Hatchet engine. Workers receive task assignments, run your code, and report results back. You can run them locally during development, in containers, or on VMs  - and scale them independently from the rest of your stack.
 
 ## Declaring a worker
 
@@ -30,7 +30,7 @@ A worker needs a name and a set of tasks to handle. Call the `worker` method on 
 </Tabs.Tab>
 </UniversalTabs>
 
-When a worker starts, it registers each of its tasks with the Hatchet engine. From that point on, Hatchet knows to route matching tasks to that worker. Multiple workers can register the same task — Hatchet distributes work across all of them.
+When a worker starts, it registers each of its tasks with the Hatchet engine. From that point on, Hatchet knows to route matching tasks to that worker. Multiple workers can register the same task  - Hatchet distributes work across all of them.
 
 ## Worker lifecycle
 
@@ -44,30 +44,30 @@ graph LR
     INACTIVE -->|Reconnects| ACTIVE
 ```
 
-- **ACTIVE** — the worker is connected and accepting tasks.
-- **INACTIVE** — the engine has not received a heartbeat within the expected window. Tasks assigned to this worker will be reassigned.
-- **STOPPED** — the worker shut down gracefully. In-flight tasks are allowed to complete before the process exits.
+- **ACTIVE**  - the worker is connected and accepting tasks.
+- **INACTIVE**  - the engine has not received a heartbeat within the expected window. Tasks assigned to this worker will be reassigned.
+- **STOPPED**  - the worker shut down gracefully. In-flight tasks are allowed to complete before the process exits.
 
 Hatchet uses heartbeats to monitor worker health. Workers send a heartbeat every **4 seconds**. If the engine does not receive a heartbeat for **30 seconds**, the worker is marked INACTIVE and its in-flight tasks are re-queued for other workers to pick up.
 
 Common reasons a worker misses heartbeats:
 
-- **Process crash** — the worker process exits unexpectedly (OOM kill, unhandled exception, SIGKILL).
-- **Network disruption** — the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
-- **Blocked main thread** — a long-running synchronous computation (e.g. CPU-intensive work, a blocking FFI call) starves the heartbeat loop and prevents it from sending on time.
+- **Process crash**  - the worker process exits unexpectedly (OOM kill, unhandled exception, SIGKILL).
+- **Network disruption**  - the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
+- **Blocked main thread**  - a long-running synchronous computation (e.g. CPU-intensive work, a blocking FFI call) starves the heartbeat loop and prevents it from sending on time.
 
 ## Slots
 
 Every worker has a fixed number of **slots** that control how many tasks it can run concurrently. You configure them with the `slots` option on the worker. If you set `slots=5`, the worker will run up to five tasks at the same time. Any additional tasks wait in the queue until a slot opens up.
 
-Slots are a **local** limit — they protect the individual worker process from overcommitting its CPU, memory, or event loop. [Concurrency controls](/concepts/concurrency) are a **global** limit across your entire fleet — use them to prevent a single tenant or use-case from monopolizing capacity, or to respect the limits of an external resource like a third-party API or database connection pool. The two work together: concurrency controls decide how many runs Hatchet will allow to be active; slots decide how many of those runs each individual worker is willing to accept.
+Slots are a **local** limit  - they protect the individual worker process from overcommitting its CPU, memory, or event loop. [Concurrency controls](/concepts/concurrency) are a **global** limit across your entire fleet  - use them to prevent a single tenant or use-case from monopolizing capacity, or to respect the limits of an external resource like a third-party API or database connection pool. The two work together: concurrency controls decide how many runs Hatchet will allow to be active; slots decide how many of those runs each individual worker is willing to accept.
 
 ### Choosing a slot count
 
 Start with a slot count that matches the degree of parallelism your worker can sustain. For CPU-heavy tasks, that is typically the number of available cores. For I/O-heavy tasks (HTTP calls, database queries), you can safely go higher because most of the time is spent waiting.
 
 <Callout type="info">
-  Adding slots is only helpful up to the point where the worker is not bottlenecked by another resource. If your worker is CPU-bound, memory-bound, or waiting on network I/O, more slots will just increase contention. Monitor memory usage and event loop lag after changing slot counts — if either climbs, you have gone too far.
+  Adding slots is only helpful up to the point where the worker is not bottlenecked by another resource. If your worker is CPU-bound, memory-bound, or waiting on network I/O, more slots will just increase contention. Monitor memory usage and event loop lag after changing slot counts  - if either climbs, you have gone too far.
 </Callout>
 
 ## Scaling workers
@@ -101,6 +101,6 @@ In development, the fastest way to run a worker is `hatchet worker dev`, which h
 
 ## Workers and tasks
 
-Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means you can organize your workers by resource requirements, deployment boundary, or any other criterion — and Hatchet handles routing tasks to the right place.
+Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means you can organize your workers by resource requirements, deployment boundary, or any other criterion  - and Hatchet handles routing tasks to the right place.
 
 If you haven't already, read about [tasks](/concepts/tasks) to understand how work is defined and configured.

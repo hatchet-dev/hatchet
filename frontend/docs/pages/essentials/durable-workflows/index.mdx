@@ -11,9 +11,9 @@ A **durable workflow** is work whose execution state lives in Hatchet instead of
 
 With ordinary tasks, "where we are" in the workflow lives in memory. If the process dies, that state is gone. With durable workflows, **execution state is stored durably** (e.g. in the Hatchet event log). Each logical step that changes state is recorded. The orchestrator can therefore:
 
-- **Recover from failures** — If a worker dies mid-run, Hatchet replays from the last recorded step and continues on another worker. You don't restart from scratch.
-- **Handle long waits** — Steps like "wait 24 hours" or "wait for this external event" are recorded. The worker can release the slot; when the wait completes, the orchestrator reschedules the workflow and it continues from that point.
-- **Manage complex distributed state** — Multi-step, branching, or long-running flows are expressed as a sequence of durable steps. The orchestrator keeps that state consistent and replayable across workers and restarts.
+- **Recover from failures**  - If a worker dies mid-run, Hatchet replays from the last recorded step and continues on another worker. You don't restart from scratch.
+- **Handle long waits**  - Steps like "wait 24 hours" or "wait for this external event" are recorded. The worker can release the slot; when the wait completes, the orchestrator reschedules the workflow and it continues from that point.
+- **Manage complex distributed state**  - Multi-step, branching, or long-running flows are expressed as a sequence of durable steps. The orchestrator keeps that state consistent and replayable across workers and restarts.
 
 So the responsibility for **where we are** and **what has already happened** moves from your application to the Hatchet orchestrator. Your code describes the steps; Hatchet makes them durable and resumable.
 
@@ -21,10 +21,10 @@ So the responsibility for **where we are** and **what has already happened** mov
 
 Hatchet offers two ways to build durable workflows:
 
-- **Durable task execution** — A single long-running task that uses a durable context (`SleepFor`, `WaitForEvent`, `Memo`, etc.). Progress is checkpointed as the task runs. Best when you need procedural control, long waits, or human-in-the-loop inside one task.
-- **DAGs (directed acyclic graphs)** — Workflows made of multiple tasks with declared dependencies. Each task runs to completion; the graph structure and task outputs are the durable state. Best when your workflow is a fixed or mostly fixed graph of steps.
+The key difference is whether you know the **shape of work** ahead of time.
 
-Choose **durable tasks** when you need inline waits, loops, or dynamic control flow inside one unit of work. Choose **DAGs** when your workflow is a clear graph of tasks with known dependencies.
+- **Durable task execution**  - The shape of work is **dynamic**. A single long-running function that checkpoints its progress (`SleepFor`, `WaitForEvent`, `Memo`) and can spawn child tasks at runtime. The number and type of children are determined as the task runs. Use durable tasks when the work is unpredictable: agentic path-finding, fan-outs where N is determined at runtime, human-in-the-loop approvals, or long waits.
+- **DAGs (directed acyclic graphs)**  - The shape of work is **known upfront**. You declare which tasks run, in what order, and what depends on what. Use DAGs when you have a well-defined pipeline where the graph of tasks doesn't change between runs.
 
 <Cards>
   <Cards.Card title="Durable Task Execution" href="/essentials/durable-workflows/durable-task-execution">

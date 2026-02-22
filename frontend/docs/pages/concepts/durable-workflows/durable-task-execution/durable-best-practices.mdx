@@ -1,4 +1,4 @@
-## Durable Execution Best Practices
+# Durable Execution Best Practices
 
 Durable tasks require a bit of extra work to ensure that they are not misused. An important concept in running a durable task is that the task should be **deterministic**. This means that the task should always perform the same sequence of operations in between retries.
 
@@ -14,6 +14,6 @@ By following a few simple rules, you can ensure that your durable tasks are dete
 
 ## Using DAGs instead of durable tasks
 
-[DAGs](./dags) are generally a much easier, more intuitive way to run a durable, deterministic workflow. DAGs are inherently deterministic, as their shape of work is predefined, and they cache intermediate results. If you are running simple workflows that can be represented as a DAG, you should use DAGs instead of durable tasks. DAGs also have conditional execution primitives which match the behavior of `SleepFor` and `WaitFor` in durable tasks.
+[DAGs](/concepts/durable-workflows/directed-acyclic-graphs) are generally a much easier, more intuitive way to run a durable, deterministic workflow. DAGs are inherently deterministic, as their shape of work is predefined, and they cache intermediate results. If you are running simple workflows that can be represented as a DAG, you should use DAGs instead of durable tasks. DAGs also have conditional execution primitives which match the behavior of `SleepFor` and `WaitFor` in durable tasks.
 
 Durable tasks are useful if you need to run a workflow that is not easily represented as a DAG.

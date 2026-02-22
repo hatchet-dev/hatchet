@@ -3,7 +3,7 @@ import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
 
 # Durable Task Execution
 
-A **durable task** is a long-running task that stores its progress in a durable event log. For the high-level concept—execution state, orchestrator responsibility, and the two flavors (durable tasks vs DAGs)—see [Durable Workflows](/essentials/durable-workflows). If the task is interrupted (such as a crash, a deployment, or a scaling event), it replays from its last checkpoint instead of starting over. This makes durable workflows ideal for tasks that require deterministic behavior and outcomes.
+A **durable task** is a long-running task that stores its progress in a durable event log. For the high-level concept -execution state, orchestrator responsibility, and the two flavors (durable tasks vs DAGs) -see [Durable Workflows](/essentials/durable-workflows). If the task is interrupted (such as a crash, a deployment, or a scaling event), it replays from its last checkpoint instead of starting over. This makes durable workflows ideal for tasks that require deterministic behavior and outcomes.
 
 <DurableWorkflowDiagram />
 
@@ -45,21 +45,21 @@ Durable tasks **must be deterministic**: they must perform the same sequence of 
 **Avoid side effects before checkpoints.** Non-deterministic operations (random numbers, current timestamps, external API calls) should be wrapped in `Memo` so their results are recorded and replayed consistently. See [Best Practices](/concepts/durable-workflows/durable-task-execution/durable-best-practices) for more guidance.
 
 <Callout type="warning">
-  If your workflow can be expressed as a [DAG](/concepts/durable-workflows/directed-acyclic-graphs), prefer regular
-  workflows. DAGs are inherently deterministic and don't require you to think
-  about replay safety. Use durable workflows when you need inline `SleepFor`,
-  `WaitForEvent`, or logic that can't be expressed as a static graph.
+  If you know the shape of your work upfront  - a fixed set of tasks with declared dependencies  - prefer a [DAG](/concepts/durable-workflows/directed-acyclic-graphs).
+  DAGs are inherently deterministic and don't require you to think about replay safety.
+  Use durable tasks when the shape of work is dynamic: the number of children, the control flow, or the next step depends on runtime data.
 </Callout>
 
-## When to Use Durable Workflows
+## When to Use Durable Tasks
 
-| Scenario                          | Why Durable?                                                           |
-| --------------------------------- | ---------------------------------------------------------------------- |
-| **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute                 |
-| **Human-in-the-loop**             | Wait for approval events without holding resources                     |
-| **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows |
-| **Large fan-out with collection** | Spawn many children and wait for results without holding a slot        |
-| **Crash-resilient pipelines**     | Automatically resume from checkpoints after failures                   |
+| Scenario                              | Why Durable?                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| **Dynamic fan-out** (N unknown)       | Spawn children based on runtime data; wait for results without holding a slot   |
+| **Agentic workflows**                 | An agent decides what to do next  - spawn subtasks, loop, or stop  - at runtime  |
+| **Long waits** (hours/days)           | Worker slots are freed during waits; no wasted compute                          |
+| **Human-in-the-loop**                 | Wait for approval events without holding resources                              |
+| **Multi-step with inline pauses**     | `SleepFor` and `WaitForEvent` let you express complex procedural flows          |
+| **Crash-resilient pipelines**         | Automatically resume from checkpoints after failures                            |
 
 ## Next Steps
 

@@ -13,7 +13,7 @@ There are two types of context classes you'll encounter:
 
 | Name                   | Description                                                                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](../../home/conditional-workflows#skip_if).                                                  |
+| `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions#checking-if-a-task-was-skipped). |
 | `task_output`          | Get the output of a parent task in a DAG.                                                                                                                                |
 | `cancel`               | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
 | `aio_cancel`           | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
@@ -146,7 +146,7 @@ Returns:
 
 #### `was_skipped`
 
-Check if a given task was skipped. You can read about skipping in [the docs](../../home/conditional-workflows#skip_if).
+Check if a given task was skipped. You can read about skipping in [the docs](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions#checking-if-a-task-was-skipped).
 
 Parameters:
 

@@ -9,9 +9,7 @@ import { Callout } from "nextra/components";
   Just getting started? Check out the [essentials guide](/essentials/durable-workflows/durable-task-execution) for an overview of how durable task execution works.
 </Callout>
 
-## Introduction
-
-**Durable execution** refers to the ability of a function to easily recover from failures or interruptions. In Hatchet, we refer to a function with this ability as a **durable task**. Durable tasks are essentially tasks that store intermediate results in a durable event log - in other words, they're a fancy cache.
+**Durable execution** refers to the ability of a function to easily recover from failures or interruptions. In Hatchet, we refer to a function with this ability as a **durable task**. Durable tasks store intermediate results in a durable event log.
 
 <Callout type="info" emoji="💡">
   For an in-depth look at how durable execution works, have a look at [this blog
@@ -21,14 +19,15 @@ import { Callout } from "nextra/components";
 This is especially useful in cases such as:
 
 1. Tasks which need to always run to completion, even if the underlying machine crashes or the task is interrupted.
-2. Situations where a task needs to wait for an very long amount of time for something to complete before continuing. Running a durable task will not take up a slot on the main worker, so is a strong candidate for e.g. fanout tasks that spawn a large number of children and then wait for their results.
+2. Situations where a task needs to wait for a very long amount of time for something to complete before continuing. Running a durable task will not take up a slot on the main worker, so is a strong candidate for e.g. fanout tasks that spawn a large number of children and then wait for their results.
 3. Waiting for a potentially long time for an event, such as human-in-the-loop tasks where we might not get human feedback for hours or days.
+4. Spawning child tasks dynamically  - a durable task can spawn other tasks (or other durable tasks), wait for their results, and then continue processing. This is ideal for fan-out patterns, agent-based systems, and any workflow where the number of subtasks is determined at runtime.
 
 ## How Hatchet Runs Durable Tasks
 
-Durable tasks run on the same worker process as regular tasks, but they consume a separate slot type so they do not compete with regular tasks for slots. When a durable task hits a wait (`SleepFor`, `WaitForEvent`, etc.), Hatchet [evicts](/concepts/durable-workflows/durable-task-execution/task-eviction) it from the worker — freeing the slot — and re-queues it when the wait completes. This prevents deadlock scenarios where durable tasks would starve children tasks for slots which are needed for the parent durable task to complete.
+Durable tasks run on the same worker process as regular tasks, but they consume a separate slot type so they do not compete with regular tasks for slots. When a durable task hits a wait (`SleepFor`, `WaitForEvent`, etc.), Hatchet [evicts](/concepts/durable-workflows/durable-task-execution/task-eviction) it from the worker  - freeing the slot  - and re-queues it when the wait completes. This prevents deadlock scenarios where durable tasks would starve children tasks for slots which are needed for the parent durable task to complete.
 
-Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context,` which extends the `Context` by providing some additional tools for working with durable execution features.
+Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context`, which extends `Context` by providing some additional tools for working with durable execution features.
 
 ## Example Task
 
@@ -36,7 +35,7 @@ Now that we know a bit about how Hatchet handles durable execution, let's build 
 
 <Snippet src={snippets.python.durable.worker.create_a_durable_workflow} />
 
-Here, we've declared a Hatchet task just like any other. Now, we can add some tasks to it:
+Here, we've declared a Hatchet workflow. Now, we can add tasks to it:
 
 <Snippet src={snippets.python.durable.worker.add_durable_task} />
 
@@ -57,8 +56,16 @@ If this task is interrupted at any time, it will continue from where it left off
 
 ### Or Groups
 
-Similarly to in [conditional workflows](./conditional-workflows.mdx#or-groups), durable tasks can also use or groups in the wait conditions they use. For example, you could wait for either an event or a sleep (whichever comes first) like this:
+Similarly to [or groups in DAG conditions](/concepts/durable-workflows/directed-acyclic-graphs/combining-conditions), durable tasks can also use or groups in the wait conditions they use. For example, you could wait for either an event or a sleep (whichever comes first) like this:
 
 <Snippet
   src={snippets.python.durable.worker.add_durable_tasks_that_wait_for_or_groups}
 />
+
+## Spawning Child Tasks
+
+Durable tasks can spawn other tasks  - including other durable tasks or entire DAG workflows  - at runtime using the context object. Spawned children run independently on any available worker, and the parent can wait for their results without holding a worker slot.
+
+This is one of the key advantages of durable tasks over DAGs: the number and type of children can be determined dynamically based on the task's input or intermediate results. The parent is evicted during the wait, so it does not consume a slot while children execute.
+
+See [Spawning Children from Durable Tasks](/concepts/durable-workflows/durable-task-execution/child-spawning) for patterns and full examples.

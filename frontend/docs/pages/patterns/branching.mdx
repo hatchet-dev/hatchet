@@ -43,10 +43,10 @@ The branch whose condition is satisfied runs.
 | `cancel_if` | Task and its downstream dependents are cancelled if the condition evaluates to true |
 
 <Callout type="info">
-  Branching is built using [Conditional Workflows](/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows).
-  See that page for full code examples covering parent conditions, event
-  conditions, sleep conditions, or groups, and a complete branching workflow
-  walkthrough.
+  Branching is built using conditions on DAG tasks. See [Parent Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions),
+  [Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions),
+  and [Sleep Conditions](/concepts/durable-workflows/directed-acyclic-graphs/sleep-conditions)
+  for full code examples covering each condition type, or groups, and operators.
 </Callout>
 
 <Callout type="warning">
@@ -60,24 +60,24 @@ The branch whose condition is satisfied runs.
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="Feature Flag Routing" href="/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows">
+  <Cards.Card title="Feature Flag Routing" href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions">
     Read a feature flag in an upstream task and route the workflow down
     different code paths based on its value.
   </Cards.Card>
   <Cards.Card
     title="Human-in-the-Loop Approval"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows"
+    href="/concepts/durable-workflows/directed-acyclic-graphs/event-conditions"
   >
     Pause workflow execution until a human approves or rejects, then branch
     accordingly.
   </Cards.Card>
-  <Cards.Card title="A/B Testing Pipelines" href="/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows">
+  <Cards.Card title="A/B Testing Pipelines" href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions">
     Route data through different processing paths based on experiment
     assignment.
   </Cards.Card>
   <Cards.Card
     title="Error Recovery Branching"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows"
+    href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions"
   >
     Branch into a fallback path when an upstream task signals a degraded state.
   </Cards.Card>
@@ -85,7 +85,8 @@ The branch whose condition is satisfied runs.
 
 ## Next Steps
 
-- [Conditional Workflows](/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows): full guide to conditions, or groups, and operators
+- [Parent Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions): branch based on parent task output
+- [Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions): react to external events, or groups, and operators
 - [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs): define task dependencies that branching builds on
 - [Fanout](/patterns/fanout): dynamically spawn tasks instead of choosing between fixed branches
 - [Pre-Determined Pipelines](/patterns/pre-determined-pipelines): fixed-structure pipelines without branching

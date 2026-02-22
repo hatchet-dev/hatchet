@@ -3,11 +3,21 @@ import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 
-## Durable Sleep
+# Durable Sleep
 
-Durable sleep is a feature of **durable tasks** which pauses execution for a specified amount of time. When a task calls durable sleep, it is [evicted](/concepts/durable-workflows/durable-task-execution/task-eviction) from the worker — freeing the slot — and re-queued when the sleep expires.
+Durable sleep is a feature of **durable tasks** which pauses execution for a specified amount of time.
 
-Unlike a regular `sleep`, durable sleep is guaranteed to respect the original duration across interruptions. For example, say you'd like to send a notification to a user after 24 hours. With a regular `sleep`, if the task is interrupted after 23 hours, it will restart and call `sleep` for 24 hours again — sleeping 47 hours total. With durable sleep, the task will only sleep for 1 more hour on restart.
+<Callout type="info">
+  Sleeping puts the task into an [evictable state](/concepts/durable-workflows/durable-task-execution/task-eviction) — the worker slot is freed and the task is re-queued when the sleep expires.
+</Callout>
+
+<Callout type="info">
+  DAG workflows have an analogous feature: [Sleep Conditions](/concepts/durable-workflows/directed-acyclic-graphs/sleep-conditions). In a DAG, sleep conditions are declared upfront on the task definition. Use a durable task when the decision to sleep is made dynamically at runtime.
+</Callout>
+
+Unlike a language-level sleep (e.g. `time.sleep` in Python or `setTimeout` in Node), durable sleep is guaranteed to respect the original duration across interruptions. A language-level sleep ties the wait to the local process, so if the process restarts, the sleep starts over from zero.
+
+For example, say you'd like to send a notification to a user after 24 hours. With `time.sleep`, if the task is interrupted after 23 hours, it will restart and sleep for 24 hours again (47 hours total). With durable sleep, Hatchet tracks the original deadline server-side, so the task will only sleep for 1 more hour on restart.
 
 ## Using durable sleep
 
