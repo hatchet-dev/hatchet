@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # Preparing for Production
 
-Workers are long-lived processes, so treat them like any other production service. Give them enough CPU and memory that a spike in traffic won't starve tasks or trigger OOM kills, and tune [slots](/concepts/understanding-slots) based on what you actually observe rather than what seems reasonable on paper.
+Workers are long-lived processes, so treat them like any other production service. Give them enough CPU and memory that a spike in traffic won't starve tasks or trigger OOM kills, and tune [slots](/concepts/workers#slots) based on what you actually observe rather than what seems reasonable on paper.
 
 Visibility matters more than most teams expect. Include workflow and task identifiers in your logs so you can trace a failure back to a specific run without guessing. Alert on missed heartbeats and rising error rates early—by the time throughput drops noticeably, the backlog is usually already deep. The Python SDK has built-in [health check endpoints](/concepts/worker-healthchecks) you can wire into your infrastructure.
 

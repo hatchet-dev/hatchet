@@ -24,7 +24,6 @@ export default {
     type: "separator",
   },
   workers: "Workers",
-  "understanding-slots": "Understanding Slots",
   docker: "Running with Docker",
   "autoscaling-workers": "Autoscaling Workers",
   "--flow-control": {

@@ -40,7 +40,7 @@ If tasks remain in the `QUEUED` state and never move to `RUNNING`:
 
 1. **No workers registered for the task** — check the Workers tab in the dashboard and confirm a worker is registered that handles the task name. If you recently renamed a task, make sure the worker has been restarted with the updated code.
 
-2. **All worker slots are full** — if every slot is occupied by other tasks, new tasks will wait in the queue. Check worker utilization in the dashboard or increase the [slot count](/concepts/understanding-slots).
+2. **All worker slots are full** — if every slot is occupied by other tasks, new tasks will wait in the queue. Check worker utilization in the dashboard or increase the [slot count](/concepts/workers#slots).
 
 3. **Concurrency or rate limit is blocking** — if you've configured [concurrency limits](/concepts/concurrency) or [rate limits](/concepts/rate-limits), tasks may be held back intentionally. Review your configuration.
 

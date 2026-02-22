@@ -48,15 +48,27 @@ graph LR
 - **INACTIVE** — the engine has not received a heartbeat within the expected window. Tasks assigned to this worker will be reassigned.
 - **STOPPED** — the worker shut down gracefully. In-flight tasks are allowed to complete before the process exits.
 
-Hatchet uses heartbeats to monitor worker health. If a worker becomes unreachable, its in-flight tasks are re-queued for other workers to pick up.
+Hatchet uses heartbeats to monitor worker health. Workers send a heartbeat every **4 seconds**. If the engine does not receive a heartbeat for **30 seconds**, the worker is marked INACTIVE and its in-flight tasks are re-queued for other workers to pick up.
+
+Common reasons a worker misses heartbeats:
+
+- **Process crash** — the worker process exits unexpectedly (OOM kill, unhandled exception, SIGKILL).
+- **Network disruption** — the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
+- **Blocked main thread** — a long-running synchronous computation (e.g. CPU-intensive work, a blocking FFI call) starves the heartbeat loop and prevents it from sending on time.
 
 ## Slots
 
-Every worker has a fixed number of **slots** that control how many tasks it can run concurrently. If a worker has 5 slots and all 5 are occupied, it will not accept new tasks until a slot frees up.
+Every worker has a fixed number of **slots** that control how many tasks it can run concurrently. You configure them with the `slots` option on the worker. If you set `slots=5`, the worker will run up to five tasks at the same time. Any additional tasks wait in the queue until a slot opens up.
 
-Slots are a **local** limit — they protect the individual worker process from overcommitting resources. This is separate from [concurrency controls](/concepts/concurrency), which are a **global** limit across your entire fleet.
+Slots are a **local** limit — they protect the individual worker process from overcommitting its CPU, memory, or event loop. [Concurrency controls](/concepts/concurrency) are a **global** limit across your entire fleet — use them to prevent a single tenant or use-case from monopolizing capacity, or to respect the limits of an external resource like a third-party API or database connection pool. The two work together: concurrency controls decide how many runs Hatchet will allow to be active; slots decide how many of those runs each individual worker is willing to accept.
 
-For I/O-heavy workloads (HTTP calls, database queries) you can safely raise the slot count. For CPU-heavy work, keep it closer to the number of available cores. See [Understanding Slots](/concepts/understanding-slots) for detailed guidance.
+### Choosing a slot count
+
+Start with a slot count that matches the degree of parallelism your worker can sustain. For CPU-heavy tasks, that is typically the number of available cores. For I/O-heavy tasks (HTTP calls, database queries), you can safely go higher because most of the time is spent waiting.
+
+<Callout type="info">
+  Adding slots is only helpful up to the point where the worker is not bottlenecked by another resource. If your worker is CPU-bound, memory-bound, or waiting on network I/O, more slots will just increase contention. Monitor memory usage and event loop lag after changing slot counts — if either climbs, you have gone too far.
+</Callout>
 
 ## Scaling workers
 

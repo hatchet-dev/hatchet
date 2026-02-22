@@ -276,6 +276,11 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: "/concepts/understanding-slots",
+        destination: "/concepts/workers#slots",
+        permanent: true,
+      },
+      {
         source: "/home/:slug(concurrency|rate-limits|priority|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming|pushing-events|event-filters)",
         destination: "/v1/concepts/:slug",
         permanent: true,

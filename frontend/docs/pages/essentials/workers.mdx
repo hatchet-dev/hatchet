@@ -7,7 +7,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Workers are long-running processes in your infrastructure that execute tasks. Each worker maintains a persistent gRPC connection to the Hatchet engine, receives task assignments, runs your code, and reports results back. You can run workers locally during development, in containers, or on VMs — and scale them independently from the Hatchet services.
 
-You register tasks on a worker so Hatchet knows where to send work. When a task is triggered, Hatchet assigns it to a worker that has a free [slot](/concepts/understanding-slots). Slots prevent overassignment — each worker only accepts as many tasks as it can handle concurrently.
+You register tasks on a worker so Hatchet knows where to send work. When a task is triggered, Hatchet assigns it to a worker that has a free [slot](/concepts/workers#slots). Slots prevent overassignment — each worker only accepts as many tasks as it can handle concurrently.
 
 ## Declaring a Worker
 
