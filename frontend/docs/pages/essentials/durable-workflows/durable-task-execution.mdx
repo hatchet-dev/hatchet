@@ -40,17 +40,9 @@ Durable tasks receive a `DurableContext` instead of a regular `Context`. This ex
 
 Durable tasks **must be deterministic**: they must perform the same sequence of operations on every replay. This is what allows Hatchet to safely skip already-completed work.
 
-<Steps>
+**Never change the order of durable operations.** If your task calls `SleepFor` then `WaitForEvent`, don't later swap their order. Existing checkpoints depend on the original sequence. Changing it breaks replay.
 
-### WIP
-
-### Never change the order of operations
-
-If your task calls `SleepFor` then `WaitForEvent`, don't later swap their order. Existing checkpoints depend on the original sequence. Changing it breaks replay.
-
-### WIP
-
-</Steps>
+**Avoid side effects before checkpoints.** Non-deterministic operations (random numbers, current timestamps, external API calls) should be wrapped in `Memo` so their results are recorded and replayed consistently. See [Best Practices](/concepts/durable-best-practices) for more guidance.
 
 <Callout type="warning">
   If your workflow can be expressed as a [DAG](/concepts/dags), prefer regular

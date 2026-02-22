@@ -13,7 +13,6 @@ export default {
   "run-no-wait": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
   "cron-runs": "Cron Trigger",
-  "run-on-event": "Event Trigger",
   "bulk-run": "Bulk Run Many",
   webhooks: "Webhooks",
   "inter-service-triggering": "Inter-Service Triggering",
@@ -70,6 +69,13 @@ export default {
   timeouts: "Timeouts",
   "retry-policies": "Retry Policies",
   "bulk-retries-and-cancellations": "Bulk Retries and Cancellations",
+  "--external-events": {
+    title: "External Events",
+    type: "separator",
+  },
+  "pushing-events": "Pushing Events",
+  "run-on-event": "Event Trigger",
+  "event-filters": "Event Filters",
   "--assignment": {
     title: "Advanced Assignment",
     type: "separator",

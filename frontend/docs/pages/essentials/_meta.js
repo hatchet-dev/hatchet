@@ -27,18 +27,9 @@ export default {
   },
   "production": "Overview",
   "troubleshooting-workers": "Troubleshooting",
-  "autoscaling-workers": {
-    display: "hidden",
-  },
-  docker: {
-    display: "hidden",
-  },
   compute: {
     title: "Managed Compute",
     type: "page",
-    display: "hidden",
-  },
-  "worker-healthchecks": {
     display: "hidden",
   },
   "--evaluate": {

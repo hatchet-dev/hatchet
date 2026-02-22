@@ -35,7 +35,7 @@ When you trigger a task, it moves through three phases: queued, running, and a t
 ```mermaid
 graph LR
     Triggered --> QUEUED
-    QUEUED -->|Worker picks it up| RUNNING
+    QUEUED -->|Assigned to worker| RUNNING
     RUNNING -->|Success| COMPLETED
     RUNNING -->|Failure + retries left| QUEUED
     RUNNING -->|Failure + no retries| FAILED

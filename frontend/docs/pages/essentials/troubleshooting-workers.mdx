@@ -2,7 +2,17 @@ import { Tabs, Callout } from "nextra/components";
 
 # Troubleshooting Hatchet Workers
 
-This guide aims to document common issues when deploying Hatchet workers.
+This guide covers common issues when deploying and operating Hatchet workers.
+
+## Quick debugging checklist
+
+Before diving into specific issues, run through these checks:
+
+1. **Verify your API token** — make sure `HATCHET_CLIENT_TOKEN` matches the token generated in the Hatchet dashboard for your tenant.
+2. **Check worker logs** — look for connection errors, heartbeat failures, or crash traces in your worker output.
+3. **Check the dashboard** — navigate to the Workers tab to see if your worker is registered and healthy.
+4. **Confirm network connectivity** — workers need to reach the Hatchet engine over gRPC. Firewalls, VPNs, or missing TLS configuration can block this.
+5. **Check SDK version** — ensure your SDK version is compatible with your engine version. Mismatches can cause subtle failures.
 
 ## Could not send task to worker
 
@@ -23,6 +33,26 @@ If you have deployed workers but they are not visible in the Hatchet dashboard, 
 1. Your API token is invalid or incorrect. Ensure that the token you are using to start the worker matches the token generated in the Hatchet dashboard for your tenant.
 
 2. Worker heartbeats are not reaching the Hatchet engine. You will see noisy logs in the worker output if this is the case.
+
+## Tasks stuck in QUEUED state
+
+If tasks remain in the `QUEUED` state and never move to `RUNNING`:
+
+1. **No workers registered for the task** — check the Workers tab in the dashboard and confirm a worker is registered that handles the task name. If you recently renamed a task, make sure the worker has been restarted with the updated code.
+
+2. **All worker slots are full** — if every slot is occupied by other tasks, new tasks will wait in the queue. Check worker utilization in the dashboard or increase the [slot count](/concepts/understanding-slots).
+
+3. **Concurrency or rate limit is blocking** — if you've configured [concurrency limits](/concepts/concurrency) or [rate limits](/concepts/rate-limits), tasks may be held back intentionally. Review your configuration.
+
+## Worker keeps disconnecting
+
+If your worker repeatedly connects and then drops:
+
+1. **Resource exhaustion** — the worker process may be running out of memory or CPU and getting killed by the OS or orchestrator (OOM kill). Check system logs and increase resource limits.
+
+2. **Network instability** — intermittent connectivity between the worker and the Hatchet engine will cause reconnection cycles. Check for packet loss or high latency between the worker and the engine.
+
+3. **Graceful shutdown not configured** — if your deployment platform sends `SIGTERM` and the worker doesn't handle it, in-flight tasks may be interrupted. Ensure your worker handles shutdown signals and gives tasks time to complete.
 
 ## Phantom workers active in dashboard
 

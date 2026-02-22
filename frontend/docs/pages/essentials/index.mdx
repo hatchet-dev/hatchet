@@ -1,25 +1,27 @@
 ---
 asIndexPage: true
 ---
-import { Tabs, Callout } from "nextra/components";
+import { Callout } from "nextra/components";
 
 # What is Hatchet?
 
 Hatchet is a modern orchestration platform that helps engineering teams build low-latency and high-throughput data ingestion and agentic AI pipelines.
 
-You write simple functions, called [tasks](/essentials/your-first-task), in Python, Typescript, and Go and run them on [workers](/essentials/workers) in your own infrastructure. You can compose these tasks into [parent/child relationships](/concepts/child-spawning) or predefined as [Directed Acyclic Graphs (DAGs)](/concepts/dags) to build more complex pipelines, which we call [workflows](/concepts/orchestration). All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
+You write functions in Python, Typescript, Go, or Ruby and let Hatchet handle scheduling, retries, fault tolerance, and observability. The core mental model has three parts:
 
-Hatchet handles scheduling, complex assignment, fault tolerance, and observability so you can focus on building your application as you scale.
+- **[Tasks](/essentials/your-first-task)** — the fundamental unit of work. A task wraps a single function and gives Hatchet everything it needs to schedule, execute, and observe it.
+- **[Workers](/essentials/workers)** — long-running processes in your infrastructure that pick up and execute tasks.
+- **[Durable Workflows](/essentials/durable-workflows)** — compose multiple tasks into durable pipelines with dependencies, retries, and checkpointing.
 
-## Patterns
+All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
 
-## Use-Cases
+## Use cases
 
 While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
 
-- **Real-time data processing pipelines**: for example, data ingestion which is crucial for keeping LLM contexts up-to-date, or ETL pipelines that require fast execution and high throughput.
-- **AI agents**: a core number of Hatchet's features, like [webhooks](/concepts/webhooks), [child spawning](/concepts/child-spawning), and [dynamic workflows](/concepts/child-spawning) are designed to support AI agents.
-- **Event-driven systems**: Hatchet's [eventing features](/concepts/run-on-event) allow you to build event-driven architectures without requiring additional infrastructure.
+- **Real-time data processing** — data ingestion for keeping LLM contexts up-to-date, ETL pipelines that require fast execution and high throughput.
+- **AI agents** — features like [webhooks](/concepts/webhooks), [child spawning](/concepts/child-spawning), and dynamic workflows are designed to support agentic patterns.
+- **Event-driven systems** — Hatchet's [eventing features](/concepts/run-on-event) let you build event-driven architectures without additional infrastructure.
 
 ## Why Hatchet?
 
@@ -68,23 +70,8 @@ Hatchet has been battle-tested in production environments, processing billions o
 > "Hatchet enables Aevy to process up to 50,000 documents in under an hour through optimized parallel execution, compared to nearly a week with our previous setup."
 > — Ymir, CTO @ Aevy
 
-## Quick Starts
+## Ready to dive deeper?
 
-We have a number of quick start tutorials for getting up and running quickly with Hatchet:
-
-- [Hatchet Cloud Quickstart](/essentials/quickstart)
-- [Hatchet Self-Hosted Quickstarts](/self-hosting)
-
-We also have guides for getting started with the Hatchet SDKs:
-
-- [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
-- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
-- [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
-
-## Learn More
-
-Ready to dive deeper? Explore these additional resources:
-
-**[Architecture & Guarantees](/essentials/architecture-and-guarantees)** - Learn how Hatchet is built, its guarantees, and when to use it.
+Check out the **[Architecture & Guarantees](/essentials/architecture-and-guarantees)** page to learn how Hatchet is built, its guarantees, and when to use it.
 
 Or get started with the **[Hatchet Cloud Quickstart](/essentials/quickstart)** or **[self-hosting](/self-hosting)**.

@@ -5,7 +5,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Running Your First Task
 
-With your task defined, you can import it wherever you need to use it and invoke it with the `run` method.
+With your task defined and a worker running, you can import the task wherever you need it and invoke it with the `run` method.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -24,25 +24,34 @@ With your task defined, you can import it wherever you need to use it and invoke
 </Tabs.Tab>
 </UniversalTabs>
 
+## Common trigger patterns
+
+The two most common ways to run a task are:
+
+- **[Run and wait](/concepts/run-with-results)** — call a task and block until you get the result back. Use this for synchronous workflows like fan-out, LLM calls, or any time you need the output before continuing.
+- **[Fire and forget](/concepts/run-no-wait)** — enqueue a task without waiting for the result. Use this for background jobs like sending emails, processing uploads, or kicking off long-running pipelines.
+
 ## Where you can trigger from
 
 You can trigger tasks in two main ways:
 
-- **Same codebase or monorepo** — Import your task or workflow and call `run`, `run_no_wait`, or other trigger methods directly. Your API server, CLI, or another service in the same repo can use the same task definition to enqueue or run tasks.
-- **External API or separate service (polyrepo)** — When the code that triggers the task cannot import the task definition (e.g. a different repo, language, or microservice), use a **stub**: a Hatchet task with the same name and input/output types but no implementation. The stub runs on the triggering service and enqueues work that your Hatchet workers execute. See [Inter-Service Triggering](/concepts/inter-service-triggering) for details.
+- **Same codebase or monorepo** — import your task and call `run`, `run_no_wait`, or other trigger methods directly. Your API server, CLI, or another service in the same repo can use the same task definition.
+- **External API or separate service (polyrepo)** — when the triggering code can't import the task definition (different repo, language, or microservice), use a **stub**: a Hatchet task with the same name and input/output types but no implementation. See [Inter-Service Triggering](/concepts/inter-service-triggering) for details.
+- **From the CLI** — use the `hatchet run` command to trigger tasks from the command line.
+- **From the Dashboard** — use the Hatchet dashboard to trigger tasks from the web interface.
 
-## Ways of running tasks
+## Other trigger styles
 
-Hatchet supports several trigger styles; pick the one that fits your use case. Full details are in [Concepts → Ways of Running Tasks](/concepts/running-tasks).
+Hatchet supports additional trigger patterns for more advanced use cases:
 
 | Style | Use case | Doc |
 |-------|----------|-----|
-| **Run and wait** | Call a task and get the result (e.g. fanout, LLM calls) | [Run and Wait Trigger](/concepts/run-with-results) |
-| **Fire and forget** | Enqueue without waiting (e.g. emails, long jobs) | [Run Without Wait Trigger](/concepts/run-no-wait) |
 | **Scheduled** | Run once at a specific time in the future | [Scheduled Trigger](/concepts/scheduled-runs) |
 | **Cron** | Run on a recurring schedule (daily, weekly, etc.) | [Cron Trigger](/concepts/cron-runs) |
 | **Events** | Run when an event is emitted (e.g. webhooks, queues) | [Event Trigger](/concepts/run-on-event) |
 | **Bulk** | Run the same task many times with different inputs | [Bulk Run Many](/concepts/bulk-run) |
 | **Webhooks** | Let external systems trigger workflows via HTTP | [Webhooks](/concepts/webhooks) |
 
-Next, explore [Run and Wait](/concepts/run-with-results) or [Fire and Forget](/concepts/run-no-wait) for the most common patterns, or [Inter-Service Triggering](/concepts/inter-service-triggering) to trigger from an external API using a stub.
+## Next steps
+
+Now that you can run tasks, explore [Durable Workflows](/essentials/durable-workflows) to compose multiple tasks into pipelines with dependencies and checkpointing.

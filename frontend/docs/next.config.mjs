@@ -250,13 +250,13 @@ const nextConfig = {
         basePath: false,
       },
       {
-        source: "/home/:slug(concurrency|rate-limits|priority|orchestration|dags|conditional-workflows|on-failure-tasks|child-spawning|additional-metadata|durable-execution|durable-events|durable-sleep|durable-best-practices|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming)",
+        source: "/home/:slug(concurrency|rate-limits|priority|orchestration|dags|conditional-workflows|on-failure-tasks|child-spawning|additional-metadata|durable-execution|durable-events|durable-sleep|durable-best-practices|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming|pushing-events|event-filters)",
         destination: "/v1/concepts/:slug",
         permanent: true,
         basePath: false,
       },
       {
-        source: "/:slug(concurrency|rate-limits|priority|orchestration|dags|conditional-workflows|on-failure-tasks|child-spawning|additional-metadata|durable-execution|durable-events|durable-sleep|durable-best-practices|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming)",
+        source: "/:slug(concurrency|rate-limits|priority|orchestration|dags|conditional-workflows|on-failure-tasks|child-spawning|additional-metadata|durable-execution|durable-events|durable-sleep|durable-best-practices|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming|pushing-events|event-filters)",
         destination: "/v1/concepts/:slug",
         permanent: true,
         basePath: false,
