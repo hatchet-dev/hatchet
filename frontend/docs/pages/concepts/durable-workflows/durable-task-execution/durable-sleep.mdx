@@ -5,9 +5,9 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 ## Durable Sleep
 
-Durable sleep is a feature of **durable tasks** which allow tasks to pause execution for a specified amount of time. Instead of a regular `sleep` call in your task, durable sleep is guaranteed to only sleep for the specified amount of time after the first time it was called.
+Durable sleep is a feature of **durable tasks** which pauses execution for a specified amount of time. When a task calls durable sleep, it is [evicted](/concepts/durable-workflows/durable-task-execution/task-eviction) from the worker — freeing the slot — and re-queued when the sleep expires.
 
-For example, say you'd like to send a notification to a user after 24 hours. With a regular `sleep`, if the task is interrupted after 23 hours, it will restart and call `sleep` for 24 hours again. This means that the task will sleep for 47 hours in total, which is not what you want. With durable sleep, the task will respect the original sleep duration on restart -- that is, if the task calls `ctx.aio_sleep_for` for 24 hours and is interrupted after 23 hours, it will only sleep for 1 more hour on restart.
+Unlike a regular `sleep`, durable sleep is guaranteed to respect the original duration across interruptions. For example, say you'd like to send a notification to a user after 24 hours. With a regular `sleep`, if the task is interrupted after 23 hours, it will restart and call `sleep` for 24 hours again — sleeping 47 hours total. With durable sleep, the task will only sleep for 1 more hour on restart.
 
 ## Using durable sleep
 

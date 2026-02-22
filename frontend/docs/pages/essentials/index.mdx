@@ -20,14 +20,14 @@ All tasks and workflows are **defined as code**, making them easy to version, te
 While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
 
 - **Real-time data processing** — data ingestion for keeping LLM contexts up-to-date, ETL pipelines that require fast execution and high throughput.
-- **AI agents** — features like [webhooks](/concepts/webhooks), [child spawning](/concepts/child-spawning), and dynamic workflows are designed to support agentic patterns.
+- **AI agents** — features like [webhooks](/concepts/webhooks), [child spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning), and dynamic workflows are designed to support agentic patterns.
 - **Event-driven systems** — Hatchet's [eventing features](/concepts/run-on-event) let you build event-driven architectures without additional infrastructure.
 
 ## Why Hatchet?
 
 ⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](/concepts/rate-limits), [fairness](/concepts/concurrency), and [priorities](/concepts/priority) without complex configuration.
 
-🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](/concepts/durable-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
+🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](/concepts/durable-workflows/durable-task-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
 
 🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
 

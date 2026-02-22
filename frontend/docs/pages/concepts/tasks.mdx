@@ -5,6 +5,10 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Tasks
 
+<Callout type="info">
+  Just getting started? Check out the [essentials guide](/essentials/your-first-task) to declare and run your first task.
+</Callout>
+
 Everything you run in Hatchet is a **task** — a named function that you can trigger, retry, schedule, and observe. Tasks can be configured to handle the problems that come up in real systems: transient failures, resource contention, overloaded downstream services, and more.
 
 ## Defining a task
@@ -74,7 +78,7 @@ Tasks can be configured to handle common problems in distributed systems. For ex
 
 Every task receives an **input** — a JSON-serializable object passed when the task is triggered. The value you return from the task function becomes the task's **output**, which callers receive when they await the result.
 
-When a task is part of a [workflow](/concepts/workflows), its output is also available to downstream tasks through the context object, so data flows naturally from one step to the next. See [Accessing Parent Task Outputs](/concepts/dags#accessing-parent-task-outputs) for details.
+When a task is part of a [workflow](/concepts/durable-workflows), its output is also available to downstream tasks through the context object, so data flows naturally from one step to the next. See [Accessing Parent Task Outputs](/concepts/durable-workflows/directed-acyclic-graphs#accessing-parent-task-outputs) for details.
 
 ## The context object
 
@@ -94,6 +98,6 @@ If you need tasks to run on specific workers — for example, because a worker h
 
 ## Tasks vs. workflows
 
-A task on its own is a standalone runnable — you can trigger it, wait for its result, schedule it, or fire it off without waiting. When you need to coordinate multiple tasks together (run B after A, fan out across N inputs, etc.), you compose them into a [workflow](/concepts/workflows). Both share the same trigger interface — the difference is scope. A task does one thing; a workflow orchestrates many things.
+A task on its own is a standalone runnable — you can trigger it, wait for its result, schedule it, or fire it off without waiting. When you need to coordinate multiple tasks together (run B after A, fan out across N inputs, etc.), you compose them into a [workflow](/concepts/durable-workflows). Both share the same trigger interface — the difference is scope. A task does one thing; a workflow orchestrates many things.
 
-Next, read about how tasks compose into [workflows](/concepts/workflows).
+Next, read about how tasks compose into [workflows](/concepts/durable-workflows).

@@ -27,7 +27,7 @@ If the condition is not met, the task spawns a new child run of itself with upda
 </Steps>
 
 <Callout type="info">
-  Cycles use [Procedural Child Spawning](/concepts/child-spawning) under the hood;
+  Cycles use [Procedural Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) under the hood;
   each iteration is a new child task run. This gives you full observability into
   every iteration in the Hatchet dashboard.
 </Callout>
@@ -53,15 +53,15 @@ If the condition is not met, the task spawns a new child run of itself with upda
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="AI Agent Loops" href="/concepts/child-spawning">
+  <Cards.Card title="AI Agent Loops" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
     Build agents that reason, take action, observe results, and loop until they
     achieve their goal.
   </Cards.Card>
-  <Cards.Card title="Polling External APIs" href="/concepts/child-spawning">
+  <Cards.Card title="Polling External APIs" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
     Check an external service repeatedly until a resource is ready or a status
     changes.
   </Cards.Card>
-  <Cards.Card title="Iterative Data Processing" href="/concepts/child-spawning">
+  <Cards.Card title="Iterative Data Processing" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
     Process data in successive passes, refining results until convergence.
   </Cards.Card>
   <Cards.Card title="Custom Retry Logic" href="/concepts/retry-policies">
@@ -72,7 +72,7 @@ If the condition is not met, the task spawns a new child run of itself with upda
 
 ## Next Steps
 
-- [Procedural Child Spawning](/concepts/child-spawning): the mechanism that powers cycle iteration
+- [Procedural Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): the mechanism that powers cycle iteration
 - [Retry Policies](/concepts/retry-policies): built-in retry support for simpler retry scenarios
 - [Branching](/patterns/branching): combine cycles with conditional logic
 - [Fanout](/patterns/fanout): spawn parallel tasks instead of sequential iterations

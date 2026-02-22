@@ -8,7 +8,7 @@ The deterministic nature of durable tasks is what allows Hatchet to replay the t
 
 By following a few simple rules, you can ensure that your durable tasks are deterministic:
 
-1. **Only call methods available on the `DurableContext`**: a very common way to introduce non-determinism is to call methods within your application code which produces side effects. If you need to call a method in your application code which fetches data from a database, calls any sort of i/o operation, or otherwise interacts with other systems, you should spawn those tasks as a **child task** or **child workflow** using `RunChild`.
+1. **Only call methods available on the `DurableContext`**: a very common way to introduce non-determinism is to call methods within your application code which produces side effects. If you need to call a method in your application code which fetches data from a database, calls any sort of i/o operation, or otherwise interacts with other systems, you should spawn those tasks as a **child task** or **child workflow** using `RunChild`. Remember that durable tasks are [evicted](/concepts/durable-workflows/durable-task-execution/task-eviction) at every wait point and replayed from checkpoint on resume — any side effect not behind a checkpoint will re-execute.
 
 2. **When updating durable tasks, always guarantee backwards compatibility**: if you change the order of operations in a durable task, you may break determinism. For example, if you call `SleepFor` followed by `WaitFor`, and then change the order of those calls, Hatchet will not be able to replay the task correctly. This is because the task may have already been checkpointed at the first call to `SleepFor`, and if you change the order of operations, the checkpoint is meaningless.
 

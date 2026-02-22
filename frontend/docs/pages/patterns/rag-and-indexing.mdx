@@ -29,11 +29,11 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 
 | Feature                                    | What it does for RAG                                                           |
 | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| **[Child Spawning](/concepts/child-spawning)** | Fan out to one task per document/chunk; process thousands in parallel          |
+| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Fan out to one task per document/chunk; process thousands in parallel          |
 | **[Rate Limits](/concepts/rate-limits)**       | Throttle embedding API calls across all workers to stay within provider limits |
 | **[Retry Policies](/concepts/retry-policies)** | Retry failed chunks individually without re-processing the whole pipeline      |
 | **[Concurrency](/concepts/concurrency)**       | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing               |
-| **[DAG Workflows](/concepts/dags)**            | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
+| **[DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs)**            | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
 | **[Event Triggers](/concepts/run-on-event)**      | Start indexing automatically when new documents arrive                         |
 | **[Cron Triggers](/concepts/cron-runs)**          | Schedule periodic re-indexing or incremental updates                           |
 | **[Bulk Run](/concepts/bulk-run)**                | Trigger indexing for thousands of documents in a single API call               |
@@ -107,7 +107,7 @@ For SaaS applications where multiple tenants share the same pipeline:
 
 ## Next Steps
 
-- [DAG Workflows](/concepts/dags): define multi-stage pipelines with task dependencies
+- [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs): define multi-stage pipelines with task dependencies
 - [Rate Limits](/concepts/rate-limits): configure rate limiting for embedding APIs
-- [Child Spawning](/concepts/child-spawning): fan out to per-document tasks
+- [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): fan out to per-document tasks
 - [Concurrency Control](/concepts/concurrency): fair scheduling for multi-tenant indexing

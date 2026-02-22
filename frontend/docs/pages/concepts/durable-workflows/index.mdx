@@ -1,0 +1,43 @@
+---
+asIndexPage: true
+---
+import { Callout, Cards } from "nextra/components";
+
+# Durable Workflows
+
+<Callout type="info">
+  Just getting started? Check out the [essentials guide](/essentials/durable-workflows) for an introduction to durable workflows and when to use each pattern.
+</Callout>
+
+A **durable workflow** is work whose execution state lives in Hatchet instead of in your process. When you run a durable workflow, the orchestrator owns that state: it records progress, survives your worker crashing or scaling down, and resumes from the last checkpoint so work is not lost or duplicated.
+
+Hatchet supports two patterns for building durable workflows, and you can mix them within the same application.
+
+**Durable task execution** — A single long-running task that uses a durable context (`SleepFor`, `WaitForEvent`, `Memo`, etc.). Progress is checkpointed as the task runs. Best when you need procedural control flow, long waits, or human-in-the-loop inside one task.
+
+**Directed acyclic graphs (DAGs)** — Workflows made of multiple tasks with declared dependencies. Each task runs to completion; the graph structure and task outputs are the durable state. Best when your workflow is a fixed or mostly fixed graph of steps.
+
+## How workflows relate to tasks
+
+A workflow is triggered and observed the same way as a standalone task — `run`, `run_no_wait`, `schedule`, and the other trigger methods all work identically. The difference is that triggering a workflow enqueues its constituent tasks according to the dependency graph rather than running a single function.
+
+Each task inside a workflow can access the outputs of its parent tasks through the context object, so data flows naturally from one step to the next.
+
+## Configuration
+
+Workflow-level configuration (like concurrency or on-failure hooks) applies across all tasks in the workflow. Individual tasks can still carry their own retry policies, timeouts, and other settings, which override or extend the workflow-level defaults.
+
+| Concept | Scope |
+| --- | --- |
+| [Concurrency](/concepts/concurrency) | Limit concurrent runs of the entire workflow. |
+| [On-failure tasks](/concepts/durable-workflows/directed-acyclic-graphs/on-failure-tasks) | Run a cleanup task when any task in the workflow fails. |
+| [Conditional workflows](/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows) | Skip or gate tasks based on runtime conditions. |
+
+<Cards>
+  <Cards.Card title="Durable Task Execution" href="/concepts/durable-workflows/durable-task-execution">
+    Checkpoints, durable context, and when to use it.
+  </Cards.Card>
+  <Cards.Card title="Directed Acyclic Graphs" href="/concepts/durable-workflows/directed-acyclic-graphs">
+    Multi-task workflows with dependencies and parallel execution.
+  </Cards.Card>
+</Cards>

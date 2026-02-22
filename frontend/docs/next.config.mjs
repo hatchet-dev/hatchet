@@ -155,7 +155,7 @@ const nextConfig = {
       },
       {
         source: "/home/features/durable-execution",
-        destination: "/v1/concepts/durable-execution",
+        destination: "/v1/concepts/durable-workflows/durable-task-execution",
         permanent: false,
         basePath: false,
       },
@@ -173,7 +173,7 @@ const nextConfig = {
       },
       {
         source: "/home/features/on-failure-step",
-        destination: "/v1/concepts/on-failure-tasks",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/on-failure-tasks",
         permanent: false,
         basePath: false,
       },
@@ -221,7 +221,7 @@ const nextConfig = {
       },
       {
         source: "/home/features/additional-metadata",
-        destination: "/v1/concepts/additional-metadata",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/additional-metadata",
         permanent: false,
         basePath: false,
       },
@@ -245,19 +245,93 @@ const nextConfig = {
       },
       {
         source: "/home/features/child-workflows",
-        destination: "/v1/concepts/child-spawning",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/child-spawning",
         permanent: false,
         basePath: false,
       },
+      // Redirect old /concepts/X paths to new durable-workflows structure
       {
-        source: "/home/:slug(concurrency|rate-limits|priority|orchestration|dags|conditional-workflows|on-failure-tasks|child-spawning|additional-metadata|durable-execution|durable-events|durable-sleep|durable-best-practices|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming|pushing-events|event-filters)",
+        source: "/concepts/workflows",
+        destination: "/concepts/durable-workflows",
+        permanent: true,
+      },
+      {
+        source: "/concepts/dags",
+        destination: "/concepts/durable-workflows/directed-acyclic-graphs",
+        permanent: true,
+      },
+      {
+        source: "/concepts/:slug(conditional-workflows|on-failure-tasks|child-spawning|additional-metadata)",
+        destination: "/concepts/durable-workflows/directed-acyclic-graphs/:slug",
+        permanent: true,
+      },
+      {
+        source: "/concepts/durable-execution",
+        destination: "/concepts/durable-workflows/durable-task-execution",
+        permanent: true,
+      },
+      {
+        source: "/concepts/:slug(durable-events|durable-sleep|durable-best-practices)",
+        destination: "/concepts/durable-workflows/durable-task-execution/:slug",
+        permanent: true,
+      },
+      {
+        source: "/home/:slug(concurrency|rate-limits|priority|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming|pushing-events|event-filters)",
         destination: "/v1/concepts/:slug",
         permanent: true,
         basePath: false,
       },
       {
-        source: "/:slug(concurrency|rate-limits|priority|orchestration|dags|conditional-workflows|on-failure-tasks|child-spawning|additional-metadata|durable-execution|durable-events|durable-sleep|durable-best-practices|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming|pushing-events|event-filters)",
+        source: "/home/:slug(dags|orchestration)",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/home/:slug(conditional-workflows|on-failure-tasks|child-spawning|additional-metadata)",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/:slug",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/home/durable-execution",
+        destination: "/v1/concepts/durable-workflows/durable-task-execution",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/home/:slug(durable-events|durable-sleep|durable-best-practices)",
+        destination: "/v1/concepts/durable-workflows/durable-task-execution/:slug",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/:slug(concurrency|rate-limits|priority|timeouts|retry-policies|bulk-retries-and-cancellations|sticky-assignment|worker-affinity|manual-slot-release|logging|opentelemetry|prometheus-metrics|cancellation|streaming|pushing-events|event-filters)",
         destination: "/v1/concepts/:slug",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/:slug(dags|orchestration)",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/:slug(conditional-workflows|on-failure-tasks|child-spawning|additional-metadata)",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs/:slug",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/durable-execution",
+        destination: "/v1/concepts/durable-workflows/durable-task-execution",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/:slug(durable-events|durable-sleep|durable-best-practices)",
+        destination: "/v1/concepts/durable-workflows/durable-task-execution/:slug",
         permanent: true,
         basePath: false,
       },

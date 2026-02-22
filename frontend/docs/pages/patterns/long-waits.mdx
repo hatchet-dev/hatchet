@@ -28,8 +28,8 @@ When the sleep expires or the event arrives, Hatchet re-schedules the task on an
 
 <Callout type="info">
   Long waits require **durable tasks**. Regular tasks cannot pause and resume
-  across worker restarts. See [Durable Sleep](/concepts/durable-sleep) and [Durable
-  Events](/concepts/durable-events) for API details.
+  across worker restarts. See [Durable Sleep](/concepts/durable-workflows/durable-task-execution/durable-sleep) and [Durable
+  Events](/concepts/durable-workflows/durable-task-execution/durable-events) for API details.
 </Callout>
 
 ## Types of Long Waits
@@ -49,19 +49,19 @@ When the sleep expires or the event arrives, Hatchet re-schedules the task on an
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="Delayed Notifications" href="/concepts/durable-sleep">
+  <Cards.Card title="Delayed Notifications" href="/concepts/durable-workflows/durable-task-execution/durable-sleep">
     Send a follow-up email or push notification hours or days after an initial
     action.
   </Cards.Card>
-  <Cards.Card title="Human-in-the-Loop Approval" href="/concepts/durable-events">
+  <Cards.Card title="Human-in-the-Loop Approval" href="/concepts/durable-workflows/durable-task-execution/durable-events">
     Pause a workflow until a human approves, rejects, or provides input via an
     external event.
   </Cards.Card>
-  <Cards.Card title="Scheduled Follow-Ups" href="/concepts/durable-sleep">
+  <Cards.Card title="Scheduled Follow-Ups" href="/concepts/durable-workflows/durable-task-execution/durable-sleep">
     Implement drip campaigns, trial expiration checks, or periodic status polls
     with precise timing.
   </Cards.Card>
-  <Cards.Card title="External System Callbacks" href="/concepts/durable-events">
+  <Cards.Card title="External System Callbacks" href="/concepts/durable-workflows/durable-task-execution/durable-events">
     Wait for a webhook, payment confirmation, or third-party API callback before
     proceeding.
   </Cards.Card>
@@ -69,7 +69,7 @@ When the sleep expires or the event arrives, Hatchet re-schedules the task on an
 
 ## Next Steps
 
-- [Durable Sleep](/concepts/durable-sleep): pause for a fixed duration with exact timing guarantees
-- [Durable Events](/concepts/durable-events): wait for external signals with optional CEL filters
-- [Conditional Workflows](/concepts/conditional-workflows): combine long waits with branching logic
+- [Durable Sleep](/concepts/durable-workflows/durable-task-execution/durable-sleep): pause for a fixed duration with exact timing guarantees
+- [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events): wait for external signals with optional CEL filters
+- [Conditional Workflows](/concepts/durable-workflows/directed-acyclic-graphs/conditional-workflows): combine long waits with branching logic
 - [Cycles](/patterns/cycles): use long waits inside iterative loops

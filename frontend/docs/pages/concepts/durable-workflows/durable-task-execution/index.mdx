@@ -3,7 +3,11 @@ import { Snippet } from "@/components/code";
 
 import { Callout } from "nextra/components";
 
-# Durable Execution
+# Understanding Durable Execution
+
+<Callout type="info">
+  Just getting started? Check out the [essentials guide](/essentials/durable-workflows/durable-task-execution) for an overview of how durable task execution works.
+</Callout>
 
 ## Introduction
 
@@ -22,7 +26,7 @@ This is especially useful in cases such as:
 
 ## How Hatchet Runs Durable Tasks
 
-Durable tasks run on the same worker process as regular tasks, but they consume a separate slot type so they do not compete with regular tasks for slots. This pattern prevents deadlock scenarios where durable tasks would starve children tasks for slots which are needed for the parent durable task to complete.
+Durable tasks run on the same worker process as regular tasks, but they consume a separate slot type so they do not compete with regular tasks for slots. When a durable task hits a wait (`SleepFor`, `WaitForEvent`, etc.), Hatchet [evicts](/concepts/durable-workflows/durable-task-execution/task-eviction) it from the worker — freeing the slot — and re-queues it when the wait completes. This prevents deadlock scenarios where durable tasks would starve children tasks for slots which are needed for the parent durable task to complete.
 
 Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context,` which extends the `Context` by providing some additional tools for working with durable execution features.
 

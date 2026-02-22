@@ -29,7 +29,7 @@ Concurrency limits prevent overwhelming your infrastructure. Rate limits protect
 
 | Feature                                                  | What it does for batch processing                                       |
 | -------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **[Child Spawning](/concepts/child-spawning)**               | Fan out to one task per item with automatic distribution across workers |
+| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)**               | Fan out to one task per item with automatic distribution across workers |
 | **[Bulk Run](/concepts/bulk-run)**                              | Trigger thousands of tasks in a single API call                         |
 | **[Retry Policies](/concepts/retry-policies)**               | Retry failed items individually without restarting the batch            |
 | **[Bulk Retries](/concepts/bulk-retries-and-cancellations)** | Re-run all failed items from the dashboard                              |
@@ -105,7 +105,7 @@ The parent awaits all children and aggregates results. You can see the status of
 
 ## Next Steps
 
-- [Child Spawning](/concepts/child-spawning): learn the fan-out API for batch processing
+- [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): learn the fan-out API for batch processing
 - [Bulk Run](/concepts/bulk-run): trigger large batches efficiently
 - [Concurrency Control](/concepts/concurrency): limit concurrent item processing
 - [Rate Limits](/concepts/rate-limits): protect external APIs during batch operations

@@ -5,6 +5,10 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Declarative Workflow Design (DAGs)
 
+<Callout type="info">
+  Just getting started? Check out the [essentials guide](/essentials/durable-workflows/directed-acyclic-graph) for an introduction to DAG workflows and how they fit into durable workflows.
+</Callout>
+
 Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each task is a node in the graph, and the dependencies between tasks are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies. By defining the sequence and dependencies of tasks upfront, you can easily understand the actual runtime state as compared to the expected state when debugging or troubleshooting.
 
 ## Defining a Workflow
