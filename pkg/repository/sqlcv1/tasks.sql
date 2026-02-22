@@ -996,7 +996,6 @@ SELECT
 -- The evicted runtime row stays (evicted_at set); when the queue item is assigned,
 -- the ON CONFLICT in UpdateTasksToAssigned clears evicted_at and re-creates slots.
 -- TODO-DURABLE: check if invocation has increased and if yes, do nothing
--- TODO-DURABLE: reset the durable event log?
 WITH evicted_runtime AS (
     SELECT
         r.task_id,

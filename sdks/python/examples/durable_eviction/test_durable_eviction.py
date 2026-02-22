@@ -51,7 +51,9 @@ async def test_non_evictable_task_completes(hatchet: Hatchet) -> None:
     result = await non_evictable_sleep.aio_run()
 
     assert result["status"] == "completed"
-    assert result["runtime"] >= 10
+    runtime = result["runtime"]
+    assert isinstance(runtime, (int, float))
+    assert runtime >= 10
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -66,9 +68,9 @@ async def test_evictable_task_is_evicted(hatchet: Hatchet) -> None:
         hatchet, ref.workflow_run_id, V1TaskEventType.DURABLE_EVICTED
     )
 
-    assert V1TaskEventType.DURABLE_EVICTED in event_types, (
-        f"Expected DURABLE_EVICTED in events, got: {event_types}"
-    )
+    assert (
+        V1TaskEventType.DURABLE_EVICTED in event_types
+    ), f"Expected DURABLE_EVICTED in events, got: {event_types}"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -91,9 +93,9 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
         hatchet, ref.workflow_run_id, V1TaskEventType.DURABLE_RESTORING
     )
 
-    assert V1TaskEventType.DURABLE_RESTORING in event_types, (
-        f"Expected DURABLE_RESTORING after restore, got: {event_types}"
-    )
+    assert (
+        V1TaskEventType.DURABLE_RESTORING in event_types
+    ), f"Expected DURABLE_RESTORING after restore, got: {event_types}"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -118,6 +120,6 @@ async def test_graceful_termination_evicts_waiting_runs(hatchet: Hatchet) -> Non
             hatchet, ref.workflow_run_id, V1TaskEventType.DURABLE_EVICTED
         )
 
-        assert V1TaskEventType.DURABLE_EVICTED in event_types, (
-            f"Expected DURABLE_EVICTED after SIGTERM, got: {event_types}"
-        )
+        assert (
+            V1TaskEventType.DURABLE_EVICTED in event_types
+        ), f"Expected DURABLE_EVICTED after SIGTERM, got: {event_types}"

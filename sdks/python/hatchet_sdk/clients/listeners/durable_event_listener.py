@@ -421,18 +421,18 @@ class DurableEventListener:
                 fut.cancel()
 
         stale_ack_keys = [
-            k for k in self._pending_event_acks if k[0] == durable_task_external_id
+            ak for ak in self._pending_event_acks if ak[0] == durable_task_external_id
         ]
-        for k in stale_ack_keys:
-            fut = self._pending_event_acks.pop(k)
-            if not fut.done():
-                fut.cancel()
+        for ak in stale_ack_keys:
+            ack_fut = self._pending_event_acks.pop(ak)
+            if not ack_fut.done():
+                ack_fut.cancel()
 
         stale_early_keys = [
-            k for k in self._early_completions if k[0] == durable_task_external_id
+            ek for ek in self._early_completions if ek[0] == durable_task_external_id
         ]
-        for k in stale_early_keys:
-            del self._early_completions[k]
+        for ek in stale_early_keys:
+            del self._early_completions[ek]
 
     async def send_evict_invocation(
         self,

@@ -419,7 +419,7 @@ class Runner:
             del self.threads[key]
 
         if key in self.contexts:
-            if self.contexts[key].exit_flag:  # noqa: SIM102
+            if self.contexts[key].exit_flag:
                 self.cancellations[key] = True
             del self.contexts[key]
 

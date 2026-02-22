@@ -27,6 +27,10 @@ from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.eviction import (
+    DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+    EvictionPolicy,
+)
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     DefaultFilter,
@@ -38,7 +42,6 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
     normalize_validator,
 )
-from hatchet_sdk.runnables.eviction import DEFAULT_DURABLE_TASK_EVICTION_POLICY, EvictionPolicy
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -672,6 +675,8 @@ class Hatchet:
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
+
+        :param eviction: An optional eviction policy controlling when idle durable tasks are evicted from workers.
 
         :returns: A decorator which creates a `Standalone` task object.
         """

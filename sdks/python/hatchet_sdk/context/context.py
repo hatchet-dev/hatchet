@@ -30,7 +30,9 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
-from hatchet_sdk.worker.durable_eviction.instrumentation import aio_durable_eviction_wait
+from hatchet_sdk.worker.durable_eviction.instrumentation import (
+    aio_durable_eviction_wait,
+)
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -87,7 +89,7 @@ class Context:
 
         return index
 
-    def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
+    def was_skipped(self, task: Task[TWorkflowInput, R]) -> bool:
         """
         Check if a given task was skipped. You can read about skipping in [the docs](https://docs.hatchet.run/home/conditional-workflows#skip_if).
 
@@ -100,7 +102,7 @@ class Context:
     def trigger_data(self) -> JSONSerializableMapping:
         return self.data.triggers
 
-    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def task_output(self, task: Task[TWorkflowInput, R]) -> R:
         """
         Get the output of a parent task in a DAG.
 
@@ -126,7 +128,7 @@ class Context:
             ),
         )
 
-    def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def aio_task_output(self, task: Task[TWorkflowInput, R]) -> R:
         warn(
             "`aio_task_output` is deprecated. Use `task_output` instead.",
             DeprecationWarning,
@@ -399,7 +401,7 @@ class Context:
 
     def fetch_task_run_error(
         self,
-        task: "Task[TWorkflowInput, R]",
+        task: Task[TWorkflowInput, R],
     ) -> str | None:
         """
         **DEPRECATED**: Use `get_task_run_error` instead.
@@ -420,7 +422,7 @@ class Context:
 
     def get_task_run_error(
         self,
-        task: "Task[TWorkflowInput, R]",
+        task: Task[TWorkflowInput, R],
     ) -> TaskRunError | None:
         """
         A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
@@ -542,9 +544,9 @@ class DurableContext(Context):
 
     async def _spawn_child(
         self,
-        workflow: "BaseWorkflow[TWorkflowInput]",
+        workflow: BaseWorkflow[TWorkflowInput],
         input: TWorkflowInput = cast(Any, EmptyModel()),
-        options: "TriggerWorkflowOptions" | None = None,
+        options: TriggerWorkflowOptions | None = None,
     ) -> dict[str, Any]:
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
