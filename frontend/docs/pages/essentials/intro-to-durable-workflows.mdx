@@ -1,0 +1,30 @@
+import { Cards } from "nextra/components";
+import DurableWorkflowComparisonDiagram from "@/components/DurableWorkflowComparisonDiagram";
+
+# Intro to Durable Workflows
+
+A **durable workflow** is work whose execution state lives in Hatchet, not in your process. If a worker crashes, scales down, or deploys, Hatchet resumes from the last checkpoint instead of starting over.
+
+Hatchet supports two patterns. Both are durable; the difference is whether you know the **shape of work** ahead of time.
+
+<DurableWorkflowComparisonDiagram />
+
+**Durable Task Execution** — a single long-running function that checkpoints its progress. Use when the work is dynamic: IO waits, runtime fan-out, loops, or agent-style reasoning.
+
+**DAGs (Directed Acyclic Graphs)** — a set of tasks connected by declared dependencies. Use when the shape of work is known upfront: pipelines, multi-step processing, branching logic.
+
+## Ready to dive deeper?
+
+Read the [Durable Workflows concepts page](/concepts/durable-workflows) for more details on how to use durable workflows.
+
+<Cards>
+  <Cards.Card title="Durable Task Execution" href="/concepts/durable-workflows/durable-task-execution">
+    Checkpoints, durable context, sleep, events, child spawning, and eviction.
+  </Cards.Card>
+  <Cards.Card title="Directed Acyclic Graphs" href="/concepts/durable-workflows/directed-acyclic-graphs">
+    Declaring workflows, task dependencies, conditions, and parallel execution.
+  </Cards.Card>
+  <Cards.Card title="Mixing Patterns" href="/concepts/durable-workflows/mixing-patterns">
+    Combine DAGs and durable tasks in the same workflow.
+  </Cards.Card>
+</Cards>

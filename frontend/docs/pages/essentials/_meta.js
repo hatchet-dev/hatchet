@@ -17,10 +17,7 @@ export default {
   "your-first-task": "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "durable-workflows": {
-    title: "Durable Workflows",
-    theme: { "collapsed": true },
-  },
+  "intro-to-durable-workflows":  "Intro to Durable Workflows",
   "--production": {
     title: "Preparing for Production",
     type: "separator",

@@ -2,14 +2,39 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import WorkflowDiagram from "@/components/WorkflowDiagram";
 
 # Declarative Workflow Design (DAGs)
 
 <Callout type="info">
-  Just getting started? Check out the [essentials guide](/essentials/durable-workflows/directed-acyclic-graph) for an introduction to DAG workflows and how they fit into durable workflows.
+  Just getting started? Check out [Intro to Durable Workflows](/essentials/durable-workflows) for a high-level overview of how durable workflows fit together.
 </Callout>
 
-Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each task is a node in the graph, and the dependencies between tasks are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies. By defining the sequence and dependencies of tasks upfront, you can easily understand the actual runtime state as compared to the expected state when debugging or troubleshooting.
+Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each task is a node in the graph, and the dependencies between tasks are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies.
+
+<WorkflowDiagram />
+
+## How DAG Workflows Work
+
+<Steps>
+
+### You declare the graph
+
+Define tasks and their dependencies upfront. Hatchet knows the full shape of work before execution begins.
+
+### Hatchet executes in order
+
+Tasks run as soon as their parents complete. Independent tasks run in parallel automatically. A worker slot is only assigned when a task is ready to execute, so tasks waiting on parents consume no resources. Each task has configurable [retry policies](/concepts/retry-policies) and [timeouts](/concepts/timeouts).
+
+### Results flow downstream
+
+Task outputs are cached and passed to child tasks. If a failure occurs mid-workflow, completed tasks don't re-run.
+
+### Everything is observable
+
+Every task execution is tracked in the dashboard — inputs, outputs, durations, and errors. You can see exactly where a workflow succeeded or failed.
+
+</Steps>
 
 ## Defining a Workflow
 

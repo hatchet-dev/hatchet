@@ -6,16 +6,23 @@ import DurableWorkflowComparisonDiagram from "@/components/DurableWorkflowCompar
 
 # Durable Workflows
 
-<Callout type="info">
-  Just getting started? Check out the [essentials guide](/essentials/durable-workflows) for an introduction to durable workflows and when to use each pattern.
-</Callout>
-
 A **durable workflow** is work whose execution state lives in Hatchet instead of in your process. When you run a durable workflow, the orchestrator owns that state: it records progress, survives your worker crashing or scaling down, and resumes from the last checkpoint so work is not lost or duplicated.
 
-Hatchet supports two patterns for building durable workflows, and you can mix them within the same application. The key difference is whether you know the **shape of work** ahead of time.
+## Why durable?
+
+With ordinary tasks, "where we are" in the workflow lives in memory. If the process dies, that state is gone. With durable workflows, execution state is stored in the Hatchet event log. The orchestrator can therefore:
+
+- **Recover from failures** — replay from the last recorded step on another worker instead of restarting from scratch.
+- **Handle long waits** — release the worker slot during "wait 24 hours" or "wait for this event" steps, then resume when the wait completes.
+- **Manage distributed state** — keep multi-step, branching, or long-running flows consistent and replayable across workers and restarts.
+
+Your code describes the steps; Hatchet makes them durable and resumable.
+
+## Two patterns
+
+Hatchet supports two patterns for building durable workflows, and you can [mix them](/concepts/durable-workflows/mixing-patterns) within the same application. Both are durable — the difference is how you express the work. The key difference is whether you know the **shape of work** ahead of time.
 
 <DurableWorkflowComparisonDiagram />
-
 
 **Durable task execution** — The shape of work is **dynamic**. A single long-running function that can pause for time or external signals (`SleepFor`, `WaitForEvent`) and [spawn child tasks](/concepts/durable-workflows/durable-task-execution/child-spawning) at runtime. Use durable tasks when:
 
@@ -29,11 +36,13 @@ Hatchet supports two patterns for building durable workflows, and you can mix th
 - Every task and dependency is known before the workflow starts
 - You want the full graph visible in the dashboard for debugging and monitoring
 
+## Choosing a pattern
+
 DAGs are **easier to visualize and reason about** — every task, dependency, and data flow is visible as a graph. Durable tasks offer **more flexibility** — they can branch, loop, and spawn children dynamically — but their runtime behavior is harder to predict from the code alone. When in doubt, start with a DAG and reach for a durable task only when you need capabilities a static graph can't express. You can always [mix both patterns](/concepts/durable-workflows/mixing-patterns) in the same application.
 
 ## How workflows relate to tasks
 
-A workflow is a **container of tasks**. Both standalone tasks and workflows are **runnables**. They share the same API (`run`, `run_no_wait`, `schedule`, and the other trigger methods all work identically).
+A workflow is a **container of tasks**. Both standalone tasks and workflows are **runnables** — they share the same API (`run`, `run_no_wait`, `schedule`, and the other trigger methods all work identically).
 
 <Cards>
   <Cards.Card title="Durable Task Execution" href="/concepts/durable-workflows/durable-task-execution">

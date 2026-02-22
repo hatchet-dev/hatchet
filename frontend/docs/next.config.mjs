@@ -568,6 +568,19 @@ const nextConfig = {
         permanent: true,
         basePath: false,
       },
+      // Essentials durable-workflows subpage consolidation
+      {
+        source: "/v1/essentials/durable-workflows/durable-task-execution",
+        destination: "/v1/concepts/durable-workflows/durable-task-execution",
+        permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/v1/essentials/durable-workflows/directed-acyclic-graph",
+        destination: "/v1/concepts/durable-workflows/directed-acyclic-graphs",
+        permanent: true,
+        basePath: false,
+      },
       // Essentials → Concepts moves
       {
         source: "/essentials/docker",
