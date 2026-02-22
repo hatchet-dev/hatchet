@@ -89,6 +89,9 @@ class DurableEventListener:
         self._pending_callbacks: dict[
             PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
+        self._early_completions: dict[
+            PendingCallback, DurableTaskEventLogEntryResult
+        ] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
         self._send_task: asyncio.Task[None] | None = None
@@ -274,13 +277,14 @@ class DurableEventListener:
                 completed.branch_id,
                 completed.node_id,
             )
+            result = DurableTaskEventLogEntryResult.from_proto(completed)
             if completed_key in self._pending_callbacks:
                 completed_future = self._pending_callbacks[completed_key]
                 if not completed_future.done():
-                    completed_future.set_result(
-                        DurableTaskEventLogEntryResult.from_proto(completed)
-                    )
+                    completed_future.set_result(result)
                 del self._pending_callbacks[completed_key]
+            else:
+                self._early_completions[completed_key] = result
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -397,11 +401,38 @@ class DurableEventListener:
     ) -> DurableTaskEventLogEntryResult:
         key = (durable_task_external_id, branch_id, node_id)
 
+        if key in self._early_completions:
+            return self._early_completions.pop(key)
+
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
 
         return await self._pending_callbacks[key]
+
+    def cleanup_task_state(self, durable_task_external_id: str) -> None:
+        """Remove all pending callbacks, acks, and buffered completions for a task."""
+        stale_cb_keys = [
+            k for k in self._pending_callbacks if k[0] == durable_task_external_id
+        ]
+        for k in stale_cb_keys:
+            fut = self._pending_callbacks.pop(k)
+            if not fut.done():
+                fut.cancel()
+
+        stale_ack_keys = [
+            k for k in self._pending_event_acks if k[0] == durable_task_external_id
+        ]
+        for k in stale_ack_keys:
+            fut = self._pending_event_acks.pop(k)
+            if not fut.done():
+                fut.cancel()
+
+        stale_early_keys = [
+            k for k in self._early_completions if k[0] == durable_task_external_id
+        ]
+        for k in stale_early_keys:
+            del self._early_completions[k]
 
     async def send_evict_invocation(
         self,

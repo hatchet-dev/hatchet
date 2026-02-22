@@ -187,7 +187,10 @@ class Runner:
     def _eviction_cancel_callback(self, key: ActionKey) -> None:
         """Called from CancellationToken when the eviction manager evicts a run."""
         if key in self.contexts:
-            self.contexts[key]._set_cancellation_flag()
+            ctx = self.contexts[key]
+            ctx._set_cancellation_flag()
+            if self.durable_event_listener is not None and hasattr(ctx, "step_run_id"):
+                self.durable_event_listener.cleanup_task_state(ctx.step_run_id)
             self.cancellations[key] = True
         if key in self.tasks:
             self.tasks[key].cancel()
