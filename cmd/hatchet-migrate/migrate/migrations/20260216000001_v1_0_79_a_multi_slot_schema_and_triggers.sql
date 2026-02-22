@@ -113,8 +113,14 @@ BEGIN
         worker_id,
         'default'::text,
         1
-    FROM new_rows
-    WHERE worker_id IS NOT NULL
+    FROM new_rows nr
+    WHERE nr.worker_id IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_task_runtime_slot s
+        WHERE s.task_id = nr.task_id
+          AND s.task_inserted_at = nr.task_inserted_at
+          AND s.retry_count = nr.retry_count
+    )
     ON CONFLICT (task_id, task_inserted_at, retry_count, slot_type) DO NOTHING;
 
     RETURN NULL;

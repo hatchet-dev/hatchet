@@ -307,6 +307,15 @@ export class V0Context<T, K = {}> {
   }
 
   /**
+   * Gets the ID of the current task run.
+   * @returns The task run ID.
+   * @deprecated use taskRunExternalId() instead
+   */
+  taskRunId(): string {
+    return this.taskRunExternalId();
+  }
+
+  /**
    * Gets the number of times the current task has been retried.
    * @returns The retry count.
    */

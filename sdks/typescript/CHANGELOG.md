@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.12.1] - 2026-02-18
 
-### Changed
+### Fixed
 
-- Patch release for bug fixes and improvements.
+- Restored `ctx.taskRunId()` as a deprecated alias for `ctx.taskRunExternalId()` on both v0 and v1 worker contexts, so existing code calling `ctx.taskRunId()` continues to work after the proto naming changes in 1.11.0.
 
 ## [1.12.0] - 2026-02-13
 

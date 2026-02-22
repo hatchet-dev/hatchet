@@ -1,8 +1,14 @@
 import { Callout } from "nextra/components";
 
-# Downgrading Hatchet Versions
+# Downgrading DB Schema Manually
 
-This guide explains how to safely downgrade your Hatchet instance to a previous version.
+This guide explains how to safely downgrade your Hatchet DB schema to a previous version.
+
+<Callout type="info">
+  For production-critical workloads, see the [Upgrading and
+  Downgrading](/self-hosting/upgrading-downgrading) guide which covers database
+  snapshots, upgrading, and safe rollback strategies.
+</Callout>
 
 <Callout type="warning">
   Downgrading may result in data loss. Always test downgrades in a
