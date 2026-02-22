@@ -56,7 +56,7 @@ export default {
         href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",
         type: "page",
         newWindow: true,
-      }
+      },
     },
   },
   contributing: {
@@ -74,5 +74,5 @@ export default {
     theme: {
       toc: false,
     },
-  }
+  },
 };

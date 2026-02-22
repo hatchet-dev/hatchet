@@ -27,9 +27,10 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 </Steps>
 
 <Callout type="info">
-  Pre-determined pipelines are built using [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs). See that
-  page for full code examples on defining workflows, adding tasks with
-  dependencies, accessing parent outputs, and running workflows.
+  Pre-determined pipelines are built using [DAG
+  Workflows](/concepts/durable-workflows/directed-acyclic-graphs). See that page
+  for full code examples on defining workflows, adding tasks with dependencies,
+  accessing parent outputs, and running workflows.
 </Callout>
 
 ## When to Use Pipelines vs Fanout
@@ -46,19 +47,31 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="ETL Pipelines" href="/concepts/durable-workflows/directed-acyclic-graphs">
+  <Cards.Card
+    title="ETL Pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
     Extract data, transform it through multiple stages, and load it into a
     destination, each stage as a task with clear dependencies.
   </Cards.Card>
-  <Cards.Card title="CI/CD Workflows" href="/concepts/durable-workflows/directed-acyclic-graphs">
+  <Cards.Card
+    title="CI/CD Workflows"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
     Build, test, and deploy in sequence with parallel test suites that fan back
     into a deploy step.
   </Cards.Card>
-  <Cards.Card title="Document Processing" href="/concepts/durable-workflows/directed-acyclic-graphs">
+  <Cards.Card
+    title="Document Processing"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
     Parse, validate, enrich, and index documents through a fixed sequence of
     processing stages.
   </Cards.Card>
-  <Cards.Card title="Multi-Step AI Pipelines" href="/concepts/durable-workflows/directed-acyclic-graphs">
+  <Cards.Card
+    title="Multi-Step AI Pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
     Chain LLM calls with validation gates (generate, evaluate, refine) where
     each step depends on the previous.
   </Cards.Card>

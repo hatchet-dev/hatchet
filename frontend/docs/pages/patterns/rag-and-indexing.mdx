@@ -27,21 +27,21 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 
 ## Key Features
 
-| Feature                                    | What it does for RAG                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------ |
+| Feature                                                                                  | What it does for RAG                                                           |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Fan out to one task per document/chunk; process thousands in parallel          |
-| **[Rate Limits](/concepts/rate-limits)**       | Throttle embedding API calls across all workers to stay within provider limits |
-| **[Retry Policies](/concepts/retry-policies)** | Retry failed chunks individually without re-processing the whole pipeline      |
-| **[Concurrency](/concepts/concurrency)**       | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing               |
-| **[DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs)**            | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
-| **[Event Triggers](/concepts/run-on-event)**      | Start indexing automatically when new documents arrive                         |
-| **[Cron Triggers](/concepts/cron-runs)**          | Schedule periodic re-indexing or incremental updates                           |
-| **[Bulk Run](/concepts/bulk-run)**                | Trigger indexing for thousands of documents in a single API call               |
+| **[Rate Limits](/concepts/rate-limits)**                                                 | Throttle embedding API calls across all workers to stay within provider limits |
+| **[Retry Policies](/concepts/retry-policies)**                                           | Retry failed chunks individually without re-processing the whole pipeline      |
+| **[Concurrency](/concepts/concurrency)**                                                 | Fair scheduling with GROUP_ROUND_ROBIN for multi-tenant indexing               |
+| **[DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs)**                 | Chain pipeline stages (ingest → chunk → embed → index) with clear dependencies |
+| **[Event Triggers](/concepts/run-on-event)**                                             | Start indexing automatically when new documents arrive                         |
+| **[Cron Triggers](/concepts/cron-runs)**                                                 | Schedule periodic re-indexing or incremental updates                           |
+| **[Bulk Run](/concepts/bulk-run)**                                                       | Trigger indexing for thousands of documents in a single API call               |
 
 <Callout type="info">
   RAG pipelines are a natural fit for [Pre-Determined
-  Pipelines](/patterns/pre-determined-pipelines). The stages (ingest,
-  chunk, embed, index) are fixed and map directly to a DAG. Use
+  Pipelines](/patterns/pre-determined-pipelines). The stages (ingest, chunk,
+  embed, index) are fixed and map directly to a DAG. Use
   [Fanout](/patterns/fanout) within the chunking stage to parallelize.
 </Callout>
 
@@ -73,7 +73,8 @@ A separate workflow handles user queries, generating query embeddings, searching
 
 <Callout type="warning">
   When fanning out to many chunks, ensure your workers have enough slots or use
-  [Concurrency Control](/concepts/concurrency) to limit how many run simultaneously.
+  [Concurrency Control](/concepts/concurrency) to limit how many run
+  simultaneously.
 </Callout>
 
 ## Multi-Tenant Indexing

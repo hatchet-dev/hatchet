@@ -8,11 +8,16 @@ import UniversalTabs from "@/components/UniversalTabs";
 Durable sleep is a feature of **durable tasks** which pauses execution for a specified amount of time.
 
 <Callout type="info">
-  Sleeping puts the task into an [evictable state](/concepts/durable-workflows/durable-task-execution/task-eviction) — the worker slot is freed and the task is re-queued when the sleep expires.
+  Sleeping puts the task into an [evictable
+  state](/concepts/durable-workflows/durable-task-execution/task-eviction) — the
+  worker slot is freed and the task is re-queued when the sleep expires.
 </Callout>
 
 <Callout type="info">
-  DAG workflows have an analogous feature: [Sleep Conditions](/concepts/durable-workflows/directed-acyclic-graphs/sleep-conditions). In a DAG, sleep conditions are declared upfront on the task definition. Use a durable task when the decision to sleep is made dynamically at runtime.
+  DAG workflows have an analogous feature: [Sleep
+  Conditions](/concepts/durable-workflows/directed-acyclic-graphs/sleep-conditions).
+  In a DAG, sleep conditions are declared upfront on the task definition. Use a
+  durable task when the decision to sleep is made dynamically at runtime.
 </Callout>
 
 Unlike a language-level sleep (e.g. `time.sleep` in Python or `setTimeout` in Node), durable sleep is guaranteed to respect the original duration across interruptions. A language-level sleep ties the wait to the local process, so if the process restarts, the sleep starts over from zero.

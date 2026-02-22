@@ -11,18 +11,18 @@ There are two types of context classes you'll encounter:
 
 ### Methods
 
-| Name                   | Description                                                                                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Name                   | Description                                                                                                                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions#checking-if-a-task-was-skipped). |
-| `task_output`          | Get the output of a parent task in a DAG.                                                                                                                                |
-| `cancel`               | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
-| `aio_cancel`           | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
-| `done`                 | Check if the current task run has been cancelled.                                                                                                                        |
-| `log`                  | Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.                                                                    |
-| `release_slot`         | Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.               |
-| `put_stream`           | Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer. |
-| `refresh_timeout`      | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](../../home/timeouts#refreshing-timeouts).                             |
-| `fetch_task_run_error` | **DEPRECATED**: Use `get_task_run_error` instead.                                                                                                                        |
+| `task_output`          | Get the output of a parent task in a DAG.                                                                                                                                           |
+| `cancel`               | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                                   |
+| `aio_cancel`           | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                                   |
+| `done`                 | Check if the current task run has been cancelled.                                                                                                                                   |
+| `log`                  | Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.                                                                               |
+| `release_slot`         | Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.                          |
+| `put_stream`           | Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer.            |
+| `refresh_timeout`      | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](../../home/timeouts#refreshing-timeouts).                                        |
+| `fetch_task_run_error` | **DEPRECATED**: Use `get_task_run_error` instead.                                                                                                                                   |
 
 ### Attributes
 

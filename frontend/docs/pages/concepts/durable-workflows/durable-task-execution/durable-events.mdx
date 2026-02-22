@@ -8,11 +8,16 @@ import UniversalTabs from "@/components/UniversalTabs";
 Wait For Events is a feature of **durable tasks** that lets a task pause until an external event arrives before continuing. Even if the task is interrupted and requeued while waiting, the event will still be processed — when it resumes, it reads the event from the durable event log and continues.
 
 <Callout type="info">
-  Waiting for an event puts the task into an [evictable state](/concepts/durable-workflows/durable-task-execution/task-eviction) — the worker slot is freed and the task is re-queued when the event arrives.
+  Waiting for an event puts the task into an [evictable
+  state](/concepts/durable-workflows/durable-task-execution/task-eviction) — the
+  worker slot is freed and the task is re-queued when the event arrives.
 </Callout>
 
 <Callout type="info">
-  DAG workflows have an analogous feature: [Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions). In a DAG, event conditions are declared upfront on the task definition. Use a durable task when the decision to wait is made dynamically at runtime.
+  DAG workflows have an analogous feature: [Event
+  Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions).
+  In a DAG, event conditions are declared upfront on the task definition. Use a
+  durable task when the decision to wait is made dynamically at runtime.
 </Callout>
 
 Events are delivered to durable tasks by [pushing events](/concepts/pushing-events) into Hatchet using the event client. The event key you push must match the key your task is waiting for.
@@ -71,7 +76,7 @@ Events can be filtered using [CEL](https://github.com/google/cel-spec) expressio
 
 ## Pushing events
 
-For a waiting task to resume, something must [push an event](/concepts/pushing-events) into Hatchet with a matching key. You can do this from any service that has access to the Hatchet client  - it does not need to be the same worker.
+For a waiting task to resume, something must [push an event](/concepts/pushing-events) into Hatchet with a matching key. You can do this from any service that has access to the Hatchet client - it does not need to be the same worker.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">

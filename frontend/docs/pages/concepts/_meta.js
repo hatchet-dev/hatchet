@@ -10,7 +10,7 @@ export default {
   tasks: "Tasks",
   "durable-workflows": {
     title: "Durable Workflows",
-    theme: { "collapsed": true },
+    theme: { collapsed: true },
   },
   "run-with-results": "Run and Wait Trigger",
   "run-no-wait": "Run Without Wait Trigger",

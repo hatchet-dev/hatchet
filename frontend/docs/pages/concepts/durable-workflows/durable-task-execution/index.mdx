@@ -7,7 +7,9 @@ import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
 # Understanding Durable Execution
 
 <Callout type="info">
-  Just getting started? Check out [Intro to Durable Workflows](/essentials/durable-workflows) for a high-level overview of how durable workflows fit together.
+  Just getting started? Check out [Intro to Durable
+  Workflows](/essentials/durable-workflows) for a high-level overview of how
+  durable workflows fit together.
 </Callout>
 
 **Durable execution** refers to the ability of a function to easily recover from failures or interruptions. In Hatchet, we refer to a function with this ability as a **durable task**. Durable tasks store intermediate results in a durable event log, so they can recover without re-executing completed work.
@@ -54,14 +56,14 @@ Tasks that are declared as being durable (using `durable_task` instead of `task`
 
 ## When to Use Durable Tasks
 
-| Scenario                              | Why Durable?                                                                   |
-| ------------------------------------- | ------------------------------------------------------------------------------ |
-| **Dynamic fan-out** (N unknown)       | Spawn children based on runtime data; wait for results without holding a slot   |
-| **Agentic workflows**                 | An agent decides what to do next, spawn subtasks, loop, or stop at runtime      |
-| **Long waits** (hours/days)           | Worker slots are freed during waits; no wasted compute                          |
-| **Human-in-the-loop**                 | Wait for approval events without holding resources                              |
-| **Multi-step with inline pauses**     | `SleepFor` and `WaitForEvent` let you express complex procedural flows          |
-| **Crash-resilient pipelines**         | Automatically resume from checkpoints after failures                            |
+| Scenario                          | Why Durable?                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot |
+| **Agentic workflows**             | An agent decides what to do next, spawn subtasks, loop, or stop at runtime    |
+| **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute                        |
+| **Human-in-the-loop**             | Wait for approval events without holding resources                            |
+| **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows        |
+| **Crash-resilient pipelines**     | Automatically resume from checkpoints after failures                          |
 
 ## Example Task
 
@@ -98,7 +100,7 @@ Similarly to [or groups in DAG conditions](/concepts/durable-workflows/directed-
 
 ## Spawning Child Tasks
 
-Durable tasks can spawn other tasks  - including other durable tasks or entire DAG workflows  - at runtime using the context object. Spawned children run independently on any available worker, and the parent can wait for their results without holding a worker slot.
+Durable tasks can spawn other tasks - including other durable tasks or entire DAG workflows - at runtime using the context object. Spawned children run independently on any available worker, and the parent can wait for their results without holding a worker slot.
 
 This is one of the key advantages of durable tasks over DAGs: the number and type of children can be determined dynamically based on the task's input or intermediate results. The parent is evicted during the wait, so it does not consume a slot while children execute.
 

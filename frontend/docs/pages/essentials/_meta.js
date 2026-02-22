@@ -1,5 +1,5 @@
 export default {
-  index:   "🪓 What is Hatchet?",
+  index: "🪓 What is Hatchet?",
   "--get-started": {
     title: "Get Started",
     type: "separator",
@@ -7,7 +7,7 @@ export default {
   quickstart: "Quickstart",
   advanced: {
     title: "Advanced",
-    theme: { "collapsed": true },
+    theme: { collapsed: true },
   },
   "using-coding-agents": "Using Coding Agents",
   "--essentials": {
@@ -17,12 +17,12 @@ export default {
   "your-first-task": "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "intro-to-durable-workflows":  "Intro to Durable Workflows",
+  "intro-to-durable-workflows": "Intro to Durable Workflows",
   "--production": {
     title: "Preparing for Production",
     type: "separator",
   },
-  "production": "Overview",
+  production: "Overview",
   "troubleshooting-workers": "Troubleshooting",
   compute: {
     title: "Managed Compute",

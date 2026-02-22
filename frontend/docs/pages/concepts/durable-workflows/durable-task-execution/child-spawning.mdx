@@ -5,19 +5,21 @@ import { snippets } from "@/lib/generated/snippets";
 
 # Spawning Children from Durable Tasks
 
-A durable task can spawn child tasks  - including other durable tasks or entire DAG workflows  - at runtime. This is one of the core reasons to choose durable tasks over DAGs: the shape of work is decided as the task runs, not declared upfront.
+A durable task can spawn child tasks - including other durable tasks or entire DAG workflows - at runtime. This is one of the core reasons to choose durable tasks over DAGs: the shape of work is decided as the task runs, not declared upfront.
 
 <Callout type="info">
-  Waiting for child results puts the parent task into an [evictable state](/concepts/durable-workflows/durable-task-execution/task-eviction) — the worker slot is freed and the parent is re-queued when results are available.
+  Waiting for child results puts the parent task into an [evictable
+  state](/concepts/durable-workflows/durable-task-execution/task-eviction) — the
+  worker slot is freed and the parent is re-queued when results are available.
 </Callout>
 
 ## Why spawn from a durable task?
 
 Because the parent is evicted while children execute, this means:
 
-- **No slot waste**  - the parent doesn't hold a worker slot while N children run across your fleet.
-- **No deadlocks**  - because the parent is evicted, it can't starve its own children for slots.
-- **Dynamic N**  - you decide how many children to spawn based on runtime data (input size, API responses, agent reasoning).
+- **No slot waste** - the parent doesn't hold a worker slot while N children run across your fleet.
+- **No deadlocks** - because the parent is evicted, it can't starve its own children for slots.
+- **Dynamic N** - you decide how many children to spawn based on runtime data (input size, API responses, agent reasoning).
 
 ## Spawning child tasks
 
@@ -75,13 +77,13 @@ Spawn many children at once and wait for all results. The parent is evicted duri
 
 ## What children can be
 
-A durable task can spawn any runnable  - the child doesn't have to be the same type as the parent:
+A durable task can spawn any runnable - the child doesn't have to be the same type as the parent:
 
-| Child type | Example |
-| --- | --- |
-| **Regular task** | Spawn a stateless task for a quick computation or API call. |
+| Child type       | Example                                                                           |
+| ---------------- | --------------------------------------------------------------------------------- |
+| **Regular task** | Spawn a stateless task for a quick computation or API call.                       |
 | **Durable task** | Spawn another durable task that has its own checkpoints, sleeps, and event waits. |
-| **DAG workflow** | Spawn an entire multi-task workflow and wait for its final output. |
+| **DAG workflow** | Spawn an entire multi-task workflow and wait for its final output.                |
 
 This means a single durable task can orchestrate a mix of simple tasks and complex workflows, all determined at runtime.
 
@@ -97,7 +99,7 @@ An AI agent reasons about what to do, spawns a subtask (or a sub-workflow), insp
 
 ### Recursive workflows
 
-A durable task spawns child durable tasks, each of which may spawn their own children. This creates a tree of work that's entirely driven by runtime logic  - useful for crawlers, recursive search, and tree-structured computations.
+A durable task spawns child durable tasks, each of which may spawn their own children. This creates a tree of work that's entirely driven by runtime logic - useful for crawlers, recursive search, and tree-structured computations.
 
 ## Error handling
 
@@ -125,5 +127,7 @@ A durable task spawns child durable tasks, each of which may spawn their own chi
 </UniversalTabs>
 
 <Callout type="info">
-  For the general child spawning API (task definitions, options, deduplication), see [Procedural Child Task Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning).
+  For the general child spawning API (task definitions, options, deduplication),
+  see [Procedural Child Task
+  Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning).
 </Callout>

@@ -16,7 +16,8 @@ Parent conditions can be used with two operators:
 - **`cancel_if`** — cancel the task (and its downstream dependents) if the parent output matches the condition.
 
 <Callout type="warning">
-  A task cancelled by `cancel_if` behaves like any other cancellation in Hatchet — downstream tasks will be cancelled as well.
+  A task cancelled by `cancel_if` behaves like any other cancellation in Hatchet
+  — downstream tasks will be cancelled as well.
 </Callout>
 
 ## Branching example

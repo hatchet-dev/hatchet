@@ -5,9 +5,9 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Workers
 
-Workers are long-running processes in your infrastructure that execute tasks. Each worker maintains a persistent gRPC connection to the Hatchet engine, receives task assignments, runs your code, and reports results back. You can run workers locally during development, in containers, or on VMs  - and scale them independently from the Hatchet services.
+Workers are long-running processes in your infrastructure that execute tasks. Each worker maintains a persistent gRPC connection to the Hatchet engine, receives task assignments, runs your code, and reports results back. You can run workers locally during development, in containers, or on VMs - and scale them independently from the Hatchet services.
 
-You register tasks on a worker so Hatchet knows where to send work. When a task is triggered, Hatchet assigns it to a worker that has a free [slot](/concepts/workers#slots). Slots prevent overassignment  - each worker only accepts as many tasks as it can handle concurrently.
+You register tasks on a worker so Hatchet knows where to send work. When a task is triggered, Hatchet assigns it to a worker that has a free [slot](/concepts/workers#slots). Slots prevent overassignment - each worker only accepts as many tasks as it can handle concurrently.
 
 ## Declaring a Worker
 
@@ -52,7 +52,7 @@ hatchet worker dev
   </Tabs.Tab>
   <Tabs.Tab>
 
-You can also run the worker script directly. This requires a `HATCHET_CLIENT_TOKEN` to be set  - see [Advanced Setup](/essentials/advanced) for how to provision one.
+You can also run the worker script directly. This requires a `HATCHET_CLIENT_TOKEN` to be set - see [Advanced Setup](/essentials/advanced) for how to provision one.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -102,8 +102,10 @@ Once the worker starts, you'll see logs confirming it's connected:
 ```
 
 <Callout type="info">
-  For self-hosted users, you may need to set additional gRPC configuration options.
-  See the [Self-Hosting](../self-hosting/worker-configuration-options.mdx) docs for details.
+  For self-hosted users, you may need to set additional gRPC configuration
+  options. See the
+  [Self-Hosting](../self-hosting/worker-configuration-options.mdx) docs for
+  details.
 </Callout>
 
 ## Next steps

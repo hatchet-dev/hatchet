@@ -1,6 +1,7 @@
 ---
 asIndexPage: true
 ---
+
 import { Callout, Cards } from "nextra/components";
 import DurableWorkflowComparisonDiagram from "@/components/DurableWorkflowComparisonDiagram";
 
@@ -45,13 +46,22 @@ DAGs are **easier to visualize and reason about** — every task, dependency, an
 A workflow is a **container of tasks**. Both standalone tasks and workflows are **runnables** — they share the same API (`run`, `run_no_wait`, `schedule`, and the other trigger methods all work identically).
 
 <Cards>
-  <Cards.Card title="Durable Task Execution" href="/concepts/durable-workflows/durable-task-execution">
+  <Cards.Card
+    title="Durable Task Execution"
+    href="/concepts/durable-workflows/durable-task-execution"
+  >
     Checkpoints, durable context, and when to use it.
   </Cards.Card>
-  <Cards.Card title="Directed Acyclic Graphs" href="/concepts/durable-workflows/directed-acyclic-graphs">
+  <Cards.Card
+    title="Directed Acyclic Graphs"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
     Multi-task workflows with dependencies and parallel execution.
   </Cards.Card>
-  <Cards.Card title="Mixing Patterns" href="/concepts/durable-workflows/mixing-patterns">
+  <Cards.Card
+    title="Mixing Patterns"
+    href="/concepts/durable-workflows/mixing-patterns"
+  >
     Combine durable tasks and DAGs within the same workflow.
   </Cards.Card>
 </Cards>

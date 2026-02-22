@@ -22,7 +22,10 @@ graph LR
 5. **Task resumes on any available worker.** A worker picks up the task, replays the event log to the last checkpoint, and continues execution from where it left off.
 
 <Callout type="info">
-  The resumed task does not need to run on the same worker that originally started it. Any worker that has registered the task can pick it up. If you need a task to resume on the same worker, use [sticky assignment](/concepts/sticky-assignment).
+  The resumed task does not need to run on the same worker that originally
+  started it. Any worker that has registered the task can pick it up. If you
+  need a task to resume on the same worker, use [sticky
+  assignment](/concepts/sticky-assignment).
 </Callout>
 
 ## Why eviction matters

@@ -5,11 +5,11 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Declaring Your First Task
 
-Everything you run in Hatchet is a **task**  - a named function that you can trigger, retry, schedule, and observe. Tasks can be configured to handle the problems that come up in real systems.
+Everything you run in Hatchet is a **task** - a named function that you can trigger, retry, schedule, and observe. Tasks can be configured to handle the problems that come up in real systems.
 
 ## Defining a Task
 
-At minimum, a task needs a name and a function. The returned object is a **runnable**  - you'll use it directly to [trigger](/essentials/running-your-task) the task.
+At minimum, a task needs a name and a function. The returned object is a **runnable** - you'll use it directly to [trigger](/essentials/running-your-task) the task.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -40,20 +40,20 @@ graph LR
     RUNNING -->|Failure + no retries| FAILED
 ```
 
-A task can also be **CANCELLED** at any point  - either explicitly or by a [timeout](/concepts/timeouts) expiring.
+A task can also be **CANCELLED** at any point - either explicitly or by a [timeout](/concepts/timeouts) expiring.
 
 ## Configuring a task
 
 Tasks can be configured to handle common problems in distributed systems. For example, you might want to automatically retry a task when an external API returns a transient error, or limit how many instances of a task run at the same time to avoid overwhelming a downstream service.
 
-| Concept | What it does |
-| --- | --- |
-| [Retries](/concepts/retry-policies) | Retry the task on failure, with optional backoff. |
-| [Timeouts](/concepts/timeouts) | Limit how long a task may wait to be scheduled or to run. |
-| [Concurrency](/concepts/concurrency) | Limit how many runs of this task execute at once. |
-| [Rate limits](/concepts/rate-limits) | Throttle task execution over a time window. |
-| [Priority](/concepts/priority) | Influence scheduling order relative to other queued tasks. |
-| [Worker affinity](/concepts/worker-affinity) | Prefer or require specific workers for this task. |
+| Concept                                      | What it does                                               |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| [Retries](/concepts/retry-policies)          | Retry the task on failure, with optional backoff.          |
+| [Timeouts](/concepts/timeouts)               | Limit how long a task may wait to be scheduled or to run.  |
+| [Concurrency](/concepts/concurrency)         | Limit how many runs of this task execute at once.          |
+| [Rate limits](/concepts/rate-limits)         | Throttle task execution over a time window.                |
+| [Priority](/concepts/priority)               | Influence scheduling order relative to other queued tasks. |
+| [Worker affinity](/concepts/worker-affinity) | Prefer or require specific workers for this task.          |
 
 See the [Concepts](/concepts) page for a complete overview of all possible configurations.
 

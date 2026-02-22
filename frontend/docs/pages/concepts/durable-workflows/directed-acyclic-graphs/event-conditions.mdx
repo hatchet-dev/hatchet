@@ -9,7 +9,12 @@ import UniversalTabs from "@/components/UniversalTabs";
 Event conditions let a DAG task react to external events. A task can wait for an event before running, be skipped when an event arrives, or be cancelled by an event.
 
 <Callout type="info">
-  Durable tasks have an analogous feature: [Wait For Events](/concepts/durable-workflows/durable-task-execution/durable-events). In a DAG, event conditions are declared upfront on the task definition. In a durable task, `WaitForEvent` is called at runtime from within the function body. Use a DAG event condition when the wait is part of a fixed pipeline; use a durable task when the decision to wait is made dynamically.
+  Durable tasks have an analogous feature: [Wait For
+  Events](/concepts/durable-workflows/durable-task-execution/durable-events). In
+  a DAG, event conditions are declared upfront on the task definition. In a
+  durable task, `WaitForEvent` is called at runtime from within the function
+  body. Use a DAG event condition when the wait is part of a fixed pipeline; use
+  a durable task when the decision to wait is made dynamically.
 </Callout>
 
 ## Usage modes
@@ -21,7 +26,8 @@ Event conditions can be used with three operators:
 - **`cancel_if`** — the task is cancelled if the event arrives.
 
 <Callout type="warning">
-  A task cancelled by `cancel_if` behaves like any other cancellation in Hatchet — downstream tasks will be cancelled as well.
+  A task cancelled by `cancel_if` behaves like any other cancellation in Hatchet
+  — downstream tasks will be cancelled as well.
 </Callout>
 
 ## Waiting for an event

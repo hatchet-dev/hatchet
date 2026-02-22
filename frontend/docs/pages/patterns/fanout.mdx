@@ -27,15 +27,16 @@ The parent may choose to await all child completions and aggregate their results
 </Steps>
 
 <Callout type="info">
-  Fanout is built on top of [Procedural Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning).
+  Fanout is built on top of [Procedural Child
+  Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning).
   See that page for full code examples on defining tasks, spawning children,
   parallel execution, and error handling.
 </Callout>
 
 <Callout type="warning">
   When fanning out to large numbers of children, make sure your workers have
-  enough slots to handle the concurrent load. See [Worker Slots](/essentials/workers)
-  for details on configuring slot capacity.
+  enough slots to handle the concurrent load. See [Worker
+  Slots](/essentials/workers) for details on configuring slot capacity.
 </Callout>
 
 ## In Workflows vs Durable Workflows
@@ -75,10 +76,16 @@ The parent may choose to await all child completions and aggregate their results
     Process thousands of items (images, documents, records) in parallel with
     automatic load distribution across workers.
   </Cards.Card>
-  <Cards.Card title="Map-Reduce Pipelines" href="/concepts/durable-workflows/directed-acyclic-graphs">
+  <Cards.Card
+    title="Map-Reduce Pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
     Fan out to map tasks, then reduce results in a downstream DAG step.
   </Cards.Card>
-  <Cards.Card title="Multi-Provider AI Inference" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
+  <Cards.Card
+    title="Multi-Provider AI Inference"
+    href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
+  >
     Send the same prompt to multiple LLM providers concurrently and pick the
     best response.
   </Cards.Card>

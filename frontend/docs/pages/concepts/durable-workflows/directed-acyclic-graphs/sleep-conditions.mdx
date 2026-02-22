@@ -9,7 +9,12 @@ import UniversalTabs from "@/components/UniversalTabs";
 Sleep conditions pause a DAG task for a specified duration before it runs. Use them when a task should wait for a fixed amount of time after its parent tasks complete.
 
 <Callout type="info">
-  Durable tasks have an analogous feature: [Durable Sleep](/concepts/durable-workflows/durable-task-execution/durable-sleep). In a DAG, sleep conditions are declared upfront on the task definition. In a durable task, `SleepFor` is called at runtime from within the function body. Use a DAG sleep condition when the delay is part of a fixed pipeline; use a durable task when the decision to sleep is made dynamically.
+  Durable tasks have an analogous feature: [Durable
+  Sleep](/concepts/durable-workflows/durable-task-execution/durable-sleep). In a
+  DAG, sleep conditions are declared upfront on the task definition. In a
+  durable task, `SleepFor` is called at runtime from within the function body.
+  Use a DAG sleep condition when the delay is part of a fixed pipeline; use a
+  durable task when the decision to sleep is made dynamically.
 </Callout>
 
 ## Using sleep conditions

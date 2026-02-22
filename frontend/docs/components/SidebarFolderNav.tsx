@@ -16,7 +16,7 @@ export function SidebarFolderNav() {
     function handleClick(e: MouseEvent) {
       const target = e.target as HTMLElement;
       const button = target.closest?.(
-        ".nextra-sidebar-container button[data-href]"
+        ".nextra-sidebar-container button[data-href]",
       ) as HTMLButtonElement | null;
       if (!button) return;
 

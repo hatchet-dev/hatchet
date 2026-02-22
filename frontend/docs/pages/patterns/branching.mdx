@@ -43,9 +43,12 @@ The branch whose condition is satisfied runs.
 | `cancel_if` | Task and its downstream dependents are cancelled if the condition evaluates to true |
 
 <Callout type="info">
-  Branching is built using conditions on DAG tasks. See [Parent Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions),
-  [Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions),
-  and [Sleep Conditions](/concepts/durable-workflows/directed-acyclic-graphs/sleep-conditions)
+  Branching is built using conditions on DAG tasks. See [Parent
+  Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions),
+  [Event
+  Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions),
+  and [Sleep
+  Conditions](/concepts/durable-workflows/directed-acyclic-graphs/sleep-conditions)
   for full code examples covering each condition type, or groups, and operators.
 </Callout>
 
@@ -60,7 +63,10 @@ The branch whose condition is satisfied runs.
 ## Use Cases
 
 <Cards>
-  <Cards.Card title="Feature Flag Routing" href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions">
+  <Cards.Card
+    title="Feature Flag Routing"
+    href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions"
+  >
     Read a feature flag in an upstream task and route the workflow down
     different code paths based on its value.
   </Cards.Card>
@@ -71,7 +77,10 @@ The branch whose condition is satisfied runs.
     Pause workflow execution until a human approves or rejects, then branch
     accordingly.
   </Cards.Card>
-  <Cards.Card title="A/B Testing Pipelines" href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions">
+  <Cards.Card
+    title="A/B Testing Pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions"
+  >
     Route data through different processing paths based on experiment
     assignment.
   </Cards.Card>

@@ -27,22 +27,22 @@ Agents typically need to stream LLM tokens to a frontend as they're generated. U
 
 ## Key Features
 
-| Feature                                                   | What it does for agents                                                                    |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **[Durable Execution](/concepts/durable-workflows/durable-task-execution)** | Checkpoints tool calls, LLM responses, and loop iterations so agent state survives crashes |
-| **[Streaming](/concepts/streaming)**                      | Stream LLM tokens from workers to frontends in real-time                                   |
-| **[Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events)**            | Pause for human-in-the-loop feedback without holding worker slots                          |
-| **[Durable Sleep](/concepts/durable-workflows/durable-task-execution/durable-sleep)**              | Schedule agent retries or delayed actions with exact timing                                |
-| **[Concurrency](/concepts/concurrency)**                  | Cancel stale runs, limit parallel agents per user                                          |
-| **[Rate Limits](/concepts/rate-limits)**                  | Stay within LLM provider API rate limits across all workers                                |
-| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)**            | Agents dynamically spawn sub-agents or tool-call tasks                                     |
-| **[Cancellation](/concepts/cancellation)**                | Stop long-running agents on user request                                                   |
+| Feature                                                                                  | What it does for agents                                                                    |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **[Durable Execution](/concepts/durable-workflows/durable-task-execution)**              | Checkpoints tool calls, LLM responses, and loop iterations so agent state survives crashes |
+| **[Streaming](/concepts/streaming)**                                                     | Stream LLM tokens from workers to frontends in real-time                                   |
+| **[Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events)**  | Pause for human-in-the-loop feedback without holding worker slots                          |
+| **[Durable Sleep](/concepts/durable-workflows/durable-task-execution/durable-sleep)**    | Schedule agent retries or delayed actions with exact timing                                |
+| **[Concurrency](/concepts/concurrency)**                                                 | Cancel stale runs, limit parallel agents per user                                          |
+| **[Rate Limits](/concepts/rate-limits)**                                                 | Stay within LLM provider API rate limits across all workers                                |
+| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Agents dynamically spawn sub-agents or tool-call tasks                                     |
+| **[Cancellation](/concepts/cancellation)**                                               | Stop long-running agents on user request                                                   |
 
 <Callout type="info">
-  The agent loop pattern is a [Cycle](/patterns/cycles). Each iteration
-  spawns a new child run via `RunChild`. Combined with [Durable
-  Execution](/concepts/durable-workflows/durable-task-execution), completed iterations survive
-  crashes and slots are freed between iterations.
+  The agent loop pattern is a [Cycle](/patterns/cycles). Each iteration spawns a
+  new child run via `RunChild`. Combined with [Durable
+  Execution](/concepts/durable-workflows/durable-task-execution), completed
+  iterations survive crashes and slots are freed between iterations.
 </Callout>
 
 ## Typical Agent Flow
