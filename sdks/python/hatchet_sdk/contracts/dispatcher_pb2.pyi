@@ -412,6 +412,18 @@ class ReleaseSlotResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
+class RestoreEvictedTaskRequest(_message.Message):
+    __slots__ = ("task_run_external_id",)
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    task_run_external_id: str
+    def __init__(self, task_run_external_id: _Optional[str] = ...) -> None: ...
+
+class RestoreEvictedTaskResponse(_message.Message):
+    __slots__ = ("requeued",)
+    REQUEUED_FIELD_NUMBER: _ClassVar[int]
+    requeued: bool
+    def __init__(self, requeued: bool = ...) -> None: ...
+
 class GetVersionRequest(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...

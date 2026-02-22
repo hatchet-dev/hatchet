@@ -814,12 +814,15 @@ WITH tasks AS (
 )
 
 SELECT
-    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.tenant_id, rt.timeout_at,
+    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.tenant_id, rt.timeout_at, rt.evicted_at,
     w."durableTaskDispatcherId"
 FROM v1_task_runtime rt
 JOIN "Worker" w ON rt.worker_id = w.id
 WHERE
     rt.tenant_id = $1::uuid
+    -- Filter evicted tasks so the caller falls through to the restore path
+    -- (re-queues the task instead of sending to a stale dispatcher)
+    AND rt.evicted_at IS NULL
     AND (rt.task_id, rt.task_inserted_at) IN (
         SELECT task_id, task_inserted_at
         FROM tasks
@@ -839,6 +842,7 @@ type ListDurableTaskDispatcherIdsForTasksRow struct {
 	WorkerID                *uuid.UUID         `json:"worker_id"`
 	TenantID                uuid.UUID          `json:"tenant_id"`
 	TimeoutAt               pgtype.Timestamp   `json:"timeout_at"`
+	EvictedAt               pgtype.Timestamptz `json:"evicted_at"`
 	DurableTaskDispatcherId *uuid.UUID         `json:"durableTaskDispatcherId"`
 }
 
@@ -858,6 +862,7 @@ func (q *Queries) ListDurableTaskDispatcherIdsForTasks(ctx context.Context, db D
 			&i.WorkerID,
 			&i.TenantID,
 			&i.TimeoutAt,
+			&i.EvictedAt,
 			&i.DurableTaskDispatcherId,
 		); err != nil {
 			return nil, err
@@ -923,7 +928,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable
+    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable
 FROM
     v1_task_runtime runtime
 JOIN
@@ -948,6 +953,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	WorkerID                     *uuid.UUID         `json:"worker_id"`
 	TenantID                     uuid.UUID          `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
+	EvictedAt                    pgtype.Timestamptz `json:"evicted_at"`
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
 	TenantID_2                   uuid.UUID          `json:"tenant_id_2"`
@@ -1004,6 +1010,7 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.WorkerID,
 			&i.TenantID,
 			&i.TimeoutAt,
+			&i.EvictedAt,
 			&i.ID,
 			&i.InsertedAt,
 			&i.TenantID_2,

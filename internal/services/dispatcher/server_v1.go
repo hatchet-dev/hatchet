@@ -778,7 +778,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	}, nil
 }
 
-func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
+func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := tenant.ID
 	stepRunId, err := uuid.Parse(request.TaskRunExternalId)
 	if err != nil {
@@ -816,6 +816,26 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 	}
 
 	return &contracts.ReleaseSlotResponse{}, nil
+}
+
+func (d *DispatcherImpl) restoreEvictedTask(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenantId := tenant.ID
+	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid task_run_external_id: %w", err)
+	}
+
+	msg, err := tasktypes.DurableRestoreTaskMessage(tenantId, taskExternalId, "Restore via dispatcher RPC")
+	if err != nil {
+		return nil, err
+	}
+
+	err = d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.RestoreEvictedTaskResponse{Requeued: true}, nil
 }
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {

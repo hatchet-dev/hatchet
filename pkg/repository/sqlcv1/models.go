@@ -1096,6 +1096,8 @@ const (
 	V1EventTypeOlapRATELIMITERROR       V1EventTypeOlap = "RATE_LIMIT_ERROR"
 	V1EventTypeOlapSKIPPED              V1EventTypeOlap = "SKIPPED"
 	V1EventTypeOlapCOULDNOTSENDTOWORKER V1EventTypeOlap = "COULD_NOT_SEND_TO_WORKER"
+	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
+	V1EventTypeOlapDURABLERESTORING     V1EventTypeOlap = "DURABLE_RESTORING"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {
@@ -3535,6 +3537,7 @@ type V1TaskRuntime struct {
 	WorkerID       *uuid.UUID         `json:"worker_id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
+	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
 }
 
 type V1TaskRuntimeSlot struct {

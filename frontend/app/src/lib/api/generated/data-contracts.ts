@@ -290,6 +290,8 @@ export enum V1TaskEventType {
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
+  DURABLE_EVICTED = "DURABLE_EVICTED",
+  DURABLE_RESTORING = "DURABLE_RESTORING",
 }
 
 export enum V1WorkflowType {
@@ -546,6 +548,10 @@ export interface V1ReplayTaskRequest {
 export interface V1ReplayedTasks {
   /** The list of task external ids that were replayed */
   ids?: string[];
+}
+
+export interface V1RestoreTaskResponse {
+  requeued: boolean;
 }
 
 export interface V1DagChildren {

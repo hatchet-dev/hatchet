@@ -16,6 +16,7 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
     DurableTaskEventRequest,
+    DurableTaskEvictInvocationRequest,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
@@ -63,6 +64,7 @@ InvocationCount = int
 
 PendingCallback = tuple[TaskExternalId, BranchId, NodeId]
 PendingEventAck = tuple[TaskExternalId, InvocationCount]
+PendingEvictionAck = tuple[TaskExternalId, InvocationCount]
 
 
 class DurableEventListener:
@@ -83,6 +85,7 @@ class DurableEventListener:
         self._pending_event_acks: dict[
             PendingEventAck, asyncio.Future[DurableTaskEventAck]
         ] = {}
+        self._pending_eviction_acks: dict[PendingEvictionAck, asyncio.Future[None]] = {}
         self._pending_callbacks: dict[
             PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
@@ -278,6 +281,16 @@ class DurableEventListener:
                         DurableTaskEventLogEntryResult.from_proto(completed)
                     )
                 del self._pending_callbacks[completed_key]
+        elif response.HasField("eviction_ack"):
+            eviction_ack = response.eviction_ack
+            eviction_key = (
+                eviction_ack.durable_task_external_id,
+                eviction_ack.invocation_count,
+            )
+            if eviction_key in self._pending_eviction_acks:
+                future = self._pending_eviction_acks.pop(eviction_key)
+                if not future.done():
+                    future.set_result(None)
         elif response.HasField("error"):
             error = response.error
             exc: Exception
@@ -389,3 +402,29 @@ class DurableEventListener:
             self._pending_callbacks[key] = future
 
         return await self._pending_callbacks[key]
+
+    async def send_evict_invocation(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+    ) -> None:
+        """Send an eviction request to the server and wait for acknowledgement."""
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        eviction_key: PendingEvictionAck = (
+            durable_task_external_id,
+            invocation_count,
+        )
+        ack_future: asyncio.Future[None] = asyncio.Future()
+        self._pending_eviction_acks[eviction_key] = ack_future
+
+        request = DurableTaskRequest(
+            evict_invocation=DurableTaskEvictInvocationRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+            )
+        )
+        await self._request_queue.put(request)
+
+        await ack_future

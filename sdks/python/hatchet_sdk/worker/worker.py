@@ -499,11 +499,14 @@ class Worker:
         self.killing = True
 
         if self.action_runner:
+            # TODO-DURABLE: we nee to ensure that the worker is paused before calling this in all SDKs
+            await self.action_runner.evict_all_waiting_durable_runs()
             await self.action_runner.wait_for_tasks()
             await self.action_runner.exit_gracefully()
 
         # Also clean up the durable action runner (legacy mode)
         if self._legacy_durable_action_runner:
+            await self._legacy_durable_action_runner.evict_all_waiting_durable_runs()
             await self._legacy_durable_action_runner.wait_for_tasks()
             await self._legacy_durable_action_runner.exit_gracefully()
 

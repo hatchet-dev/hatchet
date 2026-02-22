@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 from datetime import timedelta
@@ -28,6 +30,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.worker.durable_eviction.instrumentation import aio_durable_eviction_wait
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -478,7 +481,6 @@ class DurableContext(Context):
 
         return index
 
-    ## todo: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -512,12 +514,15 @@ class DurableContext(Context):
         node_id = ack.node_id
         branch_id = ack.branch_id
 
-        result = await self.durable_event_listener.wait_for_callback(
-            durable_task_external_id=self.step_run_id,
-            node_id=node_id,
-            branch_id=branch_id,
-            invocation_count=self.invocation_count,
-        )
+        async with aio_durable_eviction_wait(
+            wait_kind="wait_for", resource_id=signal_key
+        ):
+            result = await self.durable_event_listener.wait_for_callback(
+                durable_task_external_id=self.step_run_id,
+                node_id=node_id,
+                branch_id=branch_id,
+                invocation_count=self.invocation_count,
+            )
 
         return result.payload or {}
 
@@ -535,7 +540,6 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
-    ## todo: instrumentor for this
     async def _spawn_child(
         self,
         workflow: "BaseWorkflow[TWorkflowInput]",
@@ -556,12 +560,15 @@ class DurableContext(Context):
             trigger_workflow_opts=options,
         )
 
-        result = await self.durable_event_listener.wait_for_callback(
-            durable_task_external_id=self.step_run_id,
-            node_id=ack.node_id,
-            branch_id=ack.branch_id,
-            invocation_count=self.invocation_count,
-        )
+        async with aio_durable_eviction_wait(
+            wait_kind="spawn_child", resource_id=workflow.config.name
+        ):
+            result = await self.durable_event_listener.wait_for_callback(
+                durable_task_external_id=self.step_run_id,
+                node_id=ack.node_id,
+                branch_id=ack.branch_id,
+                invocation_count=self.invocation_count,
+            )
 
         return result.payload or {}
 
