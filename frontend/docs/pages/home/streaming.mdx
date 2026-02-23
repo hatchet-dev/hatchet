@@ -11,6 +11,13 @@ Hatchet tasks can stream data back to a consumer in real-time. This has a number
 
 You can stream data out of a task run by using the `put_stream` (or equivalent) method on the `Context`.
 
+<Callout type="warning" emoji="📏">
+  Stream event payloads are sent via PostgreSQL `NOTIFY`, which has a payload
+  size limit of roughly 8KB (minus envelope overhead). Keep stream payloads
+  small (for example: summaries, deltas, or a capped list) to avoid dropped
+  events or internal errors when publishing oversized messages.
+</Callout>
+
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 <Snippet src={snippets.python.streaming.worker.streaming} />
