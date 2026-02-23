@@ -4,8 +4,8 @@ import { useAnalytics } from '@/hooks/use-analytics';
 import api, { Tenant } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
-import assert from '@/lib/assert';
 import { useApiError } from '@/lib/hooks';
+import invariant from 'tiny-invariant';
 import { AppContextValue, useAppContext } from '@/providers/app-context';
 import { useState } from 'react';
 
@@ -43,7 +43,7 @@ const saveTenant = async ({
   const slug = generateTenantSlug(tenantName);
 
   if (isCloudEnabled) {
-    assert(organizationId, 'Organization ID is required when isCloudEnabled');
+    invariant(organizationId, 'Organization ID is required when isCloudEnabled');
 
     const { data: tenant } = await cloudApi.organizationCreateTenant(
       organizationId,

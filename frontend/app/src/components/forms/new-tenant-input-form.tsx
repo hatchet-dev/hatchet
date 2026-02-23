@@ -9,8 +9,8 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
-import assert from '@/lib/assert';
 import { useState } from 'react';
+import invariant from 'tiny-invariant';
 
 type NewTenantInputFormProps = {
   defaultTenantName?: string;
@@ -47,7 +47,7 @@ export function NewTenantInputForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    assert(organizationId);
+    invariant(organizationId);
     isCloudEnabled
       ? onSubmit({ tenantName, organizationId })
       : onSubmit({ tenantName });

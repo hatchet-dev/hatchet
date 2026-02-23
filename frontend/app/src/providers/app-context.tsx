@@ -1,9 +1,9 @@
 import { queries, Tenant, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
-import assert from '@/lib/assert';
 import { lastTenantAtom } from '@/lib/atoms';
 import useCloud from '@/pages/auth/hooks/use-cloud';
+import invariant from 'tiny-invariant';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
@@ -145,7 +145,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
   const organizationPossibilties: OrganizationPossibilties = useMemo(() => {
     const isOrganizationsLoading = organizationsQuery.isLoading;
     if (organizationsAreLoaded) {
-      assert(organizations && isCloudEnabled);
+      invariant(organizations && isCloudEnabled);
       return {
         isOrganizationsLoading,
         isCloudEnabled,
