@@ -7,6 +7,11 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Middleware lets you run logic **before** and **after** every task on a client, without touching individual task definitions. Common uses include injecting request IDs, enriching inputs with shared data, encrypting/decrypting payloads, and normalizing or augmenting outputs.
 
+<Callout type="warning" emoji="⚠️">
+  This feature is experimental, and middleware hook signatures may change in
+  future releases.
+</Callout>
+
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     Hatchet's Python SDK uses FastAPI-style dependency injection to run logic
