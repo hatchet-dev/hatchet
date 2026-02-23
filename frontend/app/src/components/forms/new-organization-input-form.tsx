@@ -1,7 +1,7 @@
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 type NewOrganizationInputFormProps = {
   defaultOrganizationName?: string;
@@ -21,10 +21,13 @@ export function NewOrganizationInputForm({
   );
   const [tenantName, setTenantName] = useState(defaultTenantName);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({ organizationName, tenantName });
-  };
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      onSubmit({ organizationName, tenantName });
+    },
+    [organizationName, tenantName, onSubmit],
+  );
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4 max-w-lg w-full">
