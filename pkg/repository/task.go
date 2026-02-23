@@ -210,6 +210,8 @@ type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
 
+type WasEvicted bool
+
 type TaskRepository interface {
 	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
@@ -255,7 +257,7 @@ type TaskRepository interface {
 
 	ReleaseSlot(ctx context.Context, tenantId, externalId uuid.UUID) (*sqlcv1.V1TaskRuntime, error)
 
-	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error)
+	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (WasEvicted, error)
 
 	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
@@ -1572,7 +1574,7 @@ func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, external
 	return resp, nil
 }
 
-func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error) {
+func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (WasEvicted, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -1595,7 +1597,7 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 		return false, err
 	}
 
-	return evicted > 0, nil
+	return WasEvicted(evicted > 0), nil
 }
 
 func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
