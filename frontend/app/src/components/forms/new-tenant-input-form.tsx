@@ -34,7 +34,7 @@ type NewTenantInputFormProps = {
 
 export function NewTenantInputForm({
   defaultTenantName = '',
-  defaultOrganizationId = '',
+  defaultOrganizationId,
   isSaving = false,
   isCloudEnabled,
   organizations = [],
@@ -49,7 +49,7 @@ export function NewTenantInputForm({
     e.preventDefault();
     assert(organizationId);
     isCloudEnabled
-      ? onSubmit({ tenantName, organizationId: organizationId! })
+      ? onSubmit({ tenantName, organizationId })
       : onSubmit({ tenantName });
   };
 
