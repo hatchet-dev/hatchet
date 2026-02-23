@@ -10,3 +10,5 @@ ALTER TABLE "WorkflowTriggerCronRef"
 
 -- +goose Down
 ALTER TABLE "WorkflowTriggerCronRef" DROP CONSTRAINT IF EXISTS "WorkflowTriggerCronRef_pkey";
+
+DROP INDEX CONCURRENTLY IF EXISTS "WorkflowTriggerCronRef_pkey";
