@@ -1,6 +1,3 @@
-/**
- * @module Workflows Client
- */
 import { Workflow } from '@hatchet/workflow';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import { isValidUUID } from '@util/uuid';
@@ -19,8 +16,10 @@ export const workflowNameString = (
 };
 
 /**
- * WorkflowsClient is used to list and manage workflows
- */
+ * The workflows client is a client for managing workflows programmatically within Hatchet.
+ * Note that workflows are the declaration, not the individual runs. If you're looking for runs, use the RunsClient instead.
+ * 
+*/
 export class WorkflowsClient {
   api: HatchetClient['api'];
   tenantId: string;
@@ -79,6 +78,11 @@ export class WorkflowsClient {
     return str;
   }
 
+  /**
+   * Get a workflow by its name, ID, or object.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to the workflow.
+   */
   async get(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
     // Get workflow name string
     const name = workflowNameString(workflow);
@@ -119,11 +123,21 @@ export class WorkflowsClient {
     }
   }
 
+  /**
+   * List all workflows in the tenant.
+   * @param opts - The options for the list operation.
+   * @returns A promise that resolves to the list of workflows.
+   */
   async list(opts?: Parameters<typeof this.api.workflowList>[1]) {
     const { data } = await this.api.workflowList(this.tenantId, opts);
     return data;
   }
 
+  /**
+   * Delete a workflow by its name, ID, or object.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to the deleted workflow.
+   */
   async delete(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
     const name = workflowNameString(workflow);
 
