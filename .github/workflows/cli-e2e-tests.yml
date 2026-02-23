@@ -3,24 +3,33 @@ name: cli-e2e-tests
 on:
   pull_request:
     paths:
+      - ".github/workflows/cli-e2e-tests.yml"
       - "cmd/hatchet-cli/cli/templates/**"
       - "cmd/hatchet-cli/cli/quickstart.go"
       - "cmd/hatchet-cli/cli/internal/templater/**"
       - "cmd/hatchet-cli/cli/quickstart_e2e_test.go"
-      - ".github/workflows/test-templates.yml"
+      - "cmd/hatchet-cli/cli/*.go"
+      - "cmd/hatchet-cli/cli/*_e2e_test.go"
+      - "cmd/hatchet-cli/cli/tui/**"
+      - "cmd/hatchet-cli/cli/testharness/**"
   push:
     branches:
       - main
     paths:
+      - ".github/workflows/cli-e2e-tests.yml"
       - "cmd/hatchet-cli/cli/templates/**"
       - "cmd/hatchet-cli/cli/quickstart.go"
       - "cmd/hatchet-cli/cli/internal/templater/**"
       - "cmd/hatchet-cli/cli/quickstart_e2e_test.go"
+      - "cmd/hatchet-cli/cli/*.go"
+      - "cmd/hatchet-cli/cli/*_e2e_test.go"
+      - "cmd/hatchet-cli/cli/tui/**"
+      - "cmd/hatchet-cli/cli/testharness/**"
 
 jobs:
   test-templates:
     runs-on: ubicloud-standard-4
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -34,7 +43,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          python-version: "3.13" # pinned because of poetry dependency issue
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -55,6 +64,9 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+
+      - name: Install tmux
+        run: sudo apt-get install -y tmux
 
       - name: Build CLI
         run: |
@@ -79,8 +91,16 @@ jobs:
           cd cmd/hatchet-cli/cli
           go test -tags e2e_cli -run TestQuickstartTemplates -v -timeout 15m
         env:
-          # Ensure tests don't try to interact with stdin
           CI: true
+
+      - name: Run resource E2E tests
+        run: |
+          cd cmd/hatchet-cli/cli
+          go test -tags e2e_cli \
+            -run 'Test(Runs|Workflows|Worker|RateLimits|Scheduled|Cron|Webhooks)' \
+            -v -timeout 10m
+        env:
+          HATCHET_CLI_PROFILE: local
 
       - name: Show server logs on failure
         if: failure()

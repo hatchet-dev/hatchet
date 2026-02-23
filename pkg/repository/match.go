@@ -867,7 +867,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerStepIds := make([]uuid.UUID, len(dagMatches))
 		triggerStepIndices := make([]int64, len(dagMatches))
 		triggerExternalIds := make([]uuid.UUID, len(dagMatches))
-		triggerWorkflowRunIds := make([]uuid.UUID, len(dagMatches))
+		triggerWorkflowRunIds := make([]*uuid.UUID, len(dagMatches))
 		triggerExistingTaskIds := make([]pgtype.Int8, len(dagMatches))
 		triggerExistingTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
 		triggerParentExternalIds := make([]*uuid.UUID, len(dagMatches))
@@ -899,11 +899,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				triggerExistingTaskIds[i] = pgtype.Int8{}
 			}
 
-			if match.TriggerWorkflowRunId != nil {
-				triggerWorkflowRunIds[i] = *match.TriggerWorkflowRunId
-			} else {
-				triggerWorkflowRunIds[i] = uuid.UUID{}
-			}
+			triggerWorkflowRunIds[i] = match.TriggerWorkflowRunId
 
 			triggerExistingTaskInsertedAts[i] = match.TriggerExistingTaskInsertedAt
 		}

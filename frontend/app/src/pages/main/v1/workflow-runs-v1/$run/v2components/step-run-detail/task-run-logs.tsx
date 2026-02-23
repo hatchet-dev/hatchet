@@ -5,9 +5,6 @@ import {
 } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { V1TaskSummary } from '@/lib/api';
-import useCloud from '@/pages/auth/hooks/use-cloud';
-import { appRoutes } from '@/router';
-import { useParams } from '@tanstack/react-router';
 
 export function TaskRunLogs({
   taskRun,
@@ -24,7 +21,6 @@ export function TaskRunLogs({
 }
 
 function TaskRunLogsContent() {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const {
     logs,
     fetchOlderLogs,
@@ -33,8 +29,7 @@ function TaskRunLogsContent() {
     isLoading,
     taskStatus,
   } = useLogsContext();
-  const { featureFlags } = useCloud(tenantId);
-  const isLogSearchEnabled = featureFlags?.enable_log_search === 'true';
+  const isLogSearchEnabled = true;
 
   return (
     <div className="my-4 flex flex-col gap-y-2">
