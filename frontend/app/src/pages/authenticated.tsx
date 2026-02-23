@@ -263,11 +263,13 @@ function AuthenticatedInner() {
     }
   }, [isAuthPage, navigate, userError]);
 
-  useEffect(() =>
-    globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
-      setDefaultOrganizationId(defaultOrganizationId);
-      setNewTenantModalOpen(true);
-    }),
+  useEffect(
+    () =>
+      globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
+        setDefaultOrganizationId(defaultOrganizationId);
+        setNewTenantModalOpen(true);
+      }),
+    [],
   );
 
   return (
