@@ -9,6 +9,7 @@ import {
 import { useApiError } from '@/lib/hooks';
 import { AppContextValue, useAppContext } from '@/providers/app-context';
 import { useState } from 'react';
+import invariant from 'tiny-invariant';
 
 interface NewOrganizationSaverFormProps {
   defaultOrganizationName?: string;
@@ -58,10 +59,7 @@ export function NewOrganizationSaverForm({
     useAppContext();
   const { capture } = useAnalytics();
 
-  if (!isCloudEnabled) {
-    // I feel like there should be an assert here instead
-    return <div>Cloud is not enabled</div>;
-  }
+  invariant(isCloudEnabled, 'Cloud must be enabled');
 
   const { handleApiError } = useApiError();
 
