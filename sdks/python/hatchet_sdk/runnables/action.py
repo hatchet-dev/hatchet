@@ -76,12 +76,6 @@ class Action(BaseModel):
 
     priority: int | None = None
 
-    def _dump_payload_to_str(self) -> str:
-        try:
-            return json.dumps(self.action_payload.model_dump(), default=str)
-        except Exception:
-            return str(self.action_payload)
-
     def get_otel_attributes(self, config: "ClientConfig") -> dict[str, str | int]:
         try:
             payload_str = json.dumps(self.action_payload.model_dump(), default=str)
