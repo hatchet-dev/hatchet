@@ -5,9 +5,9 @@ import api, { Tenant } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import invariant from 'tiny-invariant';
 import { AppContextValue, useAppContext } from '@/providers/app-context';
-import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
 
 type NewTenantSaverFormProps = {
   defaultTenantName?: string;
@@ -43,7 +43,10 @@ const saveTenant = async ({
   const slug = generateTenantSlug(tenantName);
 
   if (isCloudEnabled) {
-    invariant(organizationId, 'Organization ID is required when isCloudEnabled');
+    invariant(
+      organizationId,
+      'Organization ID is required when isCloudEnabled',
+    );
 
     const { data: tenant } = await cloudApi.organizationCreateTenant(
       organizationId,
@@ -68,45 +71,52 @@ const saveTenant = async ({
   }
 };
 
+const useSaveTenant = ({
+  afterSave,
+}: {
+  afterSave: NewTenantSaverFormProps['afterSave'];
+}) => {
+  const { isCloudEnabled, refetchTenantMemberships, refetchOrganizations } =
+    useAppContext();
+  const { capture } = useAnalytics();
+  const { handleApiError } = useApiError();
+
+  return useMutation({
+    mutationFn: async ({
+      tenantName,
+      organizationId,
+    }: {
+      tenantName: string;
+      organizationId?: string;
+    }) => {
+      return await saveTenant({
+        tenantName,
+        organizationId,
+        isCloudEnabled,
+        refetchTenantMemberships,
+        refetchOrganizations,
+      });
+    },
+    onSuccess: (data) => {
+      capture('onboarding_tenant_created', {
+        tenant_type: data.type,
+        is_cloud: data.type === 'cloud',
+      });
+      afterSave(data);
+    },
+    onError: handleApiError,
+  });
+};
+
 export function NewTenantSaverForm({
   defaultTenantName,
   defaultOrganizationId,
   afterSave,
 }: NewTenantSaverFormProps) {
-  const [isSaving, setIsSaving] = useState(false);
-  const {
-    isCloudEnabled,
-    organizations: organizations,
-    organizationsAreLoaded,
-    refetchTenantMemberships,
-    refetchOrganizations,
-  } = useAppContext();
-  const { capture } = useAnalytics();
+  const { isCloudEnabled, organizations, organizationsAreLoaded } =
+    useAppContext();
 
-  const { handleApiError } = useApiError();
-
-  const handleSubmit = (values: {
-    tenantName: string;
-    organizationId?: string;
-  }) => {
-    setIsSaving(true);
-
-    saveTenant({
-      ...values,
-      isCloudEnabled,
-      refetchTenantMemberships,
-      refetchOrganizations,
-    })
-      .then((result) => {
-        capture('onboarding_tenant_created', {
-          tenant_type: result.type,
-          is_cloud: result.type === 'cloud',
-        });
-        afterSave(result);
-      })
-      .catch(handleApiError)
-      .finally(() => setIsSaving(false));
-  };
+  const saveTenantMutation = useSaveTenant({ afterSave });
 
   if (!organizationsAreLoaded) {
     return <></>;
@@ -116,10 +126,10 @@ export function NewTenantSaverForm({
     <NewTenantInputForm
       defaultTenantName={defaultTenantName}
       defaultOrganizationId={defaultOrganizationId}
-      isSaving={isSaving}
+      isSaving={saveTenantMutation.isPending}
       isCloudEnabled={isCloudEnabled}
       organizations={organizations}
-      onSubmit={handleSubmit}
+      onSubmit={saveTenantMutation.mutate}
     />
   );
 }
