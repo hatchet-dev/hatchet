@@ -850,6 +850,114 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	return items, nil
 }
 
+const restoreEvictedTasks = `-- name: RestoreEvictedTasks :many
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), evicted_runtimes AS (
+    SELECT
+        r.task_id,
+        r.task_inserted_at,
+        r.retry_count
+    FROM
+        v1_task_runtime r
+    JOIN
+        input i ON r.task_id = i.task_id
+            AND r.task_inserted_at = i.task_inserted_at
+            AND r.retry_count = i.retry_count
+    WHERE
+        r.tenant_id = $4::uuid
+        AND r.evicted_at IS NOT NULL
+    ORDER BY r.task_id, r.task_inserted_at, r.retry_count
+    FOR UPDATE
+), selected_tasks AS (
+    SELECT
+        t.*
+    FROM
+        v1_task t
+    JOIN
+        evicted_runtimes er ON t.id = er.task_id AND t.inserted_at = er.task_inserted_at
+), inserted_qi AS (
+    INSERT INTO v1_queue_item (
+        tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id,
+        workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority,
+        sticky, desired_worker_id, retry_count
+    )
+    SELECT
+        t.tenant_id, t.queue, t.id, t.inserted_at, t.external_id, t.action_id, t.step_id,
+        t.workflow_id, t.workflow_run_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
+        t.step_timeout, 4, t.sticky, t.desired_worker_id, t.retry_count
+    FROM
+        selected_tasks t
+    ON CONFLICT DO NOTHING
+    RETURNING task_id, task_inserted_at
+)
+SELECT
+    st.id AS task_id,
+    st.inserted_at AS task_inserted_at,
+    st.retry_count,
+    CASE WHEN iq.task_id IS NOT NULL THEN 1 ELSE 0 END::int AS queued,
+    st.queue
+FROM
+    selected_tasks st
+LEFT JOIN
+    inserted_qi iq ON st.id = iq.task_id AND st.inserted_at = iq.task_inserted_at
+`
+
+type RestoreEvictedTasksParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+type RestoreEvictedTasksRow struct {
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	Queue          string             `json:"queue"`
+	TaskID         int64              `json:"task_id"`
+	RetryCount     int32              `json:"retry_count"`
+	Queued         int32              `json:"queued"`
+}
+
+func (q *Queries) RestoreEvictedTasks(ctx context.Context, db DBTX, arg RestoreEvictedTasksParams) ([]*RestoreEvictedTasksRow, error) {
+	rows, err := db.Query(ctx, restoreEvictedTasks,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RestoreEvictedTasksRow
+	for rows.Next() {
+		var i RestoreEvictedTasksRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.Queued,
+			&i.Queue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const bulkCreateEvents = `-- name: BulkCreateEvents :many
 WITH to_insert AS (
     SELECT

@@ -257,7 +257,7 @@ type TaskRepository interface {
 
 	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, error)
 
-	RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (requeued bool, queue string, err error)
+	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
@@ -1598,32 +1598,39 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 	return evicted > 0, nil
 }
 
-func (r *TaskRepositoryImpl) RestoreEvictedTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (bool, string, error) {
+func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
 	if err != nil {
-		return false, "", err
+		return nil, err
 	}
 
 	defer rollback()
 
-	row, err := r.queries.RestoreEvictedTask(ctx, tx, sqlcv1.RestoreEvictedTaskParams{
-		Tenantid:       tenantId,
-		Taskid:         task.Id,
-		Taskinsertedat: task.InsertedAt,
-		Retrycount:     task.RetryCount,
+	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	retryCounts := make([]int32, len(tasks))
+
+	for i, t := range tasks {
+		taskIds[i] = t.Id
+		taskInsertedAts[i] = t.InsertedAt
+		retryCounts[i] = t.RetryCount
+	}
+
+	rows, err := r.queries.RestoreEvictedTasks(ctx, tx, sqlcv1.RestoreEvictedTasksParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
 	})
 	if err != nil {
-		return false, "", err
+		return nil, err
 	}
 
 	if err := commit(ctx); err != nil {
-		return false, "", err
+		return nil, err
 	}
 
-	queueName, _ := row.Queue.(string)
-
-	return row.Queued > 0, queueName, nil
+	return rows, nil
 }
 
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {

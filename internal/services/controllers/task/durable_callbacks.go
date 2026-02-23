@@ -88,36 +88,61 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.DurableRestoreTaskPayload](payloads)
 
+	externalIds := make([]uuid.UUID, 0, len(msgs))
+	reasonByExternalId := make(map[uuid.UUID]string, len(msgs))
 	for _, msg := range msgs {
-		task, err := tc.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, msg.TaskExternalId, true)
-		if err != nil {
-			tc.l.Error().Err(err).Msgf("failed to look up task %s for restore", msg.TaskExternalId)
-			continue
-		}
+		externalIds = append(externalIds, msg.TaskExternalId)
+		reasonByExternalId[msg.TaskExternalId] = msg.Reason
+	}
 
-		requeued, queue, err := tc.repov1.Tasks().RestoreEvictedTask(ctx, tenantId, v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+	flatTasks, err := tc.repov1.Tasks().FlattenExternalIds(ctx, tenantId, externalIds)
+	if err != nil {
+		return fmt.Errorf("failed to batch-lookup tasks for restore: %w", err)
+	}
+
+	if len(flatTasks) == 0 {
+		tc.l.Warn().Msgf("no tasks found for %d restore messages", len(msgs))
+		return nil
+	}
+
+	tasksToRestore := make([]v1.TaskIdInsertedAtRetryCount, 0, len(flatTasks))
+	for _, t := range flatTasks {
+		tasksToRestore = append(tasksToRestore, v1.TaskIdInsertedAtRetryCount{
+			Id:         t.ID,
+			InsertedAt: t.InsertedAt,
+			RetryCount: t.RetryCount,
 		})
-		if err != nil {
-			tc.l.Error().Err(err).Msgf("failed to restore task %s", msg.TaskExternalId)
+	}
+
+	restoredRows, err := tc.repov1.Tasks().RestoreEvictedTasks(ctx, tenantId, tasksToRestore)
+	if err != nil {
+		return fmt.Errorf("failed to batch-restore evicted tasks: %w", err)
+	}
+
+	restoredByTaskId := make(map[int64]*sqlcv1.RestoreEvictedTasksRow, len(restoredRows))
+	for _, r := range restoredRows {
+		restoredByTaskId[r.TaskID] = r
+	}
+
+	queues := make(map[string]struct{})
+
+	for _, t := range flatTasks {
+		restored, ok := restoredByTaskId[t.ID]
+		if !ok || restored.Queued == 0 {
+			tc.l.Warn().Msgf("task %s was not requeued (not evicted or already queued)", t.ExternalID)
 			continue
 		}
 
-		if !requeued {
-			tc.l.Warn().Msgf("task %s was not requeued (not evicted or already queued)", msg.TaskExternalId)
-			continue
-		}
+		reason := reasonByExternalId[t.ExternalID]
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
+				TaskId:         t.ID,
+				RetryCount:     t.RetryCount,
 				EventTimestamp: time.Now(),
 				EventType:      sqlcv1.V1EventTypeOlapDURABLERESTORING,
-				EventMessage:   fmt.Sprintf("Restoring evicted task: %s", msg.Reason),
+				EventMessage:   fmt.Sprintf("Restoring evicted task: %s", reason),
 			},
 		)
 		if err == nil {
@@ -126,17 +151,19 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 			}
 		}
 
-		tc.notifySchedulerQueue(ctx, tenantId, queue)
+		if restored.Queue != "" {
+			queues[restored.Queue] = struct{}{}
+		}
+	}
+
+	if len(queues) > 0 {
+		tc.notifySchedulerQueues(ctx, tenantId, queues)
 	}
 
 	return nil
 }
 
-func (tc *TasksControllerImpl) notifySchedulerQueue(ctx context.Context, tenantId uuid.UUID, queue string) {
-	if queue == "" {
-		return
-	}
-
+func (tc *TasksControllerImpl) notifySchedulerQueues(ctx context.Context, tenantId uuid.UUID, queues map[string]struct{}) {
 	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
 	if err != nil {
 		tc.l.Error().Err(err).Msg("could not get tenant for scheduler notification")
@@ -147,21 +174,26 @@ func (tc *TasksControllerImpl) notifySchedulerQueue(ctx context.Context, tenantI
 		return
 	}
 
+	queueNames := make([]string, 0, len(queues))
+	for q := range queues {
+		queueNames = append(queueNames, q)
+	}
+
 	msg, err := msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCheckTenantQueue,
 		true,
 		false,
 		tasktypes.CheckTenantQueuesPayload{
-			QueueNames: []string{queue},
+			QueueNames: queueNames,
 		},
 	)
 	if err != nil {
-		tc.l.Error().Err(err).Msgf("failed to build check-tenant-queue message for queue %s", queue)
+		tc.l.Error().Err(err).Msgf("failed to build check-tenant-queue message for queues %v", queueNames)
 		return
 	}
 
 	if err := tc.mq.SendMessage(ctx, msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler), msg); err != nil {
-		tc.l.Error().Err(err).Msgf("failed to notify scheduler for queue %s", queue)
+		tc.l.Error().Err(err).Msgf("failed to notify scheduler for queues %v", queueNames)
 	}
 }
