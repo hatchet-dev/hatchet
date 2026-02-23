@@ -817,12 +817,9 @@ SELECT
     rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.tenant_id, rt.timeout_at, rt.evicted_at,
     w."durableTaskDispatcherId"
 FROM v1_task_runtime rt
-JOIN "Worker" w ON rt.worker_id = w.id
+LEFT JOIN "Worker" w ON rt.worker_id = w.id
 WHERE
     rt.tenant_id = $1::uuid
-    -- Filter evicted tasks so the caller falls through to the restore path
-    -- (re-queues the task instead of sending to a stale dispatcher)
-    AND rt.evicted_at IS NULL
     AND (rt.task_id, rt.task_inserted_at) IN (
         SELECT task_id, task_inserted_at
         FROM tasks
