@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
@@ -20,9 +19,6 @@ if TYPE_CHECKING:
 
 P = ParamSpec("P")
 R = TypeVar("R")
-
-# Pattern to extract HTTP method from exception reason
-_METHOD_PATTERN = re.compile(r"\bmethod=(\w+)\b", re.IGNORECASE)
 
 
 def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, R]:
@@ -73,21 +69,10 @@ def tenacity_should_retry(
     # REST transport errors: opt-in retry for configured HTTP methods
     if isinstance(ex, RestTransportError):
         if config is not None and config.retry_transport_errors:
-            method = _extract_method_from_reason(ex.reason)
+            method = ex.http_method
             if method is not None:
                 allowed_methods = {m.upper() for m in config.retry_transport_methods}
                 return method.upper() in allowed_methods
         return False
 
     return False
-
-
-def _extract_method_from_reason(reason: str | None) -> str | None:
-    """Extract HTTP method from exception reason string.
-
-    The reason string contains 'method=GET' or similar from rest.py exception handling.
-    """
-    if not reason:
-        return None
-    match = _METHOD_PATTERN.search(reason)
-    return match.group(1) if match else None
