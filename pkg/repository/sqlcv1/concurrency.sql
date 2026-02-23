@@ -148,7 +148,15 @@ SELECT pg_advisory_xact_lock(@key::bigint);
 SELECT pg_try_advisory_xact_lock(@key::bigint) AS "locked";
 
 -- name: RunParentGroupRoundRobin :exec
-WITH eligible_slots_per_group AS (
+WITH filled_counts AS (
+    SELECT key, COUNT(*) as cnt
+    FROM v1_workflow_concurrency_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND strategy_id = @strategyId::bigint
+        AND is_filled = TRUE
+    GROUP BY key
+), eligible_slots_per_group AS (
     SELECT wsc.*
     FROM (
         SELECT DISTINCT key
@@ -164,8 +172,9 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
+            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
-        LIMIT @maxRuns::int
+        LIMIT GREATEST(0, @maxRuns::int - COALESCE((SELECT cnt FROM filled_counts fc WHERE fc.key = distinct_keys.key), 0))
     ) wsc ON true
 ), eligible_slots AS (
     SELECT
@@ -199,7 +208,15 @@ WHERE
 
 -- name: RunGroupRoundRobin :many
 -- Used for round-robin scheduling when a strategy doesn't have a parent strategy
-WITH eligible_slots_per_group AS (
+WITH filled_counts AS (
+    SELECT key, COUNT(*) as cnt
+    FROM v1_concurrency_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND strategy_id = @strategyId::bigint
+        AND is_filled = TRUE
+    GROUP BY key
+), eligible_slots_per_group AS (
     SELECT cs.*
     FROM (
         SELECT DISTINCT key
@@ -215,8 +232,9 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
+            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.sort_id ASC
-        LIMIT @maxRuns::int
+        LIMIT GREATEST(0, @maxRuns::int - COALESCE((SELECT cnt FROM filled_counts fc WHERE fc.key = distinct_keys.key), 0))
     ) cs ON true
 ), schedule_timeout_slots AS (
     SELECT
@@ -482,6 +500,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
@@ -722,6 +742,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING

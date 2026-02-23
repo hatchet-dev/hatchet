@@ -136,7 +136,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
-
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
 
 	if err != nil {
@@ -546,8 +545,6 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 		}
 
 		if !parentAcquired {
-			// Log the event when the parent advisory lock is not acquired
-			c.l.Warn().Msgf("Parent advisory lock not acquired (strategy ID: %d, parent: %d)", strategy.ID, strategy.ParentStrategyID.Int64)
 			// Parent lock not available, return empty result
 			return &RunConcurrencyResult{
 				Queued:                    []TaskWithQueue{},

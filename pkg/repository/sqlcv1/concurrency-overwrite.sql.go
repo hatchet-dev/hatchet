@@ -303,6 +303,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = s.task_id AND
         v1_concurrency_slot.task_inserted_at = s.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = s.task_retry_count AND
+        v1_concurrency_slot.tenant_id = s.tenant_id AND
+        v1_concurrency_slot.strategy_id = s.strategy_id AND
         v1_concurrency_slot.key = s.key AND
         v1_concurrency_slot.is_filled = FALSE AND
         s.operation = 'run'
@@ -556,6 +558,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = s.task_id AND
         v1_concurrency_slot.task_inserted_at = s.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = s.task_retry_count AND
+        v1_concurrency_slot.tenant_id = s.tenant_id AND
+        v1_concurrency_slot.strategy_id = s.strategy_id AND
         v1_concurrency_slot.key = s.key AND
         v1_concurrency_slot.is_filled = FALSE AND
         s.operation = 'run'
