@@ -16,7 +16,7 @@
   ],
   "entryPointStrategy": "expand",
   "out": "/tmp/hatchet-typescript/docs/gen",
-  "plugin": ["typedoc-plugin-markdown", "./docs/markdown-theme.mjs"],
+  "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-no-inherit", "./docs/markdown-theme.mjs"],
   "name": "Hatchet TypeScript SDK",
   "readme": "none",
   "excludePrivate": true,
@@ -26,6 +26,26 @@
   "includeVersion": true,
   "disableSources": true,
   "excludeNotDocumented": true,
+  "excludeNotDocumentedKinds": [
+        "Module",
+        "Namespace",
+        "Enum",
+        "EnumMember",
+        "Variable",
+        "Function",
+        "Interface",
+        "Constructor",
+        "Property",
+        "Method",
+        "CallSignature",
+        "IndexSignature",
+        "ConstructorSignature",
+        "Accessor",
+        "GetSignature",
+        "SetSignature",
+        "TypeAlias",
+        "Reference"
+    ],
   "sort": ["source-order"],
   "hideGenerator": true,
   "theme": "hatchet-ts-docs",
@@ -45,5 +65,9 @@
   "enumMembersFormat": "table",
   "typeDeclarationFormat": "table",
   "propertiesFormat": "table",
-  "sanitizeComments": true
+  "classPropertiesFormat": "table",
+  "sanitizeComments": true,
+
+  // typedoc-plugin-no-inherit options
+  "inheritNone": true
 }

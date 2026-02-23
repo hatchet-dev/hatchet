@@ -51,13 +51,14 @@ import { WebhooksClient } from './features/webhooks';
  * It provides methods for creating and executing workflows, as well as managing workers.
  */
 export class HatchetClient implements IHatchetClient {
-  /** The underlying v0 client instance */
+  // The underlying v0 client instance
   _v0: LegacyHatchetClient;
   _api: Api;
   _listener: RunListenerClient;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
+   * @hidden
    */
   get v0() {
     return this._v0;
@@ -77,6 +78,7 @@ export class HatchetClient implements IHatchetClient {
    * @param config - Optional configuration for the client
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
+   * @internal
    */
   constructor(
     config?: Partial<ClientConfig>,
@@ -157,6 +159,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
    * @returns A new Hatchet client instance
+   * @internal
    */
   static init(
     config?: Partial<ClientConfig>,
@@ -295,12 +298,12 @@ export class HatchetClient implements IHatchetClient {
   }
 
   /**
-   * @alias run
    * Triggers a workflow run and waits for the result.
    * @template I - The input type for the workflow
    * @template O - The return type of the workflow
    * @param workflow - The workflow to run, either as a Workflow instance or workflow name
    * @param input - The input data for the workflow
+   * @alias run
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
@@ -335,6 +338,7 @@ export class HatchetClient implements IHatchetClient {
   /**
    * Get the CEL client for debugging CEL expressions
    * @returns A CEL client instance
+   * @internal
    */
   get cel() {
     if (!this._cel) {
@@ -360,6 +364,7 @@ export class HatchetClient implements IHatchetClient {
    * Get the cron client for creating and managing cron workflow runs
    * @returns A cron client instance
    * @deprecated use client.crons instead
+   * @hidden
    */
   get cron() {
     return this.crons;
@@ -382,6 +387,7 @@ export class HatchetClient implements IHatchetClient {
    * Get the schedule client for creating and managing scheduled workflow runs
    * @returns A schedule client instance
    * @deprecated use client.scheduled instead
+   * @hidden
    */
   get schedule() {
     return this.scheduled;
@@ -406,6 +412,7 @@ export class HatchetClient implements IHatchetClient {
    * Get the event client for creating and managing event workflow runs
    * @returns A event client instance
    * @deprecated use client.events instead
+   * @hidden
    */
   get event() {
     return this.events;
@@ -564,6 +571,7 @@ export class HatchetClient implements IHatchetClient {
    * Register a webhook with the worker
    * @param workflows - The workflows to register on the webhooks
    * @returns A promise that resolves when the webhook is registered
+   * @hidden
    */
   v0webhooks(workflows: V0Workflow[]) {
     return this._v0.webhooks(workflows);
