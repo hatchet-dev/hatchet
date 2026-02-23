@@ -88,6 +88,8 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		Output:                output,
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage,
+		// TODO-DURABLE: Populate EVICTED when runtime row is evicted; ReadableStatus
+		// currently comes from OLAP and does not represent durable eviction.
 		Status:                gen.V1TaskStatus(task.ReadableStatus),
 		TenantId:              task.TenantID,
 		WorkflowId:            task.WorkflowID,

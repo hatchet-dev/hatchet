@@ -35,6 +35,8 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
 			statuses = []sqlcv1.V1ReadableStatusOlap{}
+			// TODO-DURABLE: Handle EVICTED explicitly here when REST status enums expose it.
+			// Casting directly to OLAP readable status assumes a 1:1 mapping.
 			for _, status := range *request.Params.Statuses {
 				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
 			}
@@ -192,6 +194,8 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
 			statuses = []sqlcv1.V1ReadableStatusOlap{}
+			// TODO-DURABLE: Handle EVICTED explicitly here when REST status enums expose it.
+			// Casting directly to OLAP readable status assumes a 1:1 mapping.
 			for _, status := range *request.Params.Statuses {
 				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
 			}
@@ -344,6 +348,8 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
 			statuses = []sqlcv1.V1ReadableStatusOlap{}
+			// TODO-DURABLE: Handle EVICTED explicitly here when REST status enums expose it.
+			// Casting directly to OLAP readable status assumes a 1:1 mapping.
 			for _, status := range *request.Params.Statuses {
 				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
 			}

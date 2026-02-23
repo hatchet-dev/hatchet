@@ -1275,7 +1275,8 @@ WITH inputs AS (
 
 SELECT
     t.external_id,
-    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running
+    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running,
+    (tr.task_id IS NOT NULL AND tr.evicted_at IS NOT NULL)::BOOLEAN AS is_evicted
 FROM v1_task t
 LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
 WHERE

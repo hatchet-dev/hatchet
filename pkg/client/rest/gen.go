@@ -264,6 +264,7 @@ const (
 const (
 	V1TaskStatusCANCELLED V1TaskStatus = "CANCELLED"
 	V1TaskStatusCOMPLETED V1TaskStatus = "COMPLETED"
+	V1TaskStatusEVICTED   V1TaskStatus = "EVICTED"
 	V1TaskStatusFAILED    V1TaskStatus = "FAILED"
 	V1TaskStatusQUEUED    V1TaskStatus = "QUEUED"
 	V1TaskStatusRUNNING   V1TaskStatus = "RUNNING"

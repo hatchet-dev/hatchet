@@ -1641,7 +1641,8 @@ WITH inputs AS (
 
 SELECT
     t.external_id,
-    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running
+    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running,
+    (tr.task_id IS NOT NULL AND tr.evicted_at IS NOT NULL)::BOOLEAN AS is_evicted
 FROM v1_task t
 LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
 WHERE
@@ -1662,6 +1663,7 @@ type ListTaskRunningStatusesParams struct {
 type ListTaskRunningStatusesRow struct {
 	ExternalID uuid.UUID `json:"external_id"`
 	IsRunning  bool      `json:"is_running"`
+	IsEvicted  bool      `json:"is_evicted"`
 }
 
 func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg ListTaskRunningStatusesParams) ([]*ListTaskRunningStatusesRow, error) {
@@ -1678,7 +1680,7 @@ func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg List
 	var items []*ListTaskRunningStatusesRow
 	for rows.Next() {
 		var i ListTaskRunningStatusesRow
-		if err := rows.Scan(&i.ExternalID, &i.IsRunning); err != nil {
+		if err := rows.Scan(&i.ExternalID, &i.IsRunning, &i.IsEvicted); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -1,7 +1,7 @@
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
-from hatchet_sdk.contracts.v1.shared import condition_pb2 as _condition_pb2
+from v1.shared import condition_pb2 as _condition_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -33,6 +33,7 @@ class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     COMPLETED: _ClassVar[RunStatus]
     FAILED: _ClassVar[RunStatus]
     CANCELLED: _ClassVar[RunStatus]
+    EVICTED: _ClassVar[RunStatus]
 
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -64,6 +65,7 @@ RUNNING: RunStatus
 COMPLETED: RunStatus
 FAILED: RunStatus
 CANCELLED: RunStatus
+EVICTED: RunStatus
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy

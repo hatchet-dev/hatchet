@@ -4192,16 +4192,21 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}
 
 	externalIdToIsRunning := make(map[string]bool)
+	externalIdToIsEvicted := make(map[string]bool)
 
 	for _, stat := range taskStats {
 		externalIdToIsRunning[stat.ExternalID.String()] = stat.IsRunning
+		externalIdToIsEvicted[stat.ExternalID.String()] = stat.IsEvicted
 	}
 
 	for _, task := range flat {
 		isRunning := externalIdToIsRunning[task.ExternalID.String()]
+		isEvicted := externalIdToIsEvicted[task.ExternalID.String()]
 		status := statusutils.V1RunStatusQueued
 
-		if isRunning {
+		if isEvicted {
+			status = statusutils.V1RunStatusEvicted
+		} else if isRunning {
 			status = statusutils.V1RunStatusRunning
 		}
 

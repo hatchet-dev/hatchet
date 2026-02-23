@@ -13,6 +13,7 @@
 export enum V1TaskRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
+  EVICTED = "EVICTED",
   COMPLETED = "COMPLETED",
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
@@ -302,6 +303,7 @@ export enum V1WorkflowType {
 export enum V1TaskStatus {
   QUEUED = "QUEUED",
   RUNNING = "RUNNING",
+  EVICTED = "EVICTED",
   COMPLETED = "COMPLETED",
   CANCELLED = "CANCELLED",
   FAILED = "FAILED",
