@@ -255,6 +255,12 @@ class EventClient(BaseRestClient):
         else:
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
+        if len(data_bytes) > 8_000:
+            logger.warning(
+                "truncating stream payload to 8,000 bytes to avoid PostgreSQL NOTIFY payload limits"
+            )
+            data_bytes = data_bytes[:8_000]
+
         request = PutStreamEventRequest(
             task_run_external_id=step_run_id,
             created_at=proto_timestamp_now(),
