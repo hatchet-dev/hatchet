@@ -777,15 +777,7 @@ func (q *Queries) RunCancelNewest(ctx context.Context, db DBTX, arg RunCancelNew
 }
 
 const runGroupRoundRobin = `-- name: RunGroupRoundRobin :many
-WITH filled_counts AS (
-    SELECT key, COUNT(*) as cnt
-    FROM v1_concurrency_slot
-    WHERE
-        tenant_id = $1::uuid
-        AND strategy_id = $2::bigint
-        AND is_filled = TRUE
-    GROUP BY key
-), eligible_slots_per_group AS (
+WITH eligible_slots_per_group AS (
     SELECT cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
     FROM (
         SELECT DISTINCT key
@@ -801,9 +793,8 @@ WITH filled_counts AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.sort_id ASC
-        LIMIT GREATEST(0, $3::int - COALESCE((SELECT cnt FROM filled_counts fc WHERE fc.key = distinct_keys.key), 0))
+        LIMIT $3::int
     ) cs ON true
 ), schedule_timeout_slots AS (
     SELECT
@@ -1115,15 +1106,7 @@ func (q *Queries) RunParentCancelNewest(ctx context.Context, db DBTX, arg RunPar
 }
 
 const runParentGroupRoundRobin = `-- name: RunParentGroupRoundRobin :exec
-WITH filled_counts AS (
-    SELECT key, COUNT(*) as cnt
-    FROM v1_workflow_concurrency_slot
-    WHERE
-        tenant_id = $1::uuid
-        AND strategy_id = $2::bigint
-        AND is_filled = TRUE
-    GROUP BY key
-), eligible_slots_per_group AS (
+WITH eligible_slots_per_group AS (
     SELECT wsc.sort_id, wsc.tenant_id, wsc.workflow_id, wsc.workflow_version_id, wsc.workflow_run_id, wsc.strategy_id, wsc.completed_child_strategy_ids, wsc.child_strategy_ids, wsc.priority, wsc.key, wsc.is_filled
     FROM (
         SELECT DISTINCT key
@@ -1139,9 +1122,8 @@ WITH filled_counts AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
-        LIMIT GREATEST(0, $3::int - COALESCE((SELECT cnt FROM filled_counts fc WHERE fc.key = distinct_keys.key), 0))
+        LIMIT $3::int
     ) wsc ON true
 ), eligible_slots AS (
     SELECT

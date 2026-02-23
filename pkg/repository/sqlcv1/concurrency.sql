@@ -148,15 +148,7 @@ SELECT pg_advisory_xact_lock(@key::bigint);
 SELECT pg_try_advisory_xact_lock(@key::bigint) AS "locked";
 
 -- name: RunParentGroupRoundRobin :exec
-WITH filled_counts AS (
-    SELECT key, COUNT(*) as cnt
-    FROM v1_workflow_concurrency_slot
-    WHERE
-        tenant_id = @tenantId::uuid
-        AND strategy_id = @strategyId::bigint
-        AND is_filled = TRUE
-    GROUP BY key
-), eligible_slots_per_group AS (
+WITH eligible_slots_per_group AS (
     SELECT wsc.*
     FROM (
         SELECT DISTINCT key
@@ -172,9 +164,8 @@ WITH filled_counts AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
-            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
-        LIMIT GREATEST(0, @maxRuns::int - COALESCE((SELECT cnt FROM filled_counts fc WHERE fc.key = distinct_keys.key), 0))
+        LIMIT @maxRuns::int
     ) wsc ON true
 ), eligible_slots AS (
     SELECT
@@ -208,15 +199,7 @@ WHERE
 
 -- name: RunGroupRoundRobin :many
 -- Used for round-robin scheduling when a strategy doesn't have a parent strategy
-WITH filled_counts AS (
-    SELECT key, COUNT(*) as cnt
-    FROM v1_concurrency_slot
-    WHERE
-        tenant_id = @tenantId::uuid
-        AND strategy_id = @strategyId::bigint
-        AND is_filled = TRUE
-    GROUP BY key
-), eligible_slots_per_group AS (
+WITH eligible_slots_per_group AS (
     SELECT cs.*
     FROM (
         SELECT DISTINCT key
@@ -232,9 +215,8 @@ WITH filled_counts AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
-            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.sort_id ASC
-        LIMIT GREATEST(0, @maxRuns::int - COALESCE((SELECT cnt FROM filled_counts fc WHERE fc.key = distinct_keys.key), 0))
+        LIMIT @maxRuns::int
     ) cs ON true
 ), schedule_timeout_slots AS (
     SELECT
