@@ -6,7 +6,7 @@ import { useState } from 'react';
 type NewOrganizationInputFormProps = {
   defaultOrganizationName?: string;
   defaultTenantName?: string;
-  isSaving?: boolean;
+  isSaving: boolean;
   onSubmit: (values: { organizationName: string; tenantName: string }) => void;
 };
 
@@ -14,7 +14,7 @@ export function NewOrganizationInputForm({
   defaultOrganizationName = '',
   defaultTenantName = '',
   onSubmit,
-  isSaving = false,
+  isSaving,
 }: NewOrganizationInputFormProps) {
   const [organizationName, setOrganizationName] = useState(
     defaultOrganizationName,
