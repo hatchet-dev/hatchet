@@ -4,7 +4,7 @@ import os
 import re
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 ROOT = "../../"
 BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
@@ -252,10 +252,15 @@ class JavaScriptObjectDecoder(json.JSONDecoder):
         key = match.group(2)
         return f'{indent}"{key}":'
 
-    def decode(self, raw: str) -> dict[str, Any]:
+    def decode(self, s: str, _w: Callable[..., Any] = re.compile(r"\s").match) -> Any:  # type: ignore[override]
         pattern = r"^(\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:"
-        quoted = re.sub(pattern, self.replacement, raw)
+        quoted = re.sub(pattern, self.replacement, s)
         result = re.sub(pattern, self.replacement, quoted, flags=re.MULTILINE)
+        result = re.sub(
+            r"(\{\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:",
+            r'\1"\2":',
+            result,
+        )
         result = re.sub(r",(\s*\n?\s*})(\s*);?", r"\1", result)
 
         return super().decode(result)

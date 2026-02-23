@@ -4,7 +4,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from hatchet_sdk.cancellation import CancellationToken
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
@@ -22,10 +21,9 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.exceptions import CancellationReason, TaskRunError
+from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.cancellation import await_with_cancellation
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
@@ -58,7 +56,7 @@ class Context:
         self.action = action
 
         self.step_run_id = action.step_run_id
-        self.cancellation_token = CancellationToken()
+        self.exit_flag = False
         self.dispatcher_client = dispatcher_client
         self.admin_client = admin_client
         self.event_client = event_client
@@ -75,31 +73,6 @@ class Context:
         self._max_attempts = max_attempts
         self._workflow_name = workflow_name
         self._task_name = task_name
-
-    @property
-    def exit_flag(self) -> bool:
-        """
-        Check if the cancellation flag has been set.
-
-        This property is maintained for backwards compatibility.
-        Use `cancellation_token.is_cancelled` for new code.
-
-        :return: True if the task has been cancelled, False otherwise.
-        """
-        return self.cancellation_token.is_cancelled
-
-    @exit_flag.setter
-    def exit_flag(self, value: bool) -> None:
-        """
-        Set the cancellation flag.
-
-        This setter is maintained for backwards compatibility.
-        Setting to True will trigger the cancellation token.
-
-        :param value: True to trigger cancellation, False is a no-op.
-        """
-        if value:
-            self.cancellation_token.cancel(CancellationReason.USER_REQUESTED)
 
     def _increment_stream_index(self) -> int:
         index = self.stream_index
@@ -196,25 +169,8 @@ class Context:
         """
         return self.action.workflow_run_id
 
-    def _set_cancellation_flag(
-        self, reason: CancellationReason = CancellationReason.WORKFLOW_CANCELLED
-    ) -> None:
-        """
-        Internal method to trigger cancellation.
-
-        This triggers the cancellation token, which will:
-        - Signal all waiters (async and sync)
-        - Set the exit_flag property to True
-        - Allow child workflow cancellation
-
-        Args:
-            reason: The reason for cancellation.
-        """
-        logger.debug(
-            f"Context: setting cancellation flag for step_run_id={self.step_run_id}, "
-            f"reason={reason.value}"
-        )
-        self.cancellation_token.cancel(reason)
+    def _set_cancellation_flag(self) -> None:
+        self.exit_flag = True
 
     def cancel(self) -> None:
         """
@@ -222,11 +178,9 @@ class Context:
 
         :return: None
         """
-        logger.debug(
-            f"Context: cancel() called for task_run_external_id={self.step_run_id}"
-        )
+        logger.debug("cancelling step...")
         self.runs_client.cancel(self.step_run_id)
-        self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
+        self._set_cancellation_flag()
 
     async def aio_cancel(self) -> None:
         """
@@ -234,11 +188,9 @@ class Context:
 
         :return: None
         """
-        logger.debug(
-            f"Context: aio_cancel() called for task_run_external_id={self.step_run_id}"
-        )
+        logger.debug("cancelling step...")
         await self.runs_client.aio_cancel(self.step_run_id)
-        self._set_cancellation_flag(CancellationReason.USER_REQUESTED)
+        self._set_cancellation_flag()
 
     def done(self) -> bool:
         """
@@ -530,11 +482,8 @@ class DurableContext(Context):
         """
         Durably wait for either a sleep or an event.
 
-        This method respects the context's cancellation token. If the task is cancelled
-        while waiting, an asyncio.CancelledError will be raised.
-
         :param signal_key: The key to use for the durable event. This is used to identify the event in the Hatchet API.
-        :param \\*conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
+        :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
         :raises ValueError: If the durable event listener is not available.
@@ -543,10 +492,6 @@ class DurableContext(Context):
             raise ValueError("Durable event listener is not available")
 
         task_id = self.step_run_id
-
-        logger.debug(
-            f"DurableContext.aio_wait_for: waiting for signal_key={signal_key}, task_id={task_id}"
-        )
 
         request = RegisterDurableEventRequest(
             task_id=task_id,
@@ -557,29 +502,19 @@ class DurableContext(Context):
 
         self.durable_event_listener.register_durable_event(request)
 
-        # Use await_with_cancellation to respect the cancellation token
-        return await await_with_cancellation(
-            self.durable_event_listener.result(task_id, signal_key),
-            self.cancellation_token,
+        return await self.durable_event_listener.result(
+            task_id,
+            signal_key,
         )
 
     async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
-        This method respects the context's cancellation token. If the task is cancelled
-        while sleeping, an asyncio.CancelledError will be raised.
-
         For more complicated conditions, use `ctx.aio_wait_for` directly.
-
-        :param duration: The duration to sleep for.
-        :return: A dictionary containing the results of the wait.
         """
-        wait_index = self._increment_wait_index()
 
-        logger.debug(
-            f"DurableContext.aio_sleep_for: sleeping for {duration}, wait_index={wait_index}"
-        )
+        wait_index = self._increment_wait_index()
 
         return await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",

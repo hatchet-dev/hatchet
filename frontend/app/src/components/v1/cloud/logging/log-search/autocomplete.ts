@@ -31,10 +31,21 @@ export interface AutocompleteState {
 
 export function getAutocomplete(
   query: string,
-  availableAttempts?: number[],
+  availableAttempts: number[],
 ): AutocompleteState {
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
+
+  // Check for trailing space FIRST - indicates user wants to add a new filter
+  // Don't check this if the query ends with a colon (e.g., "level:")
+  if (query.endsWith(' ') && !trimmed.endsWith(':')) {
+    return { mode: 'key', suggestions: FILTER_KEYS };
+  }
+
+  // Check for empty input
+  if (trimmed === '') {
+    return { mode: 'key', suggestions: FILTER_KEYS };
+  }
 
   if (lastWord.startsWith('level:')) {
     const partial = lastWord.slice(6).toLowerCase();
@@ -70,10 +81,6 @@ export function getAutocomplete(
   );
   if (matchingKeys.length > 0) {
     return { mode: 'key', suggestions: matchingKeys };
-  }
-
-  if (trimmed === '' || query.endsWith(' ')) {
-    return { mode: 'key', suggestions: FILTER_KEYS };
   }
 
   return { mode: 'none', suggestions: [] };

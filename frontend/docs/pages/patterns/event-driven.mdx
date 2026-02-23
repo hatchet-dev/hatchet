@@ -1,0 +1,110 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import EventDrivenDiagram from "@/components/EventDrivenDiagramWrapper";
+
+# Event-Driven Systems
+
+Event-driven systems react to webhooks, application events, cron schedules, and API calls. This page covers how Hatchet routes events to tasks with concurrency control and spike protection.
+
+<EventDrivenDiagram />
+
+## Core Challenges
+
+<Steps>
+
+### Multiple trigger types
+
+Webhooks, cron schedules, application events, and API calls can all trigger Hatchet tasks. Define your task handlers once and attach whichever triggers you need.
+
+### Spike protection
+
+When a burst of events arrives, concurrency controls queue excess work instead of overwhelming your workers. `CANCEL_NEWEST` drops stale events; `GROUP_ROUND_ROBIN` ensures fair processing across sources.
+
+### Routing and delivery
+
+Hatchet matches events to registered task triggers, handles deduplication and filtering, and distributes work to available workers. Failed tasks are retried according to your retry policy.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                                                            | What it does for event-driven systems                               |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **[Event Triggers](/concepts/run-on-event)**                                                       | React to application events by name with optional payload filtering |
+| **[Webhooks](/concepts/webhooks)**                                                                 | Receive external HTTP webhooks and route them to tasks              |
+| **[Cron Triggers](/concepts/cron-runs)**                                                           | Schedule recurring tasks with cron expressions                      |
+| **[Scheduled Runs](/concepts/scheduled-runs)**                                                     | Trigger one-time future execution at a specific time                |
+| **[Concurrency](/concepts/concurrency)**                                                           | Spike protection with CANCEL_NEWEST or CANCEL_OLDEST strategies     |
+| **[Rate Limits](/concepts/rate-limits)**                                                           | Throttle downstream processing regardless of event volume           |
+| **[Inter-Service Triggering](/concepts/inter-service-triggering)**                                 | Trigger tasks across different services and worker pools            |
+| **[Additional Metadata](/concepts/durable-workflows/directed-acyclic-graphs/additional-metadata)** | Tag events with metadata for filtering and observability            |
+
+<Callout type="info">
+  Hatchet supports all common triggering patterns in a single system. See [Ways
+  of Running Tasks](/concepts/running-tasks) for the complete list of trigger
+  types and when to use each.
+</Callout>
+
+## Architecture
+
+<Steps>
+
+### Events arrive
+
+Events come from multiple sources: HTTP webhooks from external services, application events emitted by your code, cron schedules, or direct API calls.
+
+### Hatchet routes to tasks
+
+Each event is matched to registered task triggers. A single event can trigger multiple tasks. Hatchet handles deduplication, filtering, and queuing.
+
+### Workers process tasks
+
+Tasks are distributed to available workers. Concurrency controls prevent overload. Failed tasks are retried according to your retry policy.
+
+### Chain further work
+
+Task outputs can trigger further events, spawn child tasks, or start downstream workflows. Complex event-driven pipelines are composed from individual tasks.
+
+</Steps>
+
+<Callout type="warning">
+  When processing high-volume events, always configure **concurrency controls**
+  to prevent worker saturation. Without limits, a burst of 10,000 events will
+  attempt to run 10,000 tasks simultaneously.
+</Callout>
+
+## Common Event Patterns
+
+| Pattern                         | Description                                                                   |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| **Webhook processing**          | Receive Stripe, GitHub, or Twilio webhooks and process them reliably          |
+| **User action handlers**        | React to user sign-ups, purchases, or content uploads with async workflows    |
+| **Scheduled maintenance**       | Run database cleanup, cache invalidation, or health checks on a cron schedule |
+| **Cross-service orchestration** | Coordinate workflows across microservices without direct coupling             |
+| **Real-time data sync**         | Keep systems in sync by reacting to change events from databases or APIs      |
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Branching" href="/patterns/branching">
+    Route event-driven workflows down different paths based on event payload.
+  </Cards.Card>
+  <Cards.Card title="Fanout" href="/patterns/fanout">
+    A single event triggers parallel processing across multiple workers.
+  </Cards.Card>
+  <Cards.Card title="Long Waits" href="/patterns/long-waits">
+    Pause a workflow until an external event arrives, then resume.
+  </Cards.Card>
+  <Cards.Card
+    title="Pre-Determined Pipelines"
+    href="/patterns/pre-determined-pipelines"
+  >
+    Chain event-triggered tasks into multi-stage processing pipelines.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Event Triggers](/concepts/run-on-event): trigger tasks from application events
+- [Webhooks](/concepts/webhooks): receive and process external webhooks
+- [Cron Triggers](/concepts/cron-runs): set up recurring scheduled tasks
+- [Concurrency Control](/concepts/concurrency): configure spike protection

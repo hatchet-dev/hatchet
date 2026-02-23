@@ -98,8 +98,15 @@ function parseMetaJs(filepath: string): Record<string, any> {
   content = content.replace(pattern, '$1"$2":');
   // Apply twice to catch keys that were adjacent
   content = content.replace(pattern, '$1"$2":');
+  // Quote unquoted keys inside inline objects (e.g. { collapsed: true })
+  content = content.replace(
+    /(\{\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:/g,
+    '$1"$2":',
+  );
   // Remove trailing commas before closing braces
   content = content.replace(/,(\s*\n?\s*})(\s*);?/g, "$1");
+  // Strip trailing semicolon from export default {...};
+  content = content.replace(/\s*;\s*$/, "");
 
   try {
     return JSON.parse(content);

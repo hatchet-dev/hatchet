@@ -1,0 +1,85 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import PipelineDiagram from "@/components/PipelineDiagram";
+import PatternComparison from "@/components/PatternComparison";
+
+# Pre-Determined Pipelines
+
+A **pre-determined pipeline** is a workflow where the sequence of tasks and their dependencies are defined ahead of time as a Directed Acyclic Graph (DAG). Unlike [fanout](/patterns/fanout), where children are spawned dynamically at runtime, pipelines have a fixed structure that is known before execution begins.
+
+<PipelineDiagram />
+
+## How It Works
+
+<Steps>
+
+### Declare a workflow
+
+Define a named workflow that acts as the container for your pipeline. This is the entry point for running the entire pipeline.
+
+### Define tasks with dependencies
+
+Each task in the pipeline specifies its parent tasks. Hatchet uses these dependencies to build a DAG and determines the execution order automatically. Tasks without dependencies run first; tasks with parents wait until all parents complete.
+
+### Pass data between tasks
+
+Tasks can read the outputs of their parent tasks through the context object. This lets you thread data through the pipeline without external state.
+
+</Steps>
+
+<Callout type="info">
+  Pre-determined pipelines are built using [DAG
+  Workflows](/concepts/durable-workflows/directed-acyclic-graphs). See that page
+  for full code examples on defining workflows, adding tasks with dependencies,
+  accessing parent outputs, and running workflows.
+</Callout>
+
+## When to Use Pipelines vs Fanout
+
+|                  | Pre-Determined Pipelines                           | Fanout                                    |
+| ---------------- | -------------------------------------------------- | ----------------------------------------- |
+| **Structure**    | Fixed at definition time                           | Dynamic at runtime                        |
+| **Task count**   | Known ahead of time                                | Determined by input data                  |
+| **Dependencies** | Explicit parent-child DAG                          | Parent spawns N identical children        |
+| **Best for**     | ETL, data processing stages, multi-step transforms | Batch processing, parallel map operations |
+
+## In Workflows vs Durable Workflows (WIP)
+
+## Use Cases
+
+<Cards>
+  <Cards.Card
+    title="ETL Pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
+    Extract data, transform it through multiple stages, and load it into a
+    destination, each stage as a task with clear dependencies.
+  </Cards.Card>
+  <Cards.Card
+    title="CI/CD Workflows"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
+    Build, test, and deploy in sequence with parallel test suites that fan back
+    into a deploy step.
+  </Cards.Card>
+  <Cards.Card
+    title="Document Processing"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
+    Parse, validate, enrich, and index documents through a fixed sequence of
+    processing stages.
+  </Cards.Card>
+  <Cards.Card
+    title="Multi-Step AI Pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
+  >
+    Chain LLM calls with validation gates (generate, evaluate, refine) where
+    each step depends on the previous.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs): full guide to defining workflows with task dependencies
+- [Fanout](/patterns/fanout): dynamically spawn tasks at runtime instead
+- [Concurrency Control](/concepts/concurrency): limit concurrent task execution within a pipeline
+- [Procedural Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): combine pipelines with dynamic child tasks

@@ -1,0 +1,107 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+
+import { Callout, Steps } from "nextra/components";
+import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
+
+# Understanding Durable Execution
+
+<Callout type="info">
+  Just getting started? Check out [Intro to Durable
+  Workflows](/essentials/durable-workflows) for a high-level overview of how
+  durable workflows fit together.
+</Callout>
+
+**Durable execution** refers to the ability of a function to easily recover from failures or interruptions. In Hatchet, we refer to a function with this ability as a **durable task**. Durable tasks store intermediate results in a durable event log, so they can recover without re-executing completed work.
+
+<DurableWorkflowDiagram />
+
+<Callout type="info" emoji="💡">
+  For an in-depth look at how durable execution works, have a look at [this blog
+  post](https://hatchet.run/blog/durable-execution).
+</Callout>
+
+## How Durable Execution Works
+
+<Steps>
+
+### Task runs and checkpoints
+
+As a durable task executes, each call to `SleepFor`, `WaitForEvent`, `WaitFor`, or `Memo` creates a checkpoint in the durable event log. These checkpoints record the task's progress.
+
+### Worker slot is freed during waits
+
+When a durable task enters a long wait (or sleep), the worker slot is released. The task is not consuming compute resources while waiting, unlike a regular task that holds its slot for the entire duration.
+
+### Task resumes from checkpoint
+
+If the task is interrupted or the wait completes, Hatchet replays the event log up to the last checkpoint and resumes execution from there. Completed operations are not re-executed.
+
+</Steps>
+
+## How Hatchet Runs Durable Tasks
+
+Durable tasks run on the same worker process as regular tasks, but they consume a separate slot type so they do not compete with regular tasks for slots. When a durable task hits a wait (`SleepFor`, `WaitForEvent`, etc.), Hatchet [evicts](/concepts/durable-workflows/durable-task-execution/task-eviction) it from the worker, freeing the slot, and re-queues it when the wait completes. This prevents deadlock scenarios where durable tasks would starve children tasks for slots which are needed for the parent durable task to complete.
+
+Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context`, which extends `Context` by providing some additional tools for working with durable execution features.
+
+## The Durable Context
+
+| Method                        | Purpose                                                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`SleepFor(duration)`**      | Pause for a fixed duration. Respects the original sleep time on restart; if interrupted after 23 of 24 hours, only sleeps 1 more hour                                         |
+| **`WaitForEvent(key, expr)`** | Wait for an external event by key, with optional [CEL filter](https://github.com/google/cel-spec) expression on the payload                                                   |
+| **`WaitFor(conditions)`**     | General-purpose wait accepting any combination of sleep conditions, event conditions, or or-groups. `SleepFor` and `WaitForEvent` are convenience wrappers around this method |
+| **`Memo(function)`**          | Run functions whose outputs are memoized based on the input arguments                                                                                                         |
+
+## When to Use Durable Tasks
+
+| Scenario                          | Why Durable?                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot |
+| **Agentic workflows**             | An agent decides what to do next, spawn subtasks, loop, or stop at runtime    |
+| **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute                        |
+| **Human-in-the-loop**             | Wait for approval events without holding resources                            |
+| **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows        |
+| **Crash-resilient pipelines**     | Automatically resume from checkpoints after failures                          |
+
+## Example Task
+
+Now that we know a bit about how Hatchet handles durable execution, let's build a task. We'll start by declaring a task that will run durably.
+
+<Snippet src={snippets.python.durable.worker.create_a_durable_workflow} />
+
+Here, we've declared a Hatchet workflow. Now, we can add tasks to it:
+
+<Snippet src={snippets.python.durable.worker.add_durable_task} />
+
+We've added two tasks to our workflow. The first is a normal, "ephemeral" task, which does not leverage any of Hatchet's durable features.
+
+Second, we've added a durable task, which we've created by using the `durable_task` method of the `Workflow`, as opposed to the `task` method.
+
+<Callout type="info" emoji="💡">
+  Note that the `durable_task` we've defined takes a `DurableContext`, as
+  opposed to a regular `Context`, as its second argument. The `DurableContext`
+  is a subclass of the regular `Context` that adds some additional methods for
+  working with durable tasks.
+</Callout>
+
+The durable task first waits for a sleep condition. Once the sleep has completed, it continues processing until it hits the second `wait_for`. At this point, it needs to wait for an event condition. Once it receives the event, the task prints `Event received` and completes.
+
+If this task is interrupted at any time, it will continue from where it left off. But more importantly, if an event comes into the system while the task is waiting, the task will immediately process the event. And if the task is interrupted while in a sleeping state, it will respect the original sleep duration on restart -- that is, if the task calls `ctx.aio_sleep_for` for 24 hours and is interrupted after 23 hours, it will only sleep for 1 more hour on restart.
+
+### Or Groups
+
+Similarly to [or groups in DAG conditions](/concepts/durable-workflows/directed-acyclic-graphs/combining-conditions), durable tasks can also use or groups in the wait conditions they use. For example, you could wait for either an event or a sleep (whichever comes first) like this:
+
+<Snippet
+  src={snippets.python.durable.worker.add_durable_tasks_that_wait_for_or_groups}
+/>
+
+## Spawning Child Tasks
+
+Durable tasks can spawn other tasks - including other durable tasks or entire DAG workflows - at runtime using the context object. Spawned children run independently on any available worker, and the parent can wait for their results without holding a worker slot.
+
+This is one of the key advantages of durable tasks over DAGs: the number and type of children can be determined dynamically based on the task's input or intermediate results. The parent is evicted during the wait, so it does not consume a slot while children execute.
+
+See [Spawning Children from Durable Tasks](/concepts/durable-workflows/durable-task-execution/child-spawning) for patterns and full examples.

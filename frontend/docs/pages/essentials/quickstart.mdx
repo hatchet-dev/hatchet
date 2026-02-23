@@ -1,0 +1,105 @@
+---
+asIndexPage: true
+---
+
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+
+# Hatchet Cloud Quickstart
+
+By the end of this guide you'll have a worker running locally that executes a simple task triggered from the CLI.
+
+<Callout type="info">
+  This guide walks you through getting set up on Hatchet Cloud. If you'd like to
+  self-host Hatchet, please see the [self-hosted quickstart](/self-hosting)
+  instead.
+</Callout>
+
+<Steps>
+
+### Sign up
+
+If you haven't already signed up for Hatchet Cloud, please register [here](https://cloud.onhatchet.run).
+
+### Set up your tenant
+
+In Hatchet Cloud, you'll be shown a screen to create your first tenant. A tenant is a logical separation of your environments (e.g. `dev`, `staging`, `production`). Each tenant has its own set of users who can access it.
+
+After creating the tenant, you can simply follow the instructions in the Hatchet Cloud dashboard to set up your first quickstart project and workflow. We have copied the instructions in the following steps.
+
+### Install the Hatchet CLI
+
+<Tabs items={['Native Install (Recommended)', 'Homebrew']}>
+    <Tabs.Tab value="script" label="Native Install (Recommended)">
+
+    **MacOS, Linux, WSL**
+
+    ```sh
+    curl -fsSL https://install.hatchet.run/install.sh | bash
+    ```
+
+    </Tabs.Tab>
+    <Tabs.Tab value="homebrew" label="Homebrew">
+
+    **MacOS**
+
+    ```sh
+    brew install hatchet-dev/hatchet/hatchet --cask
+    ```
+    </Tabs.Tab>
+
+</Tabs>
+
+### Set your Hatchet profile
+
+You will need to create a Hatchet CLI profile to connect to your Hatchet Cloud tenant. You can do this using the `hatchet profile add` command:
+
+```sh
+hatchet profile add
+```
+
+Note that the Hatchet Cloud dashboard will provide you with an API token to use when creating your profile.
+
+### Run the quickstart
+
+You can run the Hatchet Cloud quickstart using the `hatchet quickstart` command:
+
+```sh
+hatchet quickstart
+```
+
+### Run your worker
+
+After setting up the quickstart project, you can run your worker locally by following the instructions printed after the quickstart command. This will involve using the `hatchet worker dev` command:
+
+```sh
+hatchet worker dev
+```
+
+### Trigger a workflow
+
+Finally, you can trigger your workflow using the `hatchet trigger simple` command:
+
+```sh
+hatchet trigger simple
+```
+
+### (Optional) Install Hatchet docs MCP
+
+Get Hatchet documentation directly in your AI coding assistant (Cursor, Claude Code, Claude Desktop, and more):
+
+```sh copy
+hatchet docs install
+```
+
+See the [full setup guide](/essentials/using-coding-agents) for manual configuration options.
+
+</Steps>
+
+And that's it! You should now have a Hatchet project set up on Hatchet Cloud with a worker running locally.
+
+## Next Steps
+
+Once you've completed the quickstart, you can explore a more in-depth walkthrough of Hatchet using the [Advanced Setup](/essentials/advanced) guide.
