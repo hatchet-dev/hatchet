@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from v1 import workflows_pb2 as v1_dot_workflows__pb2
+from hatchet_sdk.contracts.v1 import workflows_pb2 as v1_dot_workflows__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -29,7 +29,7 @@ class AdminServiceStub(object):
     """AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
     """
 
-    def __init__(self, channel):
+    def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
         """Constructor.
 
         Args:
