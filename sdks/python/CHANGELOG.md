@@ -5,6 +5,16 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-02-27
+
+### Added
+
+- Adds a `get_current_context` helper on the main `Hatchet` client to allow users to get the current `Context` in tasks (generally in functions called from tasks) without needing to drill the `Context` through function parameters.
+
+### Changed
+
+- Significantly improves serialization performance for task inputs and outputs by using the `dump_json` method on the `TypeAdapter` to do serialization in Rust. Mimics a similar [recent change in FastAPI](https://github.com/fastapi/fastapi/pull/14962).
+
 ## [1.26.2] - 2026-02-26
 
 ### Added
