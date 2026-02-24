@@ -477,26 +477,26 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.InvalidArgument, "invalid event kind: %v", err)
 	}
 
-	var triggerOpts *v1.WorkflowNameTriggerOpts
+	var triggerOptsList []*v1.WorkflowNameTriggerOpts
 
 	if kind == sqlcv1.V1DurableEventLogKindRUN {
-		ttd, err := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, req.TriggerOpts, task)
+		for _, triggerReq := range req.TriggerOpts {
+			ttd, err := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, triggerReq, task)
 
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
+			}
+
+			triggerOptsList = append(triggerOptsList, &v1.WorkflowNameTriggerOpts{
+				TriggerTaskData: ttd,
+			})
 		}
 
-		optsSlice := []*v1.WorkflowNameTriggerOpts{{
-			TriggerTaskData: ttd,
-		}}
-
-		err = d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, optsSlice)
+		err = d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, triggerOptsList)
 
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", err)
 		}
-
-		triggerOpts = optsSlice[0]
 	}
 
 	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
@@ -539,7 +539,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		Payload:           req.Payload,
 		WaitForConditions: createConditionOpts,
 		InvocationCount:   req.InvocationCount,
-		TriggerOpts:       triggerOpts,
+		TriggerOpts:       triggerOptsList,
 	})
 
 	var nde *v1.NonDeterminismError
@@ -572,6 +572,11 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		}
 	}
 
+	var spawnedExternalIds []string
+	for _, t := range ingestionResult.CreatedTasks {
+		spawnedExternalIds = append(spawnedExternalIds, t.ExternalID.String())
+	}
+
 	err = invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_TriggerAck{
 			TriggerAck: &contracts.DurableTaskEventAckResponse{
@@ -579,6 +584,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 				DurableTaskExternalId: req.DurableTaskExternalId,
 				NodeId:                ingestionResult.NodeId,
 				BranchId:              ingestionResult.BranchId,
+				SpawnedExternalIds:    spawnedExternalIds,
 			},
 		},
 	})

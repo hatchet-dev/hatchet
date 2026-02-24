@@ -46,7 +46,7 @@ type IngestDurableTaskEventOpts struct {
 	Payload           []byte
 	WaitForConditions []CreateExternalSignalConditionOpt
 	InvocationCount   int32
-	TriggerOpts       *WorkflowNameTriggerOpts
+	TriggerOpts       []*WorkflowNameTriggerOpts
 }
 
 type IngestDurableTaskEventResult struct {
@@ -304,9 +304,19 @@ func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEve
 	// TODO-DURABLE: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
 	dataToHash := []byte(opts.Kind)
 
-	if opts.TriggerOpts != nil {
-		dataToHash = append(dataToHash, opts.TriggerOpts.Data...)
-		dataToHash = append(dataToHash, []byte(opts.TriggerOpts.WorkflowName)...)
+	if len(opts.TriggerOpts) > 0 {
+		sorted := make([]*WorkflowNameTriggerOpts, len(opts.TriggerOpts))
+		copy(sorted, opts.TriggerOpts)
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].WorkflowName != sorted[j].WorkflowName {
+				return sorted[i].WorkflowName < sorted[j].WorkflowName
+			}
+			return string(sorted[i].Data) < string(sorted[j].Data)
+		})
+		for _, t := range sorted {
+			dataToHash = append(dataToHash, t.Data...)
+			dataToHash = append(dataToHash, []byte(t.WorkflowName)...)
+		}
 	}
 
 	if opts.WaitForConditions != nil {
@@ -591,12 +601,12 @@ func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.D
 	return r.registerSignalMatchConditions(ctx, tx, tenantId, createMatchOpts)
 }
 
-func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, branchId, nodeId int64, triggerOpts *WorkflowNameTriggerOpts, task *sqlcv1.FlattenExternalIdsRow) ([]*DAGWithData, []*V1TaskWithPayload, error) {
-	if triggerOpts == nil {
-		return nil, nil, fmt.Errorf("trigger options cannot be nil for RUN kind durable event log entry")
+func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, branchId, nodeId int64, triggerOpts []*WorkflowNameTriggerOpts, task *sqlcv1.FlattenExternalIdsRow) ([]*DAGWithData, []*V1TaskWithPayload, error) {
+	if len(triggerOpts) == 0 {
+		return nil, nil, fmt.Errorf("trigger options cannot be empty for RUN kind durable event log entry")
 	}
 
-	createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, []*WorkflowNameTriggerOpts{triggerOpts})
+	createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, triggerOpts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
