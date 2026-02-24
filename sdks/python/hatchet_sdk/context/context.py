@@ -1,6 +1,5 @@
 import asyncio
 import json
-from contextvars import ContextVar
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
@@ -521,8 +520,3 @@ class DurableContext(Context):
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
-
-
-ctx_hatchet_context: ContextVar[Context | None] = ContextVar(
-    "ctx_hatchet_context", default=None
-)
