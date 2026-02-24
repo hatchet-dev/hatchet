@@ -57,6 +57,7 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
     ContextVarToCopyDict,
+    ContextVarToCopyHatchetContext,
     ContextVarToCopyInt,
     ContextVarToCopyStr,
     copy_context_vars,
@@ -295,6 +296,12 @@ class Runner:
                             var=ContextVarToCopyInt(
                                 name="ctx_task_retry_count",
                                 value=action.retry_count,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyHatchetContext(
+                                name="ctx_hatchet_context",
+                                value=ctx,
                             )
                         ),
                     ],
