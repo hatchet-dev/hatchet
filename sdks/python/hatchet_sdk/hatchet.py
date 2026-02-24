@@ -12,6 +12,7 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.context.context import ctx_hatchet_context
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
@@ -27,7 +28,6 @@ from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.contextvars import ctx_hatchet_context
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     DefaultFilter,

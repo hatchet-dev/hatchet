@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Literal, ParamSpec, TypeVar
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.context.context import ctx_hatchet_context
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
-    ctx_hatchet_context,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,

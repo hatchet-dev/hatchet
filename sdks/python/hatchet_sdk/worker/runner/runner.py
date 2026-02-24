@@ -20,7 +20,7 @@ from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventLis
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.context.context import Context, DurableContext, ctx_hatchet_context
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_COMPLETED,
@@ -38,7 +38,6 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
-    ctx_hatchet_context,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
