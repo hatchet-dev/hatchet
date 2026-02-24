@@ -1,7 +1,7 @@
 import React from "react";
 import UniversalTabs from "../UniversalTabs";
 
-const languages = ["Python", "Typescript", "Go"];
+const languages = ["Python", "Typescript", "Go", "Ruby"];
 
 type CodeSource = {
   path?: string;

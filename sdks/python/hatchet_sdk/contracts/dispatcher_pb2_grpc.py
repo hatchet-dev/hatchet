@@ -99,6 +99,11 @@ class DispatcherStub(object):
                 request_serializer=dispatcher__pb2.UpsertWorkerLabelsRequest.SerializeToString,
                 response_deserializer=dispatcher__pb2.UpsertWorkerLabelsResponse.FromString,
                 _registered_method=True)
+        self.GetVersion = channel.unary_unary(
+                '/Dispatcher/GetVersion',
+                request_serializer=dispatcher__pb2.GetVersionRequest.SerializeToString,
+                response_deserializer=dispatcher__pb2.GetVersionResponse.FromString,
+                _registered_method=True)
 
 
 class DispatcherServicer(object):
@@ -185,6 +190,15 @@ class DispatcherServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetVersion(self, request, context):
+        """GetVersion returns the dispatcher protocol version as a simple integer.
+        SDKs use this to determine feature support (e.g. slot_config registration).
+        Old engines that do not implement this RPC will return UNIMPLEMENTED.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DispatcherServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -252,6 +266,11 @@ def add_DispatcherServicer_to_server(servicer, server):
                     servicer.UpsertWorkerLabels,
                     request_deserializer=dispatcher__pb2.UpsertWorkerLabelsRequest.FromString,
                     response_serializer=dispatcher__pb2.UpsertWorkerLabelsResponse.SerializeToString,
+            ),
+            'GetVersion': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetVersion,
+                    request_deserializer=dispatcher__pb2.GetVersionRequest.FromString,
+                    response_serializer=dispatcher__pb2.GetVersionResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -605,6 +624,33 @@ class Dispatcher(object):
             '/Dispatcher/UpsertWorkerLabels',
             dispatcher__pb2.UpsertWorkerLabelsRequest.SerializeToString,
             dispatcher__pb2.UpsertWorkerLabelsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetVersion(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/Dispatcher/GetVersion',
+            dispatcher__pb2.GetVersionRequest.SerializeToString,
+            dispatcher__pb2.GetVersionResponse.FromString,
             options,
             channel_credentials,
             insecure,

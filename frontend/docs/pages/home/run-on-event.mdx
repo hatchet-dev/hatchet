@@ -21,7 +21,7 @@ Run-on-event allows you to trigger one or more tasks when a specific event occur
 
 To run a task on an event, you need to declare the event that will trigger the task. This is done by declaring the `on_events` property in the task declaration.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.worker.event_trigger} />
   </Tabs.Tab>
@@ -32,6 +32,9 @@ To run a task on an event, you need to declare the event that will trigger the t
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_event.main.run_workflow_on_event} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.events.worker.event_trigger} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -50,7 +53,7 @@ To run a task on an event, you need to declare the event that will trigger the t
 
 You can push an event to the event queue by calling the `push` method on the Hatchet event client and providing the event name and payload.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.event.event_trigger} />
   </Tabs.Tab>
@@ -59,6 +62,9 @@ You can push an event to the event queue by calling the `push` method on the Hat
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_event.main.pushing_an_event} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.events.event.event_trigger} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -74,7 +80,7 @@ There are two ways to create filters in Hatchet.
 
 The simplest way to create a filter is to register it declaratively with your workflow when it's created. For example:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.worker.event_trigger_with_filter} />
   </Tabs.Tab>
@@ -84,6 +90,9 @@ The simplest way to create a filter is to register it declaratively with your wo
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_event.main.declare_with_filter} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.events.worker.event_trigger_with_filter} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 In each of these cases, we register a filter with the workflow. Note that these "declarative" filters are overwritten each time your workflow is updated, so the ids associated with them will not be stable over time. This allows you to modify a filter in-place or remove a filter, and not need to manually delete it over the API.
@@ -92,7 +101,7 @@ In each of these cases, we register a filter with the workflow. Note that these 
 
 You also can create event filters by using the `filters` clients on the SDKs:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.filter.create_a_filter} />
   </Tabs.Tab>
@@ -101,6 +110,9 @@ You also can create event filters by using the `filters` clients on the SDKs:
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_event.main.create_a_filter} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.events.filter.create_a_filter} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -114,7 +126,7 @@ You also can create event filters by using the `filters` clients on the SDKs:
 
 Then, push an event that uses the filter to determine whether or not to run. For instance, this run will be skipped, since the payload does not match the expression:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.filter.skip_a_run} />
   </Tabs.Tab>
@@ -124,11 +136,14 @@ Then, push an event that uses the filter to determine whether or not to run. For
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_event.main.skip_a_run} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.events.filter.skip_a_run} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 But this one will be triggered since the payload _does_ match the expression:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.filter.trigger_a_run} />
   </Tabs.Tab>
@@ -137,6 +152,9 @@ But this one will be triggered since the payload _does_ match the expression:
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_event.main.trigger_a_run} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.events.filter.trigger_a_run} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -149,7 +167,7 @@ But this one will be triggered since the payload _does_ match the expression:
 
 You can access the filter payload by using the `Context` in the task that was triggered by your event:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.worker.accessing_the_filter_payload} />
   </Tabs.Tab>
@@ -160,6 +178,9 @@ You can access the filter payload by using the `Context` in the task that was tr
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_event.main.accessing_the_filter_payload} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.events.worker.accessing_the_filter_payload} />
   </Tabs.Tab>
 </UniversalTabs>
 

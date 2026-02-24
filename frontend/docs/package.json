@@ -4,15 +4,17 @@
   "description": "Nextra docs template",
   "packageManager": "pnpm@10.16.1",
   "scripts": {
-    "taskfile-dev": "pnpm run generate-examples && next dev",
-    "dev": "next dev",
-    "build": "pnpm run generate-examples && next build",
+    "taskfile-dev": "pnpm run generate-examples && pnpm run generate-llms && pnpm run test-search -- --warn && next dev",
+    "dev": "pnpm run generate-llms && pnpm run test-search -- --warn && next dev",
+    "build": "pnpm run generate-examples && pnpm run generate-llms && pnpm run test-search && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --list-different",
     "prettier:fix": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --write",
-    "generate-examples": "cd ../snippets/ && python3 generate.py"
+    "generate-llms": "tsx scripts/generate-llms.ts",
+    "test-search": "tsx scripts/test-search-quality.ts",
+    "generate-examples": "cd ../snippets/ && python3 generate.py "
   },
   "repository": {
     "type": "git",
@@ -36,11 +38,13 @@
     "js-yaml": "^4.1.1",
     "loops": "^5.0.1",
     "lucide-react": "^0.459.0",
+    "minisearch": "^7.2.0",
     "next": "^14.2.35",
     "nextra": "^3.3.1",
     "nextra-theme-docs": "^3.3.1",
     "postcss": "^8.5.6",
     "posthog-js": "^1.272.1",
+    "posthog-node": "^5.24.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-lottie-player": "^2.1.0",
@@ -50,7 +54,8 @@
     "swagger-ui-react": "^5.29.3",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^3.4.18",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "18.11.10",
@@ -58,6 +63,7 @@
     "@types/react-dom": "^18.3.7",
     "postcss-import": "^16.1.1",
     "prettier": "^3.6.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "resolutions": {

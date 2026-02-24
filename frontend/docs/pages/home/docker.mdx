@@ -2,7 +2,7 @@ import { Tabs, Callout } from "nextra/components";
 
 # Dockerizing Hatchet Applications
 
-This guide explains how to create Dockerfiles for Hatchet applications. There are examples for both Python and TypeScript applications here.
+This guide explains how to create Dockerfiles for Hatchet applications. There are examples for Python, TypeScript, Go, and Ruby applications here.
 
 ## Entrypoint Configuration for Hatchet
 
@@ -14,7 +14,7 @@ Before creating your Dockerfile, understand that Hatchet workers require specifi
 
 ## Example Dockerfiles
 
-<Tabs items={['Python - Poetry', 'Python - pip', 'JavaScript - npm', 'JavaScript - pnpm', 'JavaScript - yarn', 'Go']}>
+<Tabs items={['Python - Poetry', 'Python - pip', 'JavaScript - npm', 'JavaScript - pnpm', 'JavaScript - yarn', 'Go', 'Ruby']}>
   <Tabs.Tab>
 
 ```dockerfile
@@ -212,5 +212,37 @@ CMD ["/app/hatchet-worker"]
 ```
 
   </Tabs.Tab>
+  <Tabs.Tab>
+{/* TODO-RUBY: verify and test this, possibly all dockerfiles */}
+```dockerfile
+FROM ruby:3.3-slim
+
+ENV HATCHET_ENV=production
+
+# Install system dependencies for native gems
+
+RUN apt-get update && \
+ apt-get install -y build-essential && \
+ apt-get clean && \
+ rm -rf /var/lib/apt/lists/\*
+
+WORKDIR /app
+
+COPY Gemfile Gemfile.lock ./
+
+RUN bundle config set --local without 'development test' && \
+ bundle install
+
+COPY . /app
+
+CMD ["bundle", "exec", "ruby", "worker.rb"]
+
+```
+
+<Callout type="info">
+    If you're using a Rake task or binstub to start your worker, replace the CMD with the appropriate command, e.g. `CMD ["bundle", "exec", "rake", "hatchet:worker"]`.
+</Callout>
+  </Tabs.Tab>
 
 </Tabs>
+```

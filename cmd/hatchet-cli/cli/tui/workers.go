@@ -512,10 +512,18 @@ func (v *WorkersView) updateTableRows() {
 		// Started At
 		startedAt := formatRelativeTime(worker.Metadata.CreatedAt)
 
-		// Slots
+		// Slots - aggregate across all slot types
 		slots := "N/A"
-		if worker.AvailableRuns != nil && worker.MaxRuns != nil {
-			slots = fmt.Sprintf("%d / %d", *worker.AvailableRuns, *worker.MaxRuns)
+		if worker.SlotConfig != nil && len(*worker.SlotConfig) > 0 {
+			totalAvailable := 0
+			totalLimit := 0
+			for _, slotConfig := range *worker.SlotConfig {
+				if slotConfig.Available != nil {
+					totalAvailable += *slotConfig.Available
+				}
+				totalLimit += slotConfig.Limit
+			}
+			slots = fmt.Sprintf("%d / %d", totalAvailable, totalLimit)
 		}
 
 		// Last Seen

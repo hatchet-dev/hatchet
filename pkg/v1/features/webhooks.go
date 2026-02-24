@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -97,7 +99,7 @@ type CreateWebhookOpts struct {
 // Deprecated: UpdateWebhookOpts is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type UpdateWebhookOpts struct {
-	EventKeyExpression string
+	EventKeyExpression *string
 }
 
 // Deprecated: WebhooksClient is part of the old generics-based v1 Go SDK.
@@ -142,6 +144,8 @@ func NewWebhooksClient(
 	}
 }
 
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) List(ctx context.Context, opts rest.V1WebhookListParams) (*rest.V1WebhookList, error) {
 	resp, err := c.api.V1WebhookListWithResponse(
 		ctx,
@@ -155,6 +159,8 @@ func (c *webhooksClientImpl) List(ctx context.Context, opts rest.V1WebhookListPa
 	return resp.JSON200, nil
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Get(ctx context.Context, webhookName string) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookGetWithResponse(
 		ctx,
@@ -168,6 +174,8 @@ func (c *webhooksClientImpl) Get(ctx context.Context, webhookName string) (*rest
 	return resp.JSON200, nil
 }
 
+// Deprecated: Create is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error) {
 	if opts.Auth == nil {
 		return nil, fmt.Errorf("auth is required")
@@ -190,6 +198,8 @@ func (c *webhooksClientImpl) Create(ctx context.Context, opts CreateWebhookOpts)
 	return resp.JSON200, nil
 }
 
+// Deprecated: Update is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Update(ctx context.Context, webhookName string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookUpdateWithResponse(
 		ctx,
@@ -206,6 +216,8 @@ func (c *webhooksClientImpl) Update(ctx context.Context, webhookName string, opt
 	return resp.JSON200, nil
 }
 
+// Deprecated: Delete is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Delete(ctx context.Context, webhookName string) error {
 	_, err := c.api.V1WebhookDeleteWithResponse(
 		ctx,

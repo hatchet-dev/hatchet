@@ -120,6 +120,7 @@ import {
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
+  V1WebhookResponse,
   V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
@@ -1007,7 +1008,7 @@ export class Api<
     data?: any,
     params: RequestParams = {},
   ) =>
-    this.request<Record<string, any>, APIErrors>({
+    this.request<V1WebhookResponse, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: "POST",
       body: data,

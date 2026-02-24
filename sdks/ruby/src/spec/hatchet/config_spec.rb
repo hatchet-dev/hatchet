@@ -8,7 +8,7 @@ RSpec.describe Hatchet::Config do
   let(:token_with_tenant_id) do
     # JWT with payload: {"sub": "jwt-tenant-123"}
     header = "eyJhbGciOiJIUzI1NiJ9" # {"alg":"HS256"}
-    payload = Base64.encode64('{"sub":"jwt-tenant-123"}').gsub(/\n/, "").gsub(/=+$/, "")
+    payload = Base64.encode64('{"sub":"jwt-tenant-123"}').gsub("\n", "").gsub(/=+$/, "")
     signature = "fake-signature"
     "#{header}.#{payload}.#{signature}"
   end
@@ -43,11 +43,6 @@ RSpec.describe Hatchet::Config do
         expect(config.grpc_max_recv_message_length).to eq(4 * 1024 * 1024)
         expect(config.grpc_max_send_message_length).to eq(4 * 1024 * 1024)
         expect(config.worker_preset_labels).to eq({})
-        expect(config.enable_force_kill_sync_threads).to be false
-        expect(config.enable_thread_pool_monitoring).to be false
-        expect(config.disable_log_capture).to be false
-        expect(config.grpc_enable_fork_support).to be false
-        expect(config.terminate_worker_after_num_tasks).to be_nil
         expect(config.listener_v2_timeout).to be_nil
       end
 
@@ -59,9 +54,7 @@ RSpec.describe Hatchet::Config do
           namespace: "test_namespace",
           grpc_max_recv_message_length: 8 * 1024 * 1024,
           worker_preset_labels: { "env" => "test" },
-          enable_force_kill_sync_threads: true,
-          disable_log_capture: true,
-          listener_v2_timeout: 5000
+          listener_v2_timeout: 5000,
         )
 
         expect(config.host_port).to eq("custom.example.com:8080")
@@ -69,8 +62,6 @@ RSpec.describe Hatchet::Config do
         expect(config.namespace).to eq("test_namespace_")
         expect(config.grpc_max_recv_message_length).to eq(8 * 1024 * 1024)
         expect(config.worker_preset_labels).to eq({ "env" => "test" })
-        expect(config.enable_force_kill_sync_threads).to be true
-        expect(config.disable_log_capture).to be true
         expect(config.listener_v2_timeout).to eq(5000)
       end
 
@@ -85,12 +76,12 @@ RSpec.describe Hatchet::Config do
         expect do
           described_class.new(token: "")
         end.to raise_error(Hatchet::Error,
-                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.")
+                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.",)
       end
 
       it "raises error for invalid JWT token" do
         expect { described_class.new(token: invalid_token) }.to raise_error(
-          Hatchet::Error, /Hatchet Token must be a valid JWT/
+          Hatchet::Error, /Hatchet Token must be a valid JWT/,
         )
       end
     end
@@ -100,7 +91,7 @@ RSpec.describe Hatchet::Config do
         expect do
           described_class.new
         end.to raise_error(Hatchet::Error,
-                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.")
+                           "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.",)
       end
     end
   end
@@ -228,51 +219,6 @@ RSpec.describe Hatchet::Config do
         expect(config.send(:parse_int, nil)).to be_nil
       end
     end
-
-    describe "#parse_bool" do
-      it "parses truthy values" do
-        expect(config.send(:parse_bool, "true")).to be true
-        expect(config.send(:parse_bool, "1")).to be true
-        expect(config.send(:parse_bool, "yes")).to be true
-        expect(config.send(:parse_bool, "on")).to be true
-        expect(config.send(:parse_bool, "TRUE")).to be true
-        expect(config.send(:parse_bool, true)).to be true
-      end
-
-      it "parses falsy values" do
-        expect(config.send(:parse_bool, "false")).to be false
-        expect(config.send(:parse_bool, "0")).to be false
-        expect(config.send(:parse_bool, "no")).to be false
-        expect(config.send(:parse_bool, "off")).to be false
-        expect(config.send(:parse_bool, false)).to be false
-      end
-
-      it "returns nil for nil" do
-        expect(config.send(:parse_bool, nil)).to be_nil
-      end
-    end
-
-    describe "#parse_hash" do
-      it "parses key=value pairs" do
-        result = config.send(:parse_hash, "key1=value1,key2=value2")
-        expect(result).to eq({ "key1" => "value1", "key2" => "value2" })
-      end
-
-      it "handles spaces around keys and values" do
-        result = config.send(:parse_hash, " key1 = value1 , key2 = value2 ")
-        expect(result).to eq({ "key1" => "value1", "key2" => "value2" })
-      end
-
-      it "returns nil for invalid input" do
-        expect(config.send(:parse_hash, nil)).to be_nil
-        expect(config.send(:parse_hash, "")).to be_nil
-      end
-
-      it "returns empty hash for malformed input" do
-        result = config.send(:parse_hash, "invalid_format")
-        expect(result).to eq({})
-      end
-    end
   end
 
   describe "logger" do
@@ -297,7 +243,7 @@ RSpec.describe Hatchet::Config do
     end
 
     after do
-      File.delete(temp_env_file) if File.exist?(temp_env_file)
+      FileUtils.rm_f(temp_env_file)
       ENV.delete("TEST_VAR")
     end
 
@@ -305,7 +251,7 @@ RSpec.describe Hatchet::Config do
       File.write(temp_env_file, "TEST_VAR=test_value\nHATCHET_CLIENT_TOKEN=#{valid_token}")
 
       config = described_class.new
-      expect(ENV["TEST_VAR"]).to eq("test_value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("test_value")
       expect(config.token).to eq(valid_token)
     end
 
@@ -313,7 +259,7 @@ RSpec.describe Hatchet::Config do
       File.write(temp_env_file, "TEST_VAR=\"quoted_value\"\nHATCHET_CLIENT_TOKEN='#{valid_token}'")
 
       config = described_class.new
-      expect(ENV["TEST_VAR"]).to eq("quoted_value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("quoted_value")
       expect(config.token).to eq(valid_token)
     end
 
@@ -328,7 +274,7 @@ RSpec.describe Hatchet::Config do
 
       config = described_class.new
       expect(config.token).to eq(valid_token)
-      expect(ENV["TEST_VAR"]).to eq("value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("value")
     end
 
     it "does not override existing environment variables" do
@@ -336,7 +282,7 @@ RSpec.describe Hatchet::Config do
       File.write(temp_env_file, "TEST_VAR=file_value\nHATCHET_CLIENT_TOKEN=#{valid_token}")
 
       described_class.new
-      expect(ENV["TEST_VAR"]).to eq("existing_value")
+      expect(ENV.fetch("TEST_VAR", nil)).to eq("existing_value")
     end
   end
 end

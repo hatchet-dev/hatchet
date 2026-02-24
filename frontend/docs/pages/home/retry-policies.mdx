@@ -27,7 +27,7 @@ This simple retry mechanism can help to mitigate transient failures, such as net
 
 To enable retries for a task, simply add the `retries` property to the task object in your task definition:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
     <Snippet src={snippets.python.retries.worker.simple_step_retries} />
   </Tabs.Tab>
@@ -36,6 +36,9 @@ To enable retries for a task, simply add the `retries` property to the task obje
   </Tabs.Tab>
   <Tabs.Tab>
     <Snippet src={snippets.go.retries.main.simple_step_retries} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.retries.worker.simple_step_retries} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -49,7 +52,7 @@ Additionally, if a task interacts with external services or databases, you shoul
 
 If you need to access the current retry count within a task, you can use the `retryCount` method available in the task context:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
     <Snippet src={snippets.python.retries.worker.retries_with_count} />
   </Tabs.Tab>
@@ -59,13 +62,16 @@ If you need to access the current retry count within a task, you can use the `re
   <Tabs.Tab>
     <Snippet src={snippets.go.retries.main.retries_with_count} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.retries.worker.retries_with_count} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Exponential Backoff
 
 Hatchet also supports exponential backoff for retries, which can be useful for handling failures in a more resilient manner. Exponential backoff increases the delay between retries exponentially, giving the failing service more time to recover before the next retry.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.retries.worker.retries_with_backoff} />
   </Tabs.Tab>
@@ -74,6 +80,9 @@ Hatchet also supports exponential backoff for retries, which can be useful for h
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.retries.main.retries_with_backoff} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.retries.worker.retries_with_backoff} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -85,7 +94,7 @@ The Hatchet SDKs each expose a `NonRetryable` exception, which allows you to byp
 2. A task that contains a single non-idempotent operation that can fail but cannot safely be rerun on failure, such as a billing operation.
 3. A failure that requires manual intervention to resolve.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.non_retryable.worker.non_retryable_task} />
   </Tabs.Tab>
@@ -96,6 +105,9 @@ The Hatchet SDKs each expose a `NonRetryable` exception, which allows you to byp
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.retries.main.non_retryable_error} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.non_retryable.worker.non_retryable_task} />
   </Tabs.Tab>
 </UniversalTabs>
 

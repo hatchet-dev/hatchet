@@ -1,0 +1,11 @@
+module Hatchet
+  module Features
+    class Workflows
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+      def get: (String workflow_id) -> untyped
+      def list: (?workflow_name: String?, ?limit: Integer?, ?offset: Integer?) -> untyped
+      def get_version: (String workflow_id, ?version: String?) -> untyped
+      def delete: (String workflow_id) -> void
+    end
+  end
+end

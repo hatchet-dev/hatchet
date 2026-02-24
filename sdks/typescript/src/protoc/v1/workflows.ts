@@ -409,11 +409,20 @@ export interface CreateTaskOpts {
   conditions?: TaskConditions | undefined;
   /** (optional) the timeout for the schedule */
   scheduleTimeout?: string | undefined;
+  /** (optional) whether the task is durable */
+  isDurable: boolean;
+  /** (optional) slot requests (slot_type -> units) */
+  slotRequests: { [key: string]: number };
 }
 
 export interface CreateTaskOpts_WorkerLabelsEntry {
   key: string;
   value: DesiredWorkerLabels | undefined;
+}
+
+export interface CreateTaskOpts_SlotRequestsEntry {
+  key: string;
+  value: number;
 }
 
 export interface CreateTaskRateLimit {
@@ -1715,6 +1724,8 @@ function createBaseCreateTaskOpts(): CreateTaskOpts {
     concurrency: [],
     conditions: undefined,
     scheduleTimeout: undefined,
+    isDurable: false,
+    slotRequests: {},
   };
 }
 
@@ -1762,6 +1773,15 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     if (message.scheduleTimeout !== undefined) {
       writer.uint32(106).string(message.scheduleTimeout);
     }
+    if (message.isDurable !== false) {
+      writer.uint32(112).bool(message.isDurable);
+    }
+    Object.entries(message.slotRequests).forEach(([key, value]) => {
+      CreateTaskOpts_SlotRequestsEntry.encode(
+        { key: key as any, value },
+        writer.uint32(122).fork()
+      ).join();
+    });
     return writer;
   },
 
@@ -1879,6 +1899,25 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
           message.scheduleTimeout = reader.string();
           continue;
         }
+        case 14: {
+          if (tag !== 112) {
+            break;
+          }
+
+          message.isDurable = reader.bool();
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          const entry15 = CreateTaskOpts_SlotRequestsEntry.decode(reader, reader.uint32());
+          if (entry15.value !== undefined) {
+            message.slotRequests[entry15.key] = entry15.value;
+          }
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1923,6 +1962,16 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
       scheduleTimeout: isSet(object.scheduleTimeout)
         ? globalThis.String(object.scheduleTimeout)
         : undefined,
+      isDurable: isSet(object.isDurable) ? globalThis.Boolean(object.isDurable) : false,
+      slotRequests: isObject(object.slotRequests)
+        ? Object.entries(object.slotRequests).reduce<{ [key: string]: number }>(
+            (acc, [key, value]) => {
+              acc[key] = Number(value);
+              return acc;
+            },
+            {}
+          )
+        : {},
     };
   },
 
@@ -1973,6 +2022,18 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     if (message.scheduleTimeout !== undefined) {
       obj.scheduleTimeout = message.scheduleTimeout;
     }
+    if (message.isDurable !== false) {
+      obj.isDurable = message.isDurable;
+    }
+    if (message.slotRequests) {
+      const entries = Object.entries(message.slotRequests);
+      if (entries.length > 0) {
+        obj.slotRequests = {};
+        entries.forEach(([k, v]) => {
+          obj.slotRequests[k] = Math.round(v);
+        });
+      }
+    }
     return obj;
   },
 
@@ -2004,6 +2065,15 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         ? TaskConditions.fromPartial(object.conditions)
         : undefined;
     message.scheduleTimeout = object.scheduleTimeout ?? undefined;
+    message.isDurable = object.isDurable ?? false;
+    message.slotRequests = Object.entries(object.slotRequests ?? {}).reduce<{
+      [key: string]: number;
+    }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Number(value);
+      }
+      return acc;
+    }, {});
     return message;
   },
 };
@@ -2088,6 +2158,87 @@ export const CreateTaskOpts_WorkerLabelsEntry: MessageFns<CreateTaskOpts_WorkerL
       object.value !== undefined && object.value !== null
         ? DesiredWorkerLabels.fromPartial(object.value)
         : undefined;
+    return message;
+  },
+};
+
+function createBaseCreateTaskOpts_SlotRequestsEntry(): CreateTaskOpts_SlotRequestsEntry {
+  return { key: '', value: 0 };
+}
+
+export const CreateTaskOpts_SlotRequestsEntry: MessageFns<CreateTaskOpts_SlotRequestsEntry> = {
+  encode(
+    message: CreateTaskOpts_SlotRequestsEntry,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.key !== '') {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).int32(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CreateTaskOpts_SlotRequestsEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCreateTaskOpts_SlotRequestsEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.value = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CreateTaskOpts_SlotRequestsEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : '',
+      value: isSet(object.value) ? globalThis.Number(object.value) : 0,
+    };
+  },
+
+  toJSON(message: CreateTaskOpts_SlotRequestsEntry): unknown {
+    const obj: any = {};
+    if (message.key !== '') {
+      obj.key = message.key;
+    }
+    if (message.value !== 0) {
+      obj.value = Math.round(message.value);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<CreateTaskOpts_SlotRequestsEntry>): CreateTaskOpts_SlotRequestsEntry {
+    return CreateTaskOpts_SlotRequestsEntry.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<CreateTaskOpts_SlotRequestsEntry>
+  ): CreateTaskOpts_SlotRequestsEntry {
+    const message = createBaseCreateTaskOpts_SlotRequestsEntry();
+    message.key = object.key ?? '';
+    message.value = object.value ?? 0;
     return message;
   },
 };

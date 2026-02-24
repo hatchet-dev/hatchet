@@ -19,6 +19,11 @@ type TaskBase interface {
 	Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts
 }
 
+const (
+	slotTypeDefault = "default"
+	slotTypeDurable = "durable"
+)
+
 type TaskShared struct {
 	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
 	ExecutionTimeout *time.Duration
@@ -231,6 +236,10 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
+	base.IsDurable = false
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDefault: 1}
+	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 
@@ -283,6 +292,10 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *crea
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
+	base.IsDurable = true
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDurable: 1}
+	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 	return base
@@ -294,6 +307,10 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *cr
 
 	base.ReadableId = "on-failure"
 	base.Action = getActionID(workflowName, "on-failure")
+	base.IsDurable = false
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDefault: 1}
+	}
 
 	return base
 }

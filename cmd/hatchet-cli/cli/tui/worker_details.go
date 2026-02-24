@@ -245,10 +245,18 @@ func (v *WorkerDetailsView) renderWorkerInfo() string {
 	b.WriteString(sectionStyle.Render(labelStyle.Render("Last Heartbeat: ") + lastHeartbeat))
 	b.WriteString("\n\n")
 
-	// Available Run Slots
+	// Available Run Slots - aggregate across all slot types
 	slotsStr := "N/A"
-	if v.worker.AvailableRuns != nil && v.worker.MaxRuns != nil {
-		slotsStr = fmt.Sprintf("%d / %d", *v.worker.AvailableRuns, *v.worker.MaxRuns)
+	if v.worker.SlotConfig != nil && len(*v.worker.SlotConfig) > 0 {
+		totalAvailable := 0
+		totalLimit := 0
+		for _, slotConfig := range *v.worker.SlotConfig {
+			if slotConfig.Available != nil {
+				totalAvailable += *slotConfig.Available
+			}
+			totalLimit += slotConfig.Limit
+		}
+		slotsStr = fmt.Sprintf("%d / %d", totalAvailable, totalLimit)
 	}
 	b.WriteString(sectionStyle.Render(labelStyle.Render("Available Run Slots: ") + slotsStr))
 	b.WriteString("\n\n")

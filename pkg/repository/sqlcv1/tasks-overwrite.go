@@ -153,7 +153,7 @@ type CreateTasksParams struct {
 	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
 	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
-	ParentTaskExternalIds        []uuid.UUID          `json:"parentTaskExternalIds"`
+	ParentTaskExternalIds        []*uuid.UUID         `json:"parentTaskExternalIds"`
 	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
 	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
 	ChildIndex                   []pgtype.Int8        `json:"childIndex"`
@@ -729,13 +729,16 @@ WITH input AS (
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM
+        v1_task_runtime_slot
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 ), deleted_runtimes AS (
     DELETE FROM
         v1_task_runtime
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM runtimes_to_delete)
-    -- return a constant for ordering
-    RETURNING 1 AS cte_order
 )
 SELECT
     t.queue,

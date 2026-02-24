@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"log"
 	"time"
 
@@ -39,6 +38,7 @@ type sharedRepository struct {
 	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
 	stepsInWorkflowVersionCache *expirable.LRU[uuid.UUID, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
 	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
+	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
 
 	celParser       *cel.CELParser
 	env             *celgo.Env
@@ -56,7 +56,6 @@ func newSharedRepository(
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
-	enforceLimitsFunc func(ctx context.Context, tenantId string) (bool, error),
 	cacheDuration time.Duration,
 	enableDurableUserEventLog bool,
 ) (*sharedRepository, func() error) {
@@ -70,6 +69,7 @@ func newSharedRepository(
 	tenantIdWorkflowNameCache := expirable.NewLRU(10000, func(key string, value *sqlcv1.ListWorkflowsByNamesRow) {}, 5*time.Second)
 	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
 	stepIdLabelsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
+	stepIdSlotRequestsCache := expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute)
 
 	celParser := cel.NewCELParser()
 
@@ -99,6 +99,7 @@ func newSharedRepository(
 		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
 		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
 		stepIdLabelsCache:           stepIdLabelsCache,
+		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
 		celParser:                   celParser,
 		env:                         env,
 		taskLookupCache:             lookupCache,
@@ -106,7 +107,7 @@ func newSharedRepository(
 		enableDurableUserEventLog:   enableDurableUserEventLog,
 	}
 
-	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, enforceLimitsFunc, cacheDuration)
+	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
 
 	s.m = tenantLimitRepository
 

@@ -1,3 +1,5 @@
+import type { SearchSuggestion } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
+
 export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
@@ -17,7 +19,8 @@ export interface ParsedLogQuery {
   errors: string[];
 }
 
-export interface AutocompleteSuggestion {
+export interface AutocompleteSuggestion
+  extends SearchSuggestion<'key' | 'value'> {
   type: 'key' | 'value';
   label: string;
   value: string;

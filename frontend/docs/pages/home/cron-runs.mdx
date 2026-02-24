@@ -51,7 +51,9 @@ Each field can contain a specific value, an asterisk (`*`) to represent all poss
 
 You can define a task with a cron schedule by configuring the cron expression as part of the task definition:
 
-<UniversalTabs items={["Python-Sync", "Python-Async", "Typescript", "Go"]}>
+<UniversalTabs
+  items={["Python-Sync", "Python-Async", "Typescript", "Go", "Ruby"]}
+>
   <Tabs.Tab title="Python-Sync">
     <Snippet
       src={
@@ -74,6 +76,9 @@ You can define a task with a cron schedule by configuring the cron expression as
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.cron.main.workflow_definition_cron_trigger} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.cron.worker.cron_workflow_definition} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 In the examples above, we set the `on cron` property of the task. The property specifies the cron expression that determines when the task should be triggered.
@@ -92,7 +97,9 @@ You can create dynamic cron triggers programmatically via the API. This is usefu
 
 Here's an example of creating a a cron to trigger a report for a specific customer every day at noon:
 
-<UniversalTabs items={["Python-Sync", "Python-Async", "Typescript", "Go"]}>
+<UniversalTabs
+  items={["Python-Sync", "Python-Async", "Typescript", "Go", "Ruby"]}
+>
   <Tabs.Tab title="Python-Sync">
     <Snippet src={snippets.python.cron.programatic_sync.create} />
   </Tabs.Tab>
@@ -104,6 +111,9 @@ Here's an example of creating a a cron to trigger a report for a specific custom
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.cron.main.create} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.cron.programatic_sync.create} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -120,7 +130,9 @@ When creating a cron via the API, you will receive a cron trigger object with a 
 
 You can delete a cron trigger by passing the cron object or a cron trigger id to the delete method.
 
-<UniversalTabs items={["Python-Sync", "Python-Async", "Typescript", "Go"]}>
+<UniversalTabs
+  items={["Python-Sync", "Python-Async", "Typescript", "Go", "Ruby"]}
+>
   <Tabs.Tab title="Python-Sync">
     <Snippet src={snippets.python.cron.programatic_sync.delete} />
   </Tabs.Tab>
@@ -132,6 +144,9 @@ You can delete a cron trigger by passing the cron object or a cron trigger id to
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.cron.main.delete} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.cron.programatic_sync.delete} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -145,7 +160,9 @@ You can delete a cron trigger by passing the cron object or a cron trigger id to
 
 Retrieves a list of all task cron triggers matching the criteria.
 
-<UniversalTabs items={["Python-Sync", "Python-Async", "Typescript", "Go"]}>
+<UniversalTabs
+  items={["Python-Sync", "Python-Async", "Typescript", "Go", "Ruby"]}
+>
   <Tabs.Tab title="Python-Sync">
     <Snippet src={snippets.python.cron.programatic_sync.list} />
   </Tabs.Tab>
@@ -157,6 +174,9 @@ Retrieves a list of all task cron triggers matching the criteria.
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.cron.main.list} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.cron.programatic_sync.list} />
   </Tabs.Tab>
 </UniversalTabs>
 

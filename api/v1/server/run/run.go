@@ -510,13 +510,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
 		idUuid, err := uuid.Parse(id)
 
 		if err != nil {
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid worker id")
 		}
 
-		worker, err := config.V1.Workers().GetWorkerById(idUuid)
+		worker, err := config.V1.Workers().GetWorkerById(ctx, idUuid)
 
 		if err != nil {
 			return nil, "", err

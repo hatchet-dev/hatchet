@@ -307,6 +307,28 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
           signingSecret: data.signingSecret,
         },
       };
+    case V1WebhookSourceName.SVIX:
+      if (!data.signingSecret) {
+        throw new Error('signing secret is required for Svix webhooks');
+      }
+
+      return {
+        ...basePayload,
+        sourceName: data.sourceName,
+        name: data.name,
+        eventKeyExpression: data.eventKeyExpression,
+        authType: V1WebhookAuthType.HMAC,
+        auth: {
+          // Svix uses its own SDK for verification; these HMAC fields are
+          // stored but the server-side validation implements Svix's signature
+          // verification protocol.
+          // See: https://docs.svix.com/receiving/verifying-payloads/how-to-verify-a-payload
+          algorithm: V1WebhookHMACAlgorithm.SHA256,
+          encoding: V1WebhookHMACEncoding.BASE64,
+          signatureHeaderName: 'svix-signature',
+          signingSecret: data.signingSecret,
+        },
+      };
     default:
       const exhaustiveCheck: never = data.sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
@@ -321,6 +343,7 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
     case V1WebhookSourceName.LINEAR:
     case V1WebhookSourceName.STRIPE:
     case V1WebhookSourceName.SLACK:
+    case V1WebhookSourceName.SVIX:
       return '';
     default:
       const exhaustiveCheck: never = sourceName;
@@ -344,6 +367,7 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
     case V1WebhookSourceName.LINEAR:
     case V1WebhookSourceName.STRIPE:
     case V1WebhookSourceName.SLACK:
+    case V1WebhookSourceName.SVIX:
       return '';
     default:
       const exhaustiveCheck: never = sourceName;

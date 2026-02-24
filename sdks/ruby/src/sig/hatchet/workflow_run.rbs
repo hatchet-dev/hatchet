@@ -1,0 +1,15 @@
+module Hatchet
+  class WorkflowRunRef
+    attr_reader workflow_run_id: String
+
+    def initialize: (workflow_run_id: String, ?client: Client?, ?listener: WorkflowRunListener?) -> void
+    def result: () -> Hash[String, untyped]
+  end
+
+  class TaskRunRef
+    attr_reader workflow_run_id: String
+
+    def initialize: (workflow_run_ref: WorkflowRunRef, task_name: Symbol | String) -> void
+    def result: () -> Hash[String, untyped]
+  end
+end

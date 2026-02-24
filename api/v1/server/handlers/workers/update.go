@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -36,5 +37,12 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 		return nil, err
 	}
 
-	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, nil, nil, nil)), nil
+	workerSlotConfig, err := buildWorkerSlotConfig(ctx.Request().Context(), t.config.V1.Workers(), worker.Worker.TenantId, []uuid.UUID{updatedWorker.ID})
+	if err != nil {
+		return nil, err
+	}
+
+	slotConfig := workerSlotConfig[updatedWorker.ID]
+
+	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, slotConfig, nil)), nil
 }

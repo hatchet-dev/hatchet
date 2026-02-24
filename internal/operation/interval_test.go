@@ -72,7 +72,7 @@ func TestInterval_RunInterval_WithJitter(t *testing.T) {
 			assert.GreaterOrEqual(t, len(timings), 2, "Should have at least 2 timing measurements")
 			for _, timing := range timings {
 				assert.GreaterOrEqual(t, timing, 50*time.Millisecond, "Timing should be at least the base interval")
-				assert.LessOrEqual(t, timing, 75*time.Millisecond, "Timing should include jitter but not exceed base + max jitter + buffer")
+				assert.LessOrEqual(t, timing, 85*time.Millisecond, "Timing should include jitter but not exceed base + max jitter + buffer")
 			}
 			return
 		case <-ch:

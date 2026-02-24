@@ -9,6 +9,15 @@ WHERE
     sc.tenant_id = @tenantId::uuid AND
     sc.is_active = TRUE;
 
+-- name: GetConcurrencyStrategyById :one
+SELECT
+    sc.*
+FROM
+    v1_step_concurrency sc
+WHERE
+    sc.tenant_id = @tenantId::uuid AND
+    sc.id = @id::bigint;
+
 -- name: ListConcurrencyStrategiesByWorkflowVersionId :many
 SELECT c.*, s."readableId" AS step_readable_id
 FROM v1_step_concurrency c

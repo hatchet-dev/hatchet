@@ -11,7 +11,7 @@ When a task is canceled, Hatchet sends a cancellation signal to the task. The ta
 
 ## Cancellation Mechanisms
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.cancellation.worker.checking_exit_flag}
@@ -36,6 +36,10 @@ When a task is canceled, Hatchet sends a cancellation signal to the task. The ta
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.cancellations.main.cancelled_task}/>
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.cancellation.worker.checking_exit_flag} />
+    <Snippet src={snippets.ruby.cancellation.worker.self_cancelling_task} />
   </Tabs.Tab>
 </UniversalTabs>
 

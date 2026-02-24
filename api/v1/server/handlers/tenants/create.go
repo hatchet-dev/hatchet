@@ -1,7 +1,6 @@
 package tenants
 
 import (
-	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -80,8 +79,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	tenantId := tenant.ID
 
-	err = t.config.V1.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
-
+	err = t.config.V1.TenantLimit().UpdateLimits(ctx.Request().Context(), tenantId, t.config.V1.TenantLimit().DefaultLimits())
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,6 @@
 export default {
   home: {
-    title: "User Guide",
+    title: "Guide",
     type: "page",
     theme: {
       toc: false,
@@ -27,6 +27,14 @@ export default {
   cli: {
     title: "CLI Reference",
     type: "page",
+    theme: {
+      toc: false,
+    },
+  },
+  "agent-instructions": {
+    title: "Agent Instructions",
+    type: "page",
+    display: "hidden",
     theme: {
       toc: false,
     },

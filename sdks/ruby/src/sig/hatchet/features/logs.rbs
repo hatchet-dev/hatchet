@@ -1,0 +1,8 @@
+module Hatchet
+  module Features
+    class Logs
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+      def list: (String task_run_id, ?limit: Integer, ?since: Time?, ?until_time: Time?) -> untyped
+    end
+  end
+end

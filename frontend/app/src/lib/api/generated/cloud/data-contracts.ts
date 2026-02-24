@@ -821,18 +821,143 @@ export interface AutumnCustomerProductsUpdatedEvent {
 export interface AutumnCustomerProductsUpdatedEventData {
   customer: AutumnCustomer;
   entity: {
-    id: string;
+    /** @format int64 */
+    created_at?: number;
     customer_id: string;
+    env?: string;
+    features?: AutumnFeaturesMap;
+    id: string;
+    name?: string;
     products: AutumnCustomerProduct[];
+  };
+  scenario?: string;
+  updated_product?: {
+    archived?: boolean;
+    base_variant_id?: string;
+    /** @format int64 */
+    created_at?: number;
+    env?: string;
+    free_trial?: object;
+    group?: string;
+    id: string;
+    is_add_on?: boolean;
+    is_default?: boolean;
+    items?: AutumnProductItem[];
+    name?: string;
+    properties?: {
+      has_trial?: boolean;
+      interval_group?: string;
+      is_free?: boolean;
+      is_one_off?: boolean;
+      updateable?: boolean;
+    };
+    version?: number;
   };
 }
 
 export interface AutumnCustomer {
+  autumn_id?: string;
+  /** @format int64 */
+  created_at?: number;
+  email?: string;
+  env?: string;
+  features?: AutumnFeaturesMap;
+  fingerprint?: string;
   id: string;
-  metadata: object;
+  metadata: Record<string, any>;
   name: string;
+  products?: AutumnCustomerProduct[];
+  send_email_receipts?: boolean;
+  stripe_id?: string;
 }
 
 export interface AutumnCustomerProduct {
+  /** @format int64 */
+  canceled_at?: number;
+  /** @format int64 */
+  current_period_end?: number;
+  /** @format int64 */
+  current_period_start?: number;
+  group?: string;
   id: string;
+  is_add_on?: boolean;
+  is_default?: boolean;
+  items?: AutumnProductItem[];
+  name?: string;
+  quantity?: number;
+  /** @format int64 */
+  started_at?: number;
+  status?: string;
+  version?: number;
+}
+
+export type AutumnFeaturesMap = Record<string, AutumnFeature>;
+
+export interface AutumnFeature {
+  balance?: number;
+  breakdown?: AutumnFeatureBreakdown[];
+  credit_schema?: AutumnFeatureCreditSchemaItem[];
+  id: string;
+  included_usage?: number;
+  interval?: string;
+  interval_count?: number;
+  name: string;
+  /** @format int64 */
+  next_reset_at?: number;
+  overage_allowed?: boolean;
+  type: string;
+  unlimited?: boolean;
+  usage?: number;
+}
+
+export interface AutumnFeatureBreakdown {
+  balance?: number;
+  /** @format int64 */
+  expires_at?: number;
+  included_usage?: number;
+  interval?: string;
+  interval_count?: number;
+  /** @format int64 */
+  next_reset_at?: number;
+  overage_allowed?: boolean;
+  usage?: number;
+}
+
+export interface AutumnFeatureCreditSchemaItem {
+  credit_amount: number;
+  feature_id: string;
+}
+
+export interface AutumnProductItem {
+  billing_units?: number;
+  display?: AutumnProductItemDisplay;
+  entity_feature_id?: string;
+  feature?: {
+    archived?: boolean;
+    credit_schema?: {
+      credit_cost: number;
+      metered_feature_id: string;
+    }[];
+    display?: {
+      plural?: string;
+      singular?: string;
+    };
+    id: string;
+    name: string;
+    type: string;
+  };
+  feature_id?: string;
+  feature_type?: string;
+  included_usage?: number;
+  interval?: string;
+  interval_count?: number;
+  price?: number;
+  reset_usage_when_enabled?: boolean;
+  type: string;
+  usage_model?: string;
+}
+
+export interface AutumnProductItemDisplay {
+  primary_text?: string;
+  secondary_text?: string;
 }

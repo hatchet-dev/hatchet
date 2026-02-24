@@ -109,6 +109,39 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	return isActive, err
 }
 
+const getConcurrencyStrategyById = `-- name: GetConcurrencyStrategyById :one
+SELECT
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+FROM
+    v1_step_concurrency sc
+WHERE
+    sc.tenant_id = $1::uuid AND
+    sc.id = $2::bigint
+`
+
+type GetConcurrencyStrategyByIdParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       int64     `json:"id"`
+}
+
+func (q *Queries) GetConcurrencyStrategyById(ctx context.Context, db DBTX, arg GetConcurrencyStrategyByIdParams) (*V1StepConcurrency, error) {
+	row := db.QueryRow(ctx, getConcurrencyStrategyById, arg.Tenantid, arg.ID)
+	var i V1StepConcurrency
+	err := row.Scan(
+		&i.ID,
+		&i.ParentStrategyID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.StepID,
+		&i.IsActive,
+		&i.Strategy,
+		&i.Expression,
+		&i.TenantID,
+		&i.MaxConcurrency,
+	)
+	return &i, err
+}
+
 const getWorkflowConcurrencyQueueCounts = `-- name: GetWorkflowConcurrencyQueueCounts :many
 SELECT
     w."name" AS "workflowName",

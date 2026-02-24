@@ -44,11 +44,10 @@ type AdminServiceOpts struct {
 	v                           validator.Validator
 	localScheduler              *scheduler.Scheduler
 	localDispatcher             *dispatcher.DispatcherImpl
-	optimisticSchedulingEnabled bool
 	l                           *zerolog.Logger
-
-	grpcTriggersEnabled bool
-	grpcTriggerSlots    int
+	grpcTriggerSlots            int
+	optimisticSchedulingEnabled bool
+	grpcTriggersEnabled         bool
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {

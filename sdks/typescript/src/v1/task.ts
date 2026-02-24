@@ -137,6 +137,9 @@ export type CreateBaseTaskOpts<
    * (optional) the concurrency options for the task
    */
   concurrency?: Concurrency | Concurrency[];
+
+  /** @internal */
+  slotRequests?: Record<string, number>;
 };
 
 export type CreateWorkflowTaskOpts<

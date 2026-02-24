@@ -1228,6 +1228,7 @@ const (
 	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
 	V1IncomingWebhookSourceNameSLACK   V1IncomingWebhookSourceName = "SLACK"
 	V1IncomingWebhookSourceNameLINEAR  V1IncomingWebhookSourceName = "LINEAR"
+	V1IncomingWebhookSourceNameSVIX    V1IncomingWebhookSourceName = "SVIX"
 )
 
 func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
@@ -2009,6 +2010,7 @@ const (
 	WorkerSDKSGO         WorkerSDKS = "GO"
 	WorkerSDKSPYTHON     WorkerSDKS = "PYTHON"
 	WorkerSDKSTYPESCRIPT WorkerSDKS = "TYPESCRIPT"
+	WorkerSDKSRUBY       WorkerSDKS = "RUBY"
 )
 
 func (e *WorkerSDKS) Scan(src interface{}) error {
@@ -2639,6 +2641,7 @@ type Step struct {
 	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
+	IsDurable          bool             `json:"isDurable"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -3344,6 +3347,15 @@ type V1StepMatchCondition struct {
 	ParentReadableID pgtype.Text              `json:"parent_readable_id"`
 }
 
+type V1StepSlotRequest struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	StepID    uuid.UUID          `json:"step_id"`
+	SlotType  string             `json:"slot_type"`
+	Units     int32              `json:"units"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1Task struct {
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
@@ -3448,6 +3460,18 @@ type V1TaskRuntime struct {
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 }
 
+type V1TaskRuntimeSlot struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	WorkerID       uuid.UUID          `json:"worker_id"`
+	SlotType       string             `json:"slot_type"`
+	Units          int32              `json:"units"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1TaskStatusUpdatesTmp struct {
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	RequeueAfter   pgtype.Timestamptz `json:"requeue_after"`
@@ -3482,6 +3506,15 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+}
+
+type V1WorkerSlotConfig struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	WorkerID  uuid.UUID          `json:"worker_id"`
+	SlotType  string             `json:"slot_type"`
+	MaxUnits  int32              `json:"max_units"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1WorkflowConcurrency struct {

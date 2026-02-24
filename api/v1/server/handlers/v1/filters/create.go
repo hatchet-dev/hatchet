@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/labstack/echo/v4"
 )
 
 func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1FilterCreateRequestObject) (gen.V1FilterCreateResponseObject, error) {

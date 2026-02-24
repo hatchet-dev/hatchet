@@ -1,0 +1,42 @@
+module Hatchet
+  class Workflow
+    attr_reader name: String
+    attr_reader tasks: Hash[Symbol, Task]
+    attr_reader on_events: Array[String]
+    attr_reader on_crons: Array[String]
+    attr_reader concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil
+    attr_reader default_priority: Integer?
+    attr_reader task_defaults: Hash[Symbol, untyped]?
+    attr_reader default_filters: Array[DefaultFilter]
+    attr_reader sticky: Symbol?
+    attr_reader client: Client?
+    attr_reader on_failure: Task?
+    attr_reader on_success: Task?
+    attr_accessor id: String?
+
+    def initialize: (
+      name: String,
+      ?on_events: Array[String],
+      ?on_crons: Array[String],
+      ?concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil,
+      ?default_priority: Integer?,
+      ?task_defaults: Hash[Symbol, untyped]?,
+      ?default_filters: Array[DefaultFilter],
+      ?sticky: Symbol?,
+      ?client: Client?
+    ) -> void
+
+    def task: (Symbol | String name, **untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
+    def durable_task: (Symbol | String name, **untyped opts) { (Hash[String, untyped], DurableContext) -> untyped } -> Task
+    def on_failure_task: (**untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
+    def on_success_task: (**untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
+    def to_proto: (Config config) -> untyped
+    def run: (?Hash[String, untyped] input, ?options: TriggerWorkflowOptions?) -> Hash[String, untyped]
+    def run_no_wait: (?Hash[String, untyped] input, ?options: TriggerWorkflowOptions?) -> WorkflowRunRef
+    def run_many: (Array[Hash[Symbol, untyped]] items, ?return_exceptions: bool) -> Array[untyped]
+    def run_many_no_wait: (Array[Hash[Symbol, untyped]] items) -> Array[WorkflowRunRef]
+    def create_bulk_run_item: (?input: Hash[String, untyped], ?key: String?, ?options: TriggerWorkflowOptions?) -> Hash[Symbol, untyped]
+    def schedule: (Time time, ?input: Hash[String, untyped], ?options: TriggerWorkflowOptions?) -> untyped
+    def create_cron: (String cron_name, String expression, ?input: Hash[String, untyped]) -> untyped
+  end
+end

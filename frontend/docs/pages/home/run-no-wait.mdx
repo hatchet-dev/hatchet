@@ -14,7 +14,7 @@ Some example use cases for fire-and-forget style tasks might be:
 1. Sending a shipping confirmation email to a user once their order has shipped. This is a truly async task, in the sense that the user is not necessarily using your application when it happens, and the part of the application triggering the task does not need to know the result of the work, just that it has been enqueued (assuming that it will complete, of course).
 2. Triggering a machine learning model training job that can take minutes, hours, or even days to complete. Similarly to above, it's likely that no part of the application needs to wait on the result of this work, it just needs to "fire and forget" it - meaning that it needs to kick it off, and let it complete whenever it completes.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
     If we have the following workflow:
@@ -42,13 +42,18 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
     <Snippet src={snippets.go.simple.main.running_a_task_without_waiting} />
 
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.trigger_methods.workflow.define_a_task} />
+    <Snippet src={snippets.ruby.trigger_methods.workflow.sync} />
+    <Snippet src={snippets.ruby.trigger_methods.workflow.async} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ## Subscribing to results from an enqueued task
 
 Often it is useful to subscribe to the results of a task at a later time. The `run_no_wait` method returns a `WorkflowRunRef` object which includes a listener for the result of the task.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 Use `ref.result()` to block until the result is available:
@@ -69,6 +74,10 @@ or await `aio_result`:
 
     <Snippet src={snippets.go.simple.main.subscribing_to_results} />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.trigger_methods.workflow.result_sync} />
+    <Snippet src={snippets.ruby.trigger_methods.workflow.result_async} />
   </Tabs.Tab>
 </UniversalTabs>
 

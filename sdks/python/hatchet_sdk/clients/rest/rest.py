@@ -18,7 +18,14 @@ import ssl
 
 import urllib3
 
-from hatchet_sdk.clients.rest.exceptions import ApiException, ApiValueError
+from hatchet_sdk.clients.rest.exceptions import (
+    ApiException,
+    ApiValueError,
+    RestConnectionError,
+    RestProtocolError,
+    RestTimeoutError,
+    RestTLSError,
+)
 
 SUPPORTED_SOCKS_PROXIES = {"socks5", "socks5h", "socks4", "socks4a"}
 RESTResponseType = urllib3.HTTPResponse
@@ -239,13 +246,35 @@ class RESTClientObject:
                     headers=headers,
                     preload_content=False,
                 )
+        except urllib3.exceptions.SSLError as e:
+            msg = "\n".join(
+                [
+                    type(e).__name__,
+                    str(e),
+                    f"method={method}",
+                    f"url={url}",
+                    f"timeout={_request_timeout}",
+                ]
+            )
+            raise RestTLSError(status=0, reason=msg) from e
         except (
-            urllib3.exceptions.SSLError,
-            urllib3.exceptions.ConnectTimeoutError,
-            urllib3.exceptions.ReadTimeoutError,
             urllib3.exceptions.MaxRetryError,
             urllib3.exceptions.NewConnectionError,
-            urllib3.exceptions.ProtocolError,
+        ) as e:
+            # NewConnectionError inherits from ConnectTimeoutError, so must be caught first
+            msg = "\n".join(
+                [
+                    type(e).__name__,
+                    str(e),
+                    f"method={method}",
+                    f"url={url}",
+                    f"timeout={_request_timeout}",
+                ]
+            )
+            raise RestConnectionError(status=0, reason=msg) from e
+        except (
+            urllib3.exceptions.ConnectTimeoutError,
+            urllib3.exceptions.ReadTimeoutError,
         ) as e:
             msg = "\n".join(
                 [
@@ -256,5 +285,16 @@ class RESTClientObject:
                     f"timeout={_request_timeout}",
                 ]
             )
-            raise ApiException(status=0, reason=msg)
+            raise RestTimeoutError(status=0, reason=msg) from e
+        except urllib3.exceptions.ProtocolError as e:
+            msg = "\n".join(
+                [
+                    type(e).__name__,
+                    str(e),
+                    f"method={method}",
+                    f"url={url}",
+                    f"timeout={_request_timeout}",
+                ]
+            )
+            raise RestProtocolError(status=0, reason=msg) from e
         return RESTResponse(r)

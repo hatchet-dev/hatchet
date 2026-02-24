@@ -67,7 +67,7 @@ Note the branching logic (`left_branch` and `right_branch`), as well as the use 
 
 To get started, let's declare the workflow.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.conditions.worker.create_a_workflow} />
   </Tabs.Tab>
@@ -82,11 +82,14 @@ To get started, let's declare the workflow.
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.conditions.main.create_a_workflow} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.conditions.worker.create_a_workflow} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 Next, we'll start adding tasks to our workflow. First, we'll add a basic task that outputs a random number:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.conditions.worker.add_base_task} />
   </Tabs.Tab>
@@ -100,11 +103,14 @@ Next, we'll start adding tasks to our workflow. First, we'll add a basic task th
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.conditions.main.add_base_task} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.conditions.worker.add_base_task} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 Next, we'll add a task to the workflow that's a child of the first task, but it has a `wait_for` condition that sleeps for 10 seconds.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.conditions.worker.add_wait_for_sleep} />
   </Tabs.Tab>
@@ -119,13 +125,16 @@ Next, we'll add a task to the workflow that's a child of the first task, but it 
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.conditions.main.add_wait_for_sleep} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.conditions.worker.add_wait_for_sleep} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 This task will first wait for the parent task to complete, and then it'll sleep for 10 seconds before executing and returning another random number.
 
 Next, we'll add a task that will be skipped on an event:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.conditions.worker.add_skip_on_event} />
   </Tabs.Tab>
@@ -140,13 +149,16 @@ Next, we'll add a task that will be skipped on an event:
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.conditions.main.add_skip_on_event} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.conditions.worker.add_skip_on_event} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 In this case, our task will wait for a 30 second sleep, and then it will be skipped if the `skip_on_event:skip` is fired.
 
 Next, let's add some branching logic. Here we'll add two more tasks, a left and right branch.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.conditions.worker.add_branching} />
   </Tabs.Tab>
@@ -160,13 +172,16 @@ Next, let's add some branching logic. Here we'll add two more tasks, a left and 
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.conditions.main.add_branching} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.conditions.worker.add_branching} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 These two tasks use the `ParentCondition` and `skip_if` together to check if the output of an upstream task was greater or less than `50`, respectively. Only one of the two tasks will run: whichever one's condition evaluates to `True`.
 
 Next, we'll add a task that waits for an event:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.conditions.worker.add_wait_for_event} />
   </Tabs.Tab>
@@ -181,11 +196,14 @@ Next, we'll add a task that waits for an event:
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.conditions.main.add_wait_for_event} />
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.conditions.worker.add_wait_for_event} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 And finally, we'll add the last task, which collects all of its parents and sums them up.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 <Snippet src={snippets.python.conditions.worker.add_sum}/>
 
@@ -199,6 +217,9 @@ Note that in this task, we rely on `ctx.was_skipped` to determine if a task was 
     <Snippet src={snippets.go.conditions.main.add_sum}/>
   </Tabs.Tab>
 
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.conditions.worker.add_sum} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 This workflow demonstrates the power of the new conditional logic in Hatchet V1. You can now create complex workflows that are much more dynamic than workflows in the previous version of Hatchet, and do all of it declaratively (rather than, for example, by dynamically spawning child workflows based on conditions in the parent).

@@ -1,0 +1,29 @@
+module Hatchet
+  module Clients
+    module Grpc
+      class EventClient
+        MAX_LOG_MESSAGE_LENGTH: Integer
+
+        def initialize: (config: Config, channel: untyped) -> void
+
+        def push: (
+          key: String,
+          payload: Hash[String, untyped],
+          ?additional_metadata: Hash[String, untyped]?,
+          ?priority: Integer?,
+          ?scope: String?,
+          ?namespace: String?
+        ) -> untyped
+
+        def bulk_push: (
+          Array[Hash[Symbol, untyped]] events,
+          ?namespace: String?
+        ) -> untyped
+
+        def put_log: (step_run_id: String, message: String) -> untyped
+        def put_stream: (step_run_id: String, data: String) -> untyped
+        def close: () -> void
+      end
+    end
+  end
+end

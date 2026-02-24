@@ -55,11 +55,9 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotConfig, actions []string) *gen.Worker {
 
 	dispatcherId := worker.DispatcherId
-
-	maxRuns := int(worker.MaxRuns)
 
 	status := gen.ACTIVE
 
@@ -71,23 +69,24 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 		status = gen.INACTIVE
 	}
 
-	var availableRuns int
-
-	if remainingSlots != nil {
-		availableRuns = *remainingSlots
+	var slotConfigInt *map[string]gen.WorkerSlotConfig
+	if len(slotConfig) > 0 {
+		tmp := make(map[string]gen.WorkerSlotConfig, len(slotConfig))
+		for k, v := range slotConfig {
+			tmp[k] = v
+		}
+		slotConfigInt = &tmp
 	}
 
 	res := &gen.Worker{
-		Metadata:      *toAPIMetadata(worker.ID, worker.CreatedAt.Time, worker.UpdatedAt.Time),
-		Name:          worker.Name,
-		Type:          gen.WorkerType(worker.Type),
-		Status:        &status,
-		DispatcherId:  dispatcherId,
-		MaxRuns:       &maxRuns,
-		AvailableRuns: &availableRuns,
-		WebhookUrl:    webhookUrl,
-		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
-		WebhookId:     worker.WebhookId,
+		Metadata:     *toAPIMetadata(worker.ID, worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Name:         worker.Name,
+		Type:         gen.WorkerType(worker.Type),
+		Status:       &status,
+		DispatcherId: dispatcherId,
+		SlotConfig:   slotConfigInt,
+		RuntimeInfo:  ToWorkerRuntimeInfo(worker),
+		WebhookId:    worker.WebhookId,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
 from pydantic import Field, StrictInt, StrictStr
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
     V1CreateWebhookRequest,
@@ -27,6 +27,7 @@ from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
 )
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
+from hatchet_sdk.clients.rest.models.v1_webhook_response import V1WebhookResponse
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
@@ -1296,7 +1297,7 @@ class WebhookApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> Dict[str, object]:
+    ) -> V1WebhookResponse:
         """Post a webhook message
 
         Post an incoming webhook message
@@ -1337,7 +1338,7 @@ class WebhookApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Dict[str, object]",
+            "200": "V1WebhookResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -1371,7 +1372,7 @@ class WebhookApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[Dict[str, object]]:
+    ) -> ApiResponse[V1WebhookResponse]:
         """Post a webhook message
 
         Post an incoming webhook message
@@ -1412,7 +1413,7 @@ class WebhookApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Dict[str, object]",
+            "200": "V1WebhookResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -1487,7 +1488,7 @@ class WebhookApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Dict[str, object]",
+            "200": "V1WebhookResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }

@@ -8,7 +8,6 @@ poetry run ruff check . --fix
 echo "Formatting with black"
 poetry run black . --color
 
-
 echo "\nType checking with mypy"
 poetry run mypy --config-file=pyproject.toml
 

@@ -341,6 +341,7 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
     V1WebhookHMACEncoding,
 )
 from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
+from hatchet_sdk.clients.rest.models.v1_webhook_response import V1WebhookResponse
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
@@ -374,6 +375,7 @@ from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
 from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
+from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
 from hatchet_sdk.clients.rest.models.worker_type import WorkerType
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency

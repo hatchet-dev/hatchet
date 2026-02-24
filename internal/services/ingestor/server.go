@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/constants"

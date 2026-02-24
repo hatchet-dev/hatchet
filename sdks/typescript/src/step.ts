@@ -307,6 +307,15 @@ export class V0Context<T, K = {}> {
   }
 
   /**
+   * Gets the ID of the current task run.
+   * @returns The task run ID.
+   * @deprecated use taskRunExternalId() instead
+   */
+  taskRunId(): string {
+    return this.taskRunExternalId();
+  }
+
+  /**
    * Gets the number of times the current task has been retried.
    * @returns The retry count.
    */
@@ -758,7 +767,7 @@ export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): Creat
 }
 
 // Helper function to validate CEL expressions
-function validateCelExpression(expr: string): boolean {
+function validateCelExpression(_expr: string): boolean {
   // This is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
   // For now, we'll just return true to mimic the behavior.
   return true;

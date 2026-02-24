@@ -27,7 +27,8 @@ class V1UpdateWebhookRequest(BaseModel):
     V1UpdateWebhookRequest
     """  # noqa: E501
 
-    event_key_expression: StrictStr = Field(
+    event_key_expression: Optional[StrictStr] = Field(
+        default=None,
         description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
         alias="eventKeyExpression",
     )

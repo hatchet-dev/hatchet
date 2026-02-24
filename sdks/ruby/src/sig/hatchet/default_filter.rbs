@@ -1,0 +1,11 @@
+module Hatchet
+  class DefaultFilter
+    attr_reader expression: String
+    attr_reader scope: String?
+    attr_reader payload: Hash[String, untyped]
+
+    def initialize: (expression: String, ?scope: String?, ?payload: Hash[String, untyped]) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+    def to_proto: () -> untyped
+  end
+end

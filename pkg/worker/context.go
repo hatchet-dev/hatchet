@@ -99,20 +99,28 @@ type HatchetContext interface {
 	FilterPayload() map[string]interface{}
 }
 
+// Deprecated: TriggeredBy is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type TriggeredBy string
 
+// Deprecated: These constants are part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 const (
 	TriggeredByEvent    TriggeredBy = "event"
 	TriggeredByCron     TriggeredBy = "cron"
 	TriggeredBySchedule TriggeredBy = "schedule"
 )
 
+// Deprecated: JobRunLookupData is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type JobRunLookupData struct {
 	Input       map[string]interface{} `json:"input"`
 	TriggeredBy TriggeredBy            `json:"triggered_by"`
 	Steps       map[string]StepData    `json:"steps,omitempty"`
 }
 
+// Deprecated: StepRunData is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type StepRunData struct {
 	Input              map[string]interface{}            `json:"input"`
 	TriggeredBy        TriggeredBy                       `json:"triggered_by"`
@@ -123,6 +131,8 @@ type StepRunData struct {
 	StepRunErrors      map[string]string                 `json:"step_run_errors,omitempty"`
 }
 
+// Deprecated: StepData is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type StepData map[string]interface{}
 
 type hatchetContext struct {
@@ -242,14 +252,20 @@ func (h *hatchetContext) ParentOutput(parent create.NamedTask, output interface{
 	return fmt.Errorf("parent %s not found in action payload", stepName)
 }
 
+// Deprecated: TriggeredByEvent is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) TriggeredByEvent() bool {
 	return h.stepData.TriggeredBy == TriggeredByEvent
 }
 
+// Deprecated: WorkflowInput is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
 }
 
+// Deprecated: StepRunErrors is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepRunErrors() map[string]string {
 	errors := h.stepData.StepRunErrors
 
@@ -260,46 +276,74 @@ func (h *hatchetContext) StepRunErrors() map[string]string {
 	return errors
 }
 
+// Deprecated: UserData is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) UserData(target interface{}) error {
 	return toTarget(h.stepData.UserData, target)
 }
 
+// Deprecated: FilterPayload is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) FilterPayload() map[string]interface{} {
 	payload := h.stepData.Triggers["filter_payload"]
 
 	return payload
 }
 
+// Deprecated: AdditionalMetadata is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) AdditionalMetadata() map[string]string {
 	return h.stepData.AdditionalMetadata
 }
 
+// Deprecated: StepName is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepName() string {
 	return h.a.StepName
 }
 
+// Deprecated: StepRunId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepRunId() string {
 	return h.a.StepRunId
 }
 
+// Deprecated: StepId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepId() string {
 	return h.a.StepId
 }
 
+// Deprecated: WorkflowRunId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowRunId() string {
 	return h.a.WorkflowRunId
 }
 
+// Deprecated: WorkflowId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowId() *string {
 	return h.a.WorkflowId
 }
 
+// Deprecated: WorkflowVersionId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowVersionId() *string {
 	return h.a.WorkflowVersionId
 }
 
+// Deprecated: Log is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) Log(message string) {
 	infoLevel := "INFO"
+
+	runes := []rune(message)
+
+	if len(runes) > 10_000 {
+		h.l.Warn().Msg("log message is too long, truncating to the first 10,000 characters")
+		message = string(runes[:10_000])
+	}
+
 	err := h.c.Event().PutLog(h, h.a.StepRunId, message, &infoLevel, &h.a.RetryCount)
 
 	if err != nil {
@@ -307,6 +351,8 @@ func (h *hatchetContext) Log(message string) {
 	}
 }
 
+// Deprecated: ReleaseSlot is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ReleaseSlot() error {
 	err := h.c.Dispatcher().ReleaseSlot(h, h.a.StepRunId)
 
@@ -317,6 +363,8 @@ func (h *hatchetContext) ReleaseSlot() error {
 	return nil
 }
 
+// Deprecated: RefreshTimeout is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 	err := h.c.Dispatcher().RefreshTimeout(h, h.a.StepRunId, incrementTimeoutBy)
 
@@ -327,6 +375,8 @@ func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 	return nil
 }
 
+// Deprecated: StreamEvent is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StreamEvent(message []byte) {
 	h.streamEventIndexMu.Lock()
 	currentIndex := h.streamEventIndex
@@ -340,14 +390,20 @@ func (h *hatchetContext) StreamEvent(message []byte) {
 	}
 }
 
+// Deprecated: PutStream is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) PutStream(message string) {
 	h.StreamEvent([]byte(message))
 }
 
+// Deprecated: RetryCount is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) RetryCount() int {
 	return int(h.a.RetryCount)
 }
 
+// Deprecated: CurChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) CurChildIndex() int {
 	h.indexMu.Lock()
 	defer h.indexMu.Unlock()
@@ -355,12 +411,16 @@ func (h *hatchetContext) CurChildIndex() int {
 	return h.i
 }
 
+// Deprecated: IncChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) IncChildIndex() {
 	h.indexMu.Lock()
 	h.i++
 	h.indexMu.Unlock()
 }
 
+// Deprecated: SpawnWorkflowOpts is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SpawnWorkflowOpts struct {
 	Key                *string
 	Sticky             *bool
@@ -372,6 +432,8 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 	return h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
 }
 
+// Deprecated: SpawnWorkflow is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
 	if opts == nil {
 		opts = &SpawnWorkflowOpts{}
@@ -423,6 +485,8 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
 
+// Deprecated: SpawnWorkflowsOpts is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SpawnWorkflowsOpts struct {
 	WorkflowName       string
 	Input              any
@@ -431,6 +495,8 @@ type SpawnWorkflowsOpts struct {
 	AdditionalMetadata *map[string]string
 }
 
+// Deprecated: SpawnWorkflows is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error) {
 
 	triggerWorkflows := make([]*client.RunChildWorkflowsOpts, len(childWorkflows))
@@ -493,18 +559,26 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	return createdWorkflows, nil
 }
 
+// Deprecated: ChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ChildIndex() *int32 {
 	return h.a.ChildIndex
 }
 
+// Deprecated: ChildKey is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ChildKey() *string {
 	return h.a.ChildKey
 }
 
+// Deprecated: ParentWorkflowRunId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ParentWorkflowRunId() *string {
 	return h.a.ParentWorkflowRunId
 }
 
+// Deprecated: Priority is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) Priority() int32 {
 	return h.a.Priority
 }
@@ -569,14 +643,20 @@ func toTarget(data interface{}, target interface{}) error {
 	return nil
 }
 
+// Deprecated: SetContext is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) SetContext(ctx context.Context) {
 	wc.Context = ctx
 }
 
+// Deprecated: GetContext is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) GetContext() context.Context {
 	return wc.Context
 }
 
+// Deprecated: ID is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) ID() string {
 	if wc.id == nil {
 		return ""
@@ -585,10 +665,14 @@ func (wc *hatchetWorkerContext) ID() string {
 	return *wc.id
 }
 
+// Deprecated: GetLabels is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
 	return wc.worker.labels
 }
 
+// Deprecated: UpsertLabels is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) error {
 
 	if wc.id == nil {
@@ -605,10 +689,14 @@ func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) erro
 	return nil
 }
 
+// Deprecated: HasWorkflow is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
 	return wc.worker.registered_workflows[workflowName]
 }
 
+// Deprecated: SingleWaitResult is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SingleWaitResult struct {
 	*WaitResult
 
@@ -622,10 +710,14 @@ func newSingleWaitResult(key string, wr *WaitResult) *SingleWaitResult {
 	}
 }
 
+// Deprecated: Unmarshal is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *SingleWaitResult) Unmarshal(in interface{}) error {
 	return w.WaitResult.Unmarshal(w.key, in)
 }
 
+// Deprecated: WaitResult is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WaitResult struct {
 	allResults map[string]map[string][]map[string]interface{}
 }
@@ -644,14 +736,20 @@ func newWaitResult(dataBytes []byte) (*WaitResult, error) {
 	}, nil
 }
 
+// Deprecated: ErrMarshalKeyNotFound is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ErrMarshalKeyNotFound struct {
 	Key string
 }
 
+// Deprecated: Error is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (e ErrMarshalKeyNotFound) Error() string {
 	return fmt.Sprintf("key %s not found", e.Key)
 }
 
+// Deprecated: Keys is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WaitResult) Keys() []string {
 	keys := make([]string, 0, len(w.allResults))
 
@@ -664,6 +762,8 @@ func (w *WaitResult) Keys() []string {
 	return keys
 }
 
+// Deprecated: Unmarshal is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WaitResult) Unmarshal(key string, in interface{}) error {
 	eNotFound := ErrMarshalKeyNotFound{
 		Key: key,
@@ -805,7 +905,8 @@ func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.Durabl
 	return h.client().Subscribe().ListenForDurableEvents(context.Background())
 }
 
-// NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.
+// Deprecated: NewDurableHatchetContext is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 	// Try to cast directly if it's already a DurableHatchetContext
 	if durableCtx, ok := ctx.(DurableHatchetContext); ok {
@@ -832,7 +933,8 @@ func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 	}
 }
 
-// Implementation of RunChild method for the hatchetContext
+// Deprecated: RunChild is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) RunChild(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.WorkflowResult, error) {
 	// Spawn the child workflow
 	workflow, err := h.SpawnWorkflow(workflowName, input, opts)
