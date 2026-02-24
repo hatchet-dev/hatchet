@@ -225,7 +225,7 @@ class AdminClient:
         return v0_workflow_protos.ScheduleWorkflowRequest(
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
-            input=json.dumps(input),
+            input=input,
             parent_id=options.parent_id,
             parent_task_run_external_id=options.parent_step_run_id,
             child_index=options.child_index,
