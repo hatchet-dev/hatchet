@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import suppress
 from typing import Self, cast
 
@@ -36,6 +36,7 @@ class DurableTaskEventAck(BaseModel):
     durable_task_external_id: str
     branch_id: int
     node_id: int
+    spawned_external_ids: list[str] = []
 
 
 class DurableTaskEventLogEntryResult(BaseModel):
@@ -261,6 +262,7 @@ class DurableEventListener:
                         durable_task_external_id=trigger_ack.durable_task_external_id,
                         node_id=trigger_ack.node_id,
                         branch_id=trigger_ack.branch_id,
+                        spawned_external_ids=list(trigger_ack.spawned_external_ids),
                     )
                 )
                 del self._pending_event_acks[event_key]
@@ -336,9 +338,10 @@ class DurableEventListener:
         kind: DurableTaskEventKind,
         payload: JSONSerializableMapping | None = None,
         wait_for_conditions: DurableEventListenerConditions | None = None,
-        # todo: combine these? or separate methods? or overload?
-        workflow_name: str | None = None,
-        trigger_workflow_opts: TriggerWorkflowOptions | None = None,
+        workflows: (
+            Sequence[tuple[str, JSONSerializableMapping, TriggerWorkflowOptions | None]]
+            | None
+        ) = None,
     ) -> DurableTaskEventAck:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
@@ -347,21 +350,22 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
-        _trigger_opts = (
-            self.admin_client._create_workflow_run_request(
-                workflow_name=workflow_name,
-                input=payload or {},
-                options=trigger_workflow_opts or TriggerWorkflowOptions(),
-            )
-            if workflow_name
-            else None
-        )
-
         event_request = DurableTaskEventRequest(
             durable_task_external_id=durable_task_external_id,
             invocation_count=invocation_count,
             kind=kind,
-            trigger_opts=_trigger_opts,
+            trigger_opts=(
+                [
+                    self.admin_client._create_workflow_run_request(
+                        workflow_name=wf_name,
+                        input=wf_input,
+                        options=wf_opts or TriggerWorkflowOptions(),
+                    )
+                    for wf_name, wf_input, wf_opts in workflows
+                ]
+                if workflows
+                else None
+            ),
         )
 
         if payload is not None:

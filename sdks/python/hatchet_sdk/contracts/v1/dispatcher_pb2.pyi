@@ -52,20 +52,22 @@ class DurableTaskEventRequest(_message.Message):
     kind: DurableTaskEventKind
     payload: bytes
     wait_for_conditions: _condition_pb2.DurableEventListenerConditions
-    trigger_opts: _trigger_pb2.TriggerWorkflowRequest
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]] = ...) -> None: ...
+    trigger_opts: _containers.RepeatedCompositeFieldContainer[_trigger_pb2.TriggerWorkflowRequest]
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Iterable[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]]] = ...) -> None: ...
 
 class DurableTaskEventAckResponse(_message.Message):
-    __slots__ = ("invocation_count", "durable_task_external_id", "branch_id", "node_id")
+    __slots__ = ("invocation_count", "durable_task_external_id", "branch_id", "node_id", "spawned_external_ids")
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    SPAWNED_EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
     invocation_count: int
     durable_task_external_id: str
     branch_id: int
     node_id: int
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ...) -> None: ...
+    spawned_external_ids: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ..., spawned_external_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
     __slots__ = ("durable_task_external_id", "invocation_count", "branch_id", "node_id", "payload")

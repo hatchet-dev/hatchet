@@ -4,7 +4,11 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
+from hatchet_sdk.clients.admin import (
+    AdminClient,
+    TriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
+)
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
@@ -551,9 +555,9 @@ class DurableContext(Context):
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
-            payload=workflow._serialize_input(input),
-            workflow_name=workflow.config.name,
-            trigger_workflow_opts=options,
+            workflows=[
+                (workflow.config.name, workflow._serialize_input(input), options)
+            ],
         )
 
         result = await self.durable_event_listener.wait_for_callback(
@@ -564,6 +568,35 @@ class DurableContext(Context):
         )
 
         return result.payload or {}
+
+    async def _spawn_children(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+    ) -> list[dict[str, Any]]:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable task client is not available")
+
+        await self._ensure_stream_started()
+
+        bulk_workflows = [(wf.workflow_name, wf.input, wf.options) for wf in workflows]
+
+        ack = await self.durable_event_listener.send_event(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=self.invocation_count,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
+            workflows=bulk_workflows,
+        )
+
+        result = await self.durable_event_listener.wait_for_callback(
+            durable_task_external_id=self.step_run_id,
+            node_id=ack.node_id,
+            branch_id=ack.branch_id,
+            invocation_count=self.invocation_count,
+        )
+
+        payload = result.payload or {}
+
+        return [payload.get(ext_id, {}) for ext_id in ack.spawned_external_ids]
 
     async def _ensure_stream_started(self) -> None:
         if self.durable_event_listener is None:

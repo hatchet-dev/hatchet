@@ -1314,7 +1314,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :returns: The extracted result of the workflow execution.
         """
-        from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None:
@@ -1425,6 +1424,19 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None:
+            raw_results = await durable_ctx._spawn_children(workflows)
+            return [
+                cast(
+                    R,
+                    self._output_validator.validate_python(
+                        raw, context=HATCHET_PYDANTIC_SENTINEL
+                    ),
+                )
+                for raw in raw_results
+            ]
+
         return [
             self._extract_result(result)
             for result in await self._workflow.aio_run_many(
