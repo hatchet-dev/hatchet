@@ -147,29 +147,29 @@ func main() {
 
 		// Try to get left branch output (might be skipped)
 		var leftOutput StepOutput
-		if err := ctx.ParentOutput(leftBranch, &leftOutput); err == nil {
+		if ctx.WasSkipped(leftBranch) {
+			summary += ", Left: skipped"
+		} else if err := ctx.ParentOutput(leftBranch, &leftOutput); err == nil {
 			total += leftOutput.RandomNumber
 			summary += fmt.Sprintf(", Left: %d", leftOutput.RandomNumber)
-		} else {
-			summary += ", Left: skipped"
 		}
 
 		// Try to get right branch output (might be skipped)
 		var rightOutput StepOutput
-		if err := ctx.ParentOutput(rightBranch, &rightOutput); err == nil {
+		if ctx.WasSkipped(rightBranch) {
+			summary += ", Right: skipped"
+		} else if err := ctx.ParentOutput(rightBranch, &rightOutput); err == nil {
 			total += rightOutput.RandomNumber
 			summary += fmt.Sprintf(", Right: %d", rightOutput.RandomNumber)
-		} else {
-			summary += ", Right: skipped"
 		}
 
 		// Try to get skipable task output (might be skipped)
 		var skipableOutput StepOutput
-		if err := ctx.ParentOutput(skipableTask, &skipableOutput); err == nil {
+		if ctx.WasSkipped(skipableTask) {
+			summary += ", Skipable: skipped"
+		} else if err := ctx.ParentOutput(skipableTask, &skipableOutput); err == nil {
 			total += skipableOutput.RandomNumber
 			summary += fmt.Sprintf(", Skipable: %d", skipableOutput.RandomNumber)
-		} else {
-			summary += ", Skipable: skipped"
 		}
 
 		log.Printf("Final summary for process %s: total=%d, %s", input.ProcessID, total, summary)
