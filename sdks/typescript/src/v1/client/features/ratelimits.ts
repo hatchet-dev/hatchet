@@ -13,7 +13,6 @@ export { RateLimitDuration, RateLimitOrderByField, RateLimitOrderByDirection };
 // "minute" |
 // "hour"
 
-
 export type CreateRateLimitOpts = {
   key: string;
   limit: number;

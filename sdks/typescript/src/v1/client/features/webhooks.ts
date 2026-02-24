@@ -40,7 +40,7 @@ function toCreateWebhookRequest(options: CreateWebhookOptions): V1CreateWebhookR
 
 /**
  * Client for managing incoming webhooks in Hatchet.
-*
+ *
  * Webhooks allow external systems to trigger Hatchet workflows by sending
  * HTTP requests to dedicated endpoints. This enables real-time integration
  * with third-party services like GitHub, Stripe, Slack, or any system that

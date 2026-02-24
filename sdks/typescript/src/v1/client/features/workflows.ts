@@ -17,10 +17,10 @@ export const workflowNameString = (
 
 /**
  * The workflows client is a client for managing workflows programmatically within Hatchet.
- * 
+ *
  * NOTE: that workflows are the declaration, not the individual runs. If you're looking for runs, use the RunsClient instead.
- * 
-*/
+ *
+ */
 export class WorkflowsClient {
   api: HatchetClient['api'];
   tenantId: string;

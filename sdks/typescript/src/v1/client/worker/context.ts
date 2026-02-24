@@ -55,16 +55,16 @@ interface ContextData<T, K> {
  */
 export class Context<T, K = {}> {
   data: ContextData<T, K>;
-  /** 
-   * @deprecated use input prop instead 
+  /**
+   * @deprecated use input prop instead
    * @hidden
-  */
+   */
   input: T;
 
-  /** 
-   * @deprecated use ctx.abortController instead 
+  /**
+   * @deprecated use ctx.abortController instead
    * @hidden
-  */
+   */
   controller = new AbortController();
   action: Action;
   v1: HatchetClient;
