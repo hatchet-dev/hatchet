@@ -4,15 +4,8 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 hatchet = Hatchet(debug=True)
 
 
-def helper() -> None:
-    ctx = hatchet.get_current_context()
-
-    print(ctx)
-
-
 @hatchet.task()
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    helper()
     return {"result": "Hello, world!"}
 
 
