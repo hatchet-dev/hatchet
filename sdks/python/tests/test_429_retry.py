@@ -11,8 +11,6 @@ from hatchet_sdk.clients.rest.exceptions import (
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
 from hatchet_sdk.config import TenacityConfig
 
-# --- Fake HTTP response for testing from_response() ---
-
 
 class FakeHttpResponse:
     """Minimal fake HTTP response for testing ApiException.from_response()."""
@@ -24,9 +22,6 @@ class FakeHttpResponse:
 
     def getheaders(self) -> dict[str, str]:
         return {}
-
-
-# --- TooManyRequestsException mapping tests ---
 
 
 def test_from_response__429_raises_too_many_requests_exception() -> None:
@@ -41,16 +36,10 @@ def test_from_response__429_raises_too_many_requests_exception() -> None:
     assert exc.reason == "Too Many Requests"
 
 
-# --- Default behavior: 429 NOT retried ---
-
-
 def test_default__429_not_retried() -> None:
     """By default (no config), TooManyRequestsException should NOT be retried."""
     exc = TooManyRequestsException(status=429, reason="Too Many Requests")
     assert tenacity_should_retry(exc) is False
-
-
-# --- Opt-in behavior: 429 retried when enabled ---
 
 
 def test_optin__429_retried_when_enabled() -> None:
@@ -58,9 +47,6 @@ def test_optin__429_retried_when_enabled() -> None:
     exc = TooManyRequestsException(status=429, reason="Too Many Requests")
     config = TenacityConfig(retry_429=True)
     assert tenacity_should_retry(exc, config) is True
-
-
-# --- Regression tests: existing behavior unchanged ---
 
 
 def test_regression__service_exception_still_retried() -> None:
@@ -73,9 +59,6 @@ def test_regression__not_found_exception_still_retried() -> None:
     """NotFoundException (404) should still be retried."""
     exc = NotFoundException(status=404, reason="Not Found")
     assert tenacity_should_retry(exc) is True
-
-
-# --- Config defaults tests ---
 
 
 def test_config__default_retry_429_is_false() -> None:

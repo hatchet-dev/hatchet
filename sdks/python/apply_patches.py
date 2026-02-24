@@ -87,6 +87,50 @@ def patch_grpc_init_signature(content: str) -> str:
     )
 
 
+def patch_rest_429_exception(content: str) -> str:
+    """Add TooManyRequestsException with 429 mapping to generated exceptions.py."""
+    # Insert class definition once, before RestTransportError.
+    if "class TooManyRequestsException" not in content:
+        new_class = (
+            "class TooManyRequestsException(ApiException):\n"
+            '    """Exception for HTTP 429 Too Many Requests."""\n'
+            "    pass\n"
+        )
+
+        pattern = r"(?m)^class RestTransportError\b"
+        content, n = re.subn(
+            pattern,
+            new_class + "\n\nclass RestTransportError",
+            content,
+            count=1,
+        )
+        if n != 1:
+            raise ValueError(
+                "patch_rest_429_exception: expected 'class RestTransportError' anchor not found"
+            )
+
+    # insert mapping once, before the 5xx check.
+    if "http_resp.status == 429" not in content:
+        pattern = r"(?m)^(?P<indent>[ \t]*)if 500 <= http_resp\.status <= 599:"
+
+        def _insert_429(m: re.Match[str]) -> str:
+            indent = m.group("indent")
+            return (
+                f"{indent}if http_resp.status == 429:\n"
+                f"{indent}    raise TooManyRequestsException(http_resp=http_resp, body=body, data=data)\n"
+                f"\n"
+                f"{indent}if 500 <= http_resp.status <= 599:"
+            )
+
+        content, n = re.subn(pattern, _insert_429, content, count=1)
+        if n != 1:
+            raise ValueError(
+                "patch_rest_429_exception: expected 5xx mapping anchor not found"
+            )
+
+    return content
+
+
 def patch_rest_transport_exceptions(content: str) -> str:
     """Insert typed REST transport exception classes into exceptions.py.
 
@@ -363,7 +407,7 @@ if __name__ == "__main__":
 
     atomically_patch_file(
         "hatchet_sdk/clients/rest/exceptions.py",
-        [patch_rest_transport_exceptions],
+        [patch_rest_transport_exceptions, patch_rest_429_exception],
     )
     atomically_patch_file(
         "hatchet_sdk/clients/rest/rest.py",

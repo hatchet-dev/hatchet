@@ -1,14 +1,6 @@
-"""Unit tests for the tenacity retry predicate.
+"""Unit tests for the tenacity retry predicate (tenacity_should_retry).
 
-These tests verify which exceptions trigger retries and which do not.
-The retry predicate is used by the SDK to determine whether to retry
-failed API calls.
-
-Current retry behavior (as of this PR):
-- REST: ServiceException (5xx) and NotFoundException (404) are retried
-- REST: Transport errors (RestTimeoutError, etc.) are not retried
-- REST: Other 4xx errors are not retried
-- gRPC: Most errors are retried except specific status codes
+These tests verify which REST exceptions and gRPC status codes are treated as retryable.
 """
 
 import grpc
@@ -28,8 +20,6 @@ from hatchet_sdk.clients.rest.exceptions import (
     UnauthorizedException,
 )
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
-
-# --- REST exception retry predicate tests ---
 
 
 @pytest.mark.parametrize(
@@ -72,9 +62,6 @@ def test_rest__exception_retry_behavior(exc: BaseException, expected: bool) -> N
     assert tenacity_should_retry(exc) is expected
 
 
-# --- REST transport error retry predicate tests ---
-
-
 @pytest.mark.parametrize(
     ("exc", "expected"),
     [
@@ -110,9 +97,6 @@ def test_transport__error_retry_behavior(exc: BaseException, expected: bool) -> 
     assert tenacity_should_retry(exc) is expected
 
 
-# --- Generic exception retry predicate tests ---
-
-
 @pytest.mark.parametrize(
     ("exc", "expected"),
     [
@@ -136,9 +120,6 @@ def test_transport__error_retry_behavior(exc: BaseException, expected: bool) -> 
 def test_generic__exception_retry_behavior(exc: BaseException, expected: bool) -> None:
     """Test that generic exceptions have the expected retry behavior."""
     assert tenacity_should_retry(exc) is expected
-
-
-# --- gRPC exception retry predicate tests ---
 
 
 class FakeRpcError(grpc.RpcError):
