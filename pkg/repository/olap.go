@@ -589,7 +589,13 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 		workflowRunId = taskRun.ExternalID
 	}
 
-	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, workflowRunId, taskRun.OutputEventExternalID)
+	externalIds := make([]uuid.UUID, 0)
+
+	if taskRun.OutputEventExternalID != nil {
+		externalIds = append(externalIds, *taskRun.OutputEventExternalID)
+	}
+
+	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, externalIds...)
 
 	if err != nil {
 		return nil, emptyUUID, err
@@ -601,9 +607,14 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 		input = taskRun.Input
 	}
 
-	output, exists := payloads[taskRun.OutputEventExternalID]
+	var output []byte
+	if taskRun.OutputEventExternalID != nil {
+		output, exists = payloads[*taskRun.OutputEventExternalID]
 
-	if !exists {
+		if !exists {
+			output = taskRun.Output
+		}
+	} else {
 		output = taskRun.Output
 	}
 
@@ -757,7 +768,10 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		externalIds := make([]uuid.UUID, 0)
 		for _, task := range tasksWithData {
 			externalIds = append(externalIds, task.ExternalID)
-			externalIds = append(externalIds, task.OutputEventExternalID)
+
+			if task.OutputEventExternalID != nil {
+				externalIds = append(externalIds, *task.OutputEventExternalID)
+			}
 		}
 
 		payloads, err = r.readPayloads(ctx, tx, tenantId, externalIds...)
@@ -776,9 +790,15 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 			input = task.Input
 		}
 
-		output, exists := payloads[task.OutputEventExternalID]
+		var output []byte
 
-		if !exists {
+		if task.OutputEventExternalID != nil {
+			output, exists = payloads[*task.OutputEventExternalID]
+
+			if !exists {
+				output = task.Output
+			}
+		} else {
 			output = task.Output
 		}
 
@@ -845,7 +865,10 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 		externalIds := make([]uuid.UUID, 0)
 		for _, task := range tasksWithData {
 			externalIds = append(externalIds, task.ExternalID)
-			externalIds = append(externalIds, task.OutputEventExternalID)
+
+			if task.OutputEventExternalID != nil {
+				externalIds = append(externalIds, *task.OutputEventExternalID)
+			}
 		}
 
 		payloads, err = r.readPayloads(ctx, tx, tenantId, externalIds...)
@@ -864,9 +887,15 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 			input = task.Input
 		}
 
-		output, exists := payloads[task.OutputEventExternalID]
+		var output []byte
 
-		if !exists {
+		if task.OutputEventExternalID != nil {
+			output, exists = payloads[*task.OutputEventExternalID]
+
+			if !exists {
+				output = task.Output
+			}
+		} else {
 			output = task.Output
 		}
 
@@ -918,7 +947,11 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		externalIds := make([]uuid.UUID, 0)
 		for _, task := range tasksWithData {
 			externalIds = append(externalIds, task.ExternalID)
-			externalIds = append(externalIds, task.OutputEventExternalID)
+
+			if task.OutputEventExternalID != nil {
+
+				externalIds = append(externalIds, *task.OutputEventExternalID)
+			}
 		}
 
 		payloads, err = r.readPayloads(ctx, tx, tenantId, externalIds...)
@@ -937,9 +970,14 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 			input = task.Input
 		}
 
-		output, exists := payloads[task.OutputEventExternalID]
+		var output []byte
+		if task.OutputEventExternalID != nil {
+			output, exists = payloads[*task.OutputEventExternalID]
 
-		if !exists {
+			if !exists {
+				output = task.Output
+			}
+		} else {
 			output = task.Output
 		}
 
@@ -1100,7 +1138,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		tasksToPopulated[externalId] = task
 
 		externalIdsForPayloads = append(externalIdsForPayloads, task.ExternalID)
-		externalIdsForPayloads = append(externalIdsForPayloads, task.OutputEventExternalID)
+
+		if task.OutputEventExternalID != nil {
+			externalIdsForPayloads = append(externalIdsForPayloads, *task.OutputEventExternalID)
+		}
 	}
 
 	if err := commit(ctx); err != nil {
@@ -1140,18 +1181,19 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				continue
 			}
 
-			outputEventExternalId := uuid.Nil
+			var outputPayload []byte
+			var exists bool
 
 			if dag.OutputEventExternalID != nil {
-				outputEventExternalId = *dag.OutputEventExternalID
-			}
+				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
 
-			outputPayload, exists := externalIdToPayload[outputEventExternalId]
-
-			if !exists {
-				if opts.IncludePayloads && outputEventExternalId != uuid.Nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-					r.l.Error().Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
+				if !exists {
+					if opts.IncludePayloads && dag.OutputEventExternalID != nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+						r.l.Error().Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
+					}
+					outputPayload = dag.Output
 				}
+			} else {
 				outputPayload = dag.Output
 			}
 
@@ -1198,12 +1240,19 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 			retryCount := int(task.RetryCount)
 
-			outputPayload, exists := externalIdToPayload[task.OutputEventExternalID]
+			var outputPayload []byte
+			var exists bool
 
-			if !exists {
-				if opts.IncludePayloads && task.OutputEventExternalID != uuid.Nil && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-					r.l.Error().Msgf("ListWorkflowRuns-3: task with external_id %s and inserted_at %s has empty payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
+			if task.OutputEventExternalID != nil {
+				outputPayload, exists = externalIdToPayload[*task.OutputEventExternalID]
+
+				if !exists {
+					if opts.IncludePayloads && task.OutputEventExternalID != nil && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+						r.l.Error().Msgf("ListWorkflowRuns-3: task with external_id %s and inserted_at %s has empty payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
+					}
+					outputPayload = task.Output
 				}
+			} else {
 				outputPayload = task.Output
 			}
 

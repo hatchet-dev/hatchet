@@ -369,7 +369,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "dependency injection",
     query: "dependency injection",
-    expectAnyOf: ["home/dependency-injection"],
+    expectAnyOf: ["home/middleware"],
   },
   {
     name: "dataclass",

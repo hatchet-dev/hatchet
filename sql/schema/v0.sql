@@ -1019,7 +1019,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "name" TEXT,
     "id" UUID NOT NULL,
     "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT',
-    "priority" INTEGER NOT NULL DEFAULT 1
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT "WorkflowTriggerCronRef_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
