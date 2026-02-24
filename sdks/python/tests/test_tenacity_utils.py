@@ -24,6 +24,7 @@ from hatchet_sdk.clients.rest.exceptions import (
     RestTLSError,
     RestTransportError,
     ServiceException,
+    TooManyRequestsException,
     UnauthorizedException,
 )
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
@@ -58,6 +59,11 @@ from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
             ForbiddenException(status=403, reason="Forbidden"),
             False,
             id="ForbiddenException (HTTP 403) should not be retried",
+        ),
+        pytest.param(
+            TooManyRequestsException(status=429, reason="Too Many Requests"),
+            False,
+            id="TooManyRequestsException (HTTP 429) should not be retried by default",
         ),
     ],
 )
