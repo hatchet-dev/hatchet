@@ -311,18 +311,48 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             key=key,
         )
 
-    def _serialize_input(self, input: TWorkflowInput | None) -> JSONSerializableMapping:
-        if not input:
-            return {}
+    def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:
+        return self.config.input_validator.dump_json(
+            input,  # type: ignore[arg-type]
+            context=HATCHET_PYDANTIC_SENTINEL,
+        ).decode("utf-8")
 
+    def _serialize_input_to_dict(
+        self, input: TWorkflowInput | None
+    ) -> JSONSerializableMapping:
         return cast(
             JSONSerializableMapping,
             self.config.input_validator.dump_python(
                 input,  # type: ignore[arg-type]
-                mode="json",
                 context=HATCHET_PYDANTIC_SENTINEL,
             ),
         )
+
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["string"] = "string"
+    ) -> str | None: ...
+
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["dict"] = "dict"
+    ) -> JSONSerializableMapping: ...
+
+    def _serialize_input(
+        self,
+        input: TWorkflowInput | None,
+        target: Literal["string"] | Literal["dict"] = "string",
+    ) -> JSONSerializableMapping | str | None:
+        if not input:
+            return None
+
+        if target == "string":
+            return self._serialize_input_to_str(input)
+
+        if target == "dict":
+            return self._serialize_input_to_dict(input)
+
+        raise ValueError(f"Invalid target for input serialization: {target}")
 
     @cached_property
     def id(self) -> str:
@@ -538,7 +568,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="dict"),
             additional_metadata=additional_metadata or {},
             priority=priority,
         )
@@ -566,7 +596,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="dict"),
             additional_metadata=additional_metadata or {},
             priority=priority,
         )
