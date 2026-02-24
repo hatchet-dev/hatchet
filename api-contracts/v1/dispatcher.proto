@@ -43,7 +43,7 @@ message DurableTaskEventRequest {
     optional DurableEventListenerConditions wait_for_conditions = 5;
 
     // Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows)
-    optional TriggerWorkflowRequest trigger_opts  = 6;
+    repeated TriggerWorkflowRequest trigger_opts  = 6;
 }
 
 message DurableTaskEventAckResponse {
@@ -51,6 +51,7 @@ message DurableTaskEventAckResponse {
     string durable_task_external_id = 2;
     int64 branch_id = 3;
     int64 node_id = 4;
+    repeated string spawned_external_ids = 5;
 }
 
 message DurableTaskEventLogEntryCompletedResponse {
