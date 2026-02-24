@@ -101,7 +101,6 @@ exclude = [
   "hatchet_sdk/clients/rest/rest.py",
   "hatchet_sdk/v0/*",
   "site/*",
-  "examples/dependency_injection/dependency_annotations312.py",
 ]
 strict = true
 enable_error_code = [
