@@ -2,9 +2,13 @@ import asyncio
 import threading
 from collections import Counter
 from contextvars import ContextVar
+from typing import TYPE_CHECKING
 
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.context.context import Context
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None
@@ -19,6 +23,9 @@ ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar
 )
 ctx_task_retry_count: ContextVar[int | None] = ContextVar(
     "ctx_task_retry_count", default=0
+)
+ctx_hatchet_context: ContextVar["Context | None"] = ContextVar(
+    "ctx_hatchet_context", default=None
 )
 
 workflow_spawn_indices = Counter[ActionKey]()

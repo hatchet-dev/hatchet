@@ -38,6 +38,7 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_hatchet_context,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -381,7 +382,7 @@ class Runner:
     ) -> Context | DurableContext:
         constructor = DurableContext if is_durable else Context
 
-        return constructor(
+        ctx = constructor(
             action=action,
             dispatcher_client=self.dispatcher_client,
             admin_client=self.admin_client,
@@ -395,6 +396,10 @@ class Runner:
             task_name=task.name,
             workflow_name=task.workflow.name,
         )
+
+        ctx_hatchet_context.set(ctx)
+
+        return ctx
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_step_run(self, action: Action) -> Exception | None:
@@ -515,7 +520,8 @@ class Runner:
             )
 
         serialized_output = validator.dump_json(
-            output, context=HATCHET_PYDANTIC_SENTINEL  # type: ignore[arg-type]
+            output,  # type: ignore[arg-type]
+            context=HATCHET_PYDANTIC_SENTINEL,
         ).decode("utf-8")
 
         if not serialized_output:
