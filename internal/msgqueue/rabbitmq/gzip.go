@@ -32,6 +32,8 @@ func getPayloadSize(payloads [][]byte) int {
 	return totalSize
 }
 
+// compressPayloads compresses message payloads using gzip if they exceed the minimum size threshold.
+// Returns compression results including the compressed payloads and compression statistics.
 func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResult, error) {
 	result := &CompressionResult{
 		Payloads:      payloads,
@@ -42,9 +44,11 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 		return result, nil
 	}
 
+	// Calculate total size to determine if compression is worthwhile
 	totalSize := getPayloadSize(payloads)
 	result.OriginalSize = totalSize
 
+	// Only compress if total size exceeds threshold
 	if totalSize < t.compressionThreshold {
 		result.CompressedSize = totalSize
 		result.CompressionRatio = 1.0
@@ -81,6 +85,7 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 	result.WasCompressed = true
 	result.CompressedSize = compressedSize
 
+	// Calculate compression ratio (compressed / original)
 	if totalSize > 0 {
 		result.CompressionRatio = float64(compressedSize) / float64(totalSize)
 	}
@@ -88,6 +93,7 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 	return result, nil
 }
 
+// decompressPayloads decompresses message payloads using gzip.
 func (t *MessageQueueImpl) decompressPayloads(payloads [][]byte) ([][]byte, error) {
 	if len(payloads) == 0 {
 		return payloads, nil
