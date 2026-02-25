@@ -15,20 +15,7 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
 import { Loading } from '@/components/v1/ui/loading';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
   Tooltip,
   TooltipContent,
@@ -49,6 +36,7 @@ import {
 } from '@/lib/api/generated/cloud/data-contracts';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
+import { cn } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import {
@@ -71,6 +59,15 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
 
+type Section = 'tenants' | 'members' | 'invites' | 'tokens';
+
+const NAV_ITEMS: { key: Section; label: string; icon: typeof KeyIcon }[] = [
+  { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
+  { key: 'members', label: 'Members', icon: UserIcon },
+  { key: 'invites', label: 'Invites', icon: EnvelopeIcon },
+  { key: 'tokens', label: 'API Tokens', icon: KeyIcon },
+];
+
 export default function OrganizationPage() {
   const { organization: orgId } = useParams({
     from: appRoutes.organizationsRoute.to,
@@ -91,6 +88,7 @@ export default function OrganizationPage() {
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenant | null>(null);
   const lastTenant = useAtomValue(lastTenantAtom);
+  const [activeSection, setActiveSection] = useState<Section>('tenants');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
 
@@ -114,7 +112,6 @@ export default function OrganizationPage() {
     handleUpdateOrganization(orgId, editedName.trim(), () => {
       setIsEditingName(false);
       setEditedName('');
-      // Invalidate and refetch the organization query to get updated data
       queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
     });
   };
@@ -136,15 +133,12 @@ export default function OrganizationPage() {
       const expires = new Date(expiresDate);
       const now = new Date();
 
-      // If the date is in the past, show "expired"
       if (expires < now) {
         return 'expired';
       }
 
-      // Otherwise, show "in X days" format
       return `in ${formatDistanceToNow(expires)}`;
-    } catch (error) {
-      // Fallback to original date format if parsing fails
+    } catch {
       return new Date(expiresDate).toLocaleDateString();
     }
   };
@@ -161,7 +155,6 @@ export default function OrganizationPage() {
     enabled: !!orgId,
   });
 
-  // Fetch detailed tenant information for each tenant - only for non-archived tenants
   const tenantQueries = useQueries({
     queries: (organizationQuery.data?.tenants || [])
       .filter((tenant) => tenant.status !== TenantStatusType.ARCHIVED)
@@ -175,15 +168,12 @@ export default function OrganizationPage() {
       })),
   });
 
-  // Check if all tenant queries are loading
   const tenantsLoading = tenantQueries.some((query) => query.isLoading);
 
-  // Get successful tenant data
   const detailedTenants = tenantQueries
     .filter((query) => query.data)
     .map((query) => query.data);
 
-  // Fetch management tokens for the organization
   const managementTokensQuery = useQuery({
     queryKey: ['management-tokens:list', orgId],
     queryFn: async () => {
@@ -196,7 +186,6 @@ export default function OrganizationPage() {
     enabled: !!orgId,
   });
 
-  // Fetch organization invites
   const organizationInvitesQuery = useQuery({
     queryKey: ['organization-invites:list', orgId],
     queryFn: async () => {
@@ -209,7 +198,6 @@ export default function OrganizationPage() {
     enabled: !!orgId,
   });
 
-  // Get current user to prevent self-deletion
   const { currentUser } = useCurrentUser();
 
   if (organizationQuery.isLoading) {
@@ -229,7 +217,7 @@ export default function OrganizationPage() {
       return (
         <ResourceNotFound
           resource="Organization"
-          description="The organization you’re looking for doesn’t exist or you don’t have access to it."
+          description="The organization you're looking for doesn't exist or you don't have access to it."
           primaryAction={{
             label: 'Dashboard',
             navigate: { to: appRoutes.authenticatedRoute.to },
@@ -265,52 +253,57 @@ export default function OrganizationPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex h-14 shrink-0 items-center border-b px-6">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleGoBack}
-            className="gap-2"
-          >
-            <ArrowLeftIcon className="size-4" />
-            Back
-          </Button>
-          <div className="h-5 w-px bg-border" />
+      {/* Top nav bar */}
+      <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleGoBack}
+          className="gap-2 text-muted-foreground"
+        >
+          <ArrowLeftIcon className="size-4" />
+          Back to Dashboard
+        </Button>
+        <div className="flex items-center">
           {isEditingName ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Input
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
                 onKeyDown={handleKeyPress}
-                className="h-8 w-64 px-2 text-sm font-semibold"
+                className="h-8 w-48 px-2 text-sm font-semibold"
                 autoFocus
                 disabled={updateOrganizationLoading}
               />
               <Button
                 size="sm"
+                variant="ghost"
+                className="h-7 w-7 shrink-0 p-0"
                 onClick={handleSaveEdit}
                 disabled={updateOrganizationLoading || !editedName.trim()}
               >
-                <CheckIcon className="size-4" />
+                <CheckIcon className="size-3.5" />
               </Button>
               <Button
                 size="sm"
-                variant="outline"
+                variant="ghost"
+                className="h-7 w-7 shrink-0 p-0"
                 onClick={handleCancelEdit}
                 disabled={updateOrganizationLoading}
               >
-                <XMarkIcon className="size-4" />
+                <XMarkIcon className="size-3.5" />
               </Button>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-semibold">{organization.name}</h1>
+              <span className="text-sm font-medium text-muted-foreground">
+                {organization.name}
+              </span>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={handleStartEdit}
-                className="h-6 w-6 p-0"
+                className="h-6 w-6 shrink-0 p-0"
                 disabled={updateOrganizationLoading}
                 style={{ opacity: updateOrganizationLoading ? 0.3 : 1 }}
               >
@@ -321,204 +314,169 @@ export default function OrganizationPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-6 pt-6">
-          <Tabs defaultValue="tenants">
-            <TabsList layout="underlined">
-              <TabsTrigger value="tenants" variant="underlined">
-                Tenants
-              </TabsTrigger>
-              <TabsTrigger value="members" variant="underlined">
-                Members
-              </TabsTrigger>
-              <TabsTrigger value="invites" variant="underlined">
-                Invites
-              </TabsTrigger>
-              <TabsTrigger value="tokens" variant="underlined">
-                Tokens
-              </TabsTrigger>
-            </TabsList>
+      {/* Body: sidebar + content */}
+      <div className="grid flex-1 grid-cols-[240px_1fr] overflow-hidden">
+        {/* Sidebar */}
+        <div className="flex flex-col border-r">
+          <nav className="flex-1 space-y-1 px-3 py-3">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setActiveSection(item.key)}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  activeSection === item.key
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                )}
+              >
+                <item.icon className="size-4 shrink-0" />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
 
-            <TabsContent value="tenants" className="pt-4">
-              <div className="mb-4 flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    globalEmitter.emit('new-tenant', {
-                      defaultOrganizationId: organization.metadata.id,
-                    });
-                  }}
-                  leftIcon={<PlusIcon className="size-4" />}
-                >
-                  Add Tenant
-                </Button>
-              </div>
+        {/* Main content */}
+        <div className="flex flex-col overflow-hidden">
+          {/* Content header */}
+          <div className="flex h-12 shrink-0 items-center justify-between border-b px-8">
+            <h2 className="text-lg font-semibold">
+              {NAV_ITEMS.find((i) => i.key === activeSection)?.label}
+            </h2>
+          {activeSection === 'tenants' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                globalEmitter.emit('new-tenant', {
+                  defaultOrganizationId: organization.metadata.id,
+                });
+              }}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
+              Add Tenant
+            </Button>
+          )}
+          {activeSection === 'invites' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInviteMemberModal(true)}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
+              Invite Member
+            </Button>
+          )}
+          {activeSection === 'tokens' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCreateTokenModal(true)}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
+              Create Token
+            </Button>
+          )}
+        </div>
+
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto p-8">
+          {/* Tenants */}
+          {activeSection === 'tenants' && (
+            <>
               {tenantsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loading />
                 </div>
               ) : organization.tenants && organization.tenants.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="hidden md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>ID</TableHead>
-                          <TableHead>Slug</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {organization.tenants
-                          .filter(
-                            (tenant) =>
-                              tenant.status !== TenantStatusType.ARCHIVED,
-                          )
-                          .map((orgTenant) => {
-                            const detailedTenant = detailedTenants.find(
-                              (t) => t?.metadata.id === orgTenant.id,
-                            );
-                            return (
-                              <TableRow key={orgTenant.id}>
-                                <TableCell className="font-medium">
-                                  {detailedTenant?.name || 'Loading...'}
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-sm">
-                                      {orgTenant.id}
-                                    </span>
-                                    <CopyToClipboard text={orgTenant.id} />
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {detailedTenant?.slug || '-'}
-                                </TableCell>
-                                <TableCell>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                      >
-                                        <EllipsisVerticalIcon className="size-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem
-                                        onClick={() => {
-                                          navigate({
-                                            to: appRoutes.tenantRoute.to,
-                                            params: { tenant: orgTenant.id },
-                                          });
-                                        }}
-                                      >
-                                        <ArrowRightIcon className="mr-2 size-4" />
-                                        View Tenant
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          setTenantToArchive(orgTenant)
-                                        }
-                                      >
-                                        <TrashIcon className="mr-2 size-4" />
-                                        Archive Tenant
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  <div className="space-y-4 md:hidden">
-                    {organization.tenants
-                      .filter(
-                        (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
-                      )
-                      .map((orgTenant) => {
-                        const detailedTenant = detailedTenants.find(
-                          (t) => t?.metadata.id === orgTenant.id,
+                <SimpleTable
+                  data={organization.tenants
+                    .filter(
+                      (tenant) =>
+                        tenant.status !== TenantStatusType.ARCHIVED,
+                    )
+                    .map((t) => ({ ...t, metadata: { id: t.id } }))}
+                  columns={[
+                    {
+                      columnLabel: 'Name',
+                      cellRenderer: (row) => {
+                        const detailed = detailedTenants.find(
+                          (t) => t?.metadata.id === row.id,
                         );
                         return (
-                          <div
-                            key={orgTenant.id}
-                            className="space-y-3 rounded-lg border p-4"
-                          >
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-medium">
-                                {detailedTenant?.name || 'Loading...'}
-                              </h4>
-                              <Badge>{orgTenant.status}</Badge>
-                            </div>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="font-medium text-muted-foreground">
-                                  Tenant ID:
-                                </span>
-                                <div className="mt-1 flex items-center gap-2">
-                                  <span className="font-mono text-sm">
-                                    {orgTenant.id}
-                                  </span>
-                                  <CopyToClipboard text={orgTenant.id} />
-                                </div>
-                              </div>
-                              <div>
-                                <span className="font-medium text-muted-foreground">
-                                  Slug:
-                                </span>
-                                <span className="ml-2">
-                                  {detailedTenant?.slug || '-'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex justify-end">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <EllipsisVerticalIcon className="size-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      navigate({
-                                        to: appRoutes.tenantRoute.to,
-                                        params: { tenant: orgTenant.id },
-                                      });
-                                    }}
-                                  >
-                                    <ArrowRightIcon className="mr-2 size-4" />
-                                    View Tenant
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      setTenantToArchive(orgTenant)
-                                    }
-                                  >
-                                    <TrashIcon className="mr-2 size-4" />
-                                    Archive Tenant
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </div>
+                          <span className="font-medium">
+                            {detailed?.name || 'Loading...'}
+                          </span>
                         );
-                      })}
-                  </div>
-                </div>
+                      },
+                    },
+                    {
+                      columnLabel: 'ID',
+                      cellRenderer: (row) => (
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm">{row.id}</span>
+                          <CopyToClipboard text={row.id} />
+                        </div>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Slug',
+                      cellRenderer: (row) => {
+                        const detailed = detailedTenants.find(
+                          (t) => t?.metadata.id === row.id,
+                        );
+                        return (
+                          <span className="text-muted-foreground">
+                            {detailed?.slug || '-'}
+                          </span>
+                        );
+                      },
+                    },
+                    {
+                      columnLabel: 'Actions',
+                      cellRenderer: (row) => (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <EllipsisVerticalIcon className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                navigate({
+                                  to: appRoutes.tenantRoute.to,
+                                  params: { tenant: row.id },
+                                });
+                              }}
+                            >
+                              <ArrowRightIcon className="mr-2 size-4" />
+                              View Tenant
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setTenantToArchive({
+                                  id: row.id,
+                                  status: row.status,
+                                })
+                              }
+                            >
+                              <TrashIcon className="mr-2 size-4" />
+                              Archive Tenant
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ),
+                    },
+                  ]}
+                />
               ) : (
-                <div className="py-8 text-center">
+                <div className="py-16 text-center">
                   <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
                   <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
                   <p className="mb-4 text-muted-foreground">
@@ -536,148 +494,75 @@ export default function OrganizationPage() {
                   </Button>
                 </div>
               )}
-            </TabsContent>
+            </>
+          )}
 
-            <TabsContent value="members" className="pt-4">
+          {/* Members */}
+          {activeSection === 'members' && (
+            <>
               {organization.members && organization.members.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="hidden md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>ID</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {organization.members.map((member) => (
-                          <TableRow key={member.metadata.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-sm">
-                                  {member.metadata.id}
-                                </span>
-                                <CopyToClipboard text={member.metadata.id} />
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {member.email}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{member.role}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <EllipsisVerticalIcon className="size-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {currentUser?.email === member.email ? (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <DropdownMenuItem
-                                            disabled
-                                            className="cursor-not-allowed text-gray-400"
-                                          >
-                                            <TrashIcon className="mr-2 size-4" />
-                                            Remove Member
-                                          </DropdownMenuItem>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>Cannot remove yourself</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  ) : (
+                <SimpleTable
+                  data={organization.members}
+                  columns={[
+                    {
+                      columnLabel: 'Email',
+                      cellRenderer: (row) => (
+                        <span className="font-mono text-sm">{row.email}</span>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Role',
+                      cellRenderer: (row) => (
+                        <Badge variant="outline">{row.role}</Badge>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Actions',
+                      cellRenderer: (row) => (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <EllipsisVerticalIcon className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {currentUser?.email === row.email ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
                                     <DropdownMenuItem
-                                      onClick={() => setMemberToDelete(member)}
+                                      disabled
+                                      className="cursor-not-allowed text-gray-400"
                                     >
                                       <TrashIcon className="mr-2 size-4" />
                                       Remove Member
                                     </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  <div className="space-y-4 md:hidden">
-                    {organization.members.map((member) => (
-                      <div
-                        key={member.metadata.id}
-                        className="space-y-3 rounded-lg border p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm">
-                              {member.email}
-                            </span>
-                            <Badge variant="default">{member.role}</Badge>
-                          </div>
-                          {currentUser?.email !== member.email && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => setMemberToDelete(member)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Remove Member
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Member ID:
-                            </span>
-                            <div className="mt-1 flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {member.metadata.id}
-                              </span>
-                              <CopyToClipboard text={member.metadata.id} />
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Member Since:
-                            </span>
-                            <span className="ml-2">
-                              {new Date(
-                                member.metadata.createdAt,
-                              ).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Cannot remove yourself</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => setMemberToDelete(row)}
+                              >
+                                <TrashIcon className="mr-2 size-4" />
+                                Remove Member
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ),
+                    },
+                  ]}
+                />
               ) : (
-                <div className="py-8 text-center">
+                <div className="py-16 text-center">
                   <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
                   <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
                   <p className="mb-4 text-muted-foreground">
@@ -685,19 +570,12 @@ export default function OrganizationPage() {
                   </p>
                 </div>
               )}
-            </TabsContent>
+            </>
+          )}
 
-            <TabsContent value="invites" className="pt-4">
-              <div className="mb-4 flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowInviteMemberModal(true)}
-                  leftIcon={<PlusIcon className="size-4" />}
-                >
-                  Invite Member
-                </Button>
-              </div>
+          {/* Invites */}
+          {activeSection === 'invites' && (
+            <>
               {organizationInvitesQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loading />
@@ -705,169 +583,79 @@ export default function OrganizationPage() {
               ) : organizationInvitesQuery.data &&
                 organizationInvitesQuery.data.rows &&
                 organizationInvitesQuery.data.rows.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="hidden md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Expiry</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {organizationInvitesQuery.data.rows
-                          .filter(
-                            (invite) =>
-                              invite.status ===
-                                OrganizationInviteStatus.PENDING ||
-                              invite.status ===
-                                OrganizationInviteStatus.EXPIRED,
-                          )
-                          .map((invite) => (
-                            <TableRow key={invite.metadata.id}>
-                              <TableCell className="font-mono text-sm">
-                                {invite.inviteeEmail}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{invite.role}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    invite.status ===
-                                    OrganizationInviteStatus.PENDING
-                                      ? 'secondary'
-                                      : invite.status ===
-                                          OrganizationInviteStatus.ACCEPTED
-                                        ? 'default'
-                                        : 'destructive'
-                                  }
-                                >
-                                  {invite.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {formatExpirationDate(invite.expires)}
-                              </TableCell>
-                              <TableCell>
-                                {invite.status ===
-                                  OrganizationInviteStatus.PENDING && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                      >
-                                        <EllipsisVerticalIcon className="size-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          setInviteToCancel(invite)
-                                        }
-                                      >
-                                        <TrashIcon className="mr-2 size-4" />
-                                        Cancel Invitation
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  <div className="space-y-4 md:hidden">
-                    {organizationInvitesQuery.data.rows.map((invite) => (
-                      <div
-                        key={invite.metadata.id}
-                        className="space-y-3 rounded-lg border p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm">
-                              {invite.inviteeEmail}
-                            </span>
-                            <Badge variant="outline">{invite.role}</Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant={
-                                invite.status ===
-                                OrganizationInviteStatus.PENDING
-                                  ? 'secondary'
-                                  : invite.status ===
-                                      OrganizationInviteStatus.ACCEPTED
-                                    ? 'default'
-                                    : 'destructive'
-                              }
-                            >
-                              {invite.status}
-                            </Badge>
-                            {invite.status ===
-                              OrganizationInviteStatus.PENDING && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <EllipsisVerticalIcon className="size-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => setInviteToCancel(invite)}
-                                  >
-                                    <TrashIcon className="mr-2 size-4" />
-                                    Cancel Invitation
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Invite ID:
-                            </span>
-                            <div className="mt-1 flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {invite.metadata.id}
-                              </span>
-                              <CopyToClipboard text={invite.metadata.id} />
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Invited By:
-                            </span>
-                            <span className="ml-2">{invite.inviterEmail}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Expires:
-                            </span>
-                            <span className="ml-2">
-                              {formatExpirationDate(invite.expires)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <SimpleTable
+                  data={organizationInvitesQuery.data.rows.filter(
+                    (invite) =>
+                      invite.status === OrganizationInviteStatus.PENDING ||
+                      invite.status === OrganizationInviteStatus.EXPIRED,
+                  )}
+                  columns={[
+                    {
+                      columnLabel: 'Email',
+                      cellRenderer: (row) => (
+                        <span className="font-mono text-sm">
+                          {row.inviteeEmail}
+                        </span>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Role',
+                      cellRenderer: (row) => (
+                        <Badge variant="outline">{row.role}</Badge>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Status',
+                      cellRenderer: (row) => (
+                        <Badge
+                          variant={
+                            row.status === OrganizationInviteStatus.PENDING
+                              ? 'secondary'
+                              : row.status ===
+                                  OrganizationInviteStatus.ACCEPTED
+                                ? 'default'
+                                : 'destructive'
+                          }
+                        >
+                          {row.status}
+                        </Badge>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Expiry',
+                      cellRenderer: (row) => (
+                        <span>{formatExpirationDate(row.expires)}</span>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Actions',
+                      cellRenderer: (row) =>
+                        row.status === OrganizationInviteStatus.PENDING ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <EllipsisVerticalIcon className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setInviteToCancel(row)}
+                              >
+                                <TrashIcon className="mr-2 size-4" />
+                                Cancel Invitation
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null,
+                    },
+                  ]}
+                />
               ) : (
-                <div className="py-8 text-center">
+                <div className="py-16 text-center">
                   <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
                   <h3 className="mb-2 text-lg font-medium">
                     No Pending Invites
@@ -883,19 +671,12 @@ export default function OrganizationPage() {
                   </Button>
                 </div>
               )}
-            </TabsContent>
+            </>
+          )}
 
-            <TabsContent value="tokens" className="pt-4">
-              <div className="mb-4 flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCreateTokenModal(true)}
-                  leftIcon={<PlusIcon className="size-4" />}
-                >
-                  Create Token
-                </Button>
-              </div>
+          {/* Tokens */}
+          {activeSection === 'tokens' && (
+            <>
               {managementTokensQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loading />
@@ -903,113 +684,58 @@ export default function OrganizationPage() {
               ) : managementTokensQuery.data &&
                 managementTokensQuery.data.rows &&
                 managementTokensQuery.data.rows.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="hidden md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>ID</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Expiry</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {managementTokensQuery.data.rows.map((token) => (
-                          <TableRow key={token.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-sm">
-                                  {token.id}
-                                </span>
-                                <CopyToClipboard text={token.id} />
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {token.name}
-                            </TableCell>
-                            <TableCell>
-                              {formatExpirationDate(token.expiresAt)}
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <EllipsisVerticalIcon className="size-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => setTokenToDelete(token)}
-                                  >
-                                    <TrashIcon className="mr-2 size-4" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  <div className="space-y-4 md:hidden">
-                    {managementTokensQuery.data.rows.map((token) => (
-                      <div
-                        key={token.id}
-                        className="space-y-3 rounded-lg border p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium">{token.name}</h4>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">
-                              {formatExpirationDate(token.expiresAt)}
-                            </Badge>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => setTokenToDelete(token)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Token ID:
-                            </span>
-                            <div className="mt-1 flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {token.id}
-                              </span>
-                              <CopyToClipboard text={token.id} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <SimpleTable
+                  data={managementTokensQuery.data.rows.map((t) => ({
+                    ...t,
+                    metadata: { id: t.id },
+                  }))}
+                  columns={[
+                    {
+                      columnLabel: 'Name',
+                      cellRenderer: (row) => (
+                        <span className="font-medium">{row.name}</span>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Expiry',
+                      cellRenderer: (row) => (
+                        <span>{formatExpirationDate(row.expiresAt)}</span>
+                      ),
+                    },
+                    {
+                      columnLabel: 'Actions',
+                      cellRenderer: (row) => (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <EllipsisVerticalIcon className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setTokenToDelete({
+                                  id: row.id,
+                                  name: row.name,
+                                  expiresAt: row.expiresAt,
+                                })
+                              }
+                            >
+                              <TrashIcon className="mr-2 size-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ),
+                    },
+                  ]}
+                />
               ) : (
-                <div className="py-8 text-center">
+                <div className="py-16 text-center">
                   <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
                   <h3 className="mb-2 text-lg font-medium">
                     No Management Tokens
@@ -1026,11 +752,13 @@ export default function OrganizationPage() {
                   </Button>
                 </div>
               )}
-            </TabsContent>
-          </Tabs>
+            </>
+          )}
         </div>
       </div>
+      </div>
 
+      {/* Modals */}
       {orgId && organization && (
         <InviteMemberModal
           open={showInviteMemberModal}
