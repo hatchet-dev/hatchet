@@ -1,4 +1,10 @@
 /**
+ * The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
+ *
+ * There are two types of context classes you'll encounter:
+ *
+ * - Context - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
+ * - DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
  * @module Context
  */
 /* eslint-disable no-underscore-dangle */
@@ -45,14 +51,6 @@ interface ContextData<T, K> {
   step_run_errors: Record<string, string>;
 }
 
-/**
- * The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
- *
- * There are two types of context classes you'll encounter:
- *
- * - Context - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
- * - DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
- */
 export class Context<T, K = {}> {
   data: ContextData<T, K>;
   /**

@@ -1,3 +1,9 @@
+/**
+ * This is the TypeScript SDK reference, documenting methods available for interacting with Hatchet resources.
+ * Check out the [user guide](https://docs.hatchet.run/home/) for an introduction to getting your first tasks running.
+ * 
+ * @module Hatchet TypeScript SDK Reference
+ */
 /* eslint-disable no-dupe-class-members */
 /* eslint-disable no-underscore-dangle */
 import {
