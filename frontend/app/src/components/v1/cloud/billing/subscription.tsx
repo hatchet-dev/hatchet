@@ -57,7 +57,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     const balanceCents = creditBalanceQuery.data?.balanceCents ?? 0;
 
     // Stripe customer balance is negative when the customer has credits.
-    if (balanceCents > 0) {
+    if (balanceCents >= 0) {
       return null;
     }
 
