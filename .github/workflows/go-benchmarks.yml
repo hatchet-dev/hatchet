@@ -29,16 +29,37 @@ jobs:
       - name: Install benchstat
         run: go install golang.org/x/perf/cmd/benchstat@latest
 
+      - name: Find packages with benchmark tests
+        id: packages
+        run: |
+          # Find Go packages that contain Benchmark functions in _test.go files
+          CHANGED_DIRS=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..HEAD -- '*.go' | xargs -I{} dirname {} | sort -u)
+          BENCH_PKGS=""
+          for dir in $CHANGED_DIRS; do
+            if grep -rq '^func Benchmark' "$dir"/*_test.go 2>/dev/null; then
+              BENCH_PKGS="$BENCH_PKGS ./$dir"
+            fi
+          done
+          if [ -z "$BENCH_PKGS" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "pkgs=$BENCH_PKGS" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run benchmarks on PR branch
-        run: go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ./... 2>/dev/null | tee /tmp/new.txt
+        if: steps.packages.outputs.found == 'true'
+        run: go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ${{ steps.packages.outputs.pkgs }} 2>/dev/null | tee /tmp/new.txt
 
       - name: Run benchmarks on base branch
+        if: steps.packages.outputs.found == 'true'
         run: |
           git checkout ${{ github.event.pull_request.base.sha }}
-          go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ./... 2>/dev/null | tee /tmp/old.txt
+          go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ${{ steps.packages.outputs.pkgs }} 2>/dev/null | tee /tmp/old.txt
           git checkout ${{ github.event.pull_request.head.sha }}
 
       - name: Compare with benchstat
+        if: steps.packages.outputs.found == 'true'
         id: benchstat
         run: |
           RESULT=$(benchstat /tmp/old.txt /tmp/new.txt 2>&1 || true)
@@ -54,19 +75,22 @@ jobs:
           fi
 
       - name: Post results as PR comment
-        if: steps.benchstat.outputs.empty == 'false'
+        if: steps.packages.outputs.found == 'true' && steps.benchstat.outputs.empty == 'false'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
-            const body = `## Benchmark results
+            const result = `${{ steps.benchstat.outputs.result }}`;
+            const lines = [
+              '## Benchmark results',
+              '',
+              '```',
+              result.trim(),
+              '```',
+              '',
+              `<sub>Compared against \`${{ github.event.pull_request.base.ref }}\` (${`${{ github.event.pull_request.base.sha }}`.slice(0, 8)})</sub>`,
+            ];
+            const body = lines.join('\n');
 
-            \`\`\`
-            ${{ steps.benchstat.outputs.result }}
-            \`\`\`
-
-            <sub>Compared against ${{ github.event.pull_request.base.ref }} (${{ github.event.pull_request.base.sha }})</sub>`;
-
-            // Update existing comment if one exists, otherwise create new
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
