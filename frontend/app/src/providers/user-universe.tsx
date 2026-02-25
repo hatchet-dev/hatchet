@@ -2,8 +2,7 @@ import api, { cloudApi } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantMember } from '@/lib/api/generated/data-contracts';
 import useCloud from '@/pages/auth/hooks/use-cloud';
-import queryClient from '@/query-client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -74,7 +73,7 @@ export const userUniverseQuery = ({
   isCloudEnabled: boolean;
   isCloudLoaded: boolean;
 }) => ({
-  queryKey: ['user-universe'],
+  queryKey: ['user-universe', isCloudEnabled],
   queryFn: async (): Promise<PossibleQueryResponses> => {
     const [organizations, tenantMemberships] = await Promise.all([
       isCloudEnabled ? cloudApi.organizationList() : null,
@@ -96,12 +95,6 @@ export const userUniverseQuery = ({
   enabled: isCloudLoaded,
 });
 
-export const invalidateUserUniverse = () => {
-  queryClient.invalidateQueries({
-    queryKey: ['user-universe'],
-  });
-};
-
 export function UserUniverseProvider({
   children,
 }: {
@@ -109,17 +102,16 @@ export function UserUniverseProvider({
 }) {
   const { isCloudEnabled, isCloudLoaded } = useCloud();
   const tenantMembershipAndOrganizationsQuery = useQuery(
-    useMemo(
-      () => userUniverseQuery({ isCloudEnabled, isCloudLoaded }),
-      [isCloudEnabled, isCloudLoaded],
-    ),
+    userUniverseQuery({ isCloudEnabled, isCloudLoaded }),
   );
+
+  const queryClient = useQueryClient();
 
   const invalidate = useCallback(() => {
     queryClient.resetQueries({
       queryKey: ['user-universe'],
     });
-  }, []);
+  }, [queryClient]);
 
   const get = useCallback(
     () =>
