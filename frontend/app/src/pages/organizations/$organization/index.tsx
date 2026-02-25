@@ -4,6 +4,7 @@ import { DeleteMemberModal } from './components/delete-member-modal';
 import { DeleteTenantModal } from './components/delete-tenant-modal';
 import { DeleteTokenModal } from './components/delete-token-modal';
 import { InviteMemberModal } from './components/invite-member-modal';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
@@ -15,7 +16,6 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
 import { Loading } from '@/components/v1/ui/loading';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
   Tooltip,
   TooltipContent,
@@ -253,7 +253,6 @@ export default function OrganizationPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      {/* Top nav bar */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         <Button
           variant="ghost"
@@ -314,9 +313,7 @@ export default function OrganizationPage() {
         </div>
       </div>
 
-      {/* Body: sidebar + content */}
       <div className="grid flex-1 grid-cols-[240px_1fr] overflow-hidden">
-        {/* Sidebar */}
         <div className="flex flex-col border-r">
           <nav className="flex-1 space-y-1 px-3 py-3">
             {NAV_ITEMS.map((item) => (
@@ -337,300 +334,100 @@ export default function OrganizationPage() {
           </nav>
         </div>
 
-        {/* Main content */}
         <div className="flex flex-col overflow-hidden">
-          {/* Content header */}
-          <div className="flex h-12 shrink-0 items-center justify-between border-b px-8">
+          <div className="flex h-12 shrink-0 items-center justify-between p-8">
             <h2 className="text-lg font-semibold">
               {NAV_ITEMS.find((i) => i.key === activeSection)?.label}
             </h2>
-          {activeSection === 'tenants' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                globalEmitter.emit('new-tenant', {
-                  defaultOrganizationId: organization.metadata.id,
-                });
-              }}
-              leftIcon={<PlusIcon className="size-4" />}
-            >
-              Add Tenant
-            </Button>
-          )}
-          {activeSection === 'invites' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowInviteMemberModal(true)}
-              leftIcon={<PlusIcon className="size-4" />}
-            >
-              Invite Member
-            </Button>
-          )}
-          {activeSection === 'tokens' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCreateTokenModal(true)}
-              leftIcon={<PlusIcon className="size-4" />}
-            >
-              Create Token
-            </Button>
-          )}
-        </div>
+            {activeSection === 'tenants' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  globalEmitter.emit('new-tenant', {
+                    defaultOrganizationId: organization.metadata.id,
+                  });
+                }}
+                leftIcon={<PlusIcon className="size-4" />}
+              >
+                Add Tenant
+              </Button>
+            )}
+            {activeSection === 'invites' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowInviteMemberModal(true)}
+                leftIcon={<PlusIcon className="size-4" />}
+              >
+                Invite Member
+              </Button>
+            )}
+            {activeSection === 'tokens' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreateTokenModal(true)}
+                leftIcon={<PlusIcon className="size-4" />}
+              >
+                Create Token
+              </Button>
+            )}
+          </div>
 
-        {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto p-8">
-          {/* Tenants */}
-          {activeSection === 'tenants' && (
-            <>
-              {tenantsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loading />
-                </div>
-              ) : organization.tenants && organization.tenants.length > 0 ? (
-                <SimpleTable
-                  data={organization.tenants
-                    .filter(
-                      (tenant) =>
-                        tenant.status !== TenantStatusType.ARCHIVED,
-                    )
-                    .map((t) => ({ ...t, metadata: { id: t.id } }))}
-                  columns={[
-                    {
-                      columnLabel: 'Name',
-                      cellRenderer: (row) => {
-                        const detailed = detailedTenants.find(
-                          (t) => t?.metadata.id === row.id,
-                        );
-                        return (
-                          <span className="font-medium">
-                            {detailed?.name || 'Loading...'}
-                          </span>
-                        );
+          <div className="flex-1 overflow-y-auto px-8">
+            {activeSection === 'tenants' && (
+              <>
+                {tenantsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loading />
+                  </div>
+                ) : organization.tenants && organization.tenants.length > 0 ? (
+                  <SimpleTable
+                    data={organization.tenants
+                      .filter(
+                        (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
+                      )
+                      .map((t) => ({ ...t, metadata: { id: t.id } }))}
+                    columns={[
+                      {
+                        columnLabel: 'Name',
+                        cellRenderer: (row) => {
+                          const detailed = detailedTenants.find(
+                            (t) => t?.metadata.id === row.id,
+                          );
+                          return (
+                            <span className="font-medium">
+                              {detailed?.name || 'Loading...'}
+                            </span>
+                          );
+                        },
                       },
-                    },
-                    {
-                      columnLabel: 'ID',
-                      cellRenderer: (row) => (
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">{row.id}</span>
-                          <CopyToClipboard text={row.id} />
-                        </div>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Slug',
-                      cellRenderer: (row) => {
-                        const detailed = detailedTenants.find(
-                          (t) => t?.metadata.id === row.id,
-                        );
-                        return (
-                          <span className="text-muted-foreground">
-                            {detailed?.slug || '-'}
-                          </span>
-                        );
+                      {
+                        columnLabel: 'ID',
+                        cellRenderer: (row) => (
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm">{row.id}</span>
+                            <CopyToClipboard text={row.id} />
+                          </div>
+                        ),
                       },
-                    },
-                    {
-                      columnLabel: 'Actions',
-                      cellRenderer: (row) => (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                            >
-                              <EllipsisVerticalIcon className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                navigate({
-                                  to: appRoutes.tenantRoute.to,
-                                  params: { tenant: row.id },
-                                });
-                              }}
-                            >
-                              <ArrowRightIcon className="mr-2 size-4" />
-                              View Tenant
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setTenantToArchive({
-                                  id: row.id,
-                                  status: row.status,
-                                })
-                              }
-                            >
-                              <TrashIcon className="mr-2 size-4" />
-                              Archive Tenant
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ),
-                    },
-                  ]}
-                />
-              ) : (
-                <div className="py-16 text-center">
-                  <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
-                  <p className="mb-4 text-muted-foreground">
-                    Add your first tenant to get started.
-                  </p>
-                  <Button
-                    onClick={() => {
-                      globalEmitter.emit('new-tenant', {
-                        defaultOrganizationId: organization.metadata.id,
-                      });
-                    }}
-                    leftIcon={<PlusIcon className="size-4" />}
-                  >
-                    Add Tenant
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Members */}
-          {activeSection === 'members' && (
-            <>
-              {organization.members && organization.members.length > 0 ? (
-                <SimpleTable
-                  data={organization.members}
-                  columns={[
-                    {
-                      columnLabel: 'Email',
-                      cellRenderer: (row) => (
-                        <span className="font-mono text-sm">{row.email}</span>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Role',
-                      cellRenderer: (row) => (
-                        <Badge variant="outline">{row.role}</Badge>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Actions',
-                      cellRenderer: (row) => (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                            >
-                              <EllipsisVerticalIcon className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {currentUser?.email === row.email ? (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <DropdownMenuItem
-                                      disabled
-                                      className="cursor-not-allowed text-gray-400"
-                                    >
-                                      <TrashIcon className="mr-2 size-4" />
-                                      Remove Member
-                                    </DropdownMenuItem>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Cannot remove yourself</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : (
-                              <DropdownMenuItem
-                                onClick={() => setMemberToDelete(row)}
-                              >
-                                <TrashIcon className="mr-2 size-4" />
-                                Remove Member
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ),
-                    },
-                  ]}
-                />
-              ) : (
-                <div className="py-16 text-center">
-                  <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
-                  <p className="mb-4 text-muted-foreground">
-                    Members will appear here when they join this organization.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Invites */}
-          {activeSection === 'invites' && (
-            <>
-              {organizationInvitesQuery.isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loading />
-                </div>
-              ) : organizationInvitesQuery.data &&
-                organizationInvitesQuery.data.rows &&
-                organizationInvitesQuery.data.rows.length > 0 ? (
-                <SimpleTable
-                  data={organizationInvitesQuery.data.rows.filter(
-                    (invite) =>
-                      invite.status === OrganizationInviteStatus.PENDING ||
-                      invite.status === OrganizationInviteStatus.EXPIRED,
-                  )}
-                  columns={[
-                    {
-                      columnLabel: 'Email',
-                      cellRenderer: (row) => (
-                        <span className="font-mono text-sm">
-                          {row.inviteeEmail}
-                        </span>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Role',
-                      cellRenderer: (row) => (
-                        <Badge variant="outline">{row.role}</Badge>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Status',
-                      cellRenderer: (row) => (
-                        <Badge
-                          variant={
-                            row.status === OrganizationInviteStatus.PENDING
-                              ? 'secondary'
-                              : row.status ===
-                                  OrganizationInviteStatus.ACCEPTED
-                                ? 'default'
-                                : 'destructive'
-                          }
-                        >
-                          {row.status}
-                        </Badge>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Expiry',
-                      cellRenderer: (row) => (
-                        <span>{formatExpirationDate(row.expires)}</span>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Actions',
-                      cellRenderer: (row) =>
-                        row.status === OrganizationInviteStatus.PENDING ? (
+                      {
+                        columnLabel: 'Slug',
+                        cellRenderer: (row) => {
+                          const detailed = detailedTenants.find(
+                            (t) => t?.metadata.id === row.id,
+                          );
+                          return (
+                            <span className="text-muted-foreground">
+                              {detailed?.slug || '-'}
+                            </span>
+                          );
+                        },
+                      },
+                      {
+                        columnLabel: 'Actions',
+                        cellRenderer: (row) => (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -643,122 +440,313 @@ export default function OrganizationPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                onClick={() => setInviteToCancel(row)}
+                                onClick={() => {
+                                  navigate({
+                                    to: appRoutes.tenantRoute.to,
+                                    params: { tenant: row.id },
+                                  });
+                                }}
+                              >
+                                <ArrowRightIcon className="mr-2 size-4" />
+                                View Tenant
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setTenantToArchive({
+                                    id: row.id,
+                                    status: row.status,
+                                  })
+                                }
                               >
                                 <TrashIcon className="mr-2 size-4" />
-                                Cancel Invitation
+                                Archive Tenant
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        ) : null,
-                    },
-                  ]}
-                />
-              ) : (
-                <div className="py-16 text-center">
-                  <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <h3 className="mb-2 text-lg font-medium">
-                    No Pending Invites
-                  </h3>
-                  <p className="mb-4 text-muted-foreground">
-                    Invite members to join this organization.
-                  </p>
-                  <Button
-                    onClick={() => setShowInviteMemberModal(true)}
-                    leftIcon={<PlusIcon className="size-4" />}
-                  >
-                    Invite Member
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+                        ),
+                      },
+                    ]}
+                  />
+                ) : (
+                  <div className="py-16 text-center">
+                    <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
+                    <p className="mb-4 text-muted-foreground">
+                      Add your first tenant to get started.
+                    </p>
+                    <Button
+                      onClick={() => {
+                        globalEmitter.emit('new-tenant', {
+                          defaultOrganizationId: organization.metadata.id,
+                        });
+                      }}
+                      leftIcon={<PlusIcon className="size-4" />}
+                    >
+                      Add Tenant
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
 
-          {/* Tokens */}
-          {activeSection === 'tokens' && (
-            <>
-              {managementTokensQuery.isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loading />
-                </div>
-              ) : managementTokensQuery.data &&
-                managementTokensQuery.data.rows &&
-                managementTokensQuery.data.rows.length > 0 ? (
-                <SimpleTable
-                  data={managementTokensQuery.data.rows.map((t) => ({
-                    ...t,
-                    metadata: { id: t.id },
-                  }))}
-                  columns={[
-                    {
-                      columnLabel: 'Name',
-                      cellRenderer: (row) => (
-                        <span className="font-medium">{row.name}</span>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Expiry',
-                      cellRenderer: (row) => (
-                        <span>{formatExpirationDate(row.expiresAt)}</span>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Actions',
-                      cellRenderer: (row) => (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                            >
-                              <EllipsisVerticalIcon className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setTokenToDelete({
-                                  id: row.id,
-                                  name: row.name,
-                                  expiresAt: row.expiresAt,
-                                })
-                              }
-                            >
-                              <TrashIcon className="mr-2 size-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ),
-                    },
-                  ]}
-                />
-              ) : (
-                <div className="py-16 text-center">
-                  <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <h3 className="mb-2 text-lg font-medium">
-                    No Management Tokens
-                  </h3>
-                  <p className="mb-4 text-muted-foreground">
-                    Create API tokens to manage this organization
-                    programmatically.
-                  </p>
-                  <Button
-                    onClick={() => setShowCreateTokenModal(true)}
-                    leftIcon={<PlusIcon className="size-4" />}
-                  >
-                    Create Token
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+            {activeSection === 'members' && (
+              <>
+                {organization.members && organization.members.length > 0 ? (
+                  <SimpleTable
+                    data={organization.members}
+                    columns={[
+                      {
+                        columnLabel: 'Email',
+                        cellRenderer: (row) => (
+                          <span className="font-mono text-sm">{row.email}</span>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Role',
+                        cellRenderer: (row) => (
+                          <Badge variant="outline">{row.role}</Badge>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Actions',
+                        cellRenderer: (row) => (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <EllipsisVerticalIcon className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {currentUser?.email === row.email ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <DropdownMenuItem
+                                        disabled
+                                        className="cursor-not-allowed text-gray-400"
+                                      >
+                                        <TrashIcon className="mr-2 size-4" />
+                                        Remove Member
+                                      </DropdownMenuItem>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Cannot remove yourself</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => setMemberToDelete(row)}
+                                >
+                                  <TrashIcon className="mr-2 size-4" />
+                                  Remove Member
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ),
+                      },
+                    ]}
+                  />
+                ) : (
+                  <div className="py-16 text-center">
+                    <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
+                    <p className="mb-4 text-muted-foreground">
+                      Members will appear here when they join this organization.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeSection === 'invites' && (
+              <>
+                {organizationInvitesQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loading />
+                  </div>
+                ) : organizationInvitesQuery.data &&
+                  organizationInvitesQuery.data.rows &&
+                  organizationInvitesQuery.data.rows.length > 0 ? (
+                  <SimpleTable
+                    data={organizationInvitesQuery.data.rows.filter(
+                      (invite) =>
+                        invite.status === OrganizationInviteStatus.PENDING ||
+                        invite.status === OrganizationInviteStatus.EXPIRED,
+                    )}
+                    columns={[
+                      {
+                        columnLabel: 'Email',
+                        cellRenderer: (row) => (
+                          <span className="font-mono text-sm">
+                            {row.inviteeEmail}
+                          </span>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Role',
+                        cellRenderer: (row) => (
+                          <Badge variant="outline">{row.role}</Badge>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Status',
+                        cellRenderer: (row) => (
+                          <Badge
+                            variant={
+                              row.status === OrganizationInviteStatus.PENDING
+                                ? 'secondary'
+                                : row.status ===
+                                    OrganizationInviteStatus.ACCEPTED
+                                  ? 'default'
+                                  : 'destructive'
+                            }
+                          >
+                            {row.status}
+                          </Badge>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Expiry',
+                        cellRenderer: (row) => (
+                          <span>{formatExpirationDate(row.expires)}</span>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Actions',
+                        cellRenderer: (row) =>
+                          row.status === OrganizationInviteStatus.PENDING ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <EllipsisVerticalIcon className="size-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => setInviteToCancel(row)}
+                                >
+                                  <TrashIcon className="mr-2 size-4" />
+                                  Cancel Invitation
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : null,
+                      },
+                    ]}
+                  />
+                ) : (
+                  <div className="py-16 text-center">
+                    <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <h3 className="mb-2 text-lg font-medium">
+                      No Pending Invites
+                    </h3>
+                    <p className="mb-4 text-muted-foreground">
+                      Invite members to join this organization.
+                    </p>
+                    <Button
+                      onClick={() => setShowInviteMemberModal(true)}
+                      leftIcon={<PlusIcon className="size-4" />}
+                    >
+                      Invite Member
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeSection === 'tokens' && (
+              <>
+                {managementTokensQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loading />
+                  </div>
+                ) : managementTokensQuery.data &&
+                  managementTokensQuery.data.rows &&
+                  managementTokensQuery.data.rows.length > 0 ? (
+                  <SimpleTable
+                    data={managementTokensQuery.data.rows.map((t) => ({
+                      ...t,
+                      metadata: { id: t.id },
+                    }))}
+                    columns={[
+                      {
+                        columnLabel: 'Name',
+                        cellRenderer: (row) => (
+                          <span className="font-medium">{row.name}</span>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Expiry',
+                        cellRenderer: (row) => (
+                          <span>{formatExpirationDate(row.expiresAt)}</span>
+                        ),
+                      },
+                      {
+                        columnLabel: 'Actions',
+                        cellRenderer: (row) => (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <EllipsisVerticalIcon className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setTokenToDelete({
+                                    id: row.id,
+                                    name: row.name,
+                                    expiresAt: row.expiresAt,
+                                  })
+                                }
+                              >
+                                <TrashIcon className="mr-2 size-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ),
+                      },
+                    ]}
+                  />
+                ) : (
+                  <div className="py-16 text-center">
+                    <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <h3 className="mb-2 text-lg font-medium">
+                      No Management Tokens
+                    </h3>
+                    <p className="mb-4 text-muted-foreground">
+                      Create API tokens to manage this organization
+                      programmatically.
+                    </p>
+                    <Button
+                      onClick={() => setShowCreateTokenModal(true)}
+                      leftIcon={<PlusIcon className="size-4" />}
+                    >
+                      Create Token
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
-      </div>
 
-      {/* Modals */}
       {orgId && organization && (
         <InviteMemberModal
           open={showInviteMemberModal}
