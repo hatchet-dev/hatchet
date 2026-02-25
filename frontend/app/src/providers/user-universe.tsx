@@ -130,19 +130,20 @@ export function UserUniverseProvider({
   );
 
   const value = useMemo<UserUniverse>(() => {
-    const isLoaded = tenantMembershipAndOrganizationsQuery.isSuccess;
+    const tenantMembershipAndOrganizationsAreLoaded =
+      tenantMembershipAndOrganizationsQuery.isSuccess;
     if (isCloudEnabled) {
       const getWithOrganizations = get as () => Promise<{
         organizations: OrganizationForUserList['rows'];
         tenantMemberships: TenantMember[];
       }>;
 
-      if (isLoaded) {
+      if (tenantMembershipAndOrganizationsAreLoaded) {
         invariant(tenantMembershipAndOrganizationsQuery.data.organizations);
 
         return {
           isCloudEnabled,
-          isLoaded,
+          isLoaded: tenantMembershipAndOrganizationsAreLoaded,
           organizations:
             tenantMembershipAndOrganizationsQuery.data.organizations,
           tenantMemberships:
@@ -154,7 +155,7 @@ export function UserUniverseProvider({
 
       return {
         isCloudEnabled,
-        isLoaded,
+        isLoaded: tenantMembershipAndOrganizationsAreLoaded,
         organizations: null,
         tenantMemberships: null,
         get: getWithOrganizations,
@@ -165,10 +166,10 @@ export function UserUniverseProvider({
         organizations: null;
         tenantMemberships: TenantMember[];
       }>;
-      return isLoaded
+      return tenantMembershipAndOrganizationsAreLoaded
         ? {
             isCloudEnabled,
-            isLoaded,
+            isLoaded: tenantMembershipAndOrganizationsAreLoaded,
             organizations: null,
             tenantMemberships:
               tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
@@ -177,7 +178,7 @@ export function UserUniverseProvider({
           }
         : {
             isCloudEnabled,
-            isLoaded,
+            isLoaded: tenantMembershipAndOrganizationsAreLoaded,
             organizations: null,
             tenantMemberships: null,
             get: getWithoutOrganizations,
