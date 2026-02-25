@@ -2,4 +2,4 @@
 
 set -eux
 
-cd ./frontend/app && pnpm run dev
+cd ./frontend/app && npm run dev
