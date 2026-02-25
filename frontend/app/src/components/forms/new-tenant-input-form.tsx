@@ -16,7 +16,6 @@ type NewTenantInputFormProps = {
   defaultTenantName?: string;
   isSaving?: boolean;
   defaultOrganizationId?: string;
-  organizations?: OrganizationForUser[];
 } & (
   | {
       isCloudEnabled: true;
@@ -28,16 +27,58 @@ type NewTenantInputFormProps = {
     }
   | {
       isCloudEnabled: false;
+      organizations?: null;
       onSubmit: (values: { tenantName: string }) => void;
     }
 );
+
+function OrganizationSelect({
+  organizations,
+  organizationId,
+  setOrganizationId,
+  isSaving,
+  shouldFocusOrganization,
+}: {
+  organizations: OrganizationForUser[];
+  organizationId?: string;
+  setOrganizationId: (value: string) => void;
+  isSaving: boolean;
+  shouldFocusOrganization: boolean;
+}) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="organization-select">Organization</Label>
+      <Select
+        name="organizationId"
+        value={organizationId}
+        onValueChange={setOrganizationId}
+        disabled={isSaving}
+        required
+      >
+        <SelectTrigger
+          id="organization-select"
+          autoFocus={shouldFocusOrganization}
+        >
+          <SelectValue placeholder="Select an organization" />
+        </SelectTrigger>
+        <SelectContent>
+          {organizations.map((org) => (
+            <SelectItem key={org.metadata.id} value={org.metadata.id}>
+              {org.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 export function NewTenantInputForm({
   defaultTenantName = '',
   defaultOrganizationId,
   isSaving = false,
   isCloudEnabled,
-  organizations = [],
+  organizations = null,
   onSubmit,
 }: NewTenantInputFormProps) {
   const [tenantName, setTenantName] = useState(defaultTenantName);
@@ -47,41 +88,26 @@ export function NewTenantInputForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    invariant(organizationId);
-    isCloudEnabled
-      ? onSubmit({ tenantName, organizationId })
-      : onSubmit({ tenantName });
+    if (isCloudEnabled) {
+      invariant(organizationId);
+      onSubmit({ tenantName, organizationId });
+    } else {
+      onSubmit({ tenantName });
+    }
   };
 
   const shouldFocusOrganization = isCloudEnabled && !defaultOrganizationId;
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4 max-w-lg w-full">
-      {isCloudEnabled && (
-        <div className="grid gap-2">
-          <Label htmlFor="organization-select">Organization</Label>
-          <Select
-            name="organizationId"
-            value={organizationId}
-            onValueChange={setOrganizationId}
-            disabled={isSaving}
-            required
-          >
-            <SelectTrigger
-              id="organization-select"
-              autoFocus={shouldFocusOrganization}
-            >
-              <SelectValue placeholder="Select an organization" />
-            </SelectTrigger>
-            <SelectContent>
-              {organizations.map((org) => (
-                <SelectItem key={org.metadata.id} value={org.metadata.id}>
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {!!organizations && (
+        <OrganizationSelect
+          organizations={organizations}
+          organizationId={organizationId}
+          setOrganizationId={setOrganizationId}
+          isSaving={isSaving}
+          shouldFocusOrganization={shouldFocusOrganization}
+        />
       )}
 
       <div className="grid gap-2">

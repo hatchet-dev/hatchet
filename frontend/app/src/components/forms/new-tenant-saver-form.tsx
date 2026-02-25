@@ -114,16 +114,24 @@ export function NewTenantSaverForm({
     return <></>;
   }
 
-  invariant(organizations);
+  const props = isCloudEnabled
+    ? ({
+        isCloudEnabled: true,
+        organizations,
+      } as const)
+    : ({
+        isCloudEnabled: false,
+      } as const);
+
+  invariant(!isCloudEnabled || organizations);
 
   return (
     <NewTenantInputForm
       defaultTenantName={defaultTenantName}
       defaultOrganizationId={defaultOrganizationId}
       isSaving={saveTenantMutation.isPending}
-      isCloudEnabled={isCloudEnabled}
-      organizations={organizations}
       onSubmit={saveTenantMutation.mutate}
+      {...props}
     />
   );
 }
