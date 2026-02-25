@@ -139,27 +139,27 @@ export function UserUniverseProvider({
 
       if (isLoaded) {
         invariant(tenantMembershipAndOrganizationsQuery.data.organizations);
+
+        return {
+          isCloudEnabled,
+          isLoaded,
+          organizations:
+            tenantMembershipAndOrganizationsQuery.data.organizations,
+          tenantMemberships:
+            tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
+          get: getWithOrganizations,
+          invalidate,
+        };
       }
 
-      return isLoaded
-        ? {
-            isCloudEnabled,
-            isLoaded,
-            organizations: tenantMembershipAndOrganizationsQuery.data
-              .organizations as OrganizationForUserList['rows'],
-            tenantMemberships:
-              tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
-            get: getWithOrganizations,
-            invalidate,
-          }
-        : {
-            isCloudEnabled,
-            isLoaded,
-            organizations: null,
-            tenantMemberships: null,
-            get: getWithOrganizations,
-            invalidate,
-          };
+      return {
+        isCloudEnabled,
+        isLoaded,
+        organizations: null,
+        tenantMemberships: null,
+        get: getWithOrganizations,
+        invalidate,
+      };
     } else {
       const getWithoutOrganizations = get as () => Promise<{
         organizations: null;
