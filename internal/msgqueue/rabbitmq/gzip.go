@@ -5,7 +5,11 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"sync"
+
+	// we need to do this aliasing to avoid the load-deadlock GitHub action from
+	// failing which depends on replacing the standard "sync" package with
+	// github.com/sasha-s/go-deadlock
+	stdsync "sync"
 )
 
 type CompressionResult struct {
@@ -18,7 +22,7 @@ type CompressionResult struct {
 	CompressionRatio float64
 }
 
-var gzipWriterPool = sync.Pool{
+var gzipWriterPool = stdsync.Pool{
 	New: func() any {
 		return gzip.NewWriter(nil)
 	},
