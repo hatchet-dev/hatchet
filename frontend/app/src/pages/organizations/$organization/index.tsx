@@ -44,7 +44,6 @@ import {
   BuildingOffice2Icon,
   UserIcon,
   KeyIcon,
-  EnvelopeIcon,
   PencilIcon,
   CheckIcon,
   XMarkIcon,
@@ -59,12 +58,11 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
 
-type Section = 'tenants' | 'members' | 'invites' | 'tokens';
+type Section = 'tenants' | 'members' | 'tokens';
 
 const NAV_ITEMS: { key: Section; label: string; icon: typeof KeyIcon }[] = [
   { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
   { key: 'members', label: 'Members', icon: UserIcon },
-  { key: 'invites', label: 'Invites', icon: EnvelopeIcon },
   { key: 'tokens', label: 'API Tokens', icon: KeyIcon },
 ];
 
@@ -348,7 +346,7 @@ export default function OrganizationPage() {
                 Add Tenant
               </Button>
             )}
-            {activeSection === 'invites' && (
+            {activeSection === 'members' && (
               <Button
                 variant="outline"
                 size="sm"
@@ -485,7 +483,7 @@ export default function OrganizationPage() {
             )}
 
             {activeSection === 'members' && (
-              <>
+              <div className="space-y-8">
                 {organization.members && organization.members.length > 0 ? (
                   <SimpleTable
                     data={organization.members}
@@ -556,107 +554,90 @@ export default function OrganizationPage() {
                     </p>
                   </div>
                 )}
-              </>
-            )}
 
-            {activeSection === 'invites' && (
-              <>
                 {organizationInvitesQuery.isLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loading />
                   </div>
-                ) : organizationInvitesQuery.data &&
-                  organizationInvitesQuery.data.rows &&
-                  organizationInvitesQuery.data.rows.length > 0 ? (
-                  <SimpleTable
-                    data={organizationInvitesQuery.data.rows.filter(
-                      (invite) =>
-                        invite.status === OrganizationInviteStatus.PENDING ||
-                        invite.status === OrganizationInviteStatus.EXPIRED,
-                    )}
-                    columns={[
-                      {
-                        columnLabel: 'Email',
-                        cellRenderer: (row) => (
-                          <span className="font-mono text-sm">
-                            {row.inviteeEmail}
-                          </span>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Role',
-                        cellRenderer: (row) => (
-                          <Badge variant="outline">{row.role}</Badge>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Status',
-                        cellRenderer: (row) => (
-                          <Badge
-                            variant={
-                              row.status === OrganizationInviteStatus.PENDING
-                                ? 'secondary'
-                                : row.status ===
-                                    OrganizationInviteStatus.ACCEPTED
-                                  ? 'default'
-                                  : 'destructive'
-                            }
-                          >
-                            {row.status}
-                          </Badge>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Expiry',
-                        cellRenderer: (row) => (
-                          <span>{formatExpirationDate(row.expires)}</span>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Actions',
-                        cellRenderer: (row) =>
-                          row.status === OrganizationInviteStatus.PENDING ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <EllipsisVerticalIcon className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => setInviteToCancel(row)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Cancel Invitation
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : null,
-                      },
-                    ]}
-                  />
-                ) : (
-                  <div className="py-16 text-center">
-                    <EnvelopeIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <h3 className="mb-2 text-lg font-medium">
-                      No Pending Invites
-                    </h3>
-                    <p className="mb-4 text-muted-foreground">
-                      Invite members to join this organization.
-                    </p>
-                    <Button
-                      onClick={() => setShowInviteMemberModal(true)}
-                      leftIcon={<PlusIcon className="size-4" />}
-                    >
-                      Invite Member
-                    </Button>
-                  </div>
-                )}
-              </>
+                ) : (() => {
+                  const pendingInvites = organizationInvitesQuery.data?.rows?.filter(
+                    (invite) =>
+                      invite.status === OrganizationInviteStatus.PENDING ||
+                      invite.status === OrganizationInviteStatus.EXPIRED,
+                  );
+                  return pendingInvites && pendingInvites.length > 0 ? (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-medium text-muted-foreground">
+                        Pending Invites
+                      </h3>
+                      <SimpleTable
+                        data={pendingInvites}
+                        columns={[
+                          {
+                            columnLabel: 'Email',
+                            cellRenderer: (row) => (
+                              <span className="font-mono text-sm">
+                                {row.inviteeEmail}
+                              </span>
+                            ),
+                          },
+                          {
+                            columnLabel: 'Role',
+                            cellRenderer: (row) => (
+                              <Badge variant="outline">{row.role}</Badge>
+                            ),
+                          },
+                          {
+                            columnLabel: 'Status',
+                            cellRenderer: (row) => (
+                              <Badge
+                                variant={
+                                  row.status === OrganizationInviteStatus.PENDING
+                                    ? 'secondary'
+                                    : 'destructive'
+                                }
+                              >
+                                {row.status}
+                              </Badge>
+                            ),
+                          },
+                          {
+                            columnLabel: 'Expiry',
+                            cellRenderer: (row) => (
+                              <span>{formatExpirationDate(row.expires)}</span>
+                            ),
+                          },
+                          {
+                            columnLabel: 'Actions',
+                            cellRenderer: (row) =>
+                              row.status === OrganizationInviteStatus.PENDING ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <EllipsisVerticalIcon className="size-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => setInviteToCancel(row)}
+                                    >
+                                      <TrashIcon className="mr-2 size-4" />
+                                      Cancel Invitation
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : null,
+                          },
+                        ]}
+                      />
+                    </div>
+                  ) : null;
+                })()}
+              </div>
             )}
 
             {activeSection === 'tokens' && (
