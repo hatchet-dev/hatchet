@@ -116,7 +116,7 @@ export function UserUniverseProvider({
   );
 
   const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({
+    queryClient.resetQueries({
       queryKey: ['user-universe'],
     });
   }, []);
