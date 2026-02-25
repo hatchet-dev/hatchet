@@ -11,12 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixes dependencies not working when using `type Dependency = Annotated[..., ...]` syntax for annotations on python version 3.12 and 3.13. Adds `typing-inspection` as a dependency.
 
-## [1.25.3] - 2026-02-24
-
-### Fixed
-
-- Fixes dependencies not working when using `type Dependency = Annotated[..., ...]` syntax for annotations.
-
 ### Changed
 
 - Changes one function in the python SDK to use `inspect.iscoroutinefunction` instead of `asyncio.iscoroutinefunction` which is deprecated.
