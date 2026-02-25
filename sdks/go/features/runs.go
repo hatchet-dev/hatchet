@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
@@ -75,7 +74,7 @@ func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskS
 
 // GetDetails retrieves detailed information about a workflow run via gRPC,
 // including task-level output, errors, and status.
-func (r *RunsClient) GetDetails(ctx context.Context, runId string) (*v1contracts.GetRunDetailsResponse, error) {
+func (r *RunsClient) GetDetails(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error) {
 	resp, err := r.v0Client.Admin().GetRunDetails(ctx, runId)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get workflow run details")

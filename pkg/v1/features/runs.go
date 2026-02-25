@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
@@ -33,7 +32,7 @@ type RunsClient interface {
 
 	// GetV1Details retrieves detailed information about a workflow run via gRPC,
 	// including task-level output, errors, and status.
-	GetV1Details(ctx context.Context, runId string) (*v1contracts.GetRunDetailsResponse, error)
+	GetV1Details(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error)
 
 	// List retrieves a collection of workflow runs based on the provided parameters.
 	List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error)
@@ -114,7 +113,7 @@ func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1
 //
 // GetV1Details retrieves detailed information about a workflow run via gRPC,
 // including task-level output, errors, and status.
-func (r *runsClientImpl) GetV1Details(ctx context.Context, runId string) (*v1contracts.GetRunDetailsResponse, error) {
+func (r *runsClientImpl) GetV1Details(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error) {
 	return r.v0Client.Admin().GetRunDetails(ctx, runId)
 }
 
