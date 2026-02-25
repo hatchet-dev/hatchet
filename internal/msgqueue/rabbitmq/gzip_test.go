@@ -1,6 +1,7 @@
 package rabbitmq
 
 import (
+	"bytes"
 	"math/rand"
 	"testing"
 )
@@ -48,10 +49,8 @@ func TestCompressDecompressRoundtrip(t *testing.T) {
 		if len(decompressed[i]) != len(payloads[i]) {
 			t.Fatalf("payload %d: expected len %d, got %d", i, len(payloads[i]), len(decompressed[i]))
 		}
-		for j := range payloads[i] {
-			if decompressed[i][j] != payloads[i][j] {
-				t.Fatalf("payload %d: byte mismatch at offset %d", i, j)
-			}
+		if !bytes.Equal(decompressed[i], payloads[i]) {
+			t.Fatalf("payload %d: decompressed payload does not match original payload", i)
 		}
 	}
 }

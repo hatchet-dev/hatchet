@@ -70,12 +70,10 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 
 		if _, err := w.Write(payload); err != nil {
 			w.Close()
-			gzipWriterPool.Put(w)
 			return nil, fmt.Errorf("failed to write to gzip writer: %w", err)
 		}
 
 		if err := w.Close(); err != nil {
-			gzipWriterPool.Put(w)
 			return nil, fmt.Errorf("failed to close gzip writer: %w", err)
 		}
 
