@@ -1,0 +1,94 @@
+name: go-benchmarks
+on:
+  pull_request:
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+
+concurrency:
+  group: go-benchmarks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubicloud-standard-8
+    timeout-minutes: 15
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        with:
+          go-version: "1.25"
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run benchmarks on PR branch
+        run: go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ./... 2>/dev/null | tee /tmp/new.txt
+
+      - name: Run benchmarks on base branch
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+          go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ./... 2>/dev/null | tee /tmp/old.txt
+          git checkout ${{ github.event.pull_request.head.sha }}
+
+      - name: Compare with benchstat
+        id: benchstat
+        run: |
+          RESULT=$(benchstat /tmp/old.txt /tmp/new.txt 2>&1 || true)
+          if [ -z "$RESULT" ]; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "result<<BENCHSTAT_EOF"
+              echo "$RESULT"
+              echo "BENCHSTAT_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post results as PR comment
+        if: steps.benchstat.outputs.empty == 'false'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const body = `## Benchmark results
+
+            \`\`\`
+            ${{ steps.benchstat.outputs.result }}
+            \`\`\`
+
+            <sub>Compared against ${{ github.event.pull_request.base.ref }} (${{ github.event.pull_request.base.sha }})</sub>`;
+
+            // Update existing comment if one exists, otherwise create new
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.startsWith('## Benchmark results')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

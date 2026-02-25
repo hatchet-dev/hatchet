@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"sync"
 )
 
 type CompressionResult struct {
@@ -17,6 +18,12 @@ type CompressionResult struct {
 	CompressionRatio float64
 }
 
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
+}
+
 func getPayloadSize(payloads [][]byte) int {
 	totalSize := 0
 	for _, payload := range payloads {
@@ -25,8 +32,6 @@ func getPayloadSize(payloads [][]byte) int {
 	return totalSize
 }
 
-// compressPayloads compresses message payloads using gzip if they exceed the minimum size threshold.
-// Returns compression results including the compressed payloads and compression statistics.
 func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResult, error) {
 	result := &CompressionResult{
 		Payloads:      payloads,
@@ -37,11 +42,9 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 		return result, nil
 	}
 
-	// Calculate total size to determine if compression is worthwhile
 	totalSize := getPayloadSize(payloads)
 	result.OriginalSize = totalSize
 
-	// Only compress if total size exceeds threshold
 	if totalSize < t.compressionThreshold {
 		result.CompressedSize = totalSize
 		result.CompressionRatio = 1.0
@@ -53,16 +56,22 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 
 	for i, payload := range payloads {
 		var buf bytes.Buffer
-		gzipWriter := gzip.NewWriter(&buf)
 
-		if _, err := gzipWriter.Write(payload); err != nil {
-			gzipWriter.Close()
+		w := gzipWriterPool.Get().(*gzip.Writer)
+		w.Reset(&buf)
+
+		if _, err := w.Write(payload); err != nil {
+			w.Close()
+			gzipWriterPool.Put(w)
 			return nil, fmt.Errorf("failed to write to gzip writer: %w", err)
 		}
 
-		if err := gzipWriter.Close(); err != nil {
+		if err := w.Close(); err != nil {
+			gzipWriterPool.Put(w)
 			return nil, fmt.Errorf("failed to close gzip writer: %w", err)
 		}
+
+		gzipWriterPool.Put(w)
 
 		compressed[i] = buf.Bytes()
 		compressedSize += len(compressed[i])
@@ -72,7 +81,6 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 	result.WasCompressed = true
 	result.CompressedSize = compressedSize
 
-	// Calculate compression ratio (compressed / original)
 	if totalSize > 0 {
 		result.CompressionRatio = float64(compressedSize) / float64(totalSize)
 	}
@@ -80,7 +88,6 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 	return result, nil
 }
 
-// decompressPayloads decompresses message payloads using gzip.
 func (t *MessageQueueImpl) decompressPayloads(payloads [][]byte) ([][]byte, error) {
 	if len(payloads) == 0 {
 		return payloads, nil
