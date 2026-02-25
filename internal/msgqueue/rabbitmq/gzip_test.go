@@ -2,17 +2,26 @@ package rabbitmq
 
 import (
 	"bytes"
-	"math/rand"
+	"crypto/rand"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func generatePayloads(count, size int) [][]byte {
 	payloads := make([][]byte, count)
+
 	for i := range payloads {
 		data := make([]byte, size)
-		rand.Read(data)
+
+		_, err := rand.Read(data)
+		if err != nil {
+			panic(err)
+		}
+
 		payloads[i] = data
 	}
+
 	return payloads
 }
 
@@ -26,32 +35,19 @@ func newMQ() *MessageQueueImpl {
 func TestCompressDecompressRoundtrip(t *testing.T) {
 	mq := newMQ()
 	payloads := generatePayloads(5, 10*1024)
-
 	result, err := mq.compressPayloads(payloads)
-	if err != nil {
-		t.Fatalf("compressPayloads: %v", err)
-	}
 
-	if !result.WasCompressed {
-		t.Fatal("expected WasCompressed to be true")
-	}
-
-	if len(result.Payloads) != len(payloads) {
-		t.Fatalf("expected %d payloads, got %d", len(payloads), len(result.Payloads))
-	}
+	assert.NoError(t, err)
+	assert.True(t, result.WasCompressed, "expected WasCompressed to be true")
+	assert.Equal(t, len(payloads), len(result.Payloads), "expected %d payloads, got %d", len(payloads), len(result.Payloads))
 
 	decompressed, err := mq.decompressPayloads(result.Payloads)
-	if err != nil {
-		t.Fatalf("decompressPayloads: %v", err)
-	}
+
+	assert.NoError(t, err)
 
 	for i := range payloads {
-		if len(decompressed[i]) != len(payloads[i]) {
-			t.Fatalf("payload %d: expected len %d, got %d", i, len(payloads[i]), len(decompressed[i]))
-		}
-		if !bytes.Equal(decompressed[i], payloads[i]) {
-			t.Fatalf("payload %d: decompressed payload does not match original payload", i)
-		}
+		assert.Equal(t, len(payloads[i]), len(decompressed[i]), "payload %d: expected len %d, got %d", i, len(payloads[i]), len(decompressed[i]))
+		assert.True(t, bytes.Equal(decompressed[i], payloads[i]), "payload %d: decompressed payload does not match original payload", i)
 	}
 }
 
@@ -63,13 +59,9 @@ func TestCompressPayloadsDisabled(t *testing.T) {
 
 	payloads := generatePayloads(3, 1024)
 	result, err := mq.compressPayloads(payloads)
-	if err != nil {
-		t.Fatalf("compressPayloads: %v", err)
-	}
 
-	if result.WasCompressed {
-		t.Fatal("expected WasCompressed to be false when compression is disabled")
-	}
+	assert.NoError(t, err)
+	assert.False(t, result.WasCompressed, "expected WasCompressed to be false when compression is disabled")
 }
 
 func TestCompressPayloadsBelowThreshold(t *testing.T) {
@@ -80,13 +72,9 @@ func TestCompressPayloadsBelowThreshold(t *testing.T) {
 
 	payloads := generatePayloads(1, 1024)
 	result, err := mq.compressPayloads(payloads)
-	if err != nil {
-		t.Fatalf("compressPayloads: %v", err)
-	}
 
-	if result.WasCompressed {
-		t.Fatal("expected WasCompressed to be false when below threshold")
-	}
+	assert.NoError(t, err)
+	assert.False(t, result.WasCompressed, "expected WasCompressed to be false when below threshold")
 }
 
 func BenchmarkCompressPayloads_1x10KiB(b *testing.B) {
