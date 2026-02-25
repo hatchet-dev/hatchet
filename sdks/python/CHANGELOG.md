@@ -5,11 +5,11 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.25.3] - 2026-02-24
+## [1.26.0] - 2026-02-25
 
 ### Fixed
 
-- Fixes dependencies not working when using `type Dependency = Annotated[..., ...]` syntax for annotations.
+- Fixes dependencies not working when using `type Dependency = Annotated[..., ...]` syntax for annotations on python version 3.12 and 3.13. Adds `typing-inspection` as a dependency.
 
 ### Changed
 
