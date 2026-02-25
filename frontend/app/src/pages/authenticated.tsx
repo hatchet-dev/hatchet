@@ -11,15 +11,15 @@ import {
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { queries, User } from '@/lib/api';
+import api, { User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
-import { useAppContext } from '@/providers/app-context';
 import { PostHogProvider } from '@/providers/posthog';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -107,18 +107,17 @@ function AuthenticatedInner() {
   const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
     usePendingInvites();
 
-  const listMembershipsQuery = useQuery({
-    ...queries.user.listTenantMemberships,
-    retry: false,
-  });
+  const {
+    isCloudEnabled,
+    isLoaded: isUserUniverseLoaded,
+    organizations,
+    tenantMemberships,
+  } = useUserUniverse();
 
   const ctx = useContextFromParent({
     user: currentUser,
-    memberships: listMembershipsQuery.data?.rows,
+    memberships: tenantMemberships,
   });
-
-  const { isCloudEnabled, organizationsAreLoaded, organizations } =
-    useAppContext();
 
   useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
@@ -157,17 +156,12 @@ function AuthenticatedInner() {
       return;
     }
 
-    const needToWaitForOrganizations =
-      isCloudEnabled && !organizationsAreLoaded;
     const okayToMakeOnboardingRedirectDecisions =
-      !isPendingInvitesLoading &&
-      !isOnboardingPage &&
-      listMembershipsQuery.isSuccess &&
-      !needToWaitForOrganizations;
+      !isPendingInvitesLoading && !isOnboardingPage && isUserUniverseLoaded;
 
     if (okayToMakeOnboardingRedirectDecisions) {
       const shouldHaveAnOrganizationButDoesnt =
-        organizationsAreLoaded && organizations.length === 0;
+        isCloudEnabled && organizations.length === 0;
 
       if (shouldHaveAnOrganizationButDoesnt) {
         navigate({
@@ -177,10 +171,7 @@ function AuthenticatedInner() {
         return;
       }
 
-      const hasNoTenantMemberships =
-        listMembershipsQuery.data.rows?.length === 0;
-
-      if (hasNoTenantMemberships) {
+      if (tenantMemberships.length === 0) {
         navigate({
           to: appRoutes.onboardingCreateTenantRoute.to,
           replace: true,
@@ -190,16 +181,11 @@ function AuthenticatedInner() {
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
-    if (
-      pathname === '/' &&
-      listMembershipsQuery.data?.rows &&
-      listMembershipsQuery.data.rows.length > 0
-    ) {
-      const memberships = listMembershipsQuery.data.rows;
+    if (pathname === '/' && tenantMemberships && tenantMemberships.length > 0) {
       const lastTenantId = lastTenant?.metadata.id;
 
       const lastTenantInMemberships = lastTenantId
-        ? memberships.find((m) => m.tenant?.metadata.id === lastTenantId)
+        ? tenantMemberships.find((m) => m.tenant?.metadata.id === lastTenantId)
             ?.tenant
         : undefined;
 
@@ -209,7 +195,8 @@ function AuthenticatedInner() {
         setLastTenant(undefined);
       }
 
-      const targetTenant = lastTenantInMemberships ?? memberships[0].tenant;
+      const targetTenant =
+        lastTenantInMemberships ?? tenantMemberships[0].tenant;
 
       if (targetTenant) {
         // Check if tenant has workflows to decide where to redirect
@@ -242,7 +229,7 @@ function AuthenticatedInner() {
     currentUser,
     pendingInvitesQuery.data,
     isPendingInvitesLoading,
-    listMembershipsQuery.data,
+    tenantMemberships,
     tenant?.version,
     userError,
     isUserLoading,
@@ -255,6 +242,9 @@ function AuthenticatedInner() {
     isOnboardingPage,
     isAuthPage,
     setLastTenant,
+    isCloudEnabled,
+    isUserUniverseLoaded,
+    organizations,
   ]);
 
   useEffect(() => {
@@ -279,7 +269,7 @@ function AuthenticatedInner() {
           header={
             <TopNav
               user={currentUser}
-              tenantMemberships={listMembershipsQuery.data?.rows || []}
+              tenantMemberships={tenantMemberships || []}
             />
           }
           footer={

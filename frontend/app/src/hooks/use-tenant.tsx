@@ -183,7 +183,7 @@ export function useTenantDetails() {
       return evalFn({
         tenant,
         billing: billingContext,
-        meta: cloud,
+        meta: cloud ?? undefined,
       });
     },
     [billingContext, cloud, tenant],

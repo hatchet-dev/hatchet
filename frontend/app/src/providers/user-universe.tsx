@@ -2,9 +2,12 @@ import api, { cloudApi } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantMember } from '@/lib/api/generated/data-contracts';
 import useCloud from '@/pages/auth/hooks/use-cloud';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import queryClient from '@/query-client';
+import { useQuery } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import invariant from 'tiny-invariant';
+
+// The user's universe: the tenants they belong to, and if we're in the cloud environment, the organizations those tenants belong to
 
 type UserUniverse = {
   isCloudEnabled: boolean;
@@ -52,26 +55,65 @@ type UserUniverse = {
 
 const UserUniverseContext = createContext<UserUniverse | null>(null);
 
+type PossibleQueryResponses =
+  | {
+      isCloudEnabled: true;
+      organizations: OrganizationForUserList['rows'];
+      tenantMemberships: TenantMember[];
+    }
+  | {
+      isCloudEnabled: false;
+      organizations: null;
+      tenantMemberships: TenantMember[];
+    };
+
+export const userUniverseQuery = ({
+  isCloudEnabled,
+  isCloudLoaded,
+}: {
+  isCloudEnabled: boolean;
+  isCloudLoaded: boolean;
+}) => ({
+  queryKey: ['user-universe'],
+  queryFn: async (): Promise<PossibleQueryResponses> => {
+    const [organizations, tenantMemberships] = await Promise.all([
+      isCloudEnabled ? cloudApi.organizationList() : null,
+      api.tenantMembershipsList(),
+    ]);
+
+    return isCloudEnabled
+      ? {
+          isCloudEnabled,
+          organizations: organizations?.data.rows || [],
+          tenantMemberships: tenantMemberships.data.rows || [],
+        }
+      : {
+          isCloudEnabled,
+          organizations: null,
+          tenantMemberships: tenantMemberships.data.rows || [],
+        };
+  },
+  enabled: isCloudLoaded,
+});
+
+export const invalidateUserUniverse = () => {
+  queryClient.invalidateQueries({
+    queryKey: ['user-universe'],
+  });
+};
+
 export function UserUniverseProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isCloudEnabled } = useCloud();
-  const queryClient = useQueryClient();
-  const tenantMembershipAndOrganizationsQuery = useQuery({
-    queryKey: ['user-universe'],
-    queryFn: async () => {
-      const [organizations, tenantMemberships] = await Promise.all([
-        isCloudEnabled ? cloudApi.organizationList() : null,
-        api.tenantMembershipsList(),
-      ]);
-      return {
-        organizations: isCloudEnabled ? organizations?.data.rows || [] : null,
-        tenantMemberships: tenantMemberships.data.rows || [],
-      };
-    },
-  });
+  const { isCloudEnabled, isCloudLoaded } = useCloud();
+  const tenantMembershipAndOrganizationsQuery = useQuery(
+    useMemo(
+      () => userUniverseQuery({ isCloudEnabled, isCloudLoaded }),
+      [isCloudEnabled, isCloudLoaded],
+    ),
+  );
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({
@@ -102,6 +144,10 @@ export function UserUniverseProvider({
         organizations: OrganizationForUserList['rows'];
         tenantMemberships: TenantMember[];
       }>;
+
+      if (isLoaded) {
+        invariant(tenantMembershipAndOrganizationsQuery.data.organizations);
+      }
 
       return isLoaded
         ? {

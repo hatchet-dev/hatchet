@@ -3,7 +3,6 @@ import { cloudApi } from '@/lib/api/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { lastTenantAtom } from '@/lib/atoms';
 import useCloud from '@/pages/auth/hooks/use-cloud';
-import invariant from 'tiny-invariant';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
@@ -14,6 +13,7 @@ import {
   type ReactNode,
   useEffect,
 } from 'react';
+import invariant from 'tiny-invariant';
 
 /**
  * Shared application context providing user, tenant, and organization data
@@ -40,9 +40,6 @@ export type AppContextValue = {
   tenantId: string | undefined;
   isTenantLoading: boolean;
   membership: string | undefined;
-  refetchTenantMemberships: () => void;
-
-  refetchOrganizations: () => void;
   isCloudEnabled: boolean;
 
   // Helper to get organization for current tenant
@@ -176,9 +173,6 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       tenantId,
       isTenantLoading: membershipsQuery.isLoading,
       membership: membership?.role,
-      refetchTenantMemberships: membershipsQuery.refetch,
-
-      refetchOrganizations: organizationsQuery.refetch,
       ...organizationPossibilties,
 
       // Helpers

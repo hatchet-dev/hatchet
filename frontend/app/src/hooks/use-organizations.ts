@@ -6,9 +6,10 @@ import {
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { useAppContext } from '@/providers/app-context';
+import { useUserUniverse } from '@/providers/user-universe';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
+import invariant from 'tiny-invariant';
 
 /**
  * Hook for organization data and operations
@@ -19,9 +20,9 @@ import { useMemo, useCallback } from 'react';
 export function useOrganizations() {
   const {
     organizations: organizationData,
-    organizationsAreLoaded,
+    isLoaded: userUniverseIsLoaded,
     isCloudEnabled,
-  } = useAppContext();
+  } = useUserUniverse();
   const { handleApiError } = useApiError({});
 
   // Re-query for mutations (will revalidate the context)
@@ -34,10 +35,13 @@ export function useOrganizations() {
     enabled: isCloudEnabled,
   });
 
-  const organizations = useMemo(
-    () => (organizationsAreLoaded ? organizationData : []),
-    [organizationsAreLoaded, organizationData],
-  );
+  const organizations = useMemo(() => {
+    if (userUniverseIsLoaded && isCloudEnabled) {
+      invariant(organizationData);
+      return organizationData;
+    }
+    return [];
+  }, [userUniverseIsLoaded, organizationData]);
 
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {

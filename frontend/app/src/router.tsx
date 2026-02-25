@@ -1,6 +1,8 @@
+import { getCloudMetadataQuery } from './pages/auth/hooks/use-cloud';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
+import { userUniverseQuery } from './providers/user-universe';
 import api, { queries } from '@/lib/api';
 import queryClient from '@/query-client';
 import {
@@ -81,7 +83,7 @@ const onboardingVerifyRoute = createRoute({
 });
 
 const organizationsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
   component: lazyRouteComponent(
     () => import('./pages/organizations/$organization'),
@@ -90,7 +92,7 @@ const organizationsRoute = createRoute({
 });
 
 const organizationsNewRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'organizations/new',
   component: lazyRouteComponent(
     () => import('./pages/organizations/new'),
@@ -109,16 +111,24 @@ const authenticatedRoute = createRoute({
 });
 
 const onboardingCreateTenantRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-tenant'),
     'default',
   ),
+  loader: async () => {
+    const { isCloudEnabled } = await queryClient.fetchQuery(
+      getCloudMetadataQuery,
+    );
+    return await queryClient.fetchQuery(
+      userUniverseQuery({ isCloudEnabled, isCloudLoaded: true }),
+    );
+  },
 });
 
 const onboardingCreateOrganizationRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'onboarding/create-organization',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-organization'),
@@ -575,12 +585,12 @@ const tenantRoutes = [
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
   onboardingVerifyRoute,
-  organizationsRoute,
-  organizationsNewRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingCreateOrganizationRoute,
     onboardingInvitesRoute,
+    organizationsRoute,
+    organizationsNewRoute,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,

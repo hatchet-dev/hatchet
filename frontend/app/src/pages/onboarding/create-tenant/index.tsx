@@ -1,11 +1,12 @@
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
-import { useAppContext } from '@/providers/app-context';
 import { appRoutes } from '@/router';
-import { useNavigate } from '@tanstack/react-router';
+import { useLoaderData, useNavigate } from '@tanstack/react-router';
 
 export default function CreateTenant() {
   const navigate = useNavigate();
-  const { organizations } = useAppContext();
+  const { organizations } = useLoaderData({
+    from: '/onboarding/create-tenant',
+  });
 
   const defaultOrganizationId =
     organizations && organizations.length > 0

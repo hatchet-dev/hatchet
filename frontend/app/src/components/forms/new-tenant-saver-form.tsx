@@ -5,7 +5,7 @@ import api, { Tenant } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { AppContextValue, useAppContext } from '@/providers/app-context';
+import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 
@@ -30,16 +30,11 @@ const saveTenant = async ({
   tenantName,
   organizationId,
   isCloudEnabled,
-  refetchTenantMemberships,
-  refetchOrganizations,
 }: {
   tenantName: string;
   organizationId?: string;
   isCloudEnabled: boolean;
-} & Pick<
-  AppContextValue,
-  'refetchTenantMemberships' | 'refetchOrganizations'
->): Promise<FirstArgument<NewTenantSaverFormProps['afterSave']>> => {
+}): Promise<FirstArgument<NewTenantSaverFormProps['afterSave']>> => {
   const slug = generateTenantSlug(tenantName);
 
   if (isCloudEnabled) {
@@ -56,16 +51,12 @@ const saveTenant = async ({
       },
     );
 
-    await Promise.all([refetchTenantMemberships(), refetchOrganizations()]);
-
     return { type: 'cloud', tenant, organizationId };
   } else {
     const { data: tenant } = await api.tenantCreate({
       name: tenantName,
       slug,
     });
-
-    await refetchTenantMemberships();
 
     return { type: 'regular', tenant };
   }
@@ -76,8 +67,8 @@ const useSaveTenant = ({
 }: {
   afterSave: NewTenantSaverFormProps['afterSave'];
 }) => {
-  const { isCloudEnabled, refetchTenantMemberships, refetchOrganizations } =
-    useAppContext();
+  const { isCloudEnabled, invalidate: invalidateUserUniverse } =
+    useUserUniverse();
   const { capture } = useAnalytics();
   const { handleApiError } = useApiError();
 
@@ -88,16 +79,14 @@ const useSaveTenant = ({
     }: {
       tenantName: string;
       organizationId?: string;
-    }) => {
-      return await saveTenant({
+    }) =>
+      saveTenant({
         tenantName,
         organizationId,
         isCloudEnabled,
-        refetchTenantMemberships,
-        refetchOrganizations,
-      });
-    },
+      }),
     onSuccess: (data) => {
+      invalidateUserUniverse();
       capture('onboarding_tenant_created', {
         tenant_type: data.type,
         is_cloud: data.type === 'cloud',
@@ -113,14 +102,19 @@ export function NewTenantSaverForm({
   defaultOrganizationId,
   afterSave,
 }: NewTenantSaverFormProps) {
-  const { isCloudEnabled, organizations, organizationsAreLoaded } =
-    useAppContext();
+  const {
+    isCloudEnabled,
+    organizations,
+    isLoaded: isUserUniverseLoaded,
+  } = useUserUniverse();
 
   const saveTenantMutation = useSaveTenant({ afterSave });
 
-  if (!organizationsAreLoaded) {
+  if (!isUserUniverseLoaded) {
     return <></>;
   }
+
+  invariant(organizations);
 
   return (
     <NewTenantInputForm
