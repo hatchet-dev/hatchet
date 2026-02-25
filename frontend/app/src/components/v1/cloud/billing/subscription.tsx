@@ -70,7 +70,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     }).format(Math.abs(balanceCents) / 100);
 
     const description = creditBalanceQuery.data?.description?.trim();
-    const expires = creditBalanceQuery.data?.expires;
+    const expires = creditBalanceQuery.data?.expiresAt;
 
     return {
       amount: formatted,
@@ -81,7 +81,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     creditBalanceQuery.data?.balanceCents,
     creditBalanceQuery.data?.currency,
     creditBalanceQuery.data?.description,
-    creditBalanceQuery.data?.expires,
+    creditBalanceQuery.data?.expiresAt,
   ]);
 
   const manageClicked = async () => {

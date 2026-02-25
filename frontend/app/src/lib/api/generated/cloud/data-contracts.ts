@@ -370,7 +370,7 @@ export interface TenantCreditBalance {
    * The timestamp at which the current credit balance is scheduled to expire.
    * @format date-time
    */
-  expires?: string;
+  expiresAt?: string;
 }
 
 export interface SubscriptionPlan {
