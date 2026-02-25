@@ -7,12 +7,11 @@ import { InviteMemberModal } from './components/invite-member-modal';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/v1/ui/card';
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import {
   DropdownMenu,
@@ -312,11 +311,31 @@ export default function OrganizationPage() {
           </Button>
         </div>
 
-        {/* Tenants Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+        <Tabs defaultValue="tenants">
+          <TabsList layout="underlined">
+            <TabsTrigger value="tenants" variant="underlined">
               Tenants
+            </TabsTrigger>
+            <TabsTrigger value="members" variant="underlined">
+              Members
+            </TabsTrigger>
+            <TabsTrigger value="invites" variant="underlined">
+              Invites
+            </TabsTrigger>
+            <TabsTrigger value="tokens" variant="underlined">
+              Tokens
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tenants Tab */}
+          <TabsContent value="tenants" className="pt-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-medium">Tenants</h3>
+                <p className="text-sm text-muted-foreground">
+                  Tenants within this organization
+                </p>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -329,10 +348,7 @@ export default function OrganizationPage() {
               >
                 Add Tenant
               </Button>
-            </CardTitle>
-            <CardDescription>Tenants within this organization</CardDescription>
-          </CardHeader>
-          <CardContent>
+            </div>
             {tenantsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loading />
@@ -515,20 +531,16 @@ export default function OrganizationPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </TabsContent>
 
-        {/* Members Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Members
-            </CardTitle>
-            <CardDescription>
-              Members with access to this organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          {/* Members Tab */}
+          <TabsContent value="members" className="pt-4">
+            <div className="mb-4">
+              <h3 className="text-lg font-medium">Members</h3>
+              <p className="text-sm text-muted-foreground">
+                Members with access to this organization
+              </p>
+            </div>
             {organization.members && organization.members.length > 0 ? (
               <div className="space-y-4">
                 {/* Desktop Table View */}
@@ -677,14 +689,17 @@ export default function OrganizationPage() {
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </TabsContent>
 
-        {/* Organization Invites Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Invites
+          {/* Invites Tab */}
+          <TabsContent value="invites" className="pt-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-medium">Invites</h3>
+                <p className="text-sm text-muted-foreground">
+                  Pending invitations to join this organization
+                </p>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -693,12 +708,7 @@ export default function OrganizationPage() {
               >
                 Invite Member
               </Button>
-            </CardTitle>
-            <CardDescription>
-              Pending invitations to join this organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </div>
             {organizationInvitesQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loading />
@@ -880,14 +890,17 @@ export default function OrganizationPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </TabsContent>
 
-        {/* Management Tokens Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Management Tokens
+          {/* Tokens Tab */}
+          <TabsContent value="tokens" className="pt-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-medium">Management Tokens</h3>
+                <p className="text-sm text-muted-foreground">
+                  API tokens for managing this organization
+                </p>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -896,12 +909,7 @@ export default function OrganizationPage() {
               >
                 Create Token
               </Button>
-            </CardTitle>
-            <CardDescription>
-              API tokens for managing this organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </div>
             {managementTokensQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loading />
@@ -1034,8 +1042,8 @@ export default function OrganizationPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Invite Member Modal */}
         {orgId && organization && (
