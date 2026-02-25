@@ -20,7 +20,7 @@ import invariant from 'tiny-invariant';
 export function useOrganizations() {
   const {
     organizations: organizationData,
-    isLoaded: userUniverseIsLoaded,
+    isLoaded: isUserUniverseLoaded,
     isCloudEnabled,
   } = useUserUniverse();
   const { handleApiError } = useApiError({});
@@ -36,12 +36,12 @@ export function useOrganizations() {
   });
 
   const organizations = useMemo(() => {
-    if (userUniverseIsLoaded && isCloudEnabled) {
+    if (isUserUniverseLoaded && isCloudEnabled) {
       invariant(organizationData);
       return organizationData;
     }
     return [];
-  }, [userUniverseIsLoaded, organizationData]);
+  }, [isUserUniverseLoaded, organizationData]);
 
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {
@@ -363,7 +363,7 @@ export function useOrganizations() {
     deleteTenantLoading: deleteTenantMutation.isPending,
     updateOrganizationLoading: updateOrganizationMutation.isPending,
     createOrganizationLoading: createOrganizationMutation.isPending,
-    isLoading: organizationListQuery.isLoading,
+    isUserUniverseLoaded,
     error: organizationListQuery.error,
   };
 }

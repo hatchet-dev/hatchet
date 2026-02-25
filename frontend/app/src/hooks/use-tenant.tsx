@@ -192,7 +192,7 @@ export function useTenantDetails() {
   return {
     tenantId,
     tenant,
-    isLoading: appContext.isTenantLoading,
+    isUserUniverseLoaded: appContext.isUserUniverseLoaded,
     membership,
     setTenant,
     create: createTenantMutation,

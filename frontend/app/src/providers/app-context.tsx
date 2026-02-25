@@ -1,8 +1,7 @@
+import { useUserUniverse } from './user-universe';
 import { queries, Tenant, User } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { lastTenantAtom } from '@/lib/atoms';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
@@ -13,7 +12,6 @@ import {
   type ReactNode,
   useEffect,
 } from 'react';
-import invariant from 'tiny-invariant';
 
 /**
  * Shared application context providing user, tenant, and organization data
@@ -27,6 +25,25 @@ import invariant from 'tiny-invariant';
  * for user, tenant, and organization data across the application.
  */
 
+type UserUniverseData =
+  | {
+      isUserUniverseLoaded: false;
+      membership: undefined;
+      organizations: undefined;
+    }
+  | {
+      isUserUniverseLoaded: true;
+      isCloudEnabled: true;
+      membership: string | undefined;
+      organizations: OrganizationForUserList['rows'];
+    }
+  | {
+      isUserUniverseLoaded: true;
+      isCloudEnabled: false;
+      membership: string | undefined;
+      organizations: undefined;
+    };
+
 export type AppContextValue = {
   // User data
   user: User | undefined;
@@ -38,30 +55,7 @@ export type AppContextValue = {
   // Tenant data
   tenant: Tenant | undefined;
   tenantId: string | undefined;
-  isTenantLoading: boolean;
-  membership: string | undefined;
-  isCloudEnabled: boolean;
-
-  // Helper to get organization for current tenant
-  getCurrentOrganization: () =>
-    | OrganizationForUserList['rows'][number]
-    | undefined;
-} & OrganizationPossibilties;
-
-type OrganizationPossibilties = {
-  isOrganizationsLoading: boolean;
-} & (
-  | {
-      isCloudEnabled: true;
-      organizationsAreLoaded: true;
-      organizations: OrganizationForUserList['rows'];
-    }
-  | {
-      isCloudEnabled: boolean;
-      organizationsAreLoaded: false;
-      organizations: null;
-    }
-);
+} & UserUniverseData;
 
 const AppContext = createContext<AppContextValue | null>(null);
 
@@ -70,8 +64,6 @@ interface AppContextProviderProps {
 }
 
 export function AppContextProvider({ children }: AppContextProviderProps) {
-  const { isCloudEnabled } = useCloud();
-
   // Get tenant ID from route params (following TanStack Router best practices)
   // This replaces the old useCurrentTenantId pattern
   const params = useParams({ strict: false });
@@ -84,35 +76,21 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     retry: false,
   });
 
-  // Fetch tenant memberships
-  const membershipsQuery = useQuery({
-    ...queries.user.listTenantMemberships,
-  });
-
-  // Fetch organizations (cloud only)
-  const organizationsQuery = useQuery({
-    queryKey: ['organization:list'],
-    queryFn: async () => {
-      const result = await cloudApi.organizationList();
-      return result.data;
-    },
-    enabled: isCloudEnabled,
-  });
-
-  const organizations = organizationsQuery.isSuccess
-    ? organizationsQuery.data?.rows || []
-    : null;
+  const {
+    isLoaded: isUserUniverseLoaded,
+    organizations,
+    tenantMemberships,
+    isCloudEnabled: userUniverseIsCloudEnabled,
+  } = useUserUniverse();
 
   // Compute current membership and tenant
   const membership = useMemo(() => {
-    if (!tenantId || !membershipsQuery.data?.rows) {
+    if (!tenantId || !tenantMemberships) {
       return undefined;
     }
 
-    return membershipsQuery.data.rows.find(
-      (m) => m.tenant?.metadata.id === tenantId,
-    );
-  }, [tenantId, membershipsQuery.data?.rows]);
+    return tenantMemberships.find((m) => m.tenant?.metadata.id === tenantId);
+  }, [tenantId, tenantMemberships]);
 
   const tenant = membership?.tenant;
 
@@ -123,44 +101,8 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     }
   }, [tenant, lastTenant, setLastTenant]);
 
-  // Helper to get organization for current tenant
-  const getCurrentOrganization = useMemo(
-    () => () => {
-      if (!tenantId || !organizationsQuery.data?.rows) {
-        return undefined;
-      }
-
-      return organizationsQuery.data.rows.find((org) =>
-        (org.tenants || []).some((t) => t.id === tenantId),
-      );
-    },
-    [tenantId, organizationsQuery.data?.rows],
-  );
-
-  const organizationsAreLoaded = organizationsQuery.isSuccess;
-
-  const organizationPossibilties: OrganizationPossibilties = useMemo(() => {
-    const isOrganizationsLoading = organizationsQuery.isLoading;
-    if (organizationsAreLoaded) {
-      invariant(organizations && isCloudEnabled);
-      return {
-        isOrganizationsLoading,
-        isCloudEnabled,
-        organizationsAreLoaded,
-        organizations,
-      };
-    }
-
-    return {
-      isOrganizationsLoading,
-      isCloudEnabled,
-      organizationsAreLoaded: false,
-      organizations: null,
-    };
-  }, [organizationsAreLoaded, organizations, isCloudEnabled]);
-
-  const value = useMemo<AppContextValue>(
-    () => ({
+  const value = useMemo<AppContextValue>(() => {
+    const baseValue = {
       // User
       user: currentUserQuery.data,
       isUserLoaded: currentUserQuery.isSuccess,
@@ -171,28 +113,47 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       // Tenant
       tenant,
       tenantId,
-      isTenantLoading: membershipsQuery.isLoading,
-      membership: membership?.role,
-      ...organizationPossibilties,
+    };
 
-      // Helpers
-      getCurrentOrganization,
-    }),
-    [
-      currentUserQuery.data,
-      currentUserQuery.isLoading,
-      currentUserQuery.error,
-      currentUserQuery.isError,
-      tenant,
-      tenantId,
-      membershipsQuery.isLoading,
-      membership?.role,
-      organizationsQuery.data,
-      organizationsQuery.isLoading,
-      isCloudEnabled,
-      getCurrentOrganization,
-    ],
-  );
+    if (!isUserUniverseLoaded) {
+      return {
+        ...baseValue,
+        isUserUniverseLoaded: false,
+        membership: undefined,
+        organizations: undefined,
+      };
+    }
+
+    if (userUniverseIsCloudEnabled) {
+      return {
+        ...baseValue,
+        isUserUniverseLoaded: true,
+        isCloudEnabled: true,
+        membership: membership?.role,
+        organizations: organizations || [],
+      };
+    }
+
+    return {
+      ...baseValue,
+      isUserUniverseLoaded: true,
+      isCloudEnabled: false,
+      membership: membership?.role,
+      organizations: undefined,
+    };
+  }, [
+    currentUserQuery.data,
+    currentUserQuery.isLoading,
+    currentUserQuery.isSuccess,
+    currentUserQuery.error,
+    currentUserQuery.isError,
+    tenant,
+    tenantId,
+    isUserUniverseLoaded,
+    userUniverseIsCloudEnabled,
+    membership?.role,
+    organizations,
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

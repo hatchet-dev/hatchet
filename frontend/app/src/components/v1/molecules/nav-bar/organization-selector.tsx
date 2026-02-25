@@ -176,7 +176,7 @@ export function OrganizationSelector({
   const location = useLocation();
   const {
     setTenant: setCurrTenant,
-    isLoading: isTenantLoading,
+    isUserUniverseLoaded: isTenantLoaded,
     tenant,
   } = useTenantDetails();
   const [open, setOpen] = useState(false);
@@ -185,7 +185,7 @@ export function OrganizationSelector({
     organizations,
     getOrganizationForTenant,
     isTenantArchivedInOrg,
-    isLoading: isOrganizationsLoading,
+    isUserUniverseLoaded: isOrganizationsLoaded,
   } = useOrganizations();
 
   const handleClose = () => setOpen(false);
@@ -272,7 +272,7 @@ export function OrganizationSelector({
   ]);
 
   const triggerDisabled =
-    isTenantLoading || isOrganizationsLoading || memberships.length === 0;
+    !isTenantLoaded || !isOrganizationsLoaded || memberships.length === 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -297,7 +297,7 @@ export function OrganizationSelector({
                 {tenant?.name ?? 'Loading tenant…'}
               </span>
             </div>
-            {(isTenantLoading || isOrganizationsLoading) && !open ? (
+            {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
             ) : (
               <CaretSortIcon className="size-4 shrink-0 opacity-50" />
@@ -314,7 +314,7 @@ export function OrganizationSelector({
             <CommandList>
               <CommandEmpty>No tenants found.</CommandEmpty>
 
-              {isOrganizationsLoading && (
+              {!isOrganizationsLoaded && (
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
                   Loading organizations…
