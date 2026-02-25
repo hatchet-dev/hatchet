@@ -175,7 +175,6 @@ export default function Overview() {
 
   return (
     <div className="flex h-full w-full flex-col gap-y-8 lg:p-6">
-      {/* Header section */}
       <div className="grid gap-2 grid-cols-1 items-start lg:grid-cols-[1fr_auto]">
         <div className="flex items-center gap-6 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
