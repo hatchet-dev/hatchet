@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
@@ -29,6 +30,10 @@ type RunsClient interface {
 	// GetDetails retrieves detailed information about a workflow run by its ID.
 	// Deprecated: Use Get instead.
 	GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error)
+
+	// GetV1Details retrieves detailed information about a workflow run via gRPC,
+	// including task-level output, errors, and status.
+	GetV1Details(ctx context.Context, runId string) (*v1contracts.GetRunDetailsResponse, error)
 
 	// List retrieves a collection of workflow runs based on the provided parameters.
 	List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error)
@@ -102,6 +107,15 @@ func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1
 		ctx,
 		uuid.MustParse(runId),
 	)
+}
+
+// Deprecated: GetV1Details is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// GetV1Details retrieves detailed information about a workflow run via gRPC,
+// including task-level output, errors, and status.
+func (r *runsClientImpl) GetV1Details(ctx context.Context, runId string) (*v1contracts.GetRunDetailsResponse, error) {
+	return r.v0Client.Admin().GetRunDetails(ctx, runId)
 }
 
 // Deprecated: List is part of the old generics-based v1 Go SDK.

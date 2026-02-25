@@ -59,6 +59,8 @@ type AdminClient interface {
 	RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error)
 
 	PutRateLimit(key string, opts *types.RateLimitOpts) error
+
+	GetRunDetails(ctx context.Context, externalId string) (*v1contracts.GetRunDetailsResponse, error)
 }
 
 type DedupeViolationErr struct {
@@ -467,6 +469,17 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 	}
 
 	return nil
+}
+
+func (a *adminClientImpl) GetRunDetails(ctx context.Context, externalId string) (*v1contracts.GetRunDetailsResponse, error) {
+	resp, err := a.v1Client.GetRunDetails(a.ctx.newContext(ctx), &v1contracts.GetRunDetailsRequest{
+		ExternalId: externalId,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not get run details: %w", err)
+	}
+
+	return resp, nil
 }
 
 func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {
