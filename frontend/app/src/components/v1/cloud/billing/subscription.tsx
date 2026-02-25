@@ -64,10 +64,15 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     const currencyCode = (creditBalanceQuery.data?.currency || 'USD')
       .toUpperCase()
       .slice(0, 3);
-    const formatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currencyCode,
-    }).format(Math.abs(balanceCents) / 100);
+    let formatted: string;
+    try {
+      formatted = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currencyCode,
+      }).format(Math.abs(balanceCents) / 100);
+    } catch {
+      formatted = `$${(Math.abs(balanceCents) / 100).toFixed(2)}`;
+    }
 
     const description = creditBalanceQuery.data?.description?.trim();
     const expires = creditBalanceQuery.data?.expiresAt;
@@ -293,7 +298,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       </div>
                       {creditBalance.expires && (
                         <p className="mt-1 text-sm text-muted-foreground whitespace-nowrap">
-                          Expires <RelativeDate date={creditBalance.expires} />
+                          Expires{' '}
+                          <RelativeDate date={creditBalance.expires} future />
                         </p>
                       )}
                     </div>
