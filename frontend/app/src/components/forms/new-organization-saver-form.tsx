@@ -81,10 +81,7 @@ export function NewOrganizationSaverForm({
   defaultTenantName,
   afterSave,
 }: NewOrganizationSaverFormProps) {
-  const {
-    isLoaded: isUserUniverseLoaded,
-    isCloudEnabled,
-  } = useUserUniverse();
+  const { isLoaded: isUserUniverseLoaded, isCloudEnabled } = useUserUniverse();
 
   const saveOrganizationMutation = useSaveOrganization({ afterSave });
 
@@ -92,7 +89,10 @@ export function NewOrganizationSaverForm({
     return <></>;
   }
 
-  invariant(isCloudEnabled, 'Cloud must be enabled');
+  invariant(
+    isCloudEnabled,
+    'Organizations only exist in the cloud environment, thus the NewOrganizationSaverForm should never be rendered except in the cloud environment.  If this throws, a UI dev made a mistake.',
+  );
 
   return (
     <NewOrganizationInputForm
