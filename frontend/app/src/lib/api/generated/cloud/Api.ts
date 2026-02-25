@@ -49,6 +49,7 @@ import {
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
   TenantBillingState,
+  TenantCreditBalance,
   TenantPaymentMethodList,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
@@ -829,6 +830,23 @@ export class Api<
   tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantPaymentMethodList, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/payment-methods`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the Stripe credit balance for a tenant
+   *
+   * @tags Billing
+   * @name TenantCreditBalanceGet
+   * @summary Get the Stripe credit balance for a tenant
+   * @request GET:/api/v1/billing/tenants/{tenant}/credit-balance
+   * @secure
+   */
+  tenantCreditBalanceGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantCreditBalance, APIErrors>({
+      path: `/api/v1/billing/tenants/${tenant}/credit-balance`,
       method: "GET",
       secure: true,
       format: "json",
