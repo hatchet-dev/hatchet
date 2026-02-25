@@ -294,21 +294,16 @@ export default function OrganizationPage() {
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium text-muted-foreground">
-                {organization.name}
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleStartEdit}
-                className="h-6 w-6 shrink-0 p-0"
-                disabled={updateOrganizationLoading}
-                style={{ opacity: updateOrganizationLoading ? 0.3 : 1 }}
-              >
-                <PencilIcon className="size-3" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={handleStartEdit}
+              disabled={updateOrganizationLoading}
+              className="gap-x-3 text-lg font-semibold px-4"
+            >
+              {organization.name}
+              <PencilIcon className="size-4 text-muted-foreground" />
+            </Button>
           )}
         </div>
       </div>
