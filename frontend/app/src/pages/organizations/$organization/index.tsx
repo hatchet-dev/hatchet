@@ -63,7 +63,7 @@ type Section = 'tenants' | 'members' | 'tokens';
 const NAV_ITEMS: { key: Section; label: string; icon: typeof KeyIcon }[] = [
   { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
   { key: 'members', label: 'Members', icon: UserIcon },
-  { key: 'tokens', label: 'API Tokens', icon: KeyIcon },
+  { key: 'tokens', label: 'Management Tokens', icon: KeyIcon },
 ];
 
 export default function OrganizationPage() {
@@ -249,6 +249,230 @@ export default function OrganizationPage() {
     }
   };
 
+  const tenantColumns = [
+    {
+      columnLabel: 'Name',
+      cellRenderer: (
+        row: OrganizationTenant & { metadata: { id: string } },
+      ) => {
+        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
+        return (
+          <span className="font-medium">{detailed?.name || 'Loading...'}</span>
+        );
+      },
+    },
+    {
+      columnLabel: 'ID',
+      cellRenderer: (
+        row: OrganizationTenant & { metadata: { id: string } },
+      ) => (
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm">{row.id}</span>
+          <CopyToClipboard text={row.id} />
+        </div>
+      ),
+    },
+    {
+      columnLabel: 'Slug',
+      cellRenderer: (
+        row: OrganizationTenant & { metadata: { id: string } },
+      ) => {
+        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
+        return (
+          <span className="text-muted-foreground">{detailed?.slug || '-'}</span>
+        );
+      },
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (
+        row: OrganizationTenant & { metadata: { id: string } },
+      ) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                navigate({
+                  to: appRoutes.tenantRoute.to,
+                  params: { tenant: row.id },
+                });
+              }}
+            >
+              <ArrowRightIcon className="mr-2 size-4" />
+              View Tenant
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                setTenantToArchive({ id: row.id, status: row.status })
+              }
+            >
+              <TrashIcon className="mr-2 size-4" />
+              Archive Tenant
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
+  const memberColumns = [
+    {
+      columnLabel: 'Email',
+      cellRenderer: (row: OrganizationMember) => (
+        <span className="font-mono text-sm">{row.email}</span>
+      ),
+    },
+    {
+      columnLabel: 'Role',
+      cellRenderer: (row: OrganizationMember) => (
+        <Badge variant="outline">{row.role}</Badge>
+      ),
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (row: OrganizationMember) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {currentUser?.email === row.email ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuItem
+                      disabled
+                      className="cursor-not-allowed text-gray-400"
+                    >
+                      <TrashIcon className="mr-2 size-4" />
+                      Remove Member
+                    </DropdownMenuItem>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Cannot remove yourself</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <DropdownMenuItem onClick={() => setMemberToDelete(row)}>
+                <TrashIcon className="mr-2 size-4" />
+                Remove Member
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
+  const inviteColumns = [
+    {
+      columnLabel: 'Email',
+      cellRenderer: (row: OrganizationInvite) => (
+        <span className="font-mono text-sm">{row.inviteeEmail}</span>
+      ),
+    },
+    {
+      columnLabel: 'Role',
+      cellRenderer: (row: OrganizationInvite) => (
+        <Badge variant="outline">{row.role}</Badge>
+      ),
+    },
+    {
+      columnLabel: 'Status',
+      cellRenderer: (row: OrganizationInvite) => (
+        <Badge
+          variant={
+            row.status === OrganizationInviteStatus.PENDING
+              ? 'secondary'
+              : 'destructive'
+          }
+        >
+          {row.status}
+        </Badge>
+      ),
+    },
+    {
+      columnLabel: 'Expiry',
+      cellRenderer: (row: OrganizationInvite) => (
+        <span>{formatExpirationDate(row.expires)}</span>
+      ),
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (row: OrganizationInvite) =>
+        row.status === OrganizationInviteStatus.PENDING ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <EllipsisVerticalIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setInviteToCancel(row)}>
+                <TrashIcon className="mr-2 size-4" />
+                Cancel Invitation
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null,
+    },
+  ];
+
+  const tokenColumns = [
+    {
+      columnLabel: 'Name',
+      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+        <span className="font-medium">{row.name}</span>
+      ),
+    },
+    {
+      columnLabel: 'Expiry',
+      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+        <span>{formatExpirationDate(row.expiresAt)}</span>
+      ),
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() =>
+                setTokenToDelete({
+                  id: row.id,
+                  name: row.name,
+                  expiresAt: row.expiresAt,
+                })
+              }
+            >
+              <TrashIcon className="mr-2 size-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
+  const pendingInvites = organizationInvitesQuery.data?.rows?.filter(
+    (invite) =>
+      invite.status === OrganizationInviteStatus.PENDING ||
+      invite.status === OrganizationInviteStatus.EXPIRED,
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
@@ -382,83 +606,7 @@ export default function OrganizationPage() {
                         (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
                       )
                       .map((t) => ({ ...t, metadata: { id: t.id } }))}
-                    columns={[
-                      {
-                        columnLabel: 'Name',
-                        cellRenderer: (row) => {
-                          const detailed = detailedTenants.find(
-                            (t) => t?.metadata.id === row.id,
-                          );
-                          return (
-                            <span className="font-medium">
-                              {detailed?.name || 'Loading...'}
-                            </span>
-                          );
-                        },
-                      },
-                      {
-                        columnLabel: 'ID',
-                        cellRenderer: (row) => (
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm">{row.id}</span>
-                            <CopyToClipboard text={row.id} />
-                          </div>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Slug',
-                        cellRenderer: (row) => {
-                          const detailed = detailedTenants.find(
-                            (t) => t?.metadata.id === row.id,
-                          );
-                          return (
-                            <span className="text-muted-foreground">
-                              {detailed?.slug || '-'}
-                            </span>
-                          );
-                        },
-                      },
-                      {
-                        columnLabel: 'Actions',
-                        cellRenderer: (row) => (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <EllipsisVerticalIcon className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  navigate({
-                                    to: appRoutes.tenantRoute.to,
-                                    params: { tenant: row.id },
-                                  });
-                                }}
-                              >
-                                <ArrowRightIcon className="mr-2 size-4" />
-                                View Tenant
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  setTenantToArchive({
-                                    id: row.id,
-                                    status: row.status,
-                                  })
-                                }
-                              >
-                                <TrashIcon className="mr-2 size-4" />
-                                Archive Tenant
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ),
-                      },
-                    ]}
+                    columns={tenantColumns}
                   />
                 ) : (
                   <div className="py-16 text-center">
@@ -487,63 +635,7 @@ export default function OrganizationPage() {
                 {organization.members && organization.members.length > 0 ? (
                   <SimpleTable
                     data={organization.members}
-                    columns={[
-                      {
-                        columnLabel: 'Email',
-                        cellRenderer: (row) => (
-                          <span className="font-mono text-sm">{row.email}</span>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Role',
-                        cellRenderer: (row) => (
-                          <Badge variant="outline">{row.role}</Badge>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Actions',
-                        cellRenderer: (row) => (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <EllipsisVerticalIcon className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {currentUser?.email === row.email ? (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <DropdownMenuItem
-                                        disabled
-                                        className="cursor-not-allowed text-gray-400"
-                                      >
-                                        <TrashIcon className="mr-2 size-4" />
-                                        Remove Member
-                                      </DropdownMenuItem>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Cannot remove yourself</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              ) : (
-                                <DropdownMenuItem
-                                  onClick={() => setMemberToDelete(row)}
-                                >
-                                  <TrashIcon className="mr-2 size-4" />
-                                  Remove Member
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ),
-                      },
-                    ]}
+                    columns={memberColumns}
                   />
                 ) : (
                   <div className="py-16 text-center">
@@ -559,84 +651,17 @@ export default function OrganizationPage() {
                   <div className="flex items-center justify-center py-8">
                     <Loading />
                   </div>
-                ) : (() => {
-                  const pendingInvites = organizationInvitesQuery.data?.rows?.filter(
-                    (invite) =>
-                      invite.status === OrganizationInviteStatus.PENDING ||
-                      invite.status === OrganizationInviteStatus.EXPIRED,
-                  );
-                  return pendingInvites && pendingInvites.length > 0 ? (
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-medium text-muted-foreground">
-                        Pending Invites
-                      </h3>
-                      <SimpleTable
-                        data={pendingInvites}
-                        columns={[
-                          {
-                            columnLabel: 'Email',
-                            cellRenderer: (row) => (
-                              <span className="font-mono text-sm">
-                                {row.inviteeEmail}
-                              </span>
-                            ),
-                          },
-                          {
-                            columnLabel: 'Role',
-                            cellRenderer: (row) => (
-                              <Badge variant="outline">{row.role}</Badge>
-                            ),
-                          },
-                          {
-                            columnLabel: 'Status',
-                            cellRenderer: (row) => (
-                              <Badge
-                                variant={
-                                  row.status === OrganizationInviteStatus.PENDING
-                                    ? 'secondary'
-                                    : 'destructive'
-                                }
-                              >
-                                {row.status}
-                              </Badge>
-                            ),
-                          },
-                          {
-                            columnLabel: 'Expiry',
-                            cellRenderer: (row) => (
-                              <span>{formatExpirationDate(row.expires)}</span>
-                            ),
-                          },
-                          {
-                            columnLabel: 'Actions',
-                            cellRenderer: (row) =>
-                              row.status === OrganizationInviteStatus.PENDING ? (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <EllipsisVerticalIcon className="size-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                      onClick={() => setInviteToCancel(row)}
-                                    >
-                                      <TrashIcon className="mr-2 size-4" />
-                                      Cancel Invitation
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              ) : null,
-                          },
-                        ]}
-                      />
-                    </div>
-                  ) : null;
-                })()}
+                ) : pendingInvites && pendingInvites.length > 0 ? (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">
+                      Pending Invites
+                    </h3>
+                    <SimpleTable
+                      data={pendingInvites}
+                      columns={inviteColumns}
+                    />
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -654,50 +679,7 @@ export default function OrganizationPage() {
                       ...t,
                       metadata: { id: t.id },
                     }))}
-                    columns={[
-                      {
-                        columnLabel: 'Name',
-                        cellRenderer: (row) => (
-                          <span className="font-medium">{row.name}</span>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Expiry',
-                        cellRenderer: (row) => (
-                          <span>{formatExpirationDate(row.expiresAt)}</span>
-                        ),
-                      },
-                      {
-                        columnLabel: 'Actions',
-                        cellRenderer: (row) => (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <EllipsisVerticalIcon className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  setTokenToDelete({
-                                    id: row.id,
-                                    name: row.name,
-                                    expiresAt: row.expiresAt,
-                                  })
-                                }
-                              >
-                                <TrashIcon className="mr-2 size-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ),
-                      },
-                    ]}
+                    columns={tokenColumns}
                   />
                 ) : (
                   <div className="py-16 text-center">
