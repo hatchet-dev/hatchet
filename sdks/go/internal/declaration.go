@@ -655,7 +655,13 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 				// Call the original function using reflection
 				fnValue := reflect.ValueOf(originalFn)
-				inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
+				inputVal := reflect.ValueOf(input)
+				if !inputVal.IsValid() {
+					// input is a nil interface (e.g. I = any with null input),
+					// use a zero value of the function's expected parameter type
+					inputVal = reflect.Zero(fnValue.Type().In(1))
+				}
+				inputs := []reflect.Value{reflect.ValueOf(ctx), inputVal}
 				results := fnValue.Call(inputs)
 
 				// Handle errors
@@ -689,7 +695,11 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 				// Call the original function using reflection
 				fnValue := reflect.ValueOf(originalFn)
-				inputs := []reflect.Value{reflect.ValueOf(durableCtx), reflect.ValueOf(input)}
+				inputVal := reflect.ValueOf(input)
+				if !inputVal.IsValid() {
+					inputVal = reflect.Zero(fnValue.Type().In(1))
+				}
+				inputs := []reflect.Value{reflect.ValueOf(durableCtx), inputVal}
 				results := fnValue.Call(inputs)
 
 				// Handle errors

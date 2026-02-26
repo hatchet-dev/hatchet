@@ -72,6 +72,17 @@ func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskS
 	return resp.JSON200, nil
 }
 
+// GetDetails retrieves detailed information about a workflow run via gRPC,
+// including task-level output, errors, and status.
+func (r *RunsClient) GetDetails(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error) {
+	resp, err := r.v0Client.Admin().GetRunDetails(ctx, runId)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow run details")
+	}
+
+	return resp, nil
+}
+
 // List retrieves a collection of workflow runs based on the provided parameters.
 func (r *RunsClient) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1TaskSummaryList, error) {
 	resp, err := r.api.V1WorkflowRunListWithResponse(

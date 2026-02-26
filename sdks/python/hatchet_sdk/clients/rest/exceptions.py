@@ -161,6 +161,9 @@ class ApiException(OpenApiException):
                 http_resp=http_resp, body=body, data=data
             )
 
+        if http_resp.status == 429:
+            raise TooManyRequestsException(http_resp=http_resp, body=body, data=data)
+
         if 500 <= http_resp.status <= 599:
             raise ServiceException(http_resp=http_resp, body=body, data=data)
         raise ApiException(http_resp=http_resp, body=body, data=data)
@@ -205,6 +208,12 @@ class ConflictException(ApiException):
 
 class UnprocessableEntityException(ApiException):
     """Exception for HTTP 422 Unprocessable Entity."""
+
+    pass
+
+
+class TooManyRequestsException(ApiException):
+    """Exception for HTTP 429 Too Many Requests."""
 
     pass
 

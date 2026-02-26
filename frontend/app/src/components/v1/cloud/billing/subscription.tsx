@@ -1,4 +1,5 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -20,7 +21,7 @@ import {
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
@@ -48,6 +49,45 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const { tenant } = useTenantDetails();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
+  const creditBalanceQuery = useQuery({
+    ...queries.cloud.creditBalance(tenantId),
+  });
+
+  const creditBalance = useMemo(() => {
+    const balanceCents = creditBalanceQuery.data?.balanceCents ?? 0;
+
+    // Stripe customer balance is negative when the customer has credits.
+    if (balanceCents >= 0) {
+      return null;
+    }
+
+    const currencyCode = (creditBalanceQuery.data?.currency || 'USD')
+      .toUpperCase()
+      .slice(0, 3);
+    let formatted: string;
+    try {
+      formatted = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currencyCode,
+      }).format(Math.abs(balanceCents) / 100);
+    } catch {
+      formatted = `$${(Math.abs(balanceCents) / 100).toFixed(2)}`;
+    }
+
+    const description = creditBalanceQuery.data?.description?.trim();
+    const expires = creditBalanceQuery.data?.expiresAt;
+
+    return {
+      amount: formatted,
+      description,
+      expires,
+    };
+  }, [
+    creditBalanceQuery.data?.balanceCents,
+    creditBalanceQuery.data?.currency,
+    creditBalanceQuery.data?.description,
+    creditBalanceQuery.data?.expiresAt,
+  ]);
 
   const manageClicked = async () => {
     try {
@@ -238,6 +278,35 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 {portalLoading ? <Spinner /> : 'Visit Billing Portal'}
               </Button>
             </div>
+
+            {creditBalance && (
+              <Card className="mt-4 border-2 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/20">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-base">
+                        Available Credit
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-sm">
+                        {creditBalance.description ||
+                          'Applied to upcoming invoices.'}
+                      </CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-semibold text-foreground whitespace-nowrap">
+                        {creditBalance.amount}
+                      </div>
+                      {creditBalance.expires && (
+                        <p className="mt-1 text-sm text-muted-foreground whitespace-nowrap">
+                          Expires{' '}
+                          <RelativeDate date={creditBalance.expires} future />
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            )}
             {/* Current Subscription Section */}
             {currentPlanDetails && (
               <div className="mt-6 mb-6">
