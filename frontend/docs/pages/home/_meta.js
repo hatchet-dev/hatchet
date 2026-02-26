@@ -12,7 +12,7 @@ export default {
   },
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   setup: "Advanced Setup",
-  "install-docs-mcp": "Install Docs MCP",
+  "coding-agents": "Using Coding Agents",
   "--guide": {
     title: "Fundamentals",
     type: "separator",
@@ -118,6 +118,9 @@ export default {
   streaming: {
     title: "Streaming",
   },
+  middleware: {
+    title: "Middleware & Dependency Injection",
+  },
   "--v1-migration-guides": {
     title: "V1 Migration Guides",
     type: "separator",
@@ -136,6 +139,5 @@ export default {
   asyncio: "Asyncio",
   pydantic: "Pydantic",
   lifespans: "Lifespans",
-  "dependency-injection": "Dependency Injection",
   dataclasses: "Dataclass Support",
 };

@@ -32,6 +32,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['billing-state:get', tenant],
       queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
     }),
+    creditBalance: (tenant: string) => ({
+      queryKey: ['credit-balance:get', tenant],
+      queryFn: async () => (await cloudApi.tenantCreditBalanceGet(tenant)).data,
+    }),
 
     paymentMethods: (tenant: string) => ({
       queryKey: ['payment-methods:get', tenant],

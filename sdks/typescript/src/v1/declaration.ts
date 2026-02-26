@@ -22,7 +22,7 @@ import {
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
-import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
+import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
 
@@ -585,6 +585,7 @@ export class BaseWorkflowDeclaration<
 export class WorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
+  MiddlewareBefore extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   /**
    * Adds a task to the workflow.
@@ -599,10 +600,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I,
-          ctx: Context<I>
+          input: I & MiddlewareBefore,
+          ctx: Context<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: Context<I>) => void,
+      : (input: I & MiddlewareBefore, ctx: Context<I & MiddlewareBefore>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -713,10 +714,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I,
-          ctx: DurableContext<I>
+          input: I & MiddlewareBefore,
+          ctx: DurableContext<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: DurableContext<I>) => void,
+      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -737,13 +738,26 @@ export class WorkflowDeclaration<
   }
 }
 
+/**
+ * A standalone task workflow that can be run, scheduled, or triggered via cron.
+ *
+ * @template I - The task-specific input type.
+ * @template O - The task output type.
+ * @template GlobalInput - Global input type from the client, merged into all run/schedule/cron input signatures.
+ * @template MiddlewareBefore - Extra fields added to the task fn input by pre-middleware hooks.
+ * @template MiddlewareAfter - Extra fields merged into the task output by post-middleware hooks.
+ */
 export class TaskWorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
+  GlobalInput extends Record<string, any> = {},
+  GlobalOutput extends Record<string, any> = {},
+  MiddlewareBefore extends Record<string, any> = {},
+  MiddlewareAfter extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   _standalone_task_name: string;
 
-  constructor(options: CreateTaskWorkflowOpts<I, O>, client?: IHatchetClient) {
+  constructor(options: CreateTaskWorkflowOpts<any, any>, client?: IHatchetClient) {
     super({ ...options }, client);
 
     this._standalone_task_name = options.name;
@@ -753,34 +767,142 @@ export class TaskWorkflowDeclaration<
     });
   }
 
-  async run(input: I, options?: RunOpts): Promise<O>;
-  async run(input: I[], options?: RunOpts): Promise<O[]>;
-  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
-    // note: typescript is not smart enough to infer that input is an array
+  /**
+   * Triggers a task run and waits for the result.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the task output merged with post-middleware fields.
+   */
+  async runAndWait(
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  async runAndWait(
+    input: (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  async runAndWait(
+    input: (I & GlobalInput) | (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<
+    (O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+  > {
     return Array.isArray(input)
-      ? super.run(input, options, this._standalone_task_name)
-      : super.run(input, options, this._standalone_task_name);
+      ? (super.runAndWait(input, options, this._standalone_task_name) as Promise<
+          (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+        >)
+      : (super.runAndWait(input, options, this._standalone_task_name) as Promise<
+          O & Resolved<GlobalOutput, MiddlewareAfter>
+        >);
   }
 
   /**
-   * Triggers a workflow run without waiting for completion.
-   * @param input The input data for the workflow.
-   * @param options Optional configuration for this workflow run.
-   * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
-   * @throws Error if the workflow is not bound to a Hatchet client.
+   * Triggers a task run and waits for the result.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the task output merged with post-middleware fields.
    */
-  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>>;
-  async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O>[]>;
-  async runNoWait(
-    input: I | I[],
+  async run(
+    input: I & GlobalInput,
     options?: RunOpts
-  ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
-    // note: typescript is not smart enough to infer that input is an array
+  ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  async run(
+    input: (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  async run(
+    input: (I & GlobalInput) | (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<
+    (O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+  > {
     return Array.isArray(input)
-      ? super.runNoWait(input, options, this._standalone_task_name)
-      : super.runNoWait(input, options, this._standalone_task_name);
+      ? (super.run(input, options, this._standalone_task_name) as Promise<
+          (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+        >)
+      : (super.run(input, options, this._standalone_task_name) as Promise<
+          O & Resolved<GlobalOutput, MiddlewareAfter>
+        >);
   }
 
+  /**
+   * Triggers a task run without waiting for completion.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A WorkflowRunRef containing the run ID and methods to get results.
+   */
+  async runNoWait(
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>>;
+  async runNoWait(
+    input: (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]>;
+  async runNoWait(
+    input: (I & GlobalInput) | (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<
+    | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>
+    | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
+  > {
+    return Array.isArray(input)
+      ? (super.runNoWait(input, options, this._standalone_task_name) as Promise<
+          WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
+        >)
+      : (super.runNoWait(input, options, this._standalone_task_name) as Promise<
+          WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>
+        >);
+  }
+
+  /**
+   * Schedules the task to run at a specific date and time.
+   * @param enqueueAt - The date when the task should be triggered.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   */
+  async schedule(
+    enqueueAt: Date,
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<ScheduledWorkflows> {
+    return super.schedule(enqueueAt, input, options);
+  }
+
+  /**
+   * Schedules the task to run after a specified delay.
+   * @param duration - The delay in seconds before the task should run.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   */
+  async delay(
+    duration: number,
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<ScheduledWorkflows> {
+    return super.delay(duration, input, options);
+  }
+
+  /**
+   * Creates a cron schedule for the task.
+   * @param name - The name of the cron schedule.
+   * @param expression - The cron expression defining the schedule.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the cron workflow details.
+   */
+  async cron(
+    name: string,
+    expression: string,
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<CronWorkflows> {
+    return super.cron(name, expression, input, options);
+  }
+
+  /** Returns the underlying task definition for this declaration. */
   get taskDef() {
     return this.definition._tasks[0];
   }
