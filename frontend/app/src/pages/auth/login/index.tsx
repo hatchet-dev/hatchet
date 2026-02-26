@@ -2,7 +2,7 @@ import { AuthPage } from '../components/auth-page';
 import { UserLoginForm } from './components/user-login-form';
 import api, { UserLoginRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { useAppContext } from '@/providers/app-context';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -33,7 +33,8 @@ function BasicLogin() {
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({ setFieldErrors, setErrors });
-  const { invalidateCurrentUser } = useAppContext();
+  const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
+    useUserUniverse();
 
   const loginMutation = useMutation({
     mutationKey: ['user:update:login'],
@@ -41,7 +42,8 @@ function BasicLogin() {
       await api.userUpdateLogin(data);
     },
     onSuccess: () => {
-      invalidateCurrentUser();
+      invalidateUserUniverse();
+      getUserUniverse();
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,

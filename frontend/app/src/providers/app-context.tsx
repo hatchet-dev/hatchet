@@ -1,6 +1,7 @@
 import { useUserUniverse } from './user-universe';
 import { queries, Tenant, User } from '@/lib/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMember } from '@/lib/api/generated/data-contracts';
 import { lastTenantAtom } from '@/lib/atoms';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -13,6 +14,7 @@ import {
   useEffect,
   useCallback,
 } from 'react';
+import invariant from 'tiny-invariant';
 
 /**
  * Shared application context providing user, tenant, and organization data
@@ -65,12 +67,23 @@ interface AppContextProviderProps {
   children: ReactNode;
 }
 
+const getTenant = (
+  tenantMember: TenantMember | undefined,
+): Tenant | undefined => {
+  if (!tenantMember) {
+    return undefined;
+  }
+
+  invariant(tenantMember.tenant);
+  return tenantMember.tenant;
+};
+
 export function AppContextProvider({ children }: AppContextProviderProps) {
   // Get tenant ID from route params (following TanStack Router best practices)
   // This replaces the old useCurrentTenantId pattern
   const params = useParams({ strict: false });
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
-  const tenantId = params.tenant || lastTenant?.metadata.id;
+  const potentiallyValidTenantId = params.tenant || lastTenant?.metadata.id;
 
   // Fetch current user
   const currentUserQuery = useQuery({
@@ -93,16 +106,17 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     isCloudEnabled: userUniverseIsCloudEnabled,
   } = useUserUniverse();
 
-  // Compute current membership and tenant
-  const membership = useMemo(() => {
-    if (!tenantId || !tenantMemberships) {
+  const validTenantMembership = useMemo(() => {
+    if (!potentiallyValidTenantId || !tenantMemberships) {
       return undefined;
     }
 
-    return tenantMemberships.find((m) => m.tenant?.metadata.id === tenantId);
-  }, [tenantId, tenantMemberships]);
+    return tenantMemberships.find(
+      (m) => m.tenant?.metadata.id === potentiallyValidTenantId,
+    );
+  }, [potentiallyValidTenantId, tenantMemberships]);
 
-  const tenant = membership?.tenant;
+  const tenant = getTenant(validTenantMembership);
 
   // Update last tenant atom when tenant changes
   useEffect(() => {
@@ -123,7 +137,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
 
       // Tenant
       tenant,
-      tenantId,
+      tenantId: tenant?.metadata.id,
     };
 
     if (!isUserUniverseLoaded) {
@@ -140,7 +154,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
         ...baseValue,
         isUserUniverseLoaded: true,
         isCloudEnabled: true,
-        membership: membership?.role,
+        membership: validTenantMembership?.role,
         organizations: organizations || [],
       };
     }
@@ -149,7 +163,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       ...baseValue,
       isUserUniverseLoaded: true,
       isCloudEnabled: false,
-      membership: membership?.role,
+      membership: validTenantMembership?.role,
       organizations: undefined,
     };
   }, [
@@ -160,10 +174,10 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     currentUserQuery.isError,
     invalidateCurrentUser,
     tenant,
-    tenantId,
+    potentiallyValidTenantId,
     isUserUniverseLoaded,
     userUniverseIsCloudEnabled,
-    membership?.role,
+    validTenantMembership?.role,
     organizations,
   ]);
 
