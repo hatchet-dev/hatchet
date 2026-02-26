@@ -137,6 +137,14 @@ WHERE
     AND e.is_satisfied
 ;
 
+-- name: GetDurableEventLogEntryByIdempotencyKey :one
+SELECT *
+FROM v1_durable_event_log_entry
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND kind = 'MEMO'
+  AND idempotency_key = @idempotencyKey::BYTEA;
+
 -- name: GetDurableTaskLogFiles :many
 WITH inputs AS (
     SELECT

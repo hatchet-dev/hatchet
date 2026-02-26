@@ -19,6 +19,26 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+func (d *DispatcherServiceImpl) GetMaybeCachedDurableMemoEntry(ctx context.Context, req *contracts.GetMaybeCachedDurableMemoEntryRequest) (*contracts.GetMaybeCachedDurableMemoEntryResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "task_run_external_id is not a valid uuid")
+	}
+
+	result, err := d.repo.DurableEvents().GetMaybeCachedMemoEntry(ctx, tenantId, taskExternalId, req.Key)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get memo entry: %v", err)
+	}
+
+	return &contracts.GetMaybeCachedDurableMemoEntryResponse{
+		HasEntry: result.HasEntry,
+		Data:     result.Data,
+	}, nil
+}
+
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID

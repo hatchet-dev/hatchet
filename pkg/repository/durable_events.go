@@ -74,12 +74,18 @@ type IncrementDurableTaskInvocationCountsOpts struct {
 	TaskInsertedAt pgtype.Timestamptz
 }
 
+type MaybeCachedMemoEntry struct {
+	HasEntry bool
+	Data     []byte
+}
+
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
 	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
+	GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key string) (*MaybeCachedMemoEntry, error)
 }
 
 type durableEventsRepository struct {
@@ -663,6 +669,40 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	}
 
 	return createdDAGs, createdTasks, nil
+}
+
+func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key string) (*MaybeCachedMemoEntry, error) {
+	task, err := r.GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+
+	if err != nil {
+		return &MaybeCachedMemoEntry{HasEntry: false}, nil
+	}
+
+	entry, err := r.queries.GetDurableEventLogEntryByIdempotencyKey(ctx, r.pool, sqlcv1.GetDurableEventLogEntryByIdempotencyKeyParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Idempotencykey:        []byte(key),
+	})
+
+	if err != nil {
+		return &MaybeCachedMemoEntry{HasEntry: false}, nil
+	}
+
+	payload, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
+		Id:         entry.ID,
+		InsertedAt: entry.InsertedAt,
+		Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+		TenantId:   tenantId,
+	})
+
+	if err != nil {
+		return &MaybeCachedMemoEntry{HasEntry: true}, nil
+	}
+
+	return &MaybeCachedMemoEntry{
+		HasEntry: true,
+		Data:     payload,
+	}, nil
 }
 
 func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error) {
