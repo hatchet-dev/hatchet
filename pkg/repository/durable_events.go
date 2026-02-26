@@ -552,7 +552,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				return nil, fmt.Errorf("failed to handle trigger runs: %w", err)
 			}
 		case sqlcv1.V1DurableEventLogKindMEMO:
-			// TODO-DURABLE: memo here
+			// do nothing - we don't need to do anything downstream since memo just writes the cache entry and returns
 		default:
 			return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 		}
