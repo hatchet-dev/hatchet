@@ -705,6 +705,8 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}
 
+	// TODO-DURABLE: Reconcile that the engine and the worker are in the same state and send a signal for the worker to evict if out of sync.
+
 	for _, cb := range callbacks {
 		if err := invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_EntryCompleted{

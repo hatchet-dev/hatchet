@@ -31,13 +31,10 @@ class EvictionPolicy(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     ttl: timedelta | None
-    """Maximum continuous waiting duration before TTL-eligible eviction."""
 
     allow_capacity_eviction: bool = True
-    """Whether this task may be evicted under durable-slot pressure."""
 
     priority: int = 0
-    """Lower values are evicted first when multiple candidates exist."""
 
 
 # Shared sensible defaults (single source of truth).
