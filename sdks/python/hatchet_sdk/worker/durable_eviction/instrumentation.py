@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
-from contextlib import asynccontextmanager, contextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.runnables.contextvars import (
@@ -22,8 +22,10 @@ def _get_eviction_ctx() -> tuple[ActionKey | None, DurableEvictionManager | None
     return key, mgr
 
 
-@contextmanager
-def durable_eviction_wait(wait_kind: str, resource_id: str) -> Iterator[None]:
+@asynccontextmanager
+async def aio_durable_eviction_wait(
+    wait_kind: str, resource_id: str
+) -> AsyncIterator[None]:
     """
     Mark an SDK-managed wait for the current durable run (if applicable).
 
@@ -39,15 +41,3 @@ def durable_eviction_wait(wait_kind: str, resource_id: str) -> Iterator[None]:
     finally:
         if key and mgr is not None:
             mgr.mark_active(key)
-
-
-@asynccontextmanager
-async def aio_durable_eviction_wait(
-    wait_kind: str, resource_id: str
-) -> AsyncIterator[None]:
-    """
-    Async variant of `durable_eviction_wait`.
-    """
-
-    with durable_eviction_wait(wait_kind, resource_id):
-        yield
