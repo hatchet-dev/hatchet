@@ -138,7 +138,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 
 	for _, t := range flatTasks {
 		restored, ok := restoredByTaskId[t.ID]
-		if !ok || restored.Queued == 0 {
+		if !ok || !restored.Queued {
 			tc.l.Warn().Msgf("task %s was not requeued (not evicted or already queued)", t.ExternalID)
 			continue
 		}

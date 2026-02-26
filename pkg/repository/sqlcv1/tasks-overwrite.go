@@ -854,7 +854,7 @@ SELECT
     st.id AS task_id,
     st.inserted_at AS task_inserted_at,
     st.retry_count,
-    CASE WHEN iq.task_id IS NOT NULL THEN 1 ELSE 0 END::int AS queued,
+    (iq.task_id IS NOT NULL) AS queued,
     st.queue
 FROM
     selected_tasks st
@@ -874,7 +874,7 @@ type RestoreEvictedTasksRow struct {
 	Queue          string             `json:"queue"`
 	TaskID         int64              `json:"task_id"`
 	RetryCount     int32              `json:"retry_count"`
-	Queued         int32              `json:"queued"`
+	Queued         bool               `json:"queued"`
 }
 
 func (q *Queries) RestoreEvictedTasks(ctx context.Context, db DBTX, arg RestoreEvictedTasksParams) ([]*RestoreEvictedTasksRow, error) {
