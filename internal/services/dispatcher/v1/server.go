@@ -560,6 +560,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		WaitForConditions: createConditionOpts,
 		InvocationCount:   req.InvocationCount,
 		TriggerOpts:       triggerOpts,
+		MemoKey:           req.MemoKey,
 	})
 
 	var nde *v1.NonDeterminismError

@@ -18,7 +18,7 @@ service V1Dispatcher {
 
 message GetMaybeCachedDurableMemoEntryRequest {
     string task_run_external_id = 1;
-    string key = 2;
+    bytes key = 2;
 }
 
 message GetMaybeCachedDurableMemoEntryResponse {
@@ -51,10 +51,15 @@ message DurableTaskEventRequest {
     string durable_task_external_id = 2;
     DurableTaskEventKind kind = 3;
     optional bytes payload = 4;
+
+    // Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR
     optional DurableEventListenerConditions wait_for_conditions = 5;
 
     // Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows)
     optional TriggerWorkflowRequest trigger_opts  = 6;
+
+    // Fields for DURABLE_TASK_TRIGGER_KIND_MEMO
+    optional bytes memo_key = 7;
 }
 
 message DurableTaskEventAckResponse {

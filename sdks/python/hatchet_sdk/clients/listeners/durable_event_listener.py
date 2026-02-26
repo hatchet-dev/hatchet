@@ -350,6 +350,7 @@ class DurableEventListener:
         # todo: combine these? or separate methods? or overload?
         workflow_name: str | None = None,
         trigger_workflow_opts: TriggerWorkflowOptions | None = None,
+        memo_key: bytes | None = None,
     ) -> DurableTaskEventAck:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
@@ -377,6 +378,7 @@ class DurableEventListener:
             invocation_count=invocation_count,
             kind=kind,
             trigger_opts=_trigger_opts,
+            memo_key=memo_key,
         )
 
         if payload is not None and not isinstance(payload, bytes):
@@ -408,7 +410,7 @@ class DurableEventListener:
         return await self._pending_callbacks[key]
 
     async def get_durable_event_log(
-        self, external_id: str, key: str
+        self, external_id: str, key: bytes
     ) -> MaybeCachedMemoEntry:
         if self._stub is None:
             raise RuntimeError("Client not started")

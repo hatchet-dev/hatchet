@@ -49,11 +49,11 @@ if TYPE_CHECKING:
     )
 
 
-def _compute_memo_key(step_name: str, deps: list[Any]) -> str:
+def _compute_memo_key(step_name: str, deps: list[Any]) -> bytes:
     h = hashlib.sha256()
     h.update(step_name.encode())
     h.update(json.dumps(deps, default=str).encode())
-    return h.hexdigest()
+    return h.digest()
 
 
 class Context:
@@ -637,6 +637,7 @@ class DurableContext(Context):
             invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
             payload=serialized,
+            memo_key=key,
         )
 
         return result

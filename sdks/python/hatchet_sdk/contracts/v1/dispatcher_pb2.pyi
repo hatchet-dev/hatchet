@@ -32,8 +32,8 @@ class GetMaybeCachedDurableMemoEntryRequest(_message.Message):
     TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     KEY_FIELD_NUMBER: _ClassVar[int]
     task_run_external_id: str
-    key: str
-    def __init__(self, task_run_external_id: _Optional[str] = ..., key: _Optional[str] = ...) -> None: ...
+    key: bytes
+    def __init__(self, task_run_external_id: _Optional[str] = ..., key: _Optional[bytes] = ...) -> None: ...
 
 class GetMaybeCachedDurableMemoEntryResponse(_message.Message):
     __slots__ = ("has_entry", "data")
@@ -56,20 +56,22 @@ class DurableTaskResponseRegisterWorker(_message.Message):
     def __init__(self, worker_id: _Optional[str] = ...) -> None: ...
 
 class DurableTaskEventRequest(_message.Message):
-    __slots__ = ("invocation_count", "durable_task_external_id", "kind", "payload", "wait_for_conditions", "trigger_opts")
+    __slots__ = ("invocation_count", "durable_task_external_id", "kind", "payload", "wait_for_conditions", "trigger_opts", "memo_key")
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     WAIT_FOR_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     TRIGGER_OPTS_FIELD_NUMBER: _ClassVar[int]
+    MEMO_KEY_FIELD_NUMBER: _ClassVar[int]
     invocation_count: int
     durable_task_external_id: str
     kind: DurableTaskEventKind
     payload: bytes
     wait_for_conditions: _condition_pb2.DurableEventListenerConditions
     trigger_opts: _trigger_pb2.TriggerWorkflowRequest
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]] = ...) -> None: ...
+    memo_key: bytes
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]] = ..., memo_key: _Optional[bytes] = ...) -> None: ...
 
 class DurableTaskEventAckResponse(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id", "branch_id", "node_id")

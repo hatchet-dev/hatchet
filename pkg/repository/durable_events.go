@@ -40,13 +40,20 @@ type SatisfiedEventWithPayload struct {
 }
 
 type IngestDurableTaskEventOpts struct {
-	TenantId          uuid.UUID                     `validate:"required"`
-	Task              *sqlcv1.FlattenExternalIdsRow `validate:"required"`
-	Kind              sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
-	Payload           []byte
+	TenantId        uuid.UUID                     `validate:"required"`
+	Task            *sqlcv1.FlattenExternalIdsRow `validate:"required"`
+	Kind            sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
+	Payload         []byte
+	InvocationCount int32
+
+	// optional, used only when kind = WAIT_FOR
 	WaitForConditions []CreateExternalSignalConditionOpt
-	InvocationCount   int32
-	TriggerOpts       *WorkflowNameTriggerOpts
+
+	// optional, used only when kind = RUN
+	TriggerOpts *WorkflowNameTriggerOpts
+
+	// optional, used only when kind = MEMO
+	MemoKey []byte
 }
 
 type IngestDurableTaskEventResult struct {
@@ -85,7 +92,7 @@ type DurableEventsRepository interface {
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
-	GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key string) (*MaybeCachedMemoEntry, error)
+	GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error)
 }
 
 type durableEventsRepository struct {
@@ -132,7 +139,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	tx sqlcv1.DBTX,
 	opts GetOrCreateLogEntryOpts,
 ) (*EventLogEntryWithPayloads, error) {
-	entryExternalId := uuid.New()
 	alreadyExisted := true
 	entry, err := r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
 		Durabletaskid:         opts.DurableTaskId,
@@ -144,6 +150,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	} else if errors.Is(err, pgx.ErrNoRows) {
+		entryExternalId := uuid.New()
+
 		alreadyExisted = false
 		entry, err = r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
 			Tenantid:              opts.TenantId,
@@ -470,6 +478,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	var inputPayload []byte
 	var resultPayload []byte
+	var idempotencyKey []byte
 	isSatisfied := false
 
 	switch opts.Kind {
@@ -487,14 +496,17 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		// for memoization, we don't need to wait for anything before marking the entry as satisfied since it's just a cache entry
 		isSatisfied = true
 		resultPayload = opts.Payload
+		idempotencyKey = opts.MemoKey
 	default:
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
-	idempotencyKey, err := r.createIdempotencyKey(opts)
+	if opts.Kind != sqlcv1.V1DurableEventLogKindMEMO {
+		idempotencyKey, err = r.createIdempotencyKey(opts)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create idempotency key: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create idempotency key: %w", err)
+		}
 	}
 
 	logEntry, err := r.getOrCreateEventLogEntry(
@@ -671,7 +683,7 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	return createdDAGs, createdTasks, nil
 }
 
-func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key string) (*MaybeCachedMemoEntry, error) {
+func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error) {
 	task, err := r.GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
 
 	if err != nil {
@@ -681,7 +693,7 @@ func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, t
 	entry, err := r.queries.GetDurableEventLogEntryByIdempotencyKey(ctx, r.pool, sqlcv1.GetDurableEventLogEntryByIdempotencyKeyParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
-		Idempotencykey:        []byte(key),
+		Idempotencykey:        key,
 	})
 
 	if err != nil {
