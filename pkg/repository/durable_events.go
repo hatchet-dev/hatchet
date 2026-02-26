@@ -192,9 +192,23 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			return nil, err
 		}
 	case isStaleEntry:
+		// TODO-DURABLE: I don't think this should be required or at least should not be handled here...
 		// NOTE: entry exists but belongs to a previous invocation (e.g. after eviction+restore
-		// or cancel+replay). Update invocation_count so callbacks route correctly, but keep
-		// alreadyExisted=true so existing wait conditions (timers, etc.) are preserved.
+		// or cancel+replay). Check idempotency key for non-determinism; if it matches, update
+		// invocation_count so callbacks route correctly and reuse existing wait conditions.
+		incomingIdempotencyKey := opts.IdempotencyKey
+		existingIdempotencyKey := entry.IdempotencyKey
+
+		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
+			return nil, &NonDeterminismError{
+				BranchId:               opts.BranchId,
+				NodeId:                 opts.NodeId,
+				TaskExternalId:         opts.DurableTaskExternalId,
+				ExpectedIdempotencyKey: existingIdempotencyKey,
+				ActualIdempotencyKey:   incomingIdempotencyKey,
+			}
+		}
+
 		entry, err = r.queries.UpdateDurableEventLogEntryInvocationCount(ctx, tx, sqlcv1.UpdateDurableEventLogEntryInvocationCountParams{
 			Invocationcount:       opts.InvocationCount,
 			Idempotencykey:        opts.IdempotencyKey,
