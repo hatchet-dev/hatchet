@@ -39,6 +39,11 @@ class V1DispatcherStub(object):
                 request_serializer=v1_dot_dispatcher__pb2.DurableTaskRequest.SerializeToString,
                 response_deserializer=v1_dot_dispatcher__pb2.DurableTaskResponse.FromString,
                 _registered_method=True)
+        self.GetMaybeCachedDurableMemoEntry = channel.unary_unary(
+                '/v1.V1Dispatcher/GetMaybeCachedDurableMemoEntry',
+                request_serializer=v1_dot_dispatcher__pb2.GetMaybeCachedDurableMemoEntryRequest.SerializeToString,
+                response_deserializer=v1_dot_dispatcher__pb2.GetMaybeCachedDurableMemoEntryResponse.FromString,
+                _registered_method=True)
         self.RegisterDurableEvent = channel.unary_unary(
                 '/v1.V1Dispatcher/RegisterDurableEvent',
                 request_serializer=v1_dot_dispatcher__pb2.RegisterDurableEventRequest.SerializeToString,
@@ -55,6 +60,12 @@ class V1DispatcherServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def DurableTask(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetMaybeCachedDurableMemoEntry(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -80,6 +91,11 @@ def add_V1DispatcherServicer_to_server(servicer, server):
                     servicer.DurableTask,
                     request_deserializer=v1_dot_dispatcher__pb2.DurableTaskRequest.FromString,
                     response_serializer=v1_dot_dispatcher__pb2.DurableTaskResponse.SerializeToString,
+            ),
+            'GetMaybeCachedDurableMemoEntry': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMaybeCachedDurableMemoEntry,
+                    request_deserializer=v1_dot_dispatcher__pb2.GetMaybeCachedDurableMemoEntryRequest.FromString,
+                    response_serializer=v1_dot_dispatcher__pb2.GetMaybeCachedDurableMemoEntryResponse.SerializeToString,
             ),
             'RegisterDurableEvent': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterDurableEvent,
@@ -119,6 +135,33 @@ class V1Dispatcher(object):
             '/v1.V1Dispatcher/DurableTask',
             v1_dot_dispatcher__pb2.DurableTaskRequest.SerializeToString,
             v1_dot_dispatcher__pb2.DurableTaskResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetMaybeCachedDurableMemoEntry(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/v1.V1Dispatcher/GetMaybeCachedDurableMemoEntry',
+            v1_dot_dispatcher__pb2.GetMaybeCachedDurableMemoEntryRequest.SerializeToString,
+            v1_dot_dispatcher__pb2.GetMaybeCachedDurableMemoEntryResponse.FromString,
             options,
             channel_credentials,
             insecure,
