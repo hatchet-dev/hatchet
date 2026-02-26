@@ -555,7 +555,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -585,7 +585,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[
@@ -618,7 +618,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> (
         Callable[
             [
@@ -676,7 +676,7 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
-        :param eviction: An optional eviction policy controlling when idle durable tasks are evicted from workers.
+        :param eviction_policy: An optional eviction policy controlling when idle durable tasks are evicted from workers.
 
         :returns: A decorator which creates a `Standalone` task object.
         """
@@ -723,7 +723,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
-                eviction=eviction,
+                eviction_policy=eviction_policy,
             )
 
             return Standalone[TWorkflowInput, R](

@@ -21,8 +21,8 @@ def test_ttl_eviction_prefers_oldest_waiting_and_priority() -> None:
     eviction_low_prio = EvictionPolicy(ttl=timedelta(seconds=10), priority=0)
     eviction_high_prio = EvictionPolicy(ttl=timedelta(seconds=10), priority=10)
 
-    cache.register_run(key1, "run-1", now=dt(0), eviction=eviction_high_prio)
-    cache.register_run(key2, "run-2", now=dt(0), eviction=eviction_low_prio)
+    cache.register_run(key1, "run-1", now=dt(0), eviction_policy=eviction_high_prio)
+    cache.register_run(key2, "run-2", now=dt(0), eviction_policy=eviction_low_prio)
 
     cache.mark_waiting(
         key1, now=dt(0), wait_kind="workflow_run_result", resource_id="wf1"
@@ -47,12 +47,12 @@ def test_none_eviction_params_never_selected() -> None:
     key_no = "run-no/0"
     key_yes = "run-yes/0"
 
-    cache.register_run(key_no, "run-no", now=dt(0), eviction=None)
+    cache.register_run(key_no, "run-no", now=dt(0), eviction_policy=None)
     cache.register_run(
         key_yes,
         "run-yes",
         now=dt(0),
-        eviction=EvictionPolicy(ttl=timedelta(seconds=1)),
+        eviction_policy=EvictionPolicy(ttl=timedelta(seconds=1)),
     )
 
     cache.mark_waiting(key_no, now=dt(0), wait_kind="durable_event", resource_id="x")
@@ -77,7 +77,7 @@ def test_capacity_eviction_respects_allow_capacity_and_min_wait() -> None:
         key_blocked,
         "run-blocked",
         now=dt(0),
-        eviction=EvictionPolicy(
+        eviction_policy=EvictionPolicy(
             ttl=timedelta(hours=1), allow_capacity_eviction=False, priority=0
         ),
     )
@@ -85,7 +85,7 @@ def test_capacity_eviction_respects_allow_capacity_and_min_wait() -> None:
         key_ok,
         "run-ok",
         now=dt(0),
-        eviction=EvictionPolicy(
+        eviction_policy=EvictionPolicy(
             ttl=timedelta(hours=1), allow_capacity_eviction=True, priority=0
         ),
     )

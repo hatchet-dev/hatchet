@@ -72,13 +72,13 @@ class DurableEvictionManager:
         key: ActionKey,
         *,
         step_run_id: str,
-        eviction: EvictionPolicy | None,
+        eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._cache.register_run(
             key,
             step_run_id,
             now=self._now(),
-            eviction=eviction,
+            eviction_policy=eviction_policy,
         )
 
     def unregister_run(self, key: ActionKey) -> None:
@@ -143,14 +143,14 @@ class DurableEvictionManager:
                 if rec is None:
                     continue
 
-                if rec.eviction is None:
+                if rec.eviction_policy is None:
                     continue
 
                 logger.debug(
                     "DurableEvictionManager: evicting durable run "
                     f"task_run_external_id={rec.step_run_id} wait_kind={rec.wait_kind} "
-                    f"resource_id={rec.wait_resource_id} ttl={rec.eviction.ttl} "
-                    f"capacity_allowed={rec.eviction.allow_capacity_eviction}"
+                    f"resource_id={rec.wait_resource_id} ttl={rec.eviction_policy.ttl} "
+                    f"capacity_allowed={rec.eviction_policy.allow_capacity_eviction}"
                 )
 
                 await self._request_eviction_with_ack(key, rec)
@@ -166,7 +166,7 @@ class DurableEvictionManager:
         evicted = 0
 
         for rec in waiting:
-            if rec.eviction is None:
+            if rec.eviction_policy is None:
                 continue
 
             logger.debug(

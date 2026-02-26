@@ -15,7 +15,7 @@ class DurableRunRecord(BaseModel):
 
     key: ActionKey
     step_run_id: str
-    eviction: EvictionPolicy | None
+    eviction_policy: EvictionPolicy | None
     registered_at: datetime
 
     # Waiting state
@@ -34,7 +34,7 @@ class DurableEvictionCache(Protocol):
         step_run_id: str,
         *,
         now: datetime,
-        eviction: EvictionPolicy | None,
+        eviction_policy: EvictionPolicy | None,
     ) -> None: ...
 
     def unregister_run(self, key: ActionKey) -> None: ...
@@ -74,12 +74,12 @@ class InMemoryDurableEvictionCache(DurableEvictionCache):
         step_run_id: str,
         *,
         now: datetime,
-        eviction: EvictionPolicy | None,
+        eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._runs[key] = DurableRunRecord(
             key=key,
             step_run_id=step_run_id,
-            eviction=eviction,
+            eviction_policy=eviction_policy,
             registered_at=now,
         )
 
@@ -139,7 +139,7 @@ class InMemoryDurableEvictionCache(DurableEvictionCache):
         min_wait_for_capacity_eviction: timedelta,
     ) -> ActionKey | None:
         waiting: list[DurableRunRecord] = [
-            r for r in self._runs.values() if r.is_waiting() and r.eviction is not None
+            r for r in self._runs.values() if r.is_waiting() and r.eviction_policy is not None
         ]
 
         if not waiting:
@@ -148,7 +148,7 @@ class InMemoryDurableEvictionCache(DurableEvictionCache):
         # Prefer TTL-eligible candidates first.
         ttl_eligible: list[DurableRunRecord] = []
         for r in waiting:
-            ttl = r.eviction.ttl if r.eviction else None
+            ttl = r.eviction_policy.ttl if r.eviction_policy else None
             if ttl is None or r.waiting_since is None:
                 continue
             if (now - r.waiting_since) >= ttl:
@@ -157,7 +157,7 @@ class InMemoryDurableEvictionCache(DurableEvictionCache):
         if ttl_eligible:
             ttl_eligible.sort(
                 key=lambda r: (
-                    r.eviction.priority if r.eviction else 0,
+                    r.eviction_policy.priority if r.eviction_policy else 0,
                     r.waiting_since or now,
                 )
             )
@@ -179,7 +179,7 @@ class InMemoryDurableEvictionCache(DurableEvictionCache):
 
         capacity_candidates: list[DurableRunRecord] = []
         for r in waiting:
-            if not r.eviction or not r.eviction.allow_capacity_eviction:
+            if not r.eviction_policy or not r.eviction_policy.allow_capacity_eviction:
                 continue
             if r.waiting_since is None:
                 continue
@@ -192,7 +192,7 @@ class InMemoryDurableEvictionCache(DurableEvictionCache):
 
         capacity_candidates.sort(
             key=lambda r: (
-                r.eviction.priority if r.eviction else 0,
+                r.eviction_policy.priority if r.eviction_policy else 0,
                 r.waiting_since or now,
             )
         )

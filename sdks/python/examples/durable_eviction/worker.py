@@ -24,7 +24,7 @@ LONG_SLEEP_SECONDS = 15
 
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
-    eviction=EvictionPolicy(
+    eviction_policy=EvictionPolicy(
         ttl=timedelta(seconds=EVICTION_TTL_SECONDS),
         allow_capacity_eviction=True,
         priority=0,
@@ -39,7 +39,7 @@ async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, o
 
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
-    eviction=EvictionPolicy(
+    eviction_policy=EvictionPolicy(
         ttl=None,
         allow_capacity_eviction=False,
         priority=0,

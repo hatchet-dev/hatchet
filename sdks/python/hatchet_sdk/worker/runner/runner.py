@@ -487,7 +487,7 @@ class Runner:
                 self.durable_eviction_manager.register_run(
                     action.key,
                     step_run_id=action.step_run_id,
-                    eviction=action_func.durable_eviction,
+                    eviction_policy=action_func.durable_eviction,
                 )
 
             loop = asyncio.get_event_loop()

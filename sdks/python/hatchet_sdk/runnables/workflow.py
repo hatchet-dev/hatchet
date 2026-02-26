@@ -948,7 +948,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
-        eviction: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[
@@ -990,7 +990,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
-        :param eviction: An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.
+        :param eviction_policy: An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -1030,7 +1030,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
-                durable_eviction=eviction,
+                durable_eviction=eviction_policy,
             )
 
             self._durable_tasks.append(task)
