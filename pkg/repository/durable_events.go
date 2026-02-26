@@ -137,7 +137,12 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
-	} else if errors.Is(err, pgx.ErrNoRows) {
+	}
+
+	isStaleEntry := err == nil && entry != nil && entry.InvocationCount != opts.InvocationCount
+
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
 		alreadyExisted = false
 		entry, err = r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
 			Tenantid:              opts.TenantId,
@@ -186,7 +191,23 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	case isStaleEntry:
+		// NOTE: entry exists but belongs to a previous invocation (e.g. after eviction+restore
+		// or cancel+replay). Update invocation_count so callbacks route correctly, but keep
+		// alreadyExisted=true so existing wait conditions (timers, etc.) are preserved.
+		entry, err = r.queries.UpdateDurableEventLogEntryInvocationCount(ctx, tx, sqlcv1.UpdateDurableEventLogEntryInvocationCountParams{
+			Invocationcount:       opts.InvocationCount,
+			Idempotencykey:        opts.IdempotencyKey,
+			Durabletaskid:         opts.DurableTaskId,
+			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
+			Branchid:              opts.BranchId,
+			Nodeid:                opts.NodeId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to update invocation count on stale log entry: %w", err)
+		}
+	default:
 		incomingIdempotencyKey := opts.IdempotencyKey
 		existingIdempotencyKey := entry.IdempotencyKey
 

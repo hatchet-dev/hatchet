@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import signal
+import time
 
 import psutil
 import pytest
@@ -54,10 +55,12 @@ def _get_task_id(details: WorkflowRunDetail) -> str:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_non_evictable_task_completes(hatchet: Hatchet) -> None:
     """A durable task with eviction disabled should finish normally."""
+    start = time.time()
     result = await non_evictable_sleep.aio_run()
+    elapsed = time.time() - start
 
-    assert result.status == "completed"
-    assert result.runtime >= 10
+    assert result["status"] == "completed"
+    assert elapsed >= 10
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -74,7 +77,7 @@ async def test_non_evictable_task_not_evicted(hatchet: Hatchet) -> None:
     ), f"Non-evictable task should never be EVICTED, got: {statuses}"
 
     result = await ref.aio_result()
-    assert result.status == "completed"
+    assert result["status"] == "completed"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -120,6 +123,7 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_task_restore_completes(hatchet: Hatchet) -> None:
     """After eviction and restore, evictable_sleep should complete and return a result."""
+    start = time.time()
     ref = evictable_sleep.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
@@ -132,8 +136,9 @@ async def test_evictable_task_restore_completes(hatchet: Hatchet) -> None:
         TaskApi(client).v1_task_restore(task=task_id)
 
     result = await ref.aio_result()
+    elapsed = time.time() - start
     assert result["status"] == "completed"
-    assert result["runtime"] >= 15
+    assert elapsed >= 15
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -172,7 +177,6 @@ async def test_evictable_wait_for_event_restore(hatchet: Hatchet) -> None:
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
-    assert result["runtime"] >= 0
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -237,6 +241,7 @@ async def test_evictable_child_spawn_restore_completes(hatchet: Hatchet) -> None
 @pytest.mark.asyncio(loop_scope="session")
 async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
     """The task should survive two eviction+restore cycles."""
+    start = time.time()
     ref = multiple_eviction.run_no_wait()
 
     # --- first eviction cycle ---
@@ -265,9 +270,9 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
 
     # --- should complete after the second restore ---
     result = await ref.aio_result()
+    elapsed = time.time() - start
     assert result["status"] == "completed"
-    assert result["first_sleep"] >= 15
-    assert result["total_runtime"] >= 30
+    assert elapsed >= 30
 
 
 @pytest.mark.asyncio(loop_scope="session")
