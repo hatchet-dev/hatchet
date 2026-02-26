@@ -49,9 +49,9 @@ if TYPE_CHECKING:
     )
 
 
-def _compute_memo_key(step_name: str, deps: list[Any]) -> bytes:
+def _compute_memo_key(task_run_external_id: str, deps: list[Any]) -> bytes:
     h = hashlib.sha256()
-    h.update(step_name.encode())
+    h.update(task_run_external_id.encode())
     h.update(json.dumps(deps, default=str).encode())
     return h.digest()
 
@@ -607,7 +607,7 @@ class DurableContext(Context):
         if result_type is not None:
             adapter = TypeAdapter(result_type)
 
-        key = _compute_memo_key(self.action.action_id, deps)
+        key = _compute_memo_key(self.step_run_id, deps)
 
         resp = await self.durable_event_listener.get_durable_event_log(
             external_id=self.workflow_run_id,
