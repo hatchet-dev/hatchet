@@ -14,10 +14,19 @@ import time
 from datetime import timedelta
 from typing import Any
 
+from pydantic import BaseModel
+
 from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventCondition
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 
 hatchet = Hatchet(debug=True)
+
+
+class SleepResult(BaseModel):
+    """Result of a sleep-based task with status and runtime."""
+
+    status: str
+    runtime: float
 
 
 EVICTION_TTL_SECONDS = 5
@@ -107,17 +116,16 @@ async def multiple_eviction(input: EmptyModel, ctx: DurableContext) -> dict[str,
         priority=0,
     ),
 )
-async def non_evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def non_evictable_sleep(input: EmptyModel, ctx: DurableContext) -> SleepResult:
     """Has eviction disabled -- should never be evicted."""
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=10))
-    return {"runtime": time.time() - start, "status": "completed"}
+    return SleepResult(runtime=time.time() - start, status="completed")
 
 
 def main() -> None:
     worker = hatchet.worker(
         "eviction-worker",
-        slots=2,
         workflows=[
             evictable_sleep,
             evictable_wait_for_event,
