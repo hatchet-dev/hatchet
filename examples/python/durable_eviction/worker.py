@@ -30,7 +30,7 @@ LONG_SLEEP_SECONDS = 15
         priority=0,
     ),
 )
-async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, object]:
+async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict:
     """Sleeps long enough for the TTL-based eviction to kick in."""
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
@@ -47,7 +47,7 @@ async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, o
 )
 async def non_evictable_sleep(
     input: EmptyModel, ctx: DurableContext
-) -> dict[str, object]:
+) -> dict:
     """Has eviction disabled -- should never be evicted."""
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=10))
