@@ -9,7 +9,6 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
     from hatchet_sdk.context.context import DurableContext
-    from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None
@@ -27,10 +26,6 @@ ctx_task_retry_count: ContextVar[int | None] = ContextVar(
 )
 ctx_durable_context: ContextVar["DurableContext | None"] = ContextVar(
     "ctx_durable_context", default=None
-)
-ctx_is_durable: ContextVar[bool] = ContextVar("ctx_is_durable", default=False)
-ctx_durable_eviction_manager: ContextVar["DurableEvictionManager | None"] = ContextVar(
-    "ctx_durable_eviction_manager", default=None
 )
 
 

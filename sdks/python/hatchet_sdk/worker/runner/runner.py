@@ -2,7 +2,7 @@ import asyncio
 import ctypes
 import functools
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, is_dataclass
 from enum import Enum
@@ -42,8 +42,6 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_durable_context,
-    ctx_durable_eviction_manager,
-    ctx_is_durable,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -158,11 +156,10 @@ class Runner:
                 self.durable_event_listener_task = asyncio.create_task(
                     self.durable_event_listener.ensure_started(action.worker_id)
                 )
-                listener = self.durable_event_listener
                 self.durable_eviction_manager = DurableEvictionManager(
                     durable_slots=self.slots,
                     cancel_local=self._eviction_cancel_callback,
-                    request_eviction_with_ack=self._make_eviction_request(listener),
+                    request_eviction_with_ack=self._eviction_request,
                 )
                 self.durable_eviction_manager.start()
 
@@ -185,27 +182,28 @@ class Runner:
             t.add_done_callback(lambda task: self.running_tasks.discard(task))
 
     def _eviction_cancel_callback(self, key: ActionKey) -> None:
-        """Called from CancellationToken when the eviction manager evicts a run."""
+        """Called from DurableEvictionManager when it evicts a run."""
         if key in self.contexts:
             ctx = self.contexts[key]
             ctx._set_cancellation_flag()
-            if self.durable_event_listener is not None and hasattr(ctx, "step_run_id"):
-                self.durable_event_listener.cleanup_task_state(ctx.step_run_id)
+            if self.durable_event_listener is not None and isinstance(
+                ctx, DurableContext
+            ):
+                self.durable_event_listener.cleanup_task_state(
+                    ctx.step_run_id, ctx.invocation_count
+                )
             self.cancellations[key] = True
         if key in self.tasks:
             self.tasks[key].cancel()
 
-    @staticmethod
-    def _make_eviction_request(
-        listener: DurableEventListener,
-    ) -> Callable[[ActionKey, DurableRunRecord], Awaitable[None]]:
-        async def _request(key: ActionKey, rec: DurableRunRecord) -> None:
-            await listener.send_evict_invocation(
-                durable_task_external_id=rec.step_run_id,
-                invocation_count=0,
-            )
-
-        return _request
+    async def _eviction_request(self, key: ActionKey, rec: DurableRunRecord) -> None:
+        """Called from DurableEvictionManager when it needs to request eviction from the server."""
+        if self.durable_event_listener is None:
+            return
+        await self.durable_event_listener.send_evict_invocation(
+            durable_task_external_id=rec.step_run_id,
+            invocation_count=0,
+        )
 
     def step_run_callback(
         self, action: Action, t: Task[TWorkflowInput, R]
@@ -305,10 +303,6 @@ class Runner:
         ctx_task_retry_count.set(action.retry_count)
         ctx_durable_context.set(
             ctx if isinstance(ctx, DurableContext) and task.is_durable else None
-        )
-        ctx_is_durable.set(task.is_durable)
-        ctx_durable_eviction_manager.set(
-            self.durable_eviction_manager if task.is_durable else None
         )
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
@@ -442,9 +436,24 @@ class Runner:
         task: Task[Any, Any],
         is_durable: bool = True,
     ) -> Context | DurableContext:
-        constructor = DurableContext if is_durable else Context
+        if is_durable:
+            return DurableContext(
+                action=action,
+                dispatcher_client=self.dispatcher_client,
+                admin_client=self.admin_client,
+                event_client=self.event_client,
+                durable_event_listener=self.durable_event_listener,
+                worker=self.worker_context,
+                runs_client=self.runs_client,
+                lifespan_context=self.lifespan_context,
+                log_sender=self.log_sender,
+                max_attempts=task.retries + 1,
+                task_name=task.name,
+                workflow_name=task.workflow.name,
+                durable_eviction_manager=self.durable_eviction_manager,
+            )
 
-        return constructor(
+        return Context(
             action=action,
             dispatcher_client=self.dispatcher_client,
             admin_client=self.admin_client,

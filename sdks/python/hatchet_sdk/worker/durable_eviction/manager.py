@@ -12,7 +12,6 @@ from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.cache import (
     DurableEvictionCache,
     DurableRunRecord,
-    InMemoryDurableEvictionCache,
 )
 
 
@@ -48,7 +47,7 @@ class DurableEvictionManager:
         self._cancel_local = cancel_local
         self._request_eviction_with_ack = request_eviction_with_ack
         self._config = config
-        self._cache: DurableEvictionCache = cache or InMemoryDurableEvictionCache()
+        self._cache = cache or DurableEvictionCache()
 
         self._task: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()

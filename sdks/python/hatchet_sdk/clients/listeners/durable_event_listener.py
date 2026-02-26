@@ -339,12 +339,12 @@ class DurableEventListener:
                 if not error_pending_callback_future.done():
                     error_pending_callback_future.set_exception(exc)
 
-            eviction_key: PendingEvictionAck = (
+            error_eviction_key: PendingEvictionAck = (
                 error.durable_task_external_id,
                 error.invocation_count,
             )
-            if eviction_key in self._pending_eviction_acks:
-                eviction_future = self._pending_eviction_acks.pop(eviction_key)
+            if error_eviction_key in self._pending_eviction_acks:
+                eviction_future = self._pending_eviction_acks.pop(error_eviction_key)
                 if not eviction_future.done():
                     eviction_future.set_exception(exc)
 
@@ -421,10 +421,14 @@ class DurableEventListener:
 
         return await self._pending_callbacks[key]
 
-    def cleanup_task_state(self, durable_task_external_id: str) -> None:
-        """Remove all pending callbacks, acks, and buffered completions for a task."""
+    def cleanup_task_state(
+        self, durable_task_external_id: str, invocation_count: int
+    ) -> None:
+        """Remove pending callbacks, acks, and buffered completions for old invocations of a task."""
         stale_cb_keys = [
-            k for k in self._pending_callbacks if k[0] == durable_task_external_id
+            k
+            for k in self._pending_callbacks
+            if k[0] == durable_task_external_id and k[1] <= invocation_count
         ]
         for k in stale_cb_keys:
             fut = self._pending_callbacks.pop(k)
@@ -432,7 +436,9 @@ class DurableEventListener:
                 fut.cancel()
 
         stale_ack_keys = [
-            ak for ak in self._pending_event_acks if ak[0] == durable_task_external_id
+            ak
+            for ak in self._pending_event_acks
+            if ak[0] == durable_task_external_id and ak[1] <= invocation_count
         ]
         for ak in stale_ack_keys:
             ack_fut = self._pending_event_acks.pop(ak)
@@ -440,7 +446,9 @@ class DurableEventListener:
                 ack_fut.cancel()
 
         stale_early_keys = [
-            ek for ek in self._early_completions if ek[0] == durable_task_external_id
+            ek
+            for ek in self._early_completions
+            if ek[0] == durable_task_external_id and ek[1] <= invocation_count
         ]
         for ek in stale_early_keys:
             del self._early_completions[ek]
@@ -473,9 +481,9 @@ class DurableEventListener:
 
         try:
             await asyncio.wait_for(ack_future, timeout=self._EVICTION_ACK_TIMEOUT_S)
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as err:
             self._pending_eviction_acks.pop(eviction_key, None)
             raise TimeoutError(
                 f"Eviction ack timed out after {self._EVICTION_ACK_TIMEOUT_S:.0f}s "
                 f"for task {durable_task_external_id} invocation {invocation_count}"
-            )
+            ) from err

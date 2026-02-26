@@ -33,6 +33,7 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
     aio_durable_eviction_wait,
 )
+from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -455,6 +456,7 @@ class DurableContext(Context):
         max_attempts: int,
         task_name: str,
         workflow_name: str,
+        durable_eviction_manager: DurableEvictionManager | None = None,
     ):
         super().__init__(
             action,
@@ -472,6 +474,7 @@ class DurableContext(Context):
         )
 
         self._wait_index = 0
+        self._durable_eviction_manager = durable_eviction_manager
 
     @property
     def wait_index(self) -> int:
@@ -518,7 +521,10 @@ class DurableContext(Context):
         branch_id = ack.branch_id
 
         async with aio_durable_eviction_wait(
-            wait_kind="wait_for", resource_id=signal_key
+            wait_kind="wait_for",
+            resource_id=signal_key,
+            action_key=self.action.key,
+            eviction_manager=self._durable_eviction_manager,
         ):
             result = await self.durable_event_listener.wait_for_callback(
                 durable_task_external_id=self.step_run_id,
@@ -564,7 +570,10 @@ class DurableContext(Context):
         )
 
         async with aio_durable_eviction_wait(
-            wait_kind="spawn_child", resource_id=workflow.config.name
+            wait_kind="spawn_child",
+            resource_id=workflow.config.name,
+            action_key=self.action.key,
+            eviction_manager=self._durable_eviction_manager,
         ):
             result = await self.durable_event_listener.wait_for_callback(
                 durable_task_external_id=self.step_run_id,

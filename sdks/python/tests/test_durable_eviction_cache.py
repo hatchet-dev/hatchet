@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from hatchet_sdk.runnables.eviction import EvictionPolicy
-from hatchet_sdk.worker.durable_eviction.cache import InMemoryDurableEvictionCache
+from hatchet_sdk.worker.durable_eviction.cache import DurableEvictionCache
 
 
 def dt(seconds: int) -> datetime:
@@ -13,7 +13,7 @@ def dt(seconds: int) -> datetime:
 
 
 def test_ttl_eviction_prefers_oldest_waiting_and_priority() -> None:
-    cache = InMemoryDurableEvictionCache()
+    cache = DurableEvictionCache()
 
     key1 = "run-1/0"
     key2 = "run-2/0"
@@ -42,7 +42,7 @@ def test_ttl_eviction_prefers_oldest_waiting_and_priority() -> None:
 
 
 def test_none_eviction_params_never_selected() -> None:
-    cache = InMemoryDurableEvictionCache()
+    cache = DurableEvictionCache()
 
     key_no = "run-no/0"
     key_yes = "run-yes/0"
@@ -68,7 +68,7 @@ def test_none_eviction_params_never_selected() -> None:
 
 
 def test_capacity_eviction_respects_allow_capacity_and_min_wait() -> None:
-    cache = InMemoryDurableEvictionCache()
+    cache = DurableEvictionCache()
 
     key_blocked = "run-blocked/0"
     key_ok = "run-ok/0"
