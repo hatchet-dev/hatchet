@@ -70,7 +70,11 @@ async def evictable_child_spawn(input: EmptyModel, ctx: DurableContext) -> dict:
     """Spawns a child workflow whose runtime exceeds the eviction TTL."""
     start = time.time()
     child_result = await child_task.aio_run()
-    return {"runtime": time.time() - start, "child": child_result, "status": "completed"}
+    return {
+        "runtime": time.time() - start,
+        "child": child_result,
+        "status": "completed",
+    }
 
 
 @hatchet.durable_task(
@@ -83,7 +87,11 @@ async def multiple_eviction(input: EmptyModel, ctx: DurableContext) -> dict:
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
     mid = time.time() - start
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
-    return {"first_sleep": mid, "total_runtime": time.time() - start, "status": "completed"}
+    return {
+        "first_sleep": mid,
+        "total_runtime": time.time() - start,
+        "status": "completed",
+    }
 
 
 @hatchet.durable_task(
