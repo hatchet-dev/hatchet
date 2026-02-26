@@ -589,7 +589,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 		workflowRunId = taskRun.ExternalID
 	}
 
-	externalIds := make([]uuid.UUID, 0)
+	externalIds := []uuid.UUID{workflowRunId}
 
 	if taskRun.OutputEventExternalID != nil {
 		externalIds = append(externalIds, *taskRun.OutputEventExternalID)
