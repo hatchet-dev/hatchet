@@ -94,6 +94,11 @@ class TenacityConfig(BaseSettings):
 
     max_attempts: int = 5
 
+    retry_429: bool = Field(
+        default=False,
+        description="Enable retries for HTTP 429 Too Many Requests responses. Default: off.",
+    )
+
 
 DEFAULT_HOST_PORT = "localhost:7070"
 

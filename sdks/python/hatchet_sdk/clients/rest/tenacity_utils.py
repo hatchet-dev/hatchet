@@ -1,12 +1,20 @@
+from __future__ import annotations
+
 from collections.abc import Callable
-from typing import ParamSpec, TypeVar
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import grpc
 import tenacity
 
-from hatchet_sdk.clients.rest.exceptions import NotFoundException, ServiceException
-from hatchet_sdk.config import TenacityConfig
+from hatchet_sdk.clients.rest.exceptions import (
+    NotFoundException,
+    ServiceException,
+    TooManyRequestsException,
+)
 from hatchet_sdk.logger import logger
+
+if TYPE_CHECKING:
+    from hatchet_sdk.config import TenacityConfig
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -16,12 +24,15 @@ def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, 
     if config.max_attempts <= 0:
         return func
 
+    def should_retry(ex: BaseException) -> bool:
+        return tenacity_should_retry(ex, config)
+
     return tenacity.retry(
         reraise=True,
         wait=tenacity.wait_exponential_jitter(),
         stop=tenacity.stop_after_attempt(config.max_attempts),
         before_sleep=tenacity_alert_retry,
-        retry=tenacity.retry_if_exception(tenacity_should_retry),
+        retry=tenacity.retry_if_exception(should_retry),
     )(func)
 
 
@@ -33,9 +44,15 @@ def tenacity_alert_retry(retry_state: tenacity.RetryCallState) -> None:
     )
 
 
-def tenacity_should_retry(ex: BaseException) -> bool:
+def tenacity_should_retry(
+    ex: BaseException, config: TenacityConfig | None = None
+) -> bool:
+    """Return True when the exception should be retried."""
     if isinstance(ex, ServiceException | NotFoundException):
         return True
+
+    if isinstance(ex, TooManyRequestsException):
+        return bool(config and config.retry_429)
 
     if isinstance(ex, grpc.aio.AioRpcError | grpc.RpcError):
         return ex.code() not in [

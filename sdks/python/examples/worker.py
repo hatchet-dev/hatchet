@@ -28,6 +28,7 @@ from examples.dependency_injection.worker import (
     di_workflow,
     durable_async_task_with_dependencies,
     sync_task_with_dependencies,
+    task_with_type_aliases,
 )
 from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import (
@@ -119,6 +120,7 @@ def main() -> None:
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
+            task_with_type_aliases,
             say_hello,
             say_hello_unsafely,
             serde_workflow,

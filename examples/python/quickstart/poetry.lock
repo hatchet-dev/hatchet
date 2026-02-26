@@ -473,14 +473,14 @@ setuptools = "*"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.25.2"
+version = "1.26.0"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.25.2-py3-none-any.whl", hash = "sha256:057964f451636a46f2365e550a8eeebefc75f13daf412a84ec739874b6ae4191"},
-    {file = "hatchet_sdk-1.25.2.tar.gz", hash = "sha256:879f7c0e2e20cb17e58df787bd9f160870a592567924d0bec673ab7df071632a"},
+    {file = "hatchet_sdk-1.26.0-py3-none-any.whl", hash = "sha256:77da522bc41d7798014b36180565f2252d19d0d98fefdde165fb1e2ef97fa936"},
+    {file = "hatchet_sdk-1.26.0.tar.gz", hash = "sha256:a60e86954f6ecb96367e3b84727ddc9c3f5836ca25f719e8b41ae39aca9fcb69"},
 ]
 
 [package.dependencies]
@@ -493,6 +493,7 @@ pydantic = ">=2.6.3,<3.0.0"
 pydantic-settings = ">=2.7.1,<3.0.0"
 python-dateutil = ">=2.9.0.post0,<3.0.0"
 tenacity = ">=8.4.1"
+typing-inspection = ">=0.1.0"
 urllib3 = ">=2.6.0,<3.0.0"
 
 [package.extras]
@@ -1008,6 +1009,21 @@ files = [
 ]
 
 [[package]]
+name = "typing-inspection"
+version = "0.4.2"
+description = "Runtime typing introspection tools"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "typing_inspection-0.4.2-py3-none-any.whl", hash = "sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7"},
+    {file = "typing_inspection-0.4.2.tar.gz", hash = "sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464"},
+]
+
+[package.dependencies]
+typing-extensions = ">=4.12.0"
+
+[[package]]
 name = "urllib3"
 version = "2.6.3"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -1125,4 +1141,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "9f8a336bf99bd769d22743dcec55bfc1d35df37c0bbfa544f3a8178ea4ad08df"
+content-hash = "cbac77363268f7b45cc0e9274f455e8e88b6aa8f220d6f0450839eecc7b7aa39"
