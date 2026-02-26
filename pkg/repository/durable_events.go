@@ -92,7 +92,7 @@ type DurableEventsRepository interface {
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
-	GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error)
+	LookUpCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error)
 }
 
 type durableEventsRepository struct {
@@ -683,7 +683,7 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	return createdDAGs, createdTasks, nil
 }
 
-func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error) {
+func (r *durableEventsRepository) LookUpCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error) {
 	task, err := r.GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
 
 	if err != nil {

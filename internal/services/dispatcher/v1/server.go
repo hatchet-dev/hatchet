@@ -28,7 +28,7 @@ func (d *DispatcherServiceImpl) GetMaybeCachedDurableMemoEntry(ctx context.Conte
 		return nil, status.Error(codes.InvalidArgument, "task_run_external_id is not a valid uuid")
 	}
 
-	result, err := d.repo.DurableEvents().GetMaybeCachedMemoEntry(ctx, tenantId, taskExternalId, req.Key)
+	result, err := d.repo.DurableEvents().LookUpCachedMemoEntry(ctx, tenantId, taskExternalId, req.Key)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get memo entry")
 	}
