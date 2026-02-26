@@ -56,10 +56,8 @@ async def test_non_evictable_task_completes(hatchet: Hatchet) -> None:
     """A durable task with eviction disabled should finish normally."""
     result = await non_evictable_sleep.aio_run()
 
-    assert result["status"] == "completed"
-    runtime = result["runtime"]
-    assert isinstance(runtime, (int, float))
-    assert runtime >= 10
+    assert result.status == "completed"
+    assert result.runtime >= 10
 
 
 @pytest.mark.asyncio(loop_scope="session")

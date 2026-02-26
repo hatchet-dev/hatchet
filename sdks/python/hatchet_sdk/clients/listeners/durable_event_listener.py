@@ -89,6 +89,9 @@ class DurableEventListener:
         self._pending_callbacks: dict[
             PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
+
+        # TODO-DURABLE: This is a hack to handle the case where a task is completed before the event listener is connected.
+        # We should probably figure out WHY this is happening and fix it.
         self._early_completions: dict[
             PendingCallback, DurableTaskEventLogEntryResult
         ] = {}

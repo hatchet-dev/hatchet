@@ -63,7 +63,8 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 			continue
 		}
 
-		if dispatcherLookup.DispatcherId == nil {
+		dispatcherId := dispatcherLookup.DispatcherId
+		if dispatcherId == nil {
 			tc.l.Warn().Msgf("task %d has runtime but no durable dispatcher id, skipping callback delivery", cb.DurableTaskId)
 			continue
 		}
@@ -81,7 +82,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 			continue
 		}
 
-		dispatcherToMsgs[*dispatcherLookup.DispatcherId] = append(dispatcherToMsgs[*dispatcherLookup.DispatcherId], msg)
+		dispatcherToMsgs[*dispatcherId] = append(dispatcherToMsgs[*dispatcherId], msg)
 	}
 
 	for dispatcherId, msgs := range dispatcherToMsgs {
@@ -111,7 +112,6 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 	}
 
 	if len(flatTasks) == 0 {
-		tc.l.Warn().Msgf("no tasks found for %d restore messages", len(msgs))
 		return nil
 	}
 
@@ -163,25 +163,28 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 
 		if restored.Queue != "" {
 			queues[restored.Queue] = struct{}{}
+		} else {
+			tc.l.Warn().Str("task_id", t.ExternalID.String()).Msg("restored task has empty queue, skipping scheduler notification")
 		}
 	}
 
 	if len(queues) > 0 {
-		tc.notifySchedulerQueues(ctx, tenantId, queues)
+		if err := tc.notifySchedulerQueues(ctx, tenantId, queues); err != nil {
+			tc.l.Error().Err(err).Msg("failed to notify scheduler queues")
+		}
 	}
 
 	return nil
 }
 
-func (tc *TasksControllerImpl) notifySchedulerQueues(ctx context.Context, tenantId uuid.UUID, queues map[string]struct{}) {
+func (tc *TasksControllerImpl) notifySchedulerQueues(ctx context.Context, tenantId uuid.UUID, queues map[string]struct{}) error {
 	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
 	if err != nil {
-		tc.l.Error().Err(err).Msg("could not get tenant for scheduler notification")
-		return
+		return fmt.Errorf("could not get tenant for scheduler notification: %w", err)
 	}
 
 	if !tenant.SchedulerPartitionId.Valid {
-		return
+		return nil
 	}
 
 	queueNames := make([]string, 0, len(queues))
@@ -199,11 +202,12 @@ func (tc *TasksControllerImpl) notifySchedulerQueues(ctx context.Context, tenant
 		},
 	)
 	if err != nil {
-		tc.l.Error().Err(err).Msgf("failed to build check-tenant-queue message for queues %v", queueNames)
-		return
+		return fmt.Errorf("failed to build check-tenant-queue message for queues %v: %w", queueNames, err)
 	}
 
 	if err := tc.mq.SendMessage(ctx, msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler), msg); err != nil {
-		tc.l.Error().Err(err).Msgf("failed to notify scheduler for queues %v", queueNames)
+		return fmt.Errorf("failed to notify scheduler for queues %v: %w", queueNames, err)
 	}
+
+	return nil
 }

@@ -549,6 +549,7 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
+    # todo: instrumentor for this
     async def _spawn_child(
         self,
         workflow: BaseWorkflow[TWorkflowInput],
