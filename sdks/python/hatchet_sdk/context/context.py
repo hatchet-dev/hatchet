@@ -625,10 +625,13 @@ class DurableContext(Context):
             key=key,
         )
 
-        data = resp.data if resp.data else json.dumps({}).encode("utf-8")
+        if resp.found and not resp.data:
+            logger.warning(
+                "memo key found in durable storage but no data was returned. rerunning the function to recompute the value. "
+            )
 
-        if resp.found:
-            return adapter.validate_json(data, context=HATCHET_PYDANTIC_SENTINEL)
+        if resp.found and resp.data is not None:
+            return adapter.validate_json(resp.data, context=HATCHET_PYDANTIC_SENTINEL)
 
         result = await fn()
 
