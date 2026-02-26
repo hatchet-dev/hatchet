@@ -607,7 +607,7 @@ class DurableContext(Context):
 
         :param fn: The function to compute the value to be memoized. This should be an async function that returns the value to be memoized.
         :param deps: The dependencies of the memoized value. This should be a list of values that the memoized value depends on. If the dependencies change, the function will be re-run to compute a new value. The dependencies must be JSON serializable.
-        :param result_type: The type of the result to be memoized. This is used for validating the result when it's retrieved from durable storage and for properly serializing the result of the function call. This is required and generally we recommend using either a Pydantic model, a dataclass, or a TypedDict, but you can also use `dict` or `None`.
+        :param result_validator: The type of the result to be memoized. This is used for validating the result when it's retrieved from durable storage and for properly serializing the result of the function call. This is required and generally we recommend using either a Pydantic model, a dataclass, or a TypedDict, but you can also use `dict` or `None`.
         :return: The memoized value, either retrieved from durable storage or computed by calling the function.
         :raises ValueError: If the durable event listener is not available.
         """

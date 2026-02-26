@@ -295,7 +295,7 @@ async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     res = await ctx.aio_memo(
         fn=lambda: expensive_computation(input.message),
         deps=[input.message],
-        result_type=SleepResult,
+        result_validator=SleepResult,
     )
 
     return SleepResult(message=res.message, duration=time.time() - start)
