@@ -276,7 +276,7 @@ async def durable_replay_reset(
 
 class SleepResult(BaseModel):
     message: str
-    duration: float | None = None
+    duration: float
 
 
 class MemoInput(BaseModel):
