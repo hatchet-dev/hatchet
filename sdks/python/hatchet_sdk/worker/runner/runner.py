@@ -200,9 +200,14 @@ class Runner:
         """Called from DurableEvictionManager when it needs to request eviction from the server."""
         if self.durable_event_listener is None:
             return
+        invocation_count = 1
+        if key in self.contexts:
+            ctx = self.contexts[key]
+            if isinstance(ctx, DurableContext):
+                invocation_count = ctx.invocation_count
         await self.durable_event_listener.send_evict_invocation(
             durable_task_external_id=rec.step_run_id,
-            invocation_count=0,
+            invocation_count=invocation_count,
         )
 
     def step_run_callback(
