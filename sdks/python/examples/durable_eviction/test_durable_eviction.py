@@ -61,6 +61,23 @@ async def test_non_evictable_task_completes(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_non_evictable_task_not_evicted(hatchet: Hatchet) -> None:
+    """A durable task with eviction disabled should never be evicted, even past TTL."""
+    ref = non_evictable_sleep.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    await asyncio.sleep(7)  # Past EVICTION_TTL (5s), task still sleeping (10s total)
+    details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+    statuses = {t.status for t in details.task_runs.values()}
+    assert (
+        V1TaskStatus.EVICTED not in statuses
+    ), f"Non-evictable task should never be EVICTED, got: {statuses}"
+
+    result = await ref.aio_result()
+    assert result.status == "completed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_task_is_evicted(hatchet: Hatchet) -> None:
     """After the TTL, the eviction manager should evict the task."""
     ref = evictable_sleep.run_no_wait()
@@ -101,6 +118,25 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_evictable_task_restore_completes(hatchet: Hatchet) -> None:
+    """After eviction and restore, evictable_sleep should complete and return a result."""
+    ref = evictable_sleep.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    details = await _poll_until_status(
+        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+    )
+    task_id = _get_task_id(details)
+
+    with hatchet.runs.client() as client:
+        TaskApi(client).v1_task_restore(task=task_id)
+
+    result = await ref.aio_result()
+    assert result["status"] == "completed"
+    assert result["runtime"] >= 15
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_wait_for_event_is_evicted(hatchet: Hatchet) -> None:
     """A durable task waiting for an event should be evicted after TTL."""
     ref = evictable_wait_for_event.run_no_wait()
@@ -134,14 +170,9 @@ async def test_evictable_wait_for_event_restore(hatchet: Hatchet) -> None:
 
     hatchet.event.push(EVENT_KEY, {})
 
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.COMPLETED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
-
-    assert (
-        V1TaskStatus.COMPLETED in statuses
-    ), f"Expected COMPLETED after restore + event, got: {statuses}"
+    result = await ref.aio_result()
+    assert result["status"] == "completed"
+    assert result["runtime"] >= 0
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -185,6 +216,25 @@ async def test_evictable_child_spawn_restore(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_evictable_child_spawn_restore_completes(hatchet: Hatchet) -> None:
+    """After eviction and restore, evictable_child_spawn should complete with child result."""
+    ref = evictable_child_spawn.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    details = await _poll_until_status(
+        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+    )
+    task_id = _get_task_id(details)
+
+    with hatchet.runs.client() as client:
+        TaskApi(client).v1_task_restore(task=task_id)
+
+    result = await ref.aio_result()
+    assert result["status"] == "completed"
+    assert result["child"] == {"child_status": "completed"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
     """The task should survive two eviction+restore cycles."""
     ref = multiple_eviction.run_no_wait()
@@ -214,13 +264,10 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
         TaskApi(client).v1_task_restore(task=task_id)
 
     # --- should complete after the second restore ---
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.COMPLETED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
-    assert (
-        V1TaskStatus.COMPLETED in statuses
-    ), f"Expected COMPLETED after two restore cycles, got: {statuses}"
+    result = await ref.aio_result()
+    assert result["status"] == "completed"
+    assert result["first_sleep"] >= 15
+    assert result["total_runtime"] >= 30
 
 
 @pytest.mark.asyncio(loop_scope="session")
