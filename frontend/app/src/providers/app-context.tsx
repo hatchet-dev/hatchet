@@ -2,7 +2,7 @@ import { useUserUniverse } from './user-universe';
 import { queries, Tenant, User } from '@/lib/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { lastTenantAtom } from '@/lib/atoms';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
 import {
@@ -11,6 +11,7 @@ import {
   useMemo,
   type ReactNode,
   useEffect,
+  useCallback,
 } from 'react';
 
 /**
@@ -51,6 +52,7 @@ export type AppContextValue = {
   isUserLoaded: boolean;
   userError: unknown;
   isUserError: boolean;
+  invalidateCurrentUser: () => void;
 
   // Tenant data
   tenant: Tenant | undefined;
@@ -75,6 +77,14 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     ...queries.user.current,
     retry: false,
   });
+
+  const queryClient = useQueryClient();
+
+  const invalidateCurrentUser = useCallback(() => {
+    queryClient.resetQueries({
+      queryKey: queries.user.current.queryKey,
+    });
+  }, [queryClient]);
 
   const {
     isLoaded: isUserUniverseLoaded,
@@ -109,6 +119,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       isUserLoading: currentUserQuery.isLoading,
       userError: currentUserQuery.error,
       isUserError: currentUserQuery.isError,
+      invalidateCurrentUser,
 
       // Tenant
       tenant,
@@ -147,6 +158,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     currentUserQuery.isSuccess,
     currentUserQuery.error,
     currentUserQuery.isError,
+    invalidateCurrentUser,
     tenant,
     tenantId,
     isUserUniverseLoaded,

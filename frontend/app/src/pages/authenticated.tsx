@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -261,6 +262,10 @@ function AuthenticatedInner() {
       }),
     [],
   );
+
+  if (!currentUser) {
+    return <Loading />;
+  }
 
   return (
     <PostHogProvider user={currentUser}>
