@@ -607,20 +607,35 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	return nil
 }
 
+func (d *DispatcherServiceImpl) sendEvictionError(invocation *durableTaskInvocation, req *contracts.DurableTaskEvictInvocationRequest, errMsg string) error {
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_Error{
+			Error: &contracts.DurableTaskErrorResponse{
+				DurableTaskExternalId: req.DurableTaskExternalId,
+				InvocationCount:       req.InvocationCount,
+				ErrorType:             contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_UNSPECIFIED,
+				ErrorMessage:          errMsg,
+			},
+		},
+	})
+}
+
 func (d *DispatcherServiceImpl) handleEvictInvocation(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+		return d.sendEvictionError(invocation, req, fmt.Sprintf("invalid durable_task_external_id: %v", err))
 	}
 
-	// TODO-DURABLE: should we be doing a lookup here?
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
-		return status.Errorf(codes.NotFound, "task not found: %v", err)
+		return d.sendEvictionError(invocation, req, fmt.Sprintf("task not found: %v", err))
 	}
 
 	_, err = d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
@@ -629,7 +644,7 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 		RetryCount: task.RetryCount,
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to evict task: %v", err)
+		return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to evict task: %v", err))
 	}
 
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(

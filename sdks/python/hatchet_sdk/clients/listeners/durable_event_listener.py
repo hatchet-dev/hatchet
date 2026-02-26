@@ -339,6 +339,15 @@ class DurableEventListener:
                 if not error_pending_callback_future.done():
                     error_pending_callback_future.set_exception(exc)
 
+            eviction_key: PendingEvictionAck = (
+                error.durable_task_external_id,
+                error.invocation_count,
+            )
+            if eviction_key in self._pending_eviction_acks:
+                eviction_future = self._pending_eviction_acks.pop(eviction_key)
+                if not eviction_future.done():
+                    eviction_future.set_exception(exc)
+
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:
             raise RuntimeError("Client not started")
@@ -436,6 +445,8 @@ class DurableEventListener:
         for ek in stale_early_keys:
             del self._early_completions[ek]
 
+    _EVICTION_ACK_TIMEOUT_S = 30.0
+
     async def send_evict_invocation(
         self,
         durable_task_external_id: str,
@@ -460,4 +471,11 @@ class DurableEventListener:
         )
         await self._request_queue.put(request)
 
-        await ack_future
+        try:
+            await asyncio.wait_for(ack_future, timeout=self._EVICTION_ACK_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            self._pending_eviction_acks.pop(eviction_key, None)
+            raise TimeoutError(
+                f"Eviction ack timed out after {self._EVICTION_ACK_TIMEOUT_S:.0f}s "
+                f"for task {durable_task_external_id} invocation {invocation_count}"
+            )
