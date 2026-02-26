@@ -19,7 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (d *DispatcherServiceImpl) GetMaybeCachedDurableMemoEntry(ctx context.Context, req *contracts.GetMaybeCachedDurableMemoEntryRequest) (*contracts.GetMaybeCachedDurableMemoEntryResponse, error) {
+func (d *DispatcherServiceImpl) GetMaybeCachedDurableMemoEntry(ctx context.Context, req *contracts.LookUpCachedDurableMemoEntryRequest) (*contracts.LookUpCachedDurableMemoEntryResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -33,7 +33,7 @@ func (d *DispatcherServiceImpl) GetMaybeCachedDurableMemoEntry(ctx context.Conte
 		return nil, status.Errorf(codes.Internal, "failed to get memo entry")
 	}
 
-	return &contracts.GetMaybeCachedDurableMemoEntryResponse{
+	return &contracts.LookUpCachedDurableMemoEntryResponse{
 		HasEntry: result.HasEntry,
 		Data:     result.Data,
 	}, nil

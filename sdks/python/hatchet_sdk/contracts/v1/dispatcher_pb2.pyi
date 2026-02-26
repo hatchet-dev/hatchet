@@ -27,7 +27,7 @@ DURABLE_TASK_TRIGGER_KIND_MEMO: DurableTaskEventKind
 DURABLE_TASK_ERROR_TYPE_UNSPECIFIED: DurableTaskErrorType
 DURABLE_TASK_ERROR_TYPE_NONDETERMINISM: DurableTaskErrorType
 
-class GetMaybeCachedDurableMemoEntryRequest(_message.Message):
+class LookUpCachedDurableMemoEntryRequest(_message.Message):
     __slots__ = ("task_run_external_id", "key")
     TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     KEY_FIELD_NUMBER: _ClassVar[int]
@@ -35,7 +35,7 @@ class GetMaybeCachedDurableMemoEntryRequest(_message.Message):
     key: bytes
     def __init__(self, task_run_external_id: _Optional[str] = ..., key: _Optional[bytes] = ...) -> None: ...
 
-class GetMaybeCachedDurableMemoEntryResponse(_message.Message):
+class LookUpCachedDurableMemoEntryResponse(_message.Message):
     __slots__ = ("has_entry", "data")
     HAS_ENTRY_FIELD_NUMBER: _ClassVar[int]
     DATA_FIELD_NUMBER: _ClassVar[int]

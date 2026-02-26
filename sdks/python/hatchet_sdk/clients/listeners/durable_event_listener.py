@@ -23,8 +23,8 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
     DurableTaskWorkerStatusRequest,
-    GetMaybeCachedDurableMemoEntryRequest,
-    GetMaybeCachedDurableMemoEntryResponse,
+    LookUpCachedDurableMemoEntryRequest,
+    LookUpCachedDurableMemoEntryResponse,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
@@ -409,16 +409,16 @@ class DurableEventListener:
 
         return await self._pending_callbacks[key]
 
-    async def get_maybe_cached_durable_memo_entry(
+    async def look_up_cached_durable_memo_entry(
         self, task_run_external_id: str, key: bytes
     ) -> MaybeCachedMemoEntry:
         if self._stub is None:
             raise RuntimeError("Client not started")
 
         resp = cast(
-            GetMaybeCachedDurableMemoEntryResponse,
-            await self._stub.GetMaybeCachedDurableMemoEntry(  # type: ignore[misc]
-                GetMaybeCachedDurableMemoEntryRequest(
+            LookUpCachedDurableMemoEntryResponse,
+            await self._stub.LookUpCachedDurableMemoEntry(  # type: ignore[misc]
+                LookUpCachedDurableMemoEntryRequest(
                     task_run_external_id=task_run_external_id,
                     key=key,
                 ),

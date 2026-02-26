@@ -9,19 +9,19 @@ import "v1/shared/trigger.proto";
 
 service V1Dispatcher {
     rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse) {}
-    rpc GetMaybeCachedDurableMemoEntry(GetMaybeCachedDurableMemoEntryRequest) returns (GetMaybeCachedDurableMemoEntryResponse) {}
+    rpc LookUpCachedDurableMemoEntry(LookUpCachedDurableMemoEntryRequest) returns (LookUpCachedDurableMemoEntryResponse) {}
 
     // NOTE: deprecated after DurableEventLog is implemented
     rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
 }
 
-message GetMaybeCachedDurableMemoEntryRequest {
+message LookUpCachedDurableMemoEntryRequest {
     string task_run_external_id = 1;
     bytes key = 2;
 }
 
-message GetMaybeCachedDurableMemoEntryResponse {
+message LookUpCachedDurableMemoEntryResponse {
     bool has_entry = 1;
     bytes data = 2; // the data for the durable memo entry, if it exists
 }
