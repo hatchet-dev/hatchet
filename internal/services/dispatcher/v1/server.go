@@ -19,7 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (d *DispatcherServiceImpl) GetMaybeCachedDurableMemoEntry(ctx context.Context, req *contracts.LookUpCachedDurableMemoEntryRequest) (*contracts.LookUpCachedDurableMemoEntryResponse, error) {
+func (d *DispatcherServiceImpl) LookUpCachedDurableMemoEntry(ctx context.Context, req *contracts.LookUpCachedDurableMemoEntryRequest) (*contracts.LookUpCachedDurableMemoEntryResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
