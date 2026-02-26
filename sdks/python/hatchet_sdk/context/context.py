@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 def _compute_memo_key(task_run_external_id: str, deps: list[Any]) -> bytes:
     h = hashlib.sha256()
     h.update(task_run_external_id.encode())
-    h.update(json.dumps(deps, default=str).encode())
+    h.update(json.dumps(deps, default=str, sort_keys=True).encode())
     return h.digest()
 
 
@@ -600,9 +600,20 @@ class DurableContext(Context):
         deps: list[Any],
         result_type: type[TMemo] | None = None,
     ) -> TMemo:
+        """
+        Memoize a result in durable storage. This is useful for caching the results of expensive computations that you don't want to repeat on every workflow replay without needing to spawn a child workflow or set up an external cache. The function signature is intended to behave similarly to React's [useMemo](https://react.dev/reference/react/useMemo), hook if you're familiar with that.
+
+        :param fn: The function to compute the value to be memoized. This should be an async function that returns the value to be memoized.
+        :param deps: The dependencies of the memoized value. This should be a list of values that the memoized value depends on. If the dependencies change, the function will be re-run to compute a new value. The dependencies should be JSON serializable.
+        :param result_type: The type of the result to be memoized. This is used for validating the result when it's retrieved from durable storage and for properly serializing the result of the function call. If not provided, `json.dumps` and `json.loads` will be used for serialization and deserialization, and no validation will be performed on the retrieved value.
+        :return: The memoized value, either retrieved from durable storage or computed by calling the function.
+        :raises ValueError: If the durable event listener is not available.
+        """
+
         if self.durable_event_listener is None:
             raise ValueError("Durable event listener is not available")
 
+        run_external_id = self.step_run_id
         adapter: TypeAdapter[TMemo] | None = None
         if result_type is not None:
             adapter = TypeAdapter(result_type)
@@ -610,7 +621,7 @@ class DurableContext(Context):
         key = _compute_memo_key(self.step_run_id, deps)
 
         resp = await self.durable_event_listener.get_durable_event_log(
-            external_id=self.workflow_run_id,
+            external_id=run_external_id,
             key=key,
         )
 
@@ -633,7 +644,7 @@ class DurableContext(Context):
         await self._ensure_stream_started()
 
         await self.durable_event_listener.send_event(
-            durable_task_external_id=self.step_run_id,
+            durable_task_external_id=run_external_id,
             invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
             payload=serialized,

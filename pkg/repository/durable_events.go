@@ -687,7 +687,7 @@ func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, t
 	task, err := r.GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
 
 	if err != nil {
-		return &MaybeCachedMemoEntry{HasEntry: false}, nil
+		return nil, fmt.Errorf("failed to get task by external id: %w", err)
 	}
 
 	entry, err := r.queries.GetDurableEventLogEntryByIdempotencyKey(ctx, r.pool, sqlcv1.GetDurableEventLogEntryByIdempotencyKeyParams{
@@ -697,7 +697,7 @@ func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, t
 	})
 
 	if err != nil {
-		return &MaybeCachedMemoEntry{HasEntry: false}, nil
+		return nil, fmt.Errorf("failed to get durable event log entry by idempotency key: %w", err)
 	}
 
 	payload, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
@@ -708,7 +708,7 @@ func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, t
 	})
 
 	if err != nil {
-		return &MaybeCachedMemoEntry{HasEntry: true}, nil
+		return nil, fmt.Errorf("failed to retrieve payload for durable event log entry: %w", err)
 	}
 
 	return &MaybeCachedMemoEntry{

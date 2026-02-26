@@ -197,7 +197,7 @@ async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
     result_1 = await ref.aio_result()
     duration_1 = time.time() - start
 
-    hatchet.runs.replay(ref.workflow_run_id)
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
 
     start = time.time()
     result_2 = await ref.aio_result()
