@@ -58,12 +58,11 @@ const useSaveOrganization = ({
     }: {
       organizationName: string;
       tenantName: string;
-    }) => {
-      return await saveOrganizationAndTenant({
+    }) =>
+      saveOrganizationAndTenant({
         organizationName,
         tenantName,
-      });
-    },
+      }),
     onSuccess: (data) => {
       invalidateUserUniverse();
       capture('onboarding_tenant_created', {

@@ -41,7 +41,7 @@ export function useOrganizations() {
       return organizationData;
     }
     return [];
-  }, [isUserUniverseLoaded, organizationData]);
+  }, [isUserUniverseLoaded, organizationData, isCloudEnabled]);
 
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {

@@ -3,7 +3,7 @@ import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 import { userUniverseQuery } from './providers/user-universe';
-import api, { queries } from '@/lib/api';
+import api from '@/lib/api';
 import queryClient from '@/query-client';
 import {
   RouterProvider,
@@ -121,7 +121,7 @@ const onboardingCreateTenantRoute = createRoute({
     const { isCloudEnabled } = await queryClient.fetchQuery(
       getCloudMetadataQuery,
     );
-    return await queryClient.fetchQuery(
+    return queryClient.fetchQuery(
       userUniverseQuery({ isCloudEnabled, isCloudLoaded: true }),
     );
   },

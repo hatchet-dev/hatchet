@@ -174,7 +174,6 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     currentUserQuery.isError,
     invalidateCurrentUser,
     tenant,
-    potentiallyValidTenantId,
     isUserUniverseLoaded,
     userUniverseIsCloudEnabled,
     validTenantMembership?.role,

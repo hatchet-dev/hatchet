@@ -126,7 +126,7 @@ export function UserUniverseProvider({
 
           throw result.error;
         }),
-    [],
+    [tenantMembershipAndOrganizationsQuery],
   );
 
   const value = useMemo<UserUniverse>(() => {
@@ -185,10 +185,7 @@ export function UserUniverseProvider({
             invalidate,
           };
     }
-  }, [
-    tenantMembershipAndOrganizationsQuery.data,
-    tenantMembershipAndOrganizationsQuery.isSuccess,
-  ]);
+  }, [tenantMembershipAndOrganizationsQuery, isCloudEnabled, get, invalidate]);
 
   return (
     <UserUniverseContext.Provider value={value}>
