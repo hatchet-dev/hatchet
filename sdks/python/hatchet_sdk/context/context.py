@@ -598,14 +598,16 @@ class DurableContext(Context):
         self,
         fn: Callable[[], Awaitable[TMemo]],
         deps: list[Any],
-        result_type: type[TMemo] | None = None,
+        result_validator: type[TMemo],
     ) -> TMemo:
         """
         Memoize a result in durable storage. This is useful for caching the results of expensive computations that you don't want to repeat on every workflow replay without needing to spawn a child workflow or set up an external cache. The function signature is intended to behave similarly to React's [useMemo](https://react.dev/reference/react/useMemo), hook if you're familiar with that.
 
+        Note that memoization is performed at the _task run_ level, meaning you cannot cache across tasks (whether they're part of the same workflow or otherwise).
+
         :param fn: The function to compute the value to be memoized. This should be an async function that returns the value to be memoized.
-        :param deps: The dependencies of the memoized value. This should be a list of values that the memoized value depends on. If the dependencies change, the function will be re-run to compute a new value. The dependencies should be JSON serializable.
-        :param result_type: The type of the result to be memoized. This is used for validating the result when it's retrieved from durable storage and for properly serializing the result of the function call. If not provided, `json.dumps` and `json.loads` will be used for serialization and deserialization, and no validation will be performed on the retrieved value.
+        :param deps: The dependencies of the memoized value. This should be a list of values that the memoized value depends on. If the dependencies change, the function will be re-run to compute a new value. The dependencies must be JSON serializable.
+        :param result_type: The type of the result to be memoized. This is used for validating the result when it's retrieved from durable storage and for properly serializing the result of the function call. This is required and generally we recommend using either a Pydantic model, a dataclass, or a TypedDict, but you can also use `dict` or `None`.
         :return: The memoized value, either retrieved from durable storage or computed by calling the function.
         :raises ValueError: If the durable event listener is not available.
         """
@@ -614,9 +616,7 @@ class DurableContext(Context):
             raise ValueError("Durable event listener is not available")
 
         run_external_id = self.step_run_id
-        adapter: TypeAdapter[TMemo] | None = None
-        if result_type is not None:
-            adapter = TypeAdapter(result_type)
+        adapter = TypeAdapter(result_validator)
 
         key = _compute_memo_key(self.step_run_id, deps)
 
@@ -628,18 +628,11 @@ class DurableContext(Context):
         data = resp.data if resp.data else json.dumps({}).encode("utf-8")
 
         if resp.found:
-            if adapter is not None:
-                return adapter.validate_json(data, context=HATCHET_PYDANTIC_SENTINEL)
-
-            return cast(TMemo, json.loads(data))
+            return adapter.validate_json(data, context=HATCHET_PYDANTIC_SENTINEL)
 
         result = await fn()
 
-        serialized = (
-            adapter.dump_json(result, context=HATCHET_PYDANTIC_SENTINEL)
-            if adapter is not None
-            else json.dumps(result, default=str).encode("utf-8")
-        )
+        serialized = adapter.dump_json(result, context=HATCHET_PYDANTIC_SENTINEL)
 
         await self._ensure_stream_started()
 
