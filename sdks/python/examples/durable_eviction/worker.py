@@ -9,10 +9,11 @@ it can resume from its durable event log.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import timedelta
 
-from hatchet_sdk import DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventCondition
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 
 hatchet = Hatchet(debug=True)
@@ -20,21 +21,69 @@ hatchet = Hatchet(debug=True)
 
 EVICTION_TTL_SECONDS = 5
 LONG_SLEEP_SECONDS = 15
+EVENT_KEY = "durable-eviction:event"
+
+EVICTION_POLICY = EvictionPolicy(
+    ttl=timedelta(seconds=EVICTION_TTL_SECONDS),
+    allow_capacity_eviction=True,
+    priority=0,
+)
+
+
+@hatchet.task()
+async def child_task(input: EmptyModel, ctx: Context) -> dict:
+    """Simple child that sleeps long enough for the parent's TTL to fire."""
+    await asyncio.sleep(LONG_SLEEP_SECONDS)
+    return {"child_status": "completed"}
 
 
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
-    eviction_policy=EvictionPolicy(
-        ttl=timedelta(seconds=EVICTION_TTL_SECONDS),
-        allow_capacity_eviction=True,
-        priority=0,
-    ),
+    eviction_policy=EVICTION_POLICY,
 )
-async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, object]:
+async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict:
     """Sleeps long enough for the TTL-based eviction to kick in."""
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
     return {"runtime": time.time() - start, "status": "completed"}
+
+
+@hatchet.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=EVICTION_POLICY,
+)
+async def evictable_wait_for_event(input: EmptyModel, ctx: DurableContext) -> dict:
+    """Waits for a user event -- long enough for TTL eviction to fire."""
+    start = time.time()
+    await ctx.aio_wait_for(
+        "event",
+        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    )
+    return {"runtime": time.time() - start, "status": "completed"}
+
+
+@hatchet.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=EVICTION_POLICY,
+)
+async def evictable_child_spawn(input: EmptyModel, ctx: DurableContext) -> dict:
+    """Spawns a child workflow whose runtime exceeds the eviction TTL."""
+    start = time.time()
+    child_result = await child_task.aio_run()
+    return {"runtime": time.time() - start, "child": child_result, "status": "completed"}
+
+
+@hatchet.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=EVICTION_POLICY,
+)
+async def multiple_eviction(input: EmptyModel, ctx: DurableContext) -> dict:
+    """Sleeps twice, expecting eviction+restore after each sleep."""
+    start = time.time()
+    await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
+    mid = time.time() - start
+    await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
+    return {"first_sleep": mid, "total_runtime": time.time() - start, "status": "completed"}
 
 
 @hatchet.durable_task(
@@ -45,9 +94,7 @@ async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, o
         priority=0,
     ),
 )
-async def non_evictable_sleep(
-    input: EmptyModel, ctx: DurableContext
-) -> dict[str, object]:
+async def non_evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict:
     """Has eviction disabled -- should never be evicted."""
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=10))
@@ -58,7 +105,14 @@ def main() -> None:
     worker = hatchet.worker(
         "eviction-worker",
         slots=2,
-        workflows=[evictable_sleep, non_evictable_sleep],
+        workflows=[
+            evictable_sleep,
+            evictable_wait_for_event,
+            evictable_child_spawn,
+            multiple_eviction,
+            non_evictable_sleep,
+            child_task,
+        ],
     )
     worker.start()
 
