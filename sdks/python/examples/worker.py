@@ -42,6 +42,7 @@ from examples.durable.worker import (
     durable_non_determinism,
     durable_replay_reset,
     memo_task,
+    memo_task_empty_keys,
 )
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
@@ -129,6 +130,7 @@ def main() -> None:
             durable_non_determinism,
             durable_replay_reset,
             memo_task,
+            memo_task_empty_keys,
         ],
         lifespan=lifespan,
     )

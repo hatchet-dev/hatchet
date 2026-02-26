@@ -696,8 +696,13 @@ func (r *durableEventsRepository) GetMaybeCachedMemoEntry(ctx context.Context, t
 		Idempotencykey:        key,
 	})
 
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("failed to get durable event log entry by idempotency key: %w", err)
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		return &MaybeCachedMemoEntry{
+			HasEntry: false,
+			Data:     nil,
+		}, nil
 	}
 
 	payload, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{

@@ -409,8 +409,8 @@ class DurableEventListener:
 
         return await self._pending_callbacks[key]
 
-    async def get_durable_event_log(
-        self, external_id: str, key: bytes
+    async def get_maybe_cached_durable_memo_entry(
+        self, task_run_external_id: str, key: bytes
     ) -> MaybeCachedMemoEntry:
         if self._stub is None:
             raise RuntimeError("Client not started")
@@ -419,7 +419,7 @@ class DurableEventListener:
             GetMaybeCachedDurableMemoEntryResponse,
             await self._stub.GetMaybeCachedDurableMemoEntry(  # type: ignore[misc]
                 GetMaybeCachedDurableMemoEntryRequest(
-                    task_run_external_id=external_id,
+                    task_run_external_id=task_run_external_id,
                     key=key,
                 ),
                 metadata=get_metadata(self.token),

@@ -292,10 +292,37 @@ async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     res = await ctx.aio_memo(
         fn=lambda: expensive_computation(input.message),
         deps=[input.message],
-        result_type=SleepResult,
+        result_validator=SleepResult,
     )
 
     return SleepResult(message=res.message, duration=time.time() - start)
+
+
+class SharedKeyResult(BaseModel):
+    a: SleepResult
+    b: SleepResult
+
+
+@hatchet.durable_task(input_validator=MemoInput)
+async def memo_task_empty_keys(
+    input: MemoInput, ctx: DurableContext
+) -> SharedKeyResult:
+    res = await ctx.aio_memo(
+        fn=lambda: expensive_computation(input.message),
+        deps=[],
+        result_validator=SleepResult,
+    )
+
+    start = time.time()
+    res_2 = await ctx.aio_memo(
+        fn=lambda: expensive_computation("this should not have run"),
+        deps=[],
+        result_validator=SleepResult,
+    )
+    duration = time.time() - start
+    res_2.duration = duration
+
+    return SharedKeyResult(a=res, b=res_2)
 
 
 def main() -> None:
@@ -310,6 +337,7 @@ def main() -> None:
             durable_sleep_event_spawn,
             durable_non_determinism,
             durable_replay_reset,
+            memo_task_empty_keys,
         ],
     )
     worker.start()

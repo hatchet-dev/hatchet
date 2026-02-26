@@ -30,7 +30,7 @@ func (d *DispatcherServiceImpl) GetMaybeCachedDurableMemoEntry(ctx context.Conte
 
 	result, err := d.repo.DurableEvents().GetMaybeCachedMemoEntry(ctx, tenantId, taskExternalId, req.Key)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get memo entry: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get memo entry")
 	}
 
 	return &contracts.GetMaybeCachedDurableMemoEntryResponse{

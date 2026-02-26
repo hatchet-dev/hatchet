@@ -620,8 +620,8 @@ class DurableContext(Context):
 
         key = _compute_memo_key(self.step_run_id, deps)
 
-        resp = await self.durable_event_listener.get_durable_event_log(
-            external_id=run_external_id,
+        resp = await self.durable_event_listener.get_maybe_cached_durable_memo_entry(
+            task_run_external_id=run_external_id,
             key=key,
         )
 

@@ -16,6 +16,7 @@ from examples.durable.worker import (
     durable_non_determinism,
     durable_replay_reset,
     memo_task,
+    memo_task_empty_keys,
     MemoInput,
 )
 from hatchet_sdk import Hatchet
@@ -206,3 +207,14 @@ async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
     assert duration_1 >= SLEEP_TIME
     assert duration_2 < 1
     assert result_1.message == result_2.message
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_memoization_empty_keys(hatchet: Hatchet) -> None:
+    message = str(uuid4())
+    result = await memo_task_empty_keys.aio_run(MemoInput(message=message))
+
+    assert result.a.message == message
+    assert result.b.message == message
+    assert result.a.duration >= SLEEP_TIME
+    assert result.b.duration < 1
