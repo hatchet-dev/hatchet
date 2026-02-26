@@ -16,16 +16,24 @@ import (
 )
 
 // TODO-DURABLE: Hack until eviction is modeled in v1_readable_status_olap.
+var taskStatusToOlapStatus = map[gen.V1TaskStatus]sqlcv1.V1ReadableStatusOlap{
+	gen.V1TaskStatusQUEUED:    sqlcv1.V1ReadableStatusOlapQUEUED,
+	gen.V1TaskStatusRUNNING:   sqlcv1.V1ReadableStatusOlapRUNNING,
+	gen.V1TaskStatusFAILED:    sqlcv1.V1ReadableStatusOlapFAILED,
+	gen.V1TaskStatusCOMPLETED: sqlcv1.V1ReadableStatusOlapCOMPLETED,
+	gen.V1TaskStatusCANCELLED: sqlcv1.V1ReadableStatusOlapCANCELLED,
+	// OLAP does not model EVICTED; treat as RUNNING until it does.
+	gen.V1TaskStatusEVICTED: sqlcv1.V1ReadableStatusOlapRUNNING,
+}
+
 func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus) []sqlcv1.V1ReadableStatusOlap {
 	normalized := make([]sqlcv1.V1ReadableStatusOlap, 0, len(statuses))
 	seen := make(map[sqlcv1.V1ReadableStatusOlap]struct{}, len(statuses))
 
 	for _, status := range statuses {
-		mapped := sqlcv1.V1ReadableStatusOlap(status)
-		if status == gen.V1TaskStatusEVICTED {
-			// OLAP readable_status does not include EVICTED; map it to RUNNING until
-			// eviction is modeled in v1_readable_status_olap.
-			mapped = sqlcv1.V1ReadableStatusOlapRUNNING
+		mapped, ok := taskStatusToOlapStatus[status]
+		if !ok {
+			continue
 		}
 
 		if _, exists := seen[mapped]; exists {
