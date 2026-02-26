@@ -45,6 +45,8 @@ type EventClient interface {
 
 	PutLog(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32) error
 
+	PutLogWithTimestamp(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32, createdAt *timestamppb.Timestamp) error
+
 	PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error
 }
 
@@ -193,8 +195,12 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 }
 
 func (a *eventClientImpl) PutLog(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32) error {
+	return a.PutLogWithTimestamp(ctx, taskRunId, msg, level, taskRetryCount, timestamppb.Now())
+}
+
+func (a *eventClientImpl) PutLogWithTimestamp(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32, createdAt *timestamppb.Timestamp) error {
 	_, err := a.client.PutLog(a.ctx.newContext(ctx), &eventcontracts.PutLogRequest{
-		CreatedAt:         timestamppb.Now(),
+		CreatedAt:         createdAt,
 		TaskRunExternalId: taskRunId,
 		Message:           msg,
 		Level:             level,

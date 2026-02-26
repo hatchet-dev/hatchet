@@ -29,6 +29,9 @@ type ConfigFile struct {
 	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
 	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
 
+	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
+	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
+
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
@@ -81,6 +84,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxQueueConns", "DATABASE_MAX_QUEUE_CONNS")
 	_ = v.BindEnv("minQueueConns", "DATABASE_MIN_QUEUE_CONNS")
+	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
+	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
 
 	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
 	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")
