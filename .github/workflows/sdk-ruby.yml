@@ -141,14 +141,14 @@ jobs:
 
       - name: Wait for worker health
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if curl -s http://localhost:8001/health > /dev/null 2>&1; then
               echo "Worker is healthy after ${i}s"
               exit 0
             fi
             sleep 1
           done
-          echo "Worker failed to start within 30s"
+          echo "Worker failed to start within 60s"
           cat ./sdks/ruby/examples/worker.log || true
           exit 1
 
