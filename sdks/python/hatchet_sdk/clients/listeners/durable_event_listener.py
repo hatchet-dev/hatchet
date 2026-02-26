@@ -7,7 +7,10 @@ from typing import Self, cast
 import grpc.aio
 from pydantic import BaseModel
 
-from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
+from hatchet_sdk.clients.admin import (
+    AdminClient,
+    TriggerWorkflowOptions,
+)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
@@ -20,8 +23,11 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
     DurableTaskWorkerStatusRequest,
+    GetMaybeCachedDurableMemoEntryRequest,
+    GetMaybeCachedDurableMemoEntryResponse,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
@@ -29,6 +35,11 @@ from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
+
+
+class MaybeCachedMemoEntry(BaseModel):
+    found: bool
+    data: bytes | None = None
 
 
 class DurableTaskEventAck(BaseModel):
@@ -334,7 +345,7 @@ class DurableEventListener:
         durable_task_external_id: str,
         invocation_count: int,
         kind: DurableTaskEventKind,
-        payload: JSONSerializableMapping | None = None,
+        payload: JSONSerializableMapping | bytes | None = None,
         wait_for_conditions: DurableEventListenerConditions | None = None,
         # todo: combine these? or separate methods? or overload?
         workflow_name: str | None = None,
@@ -347,15 +358,19 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
-        _trigger_opts = (
-            self.admin_client._create_workflow_run_request(
+        _trigger_opts: trigger_protos.TriggerWorkflowRequest | None = None
+
+        if workflow_name:
+            if isinstance(payload, bytes):
+                raise TypeError(
+                    "Triggering a workflow with a bytes payload is not supported"
+                )
+
+            _trigger_opts = self.admin_client._create_workflow_run_request(
                 workflow_name=workflow_name,
                 input=payload or {},
                 options=trigger_workflow_opts or TriggerWorkflowOptions(),
             )
-            if workflow_name
-            else None
-        )
 
         event_request = DurableTaskEventRequest(
             durable_task_external_id=durable_task_external_id,
@@ -364,8 +379,10 @@ class DurableEventListener:
             trigger_opts=_trigger_opts,
         )
 
-        if payload is not None:
+        if payload is not None and not isinstance(payload, bytes):
             event_request.payload = json.dumps(payload).encode("utf-8")
+        elif isinstance(payload, bytes):
+            event_request.payload = payload
 
         if wait_for_conditions is not None:
             event_request.wait_for_conditions.CopyFrom(wait_for_conditions)
@@ -389,3 +406,25 @@ class DurableEventListener:
             self._pending_callbacks[key] = future
 
         return await self._pending_callbacks[key]
+
+    async def get_durable_event_log(
+        self, external_id: str, key: str
+    ) -> MaybeCachedMemoEntry:
+        if self._stub is None:
+            raise RuntimeError("Client not started")
+
+        resp = cast(
+            GetMaybeCachedDurableMemoEntryResponse,
+            await self._stub.GetMaybeCachedDurableMemoEntry(  # type: ignore[misc]
+                GetMaybeCachedDurableMemoEntryRequest(
+                    task_run_external_id=external_id,
+                    key=key,
+                ),
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        return MaybeCachedMemoEntry(
+            found=resp.has_entry,
+            data=resp.data if resp.has_entry else None,
+        )

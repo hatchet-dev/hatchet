@@ -1,8 +1,12 @@
 import asyncio
+import hashlib
 import json
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 from warnings import warn
+
+from pydantic import TypeAdapter
 
 from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
@@ -25,16 +29,31 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
+from hatchet_sdk.runnables.types import (
+    EmptyModel,
+    R,
+    TWorkflowInput,
+    ValidTaskReturnType,
+)
+from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
+
+TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.workflow import (
         BaseWorkflow,
     )
+
+
+def _compute_memo_key(step_name: str, deps: list[Any]) -> str:
+    h = hashlib.sha256()
+    h.update(step_name.encode())
+    h.update(json.dumps(deps, default=str).encode())
+    return h.hexdigest()
 
 
 class Context:
@@ -574,3 +593,50 @@ class DurableContext(Context):
     @property
     def invocation_count(self) -> int:
         return self.action.durable_task_invocation_count or 1
+
+    async def aio_memo(
+        self,
+        fn: Callable[[], Awaitable[TMemo]],
+        deps: list[Any],
+        result_type: type[TMemo] | None = None,
+    ) -> TMemo:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable event listener is not available")
+
+        adapter: TypeAdapter[TMemo] | None = None
+        if result_type is not None:
+            adapter = TypeAdapter(result_type)
+
+        key = _compute_memo_key(self.action.action_id, deps)
+
+        resp = await self.durable_event_listener.get_durable_event_log(
+            external_id=self.workflow_run_id,
+            key=key,
+        )
+
+        data = resp.data if resp.data else json.dumps({}).encode("utf-8")
+
+        if resp.found:
+            if adapter is not None:
+                return adapter.validate_json(data, context=HATCHET_PYDANTIC_SENTINEL)
+
+            return cast(TMemo, json.loads(data))
+
+        result = await fn()
+
+        serialized = (
+            adapter.dump_json(result, context=HATCHET_PYDANTIC_SENTINEL)
+            if adapter is not None
+            else json.dumps(result, default=str).encode("utf-8")
+        )
+
+        await self._ensure_stream_started()
+
+        await self.durable_event_listener.send_event(
+            durable_task_external_id=self.step_run_id,
+            invocation_count=self.invocation_count,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
+            payload=serialized,
+        )
+
+        return result
