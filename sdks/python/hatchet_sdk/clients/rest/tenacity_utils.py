@@ -71,7 +71,9 @@ def tenacity_should_retry(
         if config is not None and config.retry_transport_errors:
             method = ex.http_method
             if method is not None:
-                allowed_methods = {m.upper() for m in config.retry_transport_methods}
+                allowed_methods = {
+                    m.value.upper() for m in config.retry_transport_methods
+                }
                 return method.upper() in allowed_methods
         return False
 

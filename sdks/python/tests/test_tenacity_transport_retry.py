@@ -16,7 +16,7 @@ from hatchet_sdk.clients.rest.exceptions import (
     ServiceException,
 )
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
-from hatchet_sdk.config import TenacityConfig
+from hatchet_sdk.config import TenacityConfig, HTTPMethod
 
 # --- Default behavior tests (transport errors NOT retried) ---
 
@@ -65,7 +65,7 @@ def test_optin__custom_methods_list() -> None:
     exc = RestTimeoutError(status=0, reason="timeout", http_method="POST")
     config = TenacityConfig(
         retry_transport_errors=True,
-        retry_transport_methods=["POST"],
+        retry_transport_methods=[HTTPMethod.POST],
     )
     assert tenacity_should_retry(exc, config) is True
 
@@ -75,7 +75,7 @@ def test_optin__custom_methods_excludes_default() -> None:
     exc = RestTimeoutError(status=0, reason="timeout", http_method="GET")
     config = TenacityConfig(
         retry_transport_errors=True,
-        retry_transport_methods=["DELETE"],
+        retry_transport_methods=[HTTPMethod.DELETE],
     )
     assert tenacity_should_retry(exc, config) is False
 
