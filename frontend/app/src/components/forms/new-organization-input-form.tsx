@@ -49,7 +49,7 @@ export function NewOrganizationInputForm({
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="tenant-name">Tenant Name</Label>
+        <Label htmlFor="tenant-name">Name of First Tenant</Label>
         <Input
           id="tenant-name"
           placeholder="My Tenant"
