@@ -88,6 +88,8 @@ type HatchetContext interface {
 
 	ParentOutput(parent create.NamedTask, output interface{}) error
 
+	WasSkipped(parent create.NamedTask) bool
+
 	client() client.Client
 
 	action() *client.Action
@@ -251,6 +253,20 @@ func (h *hatchetContext) ParentOutput(parent create.NamedTask, output interface{
 	}
 
 	return fmt.Errorf("parent %s not found in action payload", stepName)
+}
+
+func (h *hatchetContext) WasSkipped(parent create.NamedTask) bool {
+	stepName := parent.GetName()
+
+	if val, ok := h.stepData.Parents[stepName]; ok {
+		if skipped, ok := val["skipped"]; ok {
+			if skippedBool, ok := skipped.(bool); ok {
+				return skippedBool
+			}
+		}
+	}
+
+	return false
 }
 
 // Deprecated: TriggeredByEvent is an internal method used by the new Go SDK.

@@ -39,6 +39,10 @@ func (c *testHatchetContext) ParentOutput(task create.NamedTask, target interfac
 	return nil
 }
 
+func (c *testHatchetContext) WasSkipped(task create.NamedTask) bool {
+	return false
+}
+
 func (c *testHatchetContext) TriggeredByEvent() bool {
 	return false
 }
