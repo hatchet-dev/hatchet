@@ -51,11 +51,6 @@ def _get_task_id(details: WorkflowRunDetail) -> str:
     return list(details.task_runs.values())[0].external_id
 
 
-# ---------------------------------------------------------------------------
-# evictable_sleep
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_non_evictable_task_completes(hatchet: Hatchet) -> None:
     """A durable task with eviction disabled should finish normally."""
@@ -107,11 +102,6 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
     ), f"Expected RUNNING after restore, got: {statuses}"
 
 
-# ---------------------------------------------------------------------------
-# evictable_wait_for_event
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_wait_for_event_is_evicted(hatchet: Hatchet) -> None:
     """A durable task waiting for an event should be evicted after TTL."""
@@ -156,11 +146,6 @@ async def test_evictable_wait_for_event_restore(hatchet: Hatchet) -> None:
     ), f"Expected COMPLETED after restore + event, got: {statuses}"
 
 
-# ---------------------------------------------------------------------------
-# evictable_child_spawn
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_child_spawn_is_evicted(hatchet: Hatchet) -> None:
     """A durable task waiting on a child workflow should be evicted after TTL."""
@@ -201,11 +186,6 @@ async def test_evictable_child_spawn_restore(hatchet: Hatchet) -> None:
     ), f"Expected RUNNING after restore, got: {statuses}"
 
 
-# ---------------------------------------------------------------------------
-# multiple_eviction  (sleep -> evict -> restore -> sleep -> evict -> restore)
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
     """The task should survive two eviction+restore cycles."""
@@ -243,11 +223,6 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
     assert (
         V1TaskStatus.COMPLETED in statuses
     ), f"Expected COMPLETED after two restore cycles, got: {statuses}"
-
-
-# ---------------------------------------------------------------------------
-# graceful termination
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio(loop_scope="session")
