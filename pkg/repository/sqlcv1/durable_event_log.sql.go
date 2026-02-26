@@ -375,56 +375,6 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 	return items, nil
 }
 
-const updateDurableEventLogEntryInvocationCount = `-- name: UpdateDurableEventLogEntryInvocationCount :one
-UPDATE v1_durable_event_log_entry
-SET
-    invocation_count = $1::INTEGER,
-    idempotency_key = $2::BYTEA
-WHERE durable_task_id = $3::BIGINT
-  AND durable_task_inserted_at = $4::TIMESTAMPTZ
-  AND branch_id = $5::BIGINT
-  AND node_id = $6::BIGINT
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
-`
-
-type UpdateDurableEventLogEntryInvocationCountParams struct {
-	Invocationcount       int32              `json:"invocationcount"`
-	Idempotencykey        []byte             `json:"idempotencykey"`
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Branchid              int64              `json:"branchid"`
-	Nodeid                int64              `json:"nodeid"`
-}
-
-func (q *Queries) UpdateDurableEventLogEntryInvocationCount(ctx context.Context, db DBTX, arg UpdateDurableEventLogEntryInvocationCountParams) (*V1DurableEventLogEntry, error) {
-	row := db.QueryRow(ctx, updateDurableEventLogEntryInvocationCount,
-		arg.Invocationcount,
-		arg.Idempotencykey,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
-		arg.Branchid,
-		arg.Nodeid,
-	)
-	var i V1DurableEventLogEntry
-	err := row.Scan(
-		&i.TenantID,
-		&i.ExternalID,
-		&i.InsertedAt,
-		&i.ID,
-		&i.DurableTaskID,
-		&i.DurableTaskInsertedAt,
-		&i.Kind,
-		&i.NodeID,
-		&i.ParentNodeID,
-		&i.BranchID,
-		&i.ParentBranchID,
-		&i.InvocationCount,
-		&i.IdempotencyKey,
-		&i.IsSatisfied,
-	)
-	return &i, err
-}
-
 const updateDurableEventLogEntriesSatisfied = `-- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
@@ -489,6 +439,56 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateDurableEventLogEntryInvocationCount = `-- name: UpdateDurableEventLogEntryInvocationCount :one
+UPDATE v1_durable_event_log_entry
+SET
+    invocation_count = $1::INTEGER,
+    idempotency_key = $2::BYTEA
+WHERE durable_task_id = $3::BIGINT
+  AND durable_task_inserted_at = $4::TIMESTAMPTZ
+  AND branch_id = $5::BIGINT
+  AND node_id = $6::BIGINT
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
+`
+
+type UpdateDurableEventLogEntryInvocationCountParams struct {
+	Invocationcount       int32              `json:"invocationcount"`
+	Idempotencykey        []byte             `json:"idempotencykey"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Branchid              int64              `json:"branchid"`
+	Nodeid                int64              `json:"nodeid"`
+}
+
+func (q *Queries) UpdateDurableEventLogEntryInvocationCount(ctx context.Context, db DBTX, arg UpdateDurableEventLogEntryInvocationCountParams) (*V1DurableEventLogEntry, error) {
+	row := db.QueryRow(ctx, updateDurableEventLogEntryInvocationCount,
+		arg.Invocationcount,
+		arg.Idempotencykey,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Branchid,
+		arg.Nodeid,
+	)
+	var i V1DurableEventLogEntry
+	err := row.Scan(
+		&i.TenantID,
+		&i.ExternalID,
+		&i.InsertedAt,
+		&i.ID,
+		&i.DurableTaskID,
+		&i.DurableTaskInsertedAt,
+		&i.Kind,
+		&i.NodeID,
+		&i.ParentNodeID,
+		&i.BranchID,
+		&i.ParentBranchID,
+		&i.InvocationCount,
+		&i.IdempotencyKey,
+		&i.IsSatisfied,
+	)
+	return &i, err
 }
 
 const updateLogFile = `-- name: UpdateLogFile :one

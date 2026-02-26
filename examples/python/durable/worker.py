@@ -1,8 +1,8 @@
 import asyncio
-import time
 from datetime import timedelta
 from typing import Any
 from uuid import uuid4
+
 from pydantic import BaseModel
 
 from hatchet_sdk import (
@@ -36,18 +36,11 @@ async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 @hatchet.durable_task()
 async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
-    sleep_start = time.time()
     sleep_result = await ctx.aio_sleep_for(timedelta(seconds=1))
-    sleep_duration = time.time() - sleep_start
-
-    spawn_start = time.time()
     spawn_result = await dag_child_workflow.aio_run()
-    spawn_duration = time.time() - spawn_start
 
     return {
-        "sleep_duration": sleep_duration,
         "sleep_result": sleep_result,
-        "spawn_duration": spawn_duration,
         "spawn_result": spawn_result,
     }
 
@@ -97,7 +90,6 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]
 async def wait_for_or_group_1(
     _i: EmptyModel, ctx: DurableContext
 ) -> dict[str, str | int]:
-    start = time.time()
     wait_result = await ctx.aio_wait_for(
         uuid4().hex,
         or_(
@@ -110,7 +102,6 @@ async def wait_for_or_group_1(
     event_id = list(wait_result[key].keys())[0]
 
     return {
-        "runtime": int(time.time() - start),
         "key": key,
         "event_id": event_id,
     }
@@ -122,7 +113,6 @@ async def wait_for_or_group_1(
 async def wait_for_or_group_2(
     _i: EmptyModel, ctx: DurableContext
 ) -> dict[str, str | int]:
-    start = time.time()
     wait_result = await ctx.aio_wait_for(
         uuid4().hex,
         or_(
@@ -135,7 +125,6 @@ async def wait_for_or_group_2(
     event_id = list(wait_result[key].keys())[0]
 
     return {
-        "runtime": int(time.time() - start),
         "key": key,
         "event_id": event_id,
     }
@@ -145,16 +134,12 @@ async def wait_for_or_group_2(
 async def wait_for_multi_sleep(
     _i: EmptyModel, ctx: DurableContext
 ) -> dict[str, str | int]:
-    start = time.time()
-
     for _ in range(3):
         await ctx.aio_sleep_for(
             timedelta(seconds=SLEEP_TIME),
         )
 
-    return {
-        "runtime": int(time.time() - start),
-    }
+    return {"status": "completed"}
 
 
 @ephemeral_workflow.task()
@@ -165,19 +150,15 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
 @hatchet.durable_task()
 async def wait_for_sleep_twice(
     input: EmptyModel, ctx: DurableContext
-) -> dict[str, int]:
+) -> dict[str, str]:
     try:
-        start = time.time()
-
         await ctx.aio_sleep_for(
             timedelta(seconds=SLEEP_TIME),
         )
 
-        return {
-            "runtime": int(time.time() - start),
-        }
+        return {"status": "completed"}
     except asyncio.CancelledError:
-        return {"runtime": -1}
+        return {"status": "cancelled"}
 
 
 @hatchet.task()
@@ -195,8 +176,6 @@ async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str
 async def durable_sleep_event_spawn(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, Any]:
-    start = time.time()
-
     await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
 
     await ctx.aio_wait_for(
@@ -206,10 +185,7 @@ async def durable_sleep_event_spawn(
 
     child_result = await spawn_child_task.aio_run()
 
-    return {
-        "runtime": int(time.time() - start),
-        "child_output": child_result,
-    }
+    return {"child_output": child_result}
 
 
 class NonDeterminismOutput(BaseModel):
@@ -242,33 +218,15 @@ async def durable_non_determinism(
     )
 
 
-class ReplayResetResponse(BaseModel):
-    sleep_1_duration: float
-    sleep_2_duration: float
-    sleep_3_duration: float
-
-
 @hatchet.durable_task(execution_timeout=timedelta(seconds=20))
 async def durable_replay_reset(
     input: EmptyModel, ctx: DurableContext
-) -> ReplayResetResponse:
-    start = time.time()
+) -> dict[str, str]:
     await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))
-    sleep_1_duration = time.time() - start
-
-    start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))
-    sleep_2_duration = time.time() - start
-
-    start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))
-    sleep_3_duration = time.time() - start
 
-    return ReplayResetResponse(
-        sleep_1_duration=sleep_1_duration,
-        sleep_2_duration=sleep_2_duration,
-        sleep_3_duration=sleep_3_duration,
-    )
+    return {"status": "completed"}
 
 
 def main() -> None:
