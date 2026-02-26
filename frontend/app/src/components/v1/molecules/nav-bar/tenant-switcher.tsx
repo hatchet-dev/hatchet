@@ -103,7 +103,7 @@ export function TenantSwitcher({
           align="start"
           sideOffset={8}
           // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
-          className="z-[300] w-56 p-0"
+          className="z-[200] w-56 p-0"
         >
           <Command className="">
             <CommandList data-cy="tenant-switcher-list">
