@@ -138,12 +138,15 @@ def patch_rest_transport_exceptions(content: str) -> str:
     The RestTransportError class includes an http_method attribute for
     tenacity retry logic to use without parsing the reason string.
     """
-    # Check if already patched with http_method support
-    if "self.http_method" in content:
+    # Check if already patched with HTTPMethod enum support
+    if "Optional[HTTPMethod]" in content and "self.http_method" in content:
         return content
 
+    content = prepend_import(content, "from hatchet_sdk.config import HTTPMethod")
+
     if "class RestTransportError" in content:
-        pattern = (
+        # Pattern for simple classes with no __init__
+        pattern_simple = (
             r"\nclass RestTransportError\(ApiException\):\s*"
             r'"""Base exception for REST transport-level errors \(network, timeout, TLS\)\."""\s*'
             r"pass\s*"
@@ -160,7 +163,40 @@ def patch_rest_transport_exceptions(content: str) -> str:
             r'"""Raised when a REST request fails due to protocol-level errors\."""\s*'
             r"pass\s*"
         )
-        content = re.sub(pattern, "\n", content)
+        content = re.sub(pattern_simple, "\n", content)
+
+        # Pattern for classes with __init__ using Optional[str] http_method
+        pattern_with_str_http_method = (
+            r"\nclass RestTransportError\(ApiException\):\s*"
+            r'"""Base exception for REST transport-level errors \(network, timeout, TLS\)\."""\s*'
+            r"def __init__\(\s*"
+            r"self,\s*"
+            r"status=None,\s*"
+            r"reason=None,\s*"
+            r"http_resp=None,\s*"
+            r"\*,\s*"
+            r"body: Optional\[str\] = None,\s*"
+            r"data: Optional\[Any\] = None,\s*"
+            r"http_method: Optional\[str\] = None,\s*"
+            r"\) -> None:\s*"
+            r"super\(\).__init__\(\s*"
+            r"status=status, reason=reason, http_resp=http_resp, body=body, data=data\s*"
+            r"\)\s*"
+            r"self\.http_method: Optional\[str\] = http_method\s*"
+            r"\nclass RestTimeoutError\(RestTransportError\):\s*"
+            r'"""Raised when a REST request times out \(connect or read timeout\)\."""\s*'
+            r"pass\s*"
+            r"\nclass RestConnectionError\(RestTransportError\):\s*"
+            r'"""Raised when a REST request fails to establish a connection\."""\s*'
+            r"pass\s*"
+            r"\nclass RestTLSError\(RestTransportError\):\s*"
+            r'"""Raised when a REST request fails due to SSL/TLS errors\."""\s*'
+            r"pass\s*"
+            r"\nclass RestProtocolError\(RestTransportError\):\s*"
+            r'"""Raised when a REST request fails due to protocol-level errors\."""\s*'
+            r"pass\s*"
+        )
+        content = re.sub(pattern_with_str_http_method, "\n", content)
 
     new_exceptions = '''\
 
@@ -175,12 +211,12 @@ class RestTransportError(ApiException):
         *,
         body: Optional[str] = None,
         data: Optional[Any] = None,
-        http_method: Optional[str] = None,
+        http_method: Optional[HTTPMethod] = None,
     ) -> None:
         super().__init__(
             status=status, reason=reason, http_resp=http_resp, body=body, data=data
         )
-        self.http_method: Optional[str] = http_method
+        self.http_method: Optional[HTTPMethod] = http_method
 
 
 class RestTimeoutError(RestTransportError):
@@ -295,7 +331,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
     Replaces the generic ApiException handler with typed exception handlers.
     Handler ordering is critical: NewConnectionError must be caught before
     ConnectTimeoutError because it inherits from ConnectTimeoutError in urllib3.
-    Each typed exception includes http_method=method for retry logic.
+    Each typed exception includes http_method=HTTPMethod(method) for retry logic.
     """
     # This pattern matches either the original SSLError only handler or
     # the previously patched multi-exception handler raising ApiException
@@ -326,11 +362,13 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r"^\1[ \t]*raise ApiException\(status=0, reason=msg\)\s*\n"
     )
 
-    # Check if already using typed exceptions WITH http_method
-    if "http_method=method" in content:
+    # Check if already using typed exceptions with HTTPMethod enum
+    if "http_method=HTTPMethod(method.upper())" in content:
         return content
 
-    # Pattern for typed exceptions WITHOUT http_method (needs upgrade)
+    content = prepend_import(content, "from hatchet_sdk.config import HTTPMethod")
+
+    # Pattern for typed exceptions without http_method
     pattern_typed_no_http_method = (
         r"(?ms)^([ \t]*)except urllib3\.exceptions\.SSLError as e:\s*\n"
         r'^\1[ \t]*msg = "\\n"\.join\(\s*\n'
@@ -385,6 +423,61 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r"^\1[ \t]*raise RestProtocolError\(status=0, reason=msg\) from e\s*\n"
     )
 
+    # Pattern for typed exceptions with string http_method (change to HTTPMethod enum)
+    pattern_typed_with_string_http_method = (
+        r"(?ms)^([ \t]*)except urllib3\.exceptions\.SSLError as e:\s*\n"
+        r'^\1[ \t]*msg = "\\n"\.join\(\s*\n'
+        r"^\1[ \t]*\[\s*\n"
+        r"^\1[ \t]*type\(e\)\.__name__,\s*\n"
+        r"^\1[ \t]*str\(e\),\s*\n"
+        r'^\1[ \t]*f"method=\{method\}",\s*\n'
+        r'^\1[ \t]*f"url=\{url\}",\s*\n'
+        r'^\1[ \t]*f"timeout=\{_request_timeout\}",\s*\n'
+        r"^\1[ \t]*\]\s*\n"
+        r"^\1[ \t]*\)\s*\n"
+        r"^\1[ \t]*raise RestTLSError\(status=0, reason=msg, http_method=method\) from e\s*\n"
+        r"^\1except \(\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.MaxRetryError,\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.NewConnectionError,\s*\n"
+        r"^\1\) as e:\s*\n"
+        r"^\1[ \t]*# NewConnectionError inherits from ConnectTimeoutError, so must be caught first\s*\n"
+        r'^\1[ \t]*msg = "\\n"\.join\(\s*\n'
+        r"^\1[ \t]*\[\s*\n"
+        r"^\1[ \t]*type\(e\)\.__name__,\s*\n"
+        r"^\1[ \t]*str\(e\),\s*\n"
+        r'^\1[ \t]*f"method=\{method\}",\s*\n'
+        r'^\1[ \t]*f"url=\{url\}",\s*\n'
+        r'^\1[ \t]*f"timeout=\{_request_timeout\}",\s*\n'
+        r"^\1[ \t]*\]\s*\n"
+        r"^\1[ \t]*\)\s*\n"
+        r"^\1[ \t]*raise RestConnectionError\(status=0, reason=msg, http_method=method\) from e\s*\n"
+        r"^\1except \(\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.ConnectTimeoutError,\s*\n"
+        r"^\1[ \t]*urllib3\.exceptions\.ReadTimeoutError,\s*\n"
+        r"^\1\) as e:\s*\n"
+        r'^\1[ \t]*msg = "\\n"\.join\(\s*\n'
+        r"^\1[ \t]*\[\s*\n"
+        r"^\1[ \t]*type\(e\)\.__name__,\s*\n"
+        r"^\1[ \t]*str\(e\),\s*\n"
+        r'^\1[ \t]*f"method=\{method\}",\s*\n'
+        r'^\1[ \t]*f"url=\{url\}",\s*\n'
+        r'^\1[ \t]*f"timeout=\{_request_timeout\}",\s*\n'
+        r"^\1[ \t]*\]\s*\n"
+        r"^\1[ \t]*\)\s*\n"
+        r"^\1[ \t]*raise RestTimeoutError\(status=0, reason=msg, http_method=method\) from e\s*\n"
+        r"^\1except urllib3\.exceptions\.ProtocolError as e:\s*\n"
+        r'^\1[ \t]*msg = "\\n"\.join\(\s*\n'
+        r"^\1[ \t]*\[\s*\n"
+        r"^\1[ \t]*type\(e\)\.__name__,\s*\n"
+        r"^\1[ \t]*str\(e\),\s*\n"
+        r'^\1[ \t]*f"method=\{method\}",\s*\n'
+        r'^\1[ \t]*f"url=\{url\}",\s*\n'
+        r'^\1[ \t]*f"timeout=\{_request_timeout\}",\s*\n'
+        r"^\1[ \t]*\]\s*\n"
+        r"^\1[ \t]*\)\s*\n"
+        r"^\1[ \t]*raise RestProtocolError\(status=0, reason=msg, http_method=method\) from e\s*\n"
+    )
+
     # Build typed replacement with proper handler ordering and http_method
     # NewConnectionError inherits from ConnectTimeoutError, so must be caught first
     replacement = (
@@ -398,7 +491,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestTLSError(status=0, reason=msg, http_method=method) from e\n"
+        r"\1    raise RestTLSError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
         r"\1except (\n"
         r"\1    urllib3.exceptions.MaxRetryError,\n"
         r"\1    urllib3.exceptions.NewConnectionError,\n"
@@ -413,7 +506,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestConnectionError(status=0, reason=msg, http_method=method) from e\n"
+        r"\1    raise RestConnectionError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
         r"\1except (\n"
         r"\1    urllib3.exceptions.ConnectTimeoutError,\n"
         r"\1    urllib3.exceptions.ReadTimeoutError,\n"
@@ -427,7 +520,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestTimeoutError(status=0, reason=msg, http_method=method) from e\n"
+        r"\1    raise RestTimeoutError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
         r"\1except urllib3.exceptions.ProtocolError as e:\n"
         r'\1    msg = "\\n".join(\n'
         r"\1        [\n"
@@ -438,10 +531,15 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestProtocolError(status=0, reason=msg, http_method=method) from e\n"
+        r"\1    raise RestProtocolError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
     )
 
-    # Try pattern for typed exceptions without http_method (upgrade case)
+    # Try pattern for typed exceptions with string http_method (change to HTTPMethod enum)
+    modified = re.sub(pattern_typed_with_string_http_method, replacement, content)
+    if modified != content:
+        return modified
+
+    # Try pattern for typed exceptions without http_method
     modified = re.sub(pattern_typed_no_http_method, replacement, content)
     if modified != content:
         return modified
