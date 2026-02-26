@@ -166,13 +166,10 @@ const tenantRoute = createRoute({
   loader: async ({ params }) => {
     // Ensure the tenant in the URL is one the user actually has access to.
     // If not, throw a 403 so the global error boundary can show a friendly message.
-    const memberships = await queryClient.fetchQuery({
-      ...queries.user.listTenantMemberships,
-      retry: false,
-    });
+    const { data: memberships } = await api.tenantMembershipsList();
 
     const hasAccess = Boolean(
-      memberships?.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
+      memberships.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
     );
 
     if (!hasAccess) {
