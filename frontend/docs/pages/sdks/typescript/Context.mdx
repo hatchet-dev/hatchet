@@ -278,11 +278,11 @@ Runs a new workflow and waits for its result.
 
 **Parameters**
 
-| Parameter  | Type                                                                                                                                                 | Description                                                                 |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `workflow` | \| `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
-| `input`    | `Q`                                                                                                                                                  | The input data for the workflow.                                            |
-| `options?` | `ChildRunOpts`                                                                                                                                       | An options object containing key, sticky, priority, and additionalMetadata. |
+| Parameter  | Type                                                                                                                                                                             | Description                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `workflow` | \| `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
+| `input`    | `Q`                                                                                                                                                                              | The input data for the workflow.                                            |
+| `options?` | `ChildRunOpts`                                                                                                                                                                   | An options object containing key, sticky, priority, and additionalMetadata. |
 
 **Returns**
 

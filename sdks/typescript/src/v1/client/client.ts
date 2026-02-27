@@ -206,6 +206,7 @@ export class HatchetClient<
    *
    * Use this after `init<T, U>()` to get full middleware return-type inference
    * that TypeScript can't provide when global types are explicitly set on `init`.
+   * @internal
    */
   withMiddleware<
     const M extends TaskMiddleware<

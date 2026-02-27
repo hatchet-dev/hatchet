@@ -849,6 +849,7 @@ export class TaskWorkflowDeclaration<
     input: I & GlobalInput,
     options?: RunOpts
   ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  /** @hidden */
   async runAndWait(
     input: (I & GlobalInput)[],
     options?: RunOpts
@@ -878,6 +879,7 @@ export class TaskWorkflowDeclaration<
     input: I & GlobalInput,
     options?: RunOpts
   ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  /** @hidden */
   async run(
     input: (I & GlobalInput)[],
     options?: RunOpts
@@ -974,7 +976,7 @@ export class TaskWorkflowDeclaration<
     return super.cron(name, expression, input, options);
   }
 
-  /** Returns the underlying task definition for this declaration. */
+  // Returns the underlying task definition for this declaration.
   get taskDef() {
     return this.definition._tasks[0];
   }

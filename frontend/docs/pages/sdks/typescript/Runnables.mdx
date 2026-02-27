@@ -60,9 +60,9 @@ or if there is no matching property, the inferred return type of the function.
 
 **Parameters**
 
-| Parameter | Type                                                                                                                                       | Description                     |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| `options` | \| `Omit`\<`CreateWorkflowTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `TO`\> | The task configuration options. |
+| Parameter | Type                                                                                                                                                                   | Description                     |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<`CreateWorkflowTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `TO`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
 
 **Returns**
 
@@ -79,9 +79,9 @@ This will only run if any task in the workflow fails.
 
 **Parameters**
 
-| Parameter | Type                                                                                                                                           | Description                     |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`\> \| `Omit`\<`CreateOnFailureTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
+| Parameter | Type                                                                                                                                                                       | Description                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<`CreateOnFailureTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
 
 **Returns**
 
@@ -98,9 +98,9 @@ This will only run if all tasks in the workflow complete successfully.
 
 **Parameters**
 
-| Parameter | Type                                                                                                                                           | Description                     |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`\> \| `Omit`\<`CreateOnSuccessTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
+| Parameter | Type                                                                                                                                                                       | Description                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> \| `Omit`\<`CreateOnSuccessTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
 
 **Returns**
 
@@ -155,28 +155,49 @@ const ref = await greet.runNoWait({ name: "World" });
 
 #### Methods
 
+<a id="runandwait"></a>
+
+##### `runAndWait()`
+
+Triggers a task run and waits for the result.
+
+**Parameters**
+
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
+
+**Returns**
+
+`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
+
+A promise that resolves with the task output merged with post-middleware fields.
+
+**Overrides**
+
+```ts
+BaseWorkflowDeclaration.runAndWait;
+```
+
 <a id="run"></a>
 
 ##### `run()`
 
-Triggers a task run and waits for completion.
+Triggers a task run and waits for the result.
 
 **Parameters**
 
-| Parameter  | Type      | Description                                            |
-| ---------- | --------- | ------------------------------------------------------ |
-| `input`    | `I`       | The input payload for the task (single item or array). |
-| `options?` | `RunOpts` | Optional configuration for this task run.              |
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
 
 **Returns**
 
-`Promise`\<`O`\>
+`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
 
-The task result for single input, or an array of results for array input.
-
-**Throws**
-
-Error if the task is not bound to a Hatchet client.
+A promise that resolves with the task output merged with post-middleware fields.
 
 **Overrides**
 
@@ -192,25 +213,121 @@ Triggers a task run without waiting for completion.
 
 **Parameters**
 
-| Parameter  | Type      | Description                                            |
-| ---------- | --------- | ------------------------------------------------------ |
-| `input`    | `I`       | The input payload for the task (single item or array). |
-| `options?` | `RunOpts` | Optional configuration for this task run.              |
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
 
 **Returns**
 
-`Promise`\<`WorkflowRunRef`\<`O`\>\>
+`Promise`\<`WorkflowRunRef`\<`O` & `Resolved`\<..., ...\>\>\>
 
-A `WorkflowRunRef` for single input, or an array of run refs for array input.
-
-**Throws**
-
-Error if the task is not bound to a Hatchet client.
+A WorkflowRunRef containing the run ID and methods to get results.
 
 **Overrides**
 
 ```ts
 BaseWorkflowDeclaration.runNoWait;
+```
+
+Triggers a task run without waiting for completion.
+
+**Parameters**
+
+| Parameter  | Type                  | Description                                                 |
+| ---------- | --------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput`[] | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`             | Optional configuration for this task run.                   |
+
+**Returns**
+
+`Promise`\<`WorkflowRunRef`\<... & ...\>[]\>
+
+A WorkflowRunRef containing the run ID and methods to get results.
+
+**Overrides**
+
+```ts
+BaseWorkflowDeclaration.runNoWait;
+```
+
+<a id="schedule"></a>
+
+##### `schedule()`
+
+Schedules the task to run at a specific date and time.
+
+**Parameters**
+
+| Parameter   | Type                | Description                                                 |
+| ----------- | ------------------- | ----------------------------------------------------------- |
+| `enqueueAt` | `Date`              | The date when the task should be triggered.                 |
+| `input`     | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?`  | `RunOpts`           | Optional configuration for this task run.                   |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflows`\>
+
+A promise that resolves with the scheduled workflow details.
+
+**Overrides**
+
+```ts
+BaseWorkflowDeclaration.schedule;
+```
+
+<a id="delay"></a>
+
+##### `delay()`
+
+Schedules the task to run after a specified delay.
+
+**Parameters**
+
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `duration` | `number`            | The delay in seconds before the task should run.            |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflows`\>
+
+A promise that resolves with the scheduled workflow details.
+
+**Overrides**
+
+```ts
+BaseWorkflowDeclaration.delay;
+```
+
+<a id="cron"></a>
+
+##### `cron()`
+
+Creates a cron schedule for the task.
+
+**Parameters**
+
+| Parameter    | Type                | Description                                                 |
+| ------------ | ------------------- | ----------------------------------------------------------- |
+| `name`       | `string`            | The name of the cron schedule.                              |
+| `expression` | `string`            | The cron expression defining the schedule.                  |
+| `input`      | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?`   | `RunOpts`           | Optional configuration for this task run.                   |
+
+**Returns**
+
+`Promise`\<`CronWorkflows`\>
+
+A promise that resolves with the cron workflow details.
+
+**Overrides**
+
+```ts
+BaseWorkflowDeclaration.cron;
 ```
 
 ## Functions

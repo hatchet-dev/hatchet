@@ -291,7 +291,7 @@ Creates a new workflow definition.
 
 **Returns**
 
-[`WorkflowDeclaration`](Runnables.mdx#workflowdeclaration)\<`I`, `O`\>
+[`WorkflowDeclaration`](Runnables.mdx#workflowdeclaration)\<`I`, `O`, `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>\>
 
 A new Workflow instance
 
@@ -310,13 +310,13 @@ Types can be explicitly specified as generics or inferred from the function sign
 
 **Parameters**
 
-| Parameter | Type                                 | Description                |
-| --------- | ------------------------------------ | -------------------------- |
-| `options` | `CreateTaskWorkflowOpts`\<`I`, `O`\> | Task configuration options |
+| Parameter | Type                                                                                                                        | Description                |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `options` | `CreateTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Task configuration options |
 
 **Returns**
 
-[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`\>
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance
 
@@ -330,7 +330,7 @@ Creates a new task workflow with types inferred from the function parameter.
 
 **Returns**
 
-[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`\>
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance with inferred types
 
@@ -345,13 +345,13 @@ Types can be explicitly specified as generics or inferred from the function sign
 
 **Parameters**
 
-| Parameter | Type                                        | Description                        |
-| --------- | ------------------------------------------- | ---------------------------------- |
-| `options` | `CreateDurableTaskWorkflowOpts`\<`I`, `O`\> | Durable task configuration options |
+| Parameter | Type                                                                                                                               | Description                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `options` | `CreateDurableTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Durable task configuration options |
 
 **Returns**
 
-[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`\>
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance for a durable task
 
@@ -365,7 +365,7 @@ Creates a new durable task workflow with types inferred from the function parame
 
 **Returns**
 
-[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`\>
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance with inferred types
 
