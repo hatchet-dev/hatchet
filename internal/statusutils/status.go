@@ -14,6 +14,7 @@ type V1RunStatus string
 const (
 	V1RunStatusQueued    V1RunStatus = "QUEUED"
 	V1RunStatusRunning   V1RunStatus = "RUNNING"
+	V1RunStatusEvicted   V1RunStatus = "EVICTED"
 	V1RunStatusCancelled V1RunStatus = "CANCELLED"
 	V1RunStatusFailed    V1RunStatus = "FAILED"
 	V1RunStatusCompleted V1RunStatus = "COMPLETED"
@@ -27,6 +28,9 @@ func V1RunStatusFromProto(status contracts.RunStatus) (*V1RunStatus, error) {
 	case contracts.RunStatus_RUNNING:
 		r := V1RunStatusRunning
 		return &r, nil
+	case contracts.RunStatus_EVICTED:
+		e := V1RunStatusEvicted
+		return &e, nil
 	case contracts.RunStatus_CANCELLED:
 		c := V1RunStatusCancelled
 		return &c, nil
@@ -48,6 +52,9 @@ func (s *V1RunStatus) ToProto() (*contracts.RunStatus, error) {
 		return &r, nil
 	case V1RunStatusRunning:
 		r := contracts.RunStatus_RUNNING
+		return &r, nil
+	case V1RunStatusEvicted:
+		r := contracts.RunStatus_EVICTED
 		return &r, nil
 	case V1RunStatusCancelled:
 		r := contracts.RunStatus_CANCELLED
@@ -91,7 +98,7 @@ func DeriveWorkflowRunStatus(ctx context.Context, statuses []V1RunStatus) (*V1Ru
 		return &f, nil
 	}
 
-	if listutils.Any(uniqueStatuses, "RUNNING") || listutils.Any(uniqueStatuses, "QUEUED") {
+	if listutils.Any(uniqueStatuses, "RUNNING") || listutils.Any(uniqueStatuses, "QUEUED") || listutils.Any(uniqueStatuses, "EVICTED") {
 		r := V1RunStatusRunning
 		return &r, nil
 	}

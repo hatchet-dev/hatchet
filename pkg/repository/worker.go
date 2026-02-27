@@ -74,6 +74,11 @@ type UpsertWorkerLabelOpts struct {
 	StrValue *string
 }
 
+type DurableTaskDispatcherLookup struct {
+	DispatcherId *uuid.UUID
+	IsEvicted    bool
+}
+
 type WorkerRepository interface {
 	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, error)
 	GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
@@ -125,7 +130,7 @@ type WorkerRepository interface {
 
 	UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error
 
-	GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]uuid.UUID, error)
+	GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]DurableTaskDispatcherLookup, error)
 }
 
 type workerRepository struct {
@@ -770,7 +775,7 @@ func (w *workerRepository) UpdateWorkerDurableTaskDispatcherId(ctx context.Conte
 	return err
 }
 
-func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]uuid.UUID, error) {
+func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]DurableTaskDispatcherLookup, error) {
 	taskIds := make([]int64, len(idInsertedAtTuples))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(idInsertedAtTuples))
 
@@ -789,18 +794,17 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 		return nil, fmt.Errorf("could not get durable dispatcher ids for tasks: %w", err)
 	}
 
-	taskIdToDispatcherId := make(map[IdInsertedAt]uuid.UUID)
+	taskIdToDispatcherInfo := make(map[IdInsertedAt]DurableTaskDispatcherLookup)
 
 	for _, row := range rows {
-		if row.DurableTaskDispatcherId == nil {
-			continue
-		}
-
-		taskIdToDispatcherId[IdInsertedAt{
+		taskIdToDispatcherInfo[IdInsertedAt{
 			ID:         row.TaskID,
 			InsertedAt: row.TaskInsertedAt,
-		}] = *row.DurableTaskDispatcherId
+		}] = DurableTaskDispatcherLookup{
+			DispatcherId: row.DurableTaskDispatcherId,
+			IsEvicted:    row.EvictedAt.Valid,
+		}
 	}
 
-	return taskIdToDispatcherId, nil
+	return taskIdToDispatcherInfo, nil
 }

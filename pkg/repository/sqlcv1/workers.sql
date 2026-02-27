@@ -502,7 +502,7 @@ SELECT
     rt.*,
     w."durableTaskDispatcherId"
 FROM v1_task_runtime rt
-JOIN "Worker" w ON rt.worker_id = w.id
+LEFT JOIN "Worker" w ON rt.worker_id = w.id
 WHERE
     rt.tenant_id = @tenantId::uuid
     AND (rt.task_id, rt.task_inserted_at) IN (

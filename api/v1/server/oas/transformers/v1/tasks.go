@@ -201,6 +201,7 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	statuses := []gen.V1TaskStatus{
 		gen.V1TaskStatusCANCELLED,
 		gen.V1TaskStatusCOMPLETED,
+		gen.V1TaskStatusEVICTED,
 		gen.V1TaskStatusFAILED,
 		gen.V1TaskStatusQUEUED,
 		gen.V1TaskStatusRUNNING,

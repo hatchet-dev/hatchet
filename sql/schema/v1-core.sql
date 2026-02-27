@@ -418,6 +418,7 @@ CREATE TABLE v1_task_runtime (
     worker_id UUID,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
+    evicted_at TIMESTAMPTZ DEFAULT NULL,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -425,6 +426,8 @@ CREATE TABLE v1_task_runtime (
 CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC) WHERE worker_id IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
+
+CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
 
 alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',

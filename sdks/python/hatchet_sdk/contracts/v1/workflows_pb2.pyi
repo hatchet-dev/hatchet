@@ -33,6 +33,7 @@ class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     COMPLETED: _ClassVar[RunStatus]
     FAILED: _ClassVar[RunStatus]
     CANCELLED: _ClassVar[RunStatus]
+    EVICTED: _ClassVar[RunStatus]
 
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -64,6 +65,7 @@ RUNNING: RunStatus
 COMPLETED: RunStatus
 FAILED: RunStatus
 CANCELLED: RunStatus
+EVICTED: RunStatus
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy

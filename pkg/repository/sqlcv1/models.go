@@ -1096,6 +1096,8 @@ const (
 	V1EventTypeOlapRATELIMITERROR       V1EventTypeOlap = "RATE_LIMIT_ERROR"
 	V1EventTypeOlapSKIPPED              V1EventTypeOlap = "SKIPPED"
 	V1EventTypeOlapCOULDNOTSENDTOWORKER V1EventTypeOlap = "COULD_NOT_SEND_TO_WORKER"
+	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
+	V1EventTypeOlapDURABLERESTORING     V1EventTypeOlap = "DURABLE_RESTORING"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {
@@ -1579,6 +1581,7 @@ const (
 	V1ReadableStatusOlapCANCELLED V1ReadableStatusOlap = "CANCELLED"
 	V1ReadableStatusOlapFAILED    V1ReadableStatusOlap = "FAILED"
 	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
+	V1ReadableStatusOlapEVICTED   V1ReadableStatusOlap = "EVICTED"
 )
 
 func (e *V1ReadableStatusOlap) Scan(src interface{}) error {
@@ -3504,6 +3507,7 @@ type V1TaskEventsOlap struct {
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+	DurableInvocationCount int32                `json:"durable_invocation_count"`
 }
 
 type V1TaskEventsOlapTmp struct {
@@ -3535,6 +3539,7 @@ type V1TaskRuntime struct {
 	WorkerID       *uuid.UUID         `json:"worker_id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
+	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
 }
 
 type V1TaskRuntimeSlot struct {

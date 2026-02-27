@@ -581,9 +581,19 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		}
 	}
 
+	var durableInvCount int32
+	invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
+		{ID: task.ID, InsertedAt: task.InsertedAt},
+	})
+	if err == nil {
+		if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			durableInvCount = *count
+		}
+	}
+
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
-		return s.handleTaskStarted(ctx, task, retryCount, request)
+		return s.handleTaskStarted(ctx, task, retryCount, durableInvCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
 		// TODO: IMPLEMENT
 		tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
@@ -592,15 +602,15 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 			WorkerId: request.WorkerId,
 		}, nil
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
-		return s.handleTaskCompleted(ctx, task, retryCount, request)
+		return s.handleTaskCompleted(ctx, task, retryCount, durableInvCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
-		return s.handleTaskFailed(ctx, task, retryCount, request)
+		return s.handleTaskFailed(ctx, task, retryCount, durableInvCount, request)
 	}
 
 	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
 }
 
-func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -608,6 +618,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		tenantId,
 		task.ID,
 		retryCount,
+		durableInvocationCount,
 		request,
 	)
 
@@ -627,7 +638,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	}, nil
 }
 
-func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -664,6 +675,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		tenantId,
 		task.ID,
 		retryCount,
+		durableInvocationCount,
 		request,
 	)
 
@@ -682,7 +694,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	return resp, nil
 }
 
-func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -778,7 +790,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	}, nil
 }
 
-func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
+func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := tenant.ID
 	stepRunId, err := uuid.Parse(request.TaskRunExternalId)
 	if err != nil {
@@ -816,6 +828,26 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 	}
 
 	return &contracts.ReleaseSlotResponse{}, nil
+}
+
+func (d *DispatcherImpl) restoreEvictedTask(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenantId := tenant.ID
+	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid task_run_external_id: %w", err)
+	}
+
+	msg, err := tasktypes.DurableRestoreTaskMessage(tenantId, taskExternalId, "Restore via dispatcher RPC")
+	if err != nil {
+		return nil, err
+	}
+
+	err = d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.RestoreEvictedTaskResponse{Requeued: true}, nil
 }
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {

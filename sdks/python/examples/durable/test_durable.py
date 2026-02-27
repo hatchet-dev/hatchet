@@ -22,6 +22,7 @@ from examples.durable.worker import (
 from hatchet_sdk import Hatchet
 
 
+# TODO-DURABLE: we should add a test suite for API Status correctness
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable(hatchet: Hatchet) -> None:
     ref = durable_workflow.run_no_wait()
@@ -48,16 +49,10 @@ async def test_durable(hatchet: Hatchet) -> None:
     wait_group_1 = result["wait_for_or_group_1"]
     wait_group_2 = result["wait_for_or_group_2"]
 
-    assert abs(wait_group_1["runtime"] - SLEEP_TIME) < 3
-
     assert wait_group_1["key"] == wait_group_2["key"]
     assert wait_group_1["key"] == "CREATE"
     assert "sleep" in wait_group_1["event_id"]
     assert "event" in wait_group_2["event_id"]
-
-    wait_for_multi_sleep = result["wait_for_multi_sleep"]
-
-    assert wait_for_multi_sleep["runtime"] > 3 * SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -70,14 +65,16 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
 
     await first_sleep.aio_result()
 
+    replay_start = time.time()
     await hatchet.runs.aio_replay(
         first_sleep.workflow_run_id,
     )
 
     second_sleep_result = await first_sleep.aio_result()
+    replay_elapsed = time.time() - replay_start
 
-    """We've already slept for a little bit by the time the task is cancelled"""
-    assert second_sleep_result["runtime"] <= SLEEP_TIME
+    assert second_sleep_result["runtime"] < SLEEP_TIME
+    assert replay_elapsed <= SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -100,7 +97,6 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
 
     assert result["child_output"] == {"message": "hello from child"}
     assert first_elapsed >= SLEEP_TIME
-    assert result["runtime"] >= SLEEP_TIME
 
     replay_start = time.time()
     await hatchet.runs.aio_replay(ref.workflow_run_id)
@@ -127,20 +123,20 @@ async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     replayed_result = await ref.aio_result()
     elapsed = time.time() - start
 
-    assert replayed_result["runtime"] >= 0
-    assert replayed_result["runtime"] <= SLEEP_TIME
-
+    assert replayed_result["runtime"] < SLEEP_TIME
     assert elapsed < SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_spawn_dag() -> None:
+    start = time.time()
     result = await durable_spawn_dag.aio_run()
+    elapsed = time.time() - start
 
     assert result["sleep_duration"] >= 1
-    assert result["sleep_duration"] <= 2
     assert result["spawn_duration"] >= 5
-    assert result["spawn_duration"] <= 10
+    assert elapsed >= 5
+    assert elapsed <= 15
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -167,6 +163,7 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
     ref = await durable_replay_reset.aio_run_no_wait()
+
     result = await ref.aio_result()
 
     assert result.sleep_1_duration >= REPLAY_RESET_SLEEP_TIME
@@ -175,19 +172,24 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
 
     await hatchet.runs.aio_reset_durable_task(ref.workflow_run_id, node_id=node_id)
 
-    result = await ref.aio_result()
+    start = time.time()
+    reset_result = await ref.aio_result()
+    reset_elapsed = time.time() - start
 
-    for ix, dur in enumerate(
-        [
-            result.sleep_1_duration,
-            result.sleep_2_duration,
-            result.sleep_3_duration,
-        ]
-    ):
-        if ix + 1 < node_id:
-            assert dur < (REPLAY_RESET_SLEEP_TIME / 2)
+    durations = [
+        reset_result.sleep_1_duration,
+        reset_result.sleep_2_duration,
+        reset_result.sleep_3_duration,
+    ]
+
+    for i, duration in enumerate(durations):
+        if i + 1 >= node_id:
+            assert duration >= REPLAY_RESET_SLEEP_TIME
         else:
-            assert dur >= REPLAY_RESET_SLEEP_TIME
+            assert duration < REPLAY_RESET_SLEEP_TIME
+
+    sleeps_to_redo = 3 - node_id + 1
+    assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")

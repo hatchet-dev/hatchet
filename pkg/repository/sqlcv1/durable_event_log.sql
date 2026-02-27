@@ -97,6 +97,17 @@ ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO N
 RETURNING *
 ;
 
+-- name: UpdateDurableEventLogEntryInvocationCount :one
+UPDATE v1_durable_event_log_entry
+SET
+    invocation_count = @invocationCount::INTEGER,
+    idempotency_key = @idempotencyKey::BYTEA
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND branch_id = @branchId::BIGINT
+  AND node_id = @nodeId::BIGINT
+RETURNING *
+;
 
 -- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
@@ -118,22 +129,24 @@ RETURNING v1_durable_event_log_entry.*
 ;
 
 -- name: ListSatisfiedEntries :many
-WITH tasks AS (
-    SELECT t.*
-    FROM v1_lookup_table lt
-    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
-    WHERE lt.external_id = ANY(@taskExternalIds::UUID[])
-), nodes_and_branches AS (
+WITH inputs AS (
     SELECT
+        UNNEST(@taskExternalIds::UUID[]) AS external_id,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id
+), tasks_with_nodes AS (
+    SELECT t.*, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
+    FROM inputs i
+    JOIN v1_lookup_table lt ON lt.external_id = i.external_id
+    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
 )
 
-SELECT e.*, t.external_id AS task_external_id
+SELECT e.*, twn.external_id AS task_external_id
 FROM v1_durable_event_log_entry e
-JOIN tasks t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+JOIN tasks_with_nodes twn ON (twn.id, twn.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
-    (e.branch_id, e.node_id) IN (SELECT branch_id, node_id FROM nodes_and_branches)
+    e.branch_id = twn.requested_branch_id
+    AND e.node_id = twn.requested_node_id
     AND e.is_satisfied
 ;
 

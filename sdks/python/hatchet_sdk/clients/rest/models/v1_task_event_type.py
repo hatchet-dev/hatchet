@@ -46,6 +46,8 @@ class V1TaskEventType(str, Enum):
     QUEUED = "QUEUED"
     SKIPPED = "SKIPPED"
     COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER"
+    DURABLE_EVICTED = "DURABLE_EVICTED"
+    DURABLE_RESTORING = "DURABLE_RESTORING"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

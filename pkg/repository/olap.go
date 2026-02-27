@@ -1471,27 +1471,32 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 
 	metrics = append(metrics, TaskRunMetric{
 		Status: "QUEUED",
-		Count:  uint64(res.TotalQueued),
+		Count:  uint64(res.TotalQueued), // nolint: gosec
 	})
 
 	metrics = append(metrics, TaskRunMetric{
 		Status: "RUNNING",
-		Count:  uint64(res.TotalRunning),
+		Count:  uint64(res.TotalRunning), // nolint: gosec
 	})
 
 	metrics = append(metrics, TaskRunMetric{
 		Status: "COMPLETED",
-		Count:  uint64(res.TotalCompleted),
+		Count:  uint64(res.TotalCompleted), // nolint: gosec
 	})
 
 	metrics = append(metrics, TaskRunMetric{
 		Status: "CANCELLED",
-		Count:  uint64(res.TotalCancelled),
+		Count:  uint64(res.TotalCancelled), // nolint: gosec
 	})
 
 	metrics = append(metrics, TaskRunMetric{
 		Status: "FAILED",
-		Count:  uint64(res.TotalFailed),
+		Count:  uint64(res.TotalFailed), // nolint: gosec
+	})
+
+	metrics = append(metrics, TaskRunMetric{
+		Status: "EVICTED",
+		Count:  uint64(res.TotalEvicted), // nolint: gosec
 	})
 
 	return metrics, nil
@@ -1505,8 +1510,7 @@ func (r *OLAPRepositoryImpl) saveEventsToCache(events []sqlcv1.CreateTaskEventsO
 }
 
 func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
-	// key on the task_id, retry_count, and event_type
-	return fmt.Sprintf("%d-%s-%d", event.TaskID, event.EventType, event.RetryCount)
+	return fmt.Sprintf("%d-%s-%d-%d", event.TaskID, event.EventType, event.RetryCount, event.DurableInvocationCount)
 }
 
 func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {

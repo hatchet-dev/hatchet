@@ -37,6 +37,10 @@ export const workflowRunStatusFilters = [
     value: V1TaskStatus.CANCELLED,
     label: 'Cancelled',
   },
+  {
+    value: V1TaskStatus.EVICTED,
+    label: 'Evicted',
+  },
 ];
 
 export const useToolbarFilters = ({

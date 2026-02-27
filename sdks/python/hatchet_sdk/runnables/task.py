@@ -45,6 +45,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     R,
@@ -152,8 +153,10 @@ class Task(Generic[TWorkflowInput, R]):
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
         slot_requests: dict[str, int] | None = None,
+        durable_eviction: EvictionPolicy | None = None,
     ) -> None:
         self.is_durable = is_durable
+        self.durable_eviction = durable_eviction
         if slot_requests is None:
             slot_requests = {"durable": 1} if is_durable else {"default": 1}
         self.slot_requests = slot_requests
