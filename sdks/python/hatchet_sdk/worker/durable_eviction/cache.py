@@ -3,12 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from enum import Enum
 
-try:
-    from typing import assert_never
-except ImportError:
-    from typing_extensions import assert_never
-
 from pydantic import BaseModel
+from typing_extensions import assert_never
 
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import ActionKey

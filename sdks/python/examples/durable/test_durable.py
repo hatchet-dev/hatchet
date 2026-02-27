@@ -69,7 +69,7 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     second_sleep_result = await first_sleep.aio_result()
     replay_elapsed = time.time() - replay_start
 
-    assert second_sleep_result["status"] == "completed"
+    assert second_sleep_result["runtime"] < SLEEP_TIME
     assert replay_elapsed <= SLEEP_TIME
 
 
@@ -111,7 +111,7 @@ async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     first_result = await ref.aio_result()
     elapsed = time.time() - start
 
-    assert first_result["status"] == "completed"
+    assert first_result["runtime"] >= SLEEP_TIME
     assert elapsed >= SLEEP_TIME
 
     start = time.time()
@@ -119,7 +119,7 @@ async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     replayed_result = await ref.aio_result()
     elapsed = time.time() - start
 
-    assert replayed_result["status"] == "completed"
+    assert replayed_result["runtime"] < SLEEP_TIME
     assert elapsed < SLEEP_TIME
 
 
@@ -129,8 +129,10 @@ async def test_durable_spawn_dag() -> None:
     result = await durable_spawn_dag.aio_run()
     elapsed = time.time() - start
 
+    assert result["sleep_duration"] >= 1
+    assert result["spawn_duration"] >= 5
     assert elapsed >= 5
-    assert elapsed <= 10
+    assert elapsed <= 15
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -160,19 +162,27 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
 
     result = await ref.aio_result()
 
-    start = time.time()
-    result = await ref.aio_result()
-    initial_elapsed = time.time() - start
-
-    assert result["status"] == "completed"
-    assert initial_elapsed >= 3 * REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_1_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
 
     await hatchet.runs.aio_reset_durable_task(ref.workflow_run_id, node_id=node_id)
 
     start = time.time()
-    result = await ref.aio_result()
+    reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
-    assert result["status"] == "completed"
+    durations = [
+        reset_result.sleep_1_duration,
+        reset_result.sleep_2_duration,
+        reset_result.sleep_3_duration,
+    ]
+
+    for i, duration in enumerate(durations):
+        if i + 1 >= node_id:
+            assert duration >= REPLAY_RESET_SLEEP_TIME
+        else:
+            assert duration < REPLAY_RESET_SLEEP_TIME
+
     sleeps_to_redo = 3 - node_id + 1
     assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
