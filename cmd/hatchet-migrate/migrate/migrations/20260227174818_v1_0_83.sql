@@ -42,7 +42,7 @@ $$;
 -- of a durable task. This table stores metadata like sequence values for entries.
 --
 -- Important: writers to v1_durable_event_log_entry should lock this row to increment the sequence value.
-CREATE TABLE IF NOT EXISTS v1_durable_event_log_file (
+CREATE TABLE v1_durable_event_log_file (
     tenant_id UUID NOT NULL,
     -- The id and inserted_at of the durable task which created this entry
     durable_task_id BIGINT NOT NULL,
@@ -66,16 +66,13 @@ CREATE TABLE IF NOT EXISTS v1_durable_event_log_file (
 SELECT create_v1_range_partition('v1_durable_event_log_file', NOW()::DATE);
 SELECT create_v1_range_partition('v1_durable_event_log_file', (NOW() + INTERVAL '1 day')::DATE);
 
-DO $$ BEGIN
-    CREATE TYPE v1_durable_event_log_kind AS ENUM (
-        'RUN',
-        'WAIT_FOR',
-        'MEMO'
-    );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+CREATE TYPE v1_durable_event_log_kind AS ENUM (
+    'RUN',
+    'WAIT_FOR',
+    'MEMO'
+);
 
-CREATE TABLE IF NOT EXISTS v1_durable_event_log_entry (
+CREATE TABLE v1_durable_event_log_entry (
     tenant_id UUID NOT NULL,
 
     -- need an external id for consistency with the payload store logic (unfortunately)
@@ -122,18 +119,18 @@ SELECT create_v1_range_partition('v1_durable_event_log_entry', NOW()::DATE, 80);
 SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL '1 day')::DATE, 80);
 
 ALTER TABLE v1_match
-    ADD COLUMN IF NOT EXISTS signal_task_external_id UUID,
-    ADD COLUMN IF NOT EXISTS durable_event_log_entry_node_id BIGINT,
-    ADD COLUMN IF NOT EXISTS durable_event_log_entry_branch_id BIGINT
+    ADD COLUMN signal_task_external_id UUID,
+    ADD COLUMN durable_event_log_entry_node_id BIGINT,
+    ADD COLUMN durable_event_log_entry_branch_id BIGINT
 ;
 
 -- needs to be nullable so we don't have to backfill
-ALTER TABLE v1_task ADD COLUMN IF NOT EXISTS is_durable BOOLEAN;
+ALTER TABLE v1_task ADD COLUMN is_durable BOOLEAN;
 
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_DATA';
 ALTER TYPE v1_payload_type ADD VALUE IF NOT EXISTS 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA';
 
-ALTER TABLE "Worker" ADD COLUMN IF NOT EXISTS "durableTaskDispatcherId" UUID;
+ALTER TABLE "Worker" ADD COLUMN "durableTaskDispatcherId" UUID;
 -- +goose StatementEnd
 
 -- +goose Down
