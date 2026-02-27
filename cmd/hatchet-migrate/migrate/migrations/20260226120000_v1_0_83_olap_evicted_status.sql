@@ -1,6 +1,7 @@
 -- +goose Up
--- +goose NO TRANSACTION
+-- +goose StatementBegin
 ALTER TYPE v1_readable_status_olap ADD VALUE IF NOT EXISTS 'EVICTED';
+-- +goose StatementEnd
 
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION create_v1_olap_partition_with_date_and_status(
