@@ -12,6 +12,8 @@ from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.cache import (
     DurableEvictionCache,
     DurableRunRecord,
+    EvictionCause,
+    _build_eviction_reason,
 )
 
 
@@ -167,6 +169,10 @@ class DurableEvictionManager:
         for rec in waiting:
             if rec.eviction_policy is None:
                 continue
+
+            rec.eviction_reason = _build_eviction_reason(
+                EvictionCause.WORKER_SHUTDOWN, rec
+            )
 
             logger.debug(
                 "DurableEvictionManager: shutdown-evicting durable run "

@@ -638,7 +638,7 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 		return d.sendEvictionError(invocation, req, fmt.Sprintf("task not found: %v", err))
 	}
 
-	_, err = d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
+	wasEvicted, err := d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
 		RetryCount: task.RetryCount,
@@ -647,20 +647,25 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 		return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to evict task: %v", err))
 	}
 
-	msg, err := tasktypes.MonitoringEventMessageFromInternal(
-		invocation.tenantId,
-		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapDURABLEEVICTED,
-			EventMessage:   "Evicted via DurableTask stream",
-		},
-	)
-	if err != nil {
-		d.l.Warn().Err(err).Msg("failed to build DURABLE_EVICTED monitoring message")
-	} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-		d.l.Warn().Err(err).Msg("failed to publish DURABLE_EVICTED to OLAP")
+	if wasEvicted {
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(
+			invocation.tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:                 task.ID,
+				RetryCount:             task.RetryCount,
+				DurableInvocationCount: req.InvocationCount,
+				EventTimestamp:         time.Now(),
+				EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+				EventMessage:           durableEvictionMessage(req),
+			},
+		)
+		if err != nil {
+			d.l.Warn().Err(err).Msg("failed to build DURABLE_EVICTED monitoring message")
+		} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			d.l.Warn().Err(err).Msg("failed to publish DURABLE_EVICTED to OLAP")
+		}
+	} else {
+		d.l.Debug().Str("task_external_id", req.DurableTaskExternalId).Msg("eviction skipped, task likely already timed out")
 	}
 
 	return invocation.send(&contracts.DurableTaskResponse{
@@ -671,6 +676,13 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 			},
 		},
 	})
+}
+
+func durableEvictionMessage(req *contracts.DurableTaskEvictInvocationRequest) string {
+	if reason := req.GetReason(); reason != "" {
+		return reason
+	}
+	return "Task paused and evicted from worker"
 }
 
 func (d *DispatcherServiceImpl) handleWorkerStatus(

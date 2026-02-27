@@ -1581,6 +1581,7 @@ const (
 	V1ReadableStatusOlapCANCELLED V1ReadableStatusOlap = "CANCELLED"
 	V1ReadableStatusOlapFAILED    V1ReadableStatusOlap = "FAILED"
 	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
+	V1ReadableStatusOlapEVICTED   V1ReadableStatusOlap = "EVICTED"
 )
 
 func (e *V1ReadableStatusOlap) Scan(src interface{}) error {
@@ -3506,6 +3507,7 @@ type V1TaskEventsOlap struct {
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+	DurableInvocationCount int32                `json:"durable_invocation_count"`
 }
 
 type V1TaskEventsOlapTmp struct {

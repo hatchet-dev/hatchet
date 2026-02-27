@@ -394,15 +394,21 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			}
 
 			if success {
+				var durableInvCount int32
+				if task.InvocationCount != nil {
+					durableInvCount = *task.InvocationCount
+				}
+
 				msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 					task.TenantID,
 					tasktypesv1.CreateMonitoringEventPayload{
-						TaskId:         task.ID,
-						RetryCount:     task.RetryCount,
-						WorkerId:       &workerId,
-						EventType:      sqlcv1.V1EventTypeOlapSENTTOWORKER,
-						EventTimestamp: time.Now().UTC(),
-						EventMessage:   "Sent task run to the assigned worker",
+						TaskId:                 task.ID,
+						RetryCount:             task.RetryCount,
+						DurableInvocationCount: durableInvCount,
+						WorkerId:               &workerId,
+						EventType:              sqlcv1.V1EventTypeOlapSENTTOWORKER,
+						EventTimestamp:         time.Now().UTC(),
+						EventMessage:           "Sent task run to the assigned worker",
 					},
 				)
 

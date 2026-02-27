@@ -30,9 +30,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 		return nil, err
 	}
 
-	// TODO-DURABLE: getWorkflowRunDetails currently builds statuses from OLAP-readable
-	// status fields; add eviction-aware derivation so get-details can return EVICTED.
-	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunGet200JSONResponse(
 		*details,
 	), nil

@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from enum import Enum
 
 from pydantic import BaseModel
+from typing_extensions import assert_never
 
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.runnables.eviction import EvictionPolicy
+
+
+class EvictionCause(str, Enum):
+    TTL_EXCEEDED = "ttl_exceeded"
+    CAPACITY_PRESSURE = "capacity_pressure"
+    WORKER_SHUTDOWN = "worker_shutdown"
 
 
 class DurableRunRecord(BaseModel):
@@ -19,6 +27,9 @@ class DurableRunRecord(BaseModel):
     waiting_since: datetime | None = None
     wait_kind: str | None = None
     wait_resource_id: str | None = None
+
+    # Set by the eviction manager before requesting eviction
+    eviction_reason: str | None = None
 
     @property
     def is_waiting(self) -> bool:
@@ -123,6 +134,10 @@ class DurableEvictionCache:
                 )
             )
             chosen = ttl_eligible[0]
+            ttl = chosen.eviction_policy.ttl if chosen.eviction_policy else None
+            chosen.eviction_reason = _build_eviction_reason(
+                EvictionCause.TTL_EXCEEDED, chosen, ttl=ttl
+            )
             logger.debug(
                 "DurableEvictionCache: TTL eviction candidate selected "
                 f"step_run_id={chosen.step_run_id} kind={chosen.wait_kind}"
@@ -157,8 +172,32 @@ class DurableEvictionCache:
             )
         )
         chosen = capacity_candidates[0]
+        chosen.eviction_reason = _build_eviction_reason(
+            EvictionCause.CAPACITY_PRESSURE, chosen
+        )
         logger.debug(
             "DurableEvictionCache: capacity eviction candidate selected "
             f"step_run_id={chosen.step_run_id} kind={chosen.wait_kind}"
         )
         return chosen.key
+
+
+def _build_eviction_reason(
+    cause: EvictionCause,
+    rec: DurableRunRecord,
+    ttl: timedelta | None = None,
+) -> str:
+    wait_desc = rec.wait_kind or "unknown"
+    if rec.wait_resource_id:
+        wait_desc = f"{wait_desc}({rec.wait_resource_id})"
+
+    match cause:
+        case EvictionCause.TTL_EXCEEDED:
+            ttl_str = f" ({ttl})" if ttl else ""
+            return f"Wait TTL{ttl_str} exceeded while waiting on {wait_desc}"
+        case EvictionCause.CAPACITY_PRESSURE:
+            return f"Worker at capacity while waiting on {wait_desc}"
+        case EvictionCause.WORKER_SHUTDOWN:
+            return f"Worker shutdown while waiting on {wait_desc}"
+        case _ as unreachable:
+            assert_never(unreachable)

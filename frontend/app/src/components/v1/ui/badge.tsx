@@ -25,6 +25,8 @@ const badgeVariants = cva(
           'border-transparent rounded-sm font-normal text-slate-800 dark:text-slate-300 bg-slate-500/20 ring-slate-500/30',
         cancelled:
           'border-transparent rounded-sm font-normal text-orange-800 dark:text-orange-300 bg-orange-500/20 ring-orange-500/30',
+        evicted:
+          'border-transparent rounded-sm font-normal text-indigo-800 dark:text-indigo-300 bg-indigo-500/20 ring-indigo-500/30',
       },
     },
     defaultVariants: {

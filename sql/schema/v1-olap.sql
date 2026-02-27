@@ -5,7 +5,8 @@ CREATE TYPE v1_readable_status_olap AS ENUM (
     'RUNNING',
     'CANCELLED',
     'FAILED',
-    'COMPLETED'
+    'COMPLETED',
+    'EVICTED'
 );
 
 -- HELPER FUNCTIONS FOR PARTITIONED TABLES --
@@ -84,6 +85,7 @@ BEGIN
     PERFORM create_v1_partition_with_status(newTableName, 'COMPLETED');
     PERFORM create_v1_partition_with_status(newTableName, 'CANCELLED');
     PERFORM create_v1_partition_with_status(newTableName, 'FAILED');
+    PERFORM create_v1_partition_with_status(newTableName, 'EVICTED');
 
     -- If it's not already attached, attach the partition
     IF NOT EXISTS (SELECT 1 FROM pg_inherits WHERE inhrelid = newTableName::regclass) THEN
@@ -335,6 +337,7 @@ CREATE TABLE v1_task_events_olap (
     worker_id UUID,
     additional__event_data TEXT,
     additional__event_message TEXT,
+    durable_invocation_count INT NOT NULL DEFAULT 0,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 );

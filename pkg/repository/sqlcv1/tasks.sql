@@ -958,6 +958,8 @@ RETURNING
 
 -- name: EvictTask :one
 -- Marks a task as evicted in v1_task_runtime and releases worker slots.
+-- Skips rows whose execution timeout has already passed so the timeout
+-- mechanism handles them instead of producing a spurious EVICTED status.
 WITH locked_runtime AS (
     SELECT
         task_id,
@@ -971,6 +973,7 @@ WITH locked_runtime AS (
         AND task_inserted_at = @taskInsertedAt::timestamptz
         AND retry_count = @retryCount::int
         AND evicted_at IS NULL
+        AND (timeout_at IS NULL OR timeout_at > NOW())
     FOR UPDATE
 ), deleted_slots AS (
     DELETE FROM v1_task_runtime_slot

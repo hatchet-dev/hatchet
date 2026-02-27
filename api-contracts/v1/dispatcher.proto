@@ -64,6 +64,7 @@ message DurableTaskEventLogEntryCompletedResponse {
 message DurableTaskEvictInvocationRequest {
     int32 invocation_count = 1;
     string durable_task_external_id = 2;
+    optional string reason = 3;
 }
 
 // Sent by the server after recording eviction for an evict_invocation request.

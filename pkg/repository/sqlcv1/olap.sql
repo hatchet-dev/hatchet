@@ -236,7 +236,8 @@ INSERT INTO v1_task_events_olap (
     worker_id,
     additional__event_data,
     additional__event_message,
-    external_id
+    external_id,
+    durable_invocation_count
 ) VALUES (
     $1,
     $2,
@@ -251,7 +252,8 @@ INSERT INTO v1_task_events_olap (
     $11,
     $12,
     $13,
-    $14
+    $14,
+    $15
 );
 
 -- name: ReadTaskByExternalID :one
@@ -332,6 +334,7 @@ WITH aggregated_events AS (
     task_inserted_at,
     retry_count,
     event_type,
+    durable_invocation_count,
     MIN(event_timestamp) AS time_first_seen,
     MAX(event_timestamp) AS time_last_seen,
     COUNT(*) AS count,
@@ -341,7 +344,7 @@ WITH aggregated_events AS (
     tenant_id = @tenantId::uuid
     AND task_id = @taskId::bigint
     AND task_inserted_at = @taskInsertedAt::timestamptz
-  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
 )
 SELECT
   a.tenant_id,
@@ -349,6 +352,7 @@ SELECT
   a.task_inserted_at,
   a.retry_count,
   a.event_type,
+  a.durable_invocation_count,
   a.time_first_seen,
   a.time_last_seen,
   a.count,
@@ -384,6 +388,7 @@ WITH tasks AS (
     task_inserted_at,
     retry_count,
     event_type,
+    durable_invocation_count,
     MIN(event_timestamp)::timestamptz AS time_first_seen,
     MAX(event_timestamp)::timestamptz AS time_last_seen,
     COUNT(*) AS count,
@@ -392,7 +397,7 @@ WITH tasks AS (
   WHERE
     tenant_id = @tenantId::uuid
     AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
-  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
 )
 SELECT
   a.tenant_id,
@@ -400,6 +405,7 @@ SELECT
   a.task_inserted_at,
   a.retry_count,
   a.event_type,
+  a.durable_invocation_count,
   a.time_first_seen,
   a.time_last_seen,
   a.count,
@@ -484,7 +490,11 @@ WITH selected_retry_count AS (
     FROM
         relevant_events
     ORDER BY
-        readable_status DESC
+        CASE
+            WHEN readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN 1
+            ELSE 0
+        END DESC,
+        event_timestamp DESC
     LIMIT 1
 ), error_message AS (
     SELECT
@@ -892,6 +902,12 @@ WITH tenants AS (
                 (
                     tu.retry_count = t.latest_retry_count
                     AND tu.max_readable_status > t.readable_status
+                ) OR
+                -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+                (
+                    tu.retry_count = t.latest_retry_count
+                    AND t.readable_status = 'EVICTED'
+                    AND tu.max_readable_status != 'EVICTED'
                 )
             )
     RETURNING
@@ -1067,7 +1083,8 @@ WITH tenants AS (
         COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
-        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'EVICTED') AS evicted_count
     FROM
         locked_dags d
     LEFT JOIN
@@ -1087,6 +1104,8 @@ WITH tenants AS (
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
             WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            -- If all tasks are evicted, mark DAG as evicted
+            WHEN dtc.evicted_count = dtc.task_count AND dtc.task_count = dtc.total_tasks THEN 'EVICTED'
             WHEN dtc.failed_count > 0 THEN 'FAILED'
             WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
             WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
@@ -1369,7 +1388,8 @@ SELECT
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
     COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed
+    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
+    COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
 FROM v1_statuses_olap
 WHERE
     tenant_id = @tenantId::UUID
