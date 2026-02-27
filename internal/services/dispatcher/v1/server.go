@@ -655,7 +655,7 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 			DurableInvocationCount: req.InvocationCount,
 			EventTimestamp:         time.Now(),
 			EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
-			EventMessage:           "Evicted via DurableTask stream",
+			EventMessage:           durableEvictionMessage(req),
 		},
 	)
 	if err != nil {
@@ -672,6 +672,13 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 			},
 		},
 	})
+}
+
+func durableEvictionMessage(req *contracts.DurableTaskEvictInvocationRequest) string {
+	if reason := req.GetReason(); reason != "" {
+		return reason
+	}
+	return "Task paused and evicted from worker"
 }
 
 func (d *DispatcherServiceImpl) handleWorkerStatus(

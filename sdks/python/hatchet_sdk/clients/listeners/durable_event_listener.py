@@ -463,6 +463,7 @@ class DurableEventListener:
         self,
         durable_task_external_id: str,
         invocation_count: int,
+        reason: str | None = None,
     ) -> None:
         """Send an eviction request to the server and wait for acknowledgement."""
         if self._request_queue is None:
@@ -475,12 +476,14 @@ class DurableEventListener:
         ack_future: asyncio.Future[None] = asyncio.Future()
         self._pending_eviction_acks[eviction_key] = ack_future
 
-        request = DurableTaskRequest(
-            evict_invocation=DurableTaskEvictInvocationRequest(
-                durable_task_external_id=durable_task_external_id,
-                invocation_count=invocation_count,
-            )
+        req = DurableTaskEvictInvocationRequest(
+            durable_task_external_id=durable_task_external_id,
+            invocation_count=invocation_count,
         )
+        if reason is not None:
+            req.reason = reason
+
+        request = DurableTaskRequest(evict_invocation=req)
         await self._request_queue.put(request)
 
         try:

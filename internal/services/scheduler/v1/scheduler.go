@@ -430,6 +430,20 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
+		invCountOpts := make([]repov1.IdInsertedAt, 0, len(res.Assigned))
+		for _, a := range res.Assigned {
+			invCountOpts = append(invCountOpts, repov1.IdInsertedAt{
+				ID:         a.QueueItem.TaskID,
+				InsertedAt: a.QueueItem.TaskInsertedAt,
+			})
+		}
+
+		invocationCounts, invCountErr := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
+		if invCountErr != nil {
+			s.l.Warn().Err(invCountErr).Msg("could not get durable task invocation counts for assigned tasks")
+			invocationCounts = make(map[repov1.IdInsertedAt]*int32)
+		}
+
 		for _, bulkAssigned := range res.Assigned {
 			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
 			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
@@ -458,14 +472,20 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 			taskId := bulkAssigned.QueueItem.TaskID
 
+			var durableInvCount int32
+			if count, ok := invocationCounts[repov1.IdInsertedAt{ID: taskId, InsertedAt: bulkAssigned.QueueItem.TaskInsertedAt}]; ok && count != nil {
+				durableInvCount = *count
+			}
+
 			assignedMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         taskId,
-					RetryCount:     bulkAssigned.QueueItem.RetryCount,
-					WorkerId:       &workerId,
-					EventType:      sqlcv1.V1EventTypeOlapASSIGNED,
-					EventTimestamp: time.Now(),
+					TaskId:                 taskId,
+					RetryCount:             bulkAssigned.QueueItem.RetryCount,
+					DurableInvocationCount: durableInvCount,
+					WorkerId:               &workerId,
+					EventType:              sqlcv1.V1EventTypeOlapASSIGNED,
+					EventTimestamp:         time.Now(),
 				},
 			)
 

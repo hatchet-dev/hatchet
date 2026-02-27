@@ -82,12 +82,14 @@ class DurableTaskEventLogEntryCompletedResponse(_message.Message):
     def __init__(self, durable_task_external_id: _Optional[str] = ..., invocation_count: _Optional[int] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ..., payload: _Optional[bytes] = ...) -> None: ...
 
 class DurableTaskEvictInvocationRequest(_message.Message):
-    __slots__ = ("invocation_count", "durable_task_external_id")
+    __slots__ = ("invocation_count", "durable_task_external_id", "reason")
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
     invocation_count: int
     durable_task_external_id: str
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ...) -> None: ...
+    reason: str
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
 
 class DurableTaskEvictionAckResponse(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id")

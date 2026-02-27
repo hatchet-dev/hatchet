@@ -208,6 +208,7 @@ class Runner:
         await self.durable_event_listener.send_evict_invocation(
             durable_task_external_id=rec.step_run_id,
             invocation_count=invocation_count,
+            reason=rec.eviction_reason,
         )
 
     def step_run_callback(
