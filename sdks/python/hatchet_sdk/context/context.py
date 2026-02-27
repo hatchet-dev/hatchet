@@ -5,7 +5,7 @@ import hashlib
 import json
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 from warnings import warn
 
 from pydantic import TypeAdapter
@@ -46,6 +46,7 @@ from hatchet_sdk.worker.durable_eviction.instrumentation import (
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
+PMemo = ParamSpec("PMemo")
 TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
 if TYPE_CHECKING:
@@ -616,9 +617,11 @@ class DurableContext(Context):
 
     async def aio_memo(
         self,
-        fn: Callable[[], Awaitable[TMemo]],
-        deps: list[Any],
+        fn: Callable[PMemo, Awaitable[TMemo]],
         result_validator: type[TMemo],
+        /,
+        *args: PMemo.args,
+        **kwargs: PMemo.kwargs,
     ) -> TMemo:
         """
         Memoize a function by storing its result in durable storage. This is useful for caching the results of expensive computations that you don't want to repeat on every workflow replay without needing to spawn a child workflow or set up an external cache. The function signature is intended to behave similarly to React's [useMemo](https://react.dev/reference/react/useMemo) hook, if you're familiar with that.
@@ -626,8 +629,10 @@ class DurableContext(Context):
         Note that memoization is performed at the _task run_ level, meaning you cannot cache across tasks (whether they're part of the same workflow or otherwise).
 
         :param fn: The function to compute the value to be memoized. This should be an async function that returns the value to be memoized.
-        :param deps: The dependencies of the memoized value. This should be a list of values that the memoized value depends on. If the dependencies change, the function will be re-run to compute a new value. The dependencies must be JSON serializable.
         :param result_validator: The type of the result to be memoized. This is used for validating the result when it's retrieved from durable storage and for properly serializing the result of the function call. This is required and generally we recommend using either a Pydantic model, a dataclass, or a TypedDict, but you can also use `dict` as an escape hatch.
+        :param *args: The arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different arguments will result in different cached values.
+        :param **kwargs: The keyword arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different keyword arguments will result in different cached values.
+
         :return: The memoized value, either retrieved from durable storage or computed by calling the function.
         :raises ValueError: If the durable event listener is not available.
         """
@@ -638,7 +643,7 @@ class DurableContext(Context):
         run_external_id = self.step_run_id
         adapter = TypeAdapter(result_validator)
 
-        key = _compute_memo_key(self.step_run_id, deps)
+        key = _compute_memo_key(self.step_run_id, [list(args), dict(kwargs)])
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=run_external_id,
@@ -658,7 +663,7 @@ class DurableContext(Context):
                 serialized_result, context=HATCHET_PYDANTIC_SENTINEL
             )
         else:
-            result = await fn()
+            result = await fn(*args, **kwargs)
             serialized_result = adapter.dump_json(
                 result, context=HATCHET_PYDANTIC_SENTINEL
             )

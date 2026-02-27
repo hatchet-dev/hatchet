@@ -297,9 +297,9 @@ async def expensive_computation(message: str) -> SleepResult:
 async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     start = time.time()
     res = await ctx.aio_memo(
-        fn=lambda: expensive_computation(input.message),
-        deps=[input.message],
-        result_validator=SleepResult,
+        expensive_computation,
+        SleepResult,
+        input.message,
     )
 
     return SleepResult(message=res.message, duration=time.time() - start)
@@ -315,9 +315,9 @@ async def memo_task_empty_keys(
     input: MemoInput, ctx: DurableContext
 ) -> SharedKeyResult:
     res = await ctx.aio_memo(
-        fn=lambda: expensive_computation(input.message),
-        deps=[],
-        result_validator=SleepResult,
+        expensive_computation,
+        SleepResult,
+        input.message,
     )
 
     start = time.time()
@@ -325,9 +325,9 @@ async def memo_task_empty_keys(
         ## TODO-DURABLE: This lambda is blocking, need to change the
         ## signature of `aio_memo` to be an async function and a list of args instead of a lambda
         ## and we can compute the deps internally from the args
-        fn=lambda: expensive_computation("this should not have run"),
-        deps=[],
-        result_validator=SleepResult,
+        expensive_computation,
+        SleepResult,
+        "this should not have run",
     )
     duration = time.time() - start
     res_2.duration = duration
