@@ -1,0 +1,61 @@
+-- +goose NO TRANSACTION
+-- +goose Up
+
+ALTER TYPE v1_readable_status_olap ADD VALUE IF NOT EXISTS 'EVICTED';
+
+-- +goose StatementBegin
+CREATE OR REPLACE FUNCTION create_v1_olap_partition_with_date_and_status(
+    targetTableName text,
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT format('%s_%s', targetTableName, targetDateStr) INTO newTableName;
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        EXECUTE format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES) PARTITION BY LIST (readable_status)', newTableName, targetTableName);
+    END IF;
+
+    PERFORM create_v1_partition_with_status(newTableName, 'QUEUED');
+    PERFORM create_v1_partition_with_status(newTableName, 'RUNNING');
+    PERFORM create_v1_partition_with_status(newTableName, 'COMPLETED');
+    PERFORM create_v1_partition_with_status(newTableName, 'CANCELLED');
+    PERFORM create_v1_partition_with_status(newTableName, 'FAILED');
+    PERFORM create_v1_partition_with_status(newTableName, 'EVICTED');
+
+    -- If it's not already attached, attach the partition
+    IF NOT EXISTS (SELECT 1 FROM pg_inherits WHERE inhrelid = newTableName::regclass) THEN
+        EXECUTE format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
+    END IF;
+
+    RETURN 1;
+END;
+$$;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+DO $$
+DECLARE
+    parent_table TEXT;
+    date_partition RECORD;
+BEGIN
+    FOREACH parent_table IN ARRAY ARRAY['v1_tasks_olap', 'v1_runs_olap', 'v1_dags_olap'] LOOP
+        FOR date_partition IN
+            SELECT inhrelid::regclass::text AS partition_name
+            FROM pg_inherits
+            WHERE inhparent = parent_table::regclass
+        LOOP
+            PERFORM create_v1_partition_with_status(date_partition.partition_name, 'EVICTED');
+        END LOOP;
+    END LOOP;
+END;
+$$;
+-- +goose StatementEnd
+
+ALTER TABLE v1_task_events_olap ADD COLUMN IF NOT EXISTS durable_invocation_count INT NOT NULL DEFAULT 0;

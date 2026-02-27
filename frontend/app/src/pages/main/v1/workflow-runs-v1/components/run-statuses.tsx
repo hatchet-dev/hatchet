@@ -14,6 +14,8 @@ function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
       return 'border-transparent rounded-full bg-slate-500';
     case V1TaskStatus.COMPLETED:
       return 'border-transparent rounded-full bg-green-500';
+    case V1TaskStatus.EVICTED:
+      return 'border-transparent rounded-full bg-indigo-500';
     default:
       return 'border-transparent rounded-full bg-muted';
   }

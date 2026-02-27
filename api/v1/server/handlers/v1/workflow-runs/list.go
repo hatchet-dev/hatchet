@@ -15,15 +15,13 @@ import (
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
-// TODO-DURABLE: Hack until eviction is modeled in v1_readable_status_olap.
 var taskStatusToOlapStatus = map[gen.V1TaskStatus]sqlcv1.V1ReadableStatusOlap{
 	gen.V1TaskStatusQUEUED:    sqlcv1.V1ReadableStatusOlapQUEUED,
 	gen.V1TaskStatusRUNNING:   sqlcv1.V1ReadableStatusOlapRUNNING,
 	gen.V1TaskStatusFAILED:    sqlcv1.V1ReadableStatusOlapFAILED,
 	gen.V1TaskStatusCOMPLETED: sqlcv1.V1ReadableStatusOlapCOMPLETED,
 	gen.V1TaskStatusCANCELLED: sqlcv1.V1ReadableStatusOlapCANCELLED,
-	// OLAP does not model EVICTED; treat as RUNNING until it does.
-	gen.V1TaskStatusEVICTED: sqlcv1.V1ReadableStatusOlapRUNNING,
+	gen.V1TaskStatusEVICTED:   sqlcv1.V1ReadableStatusOlapEVICTED,
 }
 
 func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus) []sqlcv1.V1ReadableStatusOlap {
@@ -58,6 +56,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 			sqlcv1.V1ReadableStatusOlapFAILED,
 			sqlcv1.V1ReadableStatusOlapCOMPLETED,
 			sqlcv1.V1ReadableStatusOlapCANCELLED,
+			sqlcv1.V1ReadableStatusOlapEVICTED,
 		}
 		since        = request.Params.Since
 		limit  int64 = 50
@@ -211,6 +210,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 			sqlcv1.V1ReadableStatusOlapFAILED,
 			sqlcv1.V1ReadableStatusOlapCOMPLETED,
 			sqlcv1.V1ReadableStatusOlapCANCELLED,
+			sqlcv1.V1ReadableStatusOlapEVICTED,
 		}
 		since             = request.Params.Since
 		workflowIds       = []uuid.UUID{}
@@ -362,6 +362,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 			sqlcv1.V1ReadableStatusOlapFAILED,
 			sqlcv1.V1ReadableStatusOlapCOMPLETED,
 			sqlcv1.V1ReadableStatusOlapCANCELLED,
+			sqlcv1.V1ReadableStatusOlapEVICTED,
 		}
 		since       = request.Params.Since
 		workflowIds = []uuid.UUID{}

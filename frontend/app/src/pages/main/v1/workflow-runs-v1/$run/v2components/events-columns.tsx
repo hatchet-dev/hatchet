@@ -17,9 +17,11 @@ import {
 } from '@heroicons/react/24/outline';
 import { Link } from '@tanstack/react-router';
 
+type EventSeverity = StepRunEventSeverity | 'EVICTION';
+
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
-): StepRunEventSeverity {
+): EventSeverity {
   switch (eventType) {
     case V1TaskEventType.FAILED:
     case V1TaskEventType.RATE_LIMIT_ERROR:
@@ -32,9 +34,10 @@ function eventTypeToSeverity(
     case V1TaskEventType.REQUEUED_RATE_LIMIT:
     case V1TaskEventType.RETRIED_BY_USER:
     case V1TaskEventType.RETRYING:
-    case V1TaskEventType.DURABLE_EVICTED:
     case V1TaskEventType.DURABLE_RESTORING:
       return StepRunEventSeverity.WARNING;
+    case V1TaskEventType.DURABLE_EVICTED:
+      return 'EVICTION';
     default:
       return StepRunEventSeverity.INFO;
   }
@@ -190,13 +193,14 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
   }
 }
 
-const RUN_STATUS_VARIANTS: Record<StepRunEventSeverity, string> = {
+const RUN_STATUS_VARIANTS: Record<EventSeverity, string> = {
   INFO: 'border-transparent rounded-full bg-green-500',
   CRITICAL: 'border-transparent rounded-full bg-red-500',
   WARNING: 'border-transparent rounded-full bg-yellow-500',
+  EVICTION: 'border-transparent rounded-full bg-indigo-500',
 };
 
-function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
+function EventIndicator({ severity }: { severity: EventSeverity }) {
   return (
     <div
       className={cn(

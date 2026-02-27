@@ -62,6 +62,8 @@ function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
       return { text: 'Running', variant: 'inProgress' };
     case V1TaskStatus.QUEUED:
       return { text: 'Queued', variant: 'queued' };
+    case V1TaskStatus.EVICTED:
+      return { text: 'Evicted', variant: 'evicted' };
     default:
       return { text: 'Unknown', variant: 'outline' };
   }

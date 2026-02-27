@@ -67,8 +67,6 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 
 	if request.Params.WorkflowRunStatuses != nil {
 		statuses := make([]string, len(*request.Params.WorkflowRunStatuses))
-		// TODO-DURABLE: Handle EVICTED explicitly when workflow run status filters include it.
-		// Casting directly to OLAP readable status assumes a 1:1 mapping.
 		for i, status := range *request.Params.WorkflowRunStatuses {
 			statuses[i] = string(sqlcv1.V1ReadableStatusOlap(status))
 		}

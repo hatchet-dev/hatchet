@@ -201,6 +201,7 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	statuses := []gen.V1TaskStatus{
 		gen.V1TaskStatusCANCELLED,
 		gen.V1TaskStatusCOMPLETED,
+		gen.V1TaskStatusEVICTED,
 		gen.V1TaskStatusFAILED,
 		gen.V1TaskStatusQUEUED,
 		gen.V1TaskStatusRUNNING,
@@ -345,9 +346,7 @@ func ToWorkflowRunDetails(
 			CreatedAt: workflowRun.InsertedAt.Time,
 			UpdatedAt: workflowRun.InsertedAt.Time,
 		},
-		StartedAt: &workflowRun.StartedAt.Time,
-		// TODO-DURABLE: Populate EVICTED when runtime row is evicted; ReadableStatus
-		// currently comes from OLAP and does not represent durable eviction.
+		StartedAt:         &workflowRun.StartedAt.Time,
 		Status:            gen.V1TaskStatus(workflowRun.ReadableStatus),
 		TenantId:          workflowRun.TenantID,
 		WorkflowId:        workflowRun.WorkflowID,

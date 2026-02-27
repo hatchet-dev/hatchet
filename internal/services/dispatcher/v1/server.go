@@ -650,11 +650,12 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
 		invocation.tenantId,
 		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapDURABLEEVICTED,
-			EventMessage:   "Evicted via DurableTask stream",
+			TaskId:                 task.ID,
+			RetryCount:             task.RetryCount,
+			DurableInvocationCount: req.InvocationCount,
+			EventTimestamp:         time.Now(),
+			EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			EventMessage:           "Evicted via DurableTask stream",
 		},
 	)
 	if err != nil {

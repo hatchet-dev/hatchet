@@ -134,6 +134,17 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		restoredByTaskId[r.TaskID] = r
 	}
 
+	invCountOpts := make([]v1.IdInsertedAt, 0, len(flatTasks))
+	for _, t := range flatTasks {
+		invCountOpts = append(invCountOpts, v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt})
+	}
+
+	invocationCounts, err := tc.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
+	if err != nil {
+		tc.l.Warn().Err(err).Msg("could not get durable task invocation counts for restoring tasks")
+		invocationCounts = make(map[v1.IdInsertedAt]*int32)
+	}
+
 	queues := make(map[string]struct{})
 
 	for _, t := range flatTasks {
@@ -143,16 +154,22 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 			continue
 		}
 
+		var durableInvCount int32
+		if count, ok := invocationCounts[v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt}]; ok && count != nil {
+			durableInvCount = *count
+		}
+
 		reason := reasonByExternalId[t.ExternalID]
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         t.ID,
-				RetryCount:     t.RetryCount,
-				EventTimestamp: time.Now(),
-				EventType:      sqlcv1.V1EventTypeOlapDURABLERESTORING,
-				EventMessage:   fmt.Sprintf("Restoring evicted task: %s", reason),
+				TaskId:                 t.ID,
+				RetryCount:             t.RetryCount,
+				DurableInvocationCount: durableInvCount,
+				EventTimestamp:         time.Now(),
+				EventType:              sqlcv1.V1EventTypeOlapDURABLERESTORING,
+				EventMessage:           fmt.Sprintf("Restoring evicted task: %s", reason),
 			},
 		)
 		if err == nil {
