@@ -651,11 +651,15 @@ class DurableContext(Context):
             )
 
         if resp.found and resp.data is not None:
-            return adapter.validate_json(resp.data, context=HATCHET_PYDANTIC_SENTINEL)
-
-        result = await fn()
-
-        serialized = adapter.dump_json(result, context=HATCHET_PYDANTIC_SENTINEL)
+            serialized_result = resp.data
+            result = adapter.validate_json(
+                serialized_result, context=HATCHET_PYDANTIC_SENTINEL
+            )
+        else:
+            result = await fn()
+            serialized_result = adapter.dump_json(
+                result, context=HATCHET_PYDANTIC_SENTINEL
+            )
 
         await self._ensure_stream_started()
 
@@ -663,7 +667,7 @@ class DurableContext(Context):
             durable_task_external_id=run_external_id,
             invocation_count=self.invocation_count,
             kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
-            payload=serialized,
+            payload=serialized_result,
             memo_key=key,
         )
 
