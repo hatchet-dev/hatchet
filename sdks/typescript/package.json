@@ -86,7 +86,7 @@
     "nice-grpc": "^2.1.12",
     "nice-grpc-common": "^2.0.2",
     "protobufjs": "^7.4.0",
-    "qs": "^6.14.1",
+    "qs": "^6.14.2",
     "semver": "^7.7.1",
     "yaml": "^2.7.1",
     "zod": "^3.24.2",
@@ -99,8 +99,18 @@
   "pnpm": {
     "overrides": {
       "diff": "8.0.3",
-      "tar": "^7.5.7",
-      "js-yaml": "^4.1.1"
+      "tar": "^7.5.8",
+      "js-yaml": "^4.1.1",
+      "axios": ">=1.13.5",
+      "ajv": ">=6.14.0",
+      "markdown-it": ">=14.1.1",
+      "eslint>minimatch": "3.1.4",
+      "glob>minimatch": "3.1.4",
+      "eslint-plugin-import>minimatch": "3.1.4",
+      "eslint-plugin-react>minimatch": "3.1.4",
+      "eslint-plugin-n>minimatch": "3.1.4",
+      "@typescript-eslint/typescript-estree>minimatch": "9.0.7",
+      "typedoc>minimatch": "9.0.7"
     }
   }
 }

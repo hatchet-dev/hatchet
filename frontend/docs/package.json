@@ -76,9 +76,14 @@
       "preact": "10.28.2",
       "prismjs": "^1.30.0",
       "mdast-util-to-hast": ">=13.2.1",
-      "tar": "^7.5.7",
+      "tar": "^7.5.8",
       "lodash": "^4.17.23",
-      "lodash-es": "^4.17.23"
+      "lodash-es": "^4.17.23",
+      "axios": ">=1.13.5",
+      "glob": ">=10.5.0",
+      "js-yaml": ">=4.1.1",
+      "gray-matter>js-yaml": "3.14.2",
+      "@swagger-api/apidom-reference>minimatch": "7.4.8"
     }
   }
 }
