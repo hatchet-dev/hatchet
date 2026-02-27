@@ -54,8 +54,9 @@ ANALYZE v1_runs_olap;
 -- +goose StatementEnd
 
 -- +goose Down
-
+-- +goose StatementBegin
 ALTER TABLE v1_task_events_olap DROP COLUMN IF EXISTS durable_invocation_count;
+-- +goose StatementEnd
 
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION create_v1_olap_partition_with_date_and_status(
