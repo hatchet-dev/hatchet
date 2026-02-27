@@ -371,6 +371,7 @@ WITH locked_runtime AS (
         AND task_inserted_at = $3::timestamptz
         AND retry_count = $4::int
         AND evicted_at IS NULL
+        AND (timeout_at IS NULL OR timeout_at > NOW())
     FOR UPDATE
 ), deleted_slots AS (
     DELETE FROM v1_task_runtime_slot

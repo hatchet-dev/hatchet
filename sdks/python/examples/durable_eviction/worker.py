@@ -38,7 +38,7 @@ async def child_task(input: EmptyModel, ctx: Context) -> dict[str, Any]:
 
 
 @hatchet.durable_task(
-    execution_timeout=timedelta(minutes=5),
+    execution_timeout=timedelta(seconds=5),
     eviction_policy=EVICTION_POLICY,
 )
 async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
