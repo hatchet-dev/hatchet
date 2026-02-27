@@ -401,6 +401,8 @@ type EvictTaskParams struct {
 }
 
 // Marks a task as evicted in v1_task_runtime and releases worker slots.
+// Skips rows whose execution timeout has already passed so the timeout
+// mechanism handles them instead of producing a spurious EVICTED status.
 func (q *Queries) EvictTask(ctx context.Context, db DBTX, arg EvictTaskParams) (int32, error) {
 	row := db.QueryRow(ctx, evictTask,
 		arg.Tenantid,
