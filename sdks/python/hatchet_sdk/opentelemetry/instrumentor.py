@@ -274,7 +274,18 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> list[Any]:
-        sig = inspect.signature(wrapped_func)
+        try:
+            import annotationlib
+
+            # Python 3.14+ with PEP 749 can fail evaluating annotations lazily,
+            # so use Format.STRING to avoid resolving type hints.
+            sig = inspect.signature(
+                wrapped_func,
+                annotation_format=annotationlib.Format.STRING,
+            )
+        except Exception:
+            # Fallback for Python < 3.14 where annotation_format is not supported
+            sig = inspect.signature(wrapped_func)
 
         bound_args = sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
