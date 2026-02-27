@@ -1,4 +1,5 @@
 -- +goose Up
+-- +goose NO TRANSACTION
 ALTER TYPE v1_readable_status_olap ADD VALUE IF NOT EXISTS 'EVICTED';
 
 -- +goose StatementBegin
