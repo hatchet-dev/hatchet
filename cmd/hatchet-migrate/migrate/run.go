@@ -263,6 +263,11 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 			log.Fatalf("goose: failed to apply migrations: %v", err)
 		}
 	}
+
+	_, err = db.ExecContext(ctx, "ANALYZE")
+	if err != nil {
+		log.Printf("goose: failed to run ANALYZE after migrations: %v", err)
+	}
 }
 
 // Copied from https://github.com/pressly/goose/blob/6a70e744c8eb2dc4bb90ba641cb03b42d8eef6cd/internal/dialect/dialectquery/postgres.go

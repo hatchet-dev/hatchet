@@ -440,8 +440,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 		invocationCounts, invCountErr := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
 		if invCountErr != nil {
-			s.l.Warn().Err(invCountErr).Msg("could not get durable task invocation counts for assigned tasks")
-			invocationCounts = make(map[repov1.IdInsertedAt]*int32)
+			return fmt.Errorf("could not get durable task invocation counts for assigned tasks: %w", invCountErr)
 		}
 
 		for _, bulkAssigned := range res.Assigned {

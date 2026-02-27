@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import assert_never
+
+try:
+    from typing import assert_never
+except ImportError:
+    from typing_extensions import assert_never
 
 from pydantic import BaseModel
 

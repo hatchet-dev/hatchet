@@ -64,8 +64,10 @@ function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
       return { text: 'Queued', variant: 'queued' };
     case V1TaskStatus.EVICTED:
       return { text: 'Evicted', variant: 'evicted' };
-    default:
-      return { text: 'Unknown', variant: 'outline' };
+    default: {
+      const exhaustivenessCheck: never = status;
+      throw new Error(`Unknown status: ${exhaustivenessCheck}`);
+    }
   }
 }
 
