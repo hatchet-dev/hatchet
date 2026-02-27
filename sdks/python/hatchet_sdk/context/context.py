@@ -624,7 +624,7 @@ class DurableContext(Context):
         **kwargs: PMemo.kwargs,
     ) -> TMemo:
         """
-        Memoize a function by storing its result in durable storage. This is useful for caching the results of expensive computations that you don't want to repeat on every workflow replay without needing to spawn a child workflow or set up an external cache. The function signature is intended to behave similarly to React's [useMemo](https://react.dev/reference/react/useMemo) hook, if you're familiar with that.
+        Memoize a function by storing its result in durable storage. This is useful for caching the results of expensive computations that you don't want to repeat on every workflow replay without needing to spawn a child workflow or set up an external cache. The function signature is intended to behave similarly to `asyncio.to_thread` or other similar uses of partially applied functions, where you pass in the function and its arguments separately.
 
         Note that memoization is performed at the _task run_ level, meaning you cannot cache across tasks (whether they're part of the same workflow or otherwise).
 
