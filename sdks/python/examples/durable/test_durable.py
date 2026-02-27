@@ -44,10 +44,16 @@ async def test_durable(hatchet: Hatchet) -> None:
     wait_group_1 = result["wait_for_or_group_1"]
     wait_group_2 = result["wait_for_or_group_2"]
 
+    assert abs(wait_group_1["runtime"] - SLEEP_TIME) < 3
+
     assert wait_group_1["key"] == wait_group_2["key"]
     assert wait_group_1["key"] == "CREATE"
     assert "sleep" in wait_group_1["event_id"]
     assert "event" in wait_group_2["event_id"]
+
+    wait_for_multi_sleep = result["wait_for_multi_sleep"]
+
+    assert wait_for_multi_sleep["runtime"] > 3 * SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -60,16 +66,14 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
 
     await first_sleep.aio_result()
 
-    replay_start = time.time()
     await hatchet.runs.aio_replay(
         first_sleep.workflow_run_id,
     )
 
     second_sleep_result = await first_sleep.aio_result()
-    replay_elapsed = time.time() - replay_start
 
-    assert second_sleep_result["status"] == "completed"
-    assert replay_elapsed <= SLEEP_TIME
+    """We've already slept for a little bit by the time the task is cancelled"""
+    assert second_sleep_result["runtime"] <= SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -92,6 +96,7 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
 
     assert result["child_output"] == {"message": "hello from child"}
     assert first_elapsed >= SLEEP_TIME
+    assert result["runtime"] >= SLEEP_TIME
 
     replay_start = time.time()
     await hatchet.runs.aio_replay(ref.workflow_run_id)
@@ -110,7 +115,7 @@ async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     first_result = await ref.aio_result()
     elapsed = time.time() - start
 
-    assert first_result["status"] == "completed"
+    assert first_result["runtime"] >= SLEEP_TIME
     assert elapsed >= SLEEP_TIME
 
     start = time.time()
@@ -118,18 +123,20 @@ async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     replayed_result = await ref.aio_result()
     elapsed = time.time() - start
 
-    assert replayed_result["status"] == "completed"
+    assert replayed_result["runtime"] >= 0
+    assert replayed_result["runtime"] <= SLEEP_TIME
+
     assert elapsed < SLEEP_TIME
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_spawn_dag() -> None:
-    start = time.time()
     result = await durable_spawn_dag.aio_run()
-    elapsed = time.time() - start
 
-    assert elapsed >= 5
-    assert elapsed <= 10
+    assert result["sleep_duration"] >= 1
+    assert result["sleep_duration"] <= 2
+    assert result["spawn_duration"] >= 5
+    assert result["spawn_duration"] <= 10
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -157,19 +164,24 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
 async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
     ref = await durable_replay_reset.aio_run_no_wait()
 
-    start = time.time()
     result = await ref.aio_result()
-    initial_elapsed = time.time() - start
 
-    assert result["status"] == "completed"
-    assert initial_elapsed >= 3 * REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_1_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
 
     await hatchet.runs.aio_reset_durable_task(ref.workflow_run_id, node_id=node_id)
 
-    start = time.time()
     result = await ref.aio_result()
-    reset_elapsed = time.time() - start
 
-    assert result["status"] == "completed"
-    sleeps_to_redo = 3 - node_id + 1
-    assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
+    for ix, dur in enumerate(
+        [
+            result.sleep_1_duration,
+            result.sleep_2_duration,
+            result.sleep_3_duration,
+        ]
+    ):
+        if ix + 1 < node_id:
+            assert dur < (REPLAY_RESET_SLEEP_TIME / 2)
+        else:
+            assert dur >= REPLAY_RESET_SLEEP_TIME

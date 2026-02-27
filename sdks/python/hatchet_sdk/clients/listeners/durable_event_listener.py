@@ -2,7 +2,9 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import suppress
-from typing import Self, cast
+from typing import cast
+
+from typing_extensions import Self
 
 import grpc.aio
 from pydantic import BaseModel
