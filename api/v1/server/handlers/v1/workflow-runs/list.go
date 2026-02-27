@@ -15,6 +15,38 @@ import (
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
+// TODO-DURABLE: Hack until eviction is modeled in v1_readable_status_olap.
+var taskStatusToOlapStatus = map[gen.V1TaskStatus]sqlcv1.V1ReadableStatusOlap{
+	gen.V1TaskStatusQUEUED:    sqlcv1.V1ReadableStatusOlapQUEUED,
+	gen.V1TaskStatusRUNNING:   sqlcv1.V1ReadableStatusOlapRUNNING,
+	gen.V1TaskStatusFAILED:    sqlcv1.V1ReadableStatusOlapFAILED,
+	gen.V1TaskStatusCOMPLETED: sqlcv1.V1ReadableStatusOlapCOMPLETED,
+	gen.V1TaskStatusCANCELLED: sqlcv1.V1ReadableStatusOlapCANCELLED,
+	// OLAP does not model EVICTED; treat as RUNNING until it does.
+	gen.V1TaskStatusEVICTED: sqlcv1.V1ReadableStatusOlapRUNNING,
+}
+
+func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus) []sqlcv1.V1ReadableStatusOlap {
+	normalized := make([]sqlcv1.V1ReadableStatusOlap, 0, len(statuses))
+	seen := make(map[sqlcv1.V1ReadableStatusOlap]struct{}, len(statuses))
+
+	for _, status := range statuses {
+		mapped, ok := taskStatusToOlapStatus[status]
+		if !ok {
+			continue
+		}
+
+		if _, exists := seen[mapped]; exists {
+			continue
+		}
+
+		seen[mapped] = struct{}{}
+		normalized = append(normalized, mapped)
+	}
+
+	return normalized
+}
+
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
@@ -34,10 +66,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses)
 		}
 	}
 
@@ -191,10 +220,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses)
 		}
 	}
 
@@ -343,10 +369,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses)
 		}
 	}
 

@@ -3,6 +3,7 @@ import time
 from datetime import timedelta
 from typing import Any
 from uuid import uuid4
+
 from pydantic import BaseModel
 
 from hatchet_sdk import (
@@ -36,6 +37,9 @@ async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 @hatchet.durable_task()
 async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+    # NOTE: typically its not safe to use time.time() in a durable task, but
+    # this test assumes that the task is not replayed or evicted and it is
+    # used to ensure that the waits are accurate relative to the single invocation.
     sleep_start = time.time()
     sleep_result = await ctx.aio_sleep_for(timedelta(seconds=1))
     sleep_duration = time.time() - sleep_start

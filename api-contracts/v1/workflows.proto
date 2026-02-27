@@ -86,6 +86,7 @@ enum RunStatus {
     COMPLETED = 2;
     FAILED = 3;
     CANCELLED = 4;
+    EVICTED = 5;
 }
 
 

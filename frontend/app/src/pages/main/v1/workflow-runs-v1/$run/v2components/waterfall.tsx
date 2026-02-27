@@ -104,6 +104,7 @@ const StatusColors: Record<V1TaskStatus, string> = {
   [V1TaskStatus.CANCELLED]: '#ef4444', // red-500
   [V1TaskStatus.RUNNING]: '#f59e0b', // amber-500
   [V1TaskStatus.QUEUED]: '#6b7280', // gray-500
+  [V1TaskStatus.EVICTED]: '#6366f1', // indigo-500
 };
 
 interface ProcessedTaskData {

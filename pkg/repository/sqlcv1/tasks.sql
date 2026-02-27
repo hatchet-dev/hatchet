@@ -395,6 +395,8 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        -- evicted tasks are not eligible for re-assignment
+        AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
 )
@@ -954,6 +956,42 @@ WHERE
 RETURNING
     v1_task_runtime.*;
 
+-- name: EvictTask :one
+-- Marks a task as evicted in v1_task_runtime and releases worker slots.
+WITH locked_runtime AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count
+    FROM
+        v1_task_runtime
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+        AND retry_count = @retryCount::int
+        AND evicted_at IS NULL
+    FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+        AND retry_count = @retryCount::int
+), updated_runtime AS (
+    UPDATE v1_task_runtime
+    SET
+        evicted_at = NOW(),
+        worker_id = NULL
+    WHERE (task_id, task_inserted_at, retry_count)
+        IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
+    RETURNING 1
+)
+SELECT
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
+
+
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
 -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
@@ -1237,7 +1275,8 @@ WITH inputs AS (
 
 SELECT
     t.external_id,
-    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running
+    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running,
+    (tr.task_id IS NOT NULL AND tr.evicted_at IS NOT NULL)::BOOLEAN AS is_evicted
 FROM v1_task t
 LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
 WHERE

@@ -263,6 +263,7 @@ V1TaskStatus:
   enum:
     - QUEUED
     - RUNNING
+    - EVICTED
     - COMPLETED
     - CANCELLED
     - FAILED
@@ -291,6 +292,16 @@ V1TaskEventType:
     - QUEUED
     - SKIPPED
     - COULD_NOT_SEND_TO_WORKER
+    - DURABLE_EVICTED
+    - DURABLE_RESTORING
+
+V1RestoreTaskResponse:
+  type: object
+  properties:
+    requeued:
+      type: boolean
+  required:
+    - requeued
 
 V1TaskRunMetrics:
   type: array

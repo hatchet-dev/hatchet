@@ -32,6 +32,8 @@ service Dispatcher {
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 
+    rpc RestoreEvictedTask(RestoreEvictedTaskRequest) returns (RestoreEvictedTaskResponse) {}
+
     rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
 
     // GetVersion returns the dispatcher protocol version as a simple integer.
@@ -415,6 +417,14 @@ message ReleaseSlotRequest {
 }
 
 message ReleaseSlotResponse {}
+
+message RestoreEvictedTaskRequest {
+    string task_run_external_id = 1;
+}
+
+message RestoreEvictedTaskResponse {
+    bool requeued = 1;
+}
 
 message GetVersionRequest {}
 

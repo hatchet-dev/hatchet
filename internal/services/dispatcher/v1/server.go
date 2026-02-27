@@ -14,7 +14,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -605,14 +607,70 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 	return nil
 }
 
+func (d *DispatcherServiceImpl) sendEvictionError(invocation *durableTaskInvocation, req *contracts.DurableTaskEvictInvocationRequest, errMsg string) error {
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_Error{
+			Error: &contracts.DurableTaskErrorResponse{
+				DurableTaskExternalId: req.DurableTaskExternalId,
+				InvocationCount:       req.InvocationCount,
+				ErrorType:             contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_UNSPECIFIED,
+				ErrorMessage:          errMsg,
+			},
+		},
+	})
+}
+
 func (d *DispatcherServiceImpl) handleEvictInvocation(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
-	// TODO-DURABLE: implement eviction here
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 
-	return nil
+	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
+	if err != nil {
+		return d.sendEvictionError(invocation, req, fmt.Sprintf("invalid durable_task_external_id: %v", err))
+	}
+
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
+	if err != nil {
+		return d.sendEvictionError(invocation, req, fmt.Sprintf("task not found: %v", err))
+	}
+
+	_, err = d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		RetryCount: task.RetryCount,
+	})
+	if err != nil {
+		return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to evict task: %v", err))
+	}
+
+	msg, err := tasktypes.MonitoringEventMessageFromInternal(
+		invocation.tenantId,
+		tasktypes.CreateMonitoringEventPayload{
+			TaskId:         task.ID,
+			RetryCount:     task.RetryCount,
+			EventTimestamp: time.Now(),
+			EventType:      sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			EventMessage:   "Evicted via DurableTask stream",
+		},
+	)
+	if err != nil {
+		d.l.Warn().Err(err).Msg("failed to build DURABLE_EVICTED monitoring message")
+	} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		d.l.Warn().Err(err).Msg("failed to publish DURABLE_EVICTED to OLAP")
+	}
+
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_EvictionAck{
+			EvictionAck: &contracts.DurableTaskEvictionAckResponse{
+				InvocationCount:       req.InvocationCount,
+				DurableTaskExternalId: req.DurableTaskExternalId,
+			},
+		},
+	})
 }
 
 func (d *DispatcherServiceImpl) handleWorkerStatus(
@@ -646,6 +704,8 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}
+
+	// TODO-DURABLE: Reconcile that the engine and the worker are in the same state and send a signal for the worker to evict if out of sync.
 
 	for _, cb := range callbacks {
 		if err := invocation.send(&contracts.DurableTaskResponse{

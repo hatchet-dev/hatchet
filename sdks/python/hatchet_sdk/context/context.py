@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 from datetime import timedelta
@@ -28,6 +30,10 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.worker.durable_eviction.instrumentation import (
+    aio_durable_eviction_wait,
+)
+from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -84,7 +90,7 @@ class Context:
 
         return index
 
-    def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
+    def was_skipped(self, task: Task[TWorkflowInput, R]) -> bool:
         """
         Check if a given task was skipped. You can read about skipping in [the docs](https://docs.hatchet.run/home/conditional-workflows#skip_if).
 
@@ -97,7 +103,7 @@ class Context:
     def trigger_data(self) -> JSONSerializableMapping:
         return self.data.triggers
 
-    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def task_output(self, task: Task[TWorkflowInput, R]) -> R:
         """
         Get the output of a parent task in a DAG.
 
@@ -123,7 +129,7 @@ class Context:
             ),
         )
 
-    def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def aio_task_output(self, task: Task[TWorkflowInput, R]) -> R:
         warn(
             "`aio_task_output` is deprecated. Use `task_output` instead.",
             DeprecationWarning,
@@ -396,7 +402,7 @@ class Context:
 
     def fetch_task_run_error(
         self,
-        task: "Task[TWorkflowInput, R]",
+        task: Task[TWorkflowInput, R],
     ) -> str | None:
         """
         **DEPRECATED**: Use `get_task_run_error` instead.
@@ -417,7 +423,7 @@ class Context:
 
     def get_task_run_error(
         self,
-        task: "Task[TWorkflowInput, R]",
+        task: Task[TWorkflowInput, R],
     ) -> TaskRunError | None:
         """
         A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
@@ -450,6 +456,7 @@ class DurableContext(Context):
         max_attempts: int,
         task_name: str,
         workflow_name: str,
+        durable_eviction_manager: DurableEvictionManager | None = None,
     ):
         super().__init__(
             action,
@@ -467,6 +474,7 @@ class DurableContext(Context):
         )
 
         self._wait_index = 0
+        self._durable_eviction_manager = durable_eviction_manager
 
     @property
     def wait_index(self) -> int:
@@ -478,7 +486,7 @@ class DurableContext(Context):
 
         return index
 
-    ## todo: instrumentor for this
+    # todo: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -512,12 +520,18 @@ class DurableContext(Context):
         node_id = ack.node_id
         branch_id = ack.branch_id
 
-        result = await self.durable_event_listener.wait_for_callback(
-            durable_task_external_id=self.step_run_id,
-            node_id=node_id,
-            branch_id=branch_id,
-            invocation_count=self.invocation_count,
-        )
+        async with aio_durable_eviction_wait(
+            wait_kind="wait_for",
+            resource_id=signal_key,
+            action_key=self.action.key,
+            eviction_manager=self._durable_eviction_manager,
+        ):
+            result = await self.durable_event_listener.wait_for_callback(
+                durable_task_external_id=self.step_run_id,
+                node_id=node_id,
+                branch_id=branch_id,
+                invocation_count=self.invocation_count,
+            )
 
         return result.payload or {}
 
@@ -535,12 +549,12 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
-    ## todo: instrumentor for this
+    # todo: instrumentor for this
     async def _spawn_child(
         self,
-        workflow: "BaseWorkflow[TWorkflowInput]",
+        workflow: BaseWorkflow[TWorkflowInput],
         input: TWorkflowInput = cast(Any, EmptyModel()),
-        options: "TriggerWorkflowOptions" | None = None,
+        options: TriggerWorkflowOptions | None = None,
     ) -> dict[str, Any]:
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
@@ -556,12 +570,18 @@ class DurableContext(Context):
             trigger_workflow_opts=options,
         )
 
-        result = await self.durable_event_listener.wait_for_callback(
-            durable_task_external_id=self.step_run_id,
-            node_id=ack.node_id,
-            branch_id=ack.branch_id,
-            invocation_count=self.invocation_count,
-        )
+        async with aio_durable_eviction_wait(
+            wait_kind="spawn_child",
+            resource_id=workflow.config.name,
+            action_key=self.action.key,
+            eviction_manager=self._durable_eviction_manager,
+        ):
+            result = await self.durable_event_listener.wait_for_callback(
+                durable_task_external_id=self.step_run_id,
+                node_id=ack.node_id,
+                branch_id=ack.branch_id,
+                invocation_count=self.invocation_count,
+            )
 
         return result.payload or {}
 

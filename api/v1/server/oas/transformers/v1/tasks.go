@@ -345,7 +345,9 @@ func ToWorkflowRunDetails(
 			CreatedAt: workflowRun.InsertedAt.Time,
 			UpdatedAt: workflowRun.InsertedAt.Time,
 		},
-		StartedAt:         &workflowRun.StartedAt.Time,
+		StartedAt: &workflowRun.StartedAt.Time,
+		// TODO-DURABLE: Populate EVICTED when runtime row is evicted; ReadableStatus
+		// currently comes from OLAP and does not represent durable eviction.
 		Status:            gen.V1TaskStatus(workflowRun.ReadableStatus),
 		TenantId:          workflowRun.TenantID,
 		WorkflowId:        workflowRun.WorkflowID,

@@ -82,6 +82,10 @@ class WorkerActionRunLoopManager:
         self.action_queue.put(STOP_LOOP)
         self.log_sender.publish(STOP_LOOP)
 
+    async def evict_all_waiting_durable_runs(self) -> None:
+        if self.runner:
+            await self.runner.evict_all_waiting_durable_runs()
+
     async def wait_for_tasks(self) -> None:
         if self.runner:
             await self.runner.wait_for_tasks()

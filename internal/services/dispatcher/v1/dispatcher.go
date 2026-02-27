@@ -27,6 +27,7 @@ type DispatcherServiceImpl struct {
 	v             validator.Validator
 	l             *zerolog.Logger
 	triggerWriter *trigger.TriggerWriter
+	pubBuffer     *msgqueue.MQPubBuffer
 	dispatcherId  uuid.UUID
 
 	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
@@ -107,6 +108,7 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (*DispatcherServiceImpl, e
 		v:             opts.v,
 		l:             opts.l,
 		triggerWriter: tw,
+		pubBuffer:     pubBuffer,
 		dispatcherId:  opts.dispatcherId,
 	}, nil
 }

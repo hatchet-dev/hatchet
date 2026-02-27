@@ -717,6 +717,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCOMPLETED)
 		case sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
+		case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+		case sqlcv1.V1EventTypeOlapDURABLERESTORING:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
 		}
 	}
 

@@ -110,6 +110,7 @@ import {
   V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
+  V1RestoreTaskResponse,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -303,6 +304,23 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Restore an evicted durable task
+   *
+   * @tags Task
+   * @name V1TaskRestore
+   * @summary Restore a task
+   * @request POST:/api/v1/stable/tasks/{task}/restore
+   * @secure
+   */
+  v1TaskRestore = (task: string, params: RequestParams = {}) =>
+    this.request<V1RestoreTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/restore`,
+      method: "POST",
+      secure: true,
       format: "json",
       ...params,
     });

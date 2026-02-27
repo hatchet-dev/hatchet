@@ -294,22 +294,24 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 }
 
 const listSatisfiedEntries = `-- name: ListSatisfiedEntries :many
-WITH tasks AS (
-    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable
-    FROM v1_lookup_table lt
-    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
-    WHERE lt.external_id = ANY($1::UUID[])
-), nodes_and_branches AS (
+WITH inputs AS (
     SELECT
+        UNNEST($1::UUID[]) AS external_id,
         UNNEST($2::BIGINT[]) AS node_id,
         UNNEST($3::BIGINT[]) AS branch_id
+), tasks_with_nodes AS (
+    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
+    FROM inputs i
+    JOIN v1_lookup_table lt ON lt.external_id = i.external_id
+    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
 )
 
-SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.parent_branch_id, e.invocation_count, e.idempotency_key, e.is_satisfied, t.external_id AS task_external_id
+SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.parent_branch_id, e.invocation_count, e.idempotency_key, e.is_satisfied, twn.external_id AS task_external_id
 FROM v1_durable_event_log_entry e
-JOIN tasks t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+JOIN tasks_with_nodes twn ON (twn.id, twn.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
-    (e.branch_id, e.node_id) IN (SELECT branch_id, node_id FROM nodes_and_branches)
+    e.branch_id = twn.requested_branch_id
+    AND e.node_id = twn.requested_node_id
     AND e.is_satisfied
 `
 
@@ -437,6 +439,56 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateDurableEventLogEntryInvocationCount = `-- name: UpdateDurableEventLogEntryInvocationCount :one
+UPDATE v1_durable_event_log_entry
+SET
+    invocation_count = $1::INTEGER,
+    idempotency_key = $2::BYTEA
+WHERE durable_task_id = $3::BIGINT
+  AND durable_task_inserted_at = $4::TIMESTAMPTZ
+  AND branch_id = $5::BIGINT
+  AND node_id = $6::BIGINT
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
+`
+
+type UpdateDurableEventLogEntryInvocationCountParams struct {
+	Invocationcount       int32              `json:"invocationcount"`
+	Idempotencykey        []byte             `json:"idempotencykey"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Branchid              int64              `json:"branchid"`
+	Nodeid                int64              `json:"nodeid"`
+}
+
+func (q *Queries) UpdateDurableEventLogEntryInvocationCount(ctx context.Context, db DBTX, arg UpdateDurableEventLogEntryInvocationCountParams) (*V1DurableEventLogEntry, error) {
+	row := db.QueryRow(ctx, updateDurableEventLogEntryInvocationCount,
+		arg.Invocationcount,
+		arg.Idempotencykey,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Branchid,
+		arg.Nodeid,
+	)
+	var i V1DurableEventLogEntry
+	err := row.Scan(
+		&i.TenantID,
+		&i.ExternalID,
+		&i.InsertedAt,
+		&i.ID,
+		&i.DurableTaskID,
+		&i.DurableTaskInsertedAt,
+		&i.Kind,
+		&i.NodeID,
+		&i.ParentNodeID,
+		&i.BranchID,
+		&i.ParentBranchID,
+		&i.InvocationCount,
+		&i.IdempotencyKey,
+		&i.IsSatisfied,
+	)
+	return &i, err
 }
 
 const updateLogFile = `-- name: UpdateLogFile :one

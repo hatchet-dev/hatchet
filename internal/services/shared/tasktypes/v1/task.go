@@ -215,6 +215,24 @@ type CandidateFinalizedPayload struct {
 	WorkflowRunId uuid.UUID `validate:"required"`
 }
 
+type DurableRestoreTaskPayload struct {
+	Reason         string
+	TaskExternalId uuid.UUID
+}
+
+func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, reason string) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDDurableRestoreTask,
+		false,
+		true,
+		DurableRestoreTaskPayload{
+			TaskExternalId: taskExternalId,
+			Reason:         reason,
+		},
+	)
+}
+
 type DurableCallbackCompletedPayload struct {
 	TaskExternalId  uuid.UUID
 	BranchId        int64

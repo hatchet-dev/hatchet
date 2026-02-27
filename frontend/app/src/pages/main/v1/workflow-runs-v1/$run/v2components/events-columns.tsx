@@ -32,6 +32,8 @@ function eventTypeToSeverity(
     case V1TaskEventType.REQUEUED_RATE_LIMIT:
     case V1TaskEventType.RETRIED_BY_USER:
     case V1TaskEventType.RETRYING:
+    case V1TaskEventType.DURABLE_EVICTED:
+    case V1TaskEventType.DURABLE_RESTORING:
       return StepRunEventSeverity.WARNING;
     default:
       return StepRunEventSeverity.INFO;
@@ -176,6 +178,10 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
       return 'Skipped';
     case V1TaskEventType.COULD_NOT_SEND_TO_WORKER:
       return 'Could not send to worker';
+    case V1TaskEventType.DURABLE_EVICTED:
+      return 'Durable task evicted';
+    case V1TaskEventType.DURABLE_RESTORING:
+      return 'Durable task restoring';
     case undefined:
       return 'Unknown';
     default:

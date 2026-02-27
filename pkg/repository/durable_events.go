@@ -137,7 +137,12 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
-	} else if errors.Is(err, pgx.ErrNoRows) {
+	}
+
+	isStaleEntry := err == nil && entry != nil && entry.InvocationCount != opts.InvocationCount
+
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
 		alreadyExisted = false
 		entry, err = r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
 			Tenantid:              opts.TenantId,
@@ -186,7 +191,37 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	case isStaleEntry:
+		// TODO-DURABLE: I don't think this should be required or at least should not be handled here...
+		// NOTE: entry exists but belongs to a previous invocation (e.g. after eviction+restore
+		// or cancel+replay). Check idempotency key for non-determinism; if it matches, update
+		// invocation_count so callbacks route correctly and reuse existing wait conditions.
+		incomingIdempotencyKey := opts.IdempotencyKey
+		existingIdempotencyKey := entry.IdempotencyKey
+
+		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
+			return nil, &NonDeterminismError{
+				BranchId:               opts.BranchId,
+				NodeId:                 opts.NodeId,
+				TaskExternalId:         opts.DurableTaskExternalId,
+				ExpectedIdempotencyKey: existingIdempotencyKey,
+				ActualIdempotencyKey:   incomingIdempotencyKey,
+			}
+		}
+
+		entry, err = r.queries.UpdateDurableEventLogEntryInvocationCount(ctx, tx, sqlcv1.UpdateDurableEventLogEntryInvocationCountParams{
+			Invocationcount:       opts.InvocationCount,
+			Idempotencykey:        opts.IdempotencyKey,
+			Durabletaskid:         opts.DurableTaskId,
+			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
+			Branchid:              opts.BranchId,
+			Nodeid:                opts.NodeId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to update invocation count on stale log entry: %w", err)
+		}
+	default:
 		incomingIdempotencyKey := opts.IdempotencyKey
 		existingIdempotencyKey := entry.IdempotencyKey
 

@@ -42,6 +42,14 @@ from examples.durable.worker import (
     durable_non_determinism,
     durable_replay_reset,
 )
+from examples.durable_eviction.worker import (
+    child_task as eviction_child_task,
+    evictable_child_spawn,
+    evictable_sleep,
+    evictable_wait_for_event,
+    multiple_eviction,
+    non_evictable_sleep,
+)
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
@@ -127,6 +135,12 @@ def main() -> None:
             dag_child_workflow,
             durable_non_determinism,
             durable_replay_reset,
+            evictable_sleep,
+            evictable_wait_for_event,
+            evictable_child_spawn,
+            multiple_eviction,
+            non_evictable_sleep,
+            eviction_child_task,
         ],
         lifespan=lifespan,
     )

@@ -437,6 +437,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessInternalEvents(context.Background(), tenantId, payloads)
 	case msgqueue.MsgIDTaskTrigger:
 		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
+	case msgqueue.MsgIDDurableRestoreTask:
+		return tc.handleDurableRestoreTask(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)

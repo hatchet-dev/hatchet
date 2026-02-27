@@ -163,6 +163,7 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
     ref = await durable_replay_reset.aio_run_no_wait()
+
     result = await ref.aio_result()
 
     assert result.sleep_1_duration >= REPLAY_RESET_SLEEP_TIME
