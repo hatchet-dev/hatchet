@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from enum import Enum
 from logging import Logger, getLogger
 from typing import overload
 
@@ -87,6 +88,16 @@ class OpenTelemetryConfig(BaseSettings):
     include_task_name_in_start_step_run_span_name: bool = False
 
 
+class HTTPMethod(str, Enum):
+    GET = "GET"
+    DELETE = "DELETE"
+    POST = "POST"
+    PUT = "PUT"
+    PATCH = "PATCH"
+    HEAD = "HEAD"
+    OPTIONS = "OPTIONS"
+
+
 class TenacityConfig(BaseSettings):
     model_config = create_settings_config(
         env_prefix="HATCHET_CLIENT_TENACITY_",
@@ -97,6 +108,14 @@ class TenacityConfig(BaseSettings):
     retry_429: bool = Field(
         default=False,
         description="Enable retries for HTTP 429 Too Many Requests responses. Default: off.",
+    )
+    retry_transport_errors: bool = Field(
+        default=False,
+        description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",
+    )
+    retry_transport_methods: list[HTTPMethod] = Field(
+        default_factory=lambda: [HTTPMethod.GET, HTTPMethod.DELETE],
+        description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
 
 
