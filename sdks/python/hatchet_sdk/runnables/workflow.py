@@ -324,6 +324,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             JSONSerializableMapping,
             self.config.input_validator.dump_python(
                 input,  # type: ignore[arg-type]
+                mode="json",
                 context=HATCHET_PYDANTIC_SENTINEL,
             ),
         )
