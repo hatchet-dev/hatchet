@@ -141,8 +141,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 
 	invocationCounts, err := tc.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
 	if err != nil {
-		tc.l.Warn().Err(err).Msg("could not get durable task invocation counts for restoring tasks")
-		invocationCounts = make(map[v1.IdInsertedAt]*int32)
+		return fmt.Errorf("failed to get durable task invocation counts for restoring tasks: %w", err)
 	}
 
 	queues := make(map[string]struct{})
