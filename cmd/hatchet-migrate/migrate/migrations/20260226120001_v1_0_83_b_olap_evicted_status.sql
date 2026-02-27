@@ -1,9 +1,5 @@
 -- +goose Up
 -- +goose StatementBegin
-ALTER TYPE v1_readable_status_olap ADD VALUE IF NOT EXISTS 'EVICTED';
--- +goose StatementEnd
-
--- +goose StatementBegin
 CREATE OR REPLACE FUNCTION create_v1_olap_partition_with_date_and_status(
     targetTableName text,
     targetDate date
@@ -94,7 +90,3 @@ BEGIN
 END;
 $$;
 -- +goose StatementEnd
-
--- NOTE: Postgres does not support removing enum values.
--- The 'EVICTED' value in v1_readable_status_olap cannot be reverted.
--- Any EVICTED partitions created by this migration would need to be merged/dropped separately.
