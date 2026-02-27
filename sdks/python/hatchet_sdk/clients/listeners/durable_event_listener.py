@@ -4,10 +4,9 @@ from collections.abc import AsyncIterator
 from contextlib import suppress
 from typing import cast
 
-from typing_extensions import Self
-
 import grpc.aio
 from pydantic import BaseModel
+from typing_extensions import Self
 
 from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.config import ClientConfig
