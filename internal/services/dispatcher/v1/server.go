@@ -584,10 +584,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		NodeId:                ingestionResult.NodeId,
 		BranchId:              ingestionResult.BranchId,
 		MemoAlreadyExisted:    ingestionResult.AlreadyExisted,
-	}
-
-	if len(ingestionResult.ResultPayload) > 0 {
-		ackResp.MemoResultPayload = ingestionResult.ResultPayload
+		MemoResultPayload:     ingestionResult.ResultPayload,
 	}
 
 	err = invocation.send(&contracts.DurableTaskResponse{

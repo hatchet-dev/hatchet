@@ -16,6 +16,7 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskAwaitedCompletedEntry,
+    DurableTaskCompleteMemoRequest,
     DurableTaskErrorType,
     DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
@@ -515,3 +516,28 @@ class DurableEventListener:
                 f"Eviction ack timed out after {self._EVICTION_ACK_TIMEOUT_S:.0f}s "
                 f"for task {durable_task_external_id} invocation {invocation_count}"
             ) from err
+
+    async def send_memo_completed_notification(
+        self,
+        durable_task_external_id: str,
+        node_id: int,
+        branch_id: int,
+        invocation_count: int,
+        memo_key: bytes,
+        memo_result_payload: bytes | None,
+    ) -> None:
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        await self._request_queue.put(
+            DurableTaskRequest(
+                complete_memo=DurableTaskCompleteMemoRequest(
+                    durable_task_external_id=durable_task_external_id,
+                    invocation_count=invocation_count,
+                    branch_id=branch_id,
+                    node_id=node_id,
+                    memo_key=memo_key,
+                    payload=memo_result_payload,
+                )
+            )
+        )

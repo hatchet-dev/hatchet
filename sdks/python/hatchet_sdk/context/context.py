@@ -665,11 +665,12 @@ class DurableContext(Context):
 
             await self._ensure_stream_started()
 
-            await self.durable_event_listener.send_event(
+            await self.durable_event_listener.send_memo_completed_notification(
                 durable_task_external_id=run_external_id,
+                node_id=ack.node_id,
+                branch_id=ack.branch_id,
                 invocation_count=self.invocation_count,
-                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
-                payload=serialized_result,
+                memo_result_payload=serialized_result,
                 memo_key=key,
             )
 
