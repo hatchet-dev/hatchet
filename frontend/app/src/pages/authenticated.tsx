@@ -291,7 +291,7 @@ function AuthenticatedInner() {
         </AppLayout>
 
         <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
             <DialogHeader>
               <DialogTitle>Create New Tenant</DialogTitle>
             </DialogHeader>
