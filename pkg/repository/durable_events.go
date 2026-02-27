@@ -61,8 +61,9 @@ type IngestDurableTaskEventResult struct {
 	NodeId          int64
 	InvocationCount int32
 
-	IsSatisfied   bool
-	ResultPayload []byte
+	IsSatisfied    bool
+	ResultPayload  []byte
+	AlreadyExisted bool
 
 	// Populated for RUNTRIGGERED: the tasks/DAGs created by the child spawn.
 	CreatedTasks []*V1TaskWithPayload
@@ -81,9 +82,14 @@ type IncrementDurableTaskInvocationCountsOpts struct {
 	TaskInsertedAt pgtype.Timestamptz
 }
 
-type MaybeCachedMemoEntry struct {
-	HasEntry bool
-	Data     []byte
+type CompleteMemoEntryOpts struct {
+	TenantId        uuid.UUID
+	TaskExternalId  uuid.UUID
+	InvocationCount int32
+	BranchId        int64
+	NodeId          int64
+	MemoKey         []byte
+	Payload         []byte
 }
 
 type DurableEventsRepository interface {
@@ -92,7 +98,7 @@ type DurableEventsRepository interface {
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
-	LookUpCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error)
+	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
 }
 
 type durableEventsRepository struct {
@@ -526,9 +532,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			return nil, fmt.Errorf("failed to marshal trigger opts: %w", err)
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
-		// for memoization, we don't need to wait for anything before marking the entry as satisfied since it's just a cache entry
-		isSatisfied = true
-		resultPayload = opts.Payload
+		// Two-phase memo: check phase (no payload) creates unsatisfied entry,
+		// replay fast-forward (with payload) creates satisfied entry
+		if len(opts.Payload) > 0 {
+			isSatisfied = true
+			resultPayload = opts.Payload
+		}
 		idempotencyKey = opts.MemoKey
 	default:
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
@@ -610,6 +619,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		BranchId:        branchId,
 		InvocationCount: opts.InvocationCount,
 		IsSatisfied:     logEntry.Entry.IsSatisfied,
+		AlreadyExisted:  logEntry.AlreadyExisted,
 		ResultPayload:   logEntry.ResultPayload,
 		CreatedTasks:    spawnedTasks,
 		CreatedDAGs:     spawnedDAGs,
@@ -716,43 +726,52 @@ func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *Opt
 	return createdDAGs, createdTasks, nil
 }
 
-func (r *durableEventsRepository) LookUpCachedMemoEntry(ctx context.Context, tenantId uuid.UUID, taskExternalId uuid.UUID, key []byte) (*MaybeCachedMemoEntry, error) {
-	task, err := r.GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
-
+func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error {
+	task, err := r.GetTaskByExternalId(ctx, opts.TenantId, opts.TaskExternalId, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task by external id: %w", err)
+		return fmt.Errorf("failed to get task by external id: %w", err)
 	}
 
-	entry, err := r.queries.GetDurableEventLogEntryByIdempotencyKey(ctx, r.pool, sqlcv1.GetDurableEventLogEntryByIdempotencyKeyParams{
+	entry, err := r.queries.GetDurableEventLogEntry(ctx, r.pool, sqlcv1.GetDurableEventLogEntryParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
-		Idempotencykey:        key,
+		Nodeid:                opts.NodeId,
+		Branchid:              opts.BranchId,
 	})
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to get durable event log entry by idempotency key: %w", err)
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		return &MaybeCachedMemoEntry{
-			HasEntry: false,
-			Data:     nil,
-		}, nil
-	}
-
-	payload, err := r.payloadStore.RetrieveSingle(ctx, r.pool, RetrievePayloadOpts{
-		Id:         entry.ID,
-		InsertedAt: entry.InsertedAt,
-		Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-		TenantId:   tenantId,
-	})
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve payload for durable event log entry: %w", err)
+		return fmt.Errorf("failed to get durable event log entry at branch %d node %d: %w", opts.BranchId, opts.NodeId, err)
 	}
 
-	return &MaybeCachedMemoEntry{
-		HasEntry: true,
-		Data:     payload,
-	}, nil
+	if entry.IsSatisfied {
+		// Already completed (e.g. replay fast-forward), nothing to do
+		return nil
+	}
+
+	_, err = r.queries.MarkDurableEventLogEntrySatisfied(ctx, r.pool, sqlcv1.MarkDurableEventLogEntrySatisfiedParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Nodeid:                opts.NodeId,
+		Branchid:              opts.BranchId,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to mark memo entry as satisfied: %w", err)
+	}
+
+	if len(opts.Payload) > 0 {
+		err = r.payloadStore.Store(ctx, r.pool, StorePayloadOpts{
+			Id:         entry.ID,
+			InsertedAt: entry.InsertedAt,
+			ExternalId: entry.ExternalID,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+			Payload:    opts.Payload,
+			TenantId:   opts.TenantId,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to store memo result payload: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error) {

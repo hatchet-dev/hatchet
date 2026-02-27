@@ -150,6 +150,16 @@ WHERE
     AND e.is_satisfied
 ;
 
+-- name: MarkDurableEventLogEntrySatisfied :one
+UPDATE v1_durable_event_log_entry
+SET is_satisfied = true
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND branch_id = @branchId::BIGINT
+  AND node_id = @nodeId::BIGINT
+RETURNING *
+;
+
 -- name: GetDurableEventLogEntryByIdempotencyKey :one
 SELECT *
 FROM v1_durable_event_log_entry

@@ -5,7 +5,7 @@ import warnings
 
 from hatchet_sdk.contracts.v1 import dispatcher_pb2 as v1_dot_dispatcher__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.78.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -28,7 +28,7 @@ if _version_not_supported:
 class V1DispatcherStub(object):
     """Missing associated documentation comment in .proto file."""
 
-    def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
+    def __init__(self, channel):
         """Constructor.
 
         Args:
@@ -38,11 +38,6 @@ class V1DispatcherStub(object):
                 '/v1.V1Dispatcher/DurableTask',
                 request_serializer=v1_dot_dispatcher__pb2.DurableTaskRequest.SerializeToString,
                 response_deserializer=v1_dot_dispatcher__pb2.DurableTaskResponse.FromString,
-                _registered_method=True)
-        self.LookUpCachedDurableMemoEntry = channel.unary_unary(
-                '/v1.V1Dispatcher/LookUpCachedDurableMemoEntry',
-                request_serializer=v1_dot_dispatcher__pb2.LookUpCachedDurableMemoEntryRequest.SerializeToString,
-                response_deserializer=v1_dot_dispatcher__pb2.LookUpCachedDurableMemoEntryResponse.FromString,
                 _registered_method=True)
         self.RegisterDurableEvent = channel.unary_unary(
                 '/v1.V1Dispatcher/RegisterDurableEvent',
@@ -60,12 +55,6 @@ class V1DispatcherServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def DurableTask(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def LookUpCachedDurableMemoEntry(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -91,11 +80,6 @@ def add_V1DispatcherServicer_to_server(servicer, server):
                     servicer.DurableTask,
                     request_deserializer=v1_dot_dispatcher__pb2.DurableTaskRequest.FromString,
                     response_serializer=v1_dot_dispatcher__pb2.DurableTaskResponse.SerializeToString,
-            ),
-            'LookUpCachedDurableMemoEntry': grpc.unary_unary_rpc_method_handler(
-                    servicer.LookUpCachedDurableMemoEntry,
-                    request_deserializer=v1_dot_dispatcher__pb2.LookUpCachedDurableMemoEntryRequest.FromString,
-                    response_serializer=v1_dot_dispatcher__pb2.LookUpCachedDurableMemoEntryResponse.SerializeToString,
             ),
             'RegisterDurableEvent': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterDurableEvent,
@@ -135,33 +119,6 @@ class V1Dispatcher(object):
             '/v1.V1Dispatcher/DurableTask',
             v1_dot_dispatcher__pb2.DurableTaskRequest.SerializeToString,
             v1_dot_dispatcher__pb2.DurableTaskResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def LookUpCachedDurableMemoEntry(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/v1.V1Dispatcher/LookUpCachedDurableMemoEntry',
-            v1_dot_dispatcher__pb2.LookUpCachedDurableMemoEntryRequest.SerializeToString,
-            v1_dot_dispatcher__pb2.LookUpCachedDurableMemoEntryResponse.FromString,
             options,
             channel_credentials,
             insecure,

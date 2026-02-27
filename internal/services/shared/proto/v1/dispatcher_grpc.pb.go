@@ -23,7 +23,6 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type V1DispatcherClient interface {
 	DurableTask(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_DurableTaskClient, error)
-	LookUpCachedDurableMemoEntry(ctx context.Context, in *LookUpCachedDurableMemoEntryRequest, opts ...grpc.CallOption) (*LookUpCachedDurableMemoEntryResponse, error)
 	// NOTE: deprecated after DurableEventLog is implemented
 	RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_ListenForDurableEventClient, error)
@@ -66,15 +65,6 @@ func (x *v1DispatcherDurableTaskClient) Recv() (*DurableTaskResponse, error) {
 		return nil, err
 	}
 	return m, nil
-}
-
-func (c *v1DispatcherClient) LookUpCachedDurableMemoEntry(ctx context.Context, in *LookUpCachedDurableMemoEntryRequest, opts ...grpc.CallOption) (*LookUpCachedDurableMemoEntryResponse, error) {
-	out := new(LookUpCachedDurableMemoEntryResponse)
-	err := c.cc.Invoke(ctx, "/v1.V1Dispatcher/LookUpCachedDurableMemoEntry", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *v1DispatcherClient) RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error) {
@@ -122,7 +112,6 @@ func (x *v1DispatcherListenForDurableEventClient) Recv() (*DurableEvent, error) 
 // for forward compatibility
 type V1DispatcherServer interface {
 	DurableTask(V1Dispatcher_DurableTaskServer) error
-	LookUpCachedDurableMemoEntry(context.Context, *LookUpCachedDurableMemoEntryRequest) (*LookUpCachedDurableMemoEntryResponse, error)
 	// NOTE: deprecated after DurableEventLog is implemented
 	RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error
@@ -135,9 +124,6 @@ type UnimplementedV1DispatcherServer struct {
 
 func (UnimplementedV1DispatcherServer) DurableTask(V1Dispatcher_DurableTaskServer) error {
 	return status.Errorf(codes.Unimplemented, "method DurableTask not implemented")
-}
-func (UnimplementedV1DispatcherServer) LookUpCachedDurableMemoEntry(context.Context, *LookUpCachedDurableMemoEntryRequest) (*LookUpCachedDurableMemoEntryResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LookUpCachedDurableMemoEntry not implemented")
 }
 func (UnimplementedV1DispatcherServer) RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterDurableEvent not implemented")
@@ -182,24 +168,6 @@ func (x *v1DispatcherDurableTaskServer) Recv() (*DurableTaskRequest, error) {
 		return nil, err
 	}
 	return m, nil
-}
-
-func _V1Dispatcher_LookUpCachedDurableMemoEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LookUpCachedDurableMemoEntryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(V1DispatcherServer).LookUpCachedDurableMemoEntry(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/v1.V1Dispatcher/LookUpCachedDurableMemoEntry",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(V1DispatcherServer).LookUpCachedDurableMemoEntry(ctx, req.(*LookUpCachedDurableMemoEntryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _V1Dispatcher_RegisterDurableEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -253,10 +221,6 @@ var V1Dispatcher_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "v1.V1Dispatcher",
 	HandlerType: (*V1DispatcherServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "LookUpCachedDurableMemoEntry",
-			Handler:    _V1Dispatcher_LookUpCachedDurableMemoEntry_Handler,
-		},
 		{
 			MethodName: "RegisterDurableEvent",
 			Handler:    _V1Dispatcher_RegisterDurableEvent_Handler,

@@ -9,21 +9,10 @@ import "v1/shared/trigger.proto";
 
 service V1Dispatcher {
     rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse) {}
-    rpc LookUpCachedDurableMemoEntry(LookUpCachedDurableMemoEntryRequest) returns (LookUpCachedDurableMemoEntryResponse) {}
 
     // NOTE: deprecated after DurableEventLog is implemented
     rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
-}
-
-message LookUpCachedDurableMemoEntryRequest {
-    string task_run_external_id = 1;
-    bytes key = 2;
-}
-
-message LookUpCachedDurableMemoEntryResponse {
-    bool has_entry = 1;
-    bytes data = 2; // the data for the durable memo entry, if it exists
 }
 
 message DurableTaskRequestRegisterWorker {
@@ -67,6 +56,10 @@ message DurableTaskEventAckResponse {
     string durable_task_external_id = 2;
     int64 branch_id = 3;
     int64 node_id = 4;
+
+    // memo fields
+    bool memo_already_existed = 5;
+    optional bytes memo_result_payload = 6;
 }
 
 message DurableTaskEventLogEntryCompletedResponse {
@@ -101,12 +94,22 @@ message DurableTaskWorkerStatusRequest {
 }
 
 
+message DurableTaskCompleteMemoRequest {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+    bytes payload = 5;
+    bytes memo_key = 6;
+}
+
 message DurableTaskRequest {
     oneof message {
         DurableTaskRequestRegisterWorker register_worker = 1;
         DurableTaskEventRequest event = 2;
         DurableTaskEvictInvocationRequest evict_invocation = 3;
         DurableTaskWorkerStatusRequest worker_status = 4;
+        DurableTaskCompleteMemoRequest complete_memo = 5;
     }
 }
 

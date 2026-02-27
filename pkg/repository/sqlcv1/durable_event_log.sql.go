@@ -412,6 +412,50 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 	return items, nil
 }
 
+const markDurableEventLogEntrySatisfied = `-- name: MarkDurableEventLogEntrySatisfied :one
+UPDATE v1_durable_event_log_entry
+SET is_satisfied = true
+WHERE durable_task_id = $1::BIGINT
+  AND durable_task_inserted_at = $2::TIMESTAMPTZ
+  AND branch_id = $3::BIGINT
+  AND node_id = $4::BIGINT
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
+`
+
+type MarkDurableEventLogEntrySatisfiedParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Branchid              int64              `json:"branchid"`
+	Nodeid                int64              `json:"nodeid"`
+}
+
+func (q *Queries) MarkDurableEventLogEntrySatisfied(ctx context.Context, db DBTX, arg MarkDurableEventLogEntrySatisfiedParams) (*V1DurableEventLogEntry, error) {
+	row := db.QueryRow(ctx, markDurableEventLogEntrySatisfied,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Branchid,
+		arg.Nodeid,
+	)
+	var i V1DurableEventLogEntry
+	err := row.Scan(
+		&i.TenantID,
+		&i.ExternalID,
+		&i.InsertedAt,
+		&i.ID,
+		&i.DurableTaskID,
+		&i.DurableTaskInsertedAt,
+		&i.Kind,
+		&i.NodeID,
+		&i.ParentNodeID,
+		&i.BranchID,
+		&i.ParentBranchID,
+		&i.InvocationCount,
+		&i.IdempotencyKey,
+		&i.IsSatisfied,
+	)
+	return &i, err
+}
+
 const updateDurableEventLogEntriesSatisfied = `-- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
