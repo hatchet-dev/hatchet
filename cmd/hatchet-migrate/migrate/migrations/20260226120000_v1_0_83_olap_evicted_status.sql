@@ -35,7 +35,6 @@ BEGIN
     RETURN 1;
 END;
 $$;
--- +goose StatementEnd
 
 WITH partitions AS (
     SELECT inhrelid::regclass::text AS partition_name
@@ -54,6 +53,7 @@ ALTER TABLE v1_task_events_olap ADD COLUMN IF NOT EXISTS durable_invocation_coun
 ANALYZE v1_tasks_olap;
 ANALYZE v1_dags_olap;
 ANALYZE v1_runs_olap;
+-- +goose StatementEnd
 
 -- +goose Down
 
