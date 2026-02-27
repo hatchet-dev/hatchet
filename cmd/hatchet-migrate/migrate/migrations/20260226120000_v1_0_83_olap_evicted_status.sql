@@ -41,19 +41,10 @@ $$;
 
 -- +goose StatementBegin
 DO $$
-DECLARE
-    parent_table TEXT;
-    date_partition RECORD;
 BEGIN
-    FOREACH parent_table IN ARRAY ARRAY['v1_tasks_olap', 'v1_runs_olap', 'v1_dags_olap'] LOOP
-        FOR date_partition IN
-            SELECT inhrelid::regclass::text AS partition_name
-            FROM pg_inherits
-            WHERE inhparent = parent_table::regclass
-        LOOP
-            PERFORM create_v1_partition_with_status(date_partition.partition_name, 'EVICTED');
-        END LOOP;
-    END LOOP;
+    PERFORM create_v1_partition_with_status(inhrelid::regclass::text, 'EVICTED')
+    FROM pg_inherits
+    WHERE inhparent = ANY(ARRAY['v1_tasks_olap'::regclass, 'v1_runs_olap'::regclass, 'v1_dags_olap'::regclass]);
 END;
 $$;
 -- +goose StatementEnd
