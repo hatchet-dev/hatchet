@@ -53,16 +53,10 @@ interface ContextData<T, K> {
 
 export class Context<T, K = {}> {
   data: ContextData<T, K>;
-  /**
-   * @deprecated use input prop instead
-   * @hidden
-   */
+  // @deprecated use input prop instead
   input: T;
 
-  /**
-   * @deprecated use ctx.abortController instead
-   * @hidden
-   */
+  // @deprecated use ctx.abortController instead
   controller = new AbortController();
   action: Action;
   v1: HatchetClient;
@@ -138,6 +132,9 @@ export class Context<T, K = {}> {
   }
 
   /**
+   * Returns errors from any task runs in the workflow.
+   * @returns A record mapping task names to error messages.
+   * @throws A warning if no errors are found (this method should be used in on-failure tasks).
    * @deprecated use ctx.errors() instead
    * @hidden
    */
