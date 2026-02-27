@@ -78,7 +78,8 @@ export class HatchetClient<
   GlobalOutput extends Record<string, any> = {},
   MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
-> implements IHatchetClient {
+> implements IHatchetClient
+{
   // The underlying v0 client instance
   _v0: LegacyHatchetClient;
   _api: Api;
