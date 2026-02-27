@@ -9,15 +9,16 @@ jobs:
     runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
         with:
           version: 10.16.1
           run_install: false
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
@@ -27,7 +28,7 @@ jobs:
         working-directory: frontend/app
         run: npm run lint:check
 
-  build:
+  test:
     runs-on: ubicloud-standard-2
     steps:
       - name: Clone repository
@@ -40,14 +41,38 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: frontend/app
         run: pnpm install --frozen-lockfile
-      - uses: actions/setup-python@v6
+      - name: Run unit tests
+        working-directory: frontend/app
+        run: pnpm run test:unit
+
+  build:
+    runs-on: ubicloud-standard-2
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
         with:
-          python-version: '3.14'
+          version: 10.16.1
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -60,29 +85,29 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.14"
+          python-version: '3.14'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
         with:
           version: 10.16.1
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
 
@@ -131,7 +156,7 @@ jobs:
 
       - name: Upload Cypress artifacts (screenshots/videos)
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: cypress-artifacts
           if-no-files-found: ignore
@@ -141,7 +166,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: e2e-logs
           if-no-files-found: ignore

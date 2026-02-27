@@ -51,6 +51,9 @@ var triggerCmd = &cobra.Command{
   # Manually trigger a workflow non-interactively
   hatchet trigger manual --workflow my-workflow --json ./input.json
 
+  # Non-interactive with JSON output (prints {"runId": "...", "workflow": "..."})
+  hatchet trigger manual --workflow my-workflow --json ./input.json -o json
+
   # Run with a specific profile
   hatchet trigger bulk --profile local`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -73,6 +76,7 @@ func init() {
 	triggerCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
 	triggerCmd.Flags().StringP("workflow", "w", "", "Workflow name for manual triggering (non-interactive mode)")
 	triggerCmd.Flags().StringP("json", "j", "", "Path to JSON input file for manual triggering (non-interactive mode)")
+	triggerCmd.Flags().StringP("output", "o", "", "Output format: json (prints run ID as JSON, skips TUI prompt)")
 }
 
 // executeTrigger is the main entry point for trigger execution
@@ -301,10 +305,12 @@ func runManualTrigger(cmd *cobra.Command, workflowFlag string, jsonFlag string, 
 		cli.Logger.Fatalf("could not create Hatchet client: %v", err)
 	}
 
+	jsonOutput := isJSONOutput(cmd)
+
 	if interactive {
-		runManualInteractive(profile, hatchetClient)
+		runManualInteractive(profile, hatchetClient, jsonOutput)
 	} else {
-		runManualNonInteractive(profile, hatchetClient, workflowFlag, jsonFlag)
+		runManualNonInteractive(profile, hatchetClient, workflowFlag, jsonFlag, jsonOutput)
 	}
 }
 
@@ -316,7 +322,7 @@ type WorkflowInfo struct {
 }
 
 // runManualInteractive runs manual workflow triggering in interactive mode
-func runManualInteractive(profile *profileconfig.Profile, hatchetClient client.Client) {
+func runManualInteractive(profile *profileconfig.Profile, hatchetClient client.Client, jsonOutput bool) { //nolint:staticcheck
 	ctx := context.Background()
 
 	// Get tenant UUID
@@ -381,12 +387,20 @@ func runManualInteractive(profile *profileconfig.Profile, hatchetClient client.C
 		cli.Logger.Fatalf("error triggering workflow: %v", err)
 	}
 
+	if jsonOutput {
+		printJSON(struct {
+			RunID    string `json:"runId"`
+			Workflow string `json:"workflow"`
+		}{RunID: runID, Workflow: selectedWorkflow.Name})
+		return
+	}
+
 	// Display success message with TUI prompt (interactive mode only)
 	displaySuccessMessage(runID, selectedWorkflow.Name, profile.Name, hatchetClient)
 }
 
 // runManualNonInteractive runs manual workflow triggering in non-interactive mode
-func runManualNonInteractive(profile *profileconfig.Profile, hatchetClient client.Client, workflowName string, jsonPath string) {
+func runManualNonInteractive(profile *profileconfig.Profile, hatchetClient client.Client, workflowName string, jsonPath string, jsonOutput bool) { //nolint:staticcheck
 	ctx := context.Background()
 
 	// Get tenant UUID
@@ -443,10 +457,20 @@ func runManualNonInteractive(profile *profileconfig.Profile, hatchetClient clien
 
 	// Trigger workflow
 	selectedWorkflowName := selectedWorkflow.Name
-	fmt.Println(styles.InfoMessage(fmt.Sprintf("Triggering workflow: %s", selectedWorkflowName)))
+	if !jsonOutput {
+		fmt.Println(styles.InfoMessage(fmt.Sprintf("Triggering workflow: %s", selectedWorkflowName)))
+	}
 	runID, err := triggerWorkflowWithClient(hatchetClient, selectedWorkflowName, jsonInput)
 	if err != nil {
 		cli.Logger.Fatalf("error triggering workflow: %v", err)
+	}
+
+	if jsonOutput {
+		printJSON(struct {
+			RunID    string `json:"runId"`
+			Workflow string `json:"workflow"`
+		}{RunID: runID, Workflow: selectedWorkflowName})
+		return
 	}
 
 	// Display success message (no TUI prompt in non-interactive mode)

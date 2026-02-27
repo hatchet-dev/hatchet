@@ -68,7 +68,7 @@ func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow) *gen.CronWorkflo
 
 	input := make(map[string]interface{})
 	if cron.Input != nil {
-		json.Unmarshal(cron.Input, &input)
+		json.Unmarshal(cron.Input, &input) //nolint:errcheck
 	}
 
 	res := &gen.CronWorkflows{

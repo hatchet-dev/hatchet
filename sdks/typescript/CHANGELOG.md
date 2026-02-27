@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-02-23
+
+### Added
+
+- Introduced client middleware support with composable `before`/`after` hooks to customize request handling and response processing.
+- Added middleware examples and recipes to demonstrate practical client-side patterns.
+
 ## [1.12.1] - 2026-02-18
 
 ### Fixed

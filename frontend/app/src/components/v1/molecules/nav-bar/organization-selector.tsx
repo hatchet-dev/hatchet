@@ -6,19 +6,12 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant, TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
@@ -35,7 +28,7 @@ import {
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
-import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate, Link } from '@tanstack/react-router';
 import { useState, useMemo } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -76,11 +69,8 @@ function OrganizationGroup({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate({
-      to: appRoutes.onboardingCreateTenantRoute.to,
-      params: {
-        organizationId: organization.metadata.id,
-      },
+    globalEmitter.emit('new-tenant', {
+      defaultOrganizationId: organization.metadata.id,
     });
   };
 
@@ -186,20 +176,16 @@ export function OrganizationSelector({
   const location = useLocation();
   const {
     setTenant: setCurrTenant,
-    isLoading: isTenantLoading,
+    isUserUniverseLoaded: isTenantLoaded,
     tenant,
   } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [orgName, setOrgName] = useState('');
   const {
     organizations,
     getOrganizationForTenant,
     isTenantArchivedInOrg,
-    handleCreateOrganization,
-    createOrganizationLoading,
-    isLoading: isOrganizationsLoading,
+    isUserUniverseLoaded: isOrganizationsLoaded,
   } = useOrganizations();
 
   const handleClose = () => setOpen(false);
@@ -226,31 +212,6 @@ export function OrganizationSelector({
         ? prev.filter((id) => id !== orgId)
         : [...prev, orgId],
     );
-  };
-
-  const handleCreateOrgClick = () => {
-    setOpen(false);
-    setShowCreateModal(true);
-  };
-
-  const handleCreateOrgSubmit = () => {
-    if (!orgName.trim()) {
-      return;
-    }
-
-    handleCreateOrganization(orgName.trim(), (organizationId) => {
-      setShowCreateModal(false);
-      setOrgName('');
-      navigate({
-        to: appRoutes.organizationsRoute.to,
-        params: { organization: organizationId },
-      });
-    });
-  };
-
-  const handleCreateOrgCancel = () => {
-    setShowCreateModal(false);
-    setOrgName('');
   };
 
   // Group memberships by organization
@@ -311,7 +272,7 @@ export function OrganizationSelector({
   ]);
 
   const triggerDisabled =
-    isTenantLoading || isOrganizationsLoading || memberships.length === 0;
+    !isTenantLoaded || !isOrganizationsLoaded || memberships.length === 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -336,7 +297,7 @@ export function OrganizationSelector({
                 {tenant?.name ?? 'Loading tenant…'}
               </span>
             </div>
-            {(isTenantLoading || isOrganizationsLoading) && !open ? (
+            {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
             ) : (
               <CaretSortIcon className="size-4 shrink-0 opacity-50" />
@@ -353,7 +314,7 @@ export function OrganizationSelector({
             <CommandList>
               <CommandEmpty>No tenants found.</CommandEmpty>
 
-              {isOrganizationsLoading && (
+              {!isOrganizationsLoaded && (
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
                   Loading organizations…
@@ -383,10 +344,15 @@ export function OrganizationSelector({
                       variant="outline"
                       size="sm"
                       fullWidth
-                      onClick={handleCreateOrgClick}
                       leftIcon={<PlusIcon className="size-4" />}
+                      asChild
                     >
-                      Create Organization
+                      <Link
+                        to={appRoutes.organizationsNewRoute.to}
+                        onClick={() => setOpen(false)}
+                      >
+                        Create Organization
+                      </Link>
                     </Button>
                   </div>
                 </CommandGroup>
@@ -445,47 +411,6 @@ export function OrganizationSelector({
           </Command>
         </PopoverContent>
       </Popover>
-
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Organization</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="org-name" className="text-sm font-medium">
-                Organization Name
-              </label>
-              <Input
-                id="org-name"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Enter organization name"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateOrgSubmit();
-                  }
-                }}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={handleCreateOrgCancel}
-              disabled={createOrganizationLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateOrgSubmit}
-              disabled={!orgName.trim() || createOrganizationLoading}
-            >
-              {createOrganizationLoading ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </TooltipProvider>
   );
 }

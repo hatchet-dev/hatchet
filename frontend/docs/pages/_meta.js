@@ -31,6 +31,14 @@ export default {
       toc: false,
     },
   },
+  "agent-instructions": {
+    title: "Agent Instructions",
+    type: "page",
+    display: "hidden",
+    theme: {
+      toc: false,
+    },
+  },
   sdks: {
     title: "SDK Reference",
     type: "menu",

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.25.2"
+version = "1.27.0"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 authors = [
   "Alexander Belanger <alexander@hatchet.run>",
@@ -23,6 +23,7 @@ aiohttp = "^3.10.5"
 tenacity = ">=8.4.1"
 prometheus-client = ">=0.21.1"
 pydantic-settings = "^2.7.1"
+typing-inspection = ">=0.1.0"
 
 ## OTel Extra
 opentelemetry-api = { version = "^1.28.0", optional = true }
@@ -51,6 +52,7 @@ pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
 psycopg = { extras = ["pool"], version = "^3.2.6" }
 pytest-xdist = "^3.7.0"
+requests = "^2.32.5"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -201,9 +203,9 @@ exclude = [
 
 [tool.pydoclint]
 style = 'sphinx'
-exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*'
-arg-type-hints-in-docstring = false                    # Automatically checked by mypy and mkdocs
-check-return-types = false                             # Automatically checked by mypy and mkdocs
+exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py'
+arg-type-hints-in-docstring = false                                                                               # Automatically checked by mypy and mkdocs
+check-return-types = false                                                                                        # Automatically checked by mypy and mkdocs
 
 [tool.poetry.plugins."mkdocs.plugins"]
 "markdown-export" = "docs.generator.markdown_export:MarkdownExportPlugin"

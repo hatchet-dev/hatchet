@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.build.json && vite build",
+    "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",
     "eslint:check": "eslint \"{src,apps,libs,test,cypress}/**/*.{ts,tsx,js}\" cypress.config.ts",
@@ -54,6 +55,7 @@
     "@tanstack/react-table": "^8.21.2",
     "@types/lodash": "^4.17.20",
     "axios": "^1.12.0",
+    "better-emitter": "^4.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^0.2.1",
