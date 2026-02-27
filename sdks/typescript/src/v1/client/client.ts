@@ -1,7 +1,7 @@
 /**
  * This is the TypeScript SDK reference, documenting methods available for interacting with Hatchet resources.
  * Check out the [user guide](https://docs.hatchet.run/home/) for an introduction to getting your first tasks running.
- * 
+ *
  * @module Hatchet TypeScript SDK Reference
  */
 /* eslint-disable no-dupe-class-members */
@@ -78,8 +78,7 @@ export class HatchetClient<
   GlobalOutput extends Record<string, any> = {},
   MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
-> implements IHatchetClient
-{
+> implements IHatchetClient {
   // The underlying v0 client instance
   _v0: LegacyHatchetClient;
   _api: Api;
