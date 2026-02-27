@@ -1,13 +1,6 @@
 // @ts-check
 import { MarkdownTheme, MarkdownThemeContext } from 'typedoc-plugin-markdown';
 
-/**
- * Custom TypeDoc theme for Hatchet TS SDK docs.
- *   - removes function/method signature titles from the output.
- *   - removes type parameters table and title from the output. (generics)
- *   - removes unwanted headings from the output.
- *   - spaces out PascalCase class names in headings (e.g. CronClient → Cron Client).
- */
 export function load(app) {
   app.renderer.defineTheme('hatchet-ts-docs', HatchetDocsTheme);
 }
@@ -19,10 +12,30 @@ const HEADING_RENAMES = {
   RateLimitsClient: 'Rate Limits Client',
   RunsClient: 'Runs Client',
   SchedulesClient: 'Schedules Client',
-    WorkersClient: 'Workers Client',
-    WorkflowsClient: 'Workflows Client',
-    WebhooksClient: 'Webhooks Client',
+  WorkersClient: 'Workers Client',
+  WorkflowsClient: 'Workflows Client',
+  WebhooksClient: 'Webhooks Client',
 };
+
+const HEADINGS_TO_REMOVE = [
+  'Type Parameters',
+  'Call Signature',
+  'Classes',
+];
+
+const HEADINGS_TO_BOLD = [
+  'Parameters',
+  'Returns',
+  'Throws',
+  'Overrides',
+  'Accessors',
+  'Get Signature',
+  'Implementation of',
+  'Note',
+  'Alias',
+  'Implements',
+  'Extended by'
+];
 
 class HatchetDocsTheme extends MarkdownTheme {
   getRenderContext(page) {
@@ -30,23 +43,32 @@ class HatchetDocsTheme extends MarkdownTheme {
   }
 
   render(page) {
-    return spaceOutHeadings(removeUnwantedHeadings(super.render(page)));
+    const transforms = [removeUnwantedHeadings, spaceOutHeadings, codeWrapMethodHeadings];
+    return transforms.reduce((content, fn) => fn(content), super.render(page));
   }
 }
 
 function removeUnwantedHeadings(content) {
-  return content
-    .replace(/#{1,6}\s+Type Parameters\n*/g, '')
-    .replace(/#{1,6}\s+Call Signature\n*/g, '')
-    .replace(/#{1,6}\s+Classes\n*/g, '')
-    .replace(/#{1,6}\s+client\/features\/\S+\n*/g, '');
+  let result = content.replace(/#{1,6}\s+client\/features\/\S+\n*/g, '');
+  for (const heading of HEADINGS_TO_REMOVE) {
+    result = result.replace(new RegExp(`#{1,6}\\s+${heading}\\n*`, 'g'), '');
+  }
+  for (const heading of HEADINGS_TO_BOLD) {
+    result = result.replace(new RegExp(`^#{1,6}\\s+(${heading})$`, 'gmi'), '**$1**');
+  }
+  return result;
 }
-
 
 function spaceOutHeadings(content) {
   return content.replace(/^(#{1,6} )(\S+)$/gm, (match, hashes, name) =>
     hashes + (HEADING_RENAMES[name] ?? name)
   );
+}
+
+function codeWrapMethodHeadings(content) {
+  return content
+    .replace(/^(#{3,6} )(.+\(\))$/gm, (match, hashes, name) => `${hashes}\`${name}\``)
+    .replace(/^(#{4,6} )([a-z]\w*)$/gm, (match, hashes, name) => `${hashes}\`${name}\``);
 }
 
 class HatchetDocsContext extends MarkdownThemeContext {

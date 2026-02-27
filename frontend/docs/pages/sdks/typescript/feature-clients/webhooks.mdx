@@ -1,0 +1,107 @@
+<a id="webhooksclient"></a>
+
+### Webhooks Client
+
+Client for managing incoming webhooks in Hatchet.
+
+Webhooks allow external systems to trigger Hatchet workflows by sending
+HTTP requests to dedicated endpoints. This enables real-time integration
+with third-party services like GitHub, Stripe, Slack, or any system that
+can send webhook events.
+
+#### Methods
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists all webhooks for the current tenant.
+
+**Parameters**
+
+| Parameter               | Type                                                                                          | Description                         |
+| ----------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `options?`              | \{ `limit?`: `number`; `offset?`: `number`; `webhookNames?`: ...[]; `sourceNames?`: ...[]; \} | The options for the list operation. |
+| `options.limit?`        | `number`                                                                                      | -                                   |
+| `options.offset?`       | `number`                                                                                      | -                                   |
+| `options.webhookNames?` | ...[]                                                                                         | -                                   |
+| `options.sourceNames?`  | ...[]                                                                                         | -                                   |
+
+**Returns**
+
+`Promise`\<`V1WebhookList`\>
+
+A promise that resolves to the list of webhooks.
+
+<a id="get"></a>
+
+##### `get()`
+
+Gets a webhook by its name.
+
+**Parameters**
+
+| Parameter     | Type     | Description                     |
+| ------------- | -------- | ------------------------------- |
+| `webhookName` | `string` | The name of the webhook to get. |
+
+**Returns**
+
+`Promise`\<`V1Webhook`\>
+
+A promise that resolves to the webhook.
+
+<a id="create"></a>
+
+##### `create()`
+
+Creates a new webhook.
+
+**Parameters**
+
+| Parameter | Type                   | Description                                   |
+| --------- | ---------------------- | --------------------------------------------- |
+| `request` | `CreateWebhookOptions` | The request options for the create operation. |
+
+**Returns**
+
+`Promise`\<`V1Webhook`\>
+
+A promise that resolves to the created webhook.
+
+<a id="update"></a>
+
+##### `update()`
+
+Updates a webhook by its name.
+
+**Parameters**
+
+| Parameter     | Type                                  | Description                           |
+| ------------- | ------------------------------------- | ------------------------------------- |
+| `webhookName` | `string`                              | The name of the webhook to update.    |
+| `options`     | `Partial`\<`V1UpdateWebhookRequest`\> | The options for the update operation. |
+
+**Returns**
+
+`Promise`\<`V1Webhook`\>
+
+A promise that resolves to the updated webhook.
+
+<a id="delete"></a>
+
+##### `delete()`
+
+Deletes a webhook by its name.
+
+**Parameters**
+
+| Parameter     | Type     | Description                        |
+| ------------- | -------- | ---------------------------------- |
+| `webhookName` | `string` | The name of the webhook to delete. |
+
+**Returns**
+
+`Promise`\<`V1Webhook`\>
+
+A promise that resolves to the deleted webhook.

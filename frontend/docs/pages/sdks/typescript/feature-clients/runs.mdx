@@ -1,0 +1,135 @@
+<a id="runsclient"></a>
+
+### Runs Client
+
+The runs client is a client for interacting with task and workflow runs within Hatchet.
+
+#### Methods
+
+<a id="get"></a>
+
+##### `get()`
+
+Gets a task or workflow run by its ID.
+
+**Parameters**
+
+| Parameter | Type                                | Description               |
+| --------- | ----------------------------------- | ------------------------- |
+| `run`     | `string` \| `WorkflowRunRef`\<`T`\> | The ID of the run to get. |
+
+**Returns**
+
+`Promise`\<`V1WorkflowRunDetails`\>
+
+A promise that resolves to the run.
+
+<a id="get_status"></a>
+
+##### `get\_status()`
+
+Gets the status of a task or workflow run by its ID.
+
+**Parameters**
+
+| Parameter | Type                                | Description                             |
+| --------- | ----------------------------------- | --------------------------------------- |
+| `run`     | `string` \| `WorkflowRunRef`\<`T`\> | The ID of the run to get the status of. |
+
+**Returns**
+
+`Promise`\<`V1TaskStatus`\>
+
+A promise that resolves to the status of the run.
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists all task and workflow runs for the current tenant.
+
+**Parameters**
+
+| Parameter | Type                        | Description                         |
+| --------- | --------------------------- | ----------------------------------- |
+| `opts?`   | `Partial`\<`ListRunsOpts`\> | The options for the list operation. |
+
+**Returns**
+
+`Promise`\<`V1TaskSummaryList`\>
+
+A promise that resolves to the list of runs.
+
+<a id="cancel"></a>
+
+##### `cancel()`
+
+Cancels a task or workflow run by its ID.
+
+**Parameters**
+
+| Parameter | Type            | Description                           |
+| --------- | --------------- | ------------------------------------- |
+| `opts`    | `CancelRunOpts` | The options for the cancel operation. |
+
+**Returns**
+
+`Promise`\<`AxiosResponse`\<`V1CancelledTasks`, `any`, \{
+\}\>\>
+
+A promise that resolves to the cancelled run.
+
+<a id="replay"></a>
+
+##### `replay()`
+
+Replays a task or workflow run by its ID.
+
+**Parameters**
+
+| Parameter | Type            | Description                           |
+| --------- | --------------- | ------------------------------------- |
+| `opts`    | `ReplayRunOpts` | The options for the replay operation. |
+
+**Returns**
+
+`Promise`\<`AxiosResponse`\<`V1ReplayedTasks`, `any`, \{
+\}\>\>
+
+A promise that resolves to the replayed run.
+
+<a id="runref"></a>
+
+##### `runRef()`
+
+Creates a run reference for a task or workflow run by its ID.
+
+**Parameters**
+
+| Parameter | Type     | Description                                  |
+| --------- | -------- | -------------------------------------------- |
+| `id`      | `string` | The ID of the run to create a reference for. |
+
+**Returns**
+
+`WorkflowRunRef`\<`T`\>
+
+A promise that resolves to the run reference.
+
+<a id="subscribetostream"></a>
+
+##### `subscribeToStream()`
+
+Subscribes to a stream of events for a task or workflow run by its ID.
+
+**Parameters**
+
+| Parameter       | Type     | Description                        |
+| --------------- | -------- | ---------------------------------- |
+| `workflowRunId` | `string` | The ID of the run to subscribe to. |
+
+**Returns**
+
+`AsyncIterableIterator`\<`string`\>
+
+A promise that resolves to the stream of events.

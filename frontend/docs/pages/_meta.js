@@ -40,6 +40,11 @@ export default {
         href: "/sdks/python/client",
         type: "page",
       },
+      typescript: {
+        title: "TypeScript",
+        href: "/sdks/typescript/client",
+        type: "page",
+      },
       go: {
         title: "Go",
         href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",

@@ -833,12 +833,13 @@ export class TaskWorkflowDeclaration<
 
   /**
    * Triggers a task run and waits for completion.
-   * @param input The input payload for the task.
+   * @param input The input payload for the task (single item or array).
    * @param options Optional configuration for this task run.
    * @returns The task result for single input, or an array of results for array input.
    * @throws Error if the task is not bound to a Hatchet client.
    */
   async run(input: I, options?: RunOpts): Promise<O>;
+  /** @hidden */
   async run(input: I[], options?: RunOpts): Promise<O[]>;
   async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
     // note: typescript is not smart enough to infer that input is an array
@@ -849,12 +850,13 @@ export class TaskWorkflowDeclaration<
 
   /**
    * Triggers a task run without waiting for completion.
-   * @param input The input payload for the task.
+   * @param input The input payload for the task (single item or array).
    * @param options Optional configuration for this task run.
    * @returns A `WorkflowRunRef` for single input, or an array of run refs for array input.
    * @throws Error if the task is not bound to a Hatchet client.
    */
   async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>>;
+  /** @hidden */
   async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O>[]>;
   async runNoWait(
     input: I | I[],

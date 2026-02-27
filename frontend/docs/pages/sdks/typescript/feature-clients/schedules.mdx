@@ -1,0 +1,146 @@
+<a id="scheduleclient"></a>
+
+### ScheduleClient
+
+The scheduled client is a client for managing scheduled workflows within Hatchet
+
+#### Methods
+
+<a id="create"></a>
+
+##### `create()`
+
+Creates a new Scheduled Run.
+
+**Parameters**
+
+| Parameter                  | Type                                                                                                                                            | Description                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `workflow`                 | `string` \| `Workflow`                                                                                                                          | The workflow name or Workflow object. |
+| `cron`                     | \{ `triggerAt`: `Date`; `input?`: `Record`\<`string`, `any`\>; `additionalMetadata?`: `Record`\<`string`, `string`\>; `priority?`: `number`; \} | -                                     |
+| `cron.triggerAt`           | `Date`                                                                                                                                          | -                                     |
+| `cron.input?`              | `Record`\<`string`, `any`\>                                                                                                                     | -                                     |
+| `cron.additionalMetadata?` | `Record`\<`string`, `string`\>                                                                                                                  | -                                     |
+| `cron.priority?`           | `number`                                                                                                                                        | -                                     |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflows`\>
+
+A promise that resolves to the created ScheduledWorkflows object.
+
+**Throws**
+
+Will throw an error if the input is invalid or the API call fails.
+
+<a id="update"></a>
+
+##### `update()`
+
+Updates (reschedules) an existing Scheduled Run.
+
+**Parameters**
+
+| Parameter          | Type                             | Description                                                    |
+| ------------------ | -------------------------------- | -------------------------------------------------------------- |
+| `scheduledRun`     | `string` \| `ScheduledWorkflows` | The Scheduled Run ID as a string or ScheduledWorkflows object. |
+| `update`           | \{ `triggerAt`: `Date`; \}       | The update payload (currently only triggerAt).                 |
+| `update.triggerAt` | `Date`                           | -                                                              |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflows`\>
+
+A promise that resolves to the updated ScheduledWorkflows object.
+
+<a id="delete"></a>
+
+##### `delete()`
+
+Deletes an existing Scheduled Run.
+
+**Parameters**
+
+| Parameter      | Type                             | Description                                                    |
+| -------------- | -------------------------------- | -------------------------------------------------------------- |
+| `scheduledRun` | `string` \| `ScheduledWorkflows` | The Scheduled Run ID as a string or ScheduledWorkflows object. |
+
+**Returns**
+
+`Promise`\<`void`\>
+
+A promise that resolves when the Scheduled Run is deleted.
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists all Cron Triggers based on the provided query parameters.
+
+**Parameters**
+
+| Parameter | Type                | Description                                  |
+| --------- | ------------------- | -------------------------------------------- |
+| `query`   | `object` & `object` | Query parameters for listing Scheduled Runs. |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflowsList`\>
+
+A promise that resolves to a ScheduledWorkflowsList object.
+
+<a id="get"></a>
+
+##### `get()`
+
+Retrieves a specific Scheduled Run by its ID.
+
+**Parameters**
+
+| Parameter      | Type                             | Description                                                    |
+| -------------- | -------------------------------- | -------------------------------------------------------------- |
+| `scheduledRun` | `string` \| `ScheduledWorkflows` | The Scheduled Run ID as a string or ScheduledWorkflows object. |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflows`\>
+
+A promise that resolves to the ScheduledWorkflows object.
+
+<a id="bulkdelete"></a>
+
+##### `bulkDelete()`
+
+Bulk deletes scheduled runs (by explicit IDs and/or a filter).
+
+**Parameters**
+
+| Parameter             | Type                                                                                     | Description                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `opts`                | \{ `scheduledRuns?`: (... \| ...)[]; `filter?`: `ScheduledWorkflowsBulkDeleteFilter`; \} | Either `scheduledRuns` (ids/objects) and/or a server-side filter. |
+| `opts.scheduledRuns?` | (... \| ...)[]                                                                           | -                                                                 |
+| `opts.filter?`        | `ScheduledWorkflowsBulkDeleteFilter`                                                     | -                                                                 |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflowsBulkDeleteResponse`\>
+
+A promise that resolves to deleted ids + per-id errors.
+
+<a id="bulkupdate"></a>
+
+##### `bulkUpdate()`
+
+Bulk updates (reschedules) scheduled runs.
+
+**Parameters**
+
+| Parameter | Type       | Description                        |
+| --------- | ---------- | ---------------------------------- |
+| `updates` | `object`[] | List of id/object + new triggerAt. |
+
+**Returns**
+
+`Promise`\<`ScheduledWorkflowsBulkUpdateResponse`\>
+
+A promise that resolves to updated ids + per-id errors.

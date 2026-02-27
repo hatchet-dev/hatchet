@@ -1,0 +1,43 @@
+<a id="ratelimitsclient"></a>
+
+### RatelimitsClient
+
+The rate limits client is a wrapper for Hatchet’s gRPC API that makes it easier to work with rate limits in Hatchet.
+
+#### Methods
+
+<a id="upsert"></a>
+
+##### `upsert()`
+
+Upserts a rate limit for the current tenant.
+
+**Parameters**
+
+| Parameter | Type                  | Description                           |
+| --------- | --------------------- | ------------------------------------- |
+| `opts`    | `CreateRateLimitOpts` | The options for the upsert operation. |
+
+**Returns**
+
+`Promise`\<`string`\>
+
+A promise that resolves to the key of the upserted rate limit.
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists all rate limits for the current tenant.
+
+**Parameters**
+
+| Parameter | Type                                                                                                                                                                              | Description                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `opts`    | \| \{ `offset?`: `number`; `limit?`: `number`; `search?`: `string`; `orderByField?`: `RateLimitOrderByField`; `orderByDirection?`: `RateLimitOrderByDirection`; \} \| `undefined` | The options for the list operation. |
+
+**Returns**
+
+`Promise`\<`RateLimitList`\>
+
+A promise that resolves to the list of rate limits.
