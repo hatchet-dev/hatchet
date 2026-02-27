@@ -753,6 +753,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 		Nodeid:                opts.NodeId,
 		Branchid:              opts.BranchId,
 	})
+
 	if err != nil {
 		return fmt.Errorf("failed to mark memo entry as satisfied: %w", err)
 	}
@@ -766,6 +767,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 			Payload:    opts.Payload,
 			TenantId:   opts.TenantId,
 		})
+
 		if err != nil {
 			return fmt.Errorf("failed to store memo result payload: %w", err)
 		}
