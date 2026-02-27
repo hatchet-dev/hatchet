@@ -8,6 +8,7 @@ import tenacity
 
 from hatchet_sdk.clients.rest.exceptions import (
     NotFoundException,
+    RestTransportError,
     ServiceException,
     TooManyRequestsException,
 )
@@ -54,6 +55,7 @@ def tenacity_should_retry(
     if isinstance(ex, TooManyRequestsException):
         return bool(config and config.retry_429)
 
+    # gRPC errors: retry most, except specific permanent failure codes
     if isinstance(ex, grpc.aio.AioRpcError | grpc.RpcError):
         return ex.code() not in [
             grpc.StatusCode.UNIMPLEMENTED,
@@ -63,5 +65,13 @@ def tenacity_should_retry(
             grpc.StatusCode.UNAUTHENTICATED,
             grpc.StatusCode.PERMISSION_DENIED,
         ]
+
+    # REST transport errors: opt-in retry for configured HTTP methods
+    if isinstance(ex, RestTransportError):
+        if config is not None and config.retry_transport_errors:
+            method = ex.http_method
+            if method is not None:
+                return method in config.retry_transport_methods
+        return False
 
     return False

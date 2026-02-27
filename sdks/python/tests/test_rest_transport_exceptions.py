@@ -384,3 +384,84 @@ def test_diagnostics__reason_handles_none_timeout(
 
     reason = exc_info.value.reason
     assert "timeout=None" in reason
+
+
+# --- http_method attribute tests ---
+
+
+def test_http_method__tls_error_has_http_method(
+    rest_client: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
+        raise urllib3.exceptions.SSLError("SSL failed")
+
+    monkeypatch.setattr(rest_client.pool_manager, "request", mock_request)
+
+    with pytest.raises(RestTLSError) as exc_info:
+        rest_client.request(
+            method="POST",
+            url="https://example.com/api",
+            headers={},
+        )
+
+    assert exc_info.value.http_method == "POST"
+
+
+def test_http_method__timeout_error_has_http_method(
+    rest_client: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
+        raise urllib3.exceptions.ConnectTimeoutError(None, "url", "timeout")
+
+    monkeypatch.setattr(rest_client.pool_manager, "request", mock_request)
+
+    with pytest.raises(RestTimeoutError) as exc_info:
+        rest_client.request(
+            method="GET",
+            url="http://localhost/test",
+            headers={},
+        )
+
+    assert exc_info.value.http_method == "GET"
+
+
+def test_http_method__connection_error_has_http_method(
+    rest_client: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
+        raise urllib3.exceptions.NewConnectionError(
+            cast(Any, None), "connection failed"
+        )
+
+    monkeypatch.setattr(rest_client.pool_manager, "request", mock_request)
+
+    with pytest.raises(RestConnectionError) as exc_info:
+        rest_client.request(
+            method="DELETE",
+            url="http://localhost/test",
+            headers={},
+        )
+
+    assert exc_info.value.http_method == "DELETE"
+
+
+def test_http_method__protocol_error_has_http_method(
+    rest_client: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
+        raise urllib3.exceptions.ProtocolError("protocol error")
+
+    monkeypatch.setattr(rest_client.pool_manager, "request", mock_request)
+
+    with pytest.raises(RestProtocolError) as exc_info:
+        rest_client.request(
+            method="PUT",
+            url="http://localhost/test",
+            headers={},
+        )
+
+    assert exc_info.value.http_method == "PUT"
