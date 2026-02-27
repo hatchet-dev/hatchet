@@ -1,5 +1,5 @@
-from v1.shared import condition_pb2 as _condition_pb2
-from v1.shared import trigger_pb2 as _trigger_pb2
+from hatchet_sdk.contracts.v1.shared import condition_pb2 as _condition_pb2
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as _trigger_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -58,20 +58,20 @@ class DurableTaskEventRequest(_message.Message):
     def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]] = ..., memo_key: _Optional[bytes] = ...) -> None: ...
 
 class DurableTaskEventAckResponse(_message.Message):
-    __slots__ = ("invocation_count", "durable_task_external_id", "branch_id", "node_id", "already_existed", "payload")
+    __slots__ = ("invocation_count", "durable_task_external_id", "branch_id", "node_id", "memo_already_existed", "memo_result_payload")
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    ALREADY_EXISTED_FIELD_NUMBER: _ClassVar[int]
-    PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    MEMO_ALREADY_EXISTED_FIELD_NUMBER: _ClassVar[int]
+    MEMO_RESULT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     invocation_count: int
     durable_task_external_id: str
     branch_id: int
     node_id: int
-    already_existed: bool
-    payload: bytes
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ..., already_existed: bool = ..., payload: _Optional[bytes] = ...) -> None: ...
+    memo_already_existed: bool
+    memo_result_payload: bytes
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ..., memo_already_existed: bool = ..., memo_result_payload: _Optional[bytes] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
     __slots__ = ("durable_task_external_id", "invocation_count", "branch_id", "node_id", "payload")

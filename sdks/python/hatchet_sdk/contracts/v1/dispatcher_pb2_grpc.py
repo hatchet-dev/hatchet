@@ -5,7 +5,7 @@ import warnings
 
 from hatchet_sdk.contracts.v1 import dispatcher_pb2 as v1_dot_dispatcher__pb2
 
-GRPC_GENERATED_VERSION = '1.78.1'
+GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -28,7 +28,7 @@ if _version_not_supported:
 class V1DispatcherStub(object):
     """Missing associated documentation comment in .proto file."""
 
-    def __init__(self, channel):
+    def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
         """Constructor.
 
         Args:

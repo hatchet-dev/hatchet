@@ -640,18 +640,20 @@ class DurableContext(Context):
 
         key = _compute_memo_key(self.step_run_id, deps)
 
-        resp = await self.durable_event_listener.look_up_cached_durable_memo_entry(
-            task_run_external_id=run_external_id,
-            key=key,
+        ack = await self.durable_event_listener.send_event(
+            durable_task_external_id=run_external_id,
+            invocation_count=self.invocation_count,
+            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
+            memo_key=key,
         )
 
-        if resp.found and not resp.data:
+        if ack.memo_already_existed and ack.memo_result_payload is None:
             logger.warning(
                 "memo key found in durable storage but no data was returned. rerunning the function to recompute the value. "
             )
 
-        if resp.found and resp.data is not None:
-            serialized_result = resp.data
+        if ack.memo_already_existed and ack.memo_result_payload is not None:
+            serialized_result = ack.memo_result_payload
             result = adapter.validate_json(
                 serialized_result, context=HATCHET_PYDANTIC_SENTINEL
             )
@@ -661,14 +663,14 @@ class DurableContext(Context):
                 result, context=HATCHET_PYDANTIC_SENTINEL
             )
 
-        await self._ensure_stream_started()
+            await self._ensure_stream_started()
 
-        await self.durable_event_listener.send_event(
-            durable_task_external_id=run_external_id,
-            invocation_count=self.invocation_count,
-            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
-            payload=serialized_result,
-            memo_key=key,
-        )
+            await self.durable_event_listener.send_event(
+                durable_task_external_id=run_external_id,
+                invocation_count=self.invocation_count,
+                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
+                payload=serialized_result,
+                memo_key=key,
+            )
 
         return result

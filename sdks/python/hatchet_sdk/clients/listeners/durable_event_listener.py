@@ -25,8 +25,6 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
     DurableTaskWorkerStatusRequest,
-    LookUpCachedDurableMemoEntryRequest,
-    LookUpCachedDurableMemoEntryResponse,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
@@ -49,6 +47,8 @@ class DurableTaskEventAck(BaseModel):
     durable_task_external_id: str
     branch_id: int
     node_id: int
+    memo_already_existed: bool
+    memo_result_payload: bytes | None = None
 
 
 class DurableTaskEventLogEntryResult(BaseModel):
@@ -282,6 +282,8 @@ class DurableEventListener:
                         durable_task_external_id=trigger_ack.durable_task_external_id,
                         node_id=trigger_ack.node_id,
                         branch_id=trigger_ack.branch_id,
+                        memo_already_existed=trigger_ack.memo_already_existed,
+                        memo_result_payload=trigger_ack.memo_result_payload,
                     )
                 )
                 del self._pending_event_acks[event_key]
@@ -443,28 +445,6 @@ class DurableEventListener:
             self._pending_callbacks[key] = future
 
         return await self._pending_callbacks[key]
-
-    async def look_up_cached_durable_memo_entry(
-        self, task_run_external_id: str, key: bytes
-    ) -> MaybeCachedMemoEntry:
-        if self._stub is None:
-            raise RuntimeError("Client not started")
-
-        resp = cast(
-            LookUpCachedDurableMemoEntryResponse,
-            await self._stub.LookUpCachedDurableMemoEntry(  # type: ignore[misc]
-                LookUpCachedDurableMemoEntryRequest(
-                    task_run_external_id=task_run_external_id,
-                    key=key,
-                ),
-                metadata=get_metadata(self.token),
-            ),
-        )
-
-        return MaybeCachedMemoEntry(
-            found=resp.has_entry,
-            data=resp.data if resp.has_entry else None,
-        )
 
     def cleanup_task_state(
         self, durable_task_external_id: str, invocation_count: int
