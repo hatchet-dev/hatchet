@@ -1,5 +1,5 @@
--- +goose NO TRANSACTION
 -- +goose Up
+-- +goose NO TRANSACTION
 
 ALTER TYPE v1_readable_status_olap ADD VALUE IF NOT EXISTS 'EVICTED';
 
@@ -39,31 +39,23 @@ END;
 $$;
 -- +goose StatementEnd
 
--- +goose StatementBegin
 WITH partitions AS (
-      SELECT inhrelid::regclass::text AS partition_name
-      FROM pg_inherits
-      WHERE inhparent = parent_table::regclass
+    SELECT inhrelid::regclass::text AS partition_name
+    FROM pg_inherits
+    WHERE inhparent IN (
+        'v1_tasks_olap'::regclass,
+        'v1_dags_olap'::regclass,
+        'v1_runs_olap'::regclass
+    )
 )
-
 SELECT create_v1_partition_with_status(partition_name, 'EVICTED')
-FROM partitions
--- +goose StatementEnd
+FROM partitions;
 
 ALTER TABLE v1_task_events_olap ADD COLUMN IF NOT EXISTS durable_invocation_count INT NOT NULL DEFAULT 0;
 
 ANALYZE v1_tasks_olap;
 ANALYZE v1_dags_olap;
 ANALYZE v1_runs_olap;
-ANALYZE v1_task_events_olap_tmp;
-ANALYZE v1_task_events_olap;
-ANALYZE v1_incoming_webhook_validation_failures_olap;
-ANALYZE v1_payloads_olap;
-ANALYZE v1_task_status_updates_tmp;
-ANALYZE v1_events_olap;
-ANALYZE v1_event_lookup_table_olap;
-ANALYZE v1_event_to_run_olap;
-ANALYZE v1_cel_evaluation_failures_olap;
 
 -- +goose Down
 -- +goose NO TRANSACTION

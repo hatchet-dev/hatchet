@@ -105,6 +105,17 @@ tasks:
   goose-migrate:
     cmds:
       - bash ./hack/dev/migrate.sh
+  migrate-down:
+    desc: "Migrate down to a specific version. Usage: task migrate-down -- 20260223180620 (for v1.0.82)"
+    dotenv: [.env]
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task migrate-down -- <version>"
+          echo "Example: task migrate-down -- 20260223180620  # v1.0.82"
+          exit 1
+        fi
+        go run ./cmd/hatchet-migrate --down {{.CLI_ARGS}}
   seed-dev:
     dotenv: [.env]
     cmds:
