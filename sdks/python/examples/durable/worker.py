@@ -322,6 +322,9 @@ async def memo_task_empty_keys(
 
     start = time.time()
     res_2 = await ctx.aio_memo(
+        ## TODO-DURABLE: This lambda is blocking, need to change the
+        ## signature of `aio_memo` to be an async function and a list of args instead of a lambda
+        ## and we can compute the deps internally from the args
         fn=lambda: expensive_computation("this should not have run"),
         deps=[],
         result_validator=SleepResult,
