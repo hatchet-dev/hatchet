@@ -52,6 +52,7 @@ pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
 psycopg = { extras = ["pool"], version = "^3.2.6" }
 pytest-xdist = "^3.7.0"
+pytest-monitor = "^1.6.0"
 requests = "^2.32.5"
 
 
@@ -86,6 +87,7 @@ log_cli = true
 env = ["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
+markers = ["loadtest: load tests (deselect with '-m not loadtest')"]
 
 [tool.black]
 extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"

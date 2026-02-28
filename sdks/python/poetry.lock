@@ -1430,6 +1430,21 @@ files = [
 ]
 
 [[package]]
+name = "memory-profiler"
+version = "0.61.0"
+description = "A module for monitoring memory usage of a python program"
+optional = false
+python-versions = ">=3.5"
+groups = ["test"]
+files = [
+    {file = "memory_profiler-0.61.0-py3-none-any.whl", hash = "sha256:400348e61031e3942ad4d4109d18753b2fb08c2f6fb8290671c5513a34182d84"},
+    {file = "memory_profiler-0.61.0.tar.gz", hash = "sha256:4e5b73d7864a1d1292fb76a03e82a3e78ef934d06828a698d9dada76da2067b0"},
+]
+
+[package.dependencies]
+psutil = "*"
+
+[[package]]
 name = "mergedeep"
 version = "1.3.4"
 description = "A deep merge function for 🐍."
@@ -2239,7 +2254,7 @@ version = "6.1.1"
 description = "Cross-platform lib for process and system monitoring in Python."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7"
-groups = ["lint"]
+groups = ["lint", "test"]
 files = [
     {file = "psutil-6.1.1-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:9ccc4316f24409159897799b83004cb1e24f9819b0dcf9c0b68bdcb6cefee6a8"},
     {file = "psutil-6.1.1-cp27-cp27m-manylinux2010_i686.whl", hash = "sha256:ca9609c77ea3b8481ab005da74ed894035936223422dc591d6772b147421f777"},
@@ -2604,6 +2619,25 @@ tomli = {version = ">=2.2.1", markers = "python_version < \"3.11\""}
 
 [package.extras]
 testing = ["covdefaults (>=2.3)", "coverage (>=7.10.7)", "pytest-mock (>=3.15.1)"]
+
+[[package]]
+name = "pytest-monitor"
+version = "1.6.6"
+description = "Pytest plugin for analyzing resource usage."
+optional = false
+python-versions = ">=3.5"
+groups = ["test"]
+files = [
+    {file = "pytest-monitor-1.6.6.tar.gz", hash = "sha256:b0c44dc44a2d6cdd19f84caa18fafeb1227e2b33bcbd11a2071dacd3763e1b6f"},
+    {file = "pytest_monitor-1.6.6-py3-none-any.whl", hash = "sha256:5be37d14aa423fe97af94bd44e3a47a551bd5d94d64921974580bbaadc1c1c94"},
+]
+
+[package.dependencies]
+memory-profiler = ">=0.58"
+psutil = ">=5.1.0"
+pytest = "*"
+requests = "*"
+wheel = "*"
 
 [[package]]
 name = "pytest-retry"
@@ -3263,6 +3297,24 @@ files = [
 watchmedo = ["PyYAML (>=3.10)"]
 
 [[package]]
+name = "wheel"
+version = "0.46.3"
+description = "Command line tool for manipulating wheel files"
+optional = false
+python-versions = ">=3.9"
+groups = ["test"]
+files = [
+    {file = "wheel-0.46.3-py3-none-any.whl", hash = "sha256:4b399d56c9d9338230118d705d9737a2a468ccca63d5e813e2a4fc7815d8bc4d"},
+    {file = "wheel-0.46.3.tar.gz", hash = "sha256:e3e79874b07d776c40bd6033f8ddf76a7dad46a7b8aa1b2787a83083519a1803"},
+]
+
+[package.dependencies]
+packaging = ">=24.0"
+
+[package.extras]
+test = ["pytest (>=6.0.0)", "setuptools (>=77)"]
+
+[[package]]
 name = "wrapt"
 version = "1.17.3"
 description = "Module for decorators, wrappers and monkey patching."
@@ -3527,4 +3579,4 @@ v0-sdk = []
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "0709f06a9061501aa9add9f63db9ba2bbae68c5351a152ef76f29551ead2bbbd"
+content-hash = "f3392e55d789f53a76463999cb17c4f2719380d317645abf58d7b2bd9541557a"

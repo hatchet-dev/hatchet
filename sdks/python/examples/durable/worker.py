@@ -256,6 +256,12 @@ class ReplayResetResponse(BaseModel):
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=20))
+async def durable_error_task(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+    await ctx.aio_sleep_for(timedelta(seconds=1))
+    raise RuntimeError("Intentional failure for e2e test")
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=20))
 async def durable_replay_reset(
     input: EmptyModel, ctx: DurableContext
 ) -> ReplayResetResponse:
@@ -284,6 +290,7 @@ def main() -> None:
         workflows=[
             durable_workflow,
             ephemeral_workflow,
+            durable_error_task,
             wait_for_sleep_twice,
             spawn_child_task,
             durable_with_spawn,

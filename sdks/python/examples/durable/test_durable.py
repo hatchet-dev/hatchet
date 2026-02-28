@@ -7,6 +7,7 @@ from examples.durable.worker import (
     EVENT_KEY,
     SLEEP_TIME,
     REPLAY_RESET_SLEEP_TIME,
+    durable_error_task,
     durable_sleep_event_spawn,
     durable_with_spawn,
     durable_workflow,
@@ -16,9 +17,12 @@ from examples.durable.worker import (
     durable_replay_reset,
 )
 from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+
+POLL_INTERVAL = 0.2
+MAX_POLLS = 150
 
 
-# TODO-DURABLE: we should add a test suite for API Status correctness
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable(hatchet: Hatchet) -> None:
     ref = durable_workflow.run_no_wait()
@@ -186,3 +190,50 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
 
     sleeps_to_redo = 3 - node_id + 1
     assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_error_handling(hatchet: Hatchet) -> None:
+    ref = durable_error_task.run_no_wait()
+
+    status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+    for _ in range(MAX_POLLS):
+        status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+        if status == V1TaskStatus.FAILED:
+            break
+        await asyncio.sleep(POLL_INTERVAL)
+    else:
+        status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+
+    assert status == V1TaskStatus.FAILED
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_cancel_during_event_wait(hatchet: Hatchet) -> None:
+    ref = durable_sleep_event_spawn.run_no_wait()
+
+    await asyncio.sleep(SLEEP_TIME + 2)
+
+    await hatchet.runs.aio_cancel(ref.workflow_run_id)
+
+    status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+    for _ in range(MAX_POLLS):
+        status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+        if status == V1TaskStatus.CANCELLED:
+            break
+        await asyncio.sleep(POLL_INTERVAL)
+    else:
+        status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+
+    assert status == V1TaskStatus.CANCELLED
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_concurrent_sleeps() -> None:
+    refs = [wait_for_sleep_twice.run_no_wait() for _ in range(10)]
+
+    results = await asyncio.gather(*[ref.aio_result() for ref in refs])
+
+    assert len(results) == 10
+    for r in results:
+        assert r["runtime"] >= SLEEP_TIME
