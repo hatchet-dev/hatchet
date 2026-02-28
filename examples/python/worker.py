@@ -32,6 +32,7 @@ from examples.dependency_injection.worker import (
 )
 from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import (
+    durable_error_task,
     durable_sleep_event_spawn,
     durable_with_spawn,
     durable_workflow,
@@ -42,6 +43,45 @@ from examples.durable.worker import (
     durable_non_determinism,
     durable_replay_reset,
 )
+from examples.durable_complex.concurrency.worker import (
+    durable_concurrency_cancel_in_progress_workflow,
+    durable_concurrency_cancel_newest_workflow,
+    durable_concurrency_workflow,
+)
+from examples.durable_complex.dag.worker import (
+    durable_dag_diamond_workflow,
+    durable_dag_durable_parent_workflow,
+    durable_dag_parent_failure_workflow,
+    durable_dag_workflow,
+)
+from examples.durable_event.worker import (
+    durable_event_task,
+    durable_event_task_filter_mismatch,
+    durable_event_task_with_filter,
+)
+from examples.durable_sleep.worker import durable_sleep_task
+from examples.durable_complex.execution_timeout.worker import (
+    durable_refresh_timeout_workflow,
+    durable_timeout_completes_workflow,
+    durable_timeout_eviction_workflow,
+    durable_timeout_workflow,
+)
+from examples.durable_complex.rate_limit.worker import (
+    durable_rate_limit_dynamic_workflow,
+    durable_rate_limit_workflow,
+)
+from examples.durable_complex.on_failure.worker import (
+    durable_on_failure_details_workflow,
+    durable_on_failure_workflow,
+    durable_on_success_workflow,
+)
+from examples.durable_complex.retries.worker import (
+    durable_retries_backoff_workflow,
+    durable_retries_exhausted_workflow,
+    durable_retries_sleep_workflow,
+    durable_retries_workflow,
+)
+from examples.durable_statuses.worker import status_long_sleep, status_short_sleep
 from examples.durable_eviction.worker import (
     child_task as eviction_child_task,
     evictable_child_spawn,
@@ -120,6 +160,7 @@ def main() -> None:
             webhook_with_static_payload,
             return_exceptions_task,
             exception_parsing_workflow,
+            durable_error_task,
             wait_for_sleep_twice,
             spawn_child_task,
             durable_with_spawn,
@@ -135,12 +176,38 @@ def main() -> None:
             dag_child_workflow,
             durable_non_determinism,
             durable_replay_reset,
+            durable_rate_limit_workflow,
+            durable_rate_limit_dynamic_workflow,
+            durable_concurrency_workflow,
+            durable_concurrency_cancel_in_progress_workflow,
+            durable_concurrency_cancel_newest_workflow,
+            durable_on_failure_workflow,
+            durable_on_success_workflow,
+            durable_on_failure_details_workflow,
+            durable_retries_workflow,
+            durable_retries_exhausted_workflow,
+            durable_retries_backoff_workflow,
+            durable_retries_sleep_workflow,
+            durable_dag_workflow,
+            durable_dag_durable_parent_workflow,
+            durable_dag_diamond_workflow,
+            durable_dag_parent_failure_workflow,
+            durable_timeout_workflow,
+            durable_timeout_completes_workflow,
+            durable_refresh_timeout_workflow,
+            durable_timeout_eviction_workflow,
             evictable_sleep,
             evictable_wait_for_event,
             evictable_child_spawn,
             multiple_eviction,
             non_evictable_sleep,
             eviction_child_task,
+            status_short_sleep,
+            status_long_sleep,
+            durable_event_task,
+            durable_event_task_with_filter,
+            durable_event_task_filter_mismatch,
+            durable_sleep_task,
         ],
         lifespan=lifespan,
     )
