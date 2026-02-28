@@ -390,6 +390,10 @@ class Context:
     def task_name(self) -> str:
         return self._task_name
 
+    @property
+    def worker_id(self) -> str:
+        return self.action.worker_id
+
     def fetch_task_run_error(
         self,
         task: "Task[TWorkflowInput, R]",
