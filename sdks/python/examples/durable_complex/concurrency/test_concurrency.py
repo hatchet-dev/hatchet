@@ -110,7 +110,9 @@ async def test_durable_concurrency_cancel_newest(hatchet: Hatchet) -> None:
 
     try:
         await asyncio.wait_for(
-            asyncio.gather(*[ref.aio_result() for ref in to_cancel], return_exceptions=True),
+            asyncio.gather(
+                *[ref.aio_result() for ref in to_cancel], return_exceptions=True
+            ),
             timeout=10.0,
         )
     except TimeoutError:
