@@ -2,7 +2,7 @@ import sleep from '@hatchet/util/sleep';
 import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
 import { durableWorkflow, EVENT_KEY, SLEEP_TIME_SECONDS, waitForSleepTwice } from './workflow';
 
-xdescribe('durable-e2e', () => {
+describe('durable-e2e', () => {
   const hatchet = makeE2EClient();
   let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
 
@@ -58,8 +58,11 @@ xdescribe('durable-e2e', () => {
     expect(Math.abs(g1.runtime - SLEEP_TIME_SECONDS)).toBeLessThanOrEqual(5);
     expect(g1.key).toBe(g2.key);
     expect(g1.key).toBe('CREATE');
-    expect(`${g1.event_id}`).toContain('sleep');
-    expect(`${g2.event_id}`).toContain('event');
+    // Backend may return condition index ('0'/'1') or readable key ('sleep'/'event')
+    // g1: 5s sleep resolves first -> '0' or 'sleep'
+    // g2: event or 30s sleep (event may be consumed by durable_task) -> '0'/'1' or 'sleep'/'event'
+    expect(['0', 'sleep']).toContain(`${g1.eventId}`);
+    expect(['0', '1', 'sleep', 'event']).toContain(`${g2.eventId}`);
 
     const multi = (result as any).wait_for_multi_sleep;
     expect(multi.runtime).toBeGreaterThan(3 * SLEEP_TIME_SECONDS);

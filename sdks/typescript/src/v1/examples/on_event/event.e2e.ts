@@ -5,7 +5,7 @@ import { SIMPLE_EVENT, lower, Input } from './workflow';
 import { hatchet } from '../hatchet-client';
 import { Worker } from '../../client/worker/worker';
 
-xdescribe('events-e2e', () => {
+describe('events-e2e', () => {
   let worker: Worker;
   let testRunId: string;
 
@@ -26,7 +26,8 @@ xdescribe('events-e2e', () => {
 
   async function setupEventFilter(expression?: string, payload: Record<string, string> = {}) {
     const finalExpression =
-      expression || `input.ShouldSkip == false && payload.testRunId == '${testRunId}'`;
+      expression ||
+      `input.should_skip == false && payload.test_run_id == '${testRunId}'`;
 
     const workflowId = (await hatchet.workflows.get(lower.name)).metadata.id;
 
@@ -34,7 +35,7 @@ xdescribe('events-e2e', () => {
       workflowId,
       expression: finalExpression,
       scope: testRunId,
-      payload: { testRunId, ...payload },
+      payload: { test_run_id: testRunId, ...payload },
     });
 
     return async () => {
@@ -68,9 +69,22 @@ xdescribe('events-e2e', () => {
 
       // For each event, fetch its runs
       const runsPromises = events.map(async (event) => {
-        const runs = await hatchet.runs.list({
+        const runsResp = await hatchet.runs.list({
           triggeringEventExternalId: event.eventId,
         });
+        const rawRuns = runsResp.rows || [];
+
+        // Only consider runs that are in a terminal state (match Python fetch_runs_for_event)
+        const runs =
+          rawRuns.length > 0 &&
+          rawRuns.every(
+            (r) =>
+              r.status === 'COMPLETED' ||
+              r.status === 'FAILED' ||
+              r.status === 'CANCELLED'
+          )
+            ? rawRuns
+            : [];
 
         // Extract metadata from event
         const meta = event.additionalMetadata ? JSON.parse(event.additionalMetadata) : {};
@@ -85,7 +99,7 @@ xdescribe('events-e2e', () => {
             shouldHaveRuns: Boolean(meta.should_have_runs),
             testRunId: meta.test_run_id,
           },
-          runs: runs.rows || [],
+          runs,
         };
       });
 
@@ -122,26 +136,29 @@ xdescribe('events-e2e', () => {
     return eventToRuns;
   }
 
-  // Helper to verify runs match expectations
-  function verifyEventRuns(eventData: any, runs: any[]) {
+  // Helper to verify runs match expectations (filter by hatchet__event_id like Python assert_event_runs_processed)
+  function verifyEventRuns(eventData: any, runs: any[], eventId: string) {
+    const filtered = runs.filter(
+      (r) => (r.additionalMetadata || {})['hatchet__event_id'] === eventId
+    );
     if (eventData.shouldHaveRuns) {
-      expect(runs.length).toBeGreaterThan(0);
+      expect(filtered.length).toBeGreaterThan(0);
     } else {
-      expect(runs.length).toBe(0);
+      expect(filtered.length).toBe(0);
     }
   }
 
-  // Helper to create bulk push event objects
+  // Helper to create bulk push event objects (match Python bpi - snake_case in payload)
   function createBulkPushEvent({
     index = 1,
-    ShouldSkip = false,
+    shouldSkip = false,
     shouldHaveRuns = true,
     key = SIMPLE_EVENT,
     payload = {},
     scope = null,
   }: {
     index?: number;
-    ShouldSkip?: boolean;
+    shouldSkip?: boolean;
     shouldHaveRuns?: boolean;
     key?: string;
     payload?: Record<string, any>;
@@ -150,7 +167,7 @@ xdescribe('events-e2e', () => {
     return {
       key,
       payload: {
-        ShouldSkip,
+        should_skip: shouldSkip,
         Message: `This is event ${index}`,
         ...payload,
       },
@@ -164,9 +181,9 @@ xdescribe('events-e2e', () => {
     };
   }
 
-  // Helper to create payload object
-  function createEventPayload(ShouldSkip: boolean): Input {
-    return { ShouldSkip, Message: 'This is event 1' };
+  // Helper to create payload object (match Python cp - snake_case for filter expression)
+  function createEventPayload(shouldSkip: boolean): Record<string, any> {
+    return { should_skip: shouldSkip, Message: 'This is event 1' };
   }
 
   it('should push an event', async () => {
@@ -214,7 +231,7 @@ xdescribe('events-e2e', () => {
 
   it('should process events according to event engine behavior', async () => {
     const eventPromises = [
-      createBulkPushEvent({}),
+      createBulkPushEvent({ shouldHaveRuns: true }),
       createBulkPushEvent({
         key: 'thisisafakeeventfoobarbaz',
         shouldHaveRuns: false,
@@ -235,7 +252,8 @@ xdescribe('events-e2e', () => {
           {
             shouldHaveRuns: Boolean(meta.should_have_runs),
           },
-          runs
+          runs,
+          eventId
         );
       }
     });
@@ -245,36 +263,36 @@ xdescribe('events-e2e', () => {
     return [
       createBulkPushEvent({
         index: 1,
-        ShouldSkip: false,
-        shouldHaveRuns: true,
+        shouldSkip: false,
+        shouldHaveRuns: false,
       }),
       createBulkPushEvent({
         index: 2,
-        ShouldSkip: true,
-        shouldHaveRuns: true,
+        shouldSkip: true,
+        shouldHaveRuns: false,
       }),
       createBulkPushEvent({
         index: 3,
-        ShouldSkip: false,
+        shouldSkip: false,
         shouldHaveRuns: true,
         scope: testRunId,
       }),
       createBulkPushEvent({
         index: 4,
-        ShouldSkip: true,
+        shouldSkip: true,
         shouldHaveRuns: false,
         scope: testRunId,
       }),
       createBulkPushEvent({
         index: 5,
-        ShouldSkip: true,
+        shouldSkip: true,
         shouldHaveRuns: false,
         scope: testRunId,
         key: 'thisisafakeeventfoobarbaz',
       }),
       createBulkPushEvent({
         index: 6,
-        ShouldSkip: false,
+        shouldSkip: false,
         shouldHaveRuns: false,
         scope: testRunId,
         key: 'thisisafakeeventfoobarbaz',
@@ -311,7 +329,8 @@ xdescribe('events-e2e', () => {
             {
               shouldHaveRuns: Boolean(meta.should_have_runs),
             },
-            runs
+            runs,
+            eventId
           );
         }
       });
@@ -321,14 +340,14 @@ xdescribe('events-e2e', () => {
   }, 30000);
 
   it('should filter events by payload expression not matching', async () => {
-    const cleanup = await setupEventFilter("input.ShouldSkip == false && payload.foobar == 'baz'", {
+    const cleanup = await setupEventFilter("input.should_skip == false && payload.foobar == 'baz'", {
       foobar: 'qux',
     });
 
     try {
       const event = await hatchet.events.push(
         SIMPLE_EVENT,
-        { Message: 'This is event 1', ShouldSkip: false },
+        { Message: 'This is event 1', should_skip: false },
         {
           scope: testRunId,
           additionalMetadata: {
@@ -347,14 +366,14 @@ xdescribe('events-e2e', () => {
   }, 20000);
 
   it('should filter events by payload expression matching', async () => {
-    const cleanup = await setupEventFilter("input.ShouldSkip == false && payload.foobar == 'baz'", {
+    const cleanup = await setupEventFilter("input.should_skip == false && payload.foobar == 'baz'", {
       foobar: 'baz',
     });
 
     try {
       const event = await hatchet.events.push(
         SIMPLE_EVENT,
-        { Message: 'This is event 1', ShouldSkip: false },
+        { Message: 'This is event 1', should_skip: false },
         {
           scope: testRunId,
           additionalMetadata: {
