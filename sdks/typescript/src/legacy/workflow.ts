@@ -39,10 +39,7 @@ export const CreateWorkflowSchema = z.object({
   id: z.string(),
   description: z.string(),
   version: z.string().optional(),
-  /**
-   * sticky will attempt to run all steps for workflow on the same worker
-   */
-  sticky: z.nativeEnum(StickyStrategy).optional(),
+  sticky: z.union([z.nativeEnum(PbStickyStrategy), z.enum(['soft', 'hard'])]).optional(),
   scheduleTimeout: z.string().optional(),
   /**
    * @deprecated Workflow timeout is deprecated. Use step timeouts instead.

@@ -1,9 +1,7 @@
 import { ChannelCredentials } from 'nice-grpc';
 import { z } from 'zod';
+import type { Context } from '@hatchet/v1/client/worker/context';
 import { Logger, LogLevel } from '@util/logger';
-
-// Cancellation timings are specified in integer milliseconds.
-const DurationMsSchema = z.number().int().nonnegative().finite();
 
 const ClientTLSConfigSchema = z.object({
   tls_strategy: z.enum(['tls', 'mtls', 'none']).optional(),
@@ -18,6 +16,15 @@ const HealthcheckConfigSchema = z.object({
   port: z.number().optional().default(8001),
 });
 
+const TaskMiddlewareSchema = z
+  .object({
+    before: z.any().optional(),
+    after: z.any().optional(),
+  })
+  .optional();
+
+const DurationMsSchema = z.number().int().nonnegative().finite();
+
 export const ClientConfigSchema = z.object({
   token: z.string(),
   tls_config: ClientTLSConfigSchema,
@@ -27,25 +34,90 @@ export const ClientConfigSchema = z.object({
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
   tenant_id: z.string(),
   namespace: z.string().optional(),
+  middleware: TaskMiddlewareSchema,
   cancellation_grace_period: DurationMsSchema.optional().default(1000),
   cancellation_warning_threshold: DurationMsSchema.optional().default(300),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
 
-type ClientConfigInferred = z.infer<typeof ClientConfigSchema>;
+/**
+ * A middleware function that runs before every task invocation.
+ * Returns extra fields to replace the task input, or void to skip.
+ * @template T - The expected input type for the hook.
+ * @param input - The current task input.
+ * @param ctx - The task execution context.
+ * @returns The new input value, or void to pass through unchanged.
+ */
+export type BeforeHookFn<T = any> = (
+  input: T,
+  ctx: Context<any>
+) => Record<string, any> | void | Promise<Record<string, any> | void>;
 
-// Backwards-compatible: allow callers to omit these (schema supplies defaults when parsed).
-type ClientConfigCancellationCompat = {
-  cancellation_grace_period?: ClientConfigInferred['cancellation_grace_period'];
-  cancellation_warning_threshold?: ClientConfigInferred['cancellation_warning_threshold'];
+/**
+ * A middleware function that runs after every task invocation.
+ * Returns extra fields to replace the task output, or void to skip.
+ * @param output - The task output.
+ * @param ctx - The task execution context.
+ * @param input - The task input (after before-hooks have run).
+ * @returns The new output value, or void to pass through unchanged.
+ */
+export type AfterHookFn<TOutput = any, TInput = any> = (
+  output: TOutput,
+  ctx: Context<any>,
+  input: TInput
+) => Record<string, any> | void | Promise<Record<string, any> | void>;
+
+/**
+ * Middleware hooks that run before/after every task invocation.
+ *
+ * Each hook can be a single function or an array of functions.
+ * When an array is provided the functions run in order and each
+ * result replaces the value (input for `before`, output for `after`).
+ *
+ * Return `void` (or `undefined`) from a hook to pass through unchanged.
+ */
+export type TaskMiddleware<TInput = any, TOutput = any> = {
+  before?: BeforeHookFn<TInput> | readonly BeforeHookFn<TInput>[];
+  after?: AfterHookFn<TOutput, TInput> | readonly AfterHookFn<TOutput, TInput>[];
 };
+
+type NonVoidReturn<F> = F extends (...args: any[]) => infer R
+  ? Exclude<Awaited<R>, void | undefined>
+  : {};
+
+type MergeReturns<T> = T extends readonly [infer F, ...infer Rest]
+  ? NonVoidReturn<F> & MergeReturns<Rest>
+  : {};
+
+export type InferMiddlewareBefore<M> = M extends { before: infer P }
+  ? P extends (...args: any[]) => any
+    ? NonVoidReturn<P>
+    : P extends readonly any[]
+      ? MergeReturns<P>
+      : {}
+  : {};
+
+export type InferMiddlewareAfter<M> = M extends { after: infer P }
+  ? P extends (...args: any[]) => any
+    ? NonVoidReturn<P>
+    : P extends readonly any[]
+      ? MergeReturns<P>
+      : {}
+  : {};
+
+type ClientConfigInferred = z.infer<typeof ClientConfigSchema>;
 
 export type ClientConfig = Omit<
   ClientConfigInferred,
   'cancellation_grace_period' | 'cancellation_warning_threshold'
-> &
-  ClientConfigCancellationCompat & {
-    credentials?: ChannelCredentials;
-  } & { logger: LogConstructor };
+> & {
+  cancellation_grace_period?: number;
+  cancellation_warning_threshold?: number;
+} & {
+  credentials?: ChannelCredentials;
+} & {
+  logger: LogConstructor;
+  middleware?: TaskMiddleware;
+};
 export type ClientTLSConfig = z.infer<typeof ClientTLSConfigSchema>;

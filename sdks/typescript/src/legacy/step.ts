@@ -83,7 +83,7 @@ interface ContextData<T, K> {
   step_run_errors: Record<string, string>;
 }
 
-export class ContextWorker {
+export class V0ContextWorker {
   private worker: V1Worker;
   constructor(worker: V1Worker) {
     this.worker = worker;
@@ -135,7 +135,7 @@ export class V0Context<T, K = {}> {
   action: Action;
   v0: LegacyHatchetClient;
 
-  worker: ContextWorker;
+  worker: V0ContextWorker;
 
   overridesData: Record<string, any> = {};
   logger: Logger;
@@ -148,7 +148,7 @@ export class V0Context<T, K = {}> {
       this.data = data;
       this.action = action;
       this.v0 = client;
-      this.worker = new ContextWorker(worker);
+      this.worker = new V0ContextWorker(worker);
       this.logger = client.config.logger(`Context Logger`, client.config.log_level);
 
       // if this is a getGroupKeyRunId, the data is the workflow input

@@ -7,13 +7,13 @@
  */
 
 /* eslint-disable no-underscore-dangle */
-import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { Status } from 'nice-grpc';
 import { BaseWorkflowDeclaration } from '../../../declaration';
 import { HatchetClient } from '../../..';
 import { CreateWorkerOpts } from '../worker';
 import { LegacyV1Worker } from './legacy-v1-worker';
 import { emitDeprecationNotice, semverLessThan } from './deprecation';
+import { transformLegacyWorkflow } from '../../../../legacy/legacy-transformer';
 
 const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
@@ -131,7 +131,7 @@ export class LegacyDualWorker {
         }
       } else {
         // fallback to v0 client for backwards compatibility
-        await nonDurable.registerWorkflow(wf as V0Workflow);
+        await nonDurable.registerWorkflowV1(transformLegacyWorkflow(wf));
       }
     }
 

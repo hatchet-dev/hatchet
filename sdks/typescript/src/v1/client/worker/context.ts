@@ -21,8 +21,10 @@ import { HatchetClient } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
+// TODO remove this once we have a proper next step type
 
 type TriggerData = Record<string, Record<string, any>>;
 
@@ -291,6 +293,15 @@ export class Context<T, K = {}> {
    */
   taskRunExternalId(): string {
     return this.action.taskRunExternalId;
+  }
+
+  /**
+   * Gets the ID of the current task run.
+   * @returns The task run ID.
+   * @deprecated use taskRunExternalId() instead
+   */
+  taskRunId(): string {
+    return this.taskRunExternalId();
   }
 
   /**
@@ -610,6 +621,42 @@ export class Context<T, K = {}> {
       default:
         return undefined;
     }
+  }
+  // FIXME: drop these at some point soon
+
+  /**
+   * Get the output of a task.
+   * @param task - The name of the task to get the output for.
+   * @returns The output of the task.
+   * @throws An error if the task output is not found.
+   * @deprecated use ctx.parentOutput instead
+   */
+  stepOutput<L = NextStep>(step: string): L {
+    if (!this.data.parents) {
+      throw new HatchetError('Parent task outputs not found');
+    }
+    if (!this.data.parents[step]) {
+      throw new HatchetError(`Output for parent task '${step}' not found`);
+    }
+    return this.data.parents[step];
+  }
+
+  /**
+   * Gets the input data for the current workflow.
+   * @returns The input data for the workflow.
+   * @deprecated use task input parameter instead
+   */
+  workflowInput(): T {
+    return this.input;
+  }
+
+  /**
+   * Gets the name of the current task.
+   * @returns The name of the task.
+   * @deprecated use ctx.taskName instead
+   */
+  stepName(): string {
+    return this.taskName();
   }
 
   /**

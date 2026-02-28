@@ -73,12 +73,7 @@ export function transformLegacyWorkflow(workflow: Workflow): WorkflowDeclaration
     description: workflow.description,
     version: workflow.version,
     sticky: workflow.sticky != null ? (workflow.sticky as any) : undefined,
-    on: workflow.on
-      ? {
-          cron: workflow.on.cron,
-          event: workflow.on.event,
-        }
-      : undefined,
+    on: workflow.on ? (workflow.on as CreateWorkflowOpts['on']) : undefined,
     concurrency,
     taskDefaults: {
       executionTimeout: workflow.timeout as Duration | undefined,

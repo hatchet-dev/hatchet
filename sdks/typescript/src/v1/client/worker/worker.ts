@@ -7,6 +7,7 @@ import { normalizeWorkflows } from '../../../legacy/legacy-transformer';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
 import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
+import { isLegacyEngine, LegacyDualWorker } from './deprecated';
 
 /**
  * Options for creating a new hatchet worker
@@ -28,7 +29,14 @@ export class Worker {
   _v1: HatchetClient;
   _v0: LegacyHatchetClient;
 
+  /** Internal reference to the underlying V0 worker implementation */
   _internal: V1Worker;
+
+  /** Set when connected to a legacy engine that needs dual-worker architecture */
+  private _legacyWorker: LegacyDualWorker | undefined;
+
+  /** Tracks all workflows registered after construction (via registerWorkflow/registerWorkflows) */
+  private _registeredWorkflows: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow> = [];
 
   /**
    * Creates a new HatchetWorker instance
@@ -112,7 +120,20 @@ export class Worker {
    * Starts the worker
    * @returns Promise that resolves when the worker is stopped or killed
    */
-  start() {
+  async start() {
+    // Check engine version and fall back to legacy dual-worker mode if needed
+    if (await isLegacyEngine(this._v1)) {
+      // Include workflows registered after construction (via registerWorkflow/registerWorkflows)
+      // so the legacy worker picks them up.
+      const legacyConfig: CreateWorkerOpts = {
+        ...this.config,
+        workflows: this._registeredWorkflows.length
+          ? (this._registeredWorkflows as BaseWorkflowDeclaration<any, any>[])
+          : this.config.workflows,
+      };
+      this._legacyWorker = await LegacyDualWorker.create(this._v1, this.name, legacyConfig);
+      return this._legacyWorker.start();
+    }
     return this._internal.start();
   }
 
@@ -121,6 +142,9 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
+    if (this._legacyWorker) {
+      return this._legacyWorker.stop();
+    }
     return this._internal.stop();
   }
 

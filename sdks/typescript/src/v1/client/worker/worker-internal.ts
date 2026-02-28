@@ -36,7 +36,7 @@ import { throwIfAborted } from '@hatchet/util/abort-error';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
-import { SlotConfig, SlotType } from '../../slot-types';
+import { SlotConfig } from '../../slot-types';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -131,14 +131,11 @@ export class V1Worker {
     );
   }
 
-  // TODO where is this used, this doesnt make much sense
   private getAvailableSlots(): number {
-    const baseSlots = this.slotConfig[SlotType.Default] ?? this.slots ?? 0;
-    if (!baseSlots) {
-      return 0;
-    }
+    // sum all the slots in the slot config
+    const totalSlots = Object.values(this.slotConfig).reduce((acc, curr) => acc + curr, 0);
     const currentRuns = Object.keys(this.futures).length;
-    return Math.max(0, baseSlots - currentRuns);
+    return Math.max(0, totalSlots - currentRuns);
   }
 
   private getRegisteredActions(): string[] {
@@ -373,7 +370,11 @@ export class V1Worker {
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
-          timeout: task.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
+          timeout:
+            task.executionTimeout ||
+            task.timeout ||
+            workflow.taskDefaults?.executionTimeout ||
+            '60s',
           scheduleTimeout: task.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
           inputs: '{}',
           parents: task.parents?.map((p) => p.name) ?? [],
@@ -434,7 +435,23 @@ export class V1Worker {
       }
 
       const run = async () => {
-        return parentRunContextManager.runWithContext(
+        const { middleware } = this.client.config;
+
+        if (middleware?.before) {
+          const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];
+          for (const hook of hooks) {
+            const extra = await hook(context.input, context as any);
+            if (extra !== undefined) {
+              const merged = { ...(context.input as any), ...extra };
+              (context as any).input = merged;
+              if ((context as any).data && typeof (context as any).data === 'object') {
+                (context as any).data.input = merged;
+              }
+            }
+          }
+        }
+
+        let result: any = await parentRunContextManager.runWithContext(
           {
             parentId: action.workflowRunId,
             parentTaskRunExternalId: taskRunExternalId,
@@ -448,6 +465,18 @@ export class V1Worker {
             return step(context);
           }
         );
+
+        if (middleware?.after) {
+          const hooks = Array.isArray(middleware.after) ? middleware.after : [middleware.after];
+          for (const hook of hooks) {
+            const extra = await hook(result, context as any, context.input);
+            if (extra !== undefined) {
+              result = { ...result, ...extra };
+            }
+          }
+        }
+
+        return result;
       };
 
       const success = async (result: any) => {
@@ -837,6 +866,20 @@ export class V1Worker {
     }
   }
 
+  /**
+   * Creates an action listener by registering the worker with the dispatcher.
+   * Override in subclasses to change registration behavior (e.g. legacy engines).
+   */
+  protected async createListener(): Promise<ActionListener> {
+    return this.client._v0.dispatcher.getActionListener({
+      workerName: this.name,
+      services: ['default'],
+      actions: Object.keys(this.action_registry),
+      slotConfig: this.slotConfig,
+      labels: this.labels,
+    });
+  }
+
   async start() {
     this.setStatus(workerStatus.STARTING);
 
@@ -858,13 +901,7 @@ export class V1Worker {
     }
 
     try {
-      this.listener = await this.client._v0.dispatcher.getActionListener({
-        workerName: this.name,
-        services: ['default'],
-        actions: Object.keys(this.action_registry),
-        slotConfig: this.slotConfig,
-        labels: this.labels,
-      });
+      this.listener = await this.createListener();
 
       this.workerId = this.listener.workerId;
       this.setStatus(workerStatus.HEALTHY);

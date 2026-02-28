@@ -39,6 +39,11 @@ export type Concurrency = {
   limitStrategy?: ConcurrencyLimitStrategy;
 };
 
+/**
+ * @deprecated use Concurrency instead
+ */
+export type TaskConcurrency = Concurrency;
+
 export class NonRetryableError extends Error {
   constructor(message?: string) {
     super(message);
@@ -84,7 +89,7 @@ export type CreateBaseTaskOpts<
   fn?: C;
 
   /**
-   * @deparecated use executionTimeout instead
+   * @deprecated use executionTimeout instead
    */
   timeout?: Duration;
 
