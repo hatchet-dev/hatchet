@@ -11,6 +11,7 @@ from examples.durable_complex.concurrency.worker import (
     ConcurrencyInput,
     durable_concurrency_cancel_in_progress_workflow,
     durable_concurrency_cancel_newest_workflow,
+    durable_concurrency_slot_retention_workflow,
     durable_concurrency_workflow,
 )
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
@@ -128,3 +129,67 @@ async def test_durable_concurrency_cancel_newest(hatchet: Hatchet) -> None:
         for r in runs
         if r.metadata.id != to_run.workflow_run_id
     )
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_concurrency_eviction_holds_slot(hatchet: Hatchet) -> None:
+    """Evicted runs must NOT release their concurrency slot.
+
+    With max_runs=1 GROUP_ROUND_ROBIN, start 3 runs for the same group. Tasks
+    use durable sleep and get evicted mid-execution. Poll to verify that at no
+    point more than max_runs are concurrently RUNNING—proving that evicted runs
+    still occupy their concurrency slot.
+    """
+    max_runs = 1
+    num_runs = 3
+    test_run_id = str(uuid4())
+    refs: list[WorkflowRunRef] = []
+
+    for i in range(num_runs):
+        ref = await durable_concurrency_slot_retention_workflow.aio_run_no_wait(
+            ConcurrencyInput(group="A"),
+            options=TriggerWorkflowOptions(
+                additional_metadata={"test_run_id": test_run_id, "i": str(i)},
+            ),
+        )
+        refs.append(ref)
+        await asyncio.sleep(0.3)
+
+    max_observed_running = 0
+    saw_evicted = False
+
+    for _ in range(120):
+        await asyncio.sleep(1)
+        runs = hatchet.runs.list(
+            additional_metadata={"test_run_id": test_run_id}
+        ).rows
+        running_count = sum(1 for r in runs if r.status == V1TaskStatus.RUNNING)
+        max_observed_running = max(max_observed_running, running_count)
+
+        if any(r.status == V1TaskStatus.EVICTED for r in runs):
+            saw_evicted = True
+
+        if len(runs) == num_runs and all(
+            r.status
+            in (V1TaskStatus.COMPLETED, V1TaskStatus.FAILED, V1TaskStatus.CANCELLED)
+            for r in runs
+        ):
+            break
+    else:
+        pytest.fail("Not all runs completed within timeout")
+
+    assert saw_evicted, (
+        "No runs were observed in EVICTED status — "
+        "test cannot verify slot retention during eviction"
+    )
+
+    assert max_observed_running <= max_runs, (
+        f"Observed {max_observed_running} concurrent RUNNING runs, "
+        f"expected at most {max_runs} — evicted runs released their concurrency slot"
+    )
+
+    final_runs = hatchet.runs.list(
+        additional_metadata={"test_run_id": test_run_id}
+    ).rows
+    assert len(final_runs) == num_runs
+    assert all(r.status == V1TaskStatus.COMPLETED for r in final_runs)
