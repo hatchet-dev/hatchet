@@ -67,6 +67,13 @@ export type RunOpts = {
    * only used if spawned from within a parent task.
    */
   childKey?: string;
+
+  /**
+   * (optional) when running multiple workflows (array input), if true, return
+   * exceptions in the result array instead of throwing. Successes are outputs,
+   * failures are Error instances.
+   */
+  returnExceptions?: boolean;
 };
 
 /**
@@ -449,6 +456,15 @@ export class BaseWorkflowDeclaration<
 
     if (Array.isArray(input)) {
       const refs = await this.runNoWait(input, options, _standaloneTaskName);
+      if (options?.returnExceptions) {
+        const settled = await Promise.allSettled(refs.map((ref) => ref.result()));
+        return settled.map((s) => {
+          if (s.status === 'fulfilled') return s.value;
+          const { reason } = s;
+          if (reason instanceof Error) return reason;
+          return new Error(Array.isArray(reason) ? reason.join('; ') : String(reason));
+        }) as O[];
+      }
       return Promise.all(refs.map((ref) => ref.result()));
     }
 

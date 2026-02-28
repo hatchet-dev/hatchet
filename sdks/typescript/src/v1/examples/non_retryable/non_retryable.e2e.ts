@@ -37,7 +37,8 @@ describe('non-retryable-e2e', () => {
         timeoutMs: 60_000,
         intervalMs: 500,
         label: 'nonRetryableWorkflow terminal',
-        shouldStop: (d) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any),
+        shouldStop: (d) =>
+          ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any),
       }
     );
 

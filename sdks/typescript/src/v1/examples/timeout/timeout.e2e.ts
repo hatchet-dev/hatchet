@@ -38,7 +38,8 @@ describe('timeout-e2e', () => {
         timeoutMs: 60_000,
         intervalMs: 500,
         label: 'timeoutTask terminal status',
-        shouldStop: (r) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(r.run.status as any),
+        shouldStop: (r) =>
+          ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(r.run.status as any),
       }
     );
 

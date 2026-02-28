@@ -1,7 +1,7 @@
 import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
 import { Event } from '@hatchet/protoc/events';
-import { SIMPLE_EVENT, lower, Input } from './workflow';
+import { SIMPLE_EVENT, lower } from './workflow';
 import { hatchet } from '../hatchet-client';
 import { Worker } from '../../client/worker/worker';
 
@@ -26,8 +26,7 @@ describe('events-e2e', () => {
 
   async function setupEventFilter(expression?: string, payload: Record<string, string> = {}) {
     const finalExpression =
-      expression ||
-      `input.should_skip == false && payload.test_run_id == '${testRunId}'`;
+      expression || `input.should_skip == false && payload.test_run_id == '${testRunId}'`;
 
     const workflowId = (await hatchet.workflows.get(lower.name)).metadata.id;
 
@@ -78,10 +77,7 @@ describe('events-e2e', () => {
         const runs =
           rawRuns.length > 0 &&
           rawRuns.every(
-            (r) =>
-              r.status === 'COMPLETED' ||
-              r.status === 'FAILED' ||
-              r.status === 'CANCELLED'
+            (r) => r.status === 'COMPLETED' || r.status === 'FAILED' || r.status === 'CANCELLED'
           )
             ? rawRuns
             : [];
@@ -138,9 +134,7 @@ describe('events-e2e', () => {
 
   // Helper to verify runs match expectations (filter by hatchet__event_id like Python assert_event_runs_processed)
   function verifyEventRuns(eventData: any, runs: any[], eventId: string) {
-    const filtered = runs.filter(
-      (r) => (r.additionalMetadata || {})['hatchet__event_id'] === eventId
-    );
+    const filtered = runs.filter((r) => (r.additionalMetadata || {}).hatchet__event_id === eventId);
     if (eventData.shouldHaveRuns) {
       expect(filtered.length).toBeGreaterThan(0);
     } else {
@@ -340,9 +334,12 @@ describe('events-e2e', () => {
   }, 30000);
 
   it('should filter events by payload expression not matching', async () => {
-    const cleanup = await setupEventFilter("input.should_skip == false && payload.foobar == 'baz'", {
-      foobar: 'qux',
-    });
+    const cleanup = await setupEventFilter(
+      "input.should_skip == false && payload.foobar == 'baz'",
+      {
+        foobar: 'qux',
+      }
+    );
 
     try {
       const event = await hatchet.events.push(
@@ -366,9 +363,12 @@ describe('events-e2e', () => {
   }, 20000);
 
   it('should filter events by payload expression matching', async () => {
-    const cleanup = await setupEventFilter("input.should_skip == false && payload.foobar == 'baz'", {
-      foobar: 'baz',
-    });
+    const cleanup = await setupEventFilter(
+      "input.should_skip == false && payload.foobar == 'baz'",
+      {
+        foobar: 'baz',
+      }
+    );
 
     try {
       const event = await hatchet.events.push(

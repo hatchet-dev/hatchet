@@ -5,10 +5,7 @@ import { Api } from './generated/Api';
 
 function getDefaultAxiosOpts(serverUrl: string): AxiosRequestConfig {
   const opts: AxiosRequestConfig = {};
-  if (
-    serverUrl.startsWith('https://') &&
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
-  ) {
+  if (serverUrl.startsWith('https://') && process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
     opts.httpsAgent = new https.Agent({ rejectUnauthorized: false });
   }
   return opts;
