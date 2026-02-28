@@ -16,4 +16,3 @@ if (require.main === module) {
     .catch(console.error)
     .finally(() => process.exit(0));
 }
-

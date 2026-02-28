@@ -32,4 +32,3 @@ export const bulkReplayTest3 = hatchet.task({
     }
   },
 });
-

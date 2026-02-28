@@ -1,5 +1,5 @@
-import { hatchet } from '../hatchet-client';
 import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
+import { hatchet } from '../hatchet-client';
 
 export const EVENT_KEY = 'durable-example:event';
 export const SLEEP_TIME_SECONDS = 5;
@@ -33,7 +33,7 @@ durableWorkflow.durableTask({
   },
 });
 
-function extractKeyAndEventId(waitResult: unknown): { key: string; event_id: string } {
+function extractKeyAndEventId(waitResult: unknown): { key: string; eventId: string } {
   // DurableContext.waitFor currently returns the CREATE payload directly.
   // The shape is typically `{ [readableDataKey]: { [eventId]: ... } }`.
   const obj = waitResult as any;
@@ -43,15 +43,15 @@ function extractKeyAndEventId(waitResult: unknown): { key: string; event_id: str
     if (inner && typeof inner === 'object') {
       const eventId = Object.keys(inner)[0];
       if (eventId) {
-        return { key: 'CREATE', event_id: eventId };
+        return { key: 'CREATE', eventId };
       }
     }
     if (key) {
-      return { key: 'CREATE', event_id: key };
+      return { key: 'CREATE', eventId: key };
     }
   }
 
-  return { key: 'CREATE', event_id: '' };
+  return { key: 'CREATE', eventId: '' };
 }
 
 durableWorkflow.durableTask({
@@ -62,11 +62,11 @@ durableWorkflow.durableTask({
     const waitResult = await ctx.waitFor(
       Or(new SleepCondition(SLEEP_TIME, 'sleep'), new UserEventCondition(EVENT_KEY, '', 'event'))
     );
-    const { key, event_id } = extractKeyAndEventId(waitResult);
+    const { key, eventId } = extractKeyAndEventId(waitResult);
     return {
       runtime: Math.round((Date.now() - start) / 1000),
       key,
-      event_id,
+      eventId,
     };
   },
 });
@@ -82,11 +82,11 @@ durableWorkflow.durableTask({
         new UserEventCondition(EVENT_KEY, '', 'event')
       )
     );
-    const { key, event_id } = extractKeyAndEventId(waitResult);
+    const { key, eventId } = extractKeyAndEventId(waitResult);
     return {
       runtime: Math.round((Date.now() - start) / 1000),
       key,
-      event_id,
+      eventId,
     };
   },
 });
@@ -119,4 +119,3 @@ export const waitForSleepTwice = hatchet.durableTask({
     }
   },
 });
-

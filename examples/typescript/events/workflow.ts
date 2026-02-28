@@ -76,4 +76,3 @@ lowerWithFilter.task({
     console.log(ctx.filterPayload());
   },
 });
-

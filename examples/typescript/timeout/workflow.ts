@@ -43,4 +43,3 @@ export const refreshTimeoutTask = hatchet.task({
     };
   },
 });
-

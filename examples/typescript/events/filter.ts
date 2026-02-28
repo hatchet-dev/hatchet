@@ -36,4 +36,3 @@ hatchet.events.push(
     scope: 'foobarbaz',
   }
 );
-
