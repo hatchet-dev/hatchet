@@ -11,6 +11,11 @@ import {
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
+import {
+  AdminServiceClient,
+  AdminServiceDefinition,
+  CreateWorkflowVersionRequest,
+} from '@hatchet/protoc/v1/workflows';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
@@ -41,6 +46,7 @@ export type WorkflowRun<T = object> = {
 export class AdminClient {
   config: ClientConfig;
   grpc: WorkflowServiceClient;
+  v1Grpc: AdminServiceClient;
   listenerClient: RunListenerClient;
   runs: RunsClient;
   logger: Logger;
@@ -51,8 +57,21 @@ export class AdminClient {
 
     const { client, channel, factory } = createGrpcClient(config, WorkflowServiceDefinition);
     this.grpc = client;
+    this.v1Grpc = factory.create(AdminServiceDefinition, channel);
     this.listenerClient = new RunListenerClient(config, channel, factory, api);
     this.runs = runs;
+  }
+
+  /**
+   * Creates a new workflow or updates an existing workflow via the v1 admin service.
+   * @param workflow a workflow definition to create
+   */
+  async putWorkflowV1(workflow: CreateWorkflowVersionRequest) {
+    try {
+      return await retrier(async () => this.v1Grpc.putWorkflow(workflow), this.logger);
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
   }
 
   /**

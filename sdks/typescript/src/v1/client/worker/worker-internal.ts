@@ -356,7 +356,7 @@ export class V1Worker {
         }
       }
 
-      const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
+      const registeredWorkflow = this.client.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
         version: workflow.version || '',
@@ -495,7 +495,7 @@ export class V1Worker {
             result || null,
             action.retryCount
           );
-          await this.client._v0.dispatcher.sendStepActionEvent(event);
+          await this.client.dispatcher.sendStepActionEvent(event);
         } catch (actionEventError: any) {
           this.logger.error(
             `Could not send completed action event: ${actionEventError.message || actionEventError}`
@@ -511,7 +511,7 @@ export class V1Worker {
           );
 
           try {
-            await this.client._v0.dispatcher.sendStepActionEvent(failureEvent);
+            await this.client.dispatcher.sendStepActionEvent(failureEvent);
           } catch (failureEventError: any) {
             this.logger.error(
               `Could not send failed action event: ${failureEventError.message || failureEventError}`
@@ -553,7 +553,7 @@ export class V1Worker {
             },
             action.retryCount
           );
-          await this.client._v0.dispatcher.sendStepActionEvent(event);
+          await this.client.dispatcher.sendStepActionEvent(event);
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
@@ -598,7 +598,7 @@ export class V1Worker {
         undefined,
         action.retryCount
       );
-      this.client._v0.dispatcher.sendStepActionEvent(event).catch((e) => {
+      this.client.dispatcher.sendStepActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
       });
 
@@ -662,7 +662,7 @@ export class V1Worker {
             GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED,
             result
           );
-          this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
         } catch (e: any) {
@@ -684,7 +684,7 @@ export class V1Worker {
             GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED,
             error
           );
-          this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
         } catch (e: any) {
@@ -704,7 +704,7 @@ export class V1Worker {
         action,
         GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED
       );
-      this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+      this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
       });
 
@@ -871,7 +871,7 @@ export class V1Worker {
    * Override in subclasses to change registration behavior (e.g. legacy engines).
    */
   protected async createListener(): Promise<ActionListener> {
-    return this.client._v0.dispatcher.getActionListener({
+    return this.client.dispatcher.getActionListener({
       workerName: this.name,
       services: ['default'],
       actions: Object.keys(this.action_registry),
@@ -951,7 +951,7 @@ export class V1Worker {
       return this.labels;
     }
 
-    this.client._v0.dispatcher.upsertWorkerLabels(this.workerId, labels);
+    this.client.dispatcher.upsertWorkerLabels(this.workerId, labels);
 
     return this.labels;
   }

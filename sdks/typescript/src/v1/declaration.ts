@@ -724,7 +724,7 @@ export class WorkflowDeclaration<
     }
 
     if (this.definition.onFailure) {
-      this.client?._v0.logger.warn(`onFailure task will override existing onFailure task`);
+      this.client?.logger.warn(`onFailure task will override existing onFailure task`);
     }
 
     this.definition.onFailure = typedOptions;
@@ -759,7 +759,7 @@ export class WorkflowDeclaration<
     }
 
     if (this.definition.onSuccess) {
-      this.client?._v0.logger.warn(`onSuccess task will override existing onSuccess task`);
+      this.client?.logger.warn(`onSuccess task will override existing onSuccess task`);
     }
 
     this.definition.onSuccess = typedOptions;

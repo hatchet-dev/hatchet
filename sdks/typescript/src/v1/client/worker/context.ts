@@ -400,7 +400,7 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.v1._v0.dispatcher.refreshTimeout(incrementBy, taskRunExternalId);
+    await this.v1.dispatcher.refreshTimeout(incrementBy, taskRunExternalId);
   }
 
   /**
@@ -409,7 +409,7 @@ export class Context<T, K = {}> {
    * @returns A promise that resolves when the slot has been released.
    */
   async releaseSlot(): Promise<void> {
-    await this.v1._v0.dispatcher.client.releaseSlot({
+    await this.v1.dispatcher.client.releaseSlot({
       taskRunExternalId: this.action.taskRunExternalId,
     });
   }
@@ -430,7 +430,7 @@ export class Context<T, K = {}> {
 
     const index = this._incrementStreamIndex();
 
-    await this.v1._v0.event.putStream(taskRunExternalId, data, index);
+    await this.v1.events.putStream(taskRunExternalId, data, index);
   }
 
   private spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
@@ -722,7 +722,7 @@ export class Context<T, K = {}> {
       let resp: WorkflowRunRef<P>[] = [];
       for (let i = 0; i < workflowRuns.length; i += batchSize) {
         const batch = workflowRuns.slice(i, i + batchSize);
-        const batchResp = await this.v1._v0.admin.runWorkflows<Q, P>(batch);
+        const batchResp = await this.v1.admin.runWorkflows<Q, P>(batch);
         resp = resp.concat(batchResp);
       }
 
@@ -779,7 +779,7 @@ export class Context<T, K = {}> {
     }
 
     try {
-      const resp = await this.v1._v0.admin.runWorkflow<Q, P>(name, input, {
+      const resp = await this.v1.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
         parentTaskRunExternalId: taskRunExternalId,
         childIndex: this.spawnIndex,
@@ -832,13 +832,13 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
-    await this.v1._v0.durableListener.registerDurableEvent({
+    await this.v1.durableListener.registerDurableEvent({
       taskId: this.action.taskRunExternalId,
       signalKey: key,
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
-    const event = await this.v1._v0.durableListener.result(
+    const event = await this.v1.durableListener.result(
       {
         taskId: this.action.taskRunExternalId,
         signalKey: key,

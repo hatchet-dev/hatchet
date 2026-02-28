@@ -9,11 +9,11 @@ import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { RunsClient } from '@hatchet/v1';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
-import { ClientConfig, ClientConfigSchema } from './client-config';
-import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
-import { Api } from '../rest/generated/Api';
-import api from '../rest';
-import { DurableListenerClient } from '../listeners/durable-listener/durable-listener-client';
+import { ClientConfig, ClientConfigSchema } from '@hatchet/clients/hatchet-client/client-config';
+import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
+import { Api } from '@hatchet/clients/rest/generated/Api';
+import api from '@hatchet/clients/rest';
+import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 
 export interface HatchetClientOptions {
   config_path?: string;
@@ -41,7 +41,11 @@ export class LegacyHatchetClient {
     options?: HatchetClientOptions,
     axiosOpts?: AxiosRequestConfig,
     runs?: RunsClient,
-    listener?: RunListenerClient
+    listener?: RunListenerClient,
+    event?: EventClient,
+    dispatcher?: DispatcherClient,
+    logger?: Logger,
+    durableListener?: DurableListenerClient
   ) {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
@@ -79,17 +83,21 @@ export class LegacyHatchetClient {
 
     this.tenantId = this.config.tenant_id;
     this.api = api(this.config.api_url, this.config.token, axiosOpts);
-    this.event = new EventClient(
-      this.config,
-      channelFactory(this.config, this.credentials),
-      clientFactory,
-      this
-    );
-    this.dispatcher = new DispatcherClient(
-      this.config,
-      channelFactory(this.config, this.credentials),
-      clientFactory
-    );
+    this.event =
+      event ||
+      new EventClient(
+        this.config,
+        channelFactory(this.config, this.credentials),
+        clientFactory,
+        this.api
+      );
+    this.dispatcher =
+      dispatcher ||
+      new DispatcherClient(
+        this.config,
+        channelFactory(this.config, this.credentials),
+        clientFactory
+      );
     this.listener =
       listener ||
       new RunListenerClient(
@@ -109,14 +117,16 @@ export class LegacyHatchetClient {
       this.runs
     );
 
-    this.durableListener = new DurableListenerClient(
-      this.config,
-      channelFactory(this.config, this.credentials),
-      clientFactory,
-      this.api
-    );
+    this.durableListener =
+      durableListener ||
+      new DurableListenerClient(
+        this.config,
+        channelFactory(this.config, this.credentials),
+        clientFactory,
+        this.api
+      );
 
-    this.logger = this.config.logger('HatchetClient', this.config.log_level);
+    this.logger = logger || this.config.logger('HatchetClient', this.config.log_level);
     this.logger.debug(`Initialized HatchetClient`);
   }
 

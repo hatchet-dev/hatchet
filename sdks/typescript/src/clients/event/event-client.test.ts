@@ -1,8 +1,8 @@
 import HatchetError from '@util/errors/hatchet-error';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { EventClient } from './event-client';
-import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
-import { LegacyHatchetClient } from '../hatchet-client';
+import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
+import { HatchetClient } from '@hatchet/v1';
 
 let client: EventClient;
 
@@ -25,7 +25,7 @@ describe('EventClient', () => {
       },
       mockChannel,
       mockFactory,
-      new LegacyHatchetClient()
+      new HatchetClient().api
     );
 
     expect(x).toBeDefined();
@@ -49,7 +49,7 @@ describe('EventClient', () => {
       },
       mockChannel,
       mockFactory,
-      new LegacyHatchetClient()
+      new HatchetClient().api
     );
   });
 

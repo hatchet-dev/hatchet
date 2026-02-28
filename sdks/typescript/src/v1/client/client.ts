@@ -15,10 +15,13 @@ import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
 import { z } from 'zod';
-import { LogLevel } from '@hatchet/clients/event/event-client';
+import { EventClient, LogLevel } from '@hatchet/clients/event/event-client';
+import { DispatcherClient } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { Logger } from '@hatchet/util/logger';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
+import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
-import { createClientFactory } from 'nice-grpc';
+import { ChannelCredentials, ClientFactory, createClientFactory } from 'nice-grpc';
 import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
@@ -75,20 +78,38 @@ export class HatchetClient<
   MiddlewareAfter extends Record<string, any> = {},
 > implements IHatchetClient
 {
-  /** The underlying v0 client instance */
-  _v0: LegacyHatchetClient;
+  private _v0: LegacyHatchetClient | undefined;
   _api: Api;
   _listener: RunListenerClient;
+  private _options: HatchetClientOptions | undefined;
+  private _axiosConfig: AxiosRequestConfig | undefined;
+  private _clientFactory: ClientFactory;
+  private _credentials: ChannelCredentials;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
    */
   get v0() {
+    if (!this._v0) {
+      this._v0 = new LegacyHatchetClient(
+        this._config,
+        this._options,
+        this._axiosConfig,
+        this.runs,
+        this._listener,
+        this.events,
+        this.dispatcher,
+        this.logger,
+        this.durableListener
+      );
+    }
     return this._v0;
   }
 
   /** The tenant ID for the Hatchet client */
   tenantId: string;
+
+  logger: Logger;
 
   _isV1: boolean | undefined = true;
 
@@ -128,26 +149,22 @@ export class HatchetClient<
       this._config = clientConfig;
 
       this.tenantId = clientConfig.tenant_id;
+      this.logger = clientConfig.logger('HatchetClient', clientConfig.log_level);
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
 
-      const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
-      const credentials =
+      this._clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+      this._credentials =
         options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
 
       this._listener = new RunListenerClient(
         this.config,
-        channelFactory(this.config, credentials),
-        clientFactory,
+        channelFactory(this.config, this._credentials),
+        this._clientFactory,
         this.api
       );
 
-      this._v0 = new LegacyHatchetClient(
-        clientConfig,
-        options,
-        axiosConfig,
-        this.runs,
-        this._listener
-      );
+      this._options = options;
+      this._axiosConfig = axiosConfig;
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
@@ -462,17 +479,68 @@ export class HatchetClient<
     return this.scheduled;
   }
 
+  private _dispatcher: DispatcherClient | undefined;
+
+  /**
+   * Get the dispatcher client for sending action events and managing worker registration
+   * @returns A dispatcher client instance
+   */
+  get dispatcher() {
+    if (!this._dispatcher) {
+      this._dispatcher = new DispatcherClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory
+      );
+    }
+    return this._dispatcher;
+  }
+
+  private _event: EventClient | undefined;
+
   /**
    * Get the event client for creating and managing event workflow runs
    * @returns A event client instance
    */
   get events() {
-    return this._v0.event;
+    if (!this._event) {
+      this._event = new EventClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory,
+        this.api
+      );
+    }
+    return this._event;
+  }
+
+  private _durableListener: DurableListenerClient | undefined;
+
+  /**
+   * Get the durable listener client for managing durable event subscriptions
+   * @returns A durable listener client instance
+   */
+  get durableListener() {
+    if (!this._durableListener) {
+      this._durableListener = new DurableListenerClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory,
+        this.api
+      );
+    }
+    return this._durableListener;
   }
 
   /**
-   * Get the event client for creating and managing event workflow runs
-   * @returns A event client instance
+   * Get the run listener client for streaming workflow run results
+   * @returns A run listener client instance
+   */
+  get listener() {
+    return this._listener;
+  }
+
+  /**
    * @deprecated use client.events instead
    */
   get event() {
@@ -607,7 +675,7 @@ export class HatchetClient<
    */
   get admin() {
     if (!this._admin) {
-      this._admin = new AdminClient(this._v0.config, this.api, this.runs);
+      this._admin = new AdminClient(this._config, this.api, this.runs);
     }
     return this._admin;
   }
@@ -625,7 +693,7 @@ export class HatchetClient<
       opts = options || {};
     }
 
-    return Worker.create(this, this._v0, name, opts);
+    return Worker.create(this, name, opts);
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {

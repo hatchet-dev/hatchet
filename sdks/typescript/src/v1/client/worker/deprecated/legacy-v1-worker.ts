@@ -25,7 +25,7 @@ export class LegacyV1Worker extends V1Worker {
    * Override registration to use the legacy `slots` proto field.
    */
   protected override async createListener(): Promise<ActionListener> {
-    return legacyGetActionListener(this.client._v0.dispatcher, {
+    return legacyGetActionListener(this.client.dispatcher, {
       workerName: this.name,
       services: ['default'],
       actions: Object.keys(this.action_registry),

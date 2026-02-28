@@ -37,11 +37,11 @@ const LEGACY_ENGINE_MESSAGE =
  */
 export async function isLegacyEngine(v1: HatchetClient): Promise<boolean> {
   try {
-    const version = await v1._v0.dispatcher.getVersion();
+    const version = await v1.dispatcher.getVersion();
 
     // If the version is empty or older than the minimum, treat as legacy
     if (!version || semverLessThan(version, MIN_SLOT_CONFIG_VERSION)) {
-      const logger = v1._v0.config.logger('Worker', v1._v0.config.log_level);
+      const logger = v1.config.logger('Worker', v1.config.log_level);
       emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
         errorDays: 180,
       });
@@ -51,7 +51,7 @@ export async function isLegacyEngine(v1: HatchetClient): Promise<boolean> {
     return false;
   } catch (e: any) {
     if (e?.code === Status.UNIMPLEMENTED) {
-      const logger = v1._v0.config.logger('Worker', v1._v0.config.log_level);
+      const logger = v1.config.logger('Worker', v1.config.log_level);
       emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
         errorDays: 180,
       });

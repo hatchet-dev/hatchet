@@ -139,7 +139,7 @@ function wrapLegacyStepRun(step: CreateStep<any, any>) {
     // eslint-disable-next-line no-underscore-dangle
     const v1Worker = (ctx.worker as any).worker;
     // eslint-disable-next-line no-underscore-dangle
-    const v0ctx = new V0Context(ctx.action, ctx.v1._v0, v1Worker);
+    const v0ctx = new V0Context(ctx.action, ctx.v1.v0, v1Worker);
     // Share the abort controller so cancellation propagates
     v0ctx.controller = ctx.controller;
     return step.run(v0ctx);

@@ -23,7 +23,7 @@ import { conditionsToPb } from '../v1/conditions/transformer';
 import { Duration } from '../v1/client/duration';
 import { JsonValue, OutputType } from '../v1/types';
 import { V1Worker } from '../v1/client/worker/worker-internal';
-import { LegacyHatchetClient } from '../clients/hatchet-client';
+import { LegacyHatchetClient } from './legacy-client';
 import { applyNamespace } from '../util/apply-namespace';
 
 export const CreateRateLimitSchema = z.object({

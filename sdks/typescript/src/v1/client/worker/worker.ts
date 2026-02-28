@@ -1,6 +1,5 @@
 /* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { LegacyHatchetClient } from '@hatchet/clients/hatchet-client';
 import sleep from '@hatchet/util/sleep';
 import { BaseWorkflowDeclaration } from '../../declaration';
 import type { LegacyWorkflow } from '../../../legacy/legacy-transformer';
@@ -28,7 +27,6 @@ export class Worker {
   config: CreateWorkerOpts;
   name: string;
   _v1: HatchetClient;
-  _v0: LegacyHatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
   _internal: V1Worker;
@@ -45,13 +43,11 @@ export class Worker {
    */
   constructor(
     v1: HatchetClient,
-    v0: LegacyHatchetClient,
     nonDurable: V1Worker,
     config: CreateWorkerOpts,
     name: string
   ) {
     this._v1 = v1;
-    this._v0 = v0;
     this._internal = nonDurable;
     this.config = config;
     this.name = name;
@@ -65,7 +61,6 @@ export class Worker {
    */
   static async create(
     v1: HatchetClient,
-    v0: LegacyHatchetClient,
     name: string,
     options: CreateWorkerOpts
   ) {
@@ -82,7 +77,7 @@ export class Worker {
     };
 
     const internalWorker = new V1Worker(v1, opts);
-    const worker = new Worker(v1, v0, internalWorker, normalizedOptions, name);
+    const worker = new Worker(v1, internalWorker, normalizedOptions, name);
     await worker.registerWorkflows(normalizedOptions.workflows);
     return worker;
   }
