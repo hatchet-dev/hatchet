@@ -528,7 +528,7 @@ export function DataTableOptions<TData>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="z-[70] max-h-[32rem] w-96 overflow-y-auto p-0 shadow-lg"
+        className="max-h-[32rem] w-96 overflow-y-auto p-0 shadow-lg"
       >
         <DataTableOptionsContent
           table={table}

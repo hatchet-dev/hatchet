@@ -55,7 +55,7 @@ export const AdditionalMetadata = memo(
             </div>
           </PopoverTrigger>
           <PopoverContent
-            className="z-[70] w-80 p-0 shadow-md shadow-slate-800/30"
+            className="w-80 p-0 shadow-md shadow-slate-800/30"
             align={align}
           >
             <div className="p-3">
