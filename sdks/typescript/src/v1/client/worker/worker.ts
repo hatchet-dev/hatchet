@@ -1,13 +1,12 @@
 /* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { LegacyHatchetClient } from '@hatchet/clients/hatchet-client';
-import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
 import { BaseWorkflowDeclaration } from '../../declaration';
+import type { LegacyWorkflow } from '../../../legacy/legacy-transformer';
+import { normalizeWorkflows } from '../../../legacy/legacy-transformer';
 import { HatchetClient } from '../..';
 import { V1Worker } from './worker-internal';
 import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
-import { isLegacyEngine, LegacyDualWorker } from './deprecated';
 
 /**
  * Options for creating a new hatchet worker
@@ -29,14 +28,7 @@ export class Worker {
   _v1: HatchetClient;
   _v0: LegacyHatchetClient;
 
-  /** Internal reference to the underlying V0 worker implementation */
   _internal: V1Worker;
-
-  /** Set when connected to a legacy engine that needs dual-worker architecture */
-  private _legacyWorker: LegacyDualWorker | undefined;
-
-  /** Tracks all workflows registered after construction (via registerWorkflow/registerWorkflows) */
-  private _registeredWorkflows: Array<BaseWorkflowDeclaration<any, any> | V0Workflow> = [];
 
   /**
    * Creates a new HatchetWorker instance
@@ -68,48 +60,51 @@ export class Worker {
     name: string,
     options: CreateWorkerOpts
   ) {
-    const resolvedOptions = resolveWorkerOptions(options);
+    // Normalize any legacy workflows before resolving worker options
+    const normalizedOptions = {
+      ...options,
+      workflows: options.workflows ? normalizeWorkflows(options.workflows) : undefined,
+    };
+
+    const resolvedOptions = resolveWorkerOptions(normalizedOptions);
     const opts = {
       name,
       ...resolvedOptions,
     };
 
     const internalWorker = new V1Worker(v1, opts);
-    const worker = new Worker(v1, v0, internalWorker, options, name);
-    await worker.registerWorkflows(options.workflows);
+    const worker = new Worker(v1, v0, internalWorker, normalizedOptions, name);
+    await worker.registerWorkflows(normalizedOptions.workflows);
     return worker;
   }
 
   /**
-   * Registers workflows with the worker
+   * Registers workflows with the worker.
+   * Accepts both v1 BaseWorkflowDeclaration and legacy Workflow objects.
+   * Legacy workflows are automatically transformed and a deprecation warning is emitted.
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>) {
-    for (const wf of workflows || []) {
-      this._registeredWorkflows.push(wf);
+  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow>) {
+    const normalized = workflows ? normalizeWorkflows(workflows) : [];
+    for (const wf of normalized) {
+      await this._internal.registerWorkflowV1(wf);
 
-      if (wf instanceof BaseWorkflowDeclaration) {
-        // TODO check if tenant is V1
-        await this._internal.registerWorkflowV1(wf);
-
-        if (wf.definition._durableTasks.length > 0) {
-          this._internal.registerDurableActionsV1(wf.definition);
-        }
-      } else {
-        // fallback to v0 client for backwards compatibility
-        await this._internal.registerWorkflow(wf);
+      if (wf.definition._durableTasks.length > 0) {
+        this._internal.registerDurableActionsV1(wf.definition);
       }
     }
   }
 
   /**
-   * Registers a single workflow with the worker
+   * Registers a single workflow with the worker.
+   * Accepts both v1 BaseWorkflowDeclaration and legacy Workflow objects.
+   * Legacy workflows are automatically transformed and a deprecation warning is emitted.
    * @param workflow - The workflow to register
    * @returns A promise that resolves when the workflow is registered
    * @deprecated use registerWorkflows instead
    */
-  registerWorkflow(workflow: BaseWorkflowDeclaration<any, any> | V0Workflow) {
+  registerWorkflow(workflow: BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
     return this.registerWorkflows([workflow]);
   }
 
@@ -117,20 +112,7 @@ export class Worker {
    * Starts the worker
    * @returns Promise that resolves when the worker is stopped or killed
    */
-  async start() {
-    // Check engine version and fall back to legacy dual-worker mode if needed
-    if (await isLegacyEngine(this._v1)) {
-      // Include workflows registered after construction (via registerWorkflow/registerWorkflows)
-      // so the legacy worker picks them up.
-      const legacyConfig: CreateWorkerOpts = {
-        ...this.config,
-        workflows: this._registeredWorkflows.length
-          ? (this._registeredWorkflows as BaseWorkflowDeclaration<any, any>[])
-          : this.config.workflows,
-      };
-      this._legacyWorker = await LegacyDualWorker.create(this._v1, this.name, legacyConfig);
-      return this._legacyWorker.start();
-    }
+  start() {
     return this._internal.start();
   }
 
@@ -139,9 +121,6 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
-    if (this._legacyWorker) {
-      return this._legacyWorker.stop();
-    }
     return this._internal.stop();
   }
 
@@ -160,15 +139,6 @@ export class Worker {
    */
   getLabels() {
     return this._internal.labels;
-  }
-
-  /**
-   * Register a webhook with the worker
-   * @param webhook - The webhook to register
-   * @returns A promise that resolves when the webhook is registered
-   */
-  registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this._internal.registerWebhook(webhook);
   }
 
   async isPaused() {

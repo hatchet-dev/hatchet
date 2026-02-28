@@ -1,13 +1,6 @@
+import { BaseWorkflowDeclaration, workflowNameString } from '@hatchet/v1';
+import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
 import { HatchetClient } from '../client';
-
-export type TaskStatusMetrics = {
-  cancelled: number;
-  completed: number;
-  failed: number;
-  queued: number;
-  running: number;
-};
-
 /**
  * MetricsClient is used to get metrics for workflows
  */
@@ -20,28 +13,34 @@ export class MetricsClient {
     this.api = client.api;
   }
 
-  /**
-   * Get task/run status metrics for a tenant.
-   *
-   * This backs the dashboard "runs list" status count badges.
-   *
-   * Endpoint: GET /api/v1/stable/tenants/{tenant}/task-metrics
-   */
-  async getTaskStatusMetrics(
-    query: Parameters<typeof this.api.v1TaskListStatusMetrics>[1],
-    requestParams?: Parameters<typeof this.api.v1TaskListStatusMetrics>[2]
-  ): Promise<TaskStatusMetrics> {
-    const { data } = await this.api.v1TaskListStatusMetrics(this.tenantId, query, requestParams);
-    return data.reduce(
-      (acc, curr) => {
-        acc[curr.status.toLowerCase() as keyof TaskStatusMetrics] = curr.count;
-        return acc;
-      },
-      {} as Record<keyof TaskStatusMetrics, number>
-    );
+  async getWorkflowMetrics(
+    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
+    opts?: Parameters<typeof this.api.workflowGetMetrics>[1]
+  ) {
+    const name = workflowNameString(workflow);
+
+    const { data } = await this.api.workflowGetMetrics(name, opts);
+    return data;
   }
 
-  async getQueueMetrics(opts?: Parameters<typeof this.api.tenantGetStepRunQueueMetrics>[1]) {
+  async getQueueMetrics(
+    opts?: Parameters<typeof this.api.tenantGetQueueMetrics>[1] & {
+      // TODO override the workflows to this...
+      // workflows?: (string | WorkflowDeclaration<any, any> | Workflow)[];
+    }
+  ) {
+    // TODO IMPORTANT workflow id is the uuid for the workflow... not its name
+    // const stringWorkflows = opts?.workflows?
+
+    const { data } = await this.api.tenantGetQueueMetrics(this.tenantId, {
+      ...opts,
+      // workflows: stringWorkflows,
+    });
+    return data;
+  }
+
+  async getTaskMetrics(opts?: Parameters<typeof this.api.tenantGetStepRunQueueMetrics>[1]) {
+    // TODO what is this...
     const { data } = await this.api.tenantGetStepRunQueueMetrics(this.tenantId, opts);
     return data;
   }

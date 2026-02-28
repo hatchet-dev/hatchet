@@ -32,7 +32,7 @@ interface GetActionListenerOptions {
   durableSlots?: number;
   /** @deprecated use slots */
   maxRuns?: number;
-  labels: Record<string, string | number | undefined>;
+  labels: WorkerLabels;
 }
 
 type StepActionEventInput = StepActionEvent & {
@@ -87,15 +87,6 @@ export class DispatcherClient {
     return new ActionListener(this, registration.workerId);
   }
 
-  /**
-   * Calls the GetVersion RPC. Returns the engine semantic version string.
-   * Throws a gRPC error with code UNIMPLEMENTED on older engines.
-   */
-  async getVersion(): Promise<string> {
-    const response = await this.client.getVersion({});
-    return response.version;
-  }
-
   async sendStepActionEvent(in_: StepActionEventInput) {
     const { taskId, taskRunExternalId, ...rest } = in_;
     const event: StepActionEvent = {
@@ -148,7 +139,7 @@ export class DispatcherClient {
   }
 }
 
-export function mapLabels(in_: WorkerLabels): Record<string, PbWorkerAffinityConfig> {
+function mapLabels(in_: WorkerLabels): Record<string, PbWorkerAffinityConfig> {
   return Object.entries(in_).reduce<Record<string, PbWorkerAffinityConfig>>(
     (acc, [key, value]) => ({
       ...acc,

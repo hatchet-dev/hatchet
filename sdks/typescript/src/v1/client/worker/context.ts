@@ -16,11 +16,11 @@ import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
 import { OutputType } from '@hatchet/v1/types';
-import { Workflow } from '@hatchet/workflow';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
-import { ContextWorker, NextStep } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
+import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -40,6 +40,52 @@ interface ContextData<T, K> {
   triggered_by: string;
   user_data: K;
   step_run_errors: Record<string, string>;
+}
+
+/**
+ * ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
+ */
+export class ContextWorker {
+  private worker: V1Worker;
+  constructor(worker: V1Worker) {
+    this.worker = worker;
+  }
+
+  /**
+   * Gets the ID of the worker.
+   * @returns The ID of the worker.
+   */
+  id() {
+    return this.worker.workerId;
+  }
+
+  /**
+   * Checks if the worker has a registered workflow.
+   * @param workflowName - The name of the workflow to check.
+   * @returns True if the workflow is registered, otherwise false.
+   */
+  hasWorkflow(workflowName: string) {
+    return !!this.worker.workflow_registry.find((workflow) =>
+      'id' in workflow ? workflow.id === workflowName : workflow.name === workflowName
+    );
+  }
+
+  /**
+   * Gets the current state of the worker labels.
+   * @returns The labels of the worker.
+   */
+  labels() {
+    return this.worker.labels;
+  }
+
+  /**
+   * Upserts the a set of labels on the worker.
+   * @param labels - The labels to upsert.
+   * @returns A promise that resolves when the labels have been upserted.
+   */
+  upsertLabels(labels: WorkerLabels) {
+    return this.worker.upsertLabels(labels);
+  }
 }
 
 export class Context<T, K = {}> {
@@ -88,6 +134,24 @@ export class Context<T, K = {}> {
 
   get cancelled() {
     return this.controller.signal.aborted;
+  }
+
+  protected throwIfCancelled(): void {
+    if (this.abortController.signal.aborted) {
+      throw createAbortError('Operation cancelled by AbortSignal');
+    }
+  }
+
+  /**
+   * Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
+   *
+   * Example:
+   * ```ts
+   * try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
+   * ```
+   */
+  rethrowIfCancelled(err: unknown): void {
+    rethrowIfAborted(err);
   }
 
   async cancel() {
@@ -230,15 +294,6 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Gets the ID of the current task run.
-   * @returns The task run ID.
-   * @deprecated use taskRunExternalId() instead
-   */
-  taskRunId(): string {
-    return this.taskRunExternalId();
-  }
-
-  /**
    * Gets the number of times the current task has been retried.
    * @returns The retry count.
    */
@@ -367,13 +422,15 @@ export class Context<T, K = {}> {
     await this.v1._v0.event.putStream(taskRunExternalId, data, index);
   }
 
-  private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
+  private spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
+    this.throwIfCancelled();
+
     let workflowName: string;
 
     if (typeof workflow === 'string') {
       workflowName = workflow;
     } else {
-      workflowName = workflow.id;
+      workflowName = workflow.name;
     }
 
     const opts = options || {};
@@ -388,7 +445,7 @@ export class Context<T, K = {}> {
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const finalOpts = {
-      ...options,
+      ...opts,
       parentId: workflowRunId,
       parentTaskRunExternalId: taskRunExternalId,
       childIndex: this.spawnIndex,
@@ -404,7 +461,7 @@ export class Context<T, K = {}> {
   }
 
   private spawn<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P>,
+    workflow: string | WorkflowV1<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ) {
@@ -414,11 +471,12 @@ export class Context<T, K = {}> {
 
   private spawnBulk<Q extends JsonObject, P extends JsonObject>(
     children: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
   ) {
+    this.throwIfCancelled();
     const workflows: Parameters<typeof this.v1.admin.runWorkflows<Q, P>>[0] = children.map(
       (child) => {
         const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
@@ -436,12 +494,17 @@ export class Context<T, K = {}> {
    */
   async bulkRunNoWaitChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    return this.spawnBulk<Q, P>(children);
+    const refs = await this.spawnBulk<Q, P>(children);
+    refs.forEach((ref) => {
+      // eslint-disable-next-line no-param-reassign
+      ref.defaultSignal = this.abortController.signal;
+    });
+    return refs;
   }
 
   /**
@@ -451,7 +514,7 @@ export class Context<T, K = {}> {
    */
   async bulkRunChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
@@ -469,11 +532,14 @@ export class Context<T, K = {}> {
    * @returns The result of the workflow.
    */
   async runChild<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ): Promise<P> {
     const run = await this.spawn(workflow, input, options);
+    // Ensure waiting for the child result aborts when this task is cancelled.
+    // eslint-disable-next-line no-param-reassign
+    run.defaultSignal = this.abortController.signal;
     return run.output;
   }
 
@@ -486,11 +552,12 @@ export class Context<T, K = {}> {
    * @returns A reference to the spawned workflow run.
    */
   async runNoWaitChild<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P>,
+    workflow: string | WorkflowV1<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
     const ref = await this.spawn(workflow, input, options);
+    ref.defaultSignal = this.abortController.signal;
     return ref;
   }
 
@@ -544,42 +611,6 @@ export class Context<T, K = {}> {
         return undefined;
     }
   }
-  // FIXME: drop these at some point soon
-
-  /**
-   * Get the output of a task.
-   * @param task - The name of the task to get the output for.
-   * @returns The output of the task.
-   * @throws An error if the task output is not found.
-   * @deprecated use ctx.parentOutput instead
-   */
-  stepOutput<L = NextStep>(step: string): L {
-    if (!this.data.parents) {
-      throw new HatchetError('Parent task outputs not found');
-    }
-    if (!this.data.parents[step]) {
-      throw new HatchetError(`Output for parent task '${step}' not found`);
-    }
-    return this.data.parents[step];
-  }
-
-  /**
-   * Gets the input data for the current workflow.
-   * @returns The input data for the workflow.
-   * @deprecated use task input parameter instead
-   */
-  workflowInput(): T {
-    return this.input;
-  }
-
-  /**
-   * Gets the name of the current task.
-   * @returns The name of the task.
-   * @deprecated use ctx.taskName instead
-   */
-  stepName(): string {
-    return this.taskName();
-  }
 
   /**
    * Spawns multiple workflows.
@@ -590,11 +621,12 @@ export class Context<T, K = {}> {
    */
   async spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
     workflows: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const workflowRuns = workflows.map(({ workflow, input, options }) => {
@@ -603,7 +635,7 @@ export class Context<T, K = {}> {
       if (typeof workflow === 'string') {
         workflowName = workflow;
       } else {
-        workflowName = workflow.id;
+        workflowName = workflow.name;
       }
 
       const name = applyNamespace(workflowName, this.v1.config.namespace);
@@ -617,11 +649,16 @@ export class Context<T, K = {}> {
         );
       }
 
+      // `signal` must never be sent over the wire.
+      const optsWithoutSignal: Omit<ChildRunOpts, 'signal'> & { signal?: never } = { ...opts };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (optsWithoutSignal as any).signal;
+
       const resp = {
         workflowName: name,
         input,
         options: {
-          ...opts,
+          ...optsWithoutSignal,
           parentId: workflowRunId,
           parentTaskRunExternalId: taskRunExternalId,
           childIndex: this.spawnIndex,
@@ -668,10 +705,11 @@ export class Context<T, K = {}> {
    * @deprecated Use runChild or runNoWaitChild instead.
    */
   async spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
     let workflowName: string = '';
@@ -679,7 +717,7 @@ export class Context<T, K = {}> {
     if (typeof workflow === 'string') {
       workflowName = workflow;
     } else {
-      workflowName = workflow.id;
+      workflowName = workflow.name;
     }
 
     const name = applyNamespace(workflowName, this.v1.config.namespace);
@@ -742,6 +780,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
+    this.throwIfCancelled();
     const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
 
     // eslint-disable-next-line no-plusplus
@@ -752,13 +791,13 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
-
-    const listener = this.v1._v0.durableListener.subscribe({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-    });
-
-    const event = await listener.get();
+    const event = await this.v1._v0.durableListener.result(
+      {
+        taskId: this.action.taskRunExternalId,
+        signalKey: key,
+      },
+      { signal: this.abortController.signal }
+    );
 
     // Convert event.data from Uint8Array to string if needed
     const eventData =
