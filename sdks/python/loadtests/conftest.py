@@ -6,7 +6,13 @@ import pytest
 import pytest_asyncio
 
 from hatchet_sdk import Hatchet
+from loadtests.config import LoadTestConfig
 from tests.worker_fixture import hatchet_worker
+
+
+@pytest.fixture(scope="session")
+def load_config() -> LoadTestConfig:
+    return LoadTestConfig()
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -22,7 +28,11 @@ def worker() -> Generator[Popen[bytes], None, None]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def memory_leak_check(request: pytest.FixtureRequest, worker: Popen[bytes]) -> None:
+def memory_leak_check(
+    request: pytest.FixtureRequest,
+    worker: Popen[bytes],
+    load_config: LoadTestConfig,
+) -> None:
     """Fail if worker RSS grows too much between start and end of load tests."""
     proc = psutil.Process(worker.pid)
     initial_rss_mb = proc.memory_info().rss / 1024 / 1024
@@ -31,7 +41,7 @@ def memory_leak_check(request: pytest.FixtureRequest, worker: Popen[bytes]) -> N
         try:
             final_rss_mb = proc.memory_info().rss / 1024 / 1024
             delta_mb = final_rss_mb - initial_rss_mb
-            max_growth_mb = 50
+            max_growth_mb = load_config.max_growth_mb
             if delta_mb > max_growth_mb:
                 pytest.fail(
                     f"Possible memory leak: worker RSS grew {delta_mb:.1f} MB "

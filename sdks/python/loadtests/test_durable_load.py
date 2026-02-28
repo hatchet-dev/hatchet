@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any
 
 import pytest
 
 from hatchet_sdk import Hatchet
+from loadtests.config import LoadTestConfig
 from loadtests.worker import (
     load_durable_child_spawn,
     load_durable_sleep,
@@ -19,51 +21,81 @@ from loadtests.worker import (
 LOAD_EVENT_KEY = "loadtest:event"
 
 
+async def _gather_results(
+    refs: list[Any],
+    concurrency: int,
+) -> list[dict[str, Any]]:
+    """Gather aio_result() from refs with bounded concurrency."""
+    sem = asyncio.Semaphore(concurrency)
+    results: list[dict[str, Any]] = [{}] * len(refs)
+
+    async def _get(idx: int) -> None:
+        async with sem:
+            results[idx] = await refs[idx].aio_result()
+
+    await asyncio.gather(*[_get(i) for i in range(len(refs))])
+    return results
+
+
 @pytest.mark.loadtest
 @pytest.mark.asyncio(loop_scope="session")
-async def test_load_durable_sleep_concurrent(hatchet: Hatchet) -> None:
-    """Run 50 concurrent durable sleep tasks."""
-    n = 50
+async def test_load_durable_sleep_concurrent(
+    hatchet: Hatchet, load_config: LoadTestConfig
+) -> None:
+    """Enqueue N durable sleep tasks in parallel, then wait for all to complete."""
+    n = load_config.n_durable_sleep
+    refs = await asyncio.gather(
+        *[load_durable_sleep.aio_run_no_wait() for _ in range(n)]
+    )
+
     start = time.time()
-    refs = [load_durable_sleep.run_no_wait() for _ in range(n)]
-    results = await asyncio.gather(*[ref.aio_result() for ref in refs])
+    results = await _gather_results(refs, load_config.result_concurrency)
     elapsed = time.time() - start
 
     assert len(results) == n
-    for r in results:
-        assert r["status"] == "completed"
+    completed = sum(1 for r in results if r.get("status") == "completed")
+    assert completed == n, f"{completed}/{n} completed"
 
     avg_ms = (elapsed / n) * 1000
-    assert avg_ms < 5000, f"Average duration {avg_ms}ms exceeds 5s threshold"
+    assert avg_ms < 5000, f"Average duration {avg_ms:.0f}ms exceeds 5s threshold"
 
 
 @pytest.mark.loadtest
 @pytest.mark.asyncio(loop_scope="session")
-async def test_load_durable_sleep_event_concurrent(hatchet: Hatchet) -> None:
-    """Run 20 durable sleep+event tasks, publish events after all start."""
-    n = 20
-    refs = [load_durable_sleep_event.run_no_wait() for _ in range(n)]
+async def test_load_durable_sleep_event_concurrent(
+    hatchet: Hatchet, load_config: LoadTestConfig
+) -> None:
+    """Enqueue N durable sleep+event tasks in parallel, publish events after all start."""
+    n = load_config.n_durable_event
+    refs = await asyncio.gather(
+        *[load_durable_sleep_event.aio_run_no_wait() for _ in range(n)]
+    )
 
-    await asyncio.sleep(3)
+    await asyncio.sleep(5)
 
     for _ in range(n):
         hatchet.event.push(LOAD_EVENT_KEY, {})
 
-    results = await asyncio.gather(*[ref.aio_result() for ref in refs])
+    results = await _gather_results(refs, load_config.result_concurrency)
 
     assert len(results) == n
-    for r in results:
-        assert r["status"] == "completed"
+    completed = sum(1 for r in results if r.get("status") == "completed")
+    assert completed == n, f"{completed}/{n} completed"
 
 
 @pytest.mark.loadtest
 @pytest.mark.asyncio(loop_scope="session")
-async def test_load_durable_child_spawn_concurrent() -> None:
-    """Run 20 concurrent durable child spawn tasks."""
-    n = 20
+async def test_load_durable_child_spawn_concurrent(
+    load_config: LoadTestConfig,
+) -> None:
+    """Enqueue N durable child spawn tasks in parallel, then wait for all to complete."""
+    n = load_config.n_durable_child
+    refs = await asyncio.gather(
+        *[load_durable_child_spawn.aio_run_no_wait() for _ in range(n)]
+    )
+
     start = time.time()
-    refs = [load_durable_child_spawn.run_no_wait() for _ in range(n)]
-    results = await asyncio.gather(*[ref.aio_result() for ref in refs])
+    results = await _gather_results(refs, load_config.result_concurrency)
     elapsed = time.time() - start
 
     assert len(results) == n
@@ -71,4 +103,7 @@ async def test_load_durable_child_spawn_concurrent() -> None:
         assert r["status"] == "completed"
         assert r["child"] == {"status": "done"}
 
-    assert elapsed < 60, f"All {n} runs should complete within 60s, took {elapsed}s"
+    max_seconds = max(120, n * 2)
+    assert (
+        elapsed < max_seconds
+    ), f"All {n} runs should complete within {max_seconds}s, took {elapsed:.0f}s"

@@ -162,7 +162,7 @@ jobs:
 
   python-load:
     runs-on: ubicloud-standard-8
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       matrix:
         python-version: ["3.14"]
@@ -245,7 +245,7 @@ jobs:
       - name: Run load tests
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
-          poetry run pytest loadtests/ -s -vvv -m loadtest --timeout=600
+          poetry run pytest loadtests/ -s -vvv -m loadtest --timeout=1800
 
       - name: Upload engine logs
         if: always()

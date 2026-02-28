@@ -361,6 +361,16 @@ func (d *DispatcherImpl) sendTasksToWorker(
 
 	innerEg := errgroup.Group{}
 
+	// TODO-DURABLE: I don't think this is correct but we are seeing issues with py assigns
+	// // Sends are serialized by subscribedWorker.sendMu, so unbounded goroutines
+	// // only pile up on the backlog counter without increasing throughput.
+	// // Cap at half the max backlog to leave headroom for cancel messages.
+	// sendLimit := int(d.defaultMaxWorkerBacklogSize / 2)
+	// if sendLimit < 1 {
+	// 	sendLimit = 1
+	// }
+	// innerEg.SetLimit(sendLimit)
+
 	for _, taskId := range taskIds {
 		task, ok := tasks[taskId]
 
