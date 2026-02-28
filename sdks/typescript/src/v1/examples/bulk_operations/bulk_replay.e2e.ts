@@ -45,7 +45,7 @@ describe('bulk-replay-e2e', () => {
         }),
       {
         timeoutMs: 120_000,
-        intervalMs: 2000,
+        intervalMs: 1000,
         label: 'initial bulk runs completion',
         shouldStop: (runs) =>
           (runs.rows || []).length === expectedTotal &&
@@ -74,7 +74,7 @@ describe('bulk-replay-e2e', () => {
         }),
       {
         timeoutMs: 120_000,
-        intervalMs: 2000,
+        intervalMs: 1000,
         label: 'bulk replay attempts visible',
         shouldStop: (runs) =>
           (runs.rows || []).length === expectedTotal &&

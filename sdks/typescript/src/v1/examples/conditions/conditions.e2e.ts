@@ -23,7 +23,7 @@ describe('conditions-e2e', () => {
     const ref = await taskConditionWorkflow.runNoWait({});
 
     // give the workflow time to reach waits
-    await sleep(15_000);
+    await sleep(8000);
 
     await hatchet.events.push('skip_on_event:skip', {});
     await hatchet.events.push('wait_for_event:start', {});

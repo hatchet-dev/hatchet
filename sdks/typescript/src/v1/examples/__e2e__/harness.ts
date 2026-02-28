@@ -38,21 +38,21 @@ export async function startWorker({
 }): Promise<Worker> {
   const worker = await client.worker(name, { workflows, slots });
   void worker.start();
+  await worker.waitUntilReady(10_000);
   return worker;
 }
 
 export async function stopWorker(worker: Worker | undefined) {
   if (!worker) return;
   await worker.stop();
-  // give the engine a beat to settle
-  await sleep(1500);
+  await sleep(1000);
 }
 
 export async function poll<T>(
   fn: () => Promise<T>,
   {
     timeoutMs = 30_000,
-    intervalMs = 1000,
+    intervalMs = 100,
     shouldStop,
     label = 'poll',
   }: {

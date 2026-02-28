@@ -25,7 +25,7 @@ describe('cancellation-e2e', () => {
 
     const run = await poll(async () => hatchet.runs.get(ref), {
       timeoutMs: 60_000,
-      intervalMs: 1000,
+      intervalMs: 500,
       label: 'cancellation run status',
       shouldStop: (r) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(r.run.status as any),
     });

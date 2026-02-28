@@ -16,11 +16,12 @@ xdescribe('events-e2e', () => {
     await worker.registerWorkflow(lower);
 
     void worker.start();
+    await worker.waitUntilReady(10_000);
   });
 
   afterAll(async () => {
     await worker.stop();
-    await sleep(2000);
+    await sleep(1000);
   });
 
   async function setupEventFilter(expression?: string, payload: Record<string, string> = {}) {
@@ -43,7 +44,7 @@ xdescribe('events-e2e', () => {
 
   // Helper function to wait for events to process and fetch runs
   async function waitForEventsToProcess(events: Event[]): Promise<Record<string, any[]>> {
-    await sleep(3000);
+    await sleep(2000);
 
     const persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
 
@@ -93,7 +94,7 @@ xdescribe('events-e2e', () => {
 
       // If all events have no runs yet, wait and retry
       if (eventRuns.every(({ runs }) => runs.length === 0)) {
-        await sleep(1000);
+        await sleep(500);
 
         // eslint-disable-next-line no-continue
         continue;
@@ -110,7 +111,7 @@ xdescribe('events-e2e', () => {
       );
 
       if (anyInProgress) {
-        await sleep(1000);
+        await sleep(500);
 
         // eslint-disable-next-line no-continue
         continue;

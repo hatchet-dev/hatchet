@@ -8,7 +8,7 @@ describe('middleware-e2e', () => {
   afterEach(async () => {
     if (worker) {
       await worker.stop();
-      await sleep(2000);
+      await sleep(1000);
     }
   });
 
@@ -40,7 +40,7 @@ describe('middleware-e2e', () => {
     });
 
     void worker.start();
-    await sleep(5000);
+    await worker.waitUntilReady(10_000);
 
     const result = await task.run({
       message: 'hello',
@@ -77,7 +77,7 @@ describe('middleware-e2e', () => {
     });
 
     void worker.start();
-    await sleep(5000);
+    await worker.waitUntilReady(10_000);
 
     const result = await task.run({ first: 10, second: 20 });
 
@@ -118,7 +118,7 @@ describe('middleware-e2e', () => {
     });
 
     void worker.start();
-    await sleep(5000);
+    await worker.waitUntilReady(10_000);
 
     const result = await task.run({ value: 5 });
 

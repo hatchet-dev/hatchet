@@ -15,7 +15,7 @@ xdescribe('e2e', () => {
 
   afterEach(async () => {
     await worker.stop();
-    await sleep(2000);
+    await sleep(1000);
   });
 
   it('should pass a simple workflow', async () => {
@@ -55,10 +55,9 @@ xdescribe('e2e', () => {
     await worker.registerWorkflow(workflow);
 
     void worker.start();
+    await worker.waitUntilReady(10_000);
 
     console.log('worker started.');
-
-    await sleep(5000);
 
     console.log('pushing event...');
 
@@ -66,7 +65,7 @@ xdescribe('e2e', () => {
       test: 'test',
     });
 
-    await sleep(10000);
+    await sleep(5000);
 
     console.log('invoked', invoked);
 

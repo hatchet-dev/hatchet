@@ -22,12 +22,24 @@ describe('non-retryable-e2e', () => {
   it('retries only the retryable failure', async () => {
     const ref = await nonRetryableWorkflow.runNoWait({});
 
-    const details = await poll(async () => hatchet.runs.get(ref), {
-      timeoutMs: 60_000,
-      intervalMs: 1000,
-      label: 'nonRetryableWorkflow terminal',
-      shouldStop: (d) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any),
-    });
+    const details = await poll(
+      async () => {
+        try {
+          return await hatchet.runs.get(ref);
+        } catch (e: any) {
+          if (e.response?.status === 404) {
+            return { run: { status: V1TaskStatus.RUNNING }, taskEvents: [] };
+          }
+          throw e;
+        }
+      },
+      {
+        timeoutMs: 60_000,
+        intervalMs: 500,
+        label: 'nonRetryableWorkflow terminal',
+        shouldStop: (d) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any),
+      }
+    );
 
     expect(details.run.status).toBe(V1TaskStatus.FAILED);
 

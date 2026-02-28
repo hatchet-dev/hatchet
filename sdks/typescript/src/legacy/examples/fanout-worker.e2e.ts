@@ -49,16 +49,15 @@ xdescribe('fanout-e2e', () => {
     await worker.registerWorkflow(childWorkflow);
 
     void worker.start();
+    await worker.waitUntilReady(10_000);
 
     console.log('worker started.');
-
-    await sleep(5000);
 
     console.log('running workflow...');
 
     await hatchet.admin.runWorkflow('parent-workflow', { input: 'parent-input' });
 
-    await sleep(10000);
+    await sleep(5000);
 
     console.log('invoked', invoked);
 

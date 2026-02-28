@@ -1,6 +1,7 @@
 /* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { LegacyHatchetClient } from '@hatchet/clients/hatchet-client';
+import sleep from '@hatchet/util/sleep';
 import { BaseWorkflowDeclaration } from '../../declaration';
 import type { LegacyWorkflow } from '../../../legacy/legacy-transformer';
 import { normalizeWorkflows } from '../../../legacy/legacy-transformer';
@@ -188,6 +189,24 @@ export class Worker {
     }
 
     return this._v1.workers.unpause(this._internal.workerId);
+  }
+
+  /**
+   * Waits until the worker has connected and registered with the server.
+   * Polls every 200ms. Use after start() to avoid fixed sleeps before running workflows.
+   */
+  async waitUntilReady(timeoutMs = 10_000): Promise<void> {
+    if (this._legacyWorker) {
+      await sleep(2000);
+      return;
+    }
+    const pollInterval = 200;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this._internal?.workerId) return;
+      await sleep(pollInterval);
+    }
+    throw new Error(`Worker ${this.name} did not become ready within ${timeoutMs}ms`);
   }
 }
 

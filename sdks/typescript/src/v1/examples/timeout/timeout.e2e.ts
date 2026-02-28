@@ -23,12 +23,24 @@ describe('timeout-e2e', () => {
   it('execution timeout should fail the run', async () => {
     const ref = await timeoutTask.runNoWait({ Message: 'hello' });
 
-    const run = await poll(async () => hatchet.runs.get(ref), {
-      timeoutMs: 60_000,
-      intervalMs: 1000,
-      label: 'timeoutTask terminal status',
-      shouldStop: (r) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(r.run.status as any),
-    });
+    const run = await poll(
+      async () => {
+        try {
+          return await hatchet.runs.get(ref);
+        } catch (e: any) {
+          if (e.response?.status === 404) {
+            return { run: { status: V1TaskStatus.RUNNING } } as any;
+          }
+          throw e;
+        }
+      },
+      {
+        timeoutMs: 60_000,
+        intervalMs: 500,
+        label: 'timeoutTask terminal status',
+        shouldStop: (r) => ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(r.run.status as any),
+      }
+    );
 
     expect([V1TaskStatus.FAILED, V1TaskStatus.CANCELLED]).toContain(run.run.status);
   }, 90_000);

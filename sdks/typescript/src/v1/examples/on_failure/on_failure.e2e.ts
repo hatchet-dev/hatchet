@@ -28,7 +28,7 @@ describe('on-failure-e2e', () => {
 
     const details = await poll(async () => hatchet.runs.get(ref), {
       timeoutMs: 120_000,
-      intervalMs: 1000,
+      intervalMs: 500,
       label: 'onFailure run details',
       shouldStop: (d) =>
         ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any) &&
