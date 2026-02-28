@@ -6,15 +6,15 @@
 /* eslint-disable no-underscore-dangle */
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { HatchetClient } from '@hatchet/v1';
-import { V1Worker } from '../worker-internal';
+import { InternalWorker } from '../worker-internal';
 import { legacyGetActionListener } from './legacy-registration';
 
-export class LegacyV1Worker extends V1Worker {
+export class LegacyV1Worker extends InternalWorker {
   private _legacySlotCount: number;
 
   constructor(
     client: HatchetClient,
-    options: ConstructorParameters<typeof V1Worker>[1],
+    options: ConstructorParameters<typeof InternalWorker>[1],
     legacySlots: number
   ) {
     super(client, options);

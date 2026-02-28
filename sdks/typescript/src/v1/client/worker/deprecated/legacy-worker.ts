@@ -124,14 +124,14 @@ export class LegacyDualWorker {
     for (const wf of options.workflows || []) {
       if (wf instanceof BaseWorkflowDeclaration) {
         if (wf.definition._durableTasks.length > 0 && durableWorker) {
-          await durableWorker.registerWorkflowV1(wf);
-          durableWorker.registerDurableActionsV1(wf.definition);
+          await durableWorker.registerWorkflow(wf);
+          durableWorker.registerDurableActions(wf.definition);
         } else {
-          await nonDurable.registerWorkflowV1(wf);
+          await nonDurable.registerWorkflow(wf);
         }
       } else {
         // fallback to v0 client for backwards compatibility
-        await nonDurable.registerWorkflowV1(transformLegacyWorkflow(wf));
+        await nonDurable.registerWorkflow(transformLegacyWorkflow(wf));
       }
     }
 

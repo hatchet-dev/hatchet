@@ -22,7 +22,7 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
-import { V1Worker } from './worker-internal';
+import { InternalWorker } from './worker-internal';
 import { Duration } from '../duration';
 // TODO remove this once we have a proper next step type
 
@@ -48,8 +48,8 @@ interface ContextData<T, K> {
  * ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
  */
 export class ContextWorker {
-  private worker: V1Worker;
-  constructor(worker: V1Worker) {
+  private worker: InternalWorker;
+  constructor(worker: InternalWorker) {
     this.worker = worker;
   }
 
@@ -108,7 +108,7 @@ export class Context<T, K = {}> {
   spawnIndex: number = 0;
   streamIndex = 0;
 
-  constructor(action: Action, v1: HatchetClient, worker: V1Worker) {
+  constructor(action: Action, v1: HatchetClient, worker: InternalWorker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;

@@ -22,7 +22,7 @@ import { Action as ConditionAction } from '../protoc/v1/shared/condition';
 import { conditionsToPb } from '../v1/conditions/transformer';
 import { Duration } from '../v1/client/duration';
 import { JsonValue, OutputType } from '../v1/types';
-import { V1Worker } from '../v1/client/worker/worker-internal';
+import { InternalWorker } from '../v1/client/worker/worker-internal';
 import { LegacyHatchetClient } from './legacy-client';
 import { applyNamespace } from '../util/apply-namespace';
 
@@ -84,8 +84,8 @@ interface ContextData<T, K> {
 }
 
 export class V0ContextWorker {
-  private worker: V1Worker;
-  constructor(worker: V1Worker) {
+  private worker: InternalWorker;
+  constructor(worker: InternalWorker) {
     this.worker = worker;
   }
 
@@ -142,7 +142,7 @@ export class V0Context<T, K = {}> {
 
   spawnIndex: number = 0;
 
-  constructor(action: Action, client: LegacyHatchetClient, worker: V1Worker) {
+  constructor(action: Action, client: LegacyHatchetClient, worker: InternalWorker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;

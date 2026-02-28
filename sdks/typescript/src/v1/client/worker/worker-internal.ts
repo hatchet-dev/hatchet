@@ -50,7 +50,7 @@ export interface WorkerOpts {
   enableHealthServer?: boolean;
 }
 
-export class V1Worker {
+export class InternalWorker {
   client: HatchetClient;
   name: string;
   workerId: string | undefined;
@@ -157,7 +157,7 @@ export class V1Worker {
     this.logger.debug(`Worker status changed to: ${status}`);
   }
 
-  registerDurableActionsV1(workflow: WorkflowDefinition) {
+  registerDurableActions(workflow: WorkflowDefinition) {
     const newActions = workflow._durableTasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
@@ -176,7 +176,7 @@ export class V1Worker {
     };
   }
 
-  private registerActionsV1(workflow: WorkflowDefinition) {
+  private registerActions(workflow: WorkflowDefinition) {
     const newActions = workflow._tasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
@@ -204,7 +204,7 @@ export class V1Worker {
     };
   }
 
-  async registerWorkflowV1(
+  async registerWorkflow(
     initWorkflow: BaseWorkflowDeclaration<any, any>,
     durable: boolean = false
   ) {
@@ -356,7 +356,7 @@ export class V1Worker {
         }
       }
 
-      const registeredWorkflow = this.client.admin.putWorkflowV1({
+      const registeredWorkflow = this.client.admin.putWorkflow({
         name: workflow.name,
         description: workflow.description || '',
         version: workflow.version || '',
@@ -415,7 +415,7 @@ export class V1Worker {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
     }
 
-    this.registerActionsV1(workflow);
+    this.registerActions(workflow);
   }
 
   async handleStartStepRun(action: Action) {

@@ -1,4 +1,4 @@
-import { V1Worker } from '@hatchet/v1/client/worker/worker-internal';
+import { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 
 describe('V1Worker handleCancelStepRun cancellation supervision', () => {
@@ -49,7 +49,7 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
 
     const action: any = { taskRunExternalId: taskExternalId };
 
-    const p = V1Worker.prototype.handleCancelStepRun.call(fakeThis, action);
+    const p = InternalWorker.prototype.handleCancelStepRun.call(fakeThis, action);
 
     await jest.advanceTimersByTimeAsync(1500);
     await p;

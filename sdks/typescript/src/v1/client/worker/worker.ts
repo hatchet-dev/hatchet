@@ -5,7 +5,7 @@ import { BaseWorkflowDeclaration } from '../../declaration';
 import type { LegacyWorkflow } from '../../../legacy/legacy-transformer';
 import { normalizeWorkflows } from '../../../legacy/legacy-transformer';
 import { HatchetClient } from '../..';
-import { V1Worker } from './worker-internal';
+import { InternalWorker } from './worker-internal';
 import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
 import { isLegacyEngine, LegacyDualWorker } from './deprecated';
 
@@ -29,7 +29,7 @@ export class Worker {
   _v1: HatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
-  _internal: V1Worker;
+  _internal: InternalWorker;
 
   /** Set when connected to a legacy engine that needs dual-worker architecture */
   private _legacyWorker: LegacyDualWorker | undefined;
@@ -43,7 +43,7 @@ export class Worker {
    */
   constructor(
     v1: HatchetClient,
-    nonDurable: V1Worker,
+    nonDurable: InternalWorker,
     config: CreateWorkerOpts,
     name: string
   ) {
@@ -76,7 +76,7 @@ export class Worker {
       ...resolvedOptions,
     };
 
-    const internalWorker = new V1Worker(v1, opts);
+    const internalWorker = new InternalWorker(v1, opts);
     const worker = new Worker(v1, internalWorker, normalizedOptions, name);
     await worker.registerWorkflows(normalizedOptions.workflows);
     return worker;
@@ -92,10 +92,10 @@ export class Worker {
   async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow>) {
     const normalized = workflows ? normalizeWorkflows(workflows) : [];
     for (const wf of normalized) {
-      await this._internal.registerWorkflowV1(wf);
+      await this._internal.registerWorkflow(wf);
 
       if (wf.definition._durableTasks.length > 0) {
-        this._internal.registerDurableActionsV1(wf.definition);
+        this._internal.registerDurableActions(wf.definition);
       }
     }
   }
