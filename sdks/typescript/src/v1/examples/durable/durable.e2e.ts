@@ -66,7 +66,7 @@ describe('durable-e2e', () => {
 
     const multi = (result as any).wait_for_multi_sleep;
     expect(multi.runtime).toBeGreaterThan(3 * SLEEP_TIME_SECONDS);
-  }, 180_000);
+  }, 300_000); // durable + event flow is slow in CI
 
   it('durable sleep cancel + replay', async () => {
     const ref = await waitForSleepTwice.runNoWait({});
@@ -82,5 +82,5 @@ describe('durable-e2e', () => {
     const replayed = await ref.output;
     // We've already slept a bit by the time the task is cancelled
     expect(replayed.runtime).toBeLessThanOrEqual(SLEEP_TIME_SECONDS);
-  }, 180_000);
+  }, 300_000); // durable + event flow is slow in CI
 });

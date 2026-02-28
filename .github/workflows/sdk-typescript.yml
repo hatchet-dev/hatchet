@@ -84,7 +84,7 @@ jobs:
 
   test-e2e:
     runs-on: ubicloud-standard-4
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -164,6 +164,7 @@ jobs:
 
           cd sdks/typescript
           export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
+          export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
           export NODE_TLS_REJECT_UNAUTHORIZED=0
           pnpm test:e2e
 

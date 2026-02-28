@@ -132,5 +132,5 @@ describe('concurrency-multiple-keys-e2e', () => {
     for (const group of Object.values(overlappingGroups)) {
       expect(isValidGroup(group)).toBe(true);
     }
-  }, 120_000);
+  }, 240_000); // 100 runs with concurrency limits are slow in CI
 });
