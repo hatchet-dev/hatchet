@@ -739,4 +739,4 @@ Please submit any bugs that you encounter via Github issues.
 
 ### I'd Like to Contribute
 
-Please let us know what you're interesting in working on in the #contributing channel on [Discord](https://discord.gg/ZMeUafwH89). This will help us shape the direction of the project and will make collaboration much easier!
+Please let us know what you're interested in working on in the #contributing channel on [Discord](https://discord.gg/ZMeUafwH89). This will help us shape the direction of the project and will make collaboration much easier!
