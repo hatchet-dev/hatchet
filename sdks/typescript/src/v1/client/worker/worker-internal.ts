@@ -471,7 +471,7 @@ export class V1Worker {
           for (const hook of hooks) {
             const extra = await hook(result, context as any, context.input);
             if (extra !== undefined) {
-              result = { ...result, ...extra };
+              result = extra;
             }
           }
         }

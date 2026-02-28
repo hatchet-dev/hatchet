@@ -1,8 +1,9 @@
 import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
-import { loggingWorkflow } from './workflow';
+import { createLoggingWorkflow } from './workflow';
 
 describe('logger-e2e', () => {
   const hatchet = makeE2EClient();
+  const loggingWorkflow = createLoggingWorkflow(hatchet);
   let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
 
   beforeAll(async () => {
