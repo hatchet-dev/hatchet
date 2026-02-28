@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.27.2] - 2026-02-28
 
+### Added
+
+- Adds the `worker_id` to the `Context`
+
 ### Changed
 
 - Fixes a bug where failed serialization of task outputs causes the task to hang indefinitely.
