@@ -1,8 +1,8 @@
 import HatchetError from '@util/errors/hatchet-error';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
+import { HatchetClient } from '@hatchet/v1';
 import { EventClient } from './event-client';
 import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
-import { HatchetClient } from '@hatchet/v1';
 
 let client: EventClient;
 

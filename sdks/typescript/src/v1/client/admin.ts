@@ -124,7 +124,10 @@ export class AdminClient {
         priority: opts.priority,
       };
 
-      const resp = await retrier(async () => this.workflowsGrpc.triggerWorkflow(request), this.logger);
+      const resp = await retrier(
+        async () => this.workflowsGrpc.triggerWorkflow(request),
+        this.logger
+      );
 
       const id = resp.workflowRunId;
 

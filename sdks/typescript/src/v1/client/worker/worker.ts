@@ -59,11 +59,7 @@ export class Worker {
    * @param options - Worker creation options
    * @returns A new HatchetWorker instance
    */
-  static async create(
-    v1: HatchetClient,
-    name: string,
-    options: CreateWorkerOpts
-  ) {
+  static async create(v1: HatchetClient, name: string, options: CreateWorkerOpts) {
     // Normalize any legacy workflows before resolving worker options
     const normalizedOptions = {
       ...options,
