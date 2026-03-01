@@ -160,9 +160,7 @@ async def test_durable_concurrency_eviction_holds_slot(hatchet: Hatchet) -> None
 
     for _ in range(120):
         await asyncio.sleep(1)
-        runs = hatchet.runs.list(
-            additional_metadata={"test_run_id": test_run_id}
-        ).rows
+        runs = hatchet.runs.list(additional_metadata={"test_run_id": test_run_id}).rows
         running_count = sum(1 for r in runs if r.status == V1TaskStatus.RUNNING)
         max_observed_running = max(max_observed_running, running_count)
 

@@ -92,6 +92,28 @@ async def durable_concurrency_cancel_newest_task(
     return {"status": "completed", "group": input.group}
 
 
+durable_concurrency_slot_retention_workflow = hatchet.workflow(
+    name="DurableConcurrencySlotRetention",
+    concurrency=ConcurrencyExpression(
+        expression="input.group",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    ),
+    input_validator=ConcurrencyInput,
+)
+
+
+@durable_concurrency_slot_retention_workflow.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=EVICTION_POLICY,
+)
+async def durable_concurrency_slot_retention_task(
+    input: ConcurrencyInput, ctx: DurableContext
+) -> dict[str, str]:
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_SECONDS))
+    return {"status": "completed", "group": input.group}
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-complex-concurrency-worker",
@@ -99,6 +121,7 @@ def main() -> None:
             durable_concurrency_workflow,
             durable_concurrency_cancel_in_progress_workflow,
             durable_concurrency_cancel_newest_workflow,
+            durable_concurrency_slot_retention_workflow,
         ],
     )
     worker.start()
