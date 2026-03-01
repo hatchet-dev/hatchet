@@ -149,6 +149,10 @@ jobs:
           export SERVER_AUTH_COOKIE_DOMAIN=localhost
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+          export SERVER_LOGGER_LEVEL=info
+          export SERVER_LOGGER_FORMAT=console
+          export DATABASE_LOGGER_LEVEL=warn
+          export DATABASE_LOGGER_FORMAT=console
 
           go run ./cmd/hatchet-admin quickstart
 
