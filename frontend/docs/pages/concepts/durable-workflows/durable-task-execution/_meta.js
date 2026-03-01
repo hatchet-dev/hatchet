@@ -1,5 +1,5 @@
 export default {
-  index: "Understanding Durable Execution",
+  index: { display: "hidden" },
   "child-spawning": "Child Spawning",
   "durable-sleep": "Durable Sleep",
   "durable-events": "Wait For Events",

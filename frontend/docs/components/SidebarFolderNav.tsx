@@ -4,9 +4,9 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 
 /**
- * Nextra renders sidebar folders with index pages as buttons. When a collapsed
- * folder is clicked, we navigate to its index (data-href) so the user lands
- * on the overview; the sidebar then opens because the route is inside the folder.
+ * Nextra renders sidebar folders with index pages as buttons. When the folder
+ * label is clicked (expanded or collapsed), we navigate to its index (data-href)
+ * so the user lands on the overview.
  * Works for any folder that has a route (e.g. has an index.mdx).
  */
 export function SidebarFolderNav() {
@@ -22,10 +22,6 @@ export function SidebarFolderNav() {
 
       const href = button.getAttribute("data-href");
       if (!href) return;
-
-      const li = button.closest?.("li");
-      const isOpen = li?.classList.contains("open");
-      if (isOpen) return;
 
       e.preventDefault();
       e.stopPropagation();

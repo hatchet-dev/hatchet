@@ -1,5 +1,5 @@
 export default {
-  index: "Overview",
+  index: { display: "hidden" },
   "durable-task-execution": {
     title: "Durable Task Execution",
     theme: { collapsed: true },
