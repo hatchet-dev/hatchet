@@ -63,6 +63,7 @@ export default async function globalSetup(): Promise<void> {
 
   const workerEnv = {
     ...process.env,
+    HATCHET_CLIENT_LOG_LEVEL: 'DEBUG',
     HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
     HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: String(HEALTH_PORT),
   };
