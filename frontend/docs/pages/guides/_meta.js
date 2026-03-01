@@ -1,8 +1,5 @@
 export default {
-  index: {
-    title: "Guides",
-    display: "hidden",
-  },
+  index: "Overview",
   "--ai": {
     title: "Artificial Intelligence",
     type: "separator",
