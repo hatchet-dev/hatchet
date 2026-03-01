@@ -8,5 +8,5 @@ export default {
     title: "Directed Acyclic Graphs",
     theme: { collapsed: true },
   },
-  "mixing-patterns": "Mixing Patterns",
+  "mixing-patterns": "Mixing Durable Patterns",
 };

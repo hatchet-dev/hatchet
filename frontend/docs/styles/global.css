@@ -184,6 +184,7 @@
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
   grid-template-columns: repeat(var(--rows, 3), minmax(0, 1fr));
+  align-items: stretch;
 }
 
 @media (max-width: 768px) {
@@ -198,6 +199,7 @@
   flex-direction: column-reverse;
   align-items: stretch;
   justify-content: flex-start;
+  min-height: 100%;
   gap: 0.375rem;
   padding: 1rem 1.25rem;
   border-radius: var(--radius, 0.5rem);
@@ -211,6 +213,13 @@
     border-color 0.15s ease,
     background-color 0.15s ease,
     color 0.15s ease;
+}
+
+/* Description/content area grows to fill space for equal-height cards */
+.nextra-card > *:not(span) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-wrap: break-word;
 }
 
 .nextra-card:hover {
@@ -249,10 +258,12 @@
   transform: translateX(2px);
 }
 
+/* Allow natural wrapping instead of truncation for better readability */
 .nextra-card ._truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-wrap: break-word;
 }
 
 /* ========================= */
