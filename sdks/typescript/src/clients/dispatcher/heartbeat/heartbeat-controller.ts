@@ -29,7 +29,11 @@ export class Heartbeat {
 
   async start() {
     if (!this.heartbeatWorker) {
-      const { middleware: _m, logger: _l, ...clonableConfig } = this.config as Record<string, unknown>;
+      const {
+        middleware: _m,
+        logger: _l,
+        ...clonableConfig
+      } = this.config as Record<string, unknown>;
       this.heartbeatWorker = runThreaded(path.join(__dirname, './heartbeat-worker'), {
         workerData: {
           config: clonableConfig,

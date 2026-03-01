@@ -1,11 +1,39 @@
 /**
  * Jest globalSetup for e2e tests - spawns the shared e2e worker and polls until ready.
  */
-import { spawn, ChildProcess } from 'child_process';
-import { writeFileSync } from 'fs';
+import { execSync, spawn, ChildProcess } from 'child_process';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import * as path from 'path';
 
 const E2E_WORKER_PID_FILE = path.join(process.cwd(), '.e2e-worker.pid');
+
+function killProcessTree(pid: number): void {
+  try {
+    if (process.platform === 'win32') {
+      execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore' });
+    } else {
+      execSync(`pkill -TERM -P ${pid} 2>/dev/null; kill -TERM ${pid} 2>/dev/null; sleep 0.3; kill -9 -${pid} 2>/dev/null; kill -9 ${pid} 2>/dev/null`, {
+        stdio: 'ignore',
+      });
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function cleanupOrphanedWorker(): void {
+  if (!existsSync(E2E_WORKER_PID_FILE)) return;
+  const pid = parseInt(readFileSync(E2E_WORKER_PID_FILE, 'utf8'), 10);
+  if (Number.isNaN(pid)) return;
+  try {
+    process.kill(pid, 0);
+  } catch {
+    unlinkSync(E2E_WORKER_PID_FILE);
+    return;
+  }
+  killProcessTree(pid);
+  unlinkSync(E2E_WORKER_PID_FILE);
+}
 const HEALTH_PORT = 18001;
 const POLL_INTERVAL_MS = 500;
 const MAX_WAIT_MS = 60_000;
@@ -29,6 +57,8 @@ async function waitForHealth(): Promise<void> {
 }
 
 export default async function globalSetup(): Promise<void> {
+  cleanupOrphanedWorker();
+
   const workerEnv = {
     ...process.env,
     HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',

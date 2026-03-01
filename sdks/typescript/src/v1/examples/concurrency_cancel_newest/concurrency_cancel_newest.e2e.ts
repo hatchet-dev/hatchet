@@ -50,8 +50,7 @@ describe('concurrency-cancel-newest-e2e', () => {
           return (
             rows.length === 11 &&
             rows.every(
-              (x: any) =>
-                x.status !== V1TaskStatus.RUNNING && x.status !== V1TaskStatus.QUEUED
+              (x: any) => x.status !== V1TaskStatus.RUNNING && x.status !== V1TaskStatus.QUEUED
             )
           );
         },

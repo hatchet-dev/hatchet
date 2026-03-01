@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { makeE2EClient, poll } from '../__e2e__/harness';
-import { bulkChild, bulkParentWorkflow } from './workflow';
+import { bulkParentWorkflow } from './workflow';
 
 describe('bulk-fanout-e2e', () => {
   const hatchet = makeE2EClient();
@@ -19,16 +19,13 @@ describe('bulk-fanout-e2e', () => {
     );
 
     await ref.output;
-    const details = await poll(
-      async () => hatchet.runs.get(ref),
-      {
-        timeoutMs: 15_000,
-        intervalMs: 100,
-        label: 'run details with metadata',
-        shouldStop: (d) =>
-          (d.run?.additionalMetadata as Record<string, string>)?.test_run_id === testRunId,
-      }
-    );
+    const details = await poll(async () => hatchet.runs.get(ref), {
+      timeoutMs: 15_000,
+      intervalMs: 100,
+      label: 'run details with metadata',
+      shouldStop: (d) =>
+        (d.run?.additionalMetadata as Record<string, string>)?.test_run_id === testRunId,
+    });
     expect((details.run?.additionalMetadata as Record<string, string>)?.test_run_id).toBe(
       testRunId
     );

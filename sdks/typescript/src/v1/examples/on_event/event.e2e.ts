@@ -35,9 +35,9 @@ describe('events-e2e', () => {
 
     // Poll until all events are persisted (replaces fixed sleep - events can have propagation delay)
     let persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
-    let persistedAttempts = 0;
-    while (!Array.from(eventIds).every((id) => new Set(persisted.map((e) => e.metadata.id)).has(id))) {
-      if (persistedAttempts++ > 50) break;
+    for (let i = 0; i < 50; i += 1) {
+      const persistedIdsSoFar = new Set(persisted.map((e) => e.metadata.id));
+      if (Array.from(eventIds).every((id) => persistedIdsSoFar.has(id))) break;
       await sleep(100);
       persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
     }

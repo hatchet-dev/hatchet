@@ -43,8 +43,7 @@ describe('concurrency-cancel-in-progress-e2e', () => {
           return (
             rows.length === 10 &&
             rows.every(
-              (x: any) =>
-                x.status !== V1TaskStatus.RUNNING && x.status !== V1TaskStatus.QUEUED
+              (x: any) => x.status !== V1TaskStatus.RUNNING && x.status !== V1TaskStatus.QUEUED
             )
           );
         },

@@ -6,11 +6,7 @@
  */
 import { hatchet } from './hatchet-client';
 import { bulkChild, bulkParentWorkflow } from './bulk_fanout/workflow';
-import {
-  bulkReplayTest1,
-  bulkReplayTest2,
-  bulkReplayTest3,
-} from './bulk_operations/workflow';
+import { bulkReplayTest1, bulkReplayTest2, bulkReplayTest3 } from './bulk_operations/workflow';
 import { cancellationWorkflow } from './cancellation/cancellation-workflow';
 import { taskConditionWorkflow } from './conditions/complex-workflow';
 import { concurrencyCancelInProgressWorkflow } from './concurrency_cancel_in_progress/workflow';

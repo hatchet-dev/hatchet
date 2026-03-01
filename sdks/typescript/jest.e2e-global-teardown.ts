@@ -1,22 +1,23 @@
 /**
- * Jest globalTeardown for e2e tests - kills the shared e2e worker process.
+ * Jest globalTeardown for e2e tests - kills the shared e2e worker process and its descendants.
  */
+import { execSync } from 'child_process';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import * as path from 'path';
 
 const E2E_WORKER_PID_FILE = path.join(process.cwd(), '.e2e-worker.pid');
 
-async function killProcess(pid: number): Promise<void> {
-  // Kill the entire process group (pnpm + ts-node child) spawned with detached: true
+function killProcessTree(pid: number): void {
   try {
-    process.kill(-pid, 'SIGTERM');
-  } catch {
-    // fallback: kill just the pid
-    try {
-      process.kill(pid, 'SIGKILL');
-    } catch {
-      // Process may already be dead
+    if (process.platform === 'win32') {
+      execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore' });
+    } else {
+      execSync(`pkill -TERM -P ${pid} 2>/dev/null; kill -TERM ${pid} 2>/dev/null; sleep 0.5; kill -9 -${pid} 2>/dev/null; kill -9 ${pid} 2>/dev/null`, {
+        stdio: 'ignore',
+      });
     }
+  } catch {
+    // Process may already be dead
   }
 }
 
@@ -26,6 +27,6 @@ export default async function globalTeardown(): Promise<void> {
   const pid = parseInt(readFileSync(E2E_WORKER_PID_FILE, 'utf8'), 10);
   if (Number.isNaN(pid)) return;
 
-  await killProcess(pid);
+  killProcessTree(pid);
   unlinkSync(E2E_WORKER_PID_FILE);
 }
