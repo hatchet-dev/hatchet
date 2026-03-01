@@ -58,10 +58,11 @@ if TYPE_CHECKING:
     )
 
 
-def _compute_memo_key(task_run_external_id: str, deps: list[Any]) -> bytes:
+def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
     h = hashlib.sha256()
     h.update(task_run_external_id.encode())
-    h.update(json.dumps(deps, default=str, sort_keys=True).encode())
+    h.update(json.dumps(args, default=str, sort_keys=True).encode())
+    h.update(json.dumps(kwargs, default=str, sort_keys=True).encode())
     return h.digest()
 
 
@@ -648,7 +649,7 @@ class DurableContext(Context):
         run_external_id = self.step_run_id
         adapter = TypeAdapter(result_validator)
 
-        key = _compute_memo_key(self.step_run_id, [list(args), dict(kwargs)])
+        key = _compute_memo_key(self.step_run_id, *args, **kwargs)
 
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=run_external_id,
