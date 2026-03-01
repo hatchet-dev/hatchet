@@ -685,7 +685,7 @@ export class Context<T, K = {}> {
         workflowName = workflow.name;
       }
 
-      const name = applyNamespace(workflowName, this.v1.config.namespace);
+      const name = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
 
       const opts = options || {};
       const { sticky } = opts;
@@ -767,7 +767,7 @@ export class Context<T, K = {}> {
       workflowName = workflow.name;
     }
 
-    const name = applyNamespace(workflowName, this.v1.config.namespace);
+    const name = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
 
     const opts = options || {};
     const { sticky } = opts;

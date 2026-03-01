@@ -6,10 +6,10 @@ import {
   ScheduledWorkflowsList,
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
+import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
-import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
@@ -76,10 +76,10 @@ export class ScheduleClient {
    * @throws Will throw an error if the input is invalid or the API call fails.
    */
   async create(
-    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
+    workflow: string | Workflow,
     cron: CreateScheduledRunInput
   ): Promise<ScheduledWorkflows> {
-    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
+    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase();
 
     // Validate cron input with zod schema
     try {
@@ -153,14 +153,14 @@ export class ScheduleClient {
    */
   async list(
     query: Parameters<typeof this.api.workflowScheduledList>[1] & {
-      workflow?: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow;
+      workflow?: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>;
     }
   ): Promise<ScheduledWorkflowsList> {
     const { workflow, ...rest } = query;
 
     if (workflow) {
       const workflowId = await this.workflows.getWorkflowIdFromName(
-        applyNamespace(workflowNameString(workflow), this.namespace)
+        applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase()
       );
       rest.workflowId = workflowId;
     }
