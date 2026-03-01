@@ -13,14 +13,6 @@ on:
       - main
     paths:
       - "sdks/typescript/**"
-  workflow_dispatch:
-    inputs:
-      debug:
-        description: "Start tmate SSH session before E2E tests"
-        required: false
-        default: false
-        type: boolean
-
 defaults:
   run:
     working-directory: ./sdks/typescript
@@ -160,13 +152,10 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
-          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
+          go run ./cmd/hatchet-engine --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/engine.log &
+          go run ./cmd/hatchet-api --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/api.log &
 
           sleep 30
-      - name: Setup tmate session (debug)
-        if: github.event.inputs.debug == 'true'
-        uses: mxschmitt/action-tmate@v3
       - name: E2E tests
         run: |
           cd ../..
