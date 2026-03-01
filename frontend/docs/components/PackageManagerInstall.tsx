@@ -1,4 +1,5 @@
 import { useLanguage } from "@/context/LanguageContext";
+import { getPackageManagers } from "@/lib/docs-languages";
 import { Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import { CodeBlock } from "@/components/code/CodeBlock";
@@ -31,9 +32,9 @@ export default function PackageManagerInstall({
   if (!pkg) return null;
 
   if (normalizedLang === "python") {
-    const options = ["pip", "poetry", "uv"];
+    const options = getPackageManagers("Python")!;
     return (
-      <UniversalTabs items={options} optionKey={optionKey}>
+      <UniversalTabs items={[...options]} optionKey={optionKey}>
         <Tabs.Tab title="pip">
           <CodeBlock source={{ language: "bash", raw: `pip install ${pkg}` }} />
         </Tabs.Tab>
@@ -48,8 +49,9 @@ export default function PackageManagerInstall({
   }
 
   if (normalizedLang === "typescript") {
+    const options = getPackageManagers("Typescript")!;
     return (
-      <UniversalTabs items={["npm", "pnpm", "yarn"]} optionKey={optionKey}>
+      <UniversalTabs items={[...options]} optionKey={optionKey}>
         <Tabs.Tab title="npm">
           <CodeBlock source={{ language: "bash", raw: `npm install ${pkg}` }} />
         </Tabs.Tab>

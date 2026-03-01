@@ -3,12 +3,17 @@ asIndexPage: true
 ---
 
 import { Callout } from "nextra/components";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 # What is Hatchet?
 
 Hatchet is a modern orchestration platform that helps engineering teams build low-latency and high-throughput data ingestion and agentic AI pipelines.
 
-You write functions in Python, Typescript, Go, or Ruby and let Hatchet handle scheduling, retries, fault tolerance, and observability. The core mental model has three parts:
+You write functions in Python, Typescript, Go, or Ruby and let Hatchet handle scheduling, retries, fault tolerance, and observability.
+
+<LanguageSwitcher />
+
+The core mental model has three parts:
 
 - **[Tasks](/get-started/your-first-task)** — the fundamental unit of work. A task wraps a single function and gives Hatchet everything it needs to schedule, execute, and observe it.
 - **[Workers](/get-started/workers)** — long-running processes in your infrastructure that pick up and execute tasks.

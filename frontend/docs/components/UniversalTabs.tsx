@@ -2,18 +2,7 @@ import React from "react";
 import { useRouter } from "next/router";
 import { Callout, Tabs } from "nextra/components";
 import { useLanguage } from "../context/LanguageContext";
-
-/* ── Logo map ──────────────────────────────────────────────── */
-
-const LOGO_PATHS: Record<string, string> = {
-  Python: "python-logo.svg",
-  "Python-Sync": "python-logo.svg",
-  "Python-Async": "python-logo.svg",
-  Typescript: "typescript-logo.svg",
-  TypeScript: "typescript-logo.svg",
-  Go: "go-logo.svg",
-  Ruby: "ruby-logo.svg",
-};
+import { LOGO_PATHS } from "@/lib/docs-languages";
 
 const tabLabelStyle: React.CSSProperties = {
   display: "inline-flex",

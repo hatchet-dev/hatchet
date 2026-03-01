@@ -3,6 +3,7 @@ import { useConfig, useTheme } from "nextra-theme-docs";
 import { useRouter } from "next/router";
 import posthog from "posthog-js";
 import Search from "@/components/Search";
+import { LanguageSelectorButton } from "@/components/LanguageSelectorButton";
 
 const DEFAULT_ORIGIN = "https://docs.hatchet.run";
 
@@ -194,6 +195,7 @@ const config = {
             <MarkdownIcon />
             <span className="page-action-label">View as MD</span>
           </a>
+          <LanguageSelectorButton />
         </div>
         {children}
       </>

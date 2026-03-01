@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { DEFAULT_LANGUAGE } from "@/lib/docs-languages";
 
 type OptionsState = {
   [key: string]: string;
@@ -12,7 +13,7 @@ type LanguageContextType = {
 };
 
 const LanguageContext = createContext<LanguageContextType>({
-  selectedLanguage: "Python",
+  selectedLanguage: DEFAULT_LANGUAGE,
   setSelectedLanguage: () => {},
   getSelectedOption: () => "",
   setSelectedOption: () => {},
@@ -23,10 +24,12 @@ export const useLanguage = () => useContext(LanguageContext);
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [options, setOptions] = useState<OptionsState>({ language: "Python" });
+  const [options, setOptions] = useState<OptionsState>({
+    language: DEFAULT_LANGUAGE,
+  });
 
   // For backward compatibility
-  const selectedLanguage = options.language || "Python";
+  const selectedLanguage = options.language || DEFAULT_LANGUAGE;
   const setSelectedLanguage = (language: string) => {
     setOptions((prev) => ({ ...prev, language }));
   };
@@ -69,7 +72,10 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
       localStorage.setItem("uiOptions", JSON.stringify(options));
 
       // Also save language separately for backward compatibility
-      localStorage.setItem("selectedLanguage", options.language || "Python");
+      localStorage.setItem(
+        "selectedLanguage",
+        options.language || DEFAULT_LANGUAGE
+      );
     }
   }, [options]);
 
