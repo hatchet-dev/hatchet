@@ -347,7 +347,6 @@ const DurableWorkflowDiagram: React.FC = () => {
                 stroke="rgb(16,185,129)"
                 strokeWidth="1.5"
                 strokeDasharray="4 3"
-                markerEnd=""
               />
               <text
                 x={(steps[1].x + steps[3].x) / 2 + nodeW / 2}

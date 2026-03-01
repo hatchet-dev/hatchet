@@ -99,6 +99,7 @@ const DocumentProcessingDiagram: React.FC = () => {
         viewBox="0 0 480 160"
         className="mx-auto w-full"
         style={{ maxWidth: 550 }}
+        overflow="hidden"
       >
         {/* Connecting arrows */}
         {STAGES.slice(0, -1).map((_, i) => {
@@ -121,19 +122,10 @@ const DocumentProcessingDiagram: React.FC = () => {
               />
               <polygon
                 points={`${toX - 2},${y} ${toX - 8},${y - 4} ${toX - 8},${y + 4}`}
-                fill={isActive ? STAGES[i + 1].color : "#374151"}
+                fill={isActive ? STAGES[i].color : "#374151"}
                 opacity={isActive ? 1 : 0.4}
                 style={{ transition: "all 0.5s ease" }}
               />
-              {i === activeStage && activeStage < STAGES.length - 1 && (
-                <circle r="3" fill={STAGES[i].color}>
-                  <animateMotion
-                    dur="1.5s"
-                    repeatCount="1"
-                    path={`M ${fromX + 2} ${y} L ${toX - 2} ${y}`}
-                  />
-                </circle>
-              )}
             </g>
           );
         })}

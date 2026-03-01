@@ -24,13 +24,18 @@ const CheckIcon: React.FC<{ x: number; y: number; color: string }> = ({
   </g>
 );
 
+const CONCURRENCY = 3;
+
 const BatchProcessingDiagram: React.FC = () => {
-  const [processedCount, setProcessedCount] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setProcessedCount((prev) => (prev >= ITEMS.length ? 0 : prev + 1));
-    }, 600);
+      setCompletedCount((prev) => {
+        if (prev >= ITEMS.length) return 0;
+        return Math.min(prev + CONCURRENCY, ITEMS.length);
+      });
+    }, 800);
     return () => clearInterval(interval);
   }, []);
 
@@ -114,9 +119,9 @@ const BatchProcessingDiagram: React.FC = () => {
           const y = 35 + row * 55;
 
           let status: "pending" | "processing" | "done";
-          if (item < processedCount) {
+          if (item < completedCount) {
             status = "done";
-          } else if (item === processedCount) {
+          } else if (item < completedCount + CONCURRENCY && item < ITEMS.length) {
             status = "processing";
           } else {
             status = "pending";
@@ -271,24 +276,29 @@ const BatchProcessingDiagram: React.FC = () => {
         </text>
       </svg>
 
-      {/* Progress bar */}
-      <div className="mx-auto mt-3 flex max-w-xs items-center gap-3">
-        <div
-          className="h-2 flex-1 overflow-hidden rounded-full"
-          style={{ backgroundColor: "rgba(55,65,81,0.5)" }}
-        >
+      {/* Progress bar + concurrency label */}
+      <div className="mx-auto mt-3 flex max-w-xs flex-col items-center gap-2">
+        <div className="flex w-full items-center gap-3">
           <div
-            className="h-full rounded-full"
-            style={{
-              width: `${(processedCount / ITEMS.length) * 100}%`,
-              backgroundColor:
-                processedCount === ITEMS.length ? "#34d399" : "#fbbf24",
-              transition: "all 0.3s ease",
-            }}
-          />
+            className="h-2 flex-1 overflow-hidden rounded-full"
+            style={{ backgroundColor: "rgba(55,65,81,0.5)" }}
+          >
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${(completedCount / ITEMS.length) * 100}%`,
+                backgroundColor:
+                  completedCount === ITEMS.length ? "#34d399" : "#fbbf24",
+                transition: "all 0.4s ease",
+              }}
+            />
+          </div>
+          <span className="text-xs tabular-nums" style={{ color: "#9ca3af" }}>
+            {completedCount}/{ITEMS.length}
+          </span>
         </div>
-        <span className="text-xs tabular-nums" style={{ color: "#9ca3af" }}>
-          {processedCount}/{ITEMS.length}
+        <span className="text-[10px] text-gray-500">
+          {CONCURRENCY} in parallel
         </span>
       </div>
     </div>

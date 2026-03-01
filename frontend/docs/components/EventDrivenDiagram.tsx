@@ -102,6 +102,7 @@ const EventDrivenDiagram: React.FC = () => {
         viewBox="0 0 440 180"
         className="mx-auto w-full"
         style={{ maxWidth: 520 }}
+        overflow="hidden"
       >
         {/* Event sources */}
         {SOURCES.map((src, i) => {
@@ -151,23 +152,6 @@ const EventDrivenDiagram: React.FC = () => {
                 opacity={isActive ? 1 : 0.3}
                 style={{ transition: "all 0.4s ease" }}
               />
-
-              {/* Pulse dot */}
-              {isActive && pulseVisible && (
-                <circle r="4" fill={src.color}>
-                  <animateMotion
-                    dur="0.8s"
-                    repeatCount="1"
-                    path={`M 112 ${y + 20} L 170 90`}
-                  />
-                  <animate
-                    attributeName="opacity"
-                    values="1;0"
-                    dur="0.8s"
-                    repeatCount="1"
-                  />
-                </circle>
-              )}
             </g>
           );
         })}

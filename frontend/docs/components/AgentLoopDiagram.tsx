@@ -129,7 +129,7 @@ const AgentLoopDiagram: React.FC = () => {
             <polygon points="0 0, 10 3.5, 0 7" fill="#4b5563" />
           </marker>
           <marker
-            id="arrow-active"
+            id="arrow-thought"
             viewBox="0 0 10 7"
             refX="9"
             refY="3.5"
@@ -139,12 +139,37 @@ const AgentLoopDiagram: React.FC = () => {
           >
             <polygon points="0 0, 10 3.5, 0 7" fill="#818cf8" />
           </marker>
+          <marker
+            id="arrow-action"
+            viewBox="0 0 10 7"
+            refX="9"
+            refY="3.5"
+            markerWidth="8"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <polygon points="0 0, 10 3.5, 0 7" fill="#38bdf8" />
+          </marker>
+          <marker
+            id="arrow-observation"
+            viewBox="0 0 10 7"
+            refX="9"
+            refY="3.5"
+            markerWidth="8"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
         </defs>
 
         {/* Forward arrows between nodes */}
         {nodes.slice(0, -1).map((from, i) => {
           const to = nodes[i + 1];
           const isActive = phaseIdx === i;
+          const arrowMarkerId = isActive
+            ? `arrow-${PHASES[i]}`
+            : "arrow";
           return (
             <line
               key={`fwd-${i}`}
@@ -154,7 +179,7 @@ const AgentLoopDiagram: React.FC = () => {
               y2={to.y}
               stroke={isActive ? PHASE_CONFIG[PHASES[i]].color : "#4b5563"}
               strokeWidth={isActive ? 2 : 1.5}
-              markerEnd={isActive ? "url(#arrow-active)" : "url(#arrow)"}
+              markerEnd={`url(#${arrowMarkerId})`}
               opacity={isActive ? 1 : 0.5}
               style={{ transition: "all 0.4s ease" }}
             />
@@ -175,6 +200,7 @@ const AgentLoopDiagram: React.FC = () => {
               strokeWidth={isActive ? 2 : 1.5}
               strokeDasharray="6 4"
               opacity={isActive ? 1 : 0.35}
+              markerEnd={isActive ? "url(#arrow-observation)" : "url(#arrow)"}
               style={{ transition: "all 0.4s ease" }}
             />
           );
