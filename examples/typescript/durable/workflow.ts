@@ -7,7 +7,7 @@ export const SLEEP_TIME = `${SLEEP_TIME_SECONDS}s` as const;
 
 // > Create a durable workflow
 export const durableWorkflow = hatchet.workflow({
-  name: 'DurableWorkflow',
+  name: 'durable-workflow',
 });
 
 durableWorkflow.task({
