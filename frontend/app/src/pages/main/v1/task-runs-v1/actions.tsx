@@ -264,7 +264,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
-      <DialogContent className="z-[70] max-h-[90%] overflow-auto py-8 sm:max-w-[700px]">
+      <DialogContent className="max-h-[90%] overflow-auto py-8 sm:max-w-[700px]">
         <DialogHeader className="gap-2">
           <div className="flex w-full flex-row items-center justify-between">
             <DialogTitle>{label} runs</DialogTitle>

@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -46,12 +46,12 @@
     "@tsd/typescript": "^5.8.2",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.14",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
     "autoprefixer": "^10.4.21",
     "dotenv-cli": "^7.4.4",
     "eslint": "^8.56.0",
-    "eslint-config-airbnb-typescript": "^17.1.0",
+    "eslint-config-airbnb-typescript": "^18.0.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
     "eslint-import-resolver-typescript": "^3.10.0",
@@ -81,12 +81,12 @@
     "@bufbuild/protobuf": "^2.2.5",
     "@types/qs": "^6.9.18",
     "abort-controller-x": "^0.4.3",
-    "axios": "^1.11.0",
+    "axios": "^1.13.5",
     "long": "^5.3.1",
     "nice-grpc": "^2.1.12",
     "nice-grpc-common": "^2.0.2",
     "protobufjs": "^7.4.0",
-    "qs": "^6.14.1",
+    "qs": "^6.14.2",
     "semver": "^7.7.1",
     "yaml": "^2.7.1",
     "zod": "^3.24.2",
@@ -99,7 +99,7 @@
   "pnpm": {
     "overrides": {
       "diff": "8.0.3",
-      "tar": "^7.5.7",
+      "tar": "^7.5.8",
       "js-yaml": "^4.1.1"
     }
   }

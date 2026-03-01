@@ -380,7 +380,7 @@ class DurableEventListener:
         durable_task_external_id: str,
         invocation_count: int,
         kind: DurableTaskEventKind,
-        payload: JSONSerializableMapping | bytes | None = None,
+        payload: str | None = None,
         wait_for_conditions: DurableEventListenerConditions | None = None,
         # todo: combine these? or separate methods? or overload?
         workflow_name: str | None = None,
@@ -397,14 +397,9 @@ class DurableEventListener:
         _trigger_opts: trigger_protos.TriggerWorkflowRequest | None = None
 
         if workflow_name:
-            if isinstance(payload, bytes):
-                raise TypeError(
-                    "Triggering a workflow with a bytes payload is not supported"
-                )
-
             _trigger_opts = self.admin_client._create_workflow_run_request(
                 workflow_name=workflow_name,
-                input=payload or {},
+                input=payload,
                 options=trigger_workflow_opts or TriggerWorkflowOptions(),
             )
 
@@ -417,15 +412,12 @@ class DurableEventListener:
         )
 
         if payload is not None and not isinstance(payload, bytes):
-            event_request.payload = json.dumps(payload).encode("utf-8")
-        elif isinstance(payload, bytes):
-            event_request.payload = payload
+            event_request.payload = payload.encode("utf-8")
 
         if wait_for_conditions is not None:
             event_request.wait_for_conditions.CopyFrom(wait_for_conditions)
 
-        request = DurableTaskRequest(event=event_request)
-        await self._request_queue.put(request)
+        await self._request_queue.put(DurableTaskRequest(event=event_request))
 
         return await future
 

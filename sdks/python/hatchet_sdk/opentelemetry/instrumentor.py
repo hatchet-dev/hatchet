@@ -274,7 +274,18 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> list[Any]:
-        sig = inspect.signature(wrapped_func)
+        try:
+            import annotationlib
+
+            # Python 3.14+ with PEP 749 can fail evaluating annotations lazily,
+            # so use Format.STRING to avoid resolving type hints.
+            sig = inspect.signature(
+                wrapped_func,
+                annotation_format=annotationlib.Format.STRING,
+            )
+        except Exception:
+            # Fallback for Python < 3.14 where annotation_format is not supported
+            sig = inspect.signature(wrapped_func)
 
         bound_args = sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
@@ -432,17 +443,17 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_run_workflow(
         self,
         wrapped: Callable[
-            [str, JSONSerializableMapping, TriggerWorkflowOptions],
+            [str, str | None, TriggerWorkflowOptions],
             WorkflowRunRef,
         ],
         instance: AdminClient,
-        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions],
-        kwargs: dict[str, str | JSONSerializableMapping | TriggerWorkflowOptions],
+        args: tuple[str, str | None, TriggerWorkflowOptions],
+        kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
+        payload = cast(str | None, params[1])
         options = cast(
             TriggerWorkflowOptions,
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
@@ -450,7 +461,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.ACTION_PAYLOAD: payload,
             OTelAttribute.PARENT_ID: options.parent_id,
             OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
             OTelAttribute.CHILD_INDEX: options.child_index,
@@ -490,17 +501,17 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_async_run_workflow(
         self,
         wrapped: Callable[
-            [str, JSONSerializableMapping, TriggerWorkflowOptions],
+            [str, str | None, TriggerWorkflowOptions],
             Coroutine[None, None, WorkflowRunRef],
         ],
         instance: AdminClient,
-        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions],
-        kwargs: dict[str, str | JSONSerializableMapping | TriggerWorkflowOptions],
+        args: tuple[str, str | None, TriggerWorkflowOptions],
+        kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
+        payload = cast(str | None, params[1])
         options = cast(
             TriggerWorkflowOptions,
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
@@ -508,7 +519,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.ACTION_PAYLOAD: payload,
             OTelAttribute.PARENT_ID: options.parent_id,
             OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
             OTelAttribute.CHILD_INDEX: options.child_index,
@@ -558,7 +569,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [
                 str,
                 list[datetime | timestamp_pb2.Timestamp],
-                JSONSerializableMapping,
+                str | None,
                 ScheduleTriggerWorkflowOptions,
             ],
             v0_workflow_protos.WorkflowVersion,
@@ -567,14 +578,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[
             str,
             list[datetime | timestamp_pb2.Timestamp],
-            JSONSerializableMapping,
+            str | None,
             ScheduleTriggerWorkflowOptions,
         ],
         kwargs: dict[
             str,
             str
+            | None
             | list[datetime | timestamp_pb2.Timestamp]
-            | JSONSerializableMapping
             | ScheduleTriggerWorkflowOptions,
         ],
     ) -> v0_workflow_protos.WorkflowVersion:
@@ -582,7 +593,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         workflow_name = cast(str, params[0])
         schedules = cast(list[datetime | timestamp_pb2.Timestamp], params[1])
-        input = cast(JSONSerializableMapping, params[2])
+        input = cast(str | None, params[2])
         options = cast(
             ScheduleTriggerWorkflowOptions,
             params[3] if len(params) > 3 else ScheduleTriggerWorkflowOptions(),
@@ -593,7 +604,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.RUN_AT_TIMESTAMPS: json.dumps(
                 [self._ts_to_iso(ts) for ts in schedules]
             ),
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(input, default=str),
+            OTelAttribute.ACTION_PAYLOAD: input,
             OTelAttribute.PARENT_ID: options.parent_id,
             OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
             OTelAttribute.CHILD_INDEX: options.child_index,

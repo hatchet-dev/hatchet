@@ -183,7 +183,7 @@ export function useTenantDetails() {
       return evalFn({
         tenant,
         billing: billingContext,
-        meta: cloud,
+        meta: cloud ?? undefined,
       });
     },
     [billingContext, cloud, tenant],
@@ -192,7 +192,7 @@ export function useTenantDetails() {
   return {
     tenantId,
     tenant,
-    isLoading: appContext.isTenantLoading,
+    isUserUniverseLoaded: appContext.isUserUniverseLoaded,
     membership,
     setTenant,
     create: createTenantMutation,
