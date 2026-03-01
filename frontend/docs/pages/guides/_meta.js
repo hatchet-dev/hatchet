@@ -1,5 +1,8 @@
 export default {
-  index: "Overview",
+  index: {
+    title: "Guides",
+    display: "hidden",
+  },
   "--ai": {
     title: "Artificial Intelligence",
     type: "separator",
@@ -15,4 +18,9 @@ export default {
   "batch-processing": "Batch Processing",
   "document-processing": "Document Processing",
   "web-scraping": "Web Scraping",
+  "--common-issues": {
+    title: "Common Issues",
+    type: "separator",
+  },
+  "troubleshooting-workers": "Troubleshooting Workers",
 };

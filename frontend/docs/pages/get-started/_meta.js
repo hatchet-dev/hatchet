@@ -18,12 +18,11 @@ export default {
   workers: "Workers",
   "running-your-task": "Running Tasks",
   "intro-to-durable-workflows": "Intro to Durable Workflows",
-  "--production": {
-    title: "Preparing for Production",
-    type: "separator",
+  production: "Preparing for Production",
+  "troubleshooting-workers": {
+    title: "Troubleshooting ↗",
+    href: "/guides/troubleshooting-workers",
   },
-  production: "Overview",
-  "troubleshooting-workers": "Troubleshooting",
   compute: {
     title: "Managed Compute",
     type: "page",

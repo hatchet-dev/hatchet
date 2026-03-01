@@ -2,17 +2,60 @@
 asIndexPage: true
 ---
 
-import { Callout } from "nextra/components";
+import { Callout, Cards } from "nextra/components";
 
-# Use Cases
+# Guides
+
+End-to-end examples for common use cases, with working code in Python, TypeScript, Go, and Ruby. Each guide builds a complete workflow you can run locally and adapt to your own project.
 
 <Callout type="info">
   These guides assume you have the Hatchet SDK installed and a worker running.
   If you haven't done that yet, start with [Get Started](/get-started).
 </Callout>
 
-Common use cases for Hatchet, organized into three categories:
+## Artificial Intelligence
 
-- **AI & Agents**: AI agents, human-in-the-loop approvals, RAG pipelines, and LLM chains
-- **Data & Processing**: Batch processing, document extraction, and scheduled jobs
-- **Real-Time & Streaming**: Webhook processing, event-driven systems, and live streaming
+<Cards>
+  <Cards.Card title="AI Agents" href="/guides/ai-agents">
+    Build agents that reason, act, and observe in a loop. Covers reasoning loops,
+    routing, multi-agent orchestration, and parallelization.
+  </Cards.Card>
+  <Cards.Card title="Human-in-the-Loop" href="/guides/human-in-the-loop">
+    Pause a task for human review or approval, freeing the worker slot until
+    the decision arrives. The task resumes exactly where it left off.
+  </Cards.Card>
+  <Cards.Card title="RAG & Data Indexing" href="/guides/rag-and-indexing">
+    Ingest documents, split into chunks, generate embeddings, and write to a
+    vector database using a DAG workflow.
+  </Cards.Card>
+  <Cards.Card title="LLM Pipelines" href="/guides/llm-pipelines">
+    Chain multiple model calls with validation, retries, and structured outputs.
+    Each step is a durable task with independent retry and rate-limit controls.
+  </Cards.Card>
+</Cards>
+
+## Data & Processing
+
+<Cards>
+  <Cards.Card title="Batch Processing" href="/guides/batch-processing">
+    Run the same operation across a large set of items with fan-out, retry, and
+    concurrency control.
+  </Cards.Card>
+  <Cards.Card title="Document Processing" href="/guides/document-processing">
+    Parse PDFs and files, extract content with OCR or LLMs, validate, enrich,
+    and classify using a DAG pipeline.
+  </Cards.Card>
+  <Cards.Card title="Web Scraping" href="/guides/web-scraping">
+    Fetch, process, and store web content with retries, timeouts, rate limits,
+    and cron scheduling for recurring refreshes.
+  </Cards.Card>
+</Cards>
+
+## Operations
+
+<Cards>
+  <Cards.Card title="Troubleshooting Workers" href="/guides/troubleshooting-workers">
+    Debug common issues with Hatchet workers, including connection failures,
+    tasks stuck in queued state, and phantom workers.
+  </Cards.Card>
+</Cards>
