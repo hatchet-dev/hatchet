@@ -1,69 +1,135 @@
-import { Callout, Cards, Steps } from "nextra/components";
+import { Callout, Cards, Steps, Tabs } from "nextra/components";
+import LLMIntegrationTabs from "@/components/LLMIntegrationTabs";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import UniversalTabs from "@/components/UniversalTabs";
 
 # LLM Pipelines
 
 LLM pipelines chain multiple model calls together with validation, retries, and structured outputs. Hatchet turns each step into a durable task so failures retry individually, rate limits protect provider APIs, and the full pipeline is observable in the dashboard.
 
-## Core Challenges
+Because each LLM call maps to a task and validation steps gate what runs next, these pipelines are a natural fit for [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs).
+
+## Step-by-step walkthrough
+
+By the end of this guide you will have a DAG pipeline: prompt → generate → validate, with a mock LLM to avoid external API dependencies.
 
 <Steps>
 
-### Chaining multiple LLM calls
+### Step 1: Define the pipeline
 
-A pipeline often calls an LLM several times in sequence—generate, refine, validate, format. Each call depends on the previous output. [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs) model these dependencies explicitly so each step can be retried or inspected independently.
+Create a workflow with prompt construction, LLM generation, and validation stages.
 
-### Structured output validation
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.llm_pipelines.worker.step_01_define_pipeline}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.llm_pipelines.workflow
+          .step_01_define_pipeline
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.llm_pipelines.main.step_01_define_pipeline}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.llm_pipelines.worker.step_01_define_pipeline}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
-LLM responses need parsing and validation before they can feed into downstream steps. When validation fails, Hatchet [retries](/concepts/retry-policies) just that step with a corrective prompt instead of restarting the entire pipeline.
+### Step 2: Prompt task
 
-### Rate limits across providers
+The prompt task depends on the pipeline input (Step 1). Build the prompt from user input and context. This step may include retrieval from a vector database (see [RAG & Indexing](/guides/rag-and-indexing)).
 
-Multiple pipelines running in parallel can exceed provider quotas. Hatchet's [Rate Limits](/concepts/rate-limits) throttle LLM calls across all workers to stay within API limits.
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.llm_pipelines.worker.step_02_prompt_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.llm_pipelines.workflow.step_02_prompt_task
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.guides.llm_pipelines.main.step_02_prompt_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.llm_pipelines.worker.step_02_prompt_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
-</Steps>
+The prompt is passed to your LLM service for generation. The examples above use a mock—to use a real provider, swap `get_llm_service()` with one of these:
 
-## Key Features
+<LLMIntegrationTabs />
 
-| Feature                                                                                  | What it does for LLM pipelines                                                |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **[DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs)**                 | Chain LLM calls with explicit dependencies between steps                      |
-| **[Retry Policies](/concepts/retry-policies)**                                           | Retry failed LLM calls or validation errors without restarting the pipeline   |
-| **[Rate Limits](/concepts/rate-limits)**                                                 | Throttle calls across providers (OpenAI, Anthropic, etc.) to stay within quotas |
-| **[Streaming](/concepts/streaming)**                                                     | Stream intermediate LLM tokens to frontends in real-time                      |
-| **[Durable Execution](/concepts/durable-workflows/durable-task-execution)**              | Checkpoint between LLM calls so completed steps survive crashes               |
-| **[Timeouts](/concepts/timeouts)**                                                       | Set per-step timeouts so slow LLM responses don't block the pipeline          |
-| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Fan out to parallel LLM calls (e.g., evaluate multiple prompts simultaneously) |
-| **[Concurrency](/concepts/concurrency)**                                                 | Limit how many pipelines run at once per user or tenant                       |
+### Step 3: Validate the output
 
-<Callout type="info">
-  LLM pipelines are a natural fit for [DAG
-  Workflows](/concepts/durable-workflows/directed-acyclic-graphs). Each LLM call
-  is a task in the graph, and validation steps gate downstream tasks.
-</Callout>
+The validate task depends on the generate step. Parse and validate the structured response. When validation fails, [Retry Policies](/concepts/retry-policies) retry just that step with a corrective prompt.
 
-## Pipeline Architecture
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.llm_pipelines.worker.step_03_validate_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.llm_pipelines.workflow.step_03_validate_task
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.llm_pipelines.main.step_03_validate_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.llm_pipelines.worker.step_03_validate_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
-<Steps>
+### Step 4: Run the worker
 
-### Prompt construction
+Start the worker. Configure [Rate Limits](/concepts/rate-limits) to stay within LLM provider quotas.
 
-Build the initial prompt from user input, context, and system instructions. This step may include retrieval from a vector database (see [RAG & Data Indexing](/guides/rag-and-indexing)).
-
-### LLM generation
-
-Call the model with the constructed prompt. Hatchet rate-limits these calls and retries on transient API errors (429s, timeouts).
-
-### Output validation
-
-Parse and validate the structured response (JSON schema, type checks, business rules). If validation fails, retry with a corrective prompt that includes the error.
-
-### Refinement (optional)
-
-Pass the validated output through additional LLM calls for summarization, translation, or tone adjustment. Each refinement step is an independent task with its own retry policy.
-
-### Delivery
-
-Write the final output to your database, return it via API, or stream it to a frontend. Use [Streaming](/concepts/streaming) for real-time delivery of the final response.
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.llm_pipelines.worker.step_04_run_worker}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={snippets.typescript.guides.llm_pipelines.worker.step_04_run_worker}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.guides.llm_pipelines.main.step_04_run_worker} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.llm_pipelines.worker.step_04_run_worker}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
 </Steps>
 
@@ -74,13 +140,13 @@ Write the final output to your database, return it via API, or stream it to a fr
 
 ## Common Patterns
 
-| Pattern                   | Description                                                                      |
-| ------------------------- | -------------------------------------------------------------------------------- |
-| **Generate → Validate**   | Call LLM, validate structured output, retry with error context on failure        |
-| **Chain of thought**      | Multi-step reasoning where each LLM call refines the previous output             |
-| **Parallel evaluation**   | Fan out the same prompt to multiple models, then pick the best response          |
-| **Translation pipeline**  | Generate content in one language, translate to others in parallel                 |
-| **Summarize → Classify**  | Summarize long text, then classify the summary for routing or tagging            |
+| Pattern                  | Description                                                               |
+| ------------------------ | ------------------------------------------------------------------------- |
+| **Generate → Validate**  | Call LLM, validate structured output, retry with error context on failure |
+| **Chain of thought**     | Multi-step reasoning where each LLM call refines the previous output      |
+| **Parallel evaluation**  | Fan out the same prompt to multiple models, then pick the best response   |
+| **Translation pipeline** | Generate content in one language, translate to others in parallel         |
+| **Summarize → Classify** | Summarize long text, then classify the summary for routing or tagging     |
 
 ## Related Patterns
 

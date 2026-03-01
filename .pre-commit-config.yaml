@@ -17,5 +17,27 @@ repos:
     rev: v2.7.2
     hooks:
       - id: golangci-lint
-        args: ["--config=.golangci.yml"]
-        exclude: ^examples/
+        args: ["--config=.golangci.yml", "--allow-parallel-runners"]
+        exclude: ^(examples/|sdks/guides/go/)
+  - repo: local
+    hooks:
+      - id: golangci-lint-guides
+        name: golangci-lint (sdks/guides/go)
+        entry: bash -c 'cd sdks/guides/go && golangci-lint run ./... --config .golangci.yml --allow-parallel-runners'
+        language: system
+        files: ^sdks/guides/go/
+      - id: ruff-python-guides
+        name: ruff (sdks/guides/python)
+        entry: bash -c 'cd sdks/guides/python && poetry run ruff check .'
+        language: system
+        files: ^sdks/guides/python/
+      - id: eslint-typescript-guides
+        name: eslint (sdks/guides/typescript)
+        entry: bash -c 'cd sdks/guides/typescript && pnpm run lint:check'
+        language: system
+        files: ^sdks/guides/typescript/
+      - id: rubocop-ruby-guides
+        name: rubocop (sdks/guides/ruby)
+        entry: bash -c 'cd sdks/guides/ruby && bundle install && bundle exec rubocop'
+        language: system
+        files: ^sdks/guides/ruby/

@@ -167,9 +167,7 @@ const AgentLoopDiagram: React.FC = () => {
         {nodes.slice(0, -1).map((from, i) => {
           const to = nodes[i + 1];
           const isActive = phaseIdx === i;
-          const arrowMarkerId = isActive
-            ? `arrow-${PHASES[i]}`
-            : "arrow";
+          const arrowMarkerId = isActive ? `arrow-${PHASES[i]}` : "arrow";
           return (
             <line
               key={`fwd-${i}`}

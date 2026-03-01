@@ -182,7 +182,7 @@ const config = {
     const claudeCommand = `claude mcp add --transport http hatchet-docs ${mcpUrl}`;
 
     return (
-      <div style={{ position: "relative" }}>
+      <>
         <div className="page-actions">
           <a href={cursorDeeplink} style={pageLinkStyle} onClick={() => posthog.capture("mcp_install_click", { editor: "cursor", method: "deeplink", page: pathname })} title="Add to Cursor">
             <CursorIcon />
@@ -196,7 +196,7 @@ const config = {
           </a>
         </div>
         {children}
-      </div>
+      </>
     );
   },
   primaryHue: {

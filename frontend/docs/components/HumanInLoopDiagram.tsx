@@ -71,7 +71,13 @@ const HumanInLoopDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient id="hitl-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient
+              id="hitl-indigo"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
               <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
               <stop
                 offset="100%"
@@ -87,7 +93,13 @@ const HumanInLoopDiagram: React.FC = () => {
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="hitl-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient
+              id="hitl-emerald"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
               <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
               <stop
                 offset="100%"
@@ -163,11 +175,7 @@ const HumanInLoopDiagram: React.FC = () => {
             width={waitW}
             height={nodeH + 24}
             rx={rx}
-            fill={
-              waitActive
-                ? "rgba(120,53,15,0.25)"
-                : "rgba(30,30,30,0.15)"
-            }
+            fill={waitActive ? "rgba(120,53,15,0.25)" : "rgba(30,30,30,0.15)"}
             stroke={waitActive ? "url(#hitl-amber)" : "#555"}
             strokeWidth="1.5"
             strokeDasharray={waitActive ? "6 4" : "none"}
@@ -238,15 +246,15 @@ const HumanInLoopDiagram: React.FC = () => {
               width={humanW}
               height={humanH}
               rx={rx}
-              fill={
-                isHuman ? "rgba(245,158,11,0.25)" : "rgba(30,30,30,0.2)"
-              }
+              fill={isHuman ? "rgba(245,158,11,0.25)" : "rgba(30,30,30,0.2)"}
               stroke={isHuman ? "url(#hitl-amber)" : "#555"}
               strokeWidth="1.5"
               style={{ transition: "all 0.4s ease" }}
             />
             {/* Person icon */}
-            <g transform={`translate(${humanX + humanW / 2 - 8}, ${humanY + 6})`}>
+            <g
+              transform={`translate(${humanX + humanW / 2 - 8}, ${humanY + 6})`}
+            >
               <circle
                 cx="8"
                 cy="5"

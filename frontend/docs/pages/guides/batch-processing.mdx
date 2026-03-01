@@ -1,68 +1,150 @@
-import { Callout, Cards, Steps } from "nextra/components";
+import { Callout, Cards, Steps, Tabs } from "nextra/components";
 import BatchProcessingDiagram from "@/components/BatchProcessingDiagramWrapper";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import UniversalTabs from "@/components/UniversalTabs";
 
 # Batch Processing
 
-Batch processing involves running the same operation across a large set of items, such as images, documents, records, or API calls. This page covers how to structure batch workloads as Hatchet workflows with fan-out, retry, and concurrency control.
+Batch processing involves running the same operation across a large set of items like images, documents, records, or API calls. This guide walks through structuring batch workloads in Hatchet with fan-out, retry, and concurrency control.
 
 <BatchProcessingDiagram />
 
-## Core Challenges
+At its core, batch processing is [Fanout](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) applied at scale. If your batch also has fixed stages (e.g., validate → transform → load), you can combine it with [Pre-Determined Pipelines](/concepts/durable-workflows/directed-acyclic-graphs).
+
+## Step-by-step walkthrough
+
+By the end of this guide you will have a parent workflow that fans out to one child task per item and aggregates results.
 
 <Steps>
 
-### Parallelism
+### Step 1: Define the parent task
 
-A parent task fans out to one child per item. Hatchet distributes these across available workers. Adding more workers increases throughput without code changes.
+Create a parent workflow that receives a batch of item IDs and will spawn one child per item.
 
-### Partial failure
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={
+        snippets.python.guides.batch_processing.worker
+          .step_01_define_parent_task
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.batch_processing.workflow
+          .step_01_define_parent_task
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.batch_processing.main.step_01_define_parent_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={
+        snippets.ruby.guides.batch_processing.worker.step_01_define_parent_task
+      }
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
-Each item is an independent task. If one fails, Hatchet retries just that item; the rest continue. You can also bulk-retry all failed items from the dashboard.
+### Step 2: Fan out to children
 
-### Resource control
+The parent task (Step 1) iterates over the input and spawns one child task per item. Hatchet distributes child runs across available workers.
 
-Concurrency limits prevent overwhelming your infrastructure. Rate limits protect external APIs. Priority queues let urgent batches run ahead of lower-priority work.
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={
+        snippets.python.guides.batch_processing.worker.step_02_fan_out_children
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.batch_processing.workflow
+          .step_02_fan_out_children
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.batch_processing.main.step_02_fan_out_children}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={
+        snippets.ruby.guides.batch_processing.worker.step_02_fan_out_children
+      }
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
-</Steps>
+### Step 3: Process each item
 
-## Key Features
+Each child task (spawned in Step 2) processes a single item independently. Failed items are retried according to your retry policy.
 
-| Feature                                                                                  | What it does for batch processing                                       |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Fan out to one task per item with automatic distribution across workers |
-| **[Bulk Run](/concepts/bulk-run)**                                                       | Trigger thousands of tasks in a single API call                         |
-| **[Retry Policies](/concepts/retry-policies)**                                           | Retry failed items individually without restarting the batch            |
-| **[Bulk Retries](/concepts/bulk-retries-and-cancellations)**                             | Re-run all failed items from the dashboard                              |
-| **[Concurrency](/concepts/concurrency)**                                                 | Limit how many items process simultaneously                             |
-| **[Rate Limits](/concepts/rate-limits)**                                                 | Throttle external API calls across all workers                          |
-| **[Priority](/concepts/priority)**                                                       | Urgent batches jump ahead of lower-priority work                        |
-| **[Autoscaling](/get-started/autoscaling-workers)**                                       | Scale workers up during batch processing, down when idle                |
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.batch_processing.worker.step_03_process_item}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.batch_processing.workflow
+          .step_03_process_item
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.batch_processing.main.step_03_process_item}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.batch_processing.worker.step_03_process_item}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
-<Callout type="info">
-  The batch processing pattern is [Fanout](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) applied at scale.
-  For fixed multi-stage processing (e.g., validate → transform → load), combine
-  with [Pre-Determined Pipelines](/concepts/durable-workflows/directed-acyclic-graphs).
-</Callout>
+### Step 4: Run the worker
 
-## Architecture
+Register and start the worker with both parent and child workflows. For large batches, use [durable workflows](/concepts/durable-workflows/durable-task-execution) so the parent does not hold a slot while waiting.
 
-<Steps>
-
-### Trigger the batch
-
-Start a parent workflow with the batch input (a list of item IDs, file paths, or records). This can come from an API call, event, cron schedule, or the dashboard.
-
-### Fan out to workers
-
-The parent task iterates over the input and spawns one child task per item. For very large batches (10,000+ items), use `BulkRunChild` for optimized dispatching.
-
-### Process items
-
-Each child task processes its item independently, calling external APIs, transforming data, and writing results. Failed items are retried according to your retry policy.
-
-### Collect results
-
-The parent awaits all children and aggregates results. You can see the status of every item in real-time in the Hatchet dashboard.
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.batch_processing.worker.step_04_run_worker}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.batch_processing.worker.step_04_run_worker
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.batch_processing.main.step_04_run_worker}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.batch_processing.worker.step_04_run_worker}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
 
 </Steps>
 
@@ -86,7 +168,10 @@ The parent awaits all children and aggregates results. You can see the status of
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Fanout" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
+  <Cards.Card
+    title="Fanout"
+    href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
+  >
     The core pattern behind batch processing, spawning N children from a parent.
   </Cards.Card>
   <Cards.Card
@@ -98,7 +183,10 @@ The parent awaits all children and aggregates results. You can see the status of
   <Cards.Card title="RAG & Indexing" href="/guides/rag-and-indexing">
     A specialized batch processing use case for document indexing pipelines.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/concepts/durable-workflows/durable-task-execution/child-spawning">
+  <Cards.Card
+    title="Cycles"
+    href="/concepts/durable-workflows/durable-task-execution/child-spawning"
+  >
     Process paginated results one page at a time with iterative child spawning.
   </Cards.Card>
 </Cards>

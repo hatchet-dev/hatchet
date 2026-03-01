@@ -121,7 +121,10 @@ const BatchProcessingDiagram: React.FC = () => {
           let status: "pending" | "processing" | "done";
           if (item < completedCount) {
             status = "done";
-          } else if (item < completedCount + CONCURRENCY && item < ITEMS.length) {
+          } else if (
+            item < completedCount + CONCURRENCY &&
+            item < ITEMS.length
+          ) {
             status = "processing";
           } else {
             status = "pending";

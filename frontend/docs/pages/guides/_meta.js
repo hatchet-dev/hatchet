@@ -1,10 +1,10 @@
 export default {
   index: "Overview",
-  "--ai-agents": {
-    title: "AI & Agents",
+  "--ai": {
+    title: "Artificial Intelligence",
     type: "separator",
   },
-  "ai-agents": "AI Agents",
+  "ai-agents": { title: "AI Agents" },
   "human-in-the-loop": "Human-in-the-Loop",
   "rag-and-indexing": "RAG & Data Indexing",
   "llm-pipelines": "LLM Pipelines",
@@ -14,6 +14,7 @@ export default {
   },
   "batch-processing": "Batch Processing",
   "document-processing": "Document Processing",
+  "web-scraping": "Web Scraping",
   "scheduled-jobs": "Scheduled Jobs / Cron",
   "--realtime-streaming": {
     title: "Real-Time & Streaming",

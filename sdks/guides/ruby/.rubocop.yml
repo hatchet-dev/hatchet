@@ -1,0 +1,16 @@
+# Minimal config for guide examples - doc snippets, not production code
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.1
+
+Style/Documentation:
+  Enabled: false
+
+Metrics/MethodLength:
+  Max: 30
+
+Metrics/BlockLength:
+  Max: 25
+
+Layout/LineLength:
+  Max: 140
