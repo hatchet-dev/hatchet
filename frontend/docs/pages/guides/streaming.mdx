@@ -1,0 +1,101 @@
+import { Callout, Cards, Steps } from "nextra/components";
+
+# Streaming / Live Updates
+
+Streaming lets you push intermediate results from running tasks to clients in real-time — LLM token streams, progress updates, log lines, or live data feeds. Hatchet's streaming API connects workers to frontends without custom WebSocket infrastructure.
+
+## Core Challenges
+
+<Steps>
+
+### Pushing data from workers to clients
+
+Workers process tasks on backend servers, but users need to see results as they happen. Hatchet's [Streaming](/concepts/streaming) API bridges this gap — workers emit chunks, and clients subscribe to receive them.
+
+### Surviving worker restarts
+
+If a worker restarts mid-stream, [Durable Execution](/concepts/durable-workflows/durable-task-execution) ensures the task resumes from its last checkpoint. The client can reconnect and continue receiving updates from where it left off.
+
+### Backpressure and flow control
+
+Fast producers (e.g., LLMs generating tokens) can overwhelm slow consumers. Hatchet handles buffering and delivery so your worker code stays simple.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                                                     | What it does for streaming                                              |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **[Streaming](/concepts/streaming)**                                                        | Emit chunks from workers and subscribe from clients in real-time        |
+| **[Durable Execution](/concepts/durable-workflows/durable-task-execution)**                 | Checkpoint between stream emissions so tasks survive restarts           |
+| **[Concurrency](/concepts/concurrency)**                                                    | Limit concurrent streaming tasks per user with CANCEL_IN_PROGRESS       |
+| **[Timeouts](/concepts/timeouts)**                                                          | Set time bounds on streaming tasks to prevent indefinite connections     |
+| **[Cancellation](/concepts/cancellation)**                                                  | Cancel streaming tasks when clients disconnect or send new requests     |
+
+<Callout type="info">
+  Hatchet's streaming is built into the task API — call `put_stream()` in your
+  worker and `subscribe_to_stream()` on the client. No separate WebSocket server
+  needed. See [Streaming](/concepts/streaming) for the full API.
+</Callout>
+
+## Architecture
+
+<Steps>
+
+### Client initiates a task
+
+A frontend triggers a task (e.g., an LLM generation request) and subscribes to the task's stream.
+
+### Worker emits chunks
+
+As the worker processes the task, it calls `put_stream()` to emit chunks — tokens, progress percentages, log lines, or any serializable data.
+
+### Hatchet delivers in real-time
+
+Hatchet routes chunks from the worker to all subscribed clients with minimal latency. Clients receive chunks as they're emitted.
+
+### Task completes
+
+When the worker finishes, the stream closes and the final task result is available via the normal result API. Clients can display the complete output.
+
+</Steps>
+
+<Callout type="warning">
+  Use **CANCEL_IN_PROGRESS** concurrency when streaming chat or agent responses.
+  This ensures that when a user sends a new message, the previous streaming task
+  is cancelled and a fresh one starts.
+</Callout>
+
+## Common Patterns
+
+| Pattern                    | Description                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| **LLM token streaming**   | Stream generated tokens to a chat UI as the model produces them                |
+| **Progress reporting**     | Emit percentage-complete updates for long-running batch or processing jobs      |
+| **Live log tailing**       | Stream task log lines to a monitoring dashboard                                |
+| **Real-time notifications**| Push status changes to connected clients as tasks progress through a pipeline  |
+| **Collaborative editing**  | Stream document changes between participants through Hatchet tasks              |
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="AI Agents" href="/guides/ai-agents">
+    Agent workflows that stream LLM responses to users in real-time.
+  </Cards.Card>
+  <Cards.Card title="LLM Pipelines" href="/guides/llm-pipelines">
+    Multi-step LLM pipelines with streaming intermediate results.
+  </Cards.Card>
+  <Cards.Card title="Event-Driven Systems" href="/guides/event-driven">
+    React to events and stream processing results to interested clients.
+  </Cards.Card>
+  <Cards.Card title="Webhook Processing" href="/guides/webhook-processing">
+    Process webhooks and stream status updates to dashboards.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Streaming](/concepts/streaming): `put_stream()` and `subscribe_to_stream()` API reference
+- [Concurrency Control](/concepts/concurrency): configure CANCEL_IN_PROGRESS for chat-style streaming
+- [Cancellation](/concepts/cancellation): cancel streaming tasks on client disconnect
+- [Durable Execution](/concepts/durable-workflows/durable-task-execution): checkpoint streaming tasks for crash recovery

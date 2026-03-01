@@ -43,8 +43,8 @@ Some documents fail to parse or time out. [Retry Policies](/concepts/retry-polic
 
 <Callout type="info">
   Document processing pipelines are built on [Pre-Determined
-  Pipelines](/guides/pre-determined-pipelines). The stages are fixed and map to
-  a DAG. Use [Fanout](/guides/fanout) within the ingest or parse stage to
+  Pipelines](/concepts/durable-workflows/directed-acyclic-graphs). The stages are fixed and map to
+  a DAG. Use [Fanout](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) within the ingest or parse stage to
   parallelize per document.
 </Callout>
 
@@ -95,7 +95,7 @@ Write validated data to a database, CRM, or downstream system. Use [Concurrency]
 <Cards>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/guides/pre-determined-pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
   >
     The fixed-stage DAG pattern that document pipelines are built on.
   </Cards.Card>
@@ -105,7 +105,7 @@ Write validated data to a database, CRM, or downstream system. Use [Concurrency]
   <Cards.Card title="Batch Processing" href="/guides/batch-processing">
     General-purpose batch patterns that apply to document workloads.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/guides/fanout">
+  <Cards.Card title="Fanout" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
     Parallelize document processing across your worker fleet.
   </Cards.Card>
 </Cards>

@@ -33,10 +33,10 @@ When a user clicks "Approve" or "Reject" in your UI, your frontend calls the Hat
 | **[Durable Execution](/concepts/durable-workflows/durable-task-execution)**               | Checkpoint before and after the wait; task resumes with full state intact        |
 | **[Pushing Events](/concepts/pushing-events)**                                           | Frontend or API pushes approval event with optional payload (approve/reject)   |
 | **[Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions)** | Declare approval gates in DAG workflows; wait for event before task proceeds  |
-| **[Long Waits](/guides/long-waits)**                                                     | General pattern for pausing workflows (sleep or event) without holding slots   |
+| **[Long Waits](/concepts/durable-workflows/durable-task-execution/durable-sleep)**                                                     | General pattern for pausing workflows (sleep or event) without holding slots   |
 
 <Callout type="info">
-  Human-in-the-loop is a [Long Waits](/guides/long-waits) pattern using
+  Human-in-the-loop is a [Long Waits](/concepts/durable-workflows/durable-task-execution/durable-sleep) pattern using
   [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events).
   For approval gates in fixed DAG workflows, use [Event
   Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions).
@@ -60,7 +60,7 @@ A human sees the proposed action in your UI (dashboard, notification, queue). Th
 
 ### Task resumes
 
-When the event is pushed, Hatchet re-queues the task. It resumes from the checkpoint with the event payload (e.g., `{ approved: true }` or `{ approved: false, reason: "..." }`). Use [Branching](/guides/branching) to route on approve vs reject.
+When the event is pushed, Hatchet re-queues the task. It resumes from the checkpoint with the event payload (e.g., `{ approved: true }` or `{ approved: false, reason: "..." }`). Use [Branching](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions) to route on approve vs reject.
 
 ### Continue workflow
 
@@ -87,13 +87,13 @@ For DAG workflows with a fixed approval gate, use [Event Conditions](/concepts/d
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Long Waits" href="/guides/long-waits">
+  <Cards.Card title="Long Waits" href="/concepts/durable-workflows/durable-task-execution/durable-sleep">
     Pause workflows for external signals (events or sleep) without holding slots.
   </Cards.Card>
   <Cards.Card title="AI Agents" href="/guides/ai-agents">
     Agent workflows that may need human approval at decision points.
   </Cards.Card>
-  <Cards.Card title="Branching" href="/guides/branching">
+  <Cards.Card title="Branching" href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions">
     Route workflow behavior based on approve vs reject from the event payload.
   </Cards.Card>
   <Cards.Card
@@ -109,5 +109,5 @@ For DAG workflows with a fixed approval gate, use [Event Conditions](/concepts/d
 - [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events): `WaitForEvent` API and event filters
 - [Pushing Events](/concepts/pushing-events): push approval events from your frontend or API
 - [Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions): approval gates in DAG workflows
-- [Long Waits](/guides/long-waits): general pattern for durable pauses
-- [Branching](/guides/branching): route on approve vs reject
+- [Long Waits](/concepts/durable-workflows/durable-task-execution/durable-sleep): general pattern for durable pauses
+- [Branching](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions): route on approve vs reject

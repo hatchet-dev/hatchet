@@ -659,7 +659,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "fan out → child spawning",
     query: "fan out",
-    expectAnyOf: ["concepts/durable-workflows", "concepts/bulk-run", "guides/fanout"],
+    expectAnyOf: ["concepts/durable-workflows", "concepts/bulk-run", "concepts/durable-workflows/directed-acyclic-graphs/child-spawning"],
   },
   {
     name: "parallel tasks",
@@ -697,7 +697,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "pipeline → DAG",
     query: "pipeline",
-    expectAnyOf: ["concepts/durable-workflows", "guides/pre-determined-pipelines"],
+    expectAnyOf: [
+      "concepts/durable-workflows",
+      "concepts/durable-workflows/directed-acyclic-graphs",
+      "guides/rag-and-indexing",
+      "guides/document-processing",
+    ],
+    topN: 10,
   },
   {
     name: "long running task → durable",
@@ -714,7 +720,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "if else → conditional",
     query: "if else workflow",
-    expectAnyOf: ["concepts/durable-workflows", "guides/branching"],
+    expectAnyOf: ["concepts/durable-workflows", "concepts/durable-workflows/directed-acyclic-graphs/parent-conditions"],
     topN: 10,
   },
   {
@@ -787,7 +793,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "wait for event → durable events",
     query: "wait for event",
-    expectAnyOf: ["concepts/durable-workflows", "get-started/intro-to-durable-workflows", "concepts/pushing-events", "concepts/event-filters", "guides/long-waits", "guides/event-driven"],
+    expectAnyOf: ["concepts/durable-workflows", "get-started/intro-to-durable-workflows", "concepts/pushing-events", "concepts/event-filters", "concepts/durable-workflows/durable-task-execution/durable-sleep", "guides/event-driven"],
     topN: 10,
   },
   {

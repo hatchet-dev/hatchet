@@ -3,6 +3,7 @@ import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import WorkflowDiagram from "@/components/WorkflowDiagram";
+import PipelineDiagram from "@/components/PipelineDiagram";
 
 # Declarative Workflow Design (DAGs)
 
@@ -200,3 +201,9 @@ runID, err := simple.RunNoWait(ctx, input)
     <Snippet src={snippets.ruby.dag.trigger.trigger_the_dag} />
   </Tabs.Tab>
 </UniversalTabs>
+
+## Pre-Determined Pipelines
+
+DAGs naturally model fixed multi-stage pipelines where the sequence of tasks and their dependencies are known before execution. ETL workflows, [document processing](/guides/document-processing) pipelines, and CI/CD workflows all follow this pattern: each stage depends on the previous, and the overall structure is visible and predictable in the dashboard.
+
+<PipelineDiagram />

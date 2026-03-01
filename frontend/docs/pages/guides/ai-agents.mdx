@@ -39,7 +39,7 @@ Agents typically need to stream LLM tokens to a frontend as they're generated. U
 | **[Cancellation](/concepts/cancellation)**                                               | Stop long-running agents on user request                                                   |
 
 <Callout type="info">
-  The agent loop pattern is a [Cycle](/guides/cycles). Each iteration spawns a
+  The agent loop pattern is a [Cycle](/concepts/durable-workflows/durable-task-execution/child-spawning). Each iteration spawns a
   new child run via `RunChild`. Combined with [Durable
   Execution](/concepts/durable-workflows/durable-task-execution), completed
   iterations survive crashes and slots are freed between iterations.
@@ -76,21 +76,21 @@ The agent uses `WaitForEvent` to pause until the user sends another message, fre
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Cycles" href="/guides/cycles">
+  <Cards.Card title="Cycles" href="/concepts/durable-workflows/durable-task-execution/child-spawning">
     The core loop pattern behind agent reasoning, where a task re-spawns itself
     until a goal is met.
   </Cards.Card>
-  <Cards.Card title="Long Waits" href="/guides/long-waits">
+  <Cards.Card title="Long Waits" href="/concepts/durable-workflows/durable-task-execution/durable-sleep">
     Pause agents for human feedback or scheduled retries without holding worker
     slots.
   </Cards.Card>
   <Cards.Card title="Human-in-the-Loop" href="/guides/human-in-the-loop">
     Add approval gates to agent workflows—pause for human review, then resume.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/guides/fanout">
+  <Cards.Card title="Fanout" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
     Agents that spawn parallel tool calls or sub-agent tasks.
   </Cards.Card>
-  <Cards.Card title="Branching" href="/guides/branching">
+  <Cards.Card title="Branching" href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions">
     Route agent behavior based on LLM tool call decisions or user preferences.
   </Cards.Card>
 </Cards>

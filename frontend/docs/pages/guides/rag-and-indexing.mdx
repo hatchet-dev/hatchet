@@ -40,9 +40,9 @@ If a task fails (embedding API timeout, database write error), Hatchet retries j
 
 <Callout type="info">
   RAG pipelines are a natural fit for [Pre-Determined
-  Pipelines](/guides/pre-determined-pipelines). The stages (ingest, chunk,
+  Pipelines](/concepts/durable-workflows/directed-acyclic-graphs). The stages (ingest, chunk,
   embed, index) are fixed and map directly to a DAG. Use
-  [Fanout](/guides/fanout) within the chunking stage to parallelize.
+  [Fanout](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) within the chunking stage to parallelize.
 </Callout>
 
 ## Pipeline Architecture
@@ -90,14 +90,14 @@ For SaaS applications where multiple tenants share the same pipeline:
 <Cards>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/guides/pre-determined-pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
   >
     The fixed-stage DAG pattern that RAG pipelines are built on.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/guides/fanout">
+  <Cards.Card title="Fanout" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
     Parallelize document and chunk processing across your worker fleet.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/guides/cycles">
+  <Cards.Card title="Cycles" href="/concepts/durable-workflows/durable-task-execution/child-spawning">
     Implement incremental indexing that re-crawls until all changes are
     processed.
   </Cards.Card>

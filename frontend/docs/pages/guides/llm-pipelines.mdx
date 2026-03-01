@@ -1,0 +1,107 @@
+import { Callout, Cards, Steps } from "nextra/components";
+
+# LLM Pipelines
+
+LLM pipelines chain multiple model calls together with validation, retries, and structured outputs. Hatchet turns each step into a durable task so failures retry individually, rate limits protect provider APIs, and the full pipeline is observable in the dashboard.
+
+## Core Challenges
+
+<Steps>
+
+### Chaining multiple LLM calls
+
+A pipeline often calls an LLM several times in sequence—generate, refine, validate, format. Each call depends on the previous output. [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs) model these dependencies explicitly so each step can be retried or inspected independently.
+
+### Structured output validation
+
+LLM responses need parsing and validation before they can feed into downstream steps. When validation fails, Hatchet [retries](/concepts/retry-policies) just that step with a corrective prompt instead of restarting the entire pipeline.
+
+### Rate limits across providers
+
+Multiple pipelines running in parallel can exceed provider quotas. Hatchet's [Rate Limits](/concepts/rate-limits) throttle LLM calls across all workers to stay within API limits.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                                                  | What it does for LLM pipelines                                                |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **[DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs)**                 | Chain LLM calls with explicit dependencies between steps                      |
+| **[Retry Policies](/concepts/retry-policies)**                                           | Retry failed LLM calls or validation errors without restarting the pipeline   |
+| **[Rate Limits](/concepts/rate-limits)**                                                 | Throttle calls across providers (OpenAI, Anthropic, etc.) to stay within quotas |
+| **[Streaming](/concepts/streaming)**                                                     | Stream intermediate LLM tokens to frontends in real-time                      |
+| **[Durable Execution](/concepts/durable-workflows/durable-task-execution)**              | Checkpoint between LLM calls so completed steps survive crashes               |
+| **[Timeouts](/concepts/timeouts)**                                                       | Set per-step timeouts so slow LLM responses don't block the pipeline          |
+| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Fan out to parallel LLM calls (e.g., evaluate multiple prompts simultaneously) |
+| **[Concurrency](/concepts/concurrency)**                                                 | Limit how many pipelines run at once per user or tenant                       |
+
+<Callout type="info">
+  LLM pipelines are a natural fit for [DAG
+  Workflows](/concepts/durable-workflows/directed-acyclic-graphs). Each LLM call
+  is a task in the graph, and validation steps gate downstream tasks.
+</Callout>
+
+## Pipeline Architecture
+
+<Steps>
+
+### Prompt construction
+
+Build the initial prompt from user input, context, and system instructions. This step may include retrieval from a vector database (see [RAG & Data Indexing](/guides/rag-and-indexing)).
+
+### LLM generation
+
+Call the model with the constructed prompt. Hatchet rate-limits these calls and retries on transient API errors (429s, timeouts).
+
+### Output validation
+
+Parse and validate the structured response (JSON schema, type checks, business rules). If validation fails, retry with a corrective prompt that includes the error.
+
+### Refinement (optional)
+
+Pass the validated output through additional LLM calls for summarization, translation, or tone adjustment. Each refinement step is an independent task with its own retry policy.
+
+### Delivery
+
+Write the final output to your database, return it via API, or stream it to a frontend. Use [Streaming](/concepts/streaming) for real-time delivery of the final response.
+
+</Steps>
+
+<Callout type="warning">
+  Always set **timeouts** on LLM call steps. Model providers can hang or respond
+  slowly under load. See [Timeouts](/concepts/timeouts) for configuration.
+</Callout>
+
+## Common Patterns
+
+| Pattern                   | Description                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| **Generate → Validate**   | Call LLM, validate structured output, retry with error context on failure        |
+| **Chain of thought**      | Multi-step reasoning where each LLM call refines the previous output             |
+| **Parallel evaluation**   | Fan out the same prompt to multiple models, then pick the best response          |
+| **Translation pipeline**  | Generate content in one language, translate to others in parallel                 |
+| **Summarize → Classify**  | Summarize long text, then classify the summary for routing or tagging            |
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="AI Agents" href="/guides/ai-agents">
+    When LLM calls happen in a dynamic loop rather than a fixed pipeline.
+  </Cards.Card>
+  <Cards.Card title="RAG & Data Indexing" href="/guides/rag-and-indexing">
+    Provide context to LLM pipeline steps via retrieval-augmented generation.
+  </Cards.Card>
+  <Cards.Card title="Document Processing" href="/guides/document-processing">
+    Extract structured data from documents using LLM-powered pipelines.
+  </Cards.Card>
+  <Cards.Card title="Batch Processing" href="/guides/batch-processing">
+    Run LLM pipelines across many inputs with fan-out and concurrency control.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs): define multi-stage LLM pipelines
+- [Rate Limits](/concepts/rate-limits): configure rate limiting for LLM providers
+- [Retry Policies](/concepts/retry-policies): handle transient LLM API errors
+- [Streaming](/concepts/streaming): stream LLM outputs to frontends in real-time

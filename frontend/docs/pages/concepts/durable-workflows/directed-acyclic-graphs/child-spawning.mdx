@@ -2,6 +2,7 @@ import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
+import FanoutDiagram from "@/components/FanoutDiagram";
 
 # Procedural Child Task Spawning
 
@@ -102,14 +103,20 @@ As shown in the examples above, you can spawn multiple child tasks in parallel:
   </Tabs.Tab>
 </UniversalTabs>
 
+## Fanout Pattern
+
+The **fanout pattern** is the most common use of child spawning: a parent iterates over its input data and spawns one child task per item, then optionally collects and aggregates their results. All children run in parallel across your worker fleet.
+
+<FanoutDiagram />
+
 ## Use Cases for Child Workflows
 
 Child workflows are ideal for:
 
-1. **Dynamic fan-out processing** - When the number of parallel tasks is determined at runtime
+1. **Dynamic fan-out processing** - When the number of parallel tasks is determined at runtime. See [Batch Processing](/guides/batch-processing) and [Document Processing](/guides/document-processing).
 2. **Reusable workflow components** - Create modular workflows that can be reused across different parent workflows
 3. **Resource-intensive operations** - Spread computation across multiple workers
-4. **Agent-based systems** - Allow AI agents to spawn new workflows based on their reasoning
+4. **Agent-based systems** - Allow AI agents to spawn new workflows based on their reasoning. See [AI Agents](/guides/ai-agents).
 5. **Long-running operations** - Break down long operations into smaller, trackable units of work
 
 ## Error Handling with Child Workflows

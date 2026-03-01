@@ -2,10 +2,13 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import LongWaitDiagram from "@/components/LongWaitDiagramWrapper";
 
 # Durable Sleep
 
-Durable sleep is a feature of **durable tasks** which pauses execution for a specified amount of time.
+Durable sleep is a feature of **durable tasks** which pauses execution for a specified amount of time. A long wait pauses a task for hours, days, or weeks and frees the worker slot until the sleep expires — no resources are consumed during the wait.
+
+<LongWaitDiagram />
 
 <Callout type="info">
   Sleeping puts the task into an [evictable

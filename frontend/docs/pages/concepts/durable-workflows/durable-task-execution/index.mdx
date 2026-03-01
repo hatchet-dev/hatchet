@@ -58,10 +58,10 @@ Tasks that are declared as being durable (using `durable_task` instead of `task`
 
 | Scenario                          | Why Durable?                                                                  |
 | --------------------------------- | ----------------------------------------------------------------------------- |
-| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot |
-| **Agentic workflows**             | An agent decides what to do next, spawn subtasks, loop, or stop at runtime    |
+| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot. See [Batch Processing](/guides/batch-processing) and [Document Processing](/guides/document-processing) for detailed examples. |
+| **Agentic workflows**             | An agent decides what to do next, spawn subtasks, loop, or stop at runtime. Durable tasks enable runtime branching via if/else in code and dynamic child spawning, unlike DAGs where branches are declared upfront with [Parent Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions). See [AI Agents](/guides/ai-agents) for a detailed guide. |
 | **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute                        |
-| **Human-in-the-loop**             | Wait for approval events without holding resources                            |
+| **Human-in-the-loop**             | Wait for approval events without holding resources. See [Human-in-the-Loop](/guides/human-in-the-loop) for a detailed guide. |
 | **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows        |
 | **Crash-resilient pipelines**     | Automatically resume from checkpoints after failures                          |
 

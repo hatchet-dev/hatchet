@@ -2,6 +2,8 @@ import { Callout, Cards, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
+import CycleDiagram from "@/components/CycleDiagramWrapper";
+import BatchProcessingDiagram from "@/components/BatchProcessingDiagramWrapper";
 
 # Spawning Children from Durable Tasks
 
@@ -91,11 +93,17 @@ This means a single durable task can orchestrate a mix of simple tasks and compl
 
 ### Dynamic fan-out / fan-in
 
-Process a list of items whose length is only known at runtime. Spawn one child per item, collect all results, then continue.
+Process a list of items whose length is only known at runtime. Spawn one child per item, collect all results, then continue. [Document processing](/guides/document-processing) and [batch processing](/guides/batch-processing) are canonical examples: when a batch of files arrives, a parent fans out to one child per document; each child parses, extracts, and validates its document in parallel across your worker fleet.
+
+<BatchProcessingDiagram />
+
+[Concurrency](/concepts/concurrency) controls how many children run simultaneously — use it to avoid overwhelming downstream APIs or exhausting worker capacity. Hatchet distributes child tasks across available workers, so adding workers increases throughput without code changes. For rate-limited external services (OCR, LLM APIs), combine with [Rate Limits](/concepts/rate-limits) to throttle child execution across all workers.
 
 ### Agent loops
 
-An AI agent reasons about what to do, spawns a subtask (or a sub-workflow), inspects the result, and decides whether to continue, branch, or stop. Each iteration spawns new children dynamically.
+A **cycle** is implemented by having a durable task spawn a new child run of itself with updated input until a termination condition is met. Each iteration is a separate child task, giving full observability in the dashboard. AI agents use this pattern when they reason about what to do, spawn a subtask (or a sub-workflow), inspect the result, and decide whether to continue, branch, or stop. See [AI Agents](/guides/ai-agents) for a detailed guide.
+
+<CycleDiagram />
 
 ### Recursive workflows
 

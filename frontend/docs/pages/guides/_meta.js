@@ -1,22 +1,25 @@
 export default {
   index: "Overview",
-  "--patterns": {
-    title: "Patterns",
+  "--ai-agents": {
+    title: "AI & Agents",
     type: "separator",
   },
-  fanout: "Fanout",
-  "pre-determined-pipelines": "Pre-Determined Pipelines",
-  branching: "Branching",
-  cycles: "Cycles",
-  "long-waits": "Long Waits",
-  "--use-cases": {
-    title: "Use Cases",
-    type: "separator",
-  },
-  "rag-and-indexing": "RAG & Data Indexing",
   "ai-agents": "AI Agents",
-  "batch-processing": "Batch Processing",
-  "event-driven": "Event-Driven Systems",
-  "document-processing": "Document Processing",
   "human-in-the-loop": "Human-in-the-Loop",
+  "rag-and-indexing": "RAG & Data Indexing",
+  "llm-pipelines": "LLM Pipelines",
+  "--data-processing": {
+    title: "Data & Processing",
+    type: "separator",
+  },
+  "batch-processing": "Batch Processing",
+  "document-processing": "Document Processing",
+  "scheduled-jobs": "Scheduled Jobs / Cron",
+  "--realtime-streaming": {
+    title: "Real-Time & Streaming",
+    type: "separator",
+  },
+  "webhook-processing": "Webhook Processing",
+  "event-driven": "Event-Driven Systems",
+  streaming: "Streaming / Live Updates",
 };

@@ -1,0 +1,103 @@
+import { Callout, Cards, Steps } from "nextra/components";
+
+# Webhook Processing
+
+Webhooks are how external services (Stripe, GitHub, Twilio, Shopify) push data to your application. Processing them reliably requires idempotency, retry handling, and spike protection. Hatchet turns incoming webhooks into durable tasks with automatic retries, concurrency control, and full observability.
+
+## Core Challenges
+
+<Steps>
+
+### Acknowledging quickly, processing later
+
+Webhook providers expect a fast HTTP response (typically under 5 seconds). Heavy processing must happen asynchronously. Hatchet's [Webhooks](/concepts/webhooks) feature accepts the request immediately and queues a task for processing.
+
+### Spike protection
+
+A provider may send a burst of webhooks (e.g., Stripe sending thousands of payment events during a flash sale). Hatchet's [Concurrency](/concepts/concurrency) controls queue excess work instead of overwhelming your workers.
+
+### Idempotency and deduplication
+
+Webhook providers often retry delivery, sending the same event multiple times. Your tasks should be idempotent, and you can use [Event Filters](/concepts/event-filters) or [Additional Metadata](/concepts/durable-workflows/directed-acyclic-graphs/additional-metadata) to detect and skip duplicates.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                                                            | What it does for webhook processing                                    |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **[Webhooks](/concepts/webhooks)**                                                                 | Receive external HTTP webhooks and route them to tasks                |
+| **[Concurrency](/concepts/concurrency)**                                                           | Spike protection — queue excess webhooks instead of dropping them      |
+| **[Rate Limits](/concepts/rate-limits)**                                                           | Throttle downstream API calls triggered by webhooks                   |
+| **[Retry Policies](/concepts/retry-policies)**                                                     | Retry failed webhook processing without losing the event              |
+| **[Event Filters](/concepts/event-filters)**                                                       | Filter webhooks by payload content to route to the right handler      |
+| **[Additional Metadata](/concepts/durable-workflows/directed-acyclic-graphs/additional-metadata)** | Tag webhook events with source, type, and ID for observability        |
+| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)**           | Fan out a single webhook into multiple processing tasks               |
+
+<Callout type="info">
+  Hatchet's webhook endpoint handles HTTP acknowledgment and signature
+  verification, then queues the payload as a task. See
+  [Webhooks](/concepts/webhooks) for setup.
+</Callout>
+
+## Architecture
+
+<Steps>
+
+### Webhook arrives
+
+An external service sends an HTTP POST to your Hatchet webhook endpoint. Hatchet responds with a 200 immediately and queues the payload.
+
+### Route to handler
+
+The webhook payload is matched to a registered task trigger based on the event type or source. A single webhook can trigger multiple tasks if needed.
+
+### Process reliably
+
+The task processes the webhook payload — updating a database, calling APIs, or triggering downstream workflows. Retries and timeouts protect against transient failures.
+
+### Chain further work
+
+The webhook handler can spawn child tasks, trigger events, or start downstream workflows based on the payload content.
+
+</Steps>
+
+<Callout type="warning">
+  Always validate webhook signatures before processing. Hatchet can verify
+  signatures for supported providers. See [Webhooks](/concepts/webhooks) for
+  signature verification configuration.
+</Callout>
+
+## Common Patterns
+
+| Pattern                       | Description                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| **Payment processing**        | Receive Stripe webhooks for payments, refunds, and subscription changes         |
+| **CI/CD triggers**            | React to GitHub push, PR, or deployment events                                  |
+| **Communication handling**    | Process Twilio SMS/voice webhooks for customer support workflows                |
+| **E-commerce events**         | Handle Shopify order, inventory, and fulfillment webhooks                        |
+| **Infrastructure alerts**     | Process PagerDuty, Datadog, or CloudWatch alarm webhooks                        |
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Event-Driven Systems" href="/guides/event-driven">
+    General event-driven architecture — webhooks are one type of event source.
+  </Cards.Card>
+  <Cards.Card title="Scheduled Jobs" href="/guides/scheduled-jobs">
+    When you need to poll instead of receive pushes — an alternative to webhooks.
+  </Cards.Card>
+  <Cards.Card title="Streaming" href="/guides/streaming">
+    Stream processing results back to clients in real-time after webhook intake.
+  </Cards.Card>
+  <Cards.Card title="Human-in-the-Loop" href="/guides/human-in-the-loop">
+    Route webhook events for human review before automated processing.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Webhooks](/concepts/webhooks): set up webhook endpoints and signature verification
+- [Concurrency Control](/concepts/concurrency): configure spike protection for webhooks
+- [Event Filters](/concepts/event-filters): route webhooks by payload content
+- [Retry Policies](/concepts/retry-policies): handle transient failures in webhook processing

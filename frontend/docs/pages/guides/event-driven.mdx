@@ -85,18 +85,18 @@ Task outputs can trigger further events, spawn child tasks, or start downstream 
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Branching" href="/guides/branching">
+  <Cards.Card title="Branching" href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions">
     Route event-driven workflows down different paths based on event payload.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/guides/fanout">
+  <Cards.Card title="Fanout" href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning">
     A single event triggers parallel processing across multiple workers.
   </Cards.Card>
-  <Cards.Card title="Long Waits" href="/guides/long-waits">
+  <Cards.Card title="Long Waits" href="/concepts/durable-workflows/durable-task-execution/durable-sleep">
     Pause a workflow until an external event arrives, then resume.
   </Cards.Card>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/guides/pre-determined-pipelines"
+    href="/concepts/durable-workflows/directed-acyclic-graphs"
   >
     Chain event-triggered tasks into multi-stage processing pipelines.
   </Cards.Card>

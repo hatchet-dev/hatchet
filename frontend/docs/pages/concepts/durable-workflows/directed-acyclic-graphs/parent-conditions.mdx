@@ -3,10 +3,15 @@ import { snippets } from "@/lib/generated/snippets";
 
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import BranchingDiagram from "@/components/BranchingDiagramWrapper";
 
 # Parent Conditions
 
 Parent conditions let a DAG task decide whether to run based on the output of a parent task. This enables branching logic within a DAG: different paths can execute depending on runtime data, while the overall graph structure remains fixed and visible in the dashboard.
+
+The following diagram shows how a workflow branches into different paths based on conditions evaluated at runtime.
+
+<BranchingDiagram />
 
 ## Usage modes
 

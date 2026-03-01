@@ -3,6 +3,7 @@ import { snippets } from "@/lib/generated/snippets";
 
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import LongWaitDiagram from "@/components/LongWaitDiagramWrapper";
 
 # Sleep Conditions
 
@@ -46,3 +47,9 @@ This task will first wait for its parent to complete, then sleep for the specifi
 ## Combining with other conditions
 
 Sleep conditions can be combined with other conditions using or groups. For example, you can wait for _either_ a sleep duration or an event (whichever comes first). See [Combining Conditions](/concepts/durable-workflows/directed-acyclic-graphs/combining-conditions) for details.
+
+## Long Waits in DAGs
+
+Sleep conditions are the DAG equivalent of long waits. While durable tasks pause dynamically at runtime with `SleepFor`, DAG sleep conditions declare the delay upfront as part of the task definition. Both free the worker slot during the wait.
+
+<LongWaitDiagram />

@@ -1,0 +1,103 @@
+import { Callout, Cards, Steps } from "nextra/components";
+
+# Scheduled Jobs / Cron
+
+Scheduled jobs run recurring or one-off work at specific times — database maintenance, report generation, cache invalidation, or periodic data syncs. Hatchet supports both **cron expressions** for recurring schedules and **scheduled runs** for one-time future execution, all with the same retry, concurrency, and observability features as event-driven tasks.
+
+## Core Challenges
+
+<Steps>
+
+### Reliable execution at the right time
+
+Cron jobs in traditional systems (system cron, Kubernetes CronJobs) silently fail or overlap. Hatchet triggers scheduled tasks with full observability — you can see every execution, its status, and its output in the dashboard.
+
+### Preventing overlapping runs
+
+A scheduled job that takes longer than the interval between runs can cause overlapping executions. Hatchet's [Concurrency](/concepts/concurrency) controls prevent this — use `CANCEL_NEWEST` to skip runs that arrive while a previous run is still active.
+
+### Handling failures
+
+When a scheduled job fails, Hatchet retries according to your [Retry Policies](/concepts/retry-policies). Failed runs are visible in the dashboard and can be bulk-retried.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                              | What it does for scheduled jobs                                      |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **[Cron Triggers](/concepts/cron-runs)**                             | Define recurring schedules with cron expressions                     |
+| **[Scheduled Runs](/concepts/scheduled-runs)**                       | Trigger one-time execution at a specific future time                 |
+| **[Concurrency](/concepts/concurrency)**                             | Prevent overlapping runs with CANCEL_NEWEST or queue-based control   |
+| **[Retry Policies](/concepts/retry-policies)**                       | Automatically retry failed scheduled jobs                            |
+| **[Timeouts](/concepts/timeouts)**                                   | Ensure scheduled jobs complete within expected time bounds            |
+| **[Rate Limits](/concepts/rate-limits)**                             | Throttle API calls made by scheduled jobs across all workers         |
+| **[Bulk Retries](/concepts/bulk-retries-and-cancellations)**         | Re-run all failed scheduled jobs from the dashboard                  |
+
+<Callout type="info">
+  Hatchet's cron triggers are defined alongside your task code — no separate
+  infrastructure to manage. The schedule is registered when your worker starts.
+</Callout>
+
+## Architecture
+
+<Steps>
+
+### Define the schedule
+
+Attach a cron expression to your task definition. When the worker registers with Hatchet, the schedule is activated. For one-time runs, use the scheduled run API to specify an exact execution time.
+
+### Hatchet triggers at the right time
+
+At each scheduled time, Hatchet creates a new task run. The run is distributed to an available worker just like any event-triggered task.
+
+### Job executes
+
+The task runs with full retry, timeout, and concurrency support. If it fails, Hatchet retries according to your policy.
+
+### Monitor and observe
+
+Every scheduled execution appears in the dashboard with its status, duration, and output. Set up alerts for failed runs via webhooks or integrations.
+
+</Steps>
+
+<Callout type="warning">
+  Always configure **concurrency controls** for scheduled jobs to prevent
+  overlapping runs. A job that runs every 5 minutes but takes 10 minutes to
+  complete will cause pileups without concurrency limits.
+</Callout>
+
+## Common Patterns
+
+| Pattern                     | Description                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| **Database maintenance**    | Run cleanup, vacuum, or archival jobs on a schedule                           |
+| **Report generation**       | Generate daily/weekly reports and deliver via email or dashboard              |
+| **Cache invalidation**      | Periodically refresh caches or materialized views                            |
+| **Data sync**               | Pull data from external APIs on a schedule to keep local copies up to date   |
+| **Health checks**           | Run periodic health checks against dependent services                        |
+| **Billing and invoicing**   | Generate invoices or process billing events on a recurring schedule           |
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Event-Driven Systems" href="/guides/event-driven">
+    When work should be triggered by events rather than a fixed schedule.
+  </Cards.Card>
+  <Cards.Card title="Batch Processing" href="/guides/batch-processing">
+    Combine scheduled triggers with batch fan-out for periodic bulk operations.
+  </Cards.Card>
+  <Cards.Card
+    title="Webhook Processing"
+    href="/guides/webhook-processing"
+  >
+    Process incoming webhooks — an alternative to polling on a schedule.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Cron Triggers](/concepts/cron-runs): cron expression syntax and configuration
+- [Scheduled Runs](/concepts/scheduled-runs): one-time future execution API
+- [Concurrency Control](/concepts/concurrency): prevent overlapping scheduled jobs
+- [Retry Policies](/concepts/retry-policies): handle failures in scheduled jobs
