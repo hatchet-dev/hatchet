@@ -330,7 +330,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "troubleshooting",
     query: "troubleshooting",
-    expectAnyOf: ["get-started/troubleshooting-workers"],
+    expectAnyOf: ["guides/troubleshooting-workers"],
   },
 
   // -------------------------------------------------------------------------
@@ -744,7 +744,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "debug → troubleshooting",
     query: "debug",
-    expectAnyOf: ["get-started/troubleshooting-workers", "concepts/logging"],
+    expectAnyOf: ["guides/troubleshooting-workers", "concepts/logging"],
     topN: 10,
   },
   {
