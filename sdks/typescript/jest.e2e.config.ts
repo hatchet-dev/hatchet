@@ -7,6 +7,7 @@ import baseConfig from './jest.config';
 const config: Config = {
   ...baseConfig,
   testMatch: ['**/*.e2e.ts'],
+  testSequencer: '<rootDir>/jest.e2e-sequencer.cjs',
   globalSetup: '<rootDir>/jest.e2e-global-setup.ts',
   globalTeardown: '<rootDir>/jest.e2e-global-teardown.ts',
 };
