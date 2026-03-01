@@ -118,9 +118,9 @@ export const UniversalTabs: React.FC<UniversalTabsProps> = ({
 
   const tabLabels = items.map((item) => toTabLabel(item, basePath));
 
-  // Inject early access callout into SDK tabs that are in early access
+  // Inject early access callout into SDK tabs that are in early access (skip for hidden variant)
   const processedChildren =
-    optionKey === "language"
+    optionKey === "language" && variant !== "hidden"
       ? React.Children.map(children, (child) => {
           if (
             React.isValidElement<{
