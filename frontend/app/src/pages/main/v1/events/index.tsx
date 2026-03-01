@@ -141,7 +141,7 @@ export default function Events() {
             <p className="text-lg font-semibold">No events found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.home['run-on-event']}
+                doc={docsPages.concepts['run-on-event']}
                 label="Learn about pushing events to Hatchet"
               />
             </div>

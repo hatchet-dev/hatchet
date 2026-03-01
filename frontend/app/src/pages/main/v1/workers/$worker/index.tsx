@@ -328,7 +328,7 @@ export default function WorkerDetail() {
                 Slots represent concurrent task runs.{' '}
                 <DocsButton
                   variant="text"
-                  doc={docsPages.home.workers}
+                  doc={docsPages.concepts.workers}
                   label="Learn more"
                   scrollTo={'understanding-slots'}
                 />
@@ -403,7 +403,7 @@ export default function WorkerDetail() {
                   workers.{' '}
                   <DocsButton
                     variant="text"
-                    doc={docsPages.home['worker-affinity']}
+                    doc={docsPages.concepts['worker-affinity']}
                     label="Learn more"
                     scrollTo={'specifying-worker-labels'}
                   />

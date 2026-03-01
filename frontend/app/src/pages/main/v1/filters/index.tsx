@@ -97,7 +97,7 @@ export default function Filters() {
           <p className="text-lg font-semibold">No filters found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.home['run-on-event']}
+              doc={docsPages.concepts['run-on-event']}
               scrollTo="event-filtering"
               label="Learn about event filters"
             />

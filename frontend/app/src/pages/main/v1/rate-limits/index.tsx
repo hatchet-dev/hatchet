@@ -67,7 +67,7 @@ function RateLimitsTable() {
           <p className="text-lg font-semibold">No rate limits found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.home['rate-limits']}
+              doc={docsPages.concepts['rate-limits']}
               label="Learn about rate limits"
             />
           </div>
