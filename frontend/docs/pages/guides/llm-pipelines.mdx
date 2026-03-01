@@ -1,5 +1,5 @@
 import { Callout, Cards, Steps, Tabs } from "nextra/components";
-import LLMIntegrationTabs from "@/components/LLMIntegrationTabs";
+import LLMIntegrationTabs from "@/components/LLMIntegrationTabs.mdx";
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import UniversalTabs from "@/components/UniversalTabs";
@@ -12,11 +12,11 @@ Because each LLM call maps to a task and validation steps gate what runs next, t
 
 ## Step-by-step walkthrough
 
-By the end of this guide you will have a DAG pipeline: prompt → generate → validate, with a mock LLM to avoid external API dependencies.
+You'll build a three-stage DAG pipeline (prompt, generate, validate) using a mock LLM so you can run it without API keys.
 
 <Steps>
 
-### Step 1: Define the pipeline
+### Define the pipeline
 
 Create a workflow with prompt construction, LLM generation, and validation stages.
 
@@ -46,7 +46,7 @@ Create a workflow with prompt construction, LLM generation, and validation stage
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 2: Prompt task
+### Prompt task
 
 The prompt task depends on the pipeline input (Step 1). Build the prompt from user input and context. This step may include retrieval from a vector database (see [RAG & Indexing](/guides/rag-and-indexing)).
 
@@ -73,13 +73,13 @@ The prompt task depends on the pipeline input (Step 1). Build the prompt from us
   </Tabs.Tab>
 </UniversalTabs>
 
-The prompt is passed to your LLM service for generation. The examples above use a mock—to use a real provider, swap `get_llm_service()` with one of these:
+The prompt is passed to your LLM service for generation. The examples above use a mock. To use a real provider, swap `get_llm_service()` with one of these:
 
 <LLMIntegrationTabs />
 
-### Step 3: Validate the output
+### Generate and validate
 
-The validate task depends on the generate step. Parse and validate the structured response. When validation fails, [Retry Policies](/concepts/retry-policies) retry just that step with a corrective prompt.
+This task takes the prompt from Step 2, calls the LLM, and validates the response. If validation fails, [Retry Policies](/concepts/retry-policies) retry just this step with a corrective prompt.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -106,7 +106,7 @@ The validate task depends on the generate step. Parse and validate the structure
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 4: Run the worker
+### Run the worker
 
 Start the worker. Configure [Rate Limits](/concepts/rate-limits) to stay within LLM provider quotas.
 

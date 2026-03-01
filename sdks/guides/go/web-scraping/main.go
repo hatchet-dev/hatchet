@@ -2,9 +2,13 @@ package main
 
 import (
 	"log"
+	"regexp"
+	"strings"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 type ScrapeInput struct {
@@ -15,6 +19,8 @@ type ProcessInput struct {
 	URL     string `json:"url"`
 	Content string `json:"content"`
 }
+
+const scrapeRateLimitKey = "scrape-rate-limit"
 
 func main() {
 	client, err := hatchet.NewClient()
@@ -33,8 +39,17 @@ func main() {
 	// !!
 
 	// > Step 02 Process Content
-	processTask := client.NewStandaloneTask("process-content", func(ctx hatchet.Context, input ProcessInput) (map[string]string, error) {
-		return MockExtract(input.Content), nil
+	linkRe := regexp.MustCompile(`https?://[^\s<>"']+`)
+	processTask := client.NewStandaloneTask("process-content", func(ctx hatchet.Context, input ProcessInput) (map[string]interface{}, error) {
+		links := linkRe.FindAllString(input.Content, -1)
+		summary := input.Content
+		if len(summary) > 200 {
+			summary = summary[:200]
+		}
+		wordCount := len(strings.Fields(input.Content))
+		return map[string]interface{}{
+			"summary": strings.TrimSpace(summary), "word_count": wordCount, "links": links,
+		}, nil
 	})
 	// !!
 
@@ -72,9 +87,32 @@ func main() {
 	})
 	// !!
 
-	// > Step 04 Run Worker
+	// > Step 04 Rate Limited Scrape
+	units := 1
+	rateLimitedScrapeTask := client.NewStandaloneTask("rate-limited-scrape", func(ctx hatchet.Context, input ScrapeInput) (map[string]interface{}, error) {
+		result := MockScrape(input.URL)
+		return map[string]interface{}{
+			"url": result.URL, "title": result.Title,
+			"content": result.Content, "scraped_at": result.ScrapedAt,
+		}, nil
+	}, hatchet.WithRetries(2), hatchet.WithRateLimits(&types.RateLimit{
+		Key:   scrapeRateLimitKey,
+		Units: &units,
+	}))
+	// !!
+
+	// > Step 05 Run Worker
+	err = client.RateLimits().Upsert(features.CreateRatelimitOpts{
+		Key:      scrapeRateLimitKey,
+		Limit:    10,
+		Duration: types.Minute,
+	})
+	if err != nil {
+		log.Fatalf("failed to upsert rate limit: %v", err)
+	}
+
 	worker, err := client.NewWorker("web-scraping-worker",
-		hatchet.WithWorkflows(scrapeTask, processTask, cronWf),
+		hatchet.WithWorkflows(scrapeTask, processTask, cronWf, rateLimitedScrapeTask),
 		hatchet.WithSlots(5),
 	)
 	if err != nil {

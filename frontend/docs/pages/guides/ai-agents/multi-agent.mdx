@@ -5,9 +5,9 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Multi-Agent
 
-Multi-agent orchestration uses a coordinating agent that delegates work to specialist agents. Unlike [routing](/guides/ai-agents/routing) (which classifies once and calls one handler), the orchestrator runs a **reasoning loop** — it may call multiple specialists across multiple iterations, passing results between them, until the overall goal is met.
+Multi-agent orchestration uses a coordinating agent that delegates work to specialist agents. Unlike [routing](/guides/ai-agents/routing) (which classifies once and calls one handler), the orchestrator runs a **reasoning loop**: it may call multiple specialists across multiple iterations, passing results between them, until the overall goal is met.
 
-Each specialist is a separate Hatchet workflow with its own prompt, tools, timeout, and retry settings. The orchestrator's LLM decides which specialist to call next based on the accumulated context.
+Each specialist is a separate [durable task](/concepts/durable-workflows/durable-task-execution) with its own prompt, tools, timeout, and retry settings. The orchestrator's LLM decides which specialist to call next based on the accumulated context.
 
 ```mermaid
 sequenceDiagram
@@ -30,17 +30,17 @@ sequenceDiagram
 
 ## When to use
 
-| Scenario                                                              | Fit                                                 |
-| --------------------------------------------------------------------- | --------------------------------------------------- |
-| Complex tasks needing different expertise (research + code + writing) | Good — each specialist focuses on one domain        |
-| Customer service with support, sales, and billing specialists         | Good — orchestrator picks the right expert per turn |
-| Tasks where output from one specialist feeds the next                 | Good — orchestrator passes context between calls    |
-| Simple tasks a single agent can handle end-to-end                     | Skip — orchestration overhead isn't worth it        |
-| Specialists always run in a fixed sequence                            | Use [LLM Pipelines](/guides/llm-pipelines) instead  |
+| Scenario                                                              | Fit                                                |
+| --------------------------------------------------------------------- | -------------------------------------------------- |
+| Complex tasks needing different expertise (research + code + writing) | Good: each specialist focuses on one domain        |
+| Customer service with support, sales, and billing specialists         | Good: orchestrator picks the right expert per turn |
+| Tasks where output from one specialist feeds the next                 | Good: orchestrator passes context between calls    |
+| Simple tasks a single agent can handle end-to-end                     | Skip: orchestration overhead isn't worth it        |
+| Specialists always run in a fixed sequence                            | Use [LLM Pipelines](/guides/llm-pipelines) instead |
 
 ## How it maps to Hatchet
 
-The orchestrator is a **durable task** running a reasoning loop ([cycle](/concepts/durable-workflows/durable-task-execution/child-spawning)). Each specialist is a standalone workflow spawned via `.run()` / `.aio_run()`. The orchestrator's LLM returns structured tool calls — each tool name maps to a specialist workflow.
+The orchestrator is a **[durable task](/concepts/durable-workflows/durable-task-execution)** running a reasoning loop via [child spawning](/concepts/durable-workflows/durable-task-execution/child-spawning). Each specialist is a standalone durable task spawned as a child run. The orchestrator's LLM returns structured tool calls, and each tool name maps to a specialist task.
 
 Because each specialist call is a child run, the orchestrator's slot is freed while specialists execute. If the orchestrator dies mid-loop, it resumes from the last checkpoint without re-running completed specialist calls.
 
@@ -48,9 +48,9 @@ Because each specialist call is a child run, the orchestrator's slot is freed wh
 
 <Steps>
 
-### Step 1: Define the specialist agents
+### Define the specialist tasks
 
-Each specialist is a standalone task with its own prompt and timeout. They run independently and can be reused across different orchestrators.
+Each specialist is a standalone durable task with its own prompt and timeout. They run independently and can be reused across different orchestrators.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -78,9 +78,9 @@ Each specialist is a standalone task with its own prompt and timeout. They run i
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 2: Orchestrator loop
+### Orchestrator loop
 
-The orchestrator runs a reasoning loop: call LLM → parse tool choice → spawn specialist → observe result → repeat. Context accumulates across iterations so later specialist calls have full history.
+The orchestrator runs a [reasoning loop](/guides/ai-agents/reasoning-loop): call LLM, parse tool choice, [spawn specialist](/concepts/durable-workflows/durable-task-execution/child-spawning), observe result, repeat. Context accumulates across iterations so later specialist calls have full history.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -108,7 +108,7 @@ The orchestrator runs a reasoning loop: call LLM → parse tool choice → spawn
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 3: Run the worker
+### Run the worker
 
 Register all specialists and the orchestrator, then start the worker.
 
@@ -140,17 +140,17 @@ Register all specialists and the orchestrator, then start the worker.
 
 ## Multi-agent vs. routing
 
-|                      | Multi-agent                                        | Routing                       |
-| -------------------- | -------------------------------------------------- | ----------------------------- |
-| **Specialist calls** | Multiple, across loop iterations                   | One per request               |
-| **Orchestration**    | Reasoning loop — LLM decides next step dynamically | Classify once, route once     |
-| **Use when**         | Task needs multiple types of expertise             | Task fits a single specialist |
+|                      | Multi-agent                                       | Routing                       |
+| -------------------- | ------------------------------------------------- | ----------------------------- |
+| **Specialist calls** | Multiple, across loop iterations                  | One per request               |
+| **Orchestration**    | Reasoning loop, LLM decides next step dynamically | Classify once, route once     |
+| **Use when**         | Task needs multiple types of expertise            | Task fits a single specialist |
 
-## Related patterns
+## Related Patterns
 
 <Cards>
   <Cards.Card title="Reasoning Loop" href="/guides/ai-agents/reasoning-loop">
-    Multi-agent is a reasoning loop where "tools" are specialist workflows
+    Multi-agent is a reasoning loop where "tools" are specialist durable tasks
     instead of API calls.
   </Cards.Card>
   <Cards.Card title="Routing" href="/guides/ai-agents/routing">
@@ -164,7 +164,13 @@ Register all specialists and the orchestrator, then start the worker.
     title="Child Spawning"
     href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
   >
-    The Hatchet primitive used to spawn specialist workflows from the
-    orchestrator.
+    The Hatchet primitive used to spawn specialist tasks from the orchestrator.
   </Cards.Card>
 </Cards>
+
+## Next Steps
+
+- [Durable Task Execution](/concepts/durable-workflows/durable-task-execution): understand checkpointing and replay for the orchestrator
+- [Child Spawning](/concepts/durable-workflows/durable-task-execution/child-spawning): spawn specialist tasks from the orchestrator loop
+- [Timeouts](/concepts/timeouts): set execution timeouts on the orchestrator and each specialist
+- [Concurrency Control](/concepts/concurrency): limit how many orchestrator runs execute in parallel

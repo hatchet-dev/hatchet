@@ -5,27 +5,23 @@ require_relative 'mock_llm'
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-RESEARCH_WF = HATCHET.workflow(name: 'ResearchSpecialist')
-WRITING_WF = HATCHET.workflow(name: 'WritingSpecialist')
-CODE_WF = HATCHET.workflow(name: 'CodeSpecialist')
-
 # > Step 01 Specialist Agents
-RESEARCH_WF.task(:research) do |input, _ctx|
+RESEARCH_TASK = HATCHET.durable_task(name: 'ResearchSpecialist', execution_timeout: '3m') do |input, _ctx|
   { 'result' => mock_specialist_llm(input['task'], 'research') }
 end
 
-WRITING_WF.task(:write) do |input, _ctx|
+WRITING_TASK = HATCHET.durable_task(name: 'WritingSpecialist', execution_timeout: '2m') do |input, _ctx|
   { 'result' => mock_specialist_llm(input['task'], 'writing') }
 end
 
-CODE_WF.task(:code) do |input, _ctx|
+CODE_TASK = HATCHET.durable_task(name: 'CodeSpecialist', execution_timeout: '2m') do |input, _ctx|
   { 'result' => mock_specialist_llm(input['task'], 'code') }
 end
 
 SPECIALISTS = {
-  'research' => RESEARCH_WF,
-  'writing' => WRITING_WF,
-  'code' => CODE_WF
+  'research' => RESEARCH_TASK,
+  'writing' => WRITING_TASK,
+  'code' => CODE_TASK
 }.freeze
 
 # > Step 02 Orchestrator Loop
@@ -41,10 +37,10 @@ ORCHESTRATOR = HATCHET.durable_task(name: 'MultiAgentOrchestrator', execution_ti
       break
     end
 
-    specialist_wf = SPECIALISTS[response['tool_call']['name']]
-    raise "Unknown specialist: #{response['tool_call']['name']}" unless specialist_wf
+    specialist = SPECIALISTS[response['tool_call']['name']]
+    raise "Unknown specialist: #{response['tool_call']['name']}" unless specialist
 
-    specialist_result = specialist_wf.run(
+    specialist_result = specialist.run(
       'task' => response['tool_call']['args']['task'],
       'context' => messages.map { |m| m['content'] }.join("\n")
     )
@@ -58,7 +54,7 @@ end
 
 def main
   # > Step 03 Run Worker
-  worker = HATCHET.worker('multi-agent-worker', slots: 10, workflows: [RESEARCH_WF, WRITING_WF, CODE_WF, ORCHESTRATOR])
+  worker = HATCHET.worker('multi-agent-worker', slots: 10, workflows: [RESEARCH_TASK, WRITING_TASK, CODE_TASK, ORCHESTRATOR])
   worker.start
 end
 

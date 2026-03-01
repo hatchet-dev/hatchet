@@ -19,26 +19,15 @@ parent_wf = hatchet.workflow(name="BatchParent", input_validator=BatchInput)
 child_wf = hatchet.workflow(name="BatchChild", input_validator=ItemInput)
 
 
-@parent_wf.task()
+@parent_wf.durable_task()
 async def spawn_children(input: BatchInput, ctx: Context) -> dict[str, Any]:
     """Parent fans out to one child per item."""
-    results = []
-    for item_id in input.items:
-        result = await child_wf.aio_run(input=ItemInput(item_id=item_id))
-        results.append(result)
+    results = await child_wf.aio_run_many(
+        [child_wf.create_bulk_run_item(input=ItemInput(item_id=item_id)) for item_id in input.items]
+    )
     return {"processed": len(results), "results": results}
 
 
-
-
-# > Step 02 Fan Out Children
-async def _fan_out(input: BatchInput) -> list:
-    results = []
-    for item_id in input.items:
-        result = await child_wf.aio_run(input=ItemInput(item_id=item_id))
-        results.append(result)
-    return results
-# Hatchet distributes child runs across available workers.
 
 
 # > Step 03 Process Item

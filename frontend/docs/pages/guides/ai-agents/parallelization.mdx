@@ -7,12 +7,12 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Parallelization spawns multiple independent tasks at the same time and aggregates results before continuing. Inside an agent loop, this typically means running several tool calls concurrently when they don't depend on each other. At a system level, it can mean running the same input through multiple evaluators and picking the best (or majority) result.
 
-Hatchet distributes child runs across your worker fleet. The parent's slot is [freed while children execute](/concepts/durable-workflows/durable-task-execution/task-eviction), so you don't hold resources during parallel work.
+Hatchet distributes child runs across all running workers where the task is registered. The parent's slot is [freed while children execute](/concepts/durable-workflows/durable-task-execution/task-eviction), so you don't hold resources during parallel work.
 
 There are two common variants:
 
-- **Sectioning** — Different tasks handle different concerns in parallel (e.g., content generation + safety check).
-- **Voting** — The same task runs N times and results are aggregated by majority vote or best score.
+- **Sectioning**: different tasks handle different concerns in parallel (e.g., content generation + safety check).
+- **Voting**: the same task runs N times and results are aggregated by majority vote or best score.
 
 ```mermaid
 flowchart LR
@@ -35,20 +35,24 @@ flowchart LR
 
 ## When to use
 
-| Scenario                                              | Fit                                                                               |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Agent calls 3 independent APIs (weather, news, stock) | Good — no dependencies between calls, latency drops to max of the three           |
-| Content generation + safety guardrail in parallel     | Good — sectioning: both run at once, block if unsafe                              |
-| Multiple evaluators vote on content quality           | Good — voting: aggregate for more reliable decisions                              |
-| Processing a batch of items (100+ documents)          | Good — see [Batch Processing](/guides/batch-processing) for large-scale fanout    |
-| Steps depend on each other (output of A feeds B)      | Skip — run sequentially                                                           |
-| Provider rate limits are tight                        | Careful — parallel calls may hit limits; use [Rate Limits](/concepts/rate-limits) |
+| Scenario                                              | Fit                                                                              |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Agent calls 3 independent APIs (weather, news, stock) | Good: no dependencies between calls, latency drops to max of the three           |
+| Content generation + safety guardrail in parallel     | Good: sectioning, both run at once, block if unsafe                              |
+| Multiple evaluators vote on content quality           | Good: voting, aggregate for more reliable decisions                              |
+| Processing a batch of items (100+ documents)          | Good: see [Batch Processing](/guides/batch-processing) for large-scale fanout    |
+| Steps depend on each other (output of A feeds B)      | Skip: run sequentially                                                           |
+| Provider rate limits are tight                        | Careful: parallel calls may hit limits; use [Rate Limits](/concepts/rate-limits) |
+
+## How it maps to Hatchet
+
+The parent task spawns children via [child spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning). Each child runs on any available worker. The parent's slot is [evicted](/concepts/durable-workflows/durable-task-execution/task-eviction) while children execute, so you're not holding resources during the parallel work. When all children complete, the parent resumes and aggregates.
 
 ## Step-by-step walkthrough
 
 <Steps>
 
-### Step 1: Define the parallel tasks
+### Define the parallel tasks
 
 Create separate tasks for each concern. These run independently and can be composed in different patterns.
 
@@ -78,7 +82,7 @@ Create separate tasks for each concern. These run independently and can be compo
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 2: Sectioning — parallel concerns
+### Sectioning (parallel concerns)
 
 Sectioning runs different concerns in parallel. The example generates content and checks safety at the same time. If the safety check fails, the content is blocked even though generation succeeded.
 
@@ -105,7 +109,7 @@ Sectioning runs different concerns in parallel. The example generates content an
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 3: Voting — parallel consensus
+### Voting (parallel consensus)
 
 Voting runs the same evaluation N times and aggregates by majority or average score. This produces more reliable decisions than a single evaluation.
 
@@ -128,7 +132,7 @@ Voting runs the same evaluation N times and aggregates by majority or average sc
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 4: Run the worker
+### Run the worker
 
 Register all tasks and start the worker.
 
@@ -161,7 +165,7 @@ Register all tasks and start the worker.
   concurrency control.
 </Callout>
 
-## Related patterns
+## Related Patterns
 
 <Cards>
   <Cards.Card title="Batch Processing" href="/guides/batch-processing">
@@ -173,7 +177,7 @@ Register all tasks and start the worker.
   </Cards.Card>
   <Cards.Card
     title="Evaluator-Optimizer"
-    href="/guides/ai-agents/evaluator-optimizer"
+    href="/guides/ai-agents/reasoning-loop#variant-evaluator-optimizer"
   >
     Combine voting (parallel evaluators) with optimization (feedback loop) for
     higher-quality iteration.
@@ -185,3 +189,10 @@ Register all tasks and start the worker.
     The Hatchet concept: spawn children in parallel, parent waits for all.
   </Cards.Card>
 </Cards>
+
+## Next Steps
+
+- [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): spawn parallel children from a parent task
+- [Task Eviction](/concepts/durable-workflows/durable-task-execution/task-eviction): free the parent's slot while children execute
+- [Rate Limits](/concepts/rate-limits): throttle parallel calls to external APIs
+- [Concurrency Control](/concepts/concurrency): limit how many children run simultaneously

@@ -21,7 +21,7 @@ def agent_reasoning_loop(query)
 end
 
 # > Step 01 Define Agent Task
-AGENT_TASK = HATCHET.durable_task(name: 'AgentTask') do |input, _ctx|
+AGENT_TASK = HATCHET.durable_task(name: 'ReasoningLoopAgent') do |input, _ctx|
   query = input.is_a?(Hash) && input['query'] ? input['query'].to_s : 'Hello'
   agent_reasoning_loop(query)
 end

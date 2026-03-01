@@ -1,26 +1,26 @@
 import { Callout, Cards, Steps, Tabs } from "nextra/components";
 import DocumentProcessingDiagram from "@/components/DocumentProcessingDiagramWrapper";
-import LLMIntegrationTabs from "@/components/LLMIntegrationTabs";
-import OCRIntegrationTabs from "@/components/OCRIntegrationTabs";
+import LLMIntegrationTabs from "@/components/LLMIntegrationTabs.mdx";
+import OCRIntegrationTabs from "@/components/OCRIntegrationTabs.mdx";
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import UniversalTabs from "@/components/UniversalTabs";
 
 # Document Processing
 
-PDF and file pipelines are central to AI workflows: parse documents, extract content with OCR or LLMs, validate and enrich the data, and classify or route it. This guide walks through structuring these pipelines as Hatchet [DAG workflows](/concepts/durable-workflows/directed-acyclic-graphs).
+PDF and file pipelines are central to AI workflows: parse documents, extract content with OCR or LLMs, validate and enrich the data, and classify or route it. We'll structure these as Hatchet [DAG workflows](/concepts/durable-workflows/directed-acyclic-graphs).
 
 <DocumentProcessingDiagram />
 
-Because the stages are fixed (ingest → parse → extract), document pipelines map naturally to [Pre-Determined Pipelines](/concepts/durable-workflows/directed-acyclic-graphs). You can add [Fanout](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) within the ingest or parse stage to process multiple documents in parallel.
+Because the stages are fixed (ingest → parse → extract), document pipelines map naturally to [DAG workflows](/concepts/durable-workflows/directed-acyclic-graphs). You can add [child spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) within the ingest or parse stage to process multiple documents in parallel.
 
 ## Step-by-step walkthrough
 
-By the end of this guide you will have a DAG pipeline: ingest → parse → extract, with mock OCR and LLM stages to avoid external dependencies.
+You'll build a three-stage pipeline (ingest, parse, extract) using mocks so you can run it locally without API keys.
 
 <Steps>
 
-### Step 1: Define the DAG
+### Define the DAG
 
 Create a workflow with a fixed pipeline: ingest, parse, extract. Each stage depends on the previous.
 
@@ -50,7 +50,7 @@ Create a workflow with a fixed pipeline: ingest, parse, extract. Each stage depe
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 2: Parse stage
+### Parse stage
 
 The parse task depends on ingest (Step 1). It converts raw content to structured text (use OCR for images, mock for examples).
 
@@ -82,11 +82,11 @@ The parse task depends on ingest (Step 1). It converts raw content to structured
   </Tabs.Tab>
 </UniversalTabs>
 
-The examples above use a mock OCR service. To use a real provider, swap in one of these—pick a provider, then your language:
+The examples above use a mock OCR service. To use a real provider, swap in one of these. Pick a provider, then your language:
 
 <OCRIntegrationTabs />
 
-### Step 3: Extract stage
+### Extract stage
 
 The extract task depends on parse (Step 2). Use an LLM or rules to extract entities. [Rate Limits](/concepts/rate-limits) keep extract tasks within provider quotas.
 
@@ -124,7 +124,7 @@ The examples above use a mock extractor. To wire in a real LLM for extraction, s
 
 <LLMIntegrationTabs />
 
-### Step 4: Run the worker
+### Run the worker
 
 Start the worker. For per-document parallelism, use [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) within the ingest stage.
 
@@ -175,7 +175,7 @@ Start the worker. For per-document parallelism, use [Child Spawning](/concepts/d
 
 <Cards>
   <Cards.Card
-    title="Pre-Determined Pipelines"
+    title="DAG Workflows"
     href="/concepts/durable-workflows/directed-acyclic-graphs"
   >
     The fixed-stage DAG pattern that document pipelines are built on.
@@ -188,7 +188,7 @@ Start the worker. For per-document parallelism, use [Child Spawning](/concepts/d
     General-purpose batch patterns that apply to document workloads.
   </Cards.Card>
   <Cards.Card
-    title="Fanout"
+    title="Child Spawning"
     href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
   >
     Parallelize document processing across your worker fleet.

@@ -18,7 +18,7 @@ hatchet = Hatchet(debug=True)
 
 # > Step 01 Define Agent Task
 @hatchet.durable_task(
-    name="AgentTask",
+    name="ReasoningLoopAgent",
     concurrency=ConcurrencyExpression(
         expression="input.session_id != null ? string(input.session_id) : 'constant'",
         max_runs=1,

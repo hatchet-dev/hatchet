@@ -35,7 +35,7 @@ func main() {
 	// !!
 
 	// > Step 01 Define Agent Task
-	agentTask := client.NewStandaloneDurableTask("agent-task", func(ctx hatchet.DurableContext, input map[string]interface{}) (map[string]interface{}, error) {
+	agentTask := client.NewStandaloneDurableTask("reasoning-loop-agent", func(ctx hatchet.DurableContext, input map[string]interface{}) (map[string]interface{}, error) {
 		query := "Hello"
 		if q, ok := input["query"].(string); ok && q != "" {
 			query = q

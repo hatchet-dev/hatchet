@@ -5,16 +5,16 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Routing
 
-Routing classifies an incoming request and directs it to a specialist workflow. A single entry point handles all requests; the routing logic — an LLM call, a rule-based check, or a keyword match — determines which downstream workflow runs. Only one branch executes per request.
+Routing classifies an incoming request and directs it to a specialist [durable task](/concepts/durable-workflows/durable-task-execution). A single entry point handles all requests; the routing logic (an LLM call, a rule-based check, or a keyword match) determines which downstream task runs. Only one branch executes per request.
 
-This pattern improves response quality because each specialist workflow has its own prompt, tools, and context optimized for that category. It also simplifies the caller: trigger one workflow and let the router decide where to send it.
+This pattern improves response quality because each specialist task has its own prompt, tools, and context optimized for that category. It also simplifies the caller: trigger one task and let the router decide where to send it.
 
 ```mermaid
 flowchart TD
     R[Router Task] -->|classify| C{Category}
-    C -->|support| S[Support Workflow]
-    C -->|sales| B[Sales Workflow]
-    C -->|billing| D[Billing Workflow]
+    C -->|support| S[Support Task]
+    C -->|sales| B[Sales Task]
+    C -->|billing| D[Billing Task]
     S --> O[Return result]
     B --> O
     D --> O
@@ -24,15 +24,15 @@ flowchart TD
 
 | Scenario                                               | Fit                                                                                                             |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| Customer service (support vs. sales vs. billing)       | Good — distinct domains with different prompts and tools                                                        |
-| Document processing (invoice vs. receipt vs. contract) | Good — each type needs different extraction logic                                                               |
-| Request triage (simple auto-reply vs. complex agent)   | Good — avoid expensive agent loops for easy questions                                                           |
-| All requests follow the same path                      | Skip — no benefit from routing                                                                                  |
-| Routing rules are fixed and known at definition time   | Use [Parent Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions) in a DAG instead |
+| Customer service (support vs. sales vs. billing)       | Good: distinct domains with different prompts and tools                                                         |
+| Document processing (invoice vs. receipt vs. contract) | Good: each type needs different extraction logic                                                                |
+| Request triage (simple auto-reply vs. complex agent)   | Good: avoid expensive agent loops for easy questions                                                            |
+| All requests follow the same path                      | Skip: no benefit from routing                                                                                   |
+| Routing rules are simple and known at definition time  | Use [Parent Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions) in a DAG instead |
 
 ## How it maps to Hatchet
 
-The router is a **durable task**. It spawns a classifier child task (or does classification inline), then uses `.run()` to spawn the matching specialist workflow. Since each specialist is a separate workflow, they can have their own timeouts, retries, rate limits, and concurrency settings.
+The router is a **[durable task](/concepts/durable-workflows/durable-task-execution)**. It spawns a classifier [child task](/concepts/durable-workflows/durable-task-execution/child-spawning) (or does classification inline), then spawns the matching specialist as a [child run](/concepts/durable-workflows/durable-task-execution/child-spawning). Since each specialist is a separate durable task, they can have their own [timeouts](/concepts/timeouts), [retries](/concepts/retry-policies), [rate limits](/concepts/rate-limits), and [concurrency](/concepts/concurrency) settings.
 
 Routing decisions are checkpointed. If the worker dies after classification but before the specialist finishes, the router resumes and does not re-classify.
 
@@ -40,7 +40,7 @@ Routing decisions are checkpointed. If the worker dies after classification but 
 
 <Steps>
 
-### Step 1: Define the classifier task
+### Define the classifier task
 
 A separate task classifies the incoming message. This lets you observe the classification result and retry independently if the LLM fails.
 
@@ -63,9 +63,9 @@ A separate task classifies the incoming message. This lets you observe the class
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 2: Define the specialist handlers
+### Define the specialist tasks
 
-Each specialist is a standalone workflow with its own prompt and tools. They run independently with their own timeout and retry settings.
+Each specialist is a standalone durable task with its own prompt and tools. They run independently with their own timeout and retry settings.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -88,9 +88,9 @@ Each specialist is a standalone workflow with its own prompt and tools. They run
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 3: Route with a durable task
+### Route with a durable task
 
-The router classifies the message, then spawns the matching specialist. The classification result is checkpointed — if the worker dies after classifying, it resumes and spawns the specialist without re-classifying.
+The router classifies the message, then spawns the matching specialist. The classification result is checkpointed, so if the worker dies after classifying, it resumes and spawns the specialist without re-classifying.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -109,7 +109,7 @@ The router classifies the message, then spawns the matching specialist. The clas
   </Tabs.Tab>
 </UniversalTabs>
 
-### Step 4: Run the worker
+### Run the worker
 
 Register all tasks and start the worker.
 
@@ -146,7 +146,7 @@ Register all tasks and start the worker.
 | **Use when**          | Category is unknown until an LLM classifies it | Branch criteria are known at workflow definition time |
 | **Observability**     | Router + specialist appear as separate runs    | All branches visible in the DAG graph                 |
 
-## Related patterns
+## Related Patterns
 
 <Cards>
   <Cards.Card title="Multi-Agent" href="/guides/ai-agents/multi-agent">
@@ -166,3 +166,10 @@ Register all tasks and start the worker.
     Fixed-sequence pipelines; route to different pipelines based on input type.
   </Cards.Card>
 </Cards>
+
+## Next Steps
+
+- [Durable Task Execution](/concepts/durable-workflows/durable-task-execution): understand how the router and specialists checkpoint
+- [Child Spawning](/concepts/durable-workflows/durable-task-execution/child-spawning): spawn specialist tasks from the router
+- [Timeouts](/concepts/timeouts): set execution timeouts on the router and each specialist
+- [Retry Policies](/concepts/retry-policies): configure retries for classification and specialist tasks

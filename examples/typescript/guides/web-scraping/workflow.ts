@@ -1,5 +1,5 @@
 import { hatchet } from '../../hatchet-client';
-import { mockScrape, mockExtract } from './mock-scraper';
+import { mockScrape } from './mock-scraper';
 
 type ScrapeInput = { url: string };
 
@@ -17,7 +17,10 @@ const scrapeTask = hatchet.task({
 const processTask = hatchet.task({
   name: 'process-content',
   fn: async (input: { url: string; content: string }) => {
-    return mockExtract(input.content);
+    const links = [...input.content.matchAll(/https?:\/\/[^\s<>"']+/g)].map((m) => m[0]);
+    const summary = input.content.slice(0, 200).trim();
+    const wordCount = input.content.split(/\s+/).filter(Boolean).length;
+    return { summary, wordCount, links };
   },
 });
 
@@ -46,4 +49,22 @@ scrapeWorkflow.task({
   },
 });
 
-export { scrapeTask, processTask, scrapeWorkflow };
+// > Step 04 Rate Limited Scrape
+const SCRAPE_RATE_LIMIT_KEY = 'scrape-rate-limit';
+
+const rateLimitedScrapeTask = hatchet.task({
+  name: 'rate-limited-scrape',
+  executionTimeout: '2m',
+  retries: 2,
+  rateLimits: [
+    {
+      staticKey: SCRAPE_RATE_LIMIT_KEY,
+      units: 1,
+    },
+  ],
+  fn: async (input: ScrapeInput) => {
+    return mockScrape(input.url);
+  },
+});
+
+export { scrapeTask, processTask, scrapeWorkflow, rateLimitedScrapeTask, SCRAPE_RATE_LIMIT_KEY };

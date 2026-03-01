@@ -1,0 +1,104 @@
+import { Callout, Tabs } from "nextra/components";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import PackageManagerInstall from "@/components/PackageManagerInstall";
+import UniversalTabs from "@/components/UniversalTabs";
+
+<Tabs items={["Tesseract", "Unstructured", "Reducto", "Google Vision"]}>
+  <Tabs.Tab title="Tesseract">
+
+[Tesseract](https://github.com/tesseract-ocr/tesseract) is an open-source OCR engine maintained by Google. It supports 100+ languages and runs entirely on your own infrastructure with no API key or cloud service required. A solid default for straightforward text extraction from images and scanned documents.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: "pytesseract" }} />
+      <Snippet src={snippets.python.guides.integrations.ocr_tesseract.tesseract_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <PackageManagerInstall packages={{ typescript: "tesseract.js" }} />
+      <Snippet src={snippets.typescript.guides.integrations.ocr_tesseract.tesseract_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <PackageManagerInstall packages={{ go: "github.com/otiai10/gosseract/v2" }} />
+      <Snippet src={snippets.go.guides.integrations.ocr_tesseract.tesseract_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <PackageManagerInstall packages={{ ruby: "rtesseract" }} />
+      <Snippet src={snippets.ruby.guides.integrations.ocr_tesseract.tesseract_usage} />
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+  <Tabs.Tab title="Unstructured">
+
+[Unstructured](https://docs.unstructured.io/) is a Python library for parsing and chunking complex documents (PDFs, Word files, HTML, and more). It combines layout detection with OCR to extract structured elements like titles, tables, and narrative text, ready for downstream LLM or RAG pipelines.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: '"unstructured[pdf]"' }} />
+      <Snippet src={snippets.python.guides.integrations.ocr_unstructured.unstructured_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <Callout type="info">
+        Unstructured is Python-only. Use Tesseract or Reducto API for Node.
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <Callout type="info">Unstructured is Python-only.</Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <Callout type="info">Unstructured is Python-only.</Callout>
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+  <Tabs.Tab title="Reducto">
+
+[Reducto](https://docs.reducto.ai/) is a cloud API purpose-built for high-fidelity document extraction. It handles complex layouts, tables, and forms with strong accuracy out of the box, no OCR tuning needed. Particularly useful for invoices, contracts, and structured financial documents.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: "reductoai" }} />
+      <Snippet src={snippets.python.guides.integrations.ocr_reducto.reducto_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <Callout type="info">
+        Reducto: use `fetch` to the [platform.reducto.ai](https://docs.reducto.ai/) API.
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <Callout type="info">
+        Reducto: use `net/http` to platform.reducto.ai. See [docs](https://docs.reducto.ai/).
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <Callout type="info">
+        Reducto: use HTTP client. See [docs](https://docs.reducto.ai/).
+      </Callout>
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+  <Tabs.Tab title="Google Vision">
+
+[Google Cloud Vision](https://cloud.google.com/vision/docs) provides production-grade OCR through a managed API. It supports handwriting recognition, document text detection, and PDF/TIFF batch processing with strong multilingual accuracy. Requires a Google Cloud project and service account credentials.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: "google-cloud-vision" }} />
+      <Snippet src={snippets.python.guides.integrations.ocr_google_vision.google_vision_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <PackageManagerInstall packages={{ typescript: "@google-cloud/vision" }} />
+      <Snippet src={snippets.typescript.guides.integrations.ocr_google_vision.google_vision_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <Callout type="info">
+        Google Vision: `go get cloud.google.com/go/vision/apiv1`.
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <Callout type="info">
+        Google Vision: `bundle add google-cloud-vision`.
+      </Callout>
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+</Tabs>

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 
-const PHASES = ["thought", "action", "observation"] as const;
+const PHASES = ["reason", "action", "observation"] as const;
 type Phase = (typeof PHASES)[number];
 
 const PHASE_CONFIG: Record<Phase, { label: string; color: string }> = {
-  thought: { label: "Thought", color: "#818cf8" },
+  reason: { label: "Reason", color: "#818cf8" },
   action: { label: "Action", color: "#38bdf8" },
   observation: { label: "Observation", color: "#fbbf24" },
 };
@@ -18,7 +18,7 @@ const PhaseIcon: React.FC<{ phase: Phase; active: boolean }> = ({
   const size = 18;
 
   switch (phase) {
-    case "thought":
+    case "reason":
       // Lightbulb icon
       return (
         <svg
@@ -129,7 +129,7 @@ const AgentLoopDiagram: React.FC = () => {
             <polygon points="0 0, 10 3.5, 0 7" fill="#4b5563" />
           </marker>
           <marker
-            id="arrow-thought"
+            id="arrow-reason"
             viewBox="0 0 10 7"
             refX="9"
             refY="3.5"
@@ -184,7 +184,7 @@ const AgentLoopDiagram: React.FC = () => {
           );
         })}
 
-        {/* Return arrow: curved path from Observation back to Thought */}
+        {/* Return arrow: curved path from Observation back to Reason */}
         {(() => {
           const from = nodes[nodes.length - 1];
           const to = nodes[0];

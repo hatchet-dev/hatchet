@@ -77,7 +77,7 @@ function LanguageModalContent() {
   const currentPm = pmOptions
     ? resolvePackageManager(
         current,
-        getSelectedOption("packageManager") || pmOptions[0]
+        getSelectedOption("packageManager") || pmOptions[0],
       )
     : null;
 
@@ -176,25 +176,25 @@ export function LanguageSelectorButton() {
             <ThemedIcon
               src={`${basePath}/${LOGO_PATHS[current] || ""}`.replace(
                 /\/+/g,
-                "/"
+                "/",
               )}
               size={18}
             />
             <ChevronDownIcon className="h-4 w-4 opacity-70 shrink-0" />
           </Button>
         </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Docs preferences</DialogTitle>
-        </DialogHeader>
-        <LanguageModalContent />
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button">Save</Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Docs preferences</DialogTitle>
+          </DialogHeader>
+          <LanguageModalContent />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button">Save</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

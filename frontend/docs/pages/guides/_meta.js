@@ -15,12 +15,4 @@ export default {
   "batch-processing": "Batch Processing",
   "document-processing": "Document Processing",
   "web-scraping": "Web Scraping",
-  "scheduled-jobs": "Scheduled Jobs / Cron",
-  "--realtime-streaming": {
-    title: "Real-Time & Streaming",
-    type: "separator",
-  },
-  "webhook-processing": "Webhook Processing",
-  "event-driven": "Event-Driven Systems",
-  streaming: "Streaming / Live Updates",
 };

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
@@ -28,32 +27,29 @@ func main() {
 	})
 
 	// > Step 01 Define Parent Task
-	parentTask := client.NewStandaloneTask("spawn-children", func(ctx hatchet.Context, input BatchInput) (map[string]interface{}, error) {
-		results := []interface{}{}
-		for _, itemID := range input.Items {
-			res, err := childTask.Run(ctx, ItemInput{ItemID: itemID})
+	parentTask := client.NewStandaloneDurableTask("spawn-children", func(ctx hatchet.DurableContext, input BatchInput) (map[string]interface{}, error) {
+		inputs := make([]hatchet.RunManyOpt, len(input.Items))
+		for i, itemID := range input.Items {
+			inputs[i] = hatchet.RunManyOpt{Input: ItemInput{ItemID: itemID}}
+		}
+		runRefs, err := childTask.RunMany(ctx, inputs)
+		if err != nil {
+			return nil, err
+		}
+		results := make([]interface{}, len(runRefs))
+		for i, ref := range runRefs {
+			result, err := ref.Result()
 			if err != nil {
 				return nil, err
 			}
-			results = append(results, res)
+			var parsed map[string]interface{}
+			if err := result.TaskOutput("process-item").Into(&parsed); err != nil {
+				return nil, err
+			}
+			results[i] = parsed
 		}
 		return map[string]interface{}{"processed": len(results), "results": results}, nil
 	})
-
-	// > Step 02 Fan Out Children
-	// Parent fans out: for each item, run child task. Hatchet distributes across workers.
-	fanOut := func(ctx context.Context, input BatchInput, child *hatchet.StandaloneTask) ([]interface{}, error) {
-		results := []interface{}{}
-		for _, itemID := range input.Items {
-			res, err := child.Run(ctx, ItemInput{ItemID: itemID})
-			if err != nil {
-				return nil, err
-			}
-			results = append(results, res)
-		}
-		return results, nil
-	}
-	_ = fanOut
 
 	// > Step 04 Run Worker
 	worker, err := client.NewWorker("batch-worker", hatchet.WithWorkflows(parentTask, childTask), hatchet.WithSlots(20))

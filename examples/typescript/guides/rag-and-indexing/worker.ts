@@ -1,10 +1,10 @@
 import { hatchet } from '../../hatchet-client';
-import { ragWf } from './workflow';
+import { ragWf, embedChunkTask, queryTask } from './workflow';
 
 async function main() {
-  // > Step 04 Run Worker
+  // > Step 06 Run Worker
   const worker = await hatchet.worker('rag-worker', {
-    workflows: [ragWf],
+    workflows: [ragWf, embedChunkTask, queryTask],
   });
   await worker.start();
 }

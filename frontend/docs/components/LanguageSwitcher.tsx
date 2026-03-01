@@ -48,7 +48,8 @@ export default function LanguageSwitcher() {
   return (
     <div className="language-switcher mt-6 mb-2">
       <p className="mb-2 text-sm text-[hsl(var(--muted-foreground))]">
-        Customize your docs experience — choose your preferred language for code examples:
+        Customize your docs experience — choose your preferred language for code
+        examples:
       </p>
       <div
         className="flex flex-wrap gap-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] p-1"
@@ -56,16 +57,16 @@ export default function LanguageSwitcher() {
         aria-label="Choose documentation language"
       >
         {DOC_LANGUAGES.map((lang) => {
-        const filename = LOGO_PATHS[lang];
-        const isSelected = current === lang;
-        return (
-          <button
-            key={lang}
-            type="button"
-            role="tab"
-            aria-selected={isSelected}
-            onClick={() => setSelectedLanguage(lang)}
-            className={`
+          const filename = LOGO_PATHS[lang];
+          const isSelected = current === lang;
+          return (
+            <button
+              key={lang}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              onClick={() => setSelectedLanguage(lang)}
+              className={`
               inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium
               transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]
               ${
@@ -74,13 +75,15 @@ export default function LanguageSwitcher() {
                   : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
               }
             `}
-          >
-            {filename ? (
-              <ThemedIcon src={`${basePath}/${filename}`.replace(/\/+/g, "/")} />
-            ) : null}
-            {lang}
-          </button>
-        );
+            >
+              {filename ? (
+                <ThemedIcon
+                  src={`${basePath}/${filename}`.replace(/\/+/g, "/")}
+                />
+              ) : null}
+              {lang}
+            </button>
+          );
         })}
       </div>
     </div>

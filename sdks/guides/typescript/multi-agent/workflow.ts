@@ -4,7 +4,7 @@ import { mockOrchestratorLlm, mockSpecialistLlm } from './mock-llm';
 type SpecialistInput = { task: string; context?: string };
 
 // > Step 01 Specialist Agents
-const researchTask = hatchet.task({
+const researchTask = hatchet.durableTask({
   name: 'research-specialist',
   executionTimeout: '3m',
   fn: async (input: SpecialistInput) => {
@@ -12,7 +12,7 @@ const researchTask = hatchet.task({
   },
 });
 
-const writingTask = hatchet.task({
+const writingTask = hatchet.durableTask({
   name: 'writing-specialist',
   executionTimeout: '2m',
   fn: async (input: SpecialistInput) => {
@@ -20,7 +20,7 @@ const writingTask = hatchet.task({
   },
 });
 
-const codeTask = hatchet.task({
+const codeTask = hatchet.durableTask({
   name: 'code-specialist',
   executionTimeout: '2m',
   fn: async (input: SpecialistInput) => {

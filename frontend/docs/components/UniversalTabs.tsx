@@ -36,7 +36,10 @@ function ThemedIcon({ src }: { src: string }) {
 }
 
 /** Returns a logo-enhanced label if a logo exists, otherwise the plain string. */
-function toTabLabel(name: string, basePath: string): string | React.ReactElement {
+function toTabLabel(
+  name: string,
+  basePath: string,
+): string | React.ReactElement {
   const filename = LOGO_PATHS[name];
   if (!filename) return name;
   const src = `${basePath}/${filename}`.replace(/\/+/g, "/");
@@ -148,7 +151,7 @@ export const UniversalTabs: React.FC<UniversalTabsProps> = ({
     React.Children.forEach(processedChildren, (child) => {
       if (
         React.isValidElement<{ title?: string; children?: React.ReactNode }>(
-          child
+          child,
         ) &&
         child.props.title
       ) {

@@ -16,7 +16,11 @@ end
 
 # > Step 02 Process Content
 PROCESS_WF.task(:process_content) do |input, _ctx|
-  mock_extract(input['content'])
+  content = input['content']
+  links = content.scan(%r{https?://[^\s<>"']+})
+  summary = content[0, 200].strip
+  word_count = content.split.size
+  { 'summary' => summary, 'word_count' => word_count, 'links' => links }
 end
 # !!
 
@@ -39,9 +43,28 @@ CRON_WF.task(:scheduled_scrape) do |_input, _ctx|
 end
 # !!
 
+# > Step 04 Rate Limited Scrape
+SCRAPE_RATE_LIMIT_KEY = 'scrape-rate-limit'
+
+RATE_LIMITED_WF = HATCHET.workflow(name: 'RateLimitedScrape')
+
+RATE_LIMITED_WF.task(
+  :rate_limited_scrape,
+  execution_timeout: '2m',
+  retries: 2,
+  rate_limits: [Hatchet::RateLimit.new(static_key: SCRAPE_RATE_LIMIT_KEY, units: 1)]
+) do |input, _ctx|
+  mock_scrape(input['url'])
+end
+# !!
+
 def main
-  # > Step 04 Run Worker
-  worker = HATCHET.worker('web-scraping-worker', slots: 5, workflows: [SCRAPE_WF, PROCESS_WF, CRON_WF])
+  # > Step 05 Run Worker
+  HATCHET.rate_limits.put(SCRAPE_RATE_LIMIT_KEY, 10, :minute)
+
+  worker = HATCHET.worker('web-scraping-worker',
+                          slots: 5,
+                          workflows: [SCRAPE_WF, PROCESS_WF, CRON_WF, RATE_LIMITED_WF])
   worker.start
   # !!
 end

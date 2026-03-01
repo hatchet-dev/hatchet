@@ -1,0 +1,108 @@
+import { Callout, Tabs } from "nextra/components";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import PackageManagerInstall from "@/components/PackageManagerInstall";
+import UniversalTabs from "@/components/UniversalTabs";
+
+<Tabs items={["Firecrawl", "Browserbase", "Playwright", "OpenAI Web Search"]}>
+  <Tabs.Tab title="Firecrawl">
+
+[Firecrawl](https://docs.firecrawl.dev/) is a managed web scraping API that returns clean markdown from any URL. It handles JavaScript rendering, anti-bot bypasses, and sitemap crawling out of the box, so you can focus on what to do with the content instead of how to extract it.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: "firecrawl-py" }} />
+      <Snippet src={snippets.python.guides.integrations.scraper_firecrawl.firecrawl_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <PackageManagerInstall packages={{ typescript: "@mendable/firecrawl-js" }} />
+      <Snippet src={snippets.typescript.guides.integrations.scraper_firecrawl.firecrawl_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <Callout type="info">
+        Firecrawl Go: use `net/http` against the [Firecrawl REST API](https://docs.firecrawl.dev/api-reference).
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <Callout type="info">
+        Firecrawl Ruby: `bundle add firecrawl`. See [Firecrawl docs](https://docs.firecrawl.dev).
+      </Callout>
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+  <Tabs.Tab title="Browserbase">
+
+[Browserbase](https://docs.browserbase.com/) provides managed, headless Chrome browsers in the cloud. It pairs with Playwright or Puppeteer for full browser automation, handling stealth fingerprinting, proxies, and session management, so you can scrape JavaScript-heavy sites that block traditional HTTP requests.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: "browserbase playwright" }} />
+      <Snippet src={snippets.python.guides.integrations.scraper_browserbase.browserbase_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <PackageManagerInstall packages={{ typescript: "@browserbasehq/sdk playwright" }} />
+      <Snippet src={snippets.typescript.guides.integrations.scraper_browserbase.browserbase_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <Callout type="info">
+        Browserbase Go: connect via `chromedp` using the session CDP URL. See [Browserbase docs](https://docs.browserbase.com).
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <Callout type="info">
+        Browserbase Ruby: use Playwright via `playwright-ruby-client`. See [Browserbase docs](https://docs.browserbase.com).
+      </Callout>
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+  <Tabs.Tab title="Playwright">
+
+[Playwright](https://playwright.dev/) is an open-source browser automation framework from Microsoft. It drives Chromium, Firefox, and WebKit with a single API, supporting navigation, clicks, form fills, and screenshots. Run it locally or in CI for scraping pages that require full browser rendering.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: "playwright" }} />
+      <Snippet src={snippets.python.guides.integrations.scraper_playwright.playwright_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <PackageManagerInstall packages={{ typescript: "playwright" }} />
+      <Snippet src={snippets.typescript.guides.integrations.scraper_playwright.playwright_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <Callout type="info">
+        Playwright Go: use `go get github.com/playwright-community/playwright-go`. See [playwright-go](https://github.com/playwright-community/playwright-go).
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <Callout type="info">
+        Playwright Ruby: `bundle add playwright-ruby-client`. See [docs](https://playwright-ruby-client.vercel.app/).
+      </Callout>
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+  <Tabs.Tab title="OpenAI Web Search">
+
+OpenAI's [Web Search tool](https://platform.openai.com/docs/guides/tools-web-search) lets you augment a chat completion with live search results via the Responses API. The model decides when to search, synthesizes the results, and returns cited answers with no scraping infrastructure needed.
+
+  <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
+    <Tabs.Tab title="Python">
+      <PackageManagerInstall packages={{ python: "openai" }} />
+      <Snippet src={snippets.python.guides.integrations.scraper_openai.open_ai_web_search_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="TypeScript">
+      <PackageManagerInstall packages={{ typescript: "openai" }} />
+      <Snippet src={snippets.typescript.guides.integrations.scraper_openai.open_ai_web_search_usage} />
+    </Tabs.Tab>
+    <Tabs.Tab title="Go">
+      <Callout type="info">
+        OpenAI Go: `go get github.com/sashabaranov/go-openai`, use the Responses API with `web_search` tool.
+      </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab title="Ruby">
+      <Callout type="info">
+        OpenAI Ruby: `bundle add openai`, use the Responses API with `web_search` tool.
+      </Callout>
+    </Tabs.Tab>
+  </UniversalTabs>
+  </Tabs.Tab>
+</Tabs>

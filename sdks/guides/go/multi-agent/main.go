@@ -21,15 +21,15 @@ func main() {
 	}
 
 	// > Step 01 Specialist Agents
-	researchTask := client.NewStandaloneTask("research-specialist", func(ctx hatchet.Context, input SpecialistInput) (map[string]interface{}, error) {
+	researchTask := client.NewStandaloneDurableTask("research-specialist", func(ctx hatchet.DurableContext, input SpecialistInput) (map[string]interface{}, error) {
 		return map[string]interface{}{"result": MockSpecialistLLM(input.Task, "research")}, nil
 	})
 
-	writingTask := client.NewStandaloneTask("writing-specialist", func(ctx hatchet.Context, input SpecialistInput) (map[string]interface{}, error) {
+	writingTask := client.NewStandaloneDurableTask("writing-specialist", func(ctx hatchet.DurableContext, input SpecialistInput) (map[string]interface{}, error) {
 		return map[string]interface{}{"result": MockSpecialistLLM(input.Task, "writing")}, nil
 	})
 
-	codeTask := client.NewStandaloneTask("code-specialist", func(ctx hatchet.Context, input SpecialistInput) (map[string]interface{}, error) {
+	codeTask := client.NewStandaloneDurableTask("code-specialist", func(ctx hatchet.DurableContext, input SpecialistInput) (map[string]interface{}, error) {
 		return map[string]interface{}{"result": MockSpecialistLLM(input.Task, "code")}, nil
 	})
 	// !!

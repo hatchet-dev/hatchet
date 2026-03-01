@@ -4,7 +4,7 @@ import { mockClassify, mockReply } from './mock-classifier';
 type MessageInput = { message: string };
 
 // > Step 01 Classify Task
-const classifyTask = hatchet.task({
+const classifyTask = hatchet.durableTask({
   name: 'classify-message',
   fn: async (input: MessageInput) => {
     return { category: mockClassify(input.message) };
@@ -12,21 +12,21 @@ const classifyTask = hatchet.task({
 });
 
 // > Step 02 Specialist Tasks
-const supportTask = hatchet.task({
+const supportTask = hatchet.durableTask({
   name: 'handle-support',
   fn: async (input: MessageInput) => {
     return { response: mockReply(input.message, 'support'), category: 'support' };
   },
 });
 
-const salesTask = hatchet.task({
+const salesTask = hatchet.durableTask({
   name: 'handle-sales',
   fn: async (input: MessageInput) => {
     return { response: mockReply(input.message, 'sales'), category: 'sales' };
   },
 });
 
-const defaultTask = hatchet.task({
+const defaultTask = hatchet.durableTask({
   name: 'handle-default',
   fn: async (input: MessageInput) => {
     return { response: mockReply(input.message, 'other'), category: 'other' };

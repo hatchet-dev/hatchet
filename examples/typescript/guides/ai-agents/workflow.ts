@@ -4,7 +4,7 @@ import { callLlm, runTool } from './mock-agent';
 
 // > Step 01 Define Agent Task
 export const agentTask = hatchet.durableTask({
-  name: 'agent-task',
+  name: 'reasoning-loop-agent',
   executionTimeout: '30m',
   concurrency: {
     expression: "input.session_id != null ? string(input.session_id) : 'constant'",

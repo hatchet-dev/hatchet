@@ -7,11 +7,12 @@ import (
 )
 
 // > Step 03 Push Approval Event
-// Your frontend or API pushes the approval event when the human clicks Approve/Reject.
-func pushApproval(client *hatchet.Client) {
+// Include the runID so the event matches the specific task waiting for it.
+func pushApproval(client *hatchet.Client, runID string, approved bool, reason string) {
 	_ = client.Events().Push(context.Background(), "approval:decision", map[string]interface{}{
-		"approved": true,
-		"reason":   "",
+		"runId":    runID,
+		"approved": approved,
+		"reason":   reason,
 	})
 }
 

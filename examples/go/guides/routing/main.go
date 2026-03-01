@@ -18,20 +18,20 @@ func main() {
 	}
 
 	// > Step 01 Classify Task
-	classifyTask := client.NewStandaloneTask("classify-message", func(ctx hatchet.Context, input MessageInput) (map[string]interface{}, error) {
+	classifyTask := client.NewStandaloneDurableTask("classify-message", func(ctx hatchet.DurableContext, input MessageInput) (map[string]interface{}, error) {
 		return map[string]interface{}{"category": MockClassify(input.Message)}, nil
 	})
 
 	// > Step 02 Specialist Tasks
-	supportTask := client.NewStandaloneTask("handle-support", func(ctx hatchet.Context, input MessageInput) (map[string]interface{}, error) {
+	supportTask := client.NewStandaloneDurableTask("handle-support", func(ctx hatchet.DurableContext, input MessageInput) (map[string]interface{}, error) {
 		return map[string]interface{}{"response": MockReply(input.Message, "support"), "category": "support"}, nil
 	})
 
-	salesTask := client.NewStandaloneTask("handle-sales", func(ctx hatchet.Context, input MessageInput) (map[string]interface{}, error) {
+	salesTask := client.NewStandaloneDurableTask("handle-sales", func(ctx hatchet.DurableContext, input MessageInput) (map[string]interface{}, error) {
 		return map[string]interface{}{"response": MockReply(input.Message, "sales"), "category": "sales"}, nil
 	})
 
-	defaultTask := client.NewStandaloneTask("handle-default", func(ctx hatchet.Context, input MessageInput) (map[string]interface{}, error) {
+	defaultTask := client.NewStandaloneDurableTask("handle-default", func(ctx hatchet.DurableContext, input MessageInput) (map[string]interface{}, error) {
 		return map[string]interface{}{"response": MockReply(input.Message, "other"), "category": "other"}, nil
 	})
 

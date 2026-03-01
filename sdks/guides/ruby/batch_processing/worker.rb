@@ -8,20 +8,14 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 BATCH_PARENT_WF = HATCHET.workflow(name: 'BatchParent')
 BATCH_CHILD_WF = HATCHET.workflow(name: 'BatchChild')
 
-BATCH_PARENT_WF.task(:spawn_children) do |input, _ctx|
-  results = (input['items'] || []).map do |item_id|
-    BATCH_CHILD_WF.run('item_id' => item_id)
-  end
+BATCH_PARENT_WF.durable_task(:spawn_children) do |input, _ctx|
+  items = input['items'] || []
+  results = BATCH_CHILD_WF.run_many(
+    items.map { |item_id| BATCH_CHILD_WF.create_bulk_run_item(input: { 'item_id' => item_id }) }
+  )
   { 'processed' => results.size, 'results' => results }
 end
 
-# !!
-
-# > Step 02 Fan Out Children
-def fan_out(input)
-  (input['items'] || []).map { |item_id| BATCH_CHILD_WF.run('item_id' => item_id) }
-end
-# Hatchet distributes child runs across available workers.
 # !!
 
 # > Step 03 Process Item
