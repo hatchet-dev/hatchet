@@ -172,43 +172,6 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 	return &i, err
 }
 
-const getDurableEventLogEntryByIdempotencyKey = `-- name: GetDurableEventLogEntryByIdempotencyKey :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
-FROM v1_durable_event_log_entry
-WHERE durable_task_id = $1::BIGINT
-  AND durable_task_inserted_at = $2::TIMESTAMPTZ
-  AND kind = 'MEMO'
-  AND idempotency_key = $3::BYTEA
-`
-
-type GetDurableEventLogEntryByIdempotencyKeyParams struct {
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Idempotencykey        []byte             `json:"idempotencykey"`
-}
-
-func (q *Queries) GetDurableEventLogEntryByIdempotencyKey(ctx context.Context, db DBTX, arg GetDurableEventLogEntryByIdempotencyKeyParams) (*V1DurableEventLogEntry, error) {
-	row := db.QueryRow(ctx, getDurableEventLogEntryByIdempotencyKey, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Idempotencykey)
-	var i V1DurableEventLogEntry
-	err := row.Scan(
-		&i.TenantID,
-		&i.ExternalID,
-		&i.InsertedAt,
-		&i.ID,
-		&i.DurableTaskID,
-		&i.DurableTaskInsertedAt,
-		&i.Kind,
-		&i.NodeID,
-		&i.ParentNodeID,
-		&i.BranchID,
-		&i.ParentBranchID,
-		&i.InvocationCount,
-		&i.IdempotencyKey,
-		&i.IsSatisfied,
-	)
-	return &i, err
-}
-
 const getDurableTaskLogFiles = `-- name: GetDurableTaskLogFiles :many
 WITH inputs AS (
     SELECT
