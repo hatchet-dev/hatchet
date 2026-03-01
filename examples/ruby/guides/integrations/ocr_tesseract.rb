@@ -1,7 +1,9 @@
+# frozen_string_literal: true
+
 # Third-party integration - requires: bundle add rtesseract; install Tesseract binary
 # See: /guides/document-processing
 
-require "rtesseract"
+require 'rtesseract'
 
 # > Tesseract usage
 def parse_document(content)

@@ -1,7 +1,6 @@
 # Third-party integration example - requires: pip install anthropic
 # See: /guides/ai-agents
 
-import json
 from anthropic import Anthropic
 
 client = Anthropic()

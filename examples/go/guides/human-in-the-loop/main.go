@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
@@ -32,11 +31,15 @@ func main() {
 		if err != nil {
 			return ApprovalOutput{}, err
 		}
-		approved, _ := event["approved"].(bool)
+		var eventData map[string]interface{}
+		if err := hatchet.EventInto(event, &eventData); err != nil {
+			return ApprovalOutput{}, err
+		}
+		approved, _ := eventData["approved"].(bool)
 		if approved {
 			return ApprovalOutput{Status: "approved", Action: proposedAction}, nil
 		}
-		reason, _ := event["reason"].(string)
+		reason, _ := eventData["reason"].(string)
 		return ApprovalOutput{Status: "rejected", Reason: reason}, nil
 	})
 
@@ -47,11 +50,15 @@ func main() {
 		if err != nil {
 			return ApprovalOutput{}, err
 		}
-		approved, _ := event["approved"].(bool)
+		var eventData map[string]interface{}
+		if err := hatchet.EventInto(event, &eventData); err != nil {
+			return ApprovalOutput{}, err
+		}
+		approved, _ := eventData["approved"].(bool)
 		if approved {
 			return ApprovalOutput{Status: "approved", Action: proposedAction}, nil
 		}
-		reason, _ := event["reason"].(string)
+		reason, _ := eventData["reason"].(string)
 		return ApprovalOutput{Status: "rejected", Reason: reason}, nil
 	}
 

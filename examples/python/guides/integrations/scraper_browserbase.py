@@ -2,6 +2,7 @@
 # See: /guides/web-scraping
 
 import os
+
 from browserbase import Browserbase
 from playwright.async_api import async_playwright
 

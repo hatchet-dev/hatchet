@@ -2,6 +2,7 @@
 # See: /guides/web-scraping
 
 import os
+
 from firecrawl import FirecrawlApp
 
 firecrawl = FirecrawlApp(api_key=os.environ["FIRECRAWL_API_KEY"])

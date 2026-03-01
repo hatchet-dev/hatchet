@@ -42,14 +42,29 @@ func main() {
 		if err != nil {
 			return nil, err
 		}
+		var classData map[string]interface{}
+		if err := classResult.Into(&classData); err != nil {
+			return nil, err
+		}
 
-		switch classResult["category"].(string) {
+		runAndUnmarshal := func(t *hatchet.StandaloneTask) (map[string]interface{}, error) {
+			tr, err := t.Run(ctx, MessageInput{Message: msg})
+			if err != nil {
+				return nil, err
+			}
+			var out map[string]interface{}
+			if err := tr.Into(&out); err != nil {
+				return nil, err
+			}
+			return out, nil
+		}
+		switch classData["category"].(string) {
 		case "support":
-			return supportTask.Run(ctx, MessageInput{Message: msg})
+			return runAndUnmarshal(supportTask)
 		case "sales":
-			return salesTask.Run(ctx, MessageInput{Message: msg})
+			return runAndUnmarshal(salesTask)
 		default:
-			return defaultTask.Run(ctx, MessageInput{Message: msg})
+			return runAndUnmarshal(defaultTask)
 		}
 	})
 

@@ -41,18 +41,18 @@ func main() {
 	sectioningTask := client.NewStandaloneDurableTask("parallel-sectioning", func(ctx hatchet.DurableContext, input map[string]interface{}) (map[string]interface{}, error) {
 		msg := input["message"].(string)
 
-		var contentResult, safetyResult map[string]interface{}
+		var contentTr, safetyTr *hatchet.TaskResult
 		var contentErr, safetyErr error
 		var wg sync.WaitGroup
 		wg.Add(2)
 
 		go func() {
 			defer wg.Done()
-			contentResult, contentErr = contentTask.Run(ctx, MessageInput{Message: msg})
+			contentTr, contentErr = contentTask.Run(ctx, MessageInput{Message: msg})
 		}()
 		go func() {
 			defer wg.Done()
-			safetyResult, safetyErr = safetyTask.Run(ctx, MessageInput{Message: msg})
+			safetyTr, safetyErr = safetyTask.Run(ctx, MessageInput{Message: msg})
 		}()
 		wg.Wait()
 
@@ -61,6 +61,13 @@ func main() {
 		}
 		if safetyErr != nil {
 			return nil, safetyErr
+		}
+		var contentResult, safetyResult map[string]interface{}
+		if err := contentTr.Into(&contentResult); err != nil {
+			return nil, err
+		}
+		if err := safetyTr.Into(&safetyResult); err != nil {
+			return nil, err
 		}
 
 		if safe, ok := safetyResult["safe"].(bool); !ok || !safe {
@@ -73,7 +80,7 @@ func main() {
 	votingTask := client.NewStandaloneDurableTask("parallel-voting", func(ctx hatchet.DurableContext, input map[string]interface{}) (map[string]interface{}, error) {
 		content := input["content"].(string)
 		numVoters := 3
-		results := make([]map[string]interface{}, numVoters)
+		taskResults := make([]*hatchet.TaskResult, numVoters)
 		errs := make([]error, numVoters)
 
 		var wg sync.WaitGroup
@@ -81,17 +88,24 @@ func main() {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				results[idx], errs[idx] = evaluateTask.Run(ctx, ContentInput{Content: content})
+				taskResults[idx], errs[idx] = evaluateTask.Run(ctx, ContentInput{Content: content})
 			}(i)
 		}
 		wg.Wait()
 
-		approvals := 0
-		totalScore := 0.0
-		for i, r := range results {
+		results := make([]map[string]interface{}, numVoters)
+		for i := 0; i < numVoters; i++ {
 			if errs[i] != nil {
 				return nil, errs[i]
 			}
+			if err := taskResults[i].Into(&results[i]); err != nil {
+				return nil, err
+			}
+		}
+
+		approvals := 0
+		totalScore := 0.0
+		for _, r := range results {
 			if approved, ok := r["approved"].(bool); ok && approved {
 				approvals++
 			}

@@ -57,6 +57,7 @@ func main() {
 	defer cancel()
 
 	if err := worker.StartBlocking(interruptCtx); err != nil {
+		cancel()
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

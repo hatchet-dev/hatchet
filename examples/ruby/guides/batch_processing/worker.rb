@@ -1,36 +1,36 @@
 # frozen_string_literal: true
 
-require "hatchet-sdk"
+require 'hatchet-sdk'
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Step 01 Define Parent Task
-BATCH_PARENT_WF = HATCHET.workflow(name: "BatchParent")
-BATCH_CHILD_WF = HATCHET.workflow(name: "BatchChild")
+BATCH_PARENT_WF = HATCHET.workflow(name: 'BatchParent')
+BATCH_CHILD_WF = HATCHET.workflow(name: 'BatchChild')
 
-BATCH_PARENT_WF.task(:spawn_children) do |input, ctx|
-  results = (input["items"] || []).map do |item_id|
-    BATCH_CHILD_WF.run("item_id" => item_id)
+BATCH_PARENT_WF.task(:spawn_children) do |input, _ctx|
+  results = (input['items'] || []).map do |item_id|
+    BATCH_CHILD_WF.run('item_id' => item_id)
   end
-  { "processed" => results.size, "results" => results }
+  { 'processed' => results.size, 'results' => results }
 end
 
 
 # > Step 02 Fan Out Children
 def fan_out(input)
-  (input["items"] || []).map { |item_id| BATCH_CHILD_WF.run("item_id" => item_id) }
+  (input['items'] || []).map { |item_id| BATCH_CHILD_WF.run('item_id' => item_id) }
 end
 # Hatchet distributes child runs across available workers.
 
 # > Step 03 Process Item
-BATCH_CHILD_WF.task(:process_item) do |input, ctx|
-  { "status" => "done", "item_id" => input["item_id"] }
+BATCH_CHILD_WF.task(:process_item) do |input, _ctx|
+  { 'status' => 'done', 'item_id' => input['item_id'] }
 end
 
 
 def main
   # > Step 04 Run Worker
-  worker = HATCHET.worker("batch-worker", slots: 20, workflows: [BATCH_PARENT_WF, BATCH_CHILD_WF])
+  worker = HATCHET.worker('batch-worker', slots: 20, workflows: [BATCH_PARENT_WF, BATCH_CHILD_WF])
   worker.start
 end
 

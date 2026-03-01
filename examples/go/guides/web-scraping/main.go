@@ -39,7 +39,7 @@ func main() {
 	// > Step 03 Cron Workflow
 	cronWf := client.NewWorkflow("WebScrapeWorkflow", hatchet.WithWorkflowCron("0 */6 * * *"))
 
-	cronWf.Task("scheduled-scrape", func(ctx hatchet.Context, input map[string]interface{}) (map[string]interface{}, error) {
+	cronWf.NewTask("scheduled-scrape", func(ctx hatchet.Context, input map[string]interface{}) (map[string]interface{}, error) {
 		urls := []string{
 			"https://example.com/pricing",
 			"https://example.com/blog",
@@ -48,12 +48,20 @@ func main() {
 
 		results := []map[string]string{}
 		for _, url := range urls {
-			scraped, err := scrapeTask.Run(ctx, ScrapeInput{URL: url})
+			scrapedResult, err := scrapeTask.Run(ctx, ScrapeInput{URL: url})
 			if err != nil {
 				return nil, err
 			}
-			processed, err := processTask.Run(ctx, ProcessInput{URL: url, Content: scraped["content"].(string)})
+			var scraped map[string]interface{}
+			if err := scrapedResult.Into(&scraped); err != nil {
+				return nil, err
+			}
+			processedResult, err := processTask.Run(ctx, ProcessInput{URL: url, Content: scraped["content"].(string)})
 			if err != nil {
+				return nil, err
+			}
+			var processed map[string]string
+			if err := processedResult.Into(&processed); err != nil {
 				return nil, err
 			}
 			results = append(results, processed)

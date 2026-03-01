@@ -2,8 +2,9 @@
 # See: /guides/document-processing
 
 import io
-from PIL import Image
+
 import pytesseract
+from PIL import Image
 
 
 # > Tesseract usage

@@ -2,6 +2,7 @@
 # See: /guides/ai-agents
 
 import json
+
 from openai import OpenAI
 
 client = OpenAI()

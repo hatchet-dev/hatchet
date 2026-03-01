@@ -2,6 +2,7 @@
 # See: /guides/ai-agents
 
 import json
+
 from groq import Groq
 
 client = Groq()

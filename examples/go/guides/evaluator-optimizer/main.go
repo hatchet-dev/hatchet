@@ -64,18 +64,26 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			draft = genResult["draft"].(string)
+			var genData map[string]interface{}
+			if err := genResult.Into(&genData); err != nil {
+				return nil, err
+			}
+			draft = genData["draft"].(string)
 
 			evalResult, err := evaluatorTask.Run(ctx, EvaluatorInput{Draft: draft, Topic: topic, Audience: audience})
 			if err != nil {
 				return nil, err
 			}
+			var evalData map[string]interface{}
+			if err := evalResult.Into(&evalData); err != nil {
+				return nil, err
+			}
 
-			score := evalResult["score"].(float64)
+			score := evalData["score"].(float64)
 			if score >= threshold {
 				return map[string]interface{}{"draft": draft, "iterations": i + 1, "score": score}, nil
 			}
-			feedback = evalResult["feedback"].(string)
+			feedback = evalData["feedback"].(string)
 		}
 
 		return map[string]interface{}{"draft": draft, "iterations": maxIterations, "score": -1}, nil

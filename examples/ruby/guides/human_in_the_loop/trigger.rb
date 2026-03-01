@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require "hatchet-sdk"
+require 'hatchet-sdk'
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Step 03 Push Approval Event
 # Your frontend or API pushes the approval event when the human clicks Approve/Reject.
-def push_approval(approved:, reason: "")
+def push_approval(approved:, reason: '')
   HATCHET.events.create(
-    key: "approval:decision",
-    data: { "approved" => approved, "reason" => reason }
+    key: 'approval:decision',
+    data: { 'approved' => approved, 'reason' => reason }
   )
 end
 

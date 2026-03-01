@@ -60,11 +60,15 @@ func main() {
 				contextParts = append(contextParts, m["content"].(string))
 			}
 
-			result, err := specialist.Run(ctx, SpecialistInput{
+			taskResult, err := specialist.Run(ctx, SpecialistInput{
 				Task:    response.ToolCall.Args["task"],
 				Context: strings.Join(contextParts, "\n"),
 			})
 			if err != nil {
+				return nil, err
+			}
+			var result map[string]interface{}
+			if err := taskResult.Into(&result); err != nil {
 				return nil, err
 			}
 

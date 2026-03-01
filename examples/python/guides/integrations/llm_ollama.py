@@ -1,8 +1,8 @@
 # Third-party integration example - requires: pip install ollama; ollama run llama2
 # See: /guides/ai-agents
 
-import json
 import ollama
+
 
 # > Ollama usage
 def complete(messages: list[dict]) -> dict:
