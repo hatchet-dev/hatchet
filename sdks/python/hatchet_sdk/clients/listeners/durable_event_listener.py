@@ -366,7 +366,7 @@ class DurableEventListener:
         durable_task_external_id: str,
         invocation_count: int,
         kind: DurableTaskEventKind,
-        payload: JSONSerializableMapping | None = None,
+        payload: str | None = None,
         wait_for_conditions: DurableEventListenerConditions | None = None,
         # todo: combine these? or separate methods? or overload?
         workflow_name: str | None = None,
@@ -382,7 +382,7 @@ class DurableEventListener:
         _trigger_opts = (
             self.admin_client._create_workflow_run_request(
                 workflow_name=workflow_name,
-                input=payload or {},
+                input=payload,
                 options=trigger_workflow_opts or TriggerWorkflowOptions(),
             )
             if workflow_name
