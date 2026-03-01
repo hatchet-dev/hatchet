@@ -1,22 +1,8 @@
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient } from '../__e2e__/harness';
 import { helloWorld, helloWorldDurable } from './e2e-workflows';
 
 describe('simple-run-modes-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'simple-run-modes-e2e-worker',
-      workflows: [helloWorld, helloWorldDurable],
-      slots: 50,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('supports the run variants for tasks and durable tasks', async () => {
     const expected = { result: 'Hello, world!' };

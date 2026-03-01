@@ -3,25 +3,12 @@ import { randomUUID } from 'crypto';
 import { Event } from '@hatchet/protoc/events';
 import { SIMPLE_EVENT, lower } from './workflow';
 import { hatchet } from '../hatchet-client';
-import { Worker } from '../../client/worker/worker';
 
 describe('events-e2e', () => {
-  let worker: Worker;
   let testRunId: string;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     testRunId = randomUUID();
-
-    worker = await hatchet.worker('event-worker');
-    await worker.registerWorkflow(lower);
-
-    void worker.start();
-    await worker.waitUntilReady(10_000);
-  });
-
-  afterAll(async () => {
-    await worker.stop();
-    await sleep(1000);
   });
 
   async function setupEventFilter(expression?: string, payload: Record<string, string> = {}) {
@@ -44,17 +31,22 @@ describe('events-e2e', () => {
 
   // Helper function to wait for events to process and fetch runs
   async function waitForEventsToProcess(events: Event[]): Promise<Record<string, any[]>> {
-    await sleep(2000);
-
-    const persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
-
-    // Ensure all our events are persisted
     const eventIds = new Set(events.map((e) => e.eventId));
+
+    // Poll until all events are persisted (replaces fixed sleep - events can have propagation delay)
+    let persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
+    let persistedAttempts = 0;
+    while (!Array.from(eventIds).every((id) => new Set(persisted.map((e) => e.metadata.id)).has(id))) {
+      if (persistedAttempts++ > 50) break;
+      await sleep(100);
+      persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
+    }
+
     const persistedIds = new Set(persisted.map((e) => e.metadata.id));
     expect(Array.from(eventIds).every((id) => persistedIds.has(id))).toBeTruthy();
 
     let attempts = 0;
-    const maxAttempts = 15;
+    const maxAttempts = 60; // 100ms × 60 ≈ 6s for runs to appear and complete
     const eventToRuns: Record<string, any[]> = {};
 
     // eslint-disable-next-line no-constant-condition
@@ -104,7 +96,7 @@ describe('events-e2e', () => {
 
       // If all events have no runs yet, wait and retry
       if (eventRuns.every(({ runs }) => runs.length === 0)) {
-        await sleep(500);
+        await sleep(100);
 
         // eslint-disable-next-line no-continue
         continue;
@@ -121,7 +113,7 @@ describe('events-e2e', () => {
       );
 
       if (anyInProgress) {
-        await sleep(500);
+        await sleep(100);
 
         // eslint-disable-next-line no-continue
         continue;

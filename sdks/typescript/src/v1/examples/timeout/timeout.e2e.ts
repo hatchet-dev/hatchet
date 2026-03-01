@@ -1,24 +1,9 @@
-import { makeE2EClient, poll, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient, poll } from '../__e2e__/harness';
 import { timeoutTask, refreshTimeoutTask } from './workflow';
 import { V1TaskStatus } from '../../../clients/rest/generated/data-contracts';
 
 describe('timeout-e2e', () => {
   const hatchet = makeE2EClient();
-
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'timeout-e2e-worker',
-      workflows: [timeoutTask, refreshTimeoutTask],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('execution timeout should fail the run', async () => {
     const ref = await timeoutTask.runNoWait({ Message: 'hello' });
@@ -36,7 +21,7 @@ describe('timeout-e2e', () => {
       },
       {
         timeoutMs: 60_000,
-        intervalMs: 500,
+        intervalMs: 100,
         label: 'timeoutTask terminal status',
         shouldStop: (r) =>
           ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(r.run.status as any),

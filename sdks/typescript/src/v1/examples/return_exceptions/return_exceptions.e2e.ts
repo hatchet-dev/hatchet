@@ -1,22 +1,8 @@
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient } from '../__e2e__/harness';
 import { returnExceptionsTask } from './workflow';
 
 describe('return-exceptions-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'return-exceptions-e2e-worker',
-      workflows: [returnExceptionsTask],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('run with returnExceptions returns mixed successes and errors', async () => {
     const results = await returnExceptionsTask.run(

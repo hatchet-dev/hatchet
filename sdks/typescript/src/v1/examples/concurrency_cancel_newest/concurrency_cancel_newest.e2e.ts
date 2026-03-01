@@ -1,24 +1,10 @@
 import sleep from '@hatchet/util/sleep';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient, poll } from '../__e2e__/harness';
 import { concurrencyCancelNewestWorkflow } from './workflow';
 
 describe('concurrency-cancel-newest-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'concurrency-cancel-newest-e2e-worker',
-      workflows: [concurrencyCancelNewestWorkflow],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('cancels newest runs when concurrency limit reached', async () => {
     const testRunId = crypto.randomUUID();
@@ -49,19 +35,34 @@ describe('concurrency-cancel-newest-e2e', () => {
       }
     }
 
-    await sleep(5000);
+    const listResp = await poll(
+      async () =>
+        hatchet.runs.list({
+          additionalMetadata: { test_run_id: testRunId },
+          onlyTasks: false,
+        } as any),
+      {
+        timeoutMs: 30_000,
+        intervalMs: 200,
+        label: 'runs list with terminal statuses',
+        shouldStop: (r) => {
+          const rows = r.rows || [];
+          return (
+            rows.length === 11 &&
+            rows.every(
+              (x: any) =>
+                x.status !== V1TaskStatus.RUNNING && x.status !== V1TaskStatus.QUEUED
+            )
+          );
+        },
+      }
+    );
 
     const details = (await hatchet.runs.get(toRun)) as { run?: { status?: string } };
     expect(details.run?.status).toBe(V1TaskStatus.COMPLETED);
 
     const runId = await toRun.getWorkflowRunId();
-    const allRuns =
-      (
-        await hatchet.runs.list({
-          additionalMetadata: { test_run_id: testRunId },
-          onlyTasks: false,
-        } as any)
-      ).rows || [];
+    const allRuns = listResp.rows || [];
 
     const otherRuns = allRuns.filter((r: any) => r.metadata?.id !== runId);
     expect(otherRuns.every((r: any) => r.status === V1TaskStatus.CANCELLED)).toBe(true);

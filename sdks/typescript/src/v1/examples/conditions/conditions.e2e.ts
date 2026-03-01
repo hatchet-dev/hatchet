@@ -1,23 +1,9 @@
 import sleep from '@hatchet/util/sleep';
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient } from '../__e2e__/harness';
 import { taskConditionWorkflow } from './complex-workflow';
 
 describe('conditions-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'conditions-e2e-worker',
-      workflows: [taskConditionWorkflow],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   xit('waits, receives events, and completes branches', async () => {
     const ref = await taskConditionWorkflow.runNoWait({});

@@ -1,24 +1,9 @@
-import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient, poll } from '../__e2e__/harness';
 import { bulkChild, bulkParentWorkflow } from './workflow';
 
 describe('bulk-fanout-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'bulk-fanout-e2e-worker',
-      workflows: [bulkChild, bulkParentWorkflow],
-      slots: 50,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('spawns N children and returns all results', async () => {
     const result = await bulkParentWorkflow.run({ n: 12 });
@@ -34,9 +19,16 @@ describe('bulk-fanout-e2e', () => {
     );
 
     await ref.output;
-    await sleep(1000);
-
-    const details = await hatchet.runs.get(ref);
+    const details = await poll(
+      async () => hatchet.runs.get(ref),
+      {
+        timeoutMs: 15_000,
+        intervalMs: 100,
+        label: 'run details with metadata',
+        shouldStop: (d) =>
+          (d.run?.additionalMetadata as Record<string, string>)?.test_run_id === testRunId,
+      }
+    );
     expect((details.run?.additionalMetadata as Record<string, string>)?.test_run_id).toBe(
       testRunId
     );

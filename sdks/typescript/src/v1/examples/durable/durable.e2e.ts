@@ -1,23 +1,9 @@
 import sleep from '@hatchet/util/sleep';
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient } from '../__e2e__/harness';
 import { durableWorkflow, EVENT_KEY, SLEEP_TIME_SECONDS, waitForSleepTwice } from './workflow';
 
 describe('durable-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'e2e-test-worker',
-      workflows: [durableWorkflow, waitForSleepTwice],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('durable workflow waits for sleep + event', async () => {
     const ref = await durableWorkflow.runNoWait({});
@@ -35,7 +21,7 @@ describe('durable-e2e', () => {
       await sleep((SLEEP_TIME_SECONDS + 1) * 1000);
       for (let i = 0; i < 30 && !finished; i += 1) {
         await hatchet.events.push(EVENT_KEY, { test: 'test', i });
-        await sleep(1000);
+        await sleep(200);
       }
     })();
 

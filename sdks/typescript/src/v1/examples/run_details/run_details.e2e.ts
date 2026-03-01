@@ -1,25 +1,10 @@
-import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
-import { makeE2EClient, poll, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient, poll } from '../__e2e__/harness';
 import { runDetailTestWorkflow } from './workflow';
 import { V1TaskStatus } from '../../../clients/rest/generated/data-contracts';
 
 describe('run-details-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'run-details-e2e-worker',
-      workflows: [runDetailTestWorkflow],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   xit('get run details mid-execution and after completion', async () => {
     const mockInput = { foo: randomUUID() };
@@ -30,9 +15,15 @@ describe('run-details-e2e', () => {
       additionalMetadata: meta,
     });
 
-    await sleep(2000);
-
-    let details = await hatchet.runs.get(ref);
+    let details = await poll(async () => hatchet.runs.get(ref), {
+      timeoutMs: 10_000,
+      intervalMs: 100,
+      label: 'run has started',
+      shouldStop: (d) =>
+        [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED, V1TaskStatus.FAILED].includes(
+          d.run.status as any
+        ),
+    });
 
     expect([V1TaskStatus.RUNNING, V1TaskStatus.QUEUED]).toContain(details.run.status);
     expect(details.run.input).toEqual(mockInput);
@@ -60,7 +51,7 @@ describe('run-details-e2e', () => {
 
     details = await poll(async () => hatchet.runs.get(ref), {
       timeoutMs: 30_000,
-      intervalMs: 500,
+      intervalMs: 100,
       label: 'run status FAILED',
       shouldStop: (d) => d.run.status === V1TaskStatus.FAILED,
     });

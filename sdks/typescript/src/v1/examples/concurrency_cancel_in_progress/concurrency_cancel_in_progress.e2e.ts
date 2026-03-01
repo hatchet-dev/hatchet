@@ -1,25 +1,11 @@
 import sleep from '@hatchet/util/sleep';
 import type WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient, poll } from '../__e2e__/harness';
 import { concurrencyCancelInProgressWorkflow } from './workflow';
 
 describe('concurrency-cancel-in-progress-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'concurrency-cancel-in-progress-e2e-worker',
-      workflows: [concurrencyCancelInProgressWorkflow],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('cancels in-progress runs when newer run arrives', async () => {
     const testRunId = crypto.randomUUID();
@@ -42,12 +28,28 @@ describe('concurrency-cancel-in-progress-e2e', () => {
       }
     }
 
-    await sleep(5000);
-
-    const runsResp = await hatchet.runs.list({
-      additionalMetadata: { test_run_id: testRunId },
-      onlyTasks: false,
-    } as any);
+    const runsResp = await poll(
+      async () =>
+        hatchet.runs.list({
+          additionalMetadata: { test_run_id: testRunId },
+          onlyTasks: false,
+        } as any),
+      {
+        timeoutMs: 30_000,
+        intervalMs: 200,
+        label: 'runs list with terminal statuses',
+        shouldStop: (r) => {
+          const rows = r.rows || [];
+          return (
+            rows.length === 10 &&
+            rows.every(
+              (x: any) =>
+                x.status !== V1TaskStatus.RUNNING && x.status !== V1TaskStatus.QUEUED
+            )
+          );
+        },
+      }
+    );
     const runs = (runsResp.rows || []).sort(
       (a: any, b: any) =>
         parseInt(String((a.additionalMetadata as Record<string, unknown>)?.i ?? '0'), 10) -

@@ -1,23 +1,9 @@
-import { makeE2EClient, poll, startWorker, stopWorker, makeTestScope } from '../__e2e__/harness';
+import { makeE2EClient, poll, makeTestScope } from '../__e2e__/harness';
 import { V1TaskStatus } from '../../../clients/rest/generated/data-contracts';
 import { bulkReplayTest1, bulkReplayTest2, bulkReplayTest3 } from './workflow';
 
 describe('bulk-replay-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'bulk-replay-test-worker',
-      workflows: [bulkReplayTest1, bulkReplayTest2, bulkReplayTest3],
-      slots: 50,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('bulk replays matching runs and increments attempt', async () => {
     const testRunId = makeTestScope('bulk_replay');
@@ -45,7 +31,7 @@ describe('bulk-replay-e2e', () => {
         }),
       {
         timeoutMs: 120_000,
-        intervalMs: 1000,
+        intervalMs: 200,
         label: 'initial bulk runs completion',
         shouldStop: (runs) =>
           (runs.rows || []).length === expectedTotal &&
@@ -74,7 +60,7 @@ describe('bulk-replay-e2e', () => {
         }),
       {
         timeoutMs: 120_000,
-        intervalMs: 1000,
+        intervalMs: 200,
         label: 'bulk replay attempts visible',
         shouldStop: (runs) =>
           (runs.rows || []).length === expectedTotal &&

@@ -1,22 +1,8 @@
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient } from '../__e2e__/harness';
 import { streamingTask } from './workflow';
 
 describe('streaming-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'streaming-e2e-worker',
-      workflows: [streamingTask],
-      slots: 2,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('stream output arrives in-order and complete', async () => {
     const ref = await streamingTask.runNoWait({});

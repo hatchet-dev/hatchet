@@ -1,4 +1,4 @@
-import { makeE2EClient, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient } from '../__e2e__/harness';
 import { concurrencyMultipleKeysWorkflow, DIGIT_MAX_RUNS, NAME_MAX_RUNS } from './workflow';
 
 const CHARACTERS = ['Anna', 'Vronsky', 'Stiva', 'Dolly', 'Levin', 'Karenin'] as const;
@@ -54,20 +54,6 @@ function isValidGroup(group: RunMetadata[]): boolean {
 
 describe('concurrency-multiple-keys-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'concurrency-multiple-keys-e2e-worker',
-      workflows: [concurrencyMultipleKeysWorkflow],
-      slots: 10,
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('multi concurrency key limits runs per digit and name', async () => {
     const testRunId = crypto.randomUUID();

@@ -29,7 +29,7 @@ const step1 = concurrencyCancelNewestWorkflow.task({
   name: 'step1',
   fn: async (): Promise<EmptyTaskOutput> => {
     for (let i = 0; i < 50; i += 1) {
-      await sleep(100);
+      await sleep(20);
     }
     return {};
   },
@@ -40,7 +40,7 @@ concurrencyCancelNewestWorkflow.task({
   parents: [step1],
   fn: async (): Promise<EmptyTaskOutput> => {
     for (let i = 0; i < 50; i += 1) {
-      await sleep(100);
+      await sleep(20);
     }
     return {};
   },

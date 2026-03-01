@@ -1,10 +1,9 @@
-import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
 import {
   V1WebhookSourceName,
   V1WebhookAPIKeyAuth,
 } from '../../../clients/rest/generated/data-contracts';
-import { makeE2EClient, poll, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient, poll } from '../__e2e__/harness';
 import { webhookWorkflow } from './workflow';
 
 const TEST_API_KEY_HEADER = 'X-API-Key';
@@ -12,17 +11,9 @@ const TEST_API_KEY_VALUE = 'test_api_key_123';
 
 describe('webhooks-e2e', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
   let webhookName: string;
 
   beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'webhooks-e2e-worker',
-      workflows: [webhookWorkflow],
-      slots: 10,
-    });
-
     webhookName = `test-webhook-e2e-${randomUUID()}`;
     await hatchet.webhooks.create({
       sourceName: V1WebhookSourceName.GENERIC,
@@ -41,7 +32,6 @@ describe('webhooks-e2e', () => {
     } catch {
       // ignore cleanup errors
     }
-    await stopWorker(worker);
   });
 
   xit('webhook receive triggers workflow run', async () => {
@@ -49,8 +39,6 @@ describe('webhooks-e2e', () => {
     const payload = { type: 'test', message: 'Hello, world!' };
 
     // await hatchet.webhooks.receive(webhookName, payload);
-
-    await sleep(3000);
 
     const runsResp = await poll(
       async () => {
@@ -63,7 +51,7 @@ describe('webhooks-e2e', () => {
       },
       {
         timeoutMs: 30_000,
-        intervalMs: 1000,
+        intervalMs: 100,
         label: 'webhook-triggered runs',
         shouldStop: (r) => (r.rows?.length ?? 0) > 0,
       }
