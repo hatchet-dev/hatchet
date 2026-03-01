@@ -11,7 +11,9 @@
  */
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (!signal) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
   }
 
   return new Promise((resolve, reject) => {
