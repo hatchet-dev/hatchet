@@ -1,27 +1,6 @@
 import axios from 'axios';
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
-
-function sleepWithAbort(signal: AbortSignal, ms: number) {
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(new Error('Cancelled'));
-    };
-
-    if (signal.aborted) {
-      clearTimeout(timer);
-      reject(new Error('Cancelled'));
-      return;
-    }
-
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-}
 
 // > Self-cancelling workflow (mirrors Python example)
 export const cancellationWorkflow = hatchet.workflow({
@@ -31,13 +10,13 @@ export const cancellationWorkflow = hatchet.workflow({
 cancellationWorkflow.task({
   name: 'self-cancel',
   fn: async (_, ctx) => {
-    await sleepWithAbort(ctx.abortController.signal, 2000);
+    await sleep(2000, ctx.abortController.signal);
 
     // Cancel the current task run (server-side) and optimistically abort local execution.
     await ctx.cancel();
 
     // If cancellation didn't stop execution yet, keep waiting but cooperatively.
-    await sleepWithAbort(ctx.abortController.signal, 10_000);
+    await sleep(10_000, ctx.abortController.signal);
 
     return { error: 'Task should have been cancelled' };
   },
@@ -47,7 +26,7 @@ cancellationWorkflow.task({
   name: 'check-flag',
   fn: async (_, ctx) => {
     for (let i = 0; i < 3; i += 1) {
-      await sleepWithAbort(ctx.abortController.signal, 1000);
+      await sleep(1000, ctx.abortController.signal);
       if (ctx.cancelled) {
         throw new Error('Cancelled');
       }

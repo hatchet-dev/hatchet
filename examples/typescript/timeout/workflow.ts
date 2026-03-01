@@ -10,13 +10,12 @@ export type SimpleInput = {
 export const timeoutTask = hatchet.task({
   name: 'timeout',
   executionTimeout: '3s',
-  fn: async (_: SimpleInput, { cancelled }) => {
-    await sleep(10 * 1000);
-
-    if (cancelled) {
+  fn: async (_: SimpleInput, ctx) => {
+    try {
+      await sleep(10 * 1000, ctx.abortController.signal);
+    } catch {
       throw new Error('Task was cancelled');
     }
-
     return {
       status: 'success',
     };
@@ -31,12 +30,11 @@ export const refreshTimeoutTask = hatchet.task({
   scheduleTimeout: '5s',
   fn: async (input: SimpleInput, ctx) => {
     ctx.refreshTimeout('5s');
-    await sleep(4000);
-
-    if (ctx.abortController.signal.aborted) {
+    try {
+      await sleep(4000, ctx.abortController.signal);
+    } catch {
       throw new Error('cancelled');
     }
-
     return {
       status: 'success',
       message: input.Message.toLowerCase(),

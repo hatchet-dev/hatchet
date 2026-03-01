@@ -1,11 +1,7 @@
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { ConcurrencyLimitStrategy } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 import type { EmptyTaskOutput } from '../concurrency-types';
-
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 
 export type WorkflowInput = {
   group: string;
@@ -27,9 +23,9 @@ export const concurrencyCancelInProgressWorkflow = hatchet.workflow<WorkflowInpu
 
 const step1 = concurrencyCancelInProgressWorkflow.task({
   name: 'step1',
-  fn: async (): Promise<EmptyTaskOutput> => {
+  fn: async (_, ctx): Promise<EmptyTaskOutput> => {
     for (let i = 0; i < 50; i += 1) {
-      await sleep(100);
+      await sleep(100, ctx.abortController.signal);
     }
     return {};
   },
@@ -38,9 +34,9 @@ const step1 = concurrencyCancelInProgressWorkflow.task({
 concurrencyCancelInProgressWorkflow.task({
   name: 'step2',
   parents: [step1],
-  fn: async (): Promise<EmptyTaskOutput> => {
+  fn: async (_, ctx): Promise<EmptyTaskOutput> => {
     for (let i = 0; i < 50; i += 1) {
-      await sleep(100);
+      await sleep(100, ctx.abortController.signal);
     }
     return {};
   },
