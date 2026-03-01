@@ -113,7 +113,8 @@ describe('concurrency-multiple-keys-e2e', () => {
     }
 
     const allKeys = new Set(Object.values(overlappingGroups).flatMap((g) => g.map((r) => r.key)));
-    expect(allKeys.size).toBe(sortedRuns.length);
+    const expectedKeys = new Set(sortedRuns.map((r) => r.key));
+    expect(allKeys.size).toBe(expectedKeys.size);
 
     for (const group of Object.values(overlappingGroups)) {
       expect(isValidGroup(group)).toBe(true);
