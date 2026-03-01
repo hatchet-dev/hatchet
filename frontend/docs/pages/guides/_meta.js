@@ -17,4 +17,6 @@ export default {
   "ai-agents": "AI Agents",
   "batch-processing": "Batch Processing",
   "event-driven": "Event-Driven Systems",
+  "document-processing": "Document Processing",
+  "human-in-the-loop": "Human-in-the-Loop",
 };

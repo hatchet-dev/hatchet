@@ -1,0 +1,113 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import HumanInLoopDiagram from "@/components/HumanInLoopDiagramWrapper";
+
+# Human-in-the-Loop
+
+Human-in-the-loop workflows pause for human review or approval before continuing. An AI agent proposes an action, a human approves or rejects it, and the workflow resumes with the decision. [Durable Execution](/concepts/durable-workflows/durable-task-execution) lets the task pause without holding a worker slot—when the human responds, the task resumes exactly where it left off. [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events) provide the `WaitForEvent` mechanism that makes this possible.
+
+<HumanInLoopDiagram />
+
+## Core Challenges
+
+<Steps>
+
+### Pausing without holding worker slots
+
+A task that waits for human input can block a worker for minutes or hours. [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events) put the task into an evictable state—the worker slot is freed, and the task is re-queued when the event arrives.
+
+### Resuming with human input
+
+The approval (approve, reject, or feedback) must be delivered to the waiting task. Your frontend or API [pushes an event](/concepts/pushing-events) into Hatchet with the key the task is waiting for; the task receives the event payload and continues.
+
+### Integrating with frontends
+
+When a user clicks "Approve" or "Reject" in your UI, your frontend calls the Hatchet client to push the event. The client can be used from any service with access to Hatchet—it does not need to be the same worker.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                                                  | What it does for human-in-the-loop                                             |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **[Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events)**  | Pause with `WaitForEvent` until approval; worker slot freed while waiting       |
+| **[Durable Execution](/concepts/durable-workflows/durable-task-execution)**               | Checkpoint before and after the wait; task resumes with full state intact        |
+| **[Pushing Events](/concepts/pushing-events)**                                           | Frontend or API pushes approval event with optional payload (approve/reject)   |
+| **[Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions)** | Declare approval gates in DAG workflows; wait for event before task proceeds  |
+| **[Long Waits](/guides/long-waits)**                                                     | General pattern for pausing workflows (sleep or event) without holding slots   |
+
+<Callout type="info">
+  Human-in-the-loop is a [Long Waits](/guides/long-waits) pattern using
+  [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events).
+  For approval gates in fixed DAG workflows, use [Event
+  Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions).
+</Callout>
+
+## Architecture
+
+<Steps>
+
+### Agent proposes action
+
+An AI agent or automated workflow runs its logic and reaches a point that requires human approval (e.g., sending an email, executing a payment, publishing content).
+
+### Wait for approval
+
+The task calls `WaitForEvent("approval")`—or a key scoped to the run. The worker slot is freed; the task is evicted and will be re-scheduled when the event arrives.
+
+### Human reviews
+
+A human sees the proposed action in your UI (dashboard, notification, queue). They approve, reject, or provide feedback. Your frontend or backend calls the Hatchet event client to [push the event](/concepts/pushing-events) with the matching key and payload.
+
+### Task resumes
+
+When the event is pushed, Hatchet re-queues the task. It resumes from the checkpoint with the event payload (e.g., `{ approved: true }` or `{ approved: false, reason: "..." }`). Use [Branching](/guides/branching) to route on approve vs reject.
+
+### Continue workflow
+
+The task continues—sending the email, executing the payment, or taking the approved action. If rejected, it may retry with edits, escalate, or stop.
+
+</Steps>
+
+<Callout type="warning">
+  Always set a **timeout** on `WaitForEvent` so tasks don't wait indefinitely if
+  a human never responds. See [Timeouts](/concepts/timeouts) for configuration.
+</Callout>
+
+## Common Patterns
+
+| Pattern                 | Description                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| **Content moderation**  | Agent flags content; human approves or rejects before publish                       |
+| **Financial approvals** | Agent proposes payment or transfer; human approves via dashboard                     |
+| **Customer support escalation** | Agent drafts response; human reviews and sends, or edits before sending     |
+| **LLM output review**   | Agent generates copy or code; human approves before it goes live                     |
+
+For DAG workflows with a fixed approval gate, use [Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions). For agent loops where the decision to wait is dynamic, use a durable task with `WaitForEvent`.
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card title="Long Waits" href="/guides/long-waits">
+    Pause workflows for external signals (events or sleep) without holding slots.
+  </Cards.Card>
+  <Cards.Card title="AI Agents" href="/guides/ai-agents">
+    Agent workflows that may need human approval at decision points.
+  </Cards.Card>
+  <Cards.Card title="Branching" href="/guides/branching">
+    Route workflow behavior based on approve vs reject from the event payload.
+  </Cards.Card>
+  <Cards.Card
+    title="Event Conditions"
+    href="/concepts/durable-workflows/directed-acyclic-graphs/event-conditions"
+  >
+    Declare approval gates in DAG workflows when the wait is known at definition time.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events): `WaitForEvent` API and event filters
+- [Pushing Events](/concepts/pushing-events): push approval events from your frontend or API
+- [Event Conditions](/concepts/durable-workflows/directed-acyclic-graphs/event-conditions): approval gates in DAG workflows
+- [Long Waits](/guides/long-waits): general pattern for durable pauses
+- [Branching](/guides/branching): route on approve vs reject

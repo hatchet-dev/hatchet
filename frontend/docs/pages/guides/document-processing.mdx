@@ -1,0 +1,119 @@
+import { Callout, Cards, Steps } from "nextra/components";
+import DocumentProcessingDiagram from "@/components/DocumentProcessingDiagramWrapper";
+
+# Document Processing
+
+PDF and file pipelines are central to AI workflows: parse documents, extract content with OCR or LLMs, validate and enrich the data, and classify or route it. This page covers how to structure these pipelines as Hatchet [DAG workflows](/concepts/durable-workflows/directed-acyclic-graphs). Document processing is adjacent to RAG but distinct—the goal is transform and extract, not chunk and embed for retrieval.
+
+<DocumentProcessingDiagram />
+
+## Core Challenges
+
+<Steps>
+
+### Multi-stage transforms
+
+Documents flow through a fixed sequence: parse (PDF/OCR), extract (LLM or rules), validate, and output. Each stage depends on the previous. [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs) model these dependencies explicitly.
+
+### Per-file parallelism
+
+When a batch of files arrives, a parent task fans out to child tasks via [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning), one per document. Hatchet distributes these across your workers for parallel processing.
+
+### Rate-limiting AI and OCR APIs
+
+Embedding providers, OCR services, and LLM APIs enforce rate limits. Hatchet's [Rate Limits](/concepts/rate-limits) throttle extract and parse tasks across all workers to stay within provider quotas.
+
+### Handling large or malformed files
+
+Some documents fail to parse or time out. [Retry Policies](/concepts/retry-policies) retry failed tasks individually so other documents in the pipeline continue without re-processing.
+
+</Steps>
+
+## Key Features
+
+| Feature                                                                                  | What it does for document processing                                          |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **[DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs)**                 | Chain pipeline stages (ingest → parse → extract → validate → output) with clear dependencies |
+| **[Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning)** | Fan out to one task per document; process thousands in parallel                 |
+| **[Rate Limits](/concepts/rate-limits)**                                                 | Throttle OCR and LLM API calls across all workers to stay within provider limits |
+| **[Retry Policies](/concepts/retry-policies)**                                           | Retry failed documents individually without re-processing the whole pipeline   |
+| **[Concurrency](/concepts/concurrency)**                                                 | Limit how many documents process simultaneously; fair scheduling across tenants |
+| **[Webhooks](/concepts/webhooks)**                                                       | Trigger pipelines when files arrive via HTTP upload                           |
+| **[Event Triggers](/concepts/run-on-event)**                                             | Start processing when new documents are published (S3, database, API)          |
+
+<Callout type="info">
+  Document processing pipelines are built on [Pre-Determined
+  Pipelines](/guides/pre-determined-pipelines). The stages are fixed and map to
+  a DAG. Use [Fanout](/guides/fanout) within the ingest or parse stage to
+  parallelize per document.
+</Callout>
+
+## Pipeline Architecture
+
+<Steps>
+
+### Ingest
+
+A trigger ([Event Triggers](/concepts/run-on-event), [Webhooks](/concepts/webhooks), cron, or API call) starts the pipeline with file references. The ingest task fetches raw content from your source (S3, upload endpoint, database).
+
+### Parse
+
+Parse PDFs, images, or office documents into structured text or layout data. Use OCR for images and scanned PDFs. Fan out per file with [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) if each document is processed independently.
+
+### Extract
+
+Use LLMs or rules to extract entities, fields, or sections from the parsed content. [Rate Limits](/concepts/rate-limits) keep extract tasks within LLM provider quotas across all workers.
+
+### Validate
+
+Validate extracted data against schemas, business rules, or reference data. [Retry Policies](/concepts/retry-policies) retry failed validations; optional human review can be added via [Durable Events](/concepts/durable-workflows/durable-task-execution/durable-events).
+
+### Output
+
+Write validated data to a database, CRM, or downstream system. Use [Concurrency](/concepts/concurrency) to limit parallel writes and avoid overwhelming destination systems.
+
+</Steps>
+
+<Callout type="warning">
+  When fanning out to many documents, ensure your workers have enough slots or
+  use [Concurrency Control](/concepts/concurrency) to limit how many run
+  simultaneously.
+</Callout>
+
+## Common Patterns
+
+| Pattern                | Description                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| **Invoice extraction** | Parse invoices, extract line items and totals with LLM, validate amounts, post to ERP    |
+| **Contract analysis**  | Extract clauses and terms, classify risk, route for legal review                         |
+| **Resume parsing**     | Parse resumes, extract skills and experience, match to job requisitions                  |
+| **Form processing**    | Extract form fields from scans, validate against schemas, submit to backend systems      |
+| **Document classification** | Classify documents by type, route to appropriate [DAG workflows](/concepts/durable-workflows/directed-acyclic-graphs) |
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card
+    title="Pre-Determined Pipelines"
+    href="/guides/pre-determined-pipelines"
+  >
+    The fixed-stage DAG pattern that document pipelines are built on.
+  </Cards.Card>
+  <Cards.Card title="RAG & Data Indexing" href="/guides/rag-and-indexing">
+    When your goal is retrieval (chunk, embed, index) rather than extract and transform.
+  </Cards.Card>
+  <Cards.Card title="Batch Processing" href="/guides/batch-processing">
+    General-purpose batch patterns that apply to document workloads.
+  </Cards.Card>
+  <Cards.Card title="Fanout" href="/guides/fanout">
+    Parallelize document processing across your worker fleet.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs): define multi-stage pipelines with task dependencies
+- [Rate Limits](/concepts/rate-limits): configure rate limiting for OCR and LLM APIs
+- [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): fan out to per-document tasks
+- [Webhooks](/concepts/webhooks): trigger pipelines from file upload endpoints
+- [Concurrency Control](/concepts/concurrency): limit parallel document processing
