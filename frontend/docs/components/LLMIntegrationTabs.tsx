@@ -65,7 +65,7 @@ export function LLMIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Anthropic">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install
@@ -114,7 +114,7 @@ export function LLMIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Groq">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install
@@ -169,7 +169,7 @@ export function LLMIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Vercel AI SDK">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <Callout type="info">
               Vercel AI SDK is JavaScript/TypeScript only. Use OpenAI,
@@ -206,7 +206,7 @@ export function LLMIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Ollama">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install

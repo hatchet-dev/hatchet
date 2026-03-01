@@ -67,7 +67,7 @@ A separate task classifies the incoming message. This lets you observe the class
 
 Each specialist is a standalone workflow with its own prompt and tools. They run independently with their own timeout and retry settings.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.routing.worker.step_02_specialist_tasks}
@@ -92,7 +92,7 @@ Each specialist is a standalone workflow with its own prompt and tools. They run
 
 The router classifies the message, then spawns the matching specialist. The classification result is checkpointed — if the worker dies after classifying, it resumes and spawns the specialist without re-classifying.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.guides.routing.worker.step_03_router_task} />
   </Tabs.Tab>
@@ -113,7 +113,7 @@ The router classifies the message, then spawns the matching specialist. The clas
 
 Register all tasks and start the worker.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.guides.routing.worker.step_04_run_worker} />
   </Tabs.Tab>

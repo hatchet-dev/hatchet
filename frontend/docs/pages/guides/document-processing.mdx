@@ -54,7 +54,7 @@ Create a workflow with a fixed pipeline: ingest, parse, extract. Each stage depe
 
 The parse task depends on ingest (Step 1). It converts raw content to structured text (use OCR for images, mock for examples).
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -90,7 +90,7 @@ The examples above use a mock OCR service. To use a real provider, swap in one o
 
 The extract task depends on parse (Step 2). Use an LLM or rules to extract entities. [Rate Limits](/concepts/rate-limits) keep extract tasks within provider quotas.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -128,7 +128,7 @@ The examples above use a mock extractor. To wire in a real LLM for extraction, s
 
 Start the worker. For per-document parallelism, use [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) within the ingest stage.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.document_processing.worker.step_04_run_worker}

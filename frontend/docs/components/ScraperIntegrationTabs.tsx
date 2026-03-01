@@ -73,7 +73,7 @@ export function ScraperIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Browserbase">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install
@@ -139,7 +139,7 @@ export function ScraperIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Playwright">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install
@@ -202,7 +202,7 @@ export function ScraperIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="OpenAI Web Search">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install

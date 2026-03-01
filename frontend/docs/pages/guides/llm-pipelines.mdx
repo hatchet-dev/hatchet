@@ -50,7 +50,7 @@ Create a workflow with prompt construction, LLM generation, and validation stage
 
 The prompt task depends on the pipeline input (Step 1). Build the prompt from user input and context. This step may include retrieval from a vector database (see [RAG & Indexing](/guides/rag-and-indexing)).
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.llm_pipelines.worker.step_02_prompt_task}
@@ -81,7 +81,7 @@ The prompt is passed to your LLM service for generation. The examples above use 
 
 The validate task depends on the generate step. Parse and validate the structured response. When validation fails, [Retry Policies](/concepts/retry-policies) retry just that step with a corrective prompt.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.llm_pipelines.worker.step_03_validate_task}
@@ -110,7 +110,7 @@ The validate task depends on the generate step. Parse and validate the structure
 
 Start the worker. Configure [Rate Limits](/concepts/rate-limits) to stay within LLM provider quotas.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.llm_pipelines.worker.step_04_run_worker}

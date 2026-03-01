@@ -52,7 +52,7 @@ First, declare a base task that returns a value:
 
 Then add two branches that use `ParentCondition` with `skip_if`:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.conditions.worker.add_branching} />
   </Tabs.Tab>
@@ -77,7 +77,7 @@ These two tasks check whether the output of the base task was greater or less th
 
 Downstream tasks can check whether a parent was skipped using `ctx.was_skipped`:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 <Snippet src={snippets.python.conditions.worker.add_sum}/>
 

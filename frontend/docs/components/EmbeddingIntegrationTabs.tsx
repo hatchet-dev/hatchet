@@ -75,7 +75,7 @@ export function EmbeddingIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Cohere">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install

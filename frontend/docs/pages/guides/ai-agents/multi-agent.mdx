@@ -82,7 +82,7 @@ Each specialist is a standalone task with its own prompt and timeout. They run i
 
 The orchestrator runs a reasoning loop: call LLM → parse tool choice → spawn specialist → observe result → repeat. Context accumulates across iterations so later specialist calls have full history.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.multi_agent.worker.step_02_orchestrator_loop}
@@ -112,7 +112,7 @@ The orchestrator runs a reasoning loop: call LLM → parse tool choice → spawn
 
 Register all specialists and the orchestrator, then start the worker.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.multi_agent.worker.step_03_run_worker}

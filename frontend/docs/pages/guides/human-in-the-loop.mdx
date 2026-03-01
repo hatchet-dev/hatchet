@@ -60,7 +60,7 @@ Create a durable task that proposes an action and pauses with `WaitForEvent` unt
 
 The approval task (Step 1) uses `WaitForEvent` (or `aio_wait_for` / `wait_for`) to pause. The worker slot is freed; the task is evicted and will be re-scheduled when the event arrives.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -92,7 +92,7 @@ The approval task (Step 1) uses `WaitForEvent` (or `aio_wait_for` / `wait_for`) 
 
 When the human clicks Approve or Reject in your UI, your frontend or API pushes the event to Hatchet using the same event key the task (Step 2) is waiting for.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -130,7 +130,7 @@ When the human clicks Approve or Reject in your UI, your frontend or API pushes 
 
 Register and start the worker. Use [Branching](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions) to route on approve vs reject from the event payload.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.human_in_the_loop.worker.step_04_run_worker}

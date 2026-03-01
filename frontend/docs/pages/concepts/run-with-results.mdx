@@ -44,7 +44,7 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
 
 You can also spawn tasks from within a task. This is useful for composing tasks together to create more complex workflows, fanning out batched tasks, or creating conditional workflows.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
 
 You can run a task from within a task by calling the `aio_run` method on the task object from within a task function. This will associate the runs in the dashboard for easier debugging.
@@ -79,7 +79,7 @@ You can run a task from within a task by calling the `Run` method on the task ob
 
 Sometimes you may want to run multiple tasks concurrently. Here's how to do that in each language:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
 
 Since the `aio_run` method returns a coroutine, you can spawn multiple tasks in parallel and await using `asyncio.gather`.

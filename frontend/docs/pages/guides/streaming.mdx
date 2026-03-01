@@ -51,7 +51,7 @@ Create a task that emits data chunks as it runs. Use `put_stream` (or `aio_put_s
 
 As the streaming task (Step 1) processes, call `put_stream` to emit chunks. [Durable Execution](/concepts/durable-workflows/durable-task-execution) checkpoints between emissions so the task survives restarts.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.streaming.worker.step_02_emit_chunks}
@@ -74,7 +74,7 @@ As the streaming task (Step 1) processes, call `put_stream` to emit chunks. [Dur
 
 Trigger the task (defined in Step 1) and subscribe to the stream. The client receives chunks as the worker emits them.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.streaming.client.step_03_subscribe_client}
@@ -101,7 +101,7 @@ Trigger the task (defined in Step 1) and subscribe to the stream. The client rec
 
 Start the worker. The streaming task above uses **CANCEL_IN_PROGRESS** concurrency so new messages cancel stale runs. For per-user chat, set `expression` to `input.session_id`.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.guides.streaming.worker.step_04_run_worker} />
   </Tabs.Tab>

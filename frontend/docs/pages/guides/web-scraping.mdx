@@ -75,7 +75,7 @@ Create a task that fetches a URL and returns the content. Set a timeout (pages c
 
 A separate task extracts or transforms the raw scraped content. This could be simple parsing, or an LLM call to summarize or extract structured data. Keeping it separate lets you retry processing independently from scraping.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.web_scraping.worker.step_02_process_content}
@@ -104,7 +104,7 @@ A separate task extracts or transforms the raw scraped content. This could be si
 
 Wrap the pipeline in a cron workflow to refresh data on a schedule. The example below runs every 6 hours and scrapes a list of URLs. Each scrape + process pair runs as child tasks, so failures on one URL don't block the others.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.web_scraping.worker.step_03_cron_workflow}
@@ -131,7 +131,7 @@ Wrap the pipeline in a cron workflow to refresh data on a schedule. The example 
 
 Register all tasks and start the worker. The cron schedule activates when the worker connects.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.web_scraping.worker.step_04_run_worker}

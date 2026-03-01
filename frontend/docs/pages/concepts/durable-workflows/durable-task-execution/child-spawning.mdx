@@ -54,7 +54,7 @@ Use the context object to spawn a child task from within a durable task. The chi
 
 Spawn many children at once and wait for all results. The parent is evicted during the wait, so it consumes no resources while children run.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.fanout.trigger.bulk_run_children} />
@@ -111,7 +111,7 @@ A durable task spawns child durable tasks, each of which may spawn their own chi
 
 ## Error handling
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.fanout.example_child_spawn.error_handling} />

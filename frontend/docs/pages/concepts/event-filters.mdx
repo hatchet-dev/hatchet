@@ -36,7 +36,7 @@ In each of these cases, we register a filter with the workflow. Note that these 
 
 You also can create event filters by using the `filters` clients on the SDKs:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.filter.create_a_filter} />
   </Tabs.Tab>
@@ -61,7 +61,7 @@ You also can create event filters by using the `filters` clients on the SDKs:
 
 Then, push an event that uses the filter to determine whether or not to run. For instance, this run will be skipped, since the payload does not match the expression:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.filter.skip_a_run} />
   </Tabs.Tab>
@@ -78,7 +78,7 @@ Then, push an event that uses the filter to determine whether or not to run. For
 
 But this one will be triggered since the payload _does_ match the expression:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.filter.trigger_a_run} />
   </Tabs.Tab>
@@ -102,7 +102,7 @@ But this one will be triggered since the payload _does_ match the expression:
 
 You can access the filter payload by using the `Context` in the task that was triggered by your event:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.worker.accessing_the_filter_payload} />
   </Tabs.Tab>

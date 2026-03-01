@@ -52,7 +52,7 @@ Additionally, if a task interacts with external services or databases, you shoul
 
 If you need to access the current retry count within a task, you can use the `retryCount` method available in the task context:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab>
     <Snippet src={snippets.python.retries.worker.retries_with_count} />
   </Tabs.Tab>
@@ -71,7 +71,7 @@ If you need to access the current retry count within a task, you can use the `re
 
 Hatchet also supports exponential backoff for retries, which can be useful for handling failures in a more resilient manner. Exponential backoff increases the delay between retries exponentially, giving the failing service more time to recover before the next retry.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.retries.worker.retries_with_backoff} />
   </Tabs.Tab>
@@ -94,7 +94,7 @@ The Hatchet SDKs each expose a `NonRetryable` exception, which allows you to byp
 2. A task that contains a single non-idempotent operation that can fail but cannot safely be rerun on failure, such as a billing operation.
 3. A failure that requires manual intervention to resolve.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.non_retryable.worker.non_retryable_task} />
   </Tabs.Tab>

@@ -78,7 +78,7 @@ Create separate tasks for generation and evaluation. The generator takes a topic
 
 The orchestrator is a durable task that loops: generate → evaluate → check score. Each `.run()` / `.aio_run()` call creates a child run that is checkpointed. If the worker dies mid-loop, the orchestrator resumes from the last completed iteration.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -116,7 +116,7 @@ The orchestrator is a durable task that loops: generate → evaluate → check s
 
 Register all tasks and start the worker.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.evaluator_optimizer.worker.step_03_run_worker}

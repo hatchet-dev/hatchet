@@ -57,7 +57,7 @@ Create a task triggered by webhook event keys. The task receives the webhook pay
 
 The task uses `on_events` to match webhook event keys (Step 1). Configure your webhook endpoint to push incoming requests to these keys.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -92,7 +92,7 @@ The task uses `on_events` to match webhook event keys (Step 1). Configure your w
 
 The task (triggered in Step 2) receives the webhook body as input. Validate and process idempotently. Use `event_id` for deduplication when providers retry delivery.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -126,7 +126,7 @@ The task (triggered in Step 2) receives the webhook body as input. Validate and 
 
 Start the worker. Configure [concurrency controls](/concepts/concurrency) for spike protection when bursts of webhooks arrive.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.webhook_processing.worker.step_04_run_worker}

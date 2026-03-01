@@ -52,7 +52,7 @@ Create a task or workflow that processes events. Configure it to trigger on spec
 
 The workflow or task (Step 1) is configured with `on_events` (or `WithWorkflowEvents`). Tasks trigger when matching events are pushed.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={
@@ -87,7 +87,7 @@ The workflow or task (Step 1) is configured with `on_events` (or `WithWorkflowEv
 
 Push an event to trigger the workflow. Use the same event key as configured in Step 1.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.event_driven.trigger.step_03_push_event}
@@ -112,7 +112,7 @@ Push an event to trigger the workflow. Use the same event key as configured in S
 
 Register and start the worker. Configure [concurrency controls](/concepts/concurrency) for spike protection when processing high-volume events.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.event_driven.worker.step_04_run_worker}

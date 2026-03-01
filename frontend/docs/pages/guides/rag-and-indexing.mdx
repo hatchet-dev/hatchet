@@ -55,7 +55,7 @@ Create a workflow that ingests documents. A trigger (event, cron, or API call) s
 
 The ingest task (Step 1) fans out to one child per document. Each child splits its document into chunks. Use [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) for per-document parallelism.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.rag_indexing.worker.step_02_chunk_task}
@@ -84,7 +84,7 @@ The ingest task (Step 1) fans out to one child per document. Each child splits i
 
 Each chunk task (from Step 2) embeds its output and writes to the vector store. [Rate Limits](/concepts/rate-limits) throttle embedding API calls across all workers.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.rag_indexing.worker.step_03_embed_task}
@@ -117,7 +117,7 @@ The examples above use a mock embedding client. To use a real provider, swap `ge
 
 Start the worker. For multi-tenant indexing, use **GROUP_ROUND_ROBIN** concurrency for fair scheduling.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet
       src={snippets.python.guides.rag_indexing.worker.step_04_run_worker}

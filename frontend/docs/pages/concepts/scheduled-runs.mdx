@@ -62,7 +62,7 @@ When creating a scheduled run via the API, you will receive a scheduled run obje
 
 You can delete a scheduled run by calling the `delete` method on the scheduled client.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.delete} />
   </Tabs.Tab>
@@ -81,7 +81,7 @@ You can delete a scheduled run by calling the `delete` method on the scheduled c
 
 You can list all scheduled runs for a task by calling the `list` method on the scheduled client.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.list} />
   </Tabs.Tab>
@@ -100,7 +100,7 @@ You can list all scheduled runs for a task by calling the `list` method on the s
 
 If you need to change the trigger time for an existing scheduled run, you can reschedule it by updating its `triggerAt`.
 
-<UniversalTabs items={["Python", "Typescript", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.reschedule} />
 
@@ -126,7 +126,7 @@ If you need to change the trigger time for an existing scheduled run, you can re
 
 Hatchet supports bulk operations for scheduled runs. You can bulk delete scheduled runs, and you can bulk reschedule scheduled runs by providing a list of updates.
 
-<UniversalTabs items={["Python", "Typescript", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.bulk_delete} />
     <Snippet src={snippets.python.scheduled.programatic_sync.bulk_reschedule} />

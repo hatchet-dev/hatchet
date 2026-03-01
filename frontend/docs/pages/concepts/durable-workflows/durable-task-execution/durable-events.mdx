@@ -54,7 +54,7 @@ Wait For Event is declared using the context method `WaitFor` (or utility method
 
 Events can be filtered using [CEL](https://github.com/google/cel-spec) expressions. For example, to only receive `user:update` events for a specific user, you can use the following filter:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_event.worker.durable_event_with_filter} />
@@ -81,7 +81,7 @@ Events can be filtered using [CEL](https://github.com/google/cel-spec) expressio
 
 For a waiting task to resume, something must [push an event](/concepts/pushing-events) into Hatchet with a matching key. You can do this from any service that has access to the Hatchet client - it does not need to be the same worker.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.events.event.event_trigger} />
   </Tabs.Tab>

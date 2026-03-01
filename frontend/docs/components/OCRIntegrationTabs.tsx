@@ -73,7 +73,7 @@ export function OCRIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Unstructured">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install
@@ -106,7 +106,7 @@ export function OCRIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Reducto">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install
@@ -151,7 +151,7 @@ export function OCRIntegrationTabs() {
         </UniversalTabs>
       </Tabs.Tab>
       <Tabs.Tab title="Google Vision">
-        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+        <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} variant="hidden">
           <Tabs.Tab title="Python">
             <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400 font-medium">
               Install

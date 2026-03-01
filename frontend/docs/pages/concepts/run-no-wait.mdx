@@ -53,7 +53,7 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
 
 Often it is useful to subscribe to the results of a task at a later time. The `run_no_wait` method returns a `WorkflowRunRef` object which includes a listener for the result of the task.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 
 Use `ref.result()` to block until the result is available:

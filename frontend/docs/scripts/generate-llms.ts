@@ -373,7 +373,7 @@ function expandUniversalTabs(
   languages: string[] | null,
 ): string {
   const pattern =
-    /<UniversalTabs\s+items=\{(\[[^\]]*\])\}(?:\s+optionKey=["']([^"']*)["'])?\s*>((?:(?!<UniversalTabs)[\s\S])*?)<\/UniversalTabs>/g;
+    /<UniversalTabs\s+items=\{(\[[^\]]*\])\}(?:\s+optionKey=["']([^"']*)["'])?(?:\s+variant=["'][^"']*["'])?\s*>((?:(?!<UniversalTabs)[\s\S])*?)<\/UniversalTabs>/g;
 
   function processTabsBlock(
     _match: string,
