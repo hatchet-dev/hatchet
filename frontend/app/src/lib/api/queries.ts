@@ -135,10 +135,6 @@ export const queries = createQueryKeyStore({
       queryKey: ['user:get'],
       queryFn: async () => (await api.userGetCurrent()).data,
     },
-    listTenantMemberships: {
-      queryKey: ['tenant-memberships:list'],
-      queryFn: async () => (await api.tenantMembershipsList()).data,
-    },
     listInvites: {
       queryKey: ['user:list:tenant-invites'],
       queryFn: async () => (await api.userListTenantInvites()).data,

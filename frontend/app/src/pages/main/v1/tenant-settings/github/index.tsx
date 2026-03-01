@@ -20,7 +20,7 @@ import invariant from 'tiny-invariant';
 export default function Github() {
   const { cloud } = useCloud();
 
-  const hasGithubIntegration = cloud?.canLinkGithub;
+  const hasGithubIntegration = cloud && cloud.canLinkGithub;
 
   if (!cloud || !hasGithubIntegration) {
     return (

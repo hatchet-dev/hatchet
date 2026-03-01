@@ -1,17 +1,16 @@
 import asyncio
 import ctypes
 import functools
-import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, is_dataclass
+from dataclasses import is_dataclass
 from enum import Enum
 from multiprocessing import Queue
 from textwrap import dedent
 from threading import Thread, current_thread
 from typing import Any, Literal, cast, overload
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
@@ -42,6 +41,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_durable_context,
+    ctx_hatchet_context,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -51,11 +51,10 @@ from hatchet_sdk.runnables.contextvars import (
     workflow_spawn_indices,
 )
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TWorkflowInput
+from hatchet_sdk.runnables.types import R, TaskPayloadForInternalUse, TWorkflowInput
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
-from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
@@ -63,6 +62,7 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
     ContextVarToCopyDict,
+    ContextVarToCopyHatchetContext,
     ContextVarToCopyInt,
     ContextVarToCopyStr,
     copy_context_vars,
@@ -251,7 +251,7 @@ class Runner:
                 return
 
             try:
-                output = self.serialize_output(output)
+                output = self.serialize_output(t.validators.step_output, output)
 
                 self.event_queue.put(
                     ActionEvent(
@@ -357,6 +357,12 @@ class Runner:
                                 value=action.retry_count,
                             )
                         ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyHatchetContext(
+                                name="ctx_hatchet_context",
+                                value=ctx,
+                            )
+                        ),
                     ],
                     self.thread_action_func,
                     ctx,
@@ -442,8 +448,8 @@ class Runner:
         task: Task[Any, Any],
         is_durable: bool = True,
     ) -> Context | DurableContext:
-        if is_durable:
-            return DurableContext(
+        ctx = (
+            DurableContext(
                 action=action,
                 dispatcher_client=self.dispatcher_client,
                 admin_client=self.admin_client,
@@ -458,21 +464,26 @@ class Runner:
                 workflow_name=task.workflow.name,
                 durable_eviction_manager=self.durable_eviction_manager,
             )
-
-        return Context(
-            action=action,
-            dispatcher_client=self.dispatcher_client,
-            admin_client=self.admin_client,
-            event_client=self.event_client,
-            durable_event_listener=self.durable_event_listener,
-            worker=self.worker_context,
-            runs_client=self.runs_client,
-            lifespan_context=self.lifespan_context,
-            log_sender=self.log_sender,
-            max_attempts=task.retries + 1,
-            task_name=task.name,
-            workflow_name=task.workflow.name,
+            if is_durable
+            else Context(
+                action=action,
+                dispatcher_client=self.dispatcher_client,
+                admin_client=self.admin_client,
+                event_client=self.event_client,
+                durable_event_listener=self.durable_event_listener,
+                worker=self.worker_context,
+                runs_client=self.runs_client,
+                lifespan_context=self.lifespan_context,
+                log_sender=self.log_sender,
+                max_attempts=task.retries + 1,
+                task_name=task.name,
+                workflow_name=task.workflow.name,
+            )
         )
+
+        ctx_hatchet_context.set(ctx)
+
+        return ctx
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_step_run(self, action: Action) -> Exception | None:
@@ -588,49 +599,39 @@ class Runner:
         finally:
             self.cleanup_run_id(key)
 
-    def serialize_output(self, output: Any) -> str | None:
+    def serialize_output(
+        self, validator: TypeAdapter[TaskPayloadForInternalUse], output: Any
+    ) -> str | None:
         if not output:
             return None
 
-        if isinstance(output, BaseModel):
-            try:
-                output = output.model_dump(
-                    mode="json", context=HATCHET_PYDANTIC_SENTINEL
-                )
-            except Exception as e:
-                logger.exception("could not serialize pydantic model output")
-
-                raise IllegalTaskOutputError(
-                    f"could not serialize Pydantic BaseModel output: {e}"
-                ) from e
-        elif is_dataclass(output):
-            output = asdict(cast(DataclassInstance, output))
-
-        if not isinstance(output, dict):
+        if not isinstance(output, dict | BaseModel) and not is_dataclass(output):
             raise IllegalTaskOutputError(
                 f"Tasks must return either a dictionary, a Pydantic BaseModel, or a dataclass which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
-        if output is None:
+        try:
+            serialized_output = validator.dump_json(
+                output,  # type: ignore[arg-type]
+                context=HATCHET_PYDANTIC_SENTINEL,
+            ).decode("utf-8")
+        except Exception as e:
+            raise IllegalTaskOutputError(f"Failed to serialize task output: {e}") from e
+
+        if not serialized_output:
             return None
 
-        try:
-            serialized_output = json.dumps(output, default=str)
-        except Exception as e:
-            logger.exception("could not serialize output")
-            raise IllegalTaskOutputError(
-                "Task output could not be serialized to JSON. Please ensure that all task outputs are JSON serializable."
-            ) from e
-
         if "\\u0000" in serialized_output:
-            raise IllegalTaskOutputError(dedent(f"""
+            raise IllegalTaskOutputError(
+                dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """))
+                """)
+            )
 
         return serialized_output
 

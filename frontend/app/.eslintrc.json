@@ -13,7 +13,7 @@
     "plugin:react-hooks/recommended",
     "prettier"
   ],
-  "ignorePatterns": ["dist"],
+  "ignorePatterns": ["dist", "**/generated/**/*"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.cypress.json"],
@@ -38,7 +38,9 @@
     "unused-imports/no-unused-imports": "error",
     "no-unused-vars": "off",
     "prettier/prettier": "error",
-    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/no-unused-vars": ["error", {
+      "args": "none"
+    }],
     "curly": "error",
     "import/prefer-default-export": "off",
     "@typescript-eslint/no-explicit-any": "off",

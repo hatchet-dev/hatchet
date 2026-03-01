@@ -10,9 +10,9 @@ import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
+import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { appRoutes } from '@/router';
 import {
   BuildingOffice2Icon,
   // ChartBarSquareIcon,
@@ -25,7 +25,6 @@ import {
   PopoverContent,
   PopoverPortal,
 } from '@radix-ui/react-popover';
-import { Link } from '@tanstack/react-router';
 import React from 'react';
 import invariant from 'tiny-invariant';
 
@@ -40,7 +39,7 @@ export function TenantSwitcher({
   const { meta } = useApiMeta();
   const {
     setTenant: setCurrTenant,
-    isLoading: isTenantLoading,
+    isUserUniverseLoaded,
     tenant,
   } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
@@ -83,13 +82,13 @@ export function TenantSwitcher({
             open && 'bg-muted/30',
             className,
           )}
-          disabled={isTenantLoading || memberships.length === 0}
+          disabled={!isUserUniverseLoaded || memberships.length === 0}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BuildingOffice2Icon className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
           </div>
-          {isTenantLoading ? (
+          {!isUserUniverseLoaded ? (
             <Spinner className="mr-0" />
           ) : (
             <CaretSortIcon className="size-4 shrink-0 opacity-50" />
@@ -141,15 +140,17 @@ export function TenantSwitcher({
               <>
                 <CommandSeparator />
                 <CommandList>
-                  <Link
-                    to={appRoutes.onboardingCreateTenantRoute.to}
+                  <CommandItem
+                    className="cursor-pointer text-sm"
                     data-cy="new-tenant"
+                    onSelect={() => {
+                      globalEmitter.emit('new-tenant', {});
+                      setOpen(false);
+                    }}
                   >
-                    <CommandItem className="cursor-pointer text-sm">
-                      <PlusCircledIcon className="mr-2 size-4" />
-                      New Tenant
-                    </CommandItem>
-                  </Link>
+                    <PlusCircledIcon className="mr-2 size-4" />
+                    New Tenant
+                  </CommandItem>
                 </CommandList>
               </>
             )}

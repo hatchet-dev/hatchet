@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import threading
 from collections import Counter
@@ -9,6 +11,7 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
     from hatchet_sdk.context.context import DurableContext
+    from hatchet_sdk.context.context import Context
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None
@@ -49,3 +52,7 @@ class TaskCounter:
 
 
 task_count = TaskCounter()
+
+ctx_hatchet_context: ContextVar[Context | None] = ContextVar(
+    "ctx_hatchet_context", default=None
+)

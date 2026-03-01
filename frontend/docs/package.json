@@ -76,9 +76,10 @@
       "preact": "10.28.2",
       "prismjs": "^1.30.0",
       "mdast-util-to-hast": ">=13.2.1",
-      "tar": "^7.5.7",
+      "tar": "^7.5.8",
       "lodash": "^4.17.23",
-      "lodash-es": "^4.17.23"
+      "lodash-es": "^4.17.23",
+      "swagger-ui-react>js-yaml": "4.1.1"
     }
   }
 }

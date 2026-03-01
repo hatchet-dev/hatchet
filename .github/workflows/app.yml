@@ -18,6 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
@@ -26,6 +27,29 @@ jobs:
       - name: Lint
         working-directory: frontend/app
         run: npm run lint:check
+
+  test:
+    runs-on: ubicloud-standard-2
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.16.1
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+      - name: Run unit tests
+        working-directory: frontend/app
+        run: pnpm run test:unit
 
   build:
     runs-on: ubicloud-standard-2
@@ -40,6 +64,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
@@ -47,7 +72,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -82,7 +107,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
 
