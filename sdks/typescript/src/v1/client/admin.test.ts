@@ -3,7 +3,10 @@ import { AdminClient } from './admin';
 function createMockAdmin(namespace?: string): AdminClient {
   const admin = Object.create(AdminClient.prototype) as AdminClient;
 
-  admin.config = { namespace, logger: () => ({ warn: jest.fn(), debug: jest.fn(), error: jest.fn(), info: jest.fn() }) } as any;
+  admin.config = {
+    namespace,
+    logger: () => ({ warn: jest.fn(), debug: jest.fn(), error: jest.fn(), info: jest.fn() }),
+  } as any;
   admin.logger = admin.config.logger('test', undefined as any);
   admin.listenerClient = { get: jest.fn() } as any;
   admin.runs = {} as any;
