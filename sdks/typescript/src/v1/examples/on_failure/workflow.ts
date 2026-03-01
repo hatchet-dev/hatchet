@@ -6,7 +6,7 @@ export const ERROR_TEXT = 'step1 failed';
 // > On Failure Task
 // This workflow will fail because `step1` throws. We define an `onFailure` handler to run cleanup.
 export const failureWorkflow = hatchet.workflow({
-  name: 'OnFailureWorkflow',
+  name: 'on-failure-workflow',
 });
 
 failureWorkflow.task({

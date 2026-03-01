@@ -21,7 +21,7 @@ export type WorkflowOutput = {
 };
 
 export const concurrencyMultipleKeysWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
-  name: 'ConcurrencyWorkflowManyKeys',
+  name: 'concurrency-workflow-many-keys',
   concurrency: [
     {
       expression: 'input.digit',
