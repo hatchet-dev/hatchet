@@ -305,36 +305,6 @@ async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     return SleepResult(message=res.message, duration=time.time() - start)
 
 
-class SharedKeyResult(BaseModel):
-    a: SleepResult
-    b: SleepResult
-
-
-@hatchet.durable_task(input_validator=MemoInput)
-async def memo_task_empty_keys(
-    input: MemoInput, ctx: DurableContext
-) -> SharedKeyResult:
-    res = await ctx.aio_memo(
-        expensive_computation,
-        SleepResult,
-        input.message,
-    )
-
-    start = time.time()
-    res_2 = await ctx.aio_memo(
-        ## TODO-DURABLE: This lambda is blocking, need to change the
-        ## signature of `aio_memo` to be an async function and a list of args instead of a lambda
-        ## and we can compute the deps internally from the args
-        expensive_computation,
-        SleepResult,
-        "this should not have run",
-    )
-    duration = time.time() - start
-    res_2.duration = duration
-
-    return SharedKeyResult(a=res, b=res_2)
-
-
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
@@ -347,7 +317,6 @@ def main() -> None:
             durable_sleep_event_spawn,
             durable_non_determinism,
             durable_replay_reset,
-            memo_task_empty_keys,
         ],
     )
     worker.start()

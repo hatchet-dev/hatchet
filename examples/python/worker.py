@@ -42,7 +42,6 @@ from examples.durable.worker import (
     durable_non_determinism,
     durable_replay_reset,
     memo_task,
-    memo_task_empty_keys,
 )
 from examples.durable_eviction.worker import (
     child_task as eviction_child_task,
@@ -138,7 +137,6 @@ def main() -> None:
             durable_non_determinism,
             durable_replay_reset,
             memo_task,
-            memo_task_empty_keys,
             evictable_sleep,
             evictable_wait_for_event,
             evictable_child_spawn,
