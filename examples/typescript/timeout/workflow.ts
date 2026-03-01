@@ -27,11 +27,11 @@ export const timeoutTask = hatchet.task({
 // Mirrors Python `examples/timeout/test_timeout.py::test_run_refresh_timeout`
 export const refreshTimeoutTask = hatchet.task({
   name: 'refresh-timeout',
-  executionTimeout: '10s',
-  scheduleTimeout: '10s',
+  executionTimeout: '3s',
+  scheduleTimeout: '5s',
   fn: async (input: SimpleInput, ctx) => {
-    ctx.refreshTimeout('15s');
-    await sleep(15000);
+    ctx.refreshTimeout('5s');
+    await sleep(4000);
 
     if (ctx.abortController.signal.aborted) {
       throw new Error('cancelled');

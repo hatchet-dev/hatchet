@@ -2,7 +2,7 @@ import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-
 import { hatchet } from '../hatchet-client';
 
 export const EVENT_KEY = 'durable-example:event';
-export const SLEEP_TIME_SECONDS = 5;
+export const SLEEP_TIME_SECONDS = 2;
 export const SLEEP_TIME = `${SLEEP_TIME_SECONDS}s` as const;
 
 // > Create a durable workflow

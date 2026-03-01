@@ -117,6 +117,6 @@ class HeartbeatWorker {
 const heartbeat = new HeartbeatWorker(workerData.config, workerData.workerId);
 heartbeat.start();
 
-parentPort?.on(STOP_HEARTBEAT, () => {
-  heartbeat.stop();
+parentPort?.on('message', (msg) => {
+  if (msg === STOP_HEARTBEAT) heartbeat.stop();
 });

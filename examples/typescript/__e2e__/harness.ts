@@ -45,7 +45,7 @@ export async function startWorker({
 export async function stopWorker(worker: Worker | undefined) {
   if (!worker) return;
   await worker.stop();
-  await sleep(1000);
+  await sleep(300);
 }
 
 export async function poll<T>(
