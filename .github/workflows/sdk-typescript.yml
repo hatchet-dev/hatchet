@@ -153,8 +153,8 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
+          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
+          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
 
           sleep 30
       - name: E2E tests
@@ -167,6 +167,20 @@ jobs:
           export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
           export NODE_TLS_REJECT_UNAUTHORIZED=0
           pnpm test:e2e
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sdk-typescript-engine-logs
+          path: engine.log
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sdk-typescript-api-logs
+          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4
