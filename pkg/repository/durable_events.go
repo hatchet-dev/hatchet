@@ -532,8 +532,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			return nil, fmt.Errorf("failed to marshal trigger opts: %w", err)
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
-		// Two-phase memo: check phase (no payload) creates unsatisfied entry,
-		// replay fast-forward (with payload) creates satisfied entry
+		// if we get a payload here, it means we should persist it and mark the memo event as having been satisfied,
+		// since it's now replayable by retrieving that payload
 		if len(opts.Payload) > 0 {
 			isSatisfied = true
 			resultPayload = opts.Payload
@@ -743,7 +743,6 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 	}
 
 	if entry.IsSatisfied {
-		// Already completed (e.g. replay fast-forward), nothing to do
 		return nil
 	}
 
