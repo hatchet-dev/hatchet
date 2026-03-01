@@ -261,7 +261,11 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 	if taskWithData.IsStandalone {
 		// fixme: improve this somehow - it's using this implicit assumption about how
 		// we structure payloads, which it shouldn't
-		input = input["input"].(map[string]interface{})
+		if inputWithInternalHatchetData, ok := input["input"]; ok {
+			if actualInput, ok := inputWithInternalHatchetData.(map[string]interface{}); ok {
+				input = actualInput
+			}
+		}
 	}
 
 	stepId := taskWithData.StepID
