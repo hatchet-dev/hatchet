@@ -2437,6 +2437,7 @@ WITH selected_retry_count AS (
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
@@ -2498,6 +2499,7 @@ type PopulateSingleTaskRunDataRow struct {
 	DagID                 pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
+	IsStandalone          bool                 `json:"is_standalone"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
@@ -2542,6 +2544,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
+		&i.IsStandalone,
 		&i.Status,
 		&i.FinishedAt,
 		&i.StartedAt,
@@ -2583,7 +2586,8 @@ WITH input AS (
         t.readable_status,
         t.parent_task_external_id,
         t.workflow_run_id,
-        t.latest_retry_count
+        t.latest_retry_count,
+        t.dag_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -2705,6 +2709,7 @@ SELECT
     END::JSONB AS input,
     t.readable_status::v1_readable_status_olap as status,
     t.workflow_run_id,
+    (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
@@ -2757,6 +2762,7 @@ type PopulateTaskRunDataRow struct {
 	Input                 []byte               `json:"input"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	WorkflowRunID         uuid.UUID            `json:"workflow_run_id"`
+	IsStandalone          bool                 `json:"is_standalone"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
@@ -2800,6 +2806,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.Input,
 			&i.Status,
 			&i.WorkflowRunID,
+			&i.IsStandalone,
 			&i.FinishedAt,
 			&i.StartedAt,
 			&i.QueuedAt,

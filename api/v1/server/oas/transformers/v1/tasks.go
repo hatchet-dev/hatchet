@@ -258,6 +258,12 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	input := jsonToMap(taskWithData.InputPayload)
 
+	if taskWithData.IsStandalone {
+		// todo: improve this somehow - it's using this implicit assumption about how
+		// we structure payloads, which it shouldn't
+		input = input["input"].(map[string]interface{})
+	}
+
 	stepId := taskWithData.StepID
 
 	retryCount := int(taskWithData.RetryCount)
