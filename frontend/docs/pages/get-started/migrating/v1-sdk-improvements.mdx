@@ -18,7 +18,7 @@ The Hatchet SDKs have seen considerable improvements with the V1 release.
 
 ### Highlights
 
-The Python SDK has a number of notable highlights to showcase for V1. Many of them have been highlighted elsewhere, such as [in the migration guide](./migration-guide-python.mdx), on the [Pydantic page](./pydantic.mdx), an in various examples. Here, we'll list out each of them, along with their motivations and benefits.
+The Python SDK has a number of notable highlights to showcase for V1. Many of them have been highlighted elsewhere, such as [in the migration guide](./migration-guide-python.mdx), on the [Pydantic page](/reference/python/pydantic), an in various examples. Here, we'll list out each of them, along with their motivations and benefits.
 
 First and foremost: Many of the changes in the V1 Python SDK are motivated by improved support for type checking and validation across large codebases and in production use-cases. With that in mind, the main highlights in the V1 Python SDK are:
 
@@ -47,7 +47,7 @@ Naming changes:
 
 Removals:
 
-1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](./asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
+1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](/reference/python/asyncio) for our recommendations on handling blocking work in otherwise async tasks.
 2. The `AdminClient` has been removed, and refactored into individual clients. For example, if you absolutely need to create a workflow run manually without using `Workflow.run` or `Standalone.run`, you can use `hatchet.runs.create`. This replaces the old `hatchet.admin.run_workflow`.
 
 Other miscellaneous changes:

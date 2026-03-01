@@ -39,4 +39,12 @@ export default {
   "region-availability": "Region Availability",
   uptime: "Uptime",
   "developer-experience": "Developer Experience",
+  "--migrating": {
+    title: "Migration Guides",
+    type: "separator",
+  },
+  migrating: {
+    title: "V0 to V1 Upgrade Guide",
+    theme: { collapsed: true },
+  },
 };

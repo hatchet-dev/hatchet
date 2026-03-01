@@ -36,12 +36,12 @@ Concurrency limits prevent overwhelming your infrastructure. Rate limits protect
 | **[Concurrency](/concepts/concurrency)**                                                 | Limit how many items process simultaneously                             |
 | **[Rate Limits](/concepts/rate-limits)**                                                 | Throttle external API calls across all workers                          |
 | **[Priority](/concepts/priority)**                                                       | Urgent batches jump ahead of lower-priority work                        |
-| **[Autoscaling](/essentials/autoscaling-workers)**                                       | Scale workers up during batch processing, down when idle                |
+| **[Autoscaling](/get-started/autoscaling-workers)**                                       | Scale workers up during batch processing, down when idle                |
 
 <Callout type="info">
-  The batch processing pattern is [Fanout](/patterns/fanout) applied at scale.
+  The batch processing pattern is [Fanout](/guides/fanout) applied at scale.
   For fixed multi-stage processing (e.g., validate → transform → load), combine
-  with [Pre-Determined Pipelines](/patterns/pre-determined-pipelines).
+  with [Pre-Determined Pipelines](/guides/pre-determined-pipelines).
 </Callout>
 
 ## Architecture
@@ -86,19 +86,19 @@ The parent awaits all children and aggregates results. You can see the status of
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Fanout" href="/patterns/fanout">
+  <Cards.Card title="Fanout" href="/guides/fanout">
     The core pattern behind batch processing, spawning N children from a parent.
   </Cards.Card>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/patterns/pre-determined-pipelines"
+    href="/guides/pre-determined-pipelines"
   >
     Chain batch processing with multi-stage transforms in a DAG.
   </Cards.Card>
-  <Cards.Card title="RAG & Indexing" href="/patterns/rag-and-indexing">
+  <Cards.Card title="RAG & Indexing" href="/guides/rag-and-indexing">
     A specialized batch processing use case for document indexing pipelines.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/patterns/cycles">
+  <Cards.Card title="Cycles" href="/guides/cycles">
     Process paginated results one page at a time with iterative child spawning.
   </Cards.Card>
 </Cards>

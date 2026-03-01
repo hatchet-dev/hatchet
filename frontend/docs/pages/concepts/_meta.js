@@ -1,7 +1,7 @@
 export default {
   "getting-started": {
     title: "Getting Started ↗",
-    href: "/essentials/quickstart",
+    href: "/get-started/quickstart",
   },
   "--runnables": {
     title: "Runnables",

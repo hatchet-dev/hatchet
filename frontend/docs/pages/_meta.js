@@ -1,13 +1,6 @@
 export default {
-  essentials: {
-    title: "Essentials",
-    type: "page",
-    theme: {
-      toc: false,
-    },
-  },
-  patterns: {
-    title: "Patterns",
+  "get-started": {
+    title: "Get Started",
     type: "page",
     theme: {
       toc: false,
@@ -20,18 +13,18 @@ export default {
       toc: false,
     },
   },
-  _setup: {
-    display: "hidden",
-  },
-  "self-hosting": {
-    title: "Self Hosting",
+  guides: {
+    title: "Guides",
     type: "page",
     theme: {
       toc: false,
     },
   },
-  migrating: {
-    title: "Migrating",
+  _setup: {
+    display: "hidden",
+  },
+  "self-hosting": {
+    title: "Self-Hosting",
     type: "page",
     theme: {
       toc: false,

@@ -7,7 +7,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 <Callout type="info">
   Just getting started? Check out the [essentials
-  guide](/essentials/your-first-task) to declare and run your first task.
+  guide](/get-started/your-first-task) to declare and run your first task.
 </Callout>
 
 Everything you run in Hatchet is a **task** - a named function that you can trigger, retry, schedule, and observe. Tasks can be configured to handle the problems that come up in real systems: transient failures, resource contention, overloaded downstream services, and more.
@@ -33,7 +33,7 @@ At minimum, a task needs a name and a function. The returned object is a **runna
   </Tabs.Tab>
 </UniversalTabs>
 
-When you define a task, you are telling Hatchet: "here is a piece of work that a worker can pick up." The task carries a name, the function to run, and optional configuration. Tasks are registered on [workers](/essentials/workers), which are the long-running processes that actually execute them.
+When you define a task, you are telling Hatchet: "here is a piece of work that a worker can pick up." The task carries a name, the function to run, and optional configuration. Tasks are registered on [workers](/get-started/workers), which are the long-running processes that actually execute them.
 
 ## Task lifecycle
 
@@ -94,7 +94,7 @@ Every task function receives a **context** alongside its input. The context is y
 
 ## How tasks execute on workers
 
-Tasks don't run on their own - they are assigned to and executed by [workers](/essentials/workers). A worker is a long-running process in your infrastructure that registers one or more tasks with Hatchet. When a task is triggered, Hatchet places it in a queue and assigns it to an available worker that has registered that task.
+Tasks don't run on their own - they are assigned to and executed by [workers](/get-started/workers). A worker is a long-running process in your infrastructure that registers one or more tasks with Hatchet. When a task is triggered, Hatchet places it in a queue and assigns it to an available worker that has registered that task.
 
 Each worker has a fixed number of **slots** that determine how many tasks it can run concurrently. When all slots are occupied, new tasks stay queued until a slot opens up. You can control this behavior further with [concurrency limits](/concepts/concurrency), [rate limits](/concepts/rate-limits), and [priority](/concepts/priority).
 

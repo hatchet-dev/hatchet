@@ -4,7 +4,7 @@ import PatternComparison from "@/components/PatternComparison";
 
 # Pre-Determined Pipelines
 
-A **pre-determined pipeline** is a workflow where the sequence of tasks and their dependencies are defined ahead of time as a Directed Acyclic Graph (DAG). Unlike [fanout](/patterns/fanout), where children are spawned dynamically at runtime, pipelines have a fixed structure that is known before execution begins.
+A **pre-determined pipeline** is a workflow where the sequence of tasks and their dependencies are defined ahead of time as a Directed Acyclic Graph (DAG). Unlike [fanout](/guides/fanout), where children are spawned dynamically at runtime, pipelines have a fixed structure that is known before execution begins.
 
 <PipelineDiagram />
 
@@ -80,6 +80,6 @@ Tasks can read the outputs of their parent tasks through the context object. Thi
 ## Next Steps
 
 - [DAG Workflows](/concepts/durable-workflows/directed-acyclic-graphs): full guide to defining workflows with task dependencies
-- [Fanout](/patterns/fanout): dynamically spawn tasks at runtime instead
+- [Fanout](/guides/fanout): dynamically spawn tasks at runtime instead
 - [Concurrency Control](/concepts/concurrency): limit concurrent task execution within a pipeline
 - [Procedural Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): combine pipelines with dynamic child tasks
