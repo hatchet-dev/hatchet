@@ -2,11 +2,12 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import cast
 
 import grpc.aio
 from pydantic import BaseModel
-from typing_extensions import Self
+from typing_extensions import Never, Self
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
@@ -28,7 +29,6 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskWorkerStatusRequest,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
-from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
@@ -36,6 +36,27 @@ from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
+
+
+@dataclass(frozen=True)
+class WaitForEvent:
+    wait_for_conditions: DurableEventListenerConditions
+
+
+@dataclass(frozen=True)
+class RunChildEvent:
+    workflow_name: str
+    input: str | None
+    trigger_workflow_opts: TriggerWorkflowOptions
+
+
+@dataclass(frozen=True)
+class MemoEvent:
+    memo_key: bytes
+    result: str | None
+
+
+DurableTaskSendEvent = WaitForEvent | RunChildEvent | MemoEvent
 
 
 class MaybeCachedMemoEntry(BaseModel):
@@ -379,13 +400,7 @@ class DurableEventListener:
         self,
         durable_task_external_id: str,
         invocation_count: int,
-        kind: DurableTaskEventKind,
-        payload: str | None = None,
-        wait_for_conditions: DurableEventListenerConditions | None = None,
-        # todo: combine these? or separate methods? or overload?
-        workflow_name: str | None = None,
-        trigger_workflow_opts: TriggerWorkflowOptions | None = None,
-        memo_key: bytes | None = None,
+        event: DurableTaskSendEvent,
     ) -> DurableTaskEventAck:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
@@ -394,28 +409,43 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
-        _trigger_opts: trigger_protos.TriggerWorkflowRequest | None = None
-
-        if workflow_name:
+        if isinstance(event, RunChildEvent):
             _trigger_opts = self.admin_client._create_workflow_run_request(
-                workflow_name=workflow_name,
-                input=payload,
-                options=trigger_workflow_opts or TriggerWorkflowOptions(),
+                workflow_name=event.workflow_name,
+                input=event.input,
+                options=event.trigger_workflow_opts,
             )
 
-        event_request = DurableTaskEventRequest(
-            durable_task_external_id=durable_task_external_id,
-            invocation_count=invocation_count,
-            kind=kind,
-            trigger_opts=_trigger_opts,
-            memo_key=memo_key,
-        )
+            event_request = DurableTaskEventRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
+                trigger_opts=_trigger_opts,
+            )
 
-        if payload is not None and not isinstance(payload, bytes):
-            event_request.payload = payload.encode("utf-8")
+        elif isinstance(event, WaitForEvent):
+            event_request = DurableTaskEventRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
+            )
 
-        if wait_for_conditions is not None:
-            event_request.wait_for_conditions.CopyFrom(wait_for_conditions)
+            event_request.wait_for_conditions.CopyFrom(event.wait_for_conditions)
+
+        elif isinstance(event, MemoEvent):
+            event_request = DurableTaskEventRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
+                memo_key=event.memo_key,
+            )
+
+            if event.result is not None:
+                event_request.payload = event.result.encode("utf-8")
+
+        else:
+            e: Never = event
+            raise ValueError(f"Unknown durable task send event: {e}")
 
         await self._request_queue.put(DurableTaskRequest(event=event_request))
 

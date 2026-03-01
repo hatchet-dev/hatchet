@@ -18,6 +18,9 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
+    MemoEvent,
+    RunChildEvent,
+    WaitForEvent,
 )
 from hatchet_sdk.conditions import (
     OrGroup,
@@ -27,7 +30,6 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
@@ -537,9 +539,7 @@ class DurableContext(Context):
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
-            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
-            payload=None,
-            wait_for_conditions=conditions_proto,
+            event=WaitForEvent(wait_for_conditions=conditions_proto),
         )
         node_id = ack.node_id
         branch_id = ack.branch_id
@@ -588,10 +588,11 @@ class DurableContext(Context):
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
-            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
-            payload=workflow._serialize_input(input),
-            workflow_name=workflow.config.name,
-            trigger_workflow_opts=options,
+            event=RunChildEvent(
+                workflow_name=workflow.config.name,
+                input=workflow._serialize_input(input, target="string"),
+                trigger_workflow_opts=options or TriggerWorkflowOptions(),
+            ),
         )
 
         async with aio_durable_eviction_wait(
@@ -652,8 +653,7 @@ class DurableContext(Context):
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=run_external_id,
             invocation_count=self.invocation_count,
-            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
-            memo_key=key,
+            event=MemoEvent(memo_key=key, result=None),
         )
 
         if ack.memo_already_existed and ack.memo_result_payload is None:
