@@ -985,14 +985,15 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
   /**
    * Memoize a function by storing its result in durable storage. Avoids recomputation on replay.
+   *
    * @param fn - The async function to compute the value.
-   * @param args - The arguments to pass to the function. These form the memoization key.
+   * @param deps - Dependency values that form the memoization key.
    * @returns The memoized value, either from durable storage or freshly computed.
    */
-  async memo<R>(fn: (...args: any[]) => Promise<R>, ...args: any[]): Promise<R> {
+  async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
     this.throwIfCancelled();
 
-    const memoKey = computeMemoKey(this.action.taskRunExternalId, args);
+    const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
 
     const ack = await this._durableListener.sendEvent(
       this.action.taskRunExternalId,
@@ -1008,7 +1009,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return JSON.parse(serialized) as R;
     }
 
-    const result = await fn(...args);
+    const result = await fn();
     const serializedResult = new TextEncoder().encode(JSON.stringify(result));
 
     await this._durableListener.sendMemoCompletedNotification(
@@ -1024,7 +1025,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   }
 }
 
-function computeMemoKey(taskRunExternalId: string, args: any[]): Uint8Array {
+function computeMemoKey(taskRunExternalId: string, args: readonly unknown[]): Uint8Array {
   const h = createHash('sha256');
   h.update(taskRunExternalId);
   h.update(JSON.stringify(args));
