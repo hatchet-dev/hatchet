@@ -23,7 +23,6 @@ import {
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
-import { Duration, durationToString } from '../duration';
 import {
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
@@ -38,6 +37,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
+import { Duration, durationToString } from '../duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -262,8 +262,15 @@ export class InternalWorker {
         onFailureTask = {
           readableId: 'on-failure-task',
           action: onFailureTaskName(workflow),
-          timeout: durationToString(onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s'),
-          scheduleTimeout: (onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout) ? durationToString(onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout!) : undefined,
+          timeout: durationToString(
+            onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s'
+          ),
+          scheduleTimeout:
+            onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout
+              ? durationToString(
+                  onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout!
+                )
+              : undefined,
           inputs: '{}',
           parents: [],
           retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
@@ -530,8 +537,7 @@ export class InternalWorker {
             childIndex: 0,
             desiredWorkerId: this.workerId || '',
             signal: context.abortController.signal,
-            durableContext:
-              isDurable && context instanceof DurableContext ? context : undefined,
+            durableContext: isDurable && context instanceof DurableContext ? context : undefined,
           },
           () => {
             throwIfAborted(context.abortController.signal);
@@ -919,14 +925,27 @@ export class InternalWorker {
   }
 
   async handleAction(action: Action) {
-      switch (actionTypeFromJSON(action.actionType) || ActionType.START_STEP_RUN) {
-        case ActionType.START_STEP_RUN:
-          return await this.handleStartStepRun(action);
-        case ActionType.CANCEL_STEP_RUN:
-          return await this.handleCancelStepRun(action);
-        default:
-          this.logger.error(`Worker ${this.name} received unknown action type ${action.actionType}`);
+    const type = actionTypeFromJSON(action.actionType) || ActionType.START_STEP_RUN;
+    switch (type) {
+      case ActionType.START_STEP_RUN:
+        return this.handleStartStepRun(action);
+      case ActionType.CANCEL_STEP_RUN:
+        return this.handleCancelStepRun(action);
+      case ActionType.START_GET_GROUP_KEY:
+        this.logger.error(
+          `Worker ${this.name} received unsupported action type START_GET_GROUP_KEY, please upgrade to V1...`
+        );
+        return Promise.resolve();
+      case ActionType.UNRECOGNIZED:
+        this.logger.error(
+          `Worker ${this.name} received unrecognized action type ${action.actionType}`
+        );
+        return Promise.resolve();
+      default: {
+        const _: never = type;
+        throw new Error(`Unhandled action type: ${_}`);
       }
+    }
   }
 
   async upsertLabels(labels: WorkerLabels) {

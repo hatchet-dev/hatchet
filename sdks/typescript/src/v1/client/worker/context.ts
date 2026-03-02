@@ -858,11 +858,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     return this.action.durableTaskInvocationCount ?? 1;
   }
 
-  private async withEvictionWait<T>(
+  private async withEvictionWait<R>(
     waitKind: string,
     resourceId: string,
-    fn: () => Promise<T>
-  ): Promise<T> {
+    fn: () => Promise<R>
+  ): Promise<R> {
     this._evictionManager?.markWaiting(this.action.taskRunExternalId, waitKind, resourceId);
     try {
       return await fn();
@@ -904,10 +904,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       }
     );
 
-    const resourceId = rendered
-      .map((c) => c.base.readableDataKey)
-      .filter(Boolean)
-      .join(',') || `node:${ack.nodeId}`;
+    const resourceId =
+      rendered
+        .map((c) => c.base.readableDataKey)
+        .filter(Boolean)
+        .join(',') || `node:${ack.nodeId}`;
 
     return this.withEvictionWait('waitFor', resourceId, async () => {
       const result = await this._durableListener.waitForCallback(

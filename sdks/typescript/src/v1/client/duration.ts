@@ -40,5 +40,7 @@ export function durationToMs(d: Duration): number {
   if (!match) return 0;
 
   const [, h, m, s] = match;
-  return (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) * 1000;
+  return (
+    (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) * 1000
+  );
 }
