@@ -876,6 +876,12 @@ func (r *sharedRepository) triggerWorkflows(
 						TriggerPriority:             priority,
 					})
 				} else {
+					labels := tuple.desiredWorkerLabels
+
+					for i, _ := range labels {
+						labels[i].StepId = stepId
+					}
+
 					opt := CreateTaskOpts{
 						ExternalId:           taskExternalId,
 						WorkflowRunId:        tuple.externalId,
@@ -891,7 +897,7 @@ func (r *sharedRepository) triggerWorkflows(
 						ChildIndex:           tuple.childIndex,
 						ChildKey:             tuple.childKey,
 						Priority:             tuple.priority,
-						DesiredWorkerLabels:  tuple.desiredWorkerLabels,
+						DesiredWorkerLabels:  labels,
 					}
 
 					if isDag {
