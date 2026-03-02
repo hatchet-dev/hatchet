@@ -122,7 +122,7 @@ RSpec.describe Hatchet::Features::Cron do
           cron_name: "daily-run",
           expression: "invalid",
         )
-      end.to raise_error(ArgumentError, /Cron expression must have 5 parts/)
+      end.to raise_error(ArgumentError, /Cron expression must have 5 or 6 parts/)
     end
 
     it "raises error for invalid cron parts" do
