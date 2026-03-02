@@ -45,6 +45,7 @@ import {
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
+  OtelSpanList,
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
@@ -737,6 +738,23 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Lists OTel spans for a workflow run
+   *
+   * @tags Observability
+   * @name OtelTracesList
+   * @summary List OTel Traces
+   * @request GET:/api/v1/cloud/workflow-runs/{v1-workflow-run}/traces
+   * @secure
+   */
+  otelTracesList = (v1WorkflowRun: string, params: RequestParams = {}) =>
+    this.request<OtelSpanList, APIErrors>({
+      path: `/api/v1/cloud/workflow-runs/${v1WorkflowRun}/traces`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
   /**

@@ -8,6 +8,7 @@ import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Waterfall } from '../waterfall';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
+import { TaskRunTraces } from './task-run-traces';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Button } from '@/components/v1/ui/button';
@@ -19,6 +20,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
@@ -35,6 +37,7 @@ export enum TabOption {
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
   Logs = 'logs',
+  Traces = 'traces',
   Waterfall = 'waterfall',
   AdditionalMetadata = 'additional-metadata',
   Activity = 'activity',
@@ -106,6 +109,7 @@ export const TaskRunDetail = ({
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const { open } = useSidePanel();
+  const { isCloudEnabled } = useCloud();
   const [logsResetKey, setLogsResetKey] = useState(0);
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -248,6 +252,11 @@ export const TaskRunDetail = ({
               <TabsTrigger variant="underlined" value={TabOption.Logs}>
                 Logs
               </TabsTrigger>
+              {isCloudEnabled && (
+                <TabsTrigger variant="underlined" value={TabOption.Traces}>
+                  Traces
+                </TabsTrigger>
+              )}
               <TabsTrigger
                 variant="underlined"
                 value={TabOption.AdditionalMetadata}
@@ -304,6 +313,13 @@ export const TaskRunDetail = ({
             <TabsContent value={TabOption.Logs}>
               <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
             </TabsContent>
+            {isCloudEnabled && (
+              <TabsContent value={TabOption.Traces}>
+                <TaskRunTraces
+                  workflowRunId={taskRun.workflowRunExternalId || taskRun.metadata.id}
+                />
+              </TabsContent>
+            )}
             <TabsContent value={TabOption.AdditionalMetadata}>
               <CodeHighlighter
                 className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
