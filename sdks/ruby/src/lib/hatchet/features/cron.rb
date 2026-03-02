@@ -139,7 +139,7 @@ module Hatchet
         return stripped if CRON_ALIASES.include?(stripped)
 
         parts = stripped.split
-        raise ArgumentError, "Cron expression must have 5 parts: minute hour day month weekday" unless parts.length == 5
+        raise ArgumentError, "Cron expression must have 5 or 6 parts: (second) minute hour day month weekday" unless parts.length == 5 || parts.length == 6
 
         parts.each do |part|
           unless part == "*" || part.gsub("*/", "").gsub("-", "").gsub(",", "").match?(/\A\d+\z/)
