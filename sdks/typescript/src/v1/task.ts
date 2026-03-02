@@ -245,7 +245,7 @@ export type CreateWorkflowDurableTaskOpts<
 > = CreateWorkflowTaskOpts<I, O, C> & {
   /**
    * Eviction policy for the durable task. Controls TTL-based eviction and capacity-based eviction.
-   * Set to `undefined` to disable eviction.
+   * Defaults to the built-in eviction policy when omitted or `undefined`.
    */
   evictionPolicy?: EvictionPolicy;
 };
