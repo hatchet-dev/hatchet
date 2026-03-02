@@ -158,8 +158,8 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	_, err = t.s.NewJob(
-		// crons have a resolution of 1 second, so check every 1/4th second.
-		gocron.DurationJob(time.Second/4),
+		// crons only have a resolution of 1 minute, so only poll every 15 seconds
+		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
 			t.runPollCronSchedules(ctx),
 		),
