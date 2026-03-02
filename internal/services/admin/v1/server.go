@@ -497,20 +497,8 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		AdditionalMetadata: req.AdditionalMetadata,
 	}
 
-	if req.DesiredWorkerLabel != nil {
-		var comparator *string
-		if req.DesiredWorkerLabel.Comparator != nil {
-			c := req.DesiredWorkerLabel.Comparator.String()
-			comparator = &c
-		}
-
-		t.DesiredWorkerLabel = v1.ProtoToDesiredWorkerLabel(
-			req.DesiredWorkerLabel.StrValue,
-			req.DesiredWorkerLabel.IntValue,
-			req.DesiredWorkerLabel.Required,
-			req.DesiredWorkerLabel.Weight,
-			comparator,
-		)
+	if len(req.DesiredWorkerLabels) > 0 {
+		t.DesiredWorkerLabels = protoMapToDesiredWorkerLabels(req.DesiredWorkerLabels)
 	}
 
 	if req.Priority != nil {
@@ -1131,4 +1119,22 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 	return steps, nil
 }
 
-
+func protoMapToDesiredWorkerLabels(m map[string]*contracts.DesiredWorkerLabels) []*sqlcv1.GetDesiredLabelsRow {
+	labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(m))
+	for key, label := range m {
+		var comparator *string
+		if label.Comparator != nil {
+			c := label.Comparator.String()
+			comparator = &c
+		}
+		labels = append(labels, v1.ProtoToDesiredWorkerLabel(
+			key,
+			label.StrValue,
+			label.IntValue,
+			label.Required,
+			label.Weight,
+			comparator,
+		))
+	}
+	return labels
+}

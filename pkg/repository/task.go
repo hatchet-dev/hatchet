@@ -76,8 +76,8 @@ type CreateTaskOpts struct {
 	// (optional) the child key for the task
 	ChildKey *string
 
-	// (optional) an override for the desired worker label for the task, used for routing a task to a specific worker (or worker pool)
-	DesiredWorkerLabel *sqlcv1.GetDesiredLabelsRow
+	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
 }
 
 type ReplayTasksResult struct {
@@ -1801,10 +1801,10 @@ func (r *sharedRepository) insertTasks(
 
 		priorities[i] = priority
 
-		if task.DesiredWorkerLabel != nil {
-			labelBytes, err := json.Marshal(task.DesiredWorkerLabel)
+		if len(task.DesiredWorkerLabels) > 0 {
+			labelBytes, err := json.Marshal(task.DesiredWorkerLabels)
 			if err != nil {
-				return nil, fmt.Errorf("could not marshal desired worker label: %w", err)
+				return nil, fmt.Errorf("could not marshal desired worker labels: %w", err)
 			}
 			desiredWorkerLabels[i] = labelBytes
 		}

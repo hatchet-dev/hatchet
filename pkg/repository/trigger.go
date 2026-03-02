@@ -65,12 +65,13 @@ type TriggerTaskData struct {
 	// (optional) the priority of the task
 	Priority *int32 `json:"priority"`
 
-	// (optional) an override for the desired worker label for the task, used for routing a task to a specific worker (or worker pool)
-	DesiredWorkerLabel *sqlcv1.GetDesiredLabelsRow `json:"desired_worker_label"`
+	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
 }
 
-func ProtoToDesiredWorkerLabel(strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
+func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
 	row := &sqlcv1.GetDesiredLabelsRow{
+		Key:        key,
 		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
 		Weight:     100,
 	}
@@ -479,7 +480,7 @@ type triggerTuple struct {
 	additionalMetadata   []byte
 	filterPayload        []byte
 	input                []byte
-	desiredWorkerLabel   *sqlcv1.GetDesiredLabelsRow
+	desiredWorkerLabels  []*sqlcv1.GetDesiredLabelsRow
 }
 
 type createCoreUserEventOpts struct {
@@ -890,7 +891,7 @@ func (r *sharedRepository) triggerWorkflows(
 						ChildIndex:           tuple.childIndex,
 						ChildKey:             tuple.childKey,
 						Priority:             tuple.priority,
-						DesiredWorkerLabel:   tuple.desiredWorkerLabel,
+						DesiredWorkerLabels:  tuple.desiredWorkerLabels,
 					}
 
 					if isDag {
@@ -2194,7 +2195,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childIndex:           opt.ChildIndex,
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
-				desiredWorkerLabel:   opt.DesiredWorkerLabel,
+				desiredWorkerLabels:  opt.DesiredWorkerLabels,
 			})
 		}
 	}

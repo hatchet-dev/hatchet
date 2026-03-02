@@ -195,20 +195,21 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint = time.Now()
 
 		stepIds := make([]uuid.UUID, 0, len(qis))
-		stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID]*sqlcv1.GetDesiredLabelsRow)
+		stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepID)
-			var desiredLabel *sqlcv1.GetDesiredLabelsRow
 
 			if len(qi.DesiredWorkerLabel) > 0 {
-				err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
+				var desiredLabels []*sqlcv1.GetDesiredLabelsRow
+
+				err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
 
 				if err != nil {
-					q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+					q.l.Error().Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
 				}
 
-				stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
+				stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabels
 			}
 		}
 
@@ -618,21 +619,21 @@ func (q *Queuer) runOptimisticQueue(
 	}
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
-	stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID]*sqlcv1.GetDesiredLabelsRow)
+	stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)
 
 		if len(qi.DesiredWorkerLabel) > 0 {
-			var desiredLabel *sqlcv1.GetDesiredLabelsRow
+			var desiredLabels []*sqlcv1.GetDesiredLabelsRow
 
-			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
+			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
 
 			if err != nil {
-				q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+				q.l.Error().Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
 			}
 
-			stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
+			stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabels
 		}
 	}
 
