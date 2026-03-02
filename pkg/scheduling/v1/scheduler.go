@@ -609,6 +609,7 @@ func (s *Scheduler) tryAssignBatch(
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
+	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
 ) {
@@ -740,8 +741,15 @@ func (s *Scheduler) tryAssignBatch(
 		qi := qis[i]
 
 		labels := []*sqlcv1.GetDesiredLabelsRow(nil)
+
 		if stepIdsToLabels != nil {
 			labels = stepIdsToLabels[qi.StepID]
+		}
+
+		labelOverrides, ok := taskIdsToLabelOverrides[qi.TaskID]
+
+		if ok {
+			labels = append(labels, labelOverrides...)
 		}
 
 		// Backwards-compatible default: if no slot requests are provided for a step,
@@ -981,6 +989,7 @@ func (s *Scheduler) tryAssign(
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
+	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
 
@@ -1049,7 +1058,7 @@ func (s *Scheduler) tryAssign(
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits)
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, taskIdsToLabelOverrides)
 
 					if err != nil {
 						return err

@@ -587,7 +587,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	return taskIdToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID, stepIdsToLabelsFromTrigger map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
@@ -597,14 +597,6 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
 	for _, stepId := range uniqueStepIds {
-		_, stepHasOverride := stepIdsToLabelsFromTrigger[stepId]
-
-		if stepHasOverride {
-			// if there's an override via the trigger, skip the cache
-			stepIdsToLookup = append(stepIdsToLookup, stepId)
-			continue
-		}
-
 		if value, found := d.stepIdLabelsCache.Get(stepId); found {
 			stepIdToLabels[stepId] = value
 		} else {
@@ -640,17 +632,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
 	}
 
-	for stepId, triggerLabels := range stepIdsToLabelsFromTrigger {
-		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], triggerLabels...)
-	}
-
 	for stepId, labels := range stepIdToLabels {
-		_, stepHasOverride := stepIdsToLabelsFromTrigger[stepId]
-		if stepHasOverride {
-			// if there's an override via the trigger, skip caching
-			continue
-		}
-
 		d.stepIdLabelsCache.Add(stepId, labels)
 	}
 

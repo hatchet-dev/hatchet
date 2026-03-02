@@ -195,7 +195,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint = time.Now()
 
 		stepIds := make([]uuid.UUID, 0, len(qis))
-		stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
+		taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepID)
@@ -209,11 +209,11 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					q.l.Error().Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
 				}
 
-				stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabels
+				taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
 			}
 		}
 
-		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds, stepIdToDesiredLabelsFromTrigger)
+		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds)
 
 		if err != nil {
 			span.RecordError(err)
@@ -241,7 +241,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		getSlotRequestsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -619,7 +619,7 @@ func (q *Queuer) runOptimisticQueue(
 	}
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
-	stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
+	taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)
@@ -633,11 +633,11 @@ func (q *Queuer) runOptimisticQueue(
 				q.l.Error().Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
 			}
 
-			stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabels
+			taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
 		}
 	}
 
-	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds, stepIdToDesiredLabelsFromTrigger)
+	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
 
 	if err != nil {
 		return nil, nil, err
@@ -648,7 +648,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
