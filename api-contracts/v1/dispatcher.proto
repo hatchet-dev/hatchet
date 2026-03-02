@@ -40,10 +40,15 @@ message DurableTaskEventRequest {
     string durable_task_external_id = 2;
     DurableTaskEventKind kind = 3;
     optional bytes payload = 4;
+
+    // Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR
     optional DurableEventListenerConditions wait_for_conditions = 5;
 
     // Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows)
     optional TriggerWorkflowRequest trigger_opts  = 6;
+
+    // Fields for DURABLE_TASK_TRIGGER_KIND_MEMO
+    optional bytes memo_key = 7;
 }
 
 message DurableTaskEventAckResponse {
@@ -51,6 +56,10 @@ message DurableTaskEventAckResponse {
     string durable_task_external_id = 2;
     int64 branch_id = 3;
     int64 node_id = 4;
+
+    // memo fields
+    bool memo_already_existed = 5;
+    optional bytes memo_result_payload = 6;
 }
 
 message DurableTaskEventLogEntryCompletedResponse {
@@ -85,12 +94,22 @@ message DurableTaskWorkerStatusRequest {
 }
 
 
+message DurableTaskCompleteMemoRequest {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+    bytes payload = 5;
+    bytes memo_key = 6;
+}
+
 message DurableTaskRequest {
     oneof message {
         DurableTaskRequestRegisterWorker register_worker = 1;
         DurableTaskEventRequest event = 2;
         DurableTaskEvictInvocationRequest evict_invocation = 3;
         DurableTaskWorkerStatusRequest worker_status = 4;
+        DurableTaskCompleteMemoRequest complete_memo = 5;
     }
 }
 

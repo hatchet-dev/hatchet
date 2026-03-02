@@ -2,6 +2,7 @@ import asyncio
 import time
 
 import pytest
+from uuid import uuid4
 
 from examples.durable.worker import (
     EVENT_KEY,
@@ -14,6 +15,8 @@ from examples.durable.worker import (
     durable_spawn_dag,
     durable_non_determinism,
     durable_replay_reset,
+    memo_task,
+    MemoInput,
 )
 from hatchet_sdk import Hatchet
 
@@ -186,3 +189,22 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
 
     sleeps_to_redo = 3 - node_id + 1
     assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
+    message = str(uuid4())
+    start = time.time()
+    ref = await memo_task.aio_run_no_wait(MemoInput(message=message))
+    result_1 = await ref.aio_result()
+    duration_1 = time.time() - start
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+
+    start = time.time()
+    result_2 = await ref.aio_result()
+    duration_2 = time.time() - start
+
+    assert duration_1 >= SLEEP_TIME
+    assert duration_2 < 1
+    assert result_1.message == result_2.message

@@ -2,17 +2,22 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import cast
 
 import grpc.aio
 from pydantic import BaseModel
-from typing_extensions import Self
+from typing_extensions import Never, Self
 
-from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
+from hatchet_sdk.clients.admin import (
+    AdminClient,
+    TriggerWorkflowOptions,
+)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskAwaitedCompletedEntry,
+    DurableTaskCompleteMemoRequest,
     DurableTaskErrorType,
     DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
@@ -33,11 +38,39 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 
 
+@dataclass(frozen=True)
+class WaitForEvent:
+    wait_for_conditions: DurableEventListenerConditions
+
+
+@dataclass(frozen=True)
+class RunChildEvent:
+    workflow_name: str
+    input: str | None
+    trigger_workflow_opts: TriggerWorkflowOptions
+
+
+@dataclass(frozen=True)
+class MemoEvent:
+    memo_key: bytes
+    result: str | None
+
+
+DurableTaskSendEvent = WaitForEvent | RunChildEvent | MemoEvent
+
+
+class MaybeCachedMemoEntry(BaseModel):
+    found: bool
+    data: bytes | None = None
+
+
 class DurableTaskEventAck(BaseModel):
     invocation_count: int
     durable_task_external_id: str
     branch_id: int
     node_id: int
+    memo_already_existed: bool
+    memo_result_payload: bytes | None = None
 
 
 class DurableTaskEventLogEntryResult(BaseModel):
@@ -271,6 +304,8 @@ class DurableEventListener:
                         durable_task_external_id=trigger_ack.durable_task_external_id,
                         node_id=trigger_ack.node_id,
                         branch_id=trigger_ack.branch_id,
+                        memo_already_existed=trigger_ack.memo_already_existed,
+                        memo_result_payload=trigger_ack.memo_result_payload,
                     )
                 )
                 del self._pending_event_acks[event_key]
@@ -365,12 +400,7 @@ class DurableEventListener:
         self,
         durable_task_external_id: str,
         invocation_count: int,
-        kind: DurableTaskEventKind,
-        payload: str | None = None,
-        wait_for_conditions: DurableEventListenerConditions | None = None,
-        # todo: combine these? or separate methods? or overload?
-        workflow_name: str | None = None,
-        trigger_workflow_opts: TriggerWorkflowOptions | None = None,
+        event: DurableTaskSendEvent,
     ) -> DurableTaskEventAck:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
@@ -379,31 +409,45 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
-        _trigger_opts = (
-            self.admin_client._create_workflow_run_request(
-                workflow_name=workflow_name,
-                input=payload,
-                options=trigger_workflow_opts or TriggerWorkflowOptions(),
+        if isinstance(event, RunChildEvent):
+            _trigger_opts = self.admin_client._create_workflow_run_request(
+                workflow_name=event.workflow_name,
+                input=event.input,
+                options=event.trigger_workflow_opts,
             )
-            if workflow_name
-            else None
-        )
 
-        event_request = DurableTaskEventRequest(
-            durable_task_external_id=durable_task_external_id,
-            invocation_count=invocation_count,
-            kind=kind,
-            trigger_opts=_trigger_opts,
-        )
+            event_request = DurableTaskEventRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
+                trigger_opts=_trigger_opts,
+            )
 
-        if payload is not None:
-            event_request.payload = json.dumps(payload).encode("utf-8")
+        elif isinstance(event, WaitForEvent):
+            event_request = DurableTaskEventRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
+            )
 
-        if wait_for_conditions is not None:
-            event_request.wait_for_conditions.CopyFrom(wait_for_conditions)
+            event_request.wait_for_conditions.CopyFrom(event.wait_for_conditions)
 
-        request = DurableTaskRequest(event=event_request)
-        await self._request_queue.put(request)
+        elif isinstance(event, MemoEvent):
+            event_request = DurableTaskEventRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
+                memo_key=event.memo_key,
+            )
+
+            if event.result is not None:
+                event_request.payload = event.result.encode("utf-8")
+
+        else:
+            e: Never = event
+            raise ValueError(f"Unknown durable task send event: {e}")
+
+        await self._request_queue.put(DurableTaskRequest(event=event_request))
 
         return await future
 
@@ -494,3 +538,28 @@ class DurableEventListener:
                 f"Eviction ack timed out after {self._EVICTION_ACK_TIMEOUT_S:.0f}s "
                 f"for task {durable_task_external_id} invocation {invocation_count}"
             ) from err
+
+    async def send_memo_completed_notification(
+        self,
+        durable_task_external_id: str,
+        node_id: int,
+        branch_id: int,
+        invocation_count: int,
+        memo_key: bytes,
+        memo_result_payload: bytes | None,
+    ) -> None:
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        await self._request_queue.put(
+            DurableTaskRequest(
+                complete_memo=DurableTaskCompleteMemoRequest(
+                    durable_task_external_id=durable_task_external_id,
+                    invocation_count=invocation_count,
+                    branch_id=branch_id,
+                    node_id=node_id,
+                    memo_key=memo_key,
+                    payload=memo_result_payload,
+                )
+            )
+        )

@@ -41,6 +41,7 @@ from examples.durable.worker import (
     durable_spawn_dag,
     durable_non_determinism,
     durable_replay_reset,
+    memo_task,
 )
 from examples.durable_eviction.worker import (
     child_task as eviction_child_task,
@@ -135,6 +136,7 @@ def main() -> None:
             dag_child_workflow,
             durable_non_determinism,
             durable_replay_reset,
+            memo_task,
             evictable_sleep,
             evictable_wait_for_event,
             evictable_child_spawn,
