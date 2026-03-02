@@ -47,7 +47,7 @@ message TriggerWorkflowRunRequest {
     bytes input = 2;
     bytes additional_metadata = 3;
     optional int32 priority = 4;
-    optional string desired_worker_label = 5;
+    optional DesiredWorkerLabels desired_worker_label = 5;
 }
 
 message TriggerWorkflowRunResponse {

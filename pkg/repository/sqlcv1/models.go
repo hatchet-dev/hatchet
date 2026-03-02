@@ -3269,7 +3269,7 @@ type V1QueueItem struct {
 	Sticky             V1StickyStrategy   `json:"sticky"`
 	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
 	RetryCount         int32              `json:"retry_count"`
-	DesiredWorkerLabel pgtype.Text        `json:"desired_worker_label"`
+	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
 }
 
 type V1RateLimitedQueueItems struct {
@@ -3289,7 +3289,7 @@ type V1RateLimitedQueueItems struct {
 	Sticky             V1StickyStrategy   `json:"sticky"`
 	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
 	RetryCount         int32              `json:"retry_count"`
-	DesiredWorkerLabel pgtype.Text        `json:"desired_worker_label"`
+	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
 }
 
 type V1RetryQueueItem struct {
@@ -3396,7 +3396,7 @@ type V1Task struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-	DesiredWorkerLabel           pgtype.Text        `json:"desired_worker_label"`
+	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 }
 
 type V1TaskEvent struct {

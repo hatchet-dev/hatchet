@@ -303,7 +303,7 @@ CREATE TABLE v1_task (
     concurrency_keys TEXT[],
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
-    desired_worker_label TEXT,
+    desired_worker_label JSONB,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -383,7 +383,7 @@ CREATE TABLE v1_queue_item (
     sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
-    desired_worker_label TEXT,
+    desired_worker_label JSONB,
     CONSTRAINT v1_queue_item_pkey PRIMARY KEY (id)
 );
 
@@ -497,7 +497,7 @@ CREATE TABLE v1_rate_limited_queue_items (
     sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
-    desired_worker_label TEXT,
+    desired_worker_label JSONB,
 
     CONSTRAINT v1_rate_limited_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );

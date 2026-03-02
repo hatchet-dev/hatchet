@@ -917,7 +917,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-	DesiredWorkerLabel           pgtype.Text        `json:"desired_worker_label"`
+	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {

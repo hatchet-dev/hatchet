@@ -2,9 +2,9 @@
 -- +goose StatementBegin
 
 -- todo: wire up rate limited queue items, wire up queue items, modify triggers
-ALTER TABLE v1_queue_item ADD COLUMN desired_worker_label TEXT;
-ALTER TABLE v1_rate_limited_queue_items ADD COLUMN desired_worker_label TEXT;
-ALTER TABLE v1_task ADD COLUMN desired_worker_label TEXT;
+ALTER TABLE v1_queue_item ADD COLUMN desired_worker_label JSONB;
+ALTER TABLE v1_rate_limited_queue_items ADD COLUMN desired_worker_label JSONB;
+ALTER TABLE v1_task ADD COLUMN desired_worker_label JSONB;
 
 CREATE OR REPLACE FUNCTION v1_concurrency_slot_update_function()
 RETURNS TRIGGER AS
