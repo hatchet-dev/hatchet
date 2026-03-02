@@ -12,13 +12,13 @@ The runs client is a client for interacting with task and workflow runs within H
 
 Cancels a task or workflow run by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter | Type            | Description                           |
 | --------- | --------------- | ------------------------------------- |
 | `opts`    | `CancelRunOpts` | The options for the cancel operation. |
 
-**Returns**
+Returns
 
 `Promise`\<`AxiosResponse`\<`V1CancelledTasks`, `any`, \{
 \}\>\>
@@ -31,13 +31,13 @@ A promise that resolves to the cancelled run.
 
 Gets a task or workflow run by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                                | Description               |
 | --------- | ----------------------------------- | ------------------------- |
 | `run`     | `string` \| `WorkflowRunRef`\<`T`\> | The ID of the run to get. |
 
-**Returns**
+Returns
 
 `Promise`\<`V1WorkflowRunDetails`\>
 
@@ -49,13 +49,13 @@ A promise that resolves to the run.
 
 Gets the status of a task or workflow run by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                                | Description                             |
 | --------- | ----------------------------------- | --------------------------------------- |
 | `run`     | `string` \| `WorkflowRunRef`\<`T`\> | The ID of the run to get the status of. |
 
-**Returns**
+Returns
 
 `Promise`\<`V1TaskStatus`\>
 
@@ -67,13 +67,13 @@ A promise that resolves to the status of the run.
 
 Lists all task and workflow runs for the current tenant.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                        | Description                         |
 | --------- | --------------------------- | ----------------------------------- |
 | `opts?`   | `Partial`\<`ListRunsOpts`\> | The options for the list operation. |
 
-**Returns**
+Returns
 
 `Promise`\<`V1TaskSummaryList`\>
 
@@ -85,13 +85,13 @@ A promise that resolves to the list of runs.
 
 Replays a task or workflow run by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter | Type            | Description                           |
 | --------- | --------------- | ------------------------------------- |
 | `opts`    | `ReplayRunOpts` | The options for the replay operation. |
 
-**Returns**
+Returns
 
 `Promise`\<`AxiosResponse`\<`V1ReplayedTasks`, `any`, \{
 \}\>\>
@@ -104,13 +104,13 @@ A promise that resolves to the replayed run.
 
 Creates a run reference for a task or workflow run by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter | Type     | Description                                  |
 | --------- | -------- | -------------------------------------------- |
 | `id`      | `string` | The ID of the run to create a reference for. |
 
-**Returns**
+Returns
 
 `WorkflowRunRef`\<`T`\>
 
@@ -122,13 +122,13 @@ A promise that resolves to the run reference.
 
 Subscribes to a stream of events for a task or workflow run by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter       | Type     | Description                        |
 | --------------- | -------- | ---------------------------------- |
 | `workflowRunId` | `string` | The ID of the run to subscribe to. |
 
-**Returns**
+Returns
 
 `AsyncIterableIterator`\<`string`\>
 

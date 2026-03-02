@@ -36,7 +36,7 @@ const ref = await greet.runNoWait({ name: "World" });
 
 Creates a cron schedule for the task.
 
-**Parameters**
+Parameters
 
 | Parameter    | Type                | Description                                                 |
 | ------------ | ------------------- | ----------------------------------------------------------- |
@@ -45,13 +45,13 @@ Creates a cron schedule for the task.
 | `input`      | `I` & `GlobalInput` | The input data for the task, including global input fields. |
 | `options?`   | `RunOpts`           | Optional configuration for this task run.                   |
 
-**Returns**
+Returns
 
 `Promise`\<`CronWorkflows`\>
 
 A promise that resolves with the cron workflow details.
 
-**Overrides**
+Overrides
 
 ```ts
 BaseWorkflowDeclaration.cron;
@@ -63,7 +63,7 @@ BaseWorkflowDeclaration.cron;
 
 Schedules the task to run after a specified delay.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                | Description                                                 |
 | ---------- | ------------------- | ----------------------------------------------------------- |
@@ -71,13 +71,13 @@ Schedules the task to run after a specified delay.
 | `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
 | `options?` | `RunOpts`           | Optional configuration for this task run.                   |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflows`\>
 
 A promise that resolves with the scheduled workflow details.
 
-**Overrides**
+Overrides
 
 ```ts
 BaseWorkflowDeclaration.delay;
@@ -89,20 +89,20 @@ BaseWorkflowDeclaration.delay;
 
 Triggers a task run and waits for the result.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                | Description                                                 |
 | ---------- | ------------------- | ----------------------------------------------------------- |
 | `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
 | `options?` | `RunOpts`           | Optional configuration for this task run.                   |
 
-**Returns**
+Returns
 
-`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
+`Promise`\<`O` & `Resolved`\<..., ...\>\>
 
 A promise that resolves with the task output merged with post-middleware fields.
 
-**Overrides**
+Overrides
 
 ```ts
 BaseWorkflowDeclaration.run;
@@ -114,20 +114,20 @@ BaseWorkflowDeclaration.run;
 
 Triggers a task run and waits for the result.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                | Description                                                 |
 | ---------- | ------------------- | ----------------------------------------------------------- |
 | `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
 | `options?` | `RunOpts`           | Optional configuration for this task run.                   |
 
-**Returns**
+Returns
 
-`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
+`Promise`\<`O` & `Resolved`\<..., ...\>\>
 
 A promise that resolves with the task output merged with post-middleware fields.
 
-**Overrides**
+Overrides
 
 ```ts
 BaseWorkflowDeclaration.runAndWait;
@@ -139,20 +139,20 @@ BaseWorkflowDeclaration.runAndWait;
 
 Triggers a task run without waiting for completion.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                | Description                                                 |
 | ---------- | ------------------- | ----------------------------------------------------------- |
 | `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
 | `options?` | `RunOpts`           | Optional configuration for this task run.                   |
 
-**Returns**
+Returns
 
-`Promise`\<`WorkflowRunRef`\<`O` & `Resolved`\<..., ...\>\>\>
+`Promise`\<`WorkflowRunRef`\<... & ...\>\>
 
 A WorkflowRunRef containing the run ID and methods to get results.
 
-**Overrides**
+Overrides
 
 ```ts
 BaseWorkflowDeclaration.runNoWait;
@@ -160,20 +160,20 @@ BaseWorkflowDeclaration.runNoWait;
 
 Triggers a task run without waiting for completion.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                  | Description                                                 |
 | ---------- | --------------------- | ----------------------------------------------------------- |
 | `input`    | `I` & `GlobalInput`[] | The input data for the task, including global input fields. |
 | `options?` | `RunOpts`             | Optional configuration for this task run.                   |
 
-**Returns**
+Returns
 
-`Promise`\<`WorkflowRunRef`\<... & ...\>[]\>
+`Promise`\<`WorkflowRunRef`\<...\>[]\>
 
 A WorkflowRunRef containing the run ID and methods to get results.
 
-**Overrides**
+Overrides
 
 ```ts
 BaseWorkflowDeclaration.runNoWait;
@@ -185,7 +185,7 @@ BaseWorkflowDeclaration.runNoWait;
 
 Schedules the task to run at a specific date and time.
 
-**Parameters**
+Parameters
 
 | Parameter   | Type                | Description                                                 |
 | ----------- | ------------------- | ----------------------------------------------------------- |
@@ -193,13 +193,13 @@ Schedules the task to run at a specific date and time.
 | `input`     | `I` & `GlobalInput` | The input data for the task, including global input fields. |
 | `options?`  | `RunOpts`           | Optional configuration for this task run.                   |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflows`\>
 
 A promise that resolves with the scheduled workflow details.
 
-**Overrides**
+Overrides
 
 ```ts
 BaseWorkflowDeclaration.schedule;
@@ -260,13 +260,13 @@ Adds a durable task to the workflow.
 The return type will be either the property on O that corresponds to the task name,
 or if there is no matching property, the inferred return type of the function.
 
-**Parameters**
+Parameters
 
-| Parameter | Type                                                               | Description                     |
-| --------- | ------------------------------------------------------------------ | ------------------------------- |
-| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<`I`, `TO`\>, `"fn"`\> & `object` | The task configuration options. |
+| Parameter | Type                                                              | Description                     |
+| --------- | ----------------------------------------------------------------- | ------------------------------- |
+| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
 
-**Returns**
+Returns
 
 `CreateWorkflowDurableTaskOpts`\<`I`, `TO`\>
 
@@ -279,13 +279,13 @@ The task options that were added.
 Adds an onFailure task to the workflow.
 This will only run if any task in the workflow fails.
 
-**Parameters**
+Parameters
 
-| Parameter | Type                                                                                                                                                                       | Description                     |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| `Omit`\<`CreateOnFailureTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
+| Parameter | Type                                                                                                                                  | Description                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<..., ...\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
 
-**Returns**
+Returns
 
 `CreateWorkflowTaskOpts`\<`I`, `TaskOutputType`\<`O`, `Name`, `L`\>\>
 
@@ -298,13 +298,13 @@ The task options that were added.
 Adds an onSuccess task to the workflow.
 This will only run if all tasks in the workflow complete successfully.
 
-**Parameters**
+Parameters
 
-| Parameter | Type                                                                                                                                                                       | Description                     |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> \| `Omit`\<`CreateOnSuccessTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
+| Parameter | Type                                                                                                                                  | Description                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> \| `Omit`\<..., ...\> & `object` | The task configuration options. |
 
-**Returns**
+Returns
 
 `CreateWorkflowTaskOpts`\<`I`, `TaskOutputType`\<`O`, `Name`, `L`\>\>
 
@@ -318,13 +318,13 @@ Adds a task to the workflow.
 The return type will be either the property on O that corresponds to the task name,
 or if there is no matching property, the inferred return type of the function.
 
-**Parameters**
+Parameters
 
-| Parameter | Type                                                                                                                                                                   | Description                     |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| `Omit`\<`CreateWorkflowTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `TO`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
+| Parameter | Type                                                                                                                               | Description                     |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<..., ...\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `TO`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
 
-**Returns**
+Returns
 
 `CreateWorkflowTaskOpts`\<`I`, `TO`\>
 
@@ -338,14 +338,14 @@ The task options that were added.
 
 Creates a new durable task workflow declaration with types inferred from the function parameter.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                                                                     | Description                             |
 | --------- | ------------------------------------------------------------------------ | --------------------------------------- |
-| `options` | `object` & `Omit`\<`CreateWorkflowDurableTaskOpts`\<`I`, `O`\>, `"fn"`\> | The durable task configuration options. |
+| `options` | `object` & `Omit`\<`CreateWorkflowDurableTaskOpts`\<..., ...\>, `"fn"`\> | The durable task configuration options. |
 | `client?` | `IHatchetClient`                                                         | Optional Hatchet client instance.       |
 
-**Returns**
+Returns
 
 [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
 
@@ -359,14 +359,14 @@ A new TaskWorkflowDeclaration with inferred types.
 
 Creates a new task workflow declaration with types inferred from the function parameter.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                                                              | Description                       |
 | --------- | ----------------------------------------------------------------- | --------------------------------- |
-| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | The task configuration options.   |
+| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<..., ...\>, `"fn"`\> | The task configuration options.   |
 | `client?` | `IHatchetClient`                                                  | Optional Hatchet client instance. |
 
-**Returns**
+Returns
 
 [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
 
@@ -380,14 +380,14 @@ A new TaskWorkflowDeclaration with inferred types.
 
 Creates a new workflow instance.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                 | Description                                                                                                                             |
 | --------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `options` | `CreateWorkflowOpts` | The options for creating the workflow. Optionally include a Zod schema via the `input` field to generate a JSON Schema for the backend. |
 | `client?` | `IHatchetClient`     | Optional Hatchet client instance.                                                                                                       |
 
-**Returns**
+Returns
 
 [`WorkflowDeclaration`](#workflowdeclaration)\<`I`, `O`\>
 

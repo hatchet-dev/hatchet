@@ -14,13 +14,13 @@ NOTE: that workflows are the declaration, not the individual runs. If you're loo
 
 Delete a workflow by its name, ID, or object.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                                                                | Description                       |
 | ---------- | ------------------------------------------------------------------- | --------------------------------- |
 | `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
 
-**Returns**
+Returns
 
 `Promise`\<`void`\>
 
@@ -32,13 +32,13 @@ A promise that resolves to the deleted workflow.
 
 Get a workflow by its name, ID, or object.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                                                                | Description                       |
 | ---------- | ------------------------------------------------------------------- | --------------------------------- |
 | `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
 
-**Returns**
+Returns
 
 `Promise`\<`Workflow`\>
 
@@ -51,13 +51,13 @@ A promise that resolves to the workflow.
 Gets the workflow ID from a workflow name, ID, or object.
 If the input is not a valid UUID, it will look up the workflow by name.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                                                                                           | Description                       |
 | ---------- | ---------------------------------------------------------------------------------------------- | --------------------------------- |
 | `workflow` | \| `string` \| `WorkflowDefinition` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
 
-**Returns**
+Returns
 
 `Promise`\<`string`\>
 
@@ -69,16 +69,16 @@ The workflow ID as a string.
 
 List all workflows in the tenant.
 
-**Parameters**
+Parameters
 
-| Parameter      | Type                                                              | Description                                            |
-| -------------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
-| `opts?`        | \{ `limit?`: `number`; `name?`: `string`; `offset?`: `number`; \} | The options for the list operation.                    |
-| `opts.limit?`  | `number`                                                          | The number to limit by **Format** int **Default** `50` |
-| `opts.name?`   | `string`                                                          | Search by name                                         |
-| `opts.offset?` | `number`                                                          | The number to skip **Format** int **Default** `0`      |
+| Parameter      | Type                                                                    | Description                                            |
+| -------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| `opts?`        | \{ `limit?`: ... \| ...; `name?`: ... \| ...; `offset?`: ... \| ...; \} | The options for the list operation.                    |
+| `opts.limit?`  | ... \| ...                                                              | The number to limit by **Format** int **Default** `50` |
+| `opts.name?`   | ... \| ...                                                              | Search by name                                         |
+| `opts.offset?` | ... \| ...                                                              | The number to skip **Format** int **Default** `0`      |
 
-**Returns**
+Returns
 
 `Promise`\<`WorkflowList`\>
 

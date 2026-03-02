@@ -12,15 +12,15 @@ The scheduled client is a client for managing scheduled workflows within Hatchet
 
 Bulk deletes scheduled runs (by explicit IDs and/or a filter).
 
-**Parameters**
+Parameters
 
-| Parameter             | Type                                                                                     | Description                                                       |
-| --------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `opts`                | \{ `filter?`: `ScheduledWorkflowsBulkDeleteFilter`; `scheduledRuns?`: (... \| ...)[]; \} | Either `scheduledRuns` (ids/objects) and/or a server-side filter. |
-| `opts.filter?`        | `ScheduledWorkflowsBulkDeleteFilter`                                                     | -                                                                 |
-| `opts.scheduledRuns?` | (... \| ...)[]                                                                           | -                                                                 |
+| Parameter             | Type                                                                            | Description                                                       |
+| --------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `opts`                | \{ `filter?`: `ScheduledWorkflowsBulkDeleteFilter`; `scheduledRuns?`: ...[]; \} | Either `scheduledRuns` (ids/objects) and/or a server-side filter. |
+| `opts.filter?`        | `ScheduledWorkflowsBulkDeleteFilter`                                            | -                                                                 |
+| `opts.scheduledRuns?` | ...[]                                                                           | -                                                                 |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflowsBulkDeleteResponse`\>
 
@@ -32,13 +32,13 @@ A promise that resolves to deleted ids + per-id errors.
 
 Bulk updates (reschedules) scheduled runs.
 
-**Parameters**
+Parameters
 
 | Parameter | Type       | Description                        |
 | --------- | ---------- | ---------------------------------- |
 | `updates` | `object`[] | List of id/object + new triggerAt. |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflowsBulkUpdateResponse`\>
 
@@ -50,24 +50,24 @@ A promise that resolves to updated ids + per-id errors.
 
 Creates a new Scheduled Run.
 
-**Parameters**
+Parameters
 
-| Parameter                  | Type                                                                                                                                            | Description                           |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `workflow`                 | `string` \| `Workflow`                                                                                                                          | The workflow name or Workflow object. |
-| `cron`                     | \{ `additionalMetadata?`: `Record`\<`string`, `string`\>; `input?`: `Record`\<`string`, `any`\>; `priority?`: `number`; `triggerAt`: `Date`; \} | -                                     |
-| `cron.additionalMetadata?` | `Record`\<`string`, `string`\>                                                                                                                  | -                                     |
-| `cron.input?`              | `Record`\<`string`, `any`\>                                                                                                                     | -                                     |
-| `cron.priority?`           | `number`                                                                                                                                        | -                                     |
-| `cron.triggerAt`           | `Date`                                                                                                                                          | -                                     |
+| Parameter                  | Type                                                                                                                           | Description                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `workflow`                 | `string` \| `Workflow`                                                                                                         | The workflow name or Workflow object. |
+| `cron`                     | \{ `additionalMetadata?`: `Record`\<..., ...\>; `input?`: `Record`\<..., ...\>; `priority?`: `number`; `triggerAt`: `Date`; \} | -                                     |
+| `cron.additionalMetadata?` | `Record`\<..., ...\>                                                                                                           | -                                     |
+| `cron.input?`              | `Record`\<..., ...\>                                                                                                           | -                                     |
+| `cron.priority?`           | `number`                                                                                                                       | -                                     |
+| `cron.triggerAt`           | `Date`                                                                                                                         | -                                     |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflows`\>
 
 A promise that resolves to the created ScheduledWorkflows object.
 
-**Throws**
+Throws
 
 Will throw an error if the input is invalid or the API call fails.
 
@@ -77,13 +77,13 @@ Will throw an error if the input is invalid or the API call fails.
 
 Deletes an existing Scheduled Run.
 
-**Parameters**
+Parameters
 
 | Parameter      | Type                             | Description                                                    |
 | -------------- | -------------------------------- | -------------------------------------------------------------- |
 | `scheduledRun` | `string` \| `ScheduledWorkflows` | The Scheduled Run ID as a string or ScheduledWorkflows object. |
 
-**Returns**
+Returns
 
 `Promise`\<`void`\>
 
@@ -95,13 +95,13 @@ A promise that resolves when the Scheduled Run is deleted.
 
 Retrieves a specific Scheduled Run by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter      | Type                             | Description                                                    |
 | -------------- | -------------------------------- | -------------------------------------------------------------- |
 | `scheduledRun` | `string` \| `ScheduledWorkflows` | The Scheduled Run ID as a string or ScheduledWorkflows object. |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflows`\>
 
@@ -113,13 +113,13 @@ A promise that resolves to the ScheduledWorkflows object.
 
 Lists all Cron Triggers based on the provided query parameters.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                | Description                                  |
 | --------- | ------------------- | -------------------------------------------- |
 | `query`   | `object` & `object` | Query parameters for listing Scheduled Runs. |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflowsList`\>
 
@@ -131,7 +131,7 @@ A promise that resolves to a ScheduledWorkflowsList object.
 
 Updates (reschedules) an existing Scheduled Run.
 
-**Parameters**
+Parameters
 
 | Parameter          | Type                             | Description                                                    |
 | ------------------ | -------------------------------- | -------------------------------------------------------------- |
@@ -139,7 +139,7 @@ Updates (reschedules) an existing Scheduled Run.
 | `update`           | \{ `triggerAt`: `Date`; \}       | The update payload (currently only triggerAt).                 |
 | `update.triggerAt` | `Date`                           | -                                                              |
 
-**Returns**
+Returns
 
 `Promise`\<`ScheduledWorkflows`\>
 

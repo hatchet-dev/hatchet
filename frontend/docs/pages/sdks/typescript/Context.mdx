@@ -11,7 +11,7 @@ There are two types of context classes you'll encounter:
 
 ### Context
 
-**Extended by**
+Extended by
 
 - [`DurableContext`](#durablecontext)
 
@@ -23,7 +23,7 @@ There are two types of context classes you'll encounter:
 
 Retrieves additional metadata associated with the current workflow run.
 
-**Returns**
+Returns
 
 `Record`\<`string`, `string`\>
 
@@ -35,13 +35,13 @@ A record of metadata key-value pairs.
 
 Runs multiple children workflows in parallel and waits for all results.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type       | Description                                                                                  |
 | ---------- | ---------- | -------------------------------------------------------------------------------------------- |
 | `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
 
-**Returns**
+Returns
 
 `Promise`\<`P`[]\>
 
@@ -53,15 +53,15 @@ A list of results from the children workflows.
 
 Runs multiple children workflows in parallel without waiting for their results.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type       | Description                                                                                  |
 | ---------- | ---------- | -------------------------------------------------------------------------------------------- |
 | `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
 
-**Returns**
+Returns
 
-`Promise`\<`WorkflowRunRef`\<`P`\>[]\>
+`Promise`\<`WorkflowRunRef`\<...\>[]\>
 
 A list of workflow run references to the enqueued runs.
 
@@ -71,7 +71,7 @@ A list of workflow run references to the enqueued runs.
 
 Gets the index of this workflow if it was spawned as part of a bulk operation.
 
-**Returns**
+Returns
 
 `number` \| `undefined`
 
@@ -83,7 +83,7 @@ The child index number, or undefined if not set.
 
 Gets the key associated with this workflow if it was spawned as a child workflow.
 
-**Returns**
+Returns
 
 `string` \| `undefined`
 
@@ -95,13 +95,13 @@ The child key, or undefined if not set.
 
 Returns errors from any task runs in the workflow.
 
-**Returns**
+Returns
 
 `Record`\<`string`, `string`\>
 
 A record mapping task names to error messages.
 
-**Throws**
+Throws
 
 A warning if no errors are found (this method should be used in on-failure tasks).
 
@@ -111,7 +111,7 @@ A warning if no errors are found (this method should be used in on-failure tasks
 
 Gets the payload from the filter that matched when triggering the event.
 
-**Returns**
+Returns
 
 `Record`\<`string`, `any`\>
 
@@ -123,19 +123,19 @@ The payload.
 
 Retrieves the output of a parent task.
 
-**Parameters**
+Parameters
 
 | Parameter    | Type                                                                                                   | Description                                             |
 | ------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
 | `parentTask` | \| `string` \| `CreateWorkflowTaskOpts`\<`any`, `L`\> \| `CreateWorkflowDurableTaskOpts`\<`any`, `L`\> | The a CreateTaskOpts or string of the parent task name. |
 
-**Returns**
+Returns
 
 `Promise`\<`L`\>
 
 The output of the specified parent task.
 
-**Throws**
+Throws
 
 An error if the task output is not found.
 
@@ -145,7 +145,7 @@ An error if the task output is not found.
 
 Gets the ID of the parent workflow run if this workflow was spawned as a child.
 
-**Returns**
+Returns
 
 `string` \| `undefined`
 
@@ -157,13 +157,13 @@ The parent workflow run ID, or undefined if not a child workflow.
 
 Streams data from the current task run.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                                          | Description                            |
 | --------- | --------------------------------------------- | -------------------------------------- |
 | `data`    | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | The data to stream (string or binary). |
 
-**Returns**
+Returns
 
 `Promise`\<`void`\>
 
@@ -175,13 +175,13 @@ A promise that resolves when the data has been streamed.
 
 Refreshes the timeout for the current task.
 
-**Parameters**
+Parameters
 
 | Parameter     | Type       | Description                                                                                                                                                   |
 | ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `incrementBy` | `Duration` | The interval by which to increment the timeout. The interval should be specified in the format of '10s' for 10 seconds, '1m' for 1 minute, or '1d' for 1 day. |
 
-**Returns**
+Returns
 
 `Promise`\<`void`\>
 
@@ -192,7 +192,7 @@ Refreshes the timeout for the current task.
 Releases a worker slot for a task run such that the worker can pick up another task.
 Note: this is an advanced feature that may lead to unexpected behavior if used incorrectly.
 
-**Returns**
+Returns
 
 `Promise`\<`void`\>
 
@@ -210,13 +210,13 @@ Example:
 try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
 ```
 
-**Parameters**
+Parameters
 
 | Parameter | Type      |
 | --------- | --------- |
 | `err`     | `unknown` |
 
-**Returns**
+Returns
 
 `void`
 
@@ -226,7 +226,7 @@ try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
 
 Gets the number of times the current task has been retried.
 
-**Returns**
+Returns
 
 `number`
 
@@ -238,7 +238,7 @@ The retry count.
 
 Runs a new workflow and waits for its result.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                                                                                                                                                               | Description                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
@@ -246,7 +246,7 @@ Runs a new workflow and waits for its result.
 | `input`    | `Q`                                                                                                                                                                | The input data for the workflow.                                            |
 | `options?` | `ChildRunOpts`                                                                                                                                                     | An options object containing key, sticky, priority, and additionalMetadata. |
 
-**Returns**
+Returns
 
 `Promise`\<`P`\>
 
@@ -258,7 +258,7 @@ The result of the workflow.
 
 Enqueues a new workflow without waiting for its result.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                                              | Description                                                                 |
 | ---------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
@@ -266,7 +266,7 @@ Enqueues a new workflow without waiting for its result.
 | `input`    | `Q`                                               | The input data for the workflow.                                            |
 | `options?` | `ChildRunOpts`                                    | An options object containing key, sticky, priority, and additionalMetadata. |
 
-**Returns**
+Returns
 
 `Promise`\<`WorkflowRunRef`\<`P`\>\>
 
@@ -278,7 +278,7 @@ A reference to the spawned workflow run.
 
 Gets the name of the current running task.
 
-**Returns**
+Returns
 
 `string`
 
@@ -290,7 +290,7 @@ The name of the task.
 
 Gets the ID of the current task run.
 
-**Returns**
+Returns
 
 `string`
 
@@ -302,7 +302,7 @@ The task run ID.
 
 Determines if the workflow was triggered by an event.
 
-**Returns**
+Returns
 
 `boolean`
 
@@ -314,7 +314,7 @@ True if the workflow was triggered by an event, otherwise false.
 
 Gets the dag conditional triggers for the current workflow run.
 
-**Returns**
+Returns
 
 `TriggerData`
 
@@ -326,7 +326,7 @@ The triggers for the current workflow.
 
 Gets the user data associated with the workflow.
 
-**Returns**
+Returns
 
 `K`
 
@@ -338,7 +338,7 @@ The user data.
 
 Gets the workflow ID of the currently running workflow.
 
-**Returns**
+Returns
 
 `string` \| `undefined`
 
@@ -350,7 +350,7 @@ The workflow id.
 
 Gets the name of the current workflow.
 
-**Returns**
+Returns
 
 `string`
 
@@ -362,7 +362,7 @@ The name of the workflow.
 
 Gets the ID of the current workflow run.
 
-**Returns**
+Returns
 
 `string`
 
@@ -374,7 +374,7 @@ The workflow run ID.
 
 Gets the workflow version ID of the currently running workflow.
 
-**Returns**
+Returns
 
 `string` \| `undefined`
 
@@ -396,13 +396,13 @@ ContextWorker is a wrapper around the V1Worker class that provides a more user-f
 
 Checks if the worker has a registered workflow.
 
-**Parameters**
+Parameters
 
 | Parameter      | Type     | Description                        |
 | -------------- | -------- | ---------------------------------- |
 | `workflowName` | `string` | The name of the workflow to check. |
 
-**Returns**
+Returns
 
 `boolean`
 
@@ -414,7 +414,7 @@ True if the workflow is registered, otherwise false.
 
 Gets the ID of the worker.
 
-**Returns**
+Returns
 
 `string` \| `undefined`
 
@@ -426,7 +426,7 @@ The ID of the worker.
 
 Gets the current state of the worker labels.
 
-**Returns**
+Returns
 
 `WorkerLabels`
 
@@ -438,13 +438,13 @@ The labels of the worker.
 
 Upserts the a set of labels on the worker.
 
-**Parameters**
+Parameters
 
 | Parameter | Type           | Description           |
 | --------- | -------------- | --------------------- |
 | `labels`  | `WorkerLabels` | The labels to upsert. |
 
-**Returns**
+Returns
 
 `Promise`\<`WorkerLabels`\>
 
@@ -459,7 +459,7 @@ A promise that resolves when the labels have been upserted.
 DurableContext provides helper methods and useful data to durable tasks at runtime.
 It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
 
-**Extends**
+Extends
 
 - [`Context`](#context)\<`T`, `K`\>
 
@@ -472,14 +472,14 @@ It extends the Context class and includes additional methods for durable executi
 Pauses execution for the specified duration.
 Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
 
-**Parameters**
+Parameters
 
 | Parameter          | Type       | Description                |
 | ------------------ | ---------- | -------------------------- |
 | `duration`         | `Duration` | The duration to sleep for. |
 | `readableDataKey?` | `string`   | -                          |
 
-**Returns**
+Returns
 
 `Promise`\<`Record`\<`string`, `any`\>\>
 
@@ -492,13 +492,13 @@ A promise that resolves when the sleep duration has elapsed.
 Pauses execution until the specified conditions are met.
 Conditions are "global" meaning they will wait in real time regardless of transient failures like worker restarts.
 
-**Parameters**
+Parameters
 
 | Parameter    | Type                           | Description                 |
 | ------------ | ------------------------------ | --------------------------- |
 | `conditions` | `Conditions` \| `Conditions`[] | The conditions to wait for. |
 
-**Returns**
+Returns
 
 `Promise`\<`Record`\<`string`, `any`\>\>
 

@@ -12,13 +12,13 @@ The filters client is a client for interacting with Hatchet's filters API.
 
 Creates a new filter.
 
-**Parameters**
+Parameters
 
 | Parameter | Type                    | Description                           |
 | --------- | ----------------------- | ------------------------------------- |
 | `opts`    | `V1CreateFilterRequest` | The options for the create operation. |
 
-**Returns**
+Returns
 
 `Promise`\<`V1Filter`\>
 
@@ -30,13 +30,13 @@ A promise that resolves to the created filter.
 
 Deletes a filter by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type     | Description                     |
 | ---------- | -------- | ------------------------------- |
 | `filterId` | `string` | The ID of the filter to delete. |
 
-**Returns**
+Returns
 
 `Promise`\<`V1Filter`\>
 
@@ -48,13 +48,13 @@ A promise that resolves to the deleted filter.
 
 Gets a filter by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type     | Description                  |
 | ---------- | -------- | ---------------------------- |
 | `filterId` | `string` | The ID of the filter to get. |
 
-**Returns**
+Returns
 
 `Promise`\<`V1Filter`\>
 
@@ -66,17 +66,17 @@ A promise that resolves to the filter.
 
 Lists all filters.
 
-**Parameters**
+Parameters
 
-| Parameter           | Type                                                                                    | Description                                                    |
-| ------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `opts?`             | \{ `limit?`: `number`; `offset?`: `number`; `scopes?`: ...[]; `workflowIds?`: ...[]; \} | The options for the list operation.                            |
-| `opts.limit?`       | `number`                                                                                | The number of filters to return.                               |
-| `opts.offset?`      | `number`                                                                                | The number of filters to skip before returning the result set. |
-| `opts.scopes?`      | ...[]                                                                                   | A list of scopes to filter by.                                 |
-| `opts.workflowIds?` | ...[]                                                                                   | A list of workflow IDs to filter by.                           |
+| Parameter           | Type                                                                                                  | Description                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `opts?`             | \{ `limit?`: ... \| ...; `offset?`: ... \| ...; `scopes?`: ... \| ...; `workflowIds?`: ... \| ...; \} | The options for the list operation.                            |
+| `opts.limit?`       | ... \| ...                                                                                            | The number of filters to return.                               |
+| `opts.offset?`      | ... \| ...                                                                                            | The number of filters to skip before returning the result set. |
+| `opts.scopes?`      | ... \| ...                                                                                            | A list of scopes to filter by.                                 |
+| `opts.workflowIds?` | ... \| ...                                                                                            | A list of workflow IDs to filter by.                           |
 
-**Returns**
+Returns
 
 `Promise`\<`V1FilterList`\>
 
@@ -88,14 +88,14 @@ A promise that resolves to the list of filters.
 
 Updates a filter by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type                    | Description                         |
 | ---------- | ----------------------- | ----------------------------------- |
 | `filterId` | `string`                | The ID of the filter to update.     |
 | `updates`  | `V1UpdateFilterRequest` | The updates to apply to the filter. |
 
-**Returns**
+Returns
 
 `Promise`\<`V1Filter`\>
 

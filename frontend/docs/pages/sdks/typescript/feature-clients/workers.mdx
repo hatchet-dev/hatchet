@@ -12,13 +12,13 @@ The workers client is a client for managing workers programmatically within Hatc
 
 Get a worker by its ID.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type     | Description                  |
 | ---------- | -------- | ---------------------------- |
 | `workerId` | `string` | The ID of the worker to get. |
 
-**Returns**
+Returns
 
 `Promise`\<`Worker`\>
 
@@ -30,13 +30,13 @@ A promise that resolves to the worker.
 
 Check if a worker is paused.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type     | Description                    |
 | ---------- | -------- | ------------------------------ |
 | `workerId` | `string` | The ID of the worker to check. |
 
-**Returns**
+Returns
 
 `Promise`\<`boolean`\>
 
@@ -48,7 +48,7 @@ A promise that resolves to true if the worker is paused, false otherwise.
 
 List all workers in the tenant.
 
-**Returns**
+Returns
 
 `Promise`\<`WorkerList`\>
 
@@ -60,13 +60,13 @@ A promise that resolves to the list of workers.
 
 Pause a worker.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type     | Description                    |
 | ---------- | -------- | ------------------------------ |
 | `workerId` | `string` | The ID of the worker to pause. |
 
-**Returns**
+Returns
 
 `Promise`\<`Worker`\>
 
@@ -78,13 +78,13 @@ A promise that resolves to the paused worker.
 
 Unpause a worker.
 
-**Parameters**
+Parameters
 
 | Parameter  | Type     | Description                      |
 | ---------- | -------- | -------------------------------- |
 | `workerId` | `string` | The ID of the worker to unpause. |
 
-**Returns**
+Returns
 
 `Promise`\<`Worker`\>
 

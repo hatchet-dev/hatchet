@@ -44,18 +44,18 @@ class HatchetDocsTheme extends MarkdownTheme {
   }
 
   render(page) {
-    const transforms = [removeUnwantedHeadings, stripGenericTypeParams, unescapeHeadingUnderscores, spaceOutHeadings, codeWrapMethodHeadings];
+    const transforms = [refactorHeadings, stripGenericTypeParams, unescapeHeadingUnderscores, spaceOutHeadings, codeWrapMethodHeadings];
     return transforms.reduce((content, fn) => fn(content), super.render(page));
   }
 }
 
-function removeUnwantedHeadings(content) {
+function refactorHeadings(content) {
   let result = content.replace(/#{1,6}\s+client\/features\/\S+\n*/g, '');
   for (const heading of HEADINGS_TO_REMOVE) {
     result = result.replace(new RegExp(`#{1,6}\\s+${heading}\\n*`, 'g'), '');
   }
   for (const heading of HEADINGS_TO_BOLD) {
-    result = result.replace(new RegExp(`^#{1,6}\\s+(${heading})$`, 'gmi'), '**$1**');
+    result = result.replace(new RegExp(`^#{1,6}\\s+(${heading})$`, 'gmi'), '$1');
   }
   return result;
 }
