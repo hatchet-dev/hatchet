@@ -140,7 +140,7 @@ module Hatchet
 
         parts = stripped.split
         raise ArgumentError, "Cron expression must have 5 or 6 parts: (second) minute hour day month weekday" \
-        unless parts.length == 5 || parts.length == 6
+        unless [5, 6].include?(parts.length)
 
         parts.each do |part|
           unless part == "*" || part.gsub("*/", "").gsub("-", "").gsub(",", "").match?(/\A\d+\z/)
