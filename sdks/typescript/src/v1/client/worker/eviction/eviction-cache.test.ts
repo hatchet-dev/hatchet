@@ -92,18 +92,24 @@ describe('DurableEvictionCache', () => {
     const MIN_WAIT_MS = 5_000;
 
     it('returns undefined when no runs are registered', () => {
-      expect(cache.selectEvictionCandidate(T0, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
+      expect(
+        cache.selectEvictionCandidate(T0, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+      ).toBeUndefined();
     });
 
     it('returns undefined when runs exist but none are waiting', () => {
       cache.registerRun('k1', 'ext-1', T0, makePolicy({ ttl: '1m' }));
-      expect(cache.selectEvictionCandidate(T0 + ONE_MIN * 5, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
+      expect(
+        cache.selectEvictionCandidate(T0 + ONE_MIN * 5, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+      ).toBeUndefined();
     });
 
     it('returns undefined when waiting runs have no eviction policy', () => {
       cache.registerRun('k1', 'ext-1', T0, undefined);
       cache.markWaiting('k1', T0, 'sleep', 'r');
-      expect(cache.selectEvictionCandidate(T0 + ONE_MIN * 5, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
+      expect(
+        cache.selectEvictionCandidate(T0 + ONE_MIN * 5, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+      ).toBeUndefined();
     });
 
     // ------- TTL eviction -------
@@ -112,21 +118,30 @@ describe('DurableEvictionCache', () => {
       it('evicts a run whose TTL has been exceeded', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy({ ttl: '1m' }));
         cache.markWaiting('k1', T0, 'sleep', 'r');
-        const result = cache.selectEvictionCandidate(T0 + ONE_MIN + 1, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS);
+        const result = cache.selectEvictionCandidate(
+          T0 + ONE_MIN + 1,
+          DURABLE_SLOTS,
+          RESERVE_SLOTS,
+          MIN_WAIT_MS
+        );
         expect(result).toBe('k1');
       });
 
       it('does not evict when TTL has not been exceeded', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy({ ttl: '5m' }));
         cache.markWaiting('k1', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + ONE_MIN, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + ONE_MIN, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+        ).toBeUndefined();
       });
 
       it('evicts regardless of capacity when TTL is exceeded', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy({ ttl: '1s' }));
         cache.markWaiting('k1', T0, 'sleep', 'r');
         const noCapacityPressureSlots = 100;
-        expect(cache.selectEvictionCandidate(T0 + 2 * ONE_SEC, noCapacityPressureSlots, 0, MIN_WAIT_MS)).toBe('k1');
+        expect(
+          cache.selectEvictionCandidate(T0 + 2 * ONE_SEC, noCapacityPressureSlots, 0, MIN_WAIT_MS)
+        ).toBe('k1');
       });
 
       it('picks lowest priority among TTL-eligible candidates', () => {
@@ -134,7 +149,9 @@ describe('DurableEvictionCache', () => {
         cache.registerRun('k2', 'ext-2', T0, makePolicy({ ttl: '1s', priority: 1 }));
         cache.markWaiting('k1', T0, 'sleep', 'r');
         cache.markWaiting('k2', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + 2 * ONE_SEC, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBe('k2');
+        expect(
+          cache.selectEvictionCandidate(T0 + 2 * ONE_SEC, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+        ).toBe('k2');
       });
 
       it('breaks priority ties by longest waiting (earliest waitingSince)', () => {
@@ -142,14 +159,20 @@ describe('DurableEvictionCache', () => {
         cache.registerRun('k2', 'ext-2', T0, makePolicy({ ttl: '1s', priority: 0 }));
         cache.markWaiting('k1', T0 + 100, 'sleep', 'r');
         cache.markWaiting('k2', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + 2 * ONE_SEC, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBe('k2');
+        expect(
+          cache.selectEvictionCandidate(T0 + 2 * ONE_SEC, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+        ).toBe('k2');
       });
 
       it('uses DurationObject TTL', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy({ ttl: { seconds: 30 } }));
         cache.markWaiting('k1', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + 29_000, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
-        expect(cache.selectEvictionCandidate(T0 + 31_000, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBe('k1');
+        expect(
+          cache.selectEvictionCandidate(T0 + 29_000, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+        ).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + 31_000, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)
+        ).toBe('k1');
       });
     });
 
@@ -157,44 +180,75 @@ describe('DurableEvictionCache', () => {
 
     describe('capacity-based eviction', () => {
       it('evicts under capacity pressure when min wait is met', () => {
-        for (let i = 0; i < DURABLE_SLOTS; i++) {
+        for (let i = 0; i < DURABLE_SLOTS; i += 1) {
           cache.registerRun(`k${i}`, `ext-${i}`, T0, makePolicy());
           cache.markWaiting(`k${i}`, T0, 'sleep', 'r');
         }
-        const result = cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS);
+        const result = cache.selectEvictionCandidate(
+          T0 + MIN_WAIT_MS + 1,
+          DURABLE_SLOTS,
+          RESERVE_SLOTS,
+          MIN_WAIT_MS
+        );
         expect(result).toBeDefined();
       });
 
       it('does not evict when there is no capacity pressure', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy());
         cache.markWaiting('k1', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(
+            T0 + MIN_WAIT_MS + 1,
+            DURABLE_SLOTS,
+            RESERVE_SLOTS,
+            MIN_WAIT_MS
+          )
+        ).toBeUndefined();
       });
 
       it('does not evict when min wait threshold has not been met', () => {
-        for (let i = 0; i < DURABLE_SLOTS; i++) {
+        for (let i = 0; i < DURABLE_SLOTS; i += 1) {
           cache.registerRun(`k${i}`, `ext-${i}`, T0, makePolicy());
           cache.markWaiting(`k${i}`, T0, 'sleep', 'r');
         }
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS - 1, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(
+            T0 + MIN_WAIT_MS - 1,
+            DURABLE_SLOTS,
+            RESERVE_SLOTS,
+            MIN_WAIT_MS
+          )
+        ).toBeUndefined();
       });
 
       it('respects allowCapacityEviction=false', () => {
-        for (let i = 0; i < DURABLE_SLOTS; i++) {
+        for (let i = 0; i < DURABLE_SLOTS; i += 1) {
           cache.registerRun(`k${i}`, `ext-${i}`, T0, makePolicy({ allowCapacityEviction: false }));
           cache.markWaiting(`k${i}`, T0, 'sleep', 'r');
         }
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(
+            T0 + MIN_WAIT_MS + 1,
+            DURABLE_SLOTS,
+            RESERVE_SLOTS,
+            MIN_WAIT_MS
+          )
+        ).toBeUndefined();
       });
 
       it('skips allowCapacityEviction=false but evicts others', () => {
         cache.registerRun('protected', 'ext-p', T0, makePolicy({ allowCapacityEviction: false }));
         cache.markWaiting('protected', T0, 'sleep', 'r');
-        for (let i = 1; i < DURABLE_SLOTS; i++) {
+        for (let i = 1; i < DURABLE_SLOTS; i += 1) {
           cache.registerRun(`k${i}`, `ext-${i}`, T0, makePolicy());
           cache.markWaiting(`k${i}`, T0, 'sleep', 'r');
         }
-        const result = cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS);
+        const result = cache.selectEvictionCandidate(
+          T0 + MIN_WAIT_MS + 1,
+          DURABLE_SLOTS,
+          RESERVE_SLOTS,
+          MIN_WAIT_MS
+        );
         expect(result).toBeDefined();
         expect(result).not.toBe('protected');
       });
@@ -207,7 +261,9 @@ describe('DurableEvictionCache', () => {
         for (const k of ['k1', 'k2', 'k3', 'k4']) {
           cache.markWaiting(k, T0, 'sleep', 'r');
         }
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, RESERVE_SLOTS, MIN_WAIT_MS)).toBe('k2');
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, RESERVE_SLOTS, MIN_WAIT_MS)
+        ).toBe('k2');
       });
 
       it('breaks capacity priority ties by longest waiting', () => {
@@ -219,7 +275,9 @@ describe('DurableEvictionCache', () => {
         cache.markWaiting('k2', T0, 'sleep', 'r');
         cache.markWaiting('k3', T0 + 100, 'sleep', 'r');
         cache.markWaiting('k4', T0 + 300, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1000, 4, RESERVE_SLOTS, MIN_WAIT_MS)).toBe('k2');
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1000, 4, RESERVE_SLOTS, MIN_WAIT_MS)
+        ).toBe('k2');
       });
     });
 
@@ -235,7 +293,9 @@ describe('DurableEvictionCache', () => {
         }
 
         // 4 slots - 2 reserved = 2 effective; 3 waiting >= 2 → pressure
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 2, MIN_WAIT_MS)).toBeDefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 2, MIN_WAIT_MS)
+        ).toBeDefined();
       });
 
       it('no pressure when waiting count is below effective threshold', () => {
@@ -243,14 +303,20 @@ describe('DurableEvictionCache', () => {
         cache.markWaiting('k1', T0, 'sleep', 'r');
 
         // 4 slots - 0 reserved = 4 effective; 1 waiting < 4 → no pressure
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 0, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 0, MIN_WAIT_MS)
+        ).toBeUndefined();
       });
 
       it('reserveSlots >= durableSlots means no capacity eviction', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy());
         cache.markWaiting('k1', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 4, MIN_WAIT_MS)).toBeUndefined();
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 5, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 4, MIN_WAIT_MS)
+        ).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 4, 5, MIN_WAIT_MS)
+        ).toBeUndefined();
       });
     });
 
@@ -260,13 +326,17 @@ describe('DurableEvictionCache', () => {
       it('durableSlots=0 means no capacity eviction', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy());
         cache.markWaiting('k1', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 0, 0, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, 0, 0, MIN_WAIT_MS)
+        ).toBeUndefined();
       });
 
       it('durableSlots negative means no capacity eviction', () => {
         cache.registerRun('k1', 'ext-1', T0, makePolicy());
         cache.markWaiting('k1', T0, 'sleep', 'r');
-        expect(cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, -1, 0, MIN_WAIT_MS)).toBeUndefined();
+        expect(
+          cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, -1, 0, MIN_WAIT_MS)
+        ).toBeUndefined();
       });
     });
 
@@ -295,11 +365,16 @@ describe('DurableEvictionCache', () => {
       });
 
       it('sets capacity reason on capacity eviction', () => {
-        for (let i = 0; i < DURABLE_SLOTS; i++) {
+        for (let i = 0; i < DURABLE_SLOTS; i += 1) {
           cache.registerRun(`k${i}`, `ext-${i}`, T0, makePolicy());
           cache.markWaiting(`k${i}`, T0, 'sleep', 'res');
         }
-        const key = cache.selectEvictionCandidate(T0 + MIN_WAIT_MS + 1, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS)!;
+        const key = cache.selectEvictionCandidate(
+          T0 + MIN_WAIT_MS + 1,
+          DURABLE_SLOTS,
+          RESERVE_SLOTS,
+          MIN_WAIT_MS
+        )!;
         expect(cache.get(key)!.evictionReason).toMatch(/capacity/i);
       });
     });

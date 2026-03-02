@@ -38,7 +38,9 @@ export function durationToMs(d: Duration): number {
 
   const match = (d as string).match(DURATION_RE);
   if (!match) {
-    throw new Error(`Invalid duration string: "${d}". Expected format like "1h30m5s", "10m", "30s".`);
+    throw new Error(
+      `Invalid duration string: "${d}". Expected format like "1h30m5s", "10m", "30s".`
+    );
   }
 
   const [, h, m, s] = match;
