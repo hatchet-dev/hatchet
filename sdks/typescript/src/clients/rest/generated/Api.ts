@@ -103,11 +103,14 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
+  V1ForkDurableTaskRequest,
+  V1ForkDurableTaskResponse,
   V1LogLineLevel,
   V1LogLineList,
   V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
+  V1RestoreTaskResponse,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -291,6 +294,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Restore an evicted durable task
+   *
+   * @tags Task
+   * @name V1TaskRestore
+   * @summary Restore a task
+   * @request POST:/api/v1/stable/tasks/{task}/restore
+   * @secure
+   */
+  v1TaskRestore = (task: string, params: RequestParams = {}) =>
+    this.request<V1RestoreTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/restore`,
+      method: 'POST',
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -479,6 +499,29 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Fork a durable task from a specific node, creating a new branch and re-processing its matches.
+   *
+   * @tags Workflow Runs
+   * @name V1DurableTaskFork
+   * @summary Fork durable task
+   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/fork
+   * @secure
+   */
+  v1DurableTaskFork = (
+    tenant: string,
+    data: V1ForkDurableTaskRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ForkDurableTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/fork`,
       method: 'POST',
       body: data,
       secure: true,

@@ -114,6 +114,7 @@ export enum RunStatus {
   COMPLETED = 2,
   FAILED = 3,
   CANCELLED = 4,
+  EVICTED = 5,
   UNRECOGNIZED = -1,
 }
 
@@ -134,6 +135,9 @@ export function runStatusFromJSON(object: any): RunStatus {
     case 4:
     case 'CANCELLED':
       return RunStatus.CANCELLED;
+    case 5:
+    case 'EVICTED':
+      return RunStatus.EVICTED;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -153,6 +157,8 @@ export function runStatusToJSON(object: RunStatus): string {
       return 'FAILED';
     case RunStatus.CANCELLED:
       return 'CANCELLED';
+    case RunStatus.EVICTED:
+      return 'EVICTED';
     case RunStatus.UNRECOGNIZED:
     default:
       return 'UNRECOGNIZED';
@@ -312,6 +318,22 @@ export interface TriggerWorkflowRunRequest_DesiredWorkerLabelsEntry {
 
 export interface TriggerWorkflowRunResponse {
   externalId: string;
+}
+
+export interface ForkDurableTaskRequest {
+  /** (required) the external id (uuid) of the durable task */
+  taskExternalId: string;
+  /** (required) the node id to fork from */
+  nodeId: number;
+}
+
+export interface ForkDurableTaskResponse {
+  /** the external id of the durable task */
+  taskExternalId: string;
+  /** the node id of the new entry */
+  nodeId: number;
+  /** the branch id of the new entry */
+  branchId: number;
 }
 
 /** CreateWorkflowVersionRequest represents options to create a workflow version. */
@@ -1222,6 +1244,177 @@ export const TriggerWorkflowRunResponse: MessageFns<TriggerWorkflowRunResponse> 
   fromPartial(object: DeepPartial<TriggerWorkflowRunResponse>): TriggerWorkflowRunResponse {
     const message = createBaseTriggerWorkflowRunResponse();
     message.externalId = object.externalId ?? '';
+    return message;
+  },
+};
+
+function createBaseForkDurableTaskRequest(): ForkDurableTaskRequest {
+  return { taskExternalId: '', nodeId: 0 };
+}
+
+export const ForkDurableTaskRequest: MessageFns<ForkDurableTaskRequest> = {
+  encode(message: ForkDurableTaskRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.taskExternalId !== '') {
+      writer.uint32(10).string(message.taskExternalId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(16).int64(message.nodeId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ForkDurableTaskRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseForkDurableTaskRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.taskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ForkDurableTaskRequest {
+    return {
+      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+    };
+  },
+
+  toJSON(message: ForkDurableTaskRequest): unknown {
+    const obj: any = {};
+    if (message.taskExternalId !== '') {
+      obj.taskExternalId = message.taskExternalId;
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ForkDurableTaskRequest>): ForkDurableTaskRequest {
+    return ForkDurableTaskRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ForkDurableTaskRequest>): ForkDurableTaskRequest {
+    const message = createBaseForkDurableTaskRequest();
+    message.taskExternalId = object.taskExternalId ?? '';
+    message.nodeId = object.nodeId ?? 0;
+    return message;
+  },
+};
+
+function createBaseForkDurableTaskResponse(): ForkDurableTaskResponse {
+  return { taskExternalId: '', nodeId: 0, branchId: 0 };
+}
+
+export const ForkDurableTaskResponse: MessageFns<ForkDurableTaskResponse> = {
+  encode(
+    message: ForkDurableTaskResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.taskExternalId !== '') {
+      writer.uint32(10).string(message.taskExternalId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(16).int64(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(24).int64(message.branchId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ForkDurableTaskResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseForkDurableTaskResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.taskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ForkDurableTaskResponse {
+    return {
+      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+    };
+  },
+
+  toJSON(message: ForkDurableTaskResponse): unknown {
+    const obj: any = {};
+    if (message.taskExternalId !== '') {
+      obj.taskExternalId = message.taskExternalId;
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ForkDurableTaskResponse>): ForkDurableTaskResponse {
+    return ForkDurableTaskResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ForkDurableTaskResponse>): ForkDurableTaskResponse {
+    const message = createBaseForkDurableTaskResponse();
+    message.taskExternalId = object.taskExternalId ?? '';
+    message.nodeId = object.nodeId ?? 0;
+    message.branchId = object.branchId ?? 0;
     return message;
   },
 };
@@ -3088,6 +3281,14 @@ export const AdminServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    forkDurableTask: {
+      name: 'ForkDurableTask',
+      requestType: ForkDurableTaskRequest,
+      requestStream: false,
+      responseType: ForkDurableTaskResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -3112,6 +3313,10 @@ export interface AdminServiceImplementation<CallContextExt = {}> {
     request: GetRunDetailsRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<GetRunDetailsResponse>>;
+  forkDurableTask(
+    request: ForkDurableTaskRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<ForkDurableTaskResponse>>;
 }
 
 export interface AdminServiceClient<CallOptionsExt = {}> {
@@ -3135,6 +3340,10 @@ export interface AdminServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<GetRunDetailsRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<GetRunDetailsResponse>;
+  forkDurableTask(
+    request: DeepPartial<ForkDurableTaskRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<ForkDurableTaskResponse>;
 }
 
 function bytesFromBase64(b64: string): Uint8Array {
@@ -3194,6 +3403,17 @@ function fromJsonTimestamp(o: any): Date {
   } else {
     return fromTimestamp(Timestamp.fromJSON(o));
   }
+}
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+  }
+  return num;
 }
 
 function isObject(value: any): boolean {

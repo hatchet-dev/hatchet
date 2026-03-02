@@ -13,6 +13,7 @@
 export enum V1TaskRunStatus {
   PENDING = 'PENDING',
   RUNNING = 'RUNNING',
+  EVICTED = 'EVICTED',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
@@ -290,6 +291,8 @@ export enum V1TaskEventType {
   QUEUED = 'QUEUED',
   SKIPPED = 'SKIPPED',
   COULD_NOT_SEND_TO_WORKER = 'COULD_NOT_SEND_TO_WORKER',
+  DURABLE_EVICTED = 'DURABLE_EVICTED',
+  DURABLE_RESTORING = 'DURABLE_RESTORING',
 }
 
 export enum V1WorkflowType {
@@ -300,6 +303,7 @@ export enum V1WorkflowType {
 export enum V1TaskStatus {
   QUEUED = 'QUEUED',
   RUNNING = 'RUNNING',
+  EVICTED = 'EVICTED',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
   FAILED = 'FAILED',
@@ -548,6 +552,10 @@ export interface V1ReplayedTasks {
   ids?: string[];
 }
 
+export interface V1RestoreTaskResponse {
+  requeued: boolean;
+}
+
 export interface V1DagChildren {
   /** @format uuid */
   dagId?: string;
@@ -662,6 +670,41 @@ export interface V1WorkflowRunDetails {
   shape: WorkflowRunShapeForWorkflowRunDetails;
   tasks: V1TaskSummary[];
   workflowConfig?: object;
+}
+
+export interface V1ForkDurableTaskRequest {
+  /**
+   * The external id of the durable task to fork.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id to replay from.
+   * @format int64
+   */
+  nodeId: number;
+}
+
+export interface V1ForkDurableTaskResponse {
+  /**
+   * The external id of the durable task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id of the new entry.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id of the new entry.
+   * @format int64
+   */
+  branchId: number;
 }
 
 export interface V1TaskTiming {
