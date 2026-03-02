@@ -11,27 +11,41 @@ can send webhook events.
 
 #### Methods
 
-<a id="list"></a>
+<a id="create"></a>
 
-##### `list()`
+##### `create()`
 
-Lists all webhooks for the current tenant.
+Creates a new webhook.
 
 **Parameters**
 
-| Parameter               | Type                                                                                          | Description                         |
-| ----------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `options?`              | \{ `limit?`: `number`; `offset?`: `number`; `webhookNames?`: ...[]; `sourceNames?`: ...[]; \} | The options for the list operation. |
-| `options.limit?`        | `number`                                                                                      | -                                   |
-| `options.offset?`       | `number`                                                                                      | -                                   |
-| `options.webhookNames?` | ...[]                                                                                         | -                                   |
-| `options.sourceNames?`  | ...[]                                                                                         | -                                   |
+| Parameter | Type                   | Description                                   |
+| --------- | ---------------------- | --------------------------------------------- |
+| `request` | `CreateWebhookOptions` | The request options for the create operation. |
 
 **Returns**
 
-`Promise`\<`V1WebhookList`\>
+`Promise`\<`V1Webhook`\>
 
-A promise that resolves to the list of webhooks.
+A promise that resolves to the created webhook.
+
+<a id="delete"></a>
+
+##### `delete()`
+
+Deletes a webhook by its name.
+
+**Parameters**
+
+| Parameter     | Type     | Description                        |
+| ------------- | -------- | ---------------------------------- |
+| `webhookName` | `string` | The name of the webhook to delete. |
+
+**Returns**
+
+`Promise`\<`V1Webhook`\>
+
+A promise that resolves to the deleted webhook.
 
 <a id="get"></a>
 
@@ -51,23 +65,27 @@ Gets a webhook by its name.
 
 A promise that resolves to the webhook.
 
-<a id="create"></a>
+<a id="list"></a>
 
-##### `create()`
+##### `list()`
 
-Creates a new webhook.
+Lists all webhooks for the current tenant.
 
 **Parameters**
 
-| Parameter | Type                   | Description                                   |
-| --------- | ---------------------- | --------------------------------------------- |
-| `request` | `CreateWebhookOptions` | The request options for the create operation. |
+| Parameter               | Type                                                                                          | Description                         |
+| ----------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `options?`              | \{ `limit?`: `number`; `offset?`: `number`; `sourceNames?`: ...[]; `webhookNames?`: ...[]; \} | The options for the list operation. |
+| `options.limit?`        | `number`                                                                                      | -                                   |
+| `options.offset?`       | `number`                                                                                      | -                                   |
+| `options.sourceNames?`  | ...[]                                                                                         | -                                   |
+| `options.webhookNames?` | ...[]                                                                                         | -                                   |
 
 **Returns**
 
-`Promise`\<`V1Webhook`\>
+`Promise`\<`V1WebhookList`\>
 
-A promise that resolves to the created webhook.
+A promise that resolves to the list of webhooks.
 
 <a id="update"></a>
 
@@ -87,21 +105,3 @@ Updates a webhook by its name.
 `Promise`\<`V1Webhook`\>
 
 A promise that resolves to the updated webhook.
-
-<a id="delete"></a>
-
-##### `delete()`
-
-Deletes a webhook by its name.
-
-**Parameters**
-
-| Parameter     | Type     | Description                        |
-| ------------- | -------- | ---------------------------------- |
-| `webhookName` | `string` | The name of the webhook to delete. |
-
-**Returns**
-
-`Promise`\<`V1Webhook`\>
-
-A promise that resolves to the deleted webhook.

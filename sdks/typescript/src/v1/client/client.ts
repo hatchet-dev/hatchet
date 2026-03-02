@@ -689,6 +689,7 @@ export class HatchetClient<
   /**
    * Get the admin client for creating and managing workflows
    * @returns A admin client instance
+   * @internal
    */
   get admin() {
     if (!this._admin) {

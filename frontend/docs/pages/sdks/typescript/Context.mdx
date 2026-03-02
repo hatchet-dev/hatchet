@@ -7,76 +7,6 @@ There are two types of context classes you'll encounter:
 - Context - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
 - DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
 
-<a id="contextworker"></a>
-
-### ContextWorker
-
-ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
-
-#### Methods
-
-<a id="id"></a>
-
-##### `id()`
-
-Gets the ID of the worker.
-
-**Returns**
-
-`string` \| `undefined`
-
-The ID of the worker.
-
-<a id="hasworkflow"></a>
-
-##### `hasWorkflow()`
-
-Checks if the worker has a registered workflow.
-
-**Parameters**
-
-| Parameter      | Type     | Description                        |
-| -------------- | -------- | ---------------------------------- |
-| `workflowName` | `string` | The name of the workflow to check. |
-
-**Returns**
-
-`boolean`
-
-True if the workflow is registered, otherwise false.
-
-<a id="labels"></a>
-
-##### `labels()`
-
-Gets the current state of the worker labels.
-
-**Returns**
-
-`WorkerLabels`
-
-The labels of the worker.
-
-<a id="upsertlabels"></a>
-
-##### `upsertLabels()`
-
-Upserts the a set of labels on the worker.
-
-**Parameters**
-
-| Parameter | Type           | Description           |
-| --------- | -------------- | --------------------- |
-| `labels`  | `WorkerLabels` | The labels to upsert. |
-
-**Returns**
-
-`Promise`\<`WorkerLabels`\>
-
-A promise that resolves when the labels have been upserted.
-
----
-
 <a id="context"></a>
 
 ### Context
@@ -87,27 +17,105 @@ A promise that resolves when the labels have been upserted.
 
 #### Methods
 
-<a id="rethrowifcancelled"></a>
+<a id="additionalmetadata"></a>
 
-##### `rethrowIfCancelled()`
+##### `additionalMetadata()`
 
-Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
-
-Example:
-
-```ts
-try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
-```
-
-**Parameters**
-
-| Parameter | Type      |
-| --------- | --------- |
-| `err`     | `unknown` |
+Retrieves additional metadata associated with the current workflow run.
 
 **Returns**
 
-`void`
+`Record`\<`string`, `string`\>
+
+A record of metadata key-value pairs.
+
+<a id="bulkrunchildren"></a>
+
+##### `bulkRunChildren()`
+
+Runs multiple children workflows in parallel and waits for all results.
+
+**Parameters**
+
+| Parameter  | Type       | Description                                                                                  |
+| ---------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
+
+**Returns**
+
+`Promise`\<`P`[]\>
+
+A list of results from the children workflows.
+
+<a id="bulkrunnowaitchildren"></a>
+
+##### `bulkRunNoWaitChildren()`
+
+Runs multiple children workflows in parallel without waiting for their results.
+
+**Parameters**
+
+| Parameter  | Type       | Description                                                                                  |
+| ---------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
+
+**Returns**
+
+`Promise`\<`WorkflowRunRef`\<`P`\>[]\>
+
+A list of workflow run references to the enqueued runs.
+
+<a id="childindex"></a>
+
+##### `childIndex()`
+
+Gets the index of this workflow if it was spawned as part of a bulk operation.
+
+**Returns**
+
+`number` \| `undefined`
+
+The child index number, or undefined if not set.
+
+<a id="childkey"></a>
+
+##### `childKey()`
+
+Gets the key associated with this workflow if it was spawned as a child workflow.
+
+**Returns**
+
+`string` \| `undefined`
+
+The child key, or undefined if not set.
+
+<a id="errors"></a>
+
+##### `errors()`
+
+Returns errors from any task runs in the workflow.
+
+**Returns**
+
+`Record`\<`string`, `string`\>
+
+A record mapping task names to error messages.
+
+**Throws**
+
+A warning if no errors are found (this method should be used in on-failure tasks).
+
+<a id="filterpayload"></a>
+
+##### `filterPayload()`
+
+Gets the payload from the filter that matched when triggering the event.
+
+**Returns**
+
+`Record`\<`string`, `any`\>
+
+The payload.
 
 <a id="parentoutput"></a>
 
@@ -131,153 +139,35 @@ The output of the specified parent task.
 
 An error if the task output is not found.
 
-<a id="errors"></a>
+<a id="parentworkflowrunid"></a>
 
-##### `errors()`
+##### `parentWorkflowRunId()`
 
-Returns errors from any task runs in the workflow.
-
-**Returns**
-
-`Record`\<`string`, `string`\>
-
-A record mapping task names to error messages.
-
-**Throws**
-
-A warning if no errors are found (this method should be used in on-failure tasks).
-
-<a id="triggers"></a>
-
-##### `triggers()`
-
-Gets the dag conditional triggers for the current workflow run.
-
-**Returns**
-
-`TriggerData`
-
-The triggers for the current workflow.
-
-<a id="filterpayload"></a>
-
-##### `filterPayload()`
-
-Gets the payload from the filter that matched when triggering the event.
-
-**Returns**
-
-`Record`\<`string`, `any`\>
-
-The payload.
-
-<a id="triggeredbyevent"></a>
-
-##### `triggeredByEvent()`
-
-Determines if the workflow was triggered by an event.
-
-**Returns**
-
-`boolean`
-
-True if the workflow was triggered by an event, otherwise false.
-
-<a id="workflowname"></a>
-
-##### `workflowName()`
-
-Gets the name of the current workflow.
-
-**Returns**
-
-`string`
-
-The name of the workflow.
-
-<a id="userdata"></a>
-
-##### `userData()`
-
-Gets the user data associated with the workflow.
-
-**Returns**
-
-`K`
-
-The user data.
-
-<a id="taskname"></a>
-
-##### `taskName()`
-
-Gets the name of the current running task.
-
-**Returns**
-
-`string`
-
-The name of the task.
-
-<a id="workflowrunid"></a>
-
-##### `workflowRunId()`
-
-Gets the ID of the current workflow run.
-
-**Returns**
-
-`string`
-
-The workflow run ID.
-
-<a id="workflowid"></a>
-
-##### `workflowId()`
-
-Gets the workflow ID of the currently running workflow.
+Gets the ID of the parent workflow run if this workflow was spawned as a child.
 
 **Returns**
 
 `string` \| `undefined`
 
-The workflow id.
+The parent workflow run ID, or undefined if not a child workflow.
 
-<a id="workflowversionid"></a>
+<a id="putstream"></a>
 
-##### `workflowVersionId()`
+##### `putStream()`
 
-Gets the workflow version ID of the currently running workflow.
+Streams data from the current task run.
 
-**Returns**
+**Parameters**
 
-`string` \| `undefined`
-
-The workflow version ID.
-
-<a id="taskrunexternalid"></a>
-
-##### `taskRunExternalId()`
-
-Gets the ID of the current task run.
+| Parameter | Type                                          | Description                            |
+| --------- | --------------------------------------------- | -------------------------------------- |
+| `data`    | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | The data to stream (string or binary). |
 
 **Returns**
 
-`string`
+`Promise`\<`void`\>
 
-The task run ID.
-
-<a id="retrycount"></a>
-
-##### `retryCount()`
-
-Gets the number of times the current task has been retried.
-
-**Returns**
-
-`number`
-
-The retry count.
+A promise that resolves when the data has been streamed.
 
 <a id="refreshtimeout"></a>
 
@@ -308,59 +198,39 @@ Note: this is an advanced feature that may lead to unexpected behavior if used i
 
 A promise that resolves when the slot has been released.
 
-<a id="putstream"></a>
+<a id="rethrowifcancelled"></a>
 
-##### `putStream()`
+##### `rethrowIfCancelled()`
 
-Streams data from the current task run.
+Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
 
-**Parameters**
+Example:
 
-| Parameter | Type                                          | Description                            |
-| --------- | --------------------------------------------- | -------------------------------------- |
-| `data`    | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | The data to stream (string or binary). |
-
-**Returns**
-
-`Promise`\<`void`\>
-
-A promise that resolves when the data has been streamed.
-
-<a id="bulkrunnowaitchildren"></a>
-
-##### `bulkRunNoWaitChildren()`
-
-Runs multiple children workflows in parallel without waiting for their results.
+```ts
+try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
+```
 
 **Parameters**
 
-| Parameter  | Type       | Description                                                                                  |
-| ---------- | ---------- | -------------------------------------------------------------------------------------------- |
-| `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
+| Parameter | Type      |
+| --------- | --------- |
+| `err`     | `unknown` |
 
 **Returns**
 
-`Promise`\<`WorkflowRunRef`\<`P`\>[]\>
+`void`
 
-A list of workflow run references to the enqueued runs.
+<a id="retrycount"></a>
 
-<a id="bulkrunchildren"></a>
+##### `retryCount()`
 
-##### `bulkRunChildren()`
-
-Runs multiple children workflows in parallel and waits for all results.
-
-**Parameters**
-
-| Parameter  | Type       | Description                                                                                  |
-| ---------- | ---------- | -------------------------------------------------------------------------------------------- |
-| `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
+Gets the number of times the current task has been retried.
 
 **Returns**
 
-`Promise`\<`P`[]\>
+`number`
 
-A list of results from the children workflows.
+The retry count.
 
 <a id="runchild"></a>
 
@@ -402,53 +272,183 @@ Enqueues a new workflow without waiting for its result.
 
 A reference to the spawned workflow run.
 
-<a id="additionalmetadata"></a>
+<a id="taskname"></a>
 
-##### `additionalMetadata()`
+##### `taskName()`
 
-Retrieves additional metadata associated with the current workflow run.
-
-**Returns**
-
-`Record`\<`string`, `string`\>
-
-A record of metadata key-value pairs.
-
-<a id="childindex"></a>
-
-##### `childIndex()`
-
-Gets the index of this workflow if it was spawned as part of a bulk operation.
+Gets the name of the current running task.
 
 **Returns**
 
-`number` \| `undefined`
+`string`
 
-The child index number, or undefined if not set.
+The name of the task.
 
-<a id="childkey"></a>
+<a id="taskrunexternalid"></a>
 
-##### `childKey()`
+##### `taskRunExternalId()`
 
-Gets the key associated with this workflow if it was spawned as a child workflow.
+Gets the ID of the current task run.
+
+**Returns**
+
+`string`
+
+The task run ID.
+
+<a id="triggeredbyevent"></a>
+
+##### `triggeredByEvent()`
+
+Determines if the workflow was triggered by an event.
+
+**Returns**
+
+`boolean`
+
+True if the workflow was triggered by an event, otherwise false.
+
+<a id="triggers"></a>
+
+##### `triggers()`
+
+Gets the dag conditional triggers for the current workflow run.
+
+**Returns**
+
+`TriggerData`
+
+The triggers for the current workflow.
+
+<a id="userdata"></a>
+
+##### `userData()`
+
+Gets the user data associated with the workflow.
+
+**Returns**
+
+`K`
+
+The user data.
+
+<a id="workflowid"></a>
+
+##### `workflowId()`
+
+Gets the workflow ID of the currently running workflow.
 
 **Returns**
 
 `string` \| `undefined`
 
-The child key, or undefined if not set.
+The workflow id.
 
-<a id="parentworkflowrunid"></a>
+<a id="workflowname"></a>
 
-##### `parentWorkflowRunId()`
+##### `workflowName()`
 
-Gets the ID of the parent workflow run if this workflow was spawned as a child.
+Gets the name of the current workflow.
+
+**Returns**
+
+`string`
+
+The name of the workflow.
+
+<a id="workflowrunid"></a>
+
+##### `workflowRunId()`
+
+Gets the ID of the current workflow run.
+
+**Returns**
+
+`string`
+
+The workflow run ID.
+
+<a id="workflowversionid"></a>
+
+##### `workflowVersionId()`
+
+Gets the workflow version ID of the currently running workflow.
 
 **Returns**
 
 `string` \| `undefined`
 
-The parent workflow run ID, or undefined if not a child workflow.
+The workflow version ID.
+
+---
+
+<a id="contextworker"></a>
+
+### ContextWorker
+
+ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
+
+#### Methods
+
+<a id="hasworkflow"></a>
+
+##### `hasWorkflow()`
+
+Checks if the worker has a registered workflow.
+
+**Parameters**
+
+| Parameter      | Type     | Description                        |
+| -------------- | -------- | ---------------------------------- |
+| `workflowName` | `string` | The name of the workflow to check. |
+
+**Returns**
+
+`boolean`
+
+True if the workflow is registered, otherwise false.
+
+<a id="id"></a>
+
+##### `id()`
+
+Gets the ID of the worker.
+
+**Returns**
+
+`string` \| `undefined`
+
+The ID of the worker.
+
+<a id="labels"></a>
+
+##### `labels()`
+
+Gets the current state of the worker labels.
+
+**Returns**
+
+`WorkerLabels`
+
+The labels of the worker.
+
+<a id="upsertlabels"></a>
+
+##### `upsertLabels()`
+
+Upserts the a set of labels on the worker.
+
+**Parameters**
+
+| Parameter | Type           | Description           |
+| --------- | -------------- | --------------------- |
+| `labels`  | `WorkerLabels` | The labels to upsert. |
+
+**Returns**
+
+`Promise`\<`WorkerLabels`\>
+
+A promise that resolves when the labels have been upserted.
 
 ---
 

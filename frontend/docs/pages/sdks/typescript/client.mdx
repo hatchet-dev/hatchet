@@ -22,6 +22,41 @@ It provides methods for creating and executing workflows, as well as managing wo
 
 **Accessors**
 
+<a id="admin"></a>
+
+##### `admin`
+
+**Get Signature**
+
+Get the admin client for creating and managing workflows
+
+**Returns**
+
+`AdminClient`
+
+A admin client instance
+
+**Implementation of**
+
+```ts
+IHatchetClient.admin;
+```
+
+<a id="api"></a>
+
+##### `api`
+
+**Get Signature**
+
+Get the API client for making HTTP requests to the Hatchet API
+Note: This is not recommended for general use, but is available for advanced scenarios
+
+**Returns**
+
+`Api`\<`unknown`\>
+
+A API client instance
+
 <a id="crons"></a>
 
 ##### `crons`
@@ -40,6 +75,94 @@ A cron client instance
 
 ```ts
 IHatchetClient.crons;
+```
+
+<a id="events"></a>
+
+##### `events`
+
+**Get Signature**
+
+Get the event client for creating and managing event workflow runs
+
+**Returns**
+
+`EventClient`
+
+A event client instance
+
+**Implementation of**
+
+```ts
+IHatchetClient.events;
+```
+
+<a id="filters"></a>
+
+##### `filters`
+
+**Get Signature**
+
+Get the filters client for creating and managing filters
+
+**Returns**
+
+[`FiltersClient`](feature-clients/filters.mdx#filtersclient)
+
+A filters client instance
+
+<a id="metrics"></a>
+
+##### `metrics`
+
+**Get Signature**
+
+Get the metrics client for creating and managing metrics
+
+**Returns**
+
+[`MetricsClient`](feature-clients/metrics.mdx#metricsclient)
+
+A metrics client instance
+
+**Implementation of**
+
+```ts
+IHatchetClient.metrics;
+```
+
+<a id="ratelimits"></a>
+
+##### `ratelimits`
+
+**Get Signature**
+
+Get the rate limits client for creating and managing rate limits
+
+**Returns**
+
+[`RatelimitsClient`](feature-clients/ratelimits.mdx#ratelimitsclient)
+
+A rate limits client instance
+
+<a id="runs"></a>
+
+##### `runs`
+
+**Get Signature**
+
+Get the runs client for creating and managing runs
+
+**Returns**
+
+[`RunsClient`](feature-clients/runs.mdx#runsclient)
+
+A runs client instance
+
+**Implementation of**
+
+```ts
+IHatchetClient.runs;
 ```
 
 <a id="scheduled"></a>
@@ -76,59 +199,19 @@ scheduled
 
 [`ScheduleClient`](feature-clients/schedules.mdx#scheduleclient)
 
-<a id="events"></a>
+<a id="tasks"></a>
 
-##### `events`
-
-**Get Signature**
-
-Get the event client for creating and managing event workflow runs
-
-**Returns**
-
-`EventClient`
-
-A event client instance
-
-**Implementation of**
-
-```ts
-IHatchetClient.events;
-```
-
-<a id="metrics"></a>
-
-##### `metrics`
+##### `tasks`
 
 **Get Signature**
 
-Get the metrics client for creating and managing metrics
+Get the tasks client for creating and managing tasks
 
 **Returns**
 
-[`MetricsClient`](feature-clients/metrics.mdx#metricsclient)
+[`WorkflowsClient`](feature-clients/workflows.mdx#workflowsclient)
 
-A metrics client instance
-
-**Implementation of**
-
-```ts
-IHatchetClient.metrics;
-```
-
-<a id="filters"></a>
-
-##### `filters`
-
-**Get Signature**
-
-Get the filters client for creating and managing filters
-
-**Returns**
-
-[`FiltersClient`](feature-clients/filters.mdx#filtersclient)
-
-A filters client instance
+A tasks client instance
 
 <a id="tenant"></a>
 
@@ -158,38 +241,24 @@ Get the webhooks client for creating and managing webhooks
 
 A webhooks client instance
 
-<a id="ratelimits"></a>
+<a id="workers"></a>
 
-##### `ratelimits`
-
-**Get Signature**
-
-Get the rate limits client for creating and managing rate limits
-
-**Returns**
-
-[`RatelimitsClient`](feature-clients/ratelimits.mdx#ratelimitsclient)
-
-A rate limits client instance
-
-<a id="runs"></a>
-
-##### `runs`
+##### `workers`
 
 **Get Signature**
 
-Get the runs client for creating and managing runs
+Get the workers client for creating and managing workers
 
 **Returns**
 
-[`RunsClient`](feature-clients/runs.mdx#runsclient)
+[`WorkersClient`](feature-clients/workers.mdx#workersclient)
 
-A runs client instance
+A workers client instance
 
 **Implementation of**
 
 ```ts
-IHatchetClient.runs;
+IHatchetClient.workers;
 ```
 
 <a id="workflows"></a>
@@ -212,133 +281,7 @@ A workflows client instance
 IHatchetClient.workflows;
 ```
 
-<a id="tasks"></a>
-
-##### `tasks`
-
-**Get Signature**
-
-Get the tasks client for creating and managing tasks
-
-**Returns**
-
-[`WorkflowsClient`](feature-clients/workflows.mdx#workflowsclient)
-
-A tasks client instance
-
-<a id="workers"></a>
-
-##### `workers`
-
-**Get Signature**
-
-Get the workers client for creating and managing workers
-
-**Returns**
-
-[`WorkersClient`](feature-clients/workers.mdx#workersclient)
-
-A workers client instance
-
-**Implementation of**
-
-```ts
-IHatchetClient.workers;
-```
-
-<a id="api"></a>
-
-##### `api`
-
-**Get Signature**
-
-Get the API client for making HTTP requests to the Hatchet API
-Note: This is not recommended for general use, but is available for advanced scenarios
-
-**Returns**
-
-`Api`\<`unknown`\>
-
-A API client instance
-
-<a id="admin"></a>
-
-##### `admin`
-
-**Get Signature**
-
-Get the admin client for creating and managing workflows
-
-**Returns**
-
-`AdminClient`
-
-A admin client instance
-
-**Implementation of**
-
-```ts
-IHatchetClient.admin;
-```
-
 #### Methods
-
-<a id="workflow"></a>
-
-##### `workflow()`
-
-Creates a new workflow definition.
-
-**Parameters**
-
-| Parameter | Type                 | Description                                     |
-| --------- | -------------------- | ----------------------------------------------- |
-| `options` | `CreateWorkflowOpts` | Configuration options for creating the workflow |
-
-**Returns**
-
-[`WorkflowDeclaration`](Runnables.mdx#workflowdeclaration)\<`I`, `O`, `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>\>
-
-A new Workflow instance
-
-**Note**
-
-It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
-
-<a id="task"></a>
-
-##### `task()`
-
-Implementation of the task method.
-
-Creates a new task workflow.
-Types can be explicitly specified as generics or inferred from the function signature.
-
-**Parameters**
-
-| Parameter | Type                                                                                                                        | Description                |
-| --------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `options` | `CreateTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Task configuration options |
-
-**Returns**
-
-[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
-
-A TaskWorkflowDeclaration instance
-
-Creates a new task workflow with types inferred from the function parameter.
-
-**Parameters**
-
-| Parameter | Type                                                              | Description                                                 |
-| --------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
-| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | Task configuration options with function that defines types |
-
-**Returns**
-
-[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
-
-A TaskWorkflowDeclaration instance with inferred types
 
 <a id="durabletask"></a>
 
@@ -375,11 +318,11 @@ Creates a new durable task workflow with types inferred from the function parame
 
 A TaskWorkflowDeclaration instance with inferred types
 
-<a id="runnowait"></a>
+<a id="run"></a>
 
-##### `runNoWait()`
+##### `run()`
 
-Triggers a workflow run without waiting for completion.
+Triggers a workflow run and waits for the result.
 
 **Parameters**
 
@@ -391,9 +334,9 @@ Triggers a workflow run without waiting for completion.
 
 **Returns**
 
-`Promise`\<`WorkflowRunRef`\<`O`\>\>
+`Promise`\<`O`\>
 
-A WorkflowRunRef containing the run ID and methods to interact with the run
+A promise that resolves with the workflow result
 
 <a id="runandwait"></a>
 
@@ -419,11 +362,11 @@ A promise that resolves with the workflow result
 
 run
 
-<a id="run"></a>
+<a id="runnowait"></a>
 
-##### `run()`
+##### `runNoWait()`
 
-Triggers a workflow run and waits for the result.
+Triggers a workflow run without waiting for completion.
 
 **Parameters**
 
@@ -435,9 +378,44 @@ Triggers a workflow run and waits for the result.
 
 **Returns**
 
-`Promise`\<`O`\>
+`Promise`\<`WorkflowRunRef`\<`O`\>\>
 
-A promise that resolves with the workflow result
+A WorkflowRunRef containing the run ID and methods to interact with the run
+
+<a id="task"></a>
+
+##### `task()`
+
+Implementation of the task method.
+
+Creates a new task workflow.
+Types can be explicitly specified as generics or inferred from the function signature.
+
+**Parameters**
+
+| Parameter | Type                                                                                                                        | Description                |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `options` | `CreateTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Task configuration options |
+
+**Returns**
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance
+
+Creates a new task workflow with types inferred from the function parameter.
+
+**Parameters**
+
+| Parameter | Type                                                              | Description                                                 |
+| --------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | Task configuration options with function that defines types |
+
+**Returns**
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance with inferred types
 
 <a id="worker"></a>
 
@@ -457,3 +435,25 @@ Creates a new worker instance for processing workflow tasks.
 `Promise`\<`Worker`\>
 
 A promise that resolves with a new HatchetWorker instance
+
+<a id="workflow"></a>
+
+##### `workflow()`
+
+Creates a new workflow definition.
+
+**Parameters**
+
+| Parameter | Type                 | Description                                     |
+| --------- | -------------------- | ----------------------------------------------- |
+| `options` | `CreateWorkflowOpts` | Configuration options for creating the workflow |
+
+**Returns**
+
+[`WorkflowDeclaration`](Runnables.mdx#workflowdeclaration)\<`I`, `O`, `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>\>
+
+A new Workflow instance
+
+**Note**
+
+It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow

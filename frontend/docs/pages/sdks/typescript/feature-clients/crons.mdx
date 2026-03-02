@@ -17,11 +17,11 @@ Creates a new Cron workflow.
 | Parameter                  | Type                                                                                                                                                                 | Description                                   |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `workflow`                 | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow`                                                                                                  | The workflow identifier or Workflow object.   |
-| `cron`                     | \{ `name`: `string`; `expression`: `string`; `input?`: `Record`\<`string`, `any`\>; `additionalMetadata?`: `Record`\<`string`, `string`\>; `priority?`: `number`; \} | The input data for creating the Cron Trigger. |
-| `cron.name`                | `string`                                                                                                                                                             | -                                             |
+| `cron`                     | \{ `additionalMetadata?`: `Record`\<`string`, `string`\>; `expression`: `string`; `input?`: `Record`\<`string`, `any`\>; `name`: `string`; `priority?`: `number`; \} | The input data for creating the Cron Trigger. |
+| `cron.additionalMetadata?` | `Record`\<`string`, `string`\>                                                                                                                                       | -                                             |
 | `cron.expression`          | `string`                                                                                                                                                             | -                                             |
 | `cron.input?`              | `Record`\<`string`, `any`\>                                                                                                                                          | -                                             |
-| `cron.additionalMetadata?` | `Record`\<`string`, `string`\>                                                                                                                                       | -                                             |
+| `cron.name`                | `string`                                                                                                                                                             | -                                             |
 | `cron.priority?`           | `number`                                                                                                                                                             | -                                             |
 
 **Returns**
@@ -52,24 +52,6 @@ Deletes an existing Cron Trigger.
 
 A promise that resolves when the Cron Trigger is deleted.
 
-<a id="list"></a>
-
-##### `list()`
-
-Lists all Cron Triggers based on the provided query parameters.
-
-**Parameters**
-
-| Parameter | Type                | Description                                 |
-| --------- | ------------------- | ------------------------------------------- |
-| `query`   | `object` & `object` | Query parameters for listing Cron Triggers. |
-
-**Returns**
-
-`Promise`\<`CronWorkflowsList`\>
-
-A promise that resolves to a CronWorkflowsList object.
-
 <a id="get"></a>
 
 ##### `get()`
@@ -87,3 +69,21 @@ Retrieves a specific Cron Trigger by its ID.
 `Promise`\<`CronWorkflows`\>
 
 A promise that resolves to the CronWorkflows object.
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists all Cron Triggers based on the provided query parameters.
+
+**Parameters**
+
+| Parameter | Type                | Description                                 |
+| --------- | ------------------- | ------------------------------------------- |
+| `query`   | `object` & `object` | Query parameters for listing Cron Triggers. |
+
+**Returns**
+
+`Promise`\<`CronWorkflowsList`\>
+
+A promise that resolves to a CronWorkflowsList object.

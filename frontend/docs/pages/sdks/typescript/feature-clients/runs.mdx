@@ -6,6 +6,25 @@ The runs client is a client for interacting with task and workflow runs within H
 
 #### Methods
 
+<a id="cancel"></a>
+
+##### `cancel()`
+
+Cancels a task or workflow run by its ID.
+
+**Parameters**
+
+| Parameter | Type            | Description                           |
+| --------- | --------------- | ------------------------------------- |
+| `opts`    | `CancelRunOpts` | The options for the cancel operation. |
+
+**Returns**
+
+`Promise`\<`AxiosResponse`\<`V1CancelledTasks`, `any`, \{
+\}\>\>
+
+A promise that resolves to the cancelled run.
+
 <a id="get"></a>
 
 ##### `get()`
@@ -59,25 +78,6 @@ Lists all task and workflow runs for the current tenant.
 `Promise`\<`V1TaskSummaryList`\>
 
 A promise that resolves to the list of runs.
-
-<a id="cancel"></a>
-
-##### `cancel()`
-
-Cancels a task or workflow run by its ID.
-
-**Parameters**
-
-| Parameter | Type            | Description                           |
-| --------- | --------------- | ------------------------------------- |
-| `opts`    | `CancelRunOpts` | The options for the cancel operation. |
-
-**Returns**
-
-`Promise`\<`AxiosResponse`\<`V1CancelledTasks`, `any`, \{
-\}\>\>
-
-A promise that resolves to the cancelled run.
 
 <a id="replay"></a>
 

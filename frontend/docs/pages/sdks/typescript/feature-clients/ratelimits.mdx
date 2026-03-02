@@ -6,6 +6,24 @@ The rate limits client is a wrapper for Hatchet’s gRPC API that makes it easie
 
 #### Methods
 
+<a id="list"></a>
+
+##### `list()`
+
+Lists all rate limits for the current tenant.
+
+**Parameters**
+
+| Parameter | Type                                                                                                                                                                              | Description                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `opts`    | \| \{ `limit?`: `number`; `offset?`: `number`; `orderByDirection?`: `RateLimitOrderByDirection`; `orderByField?`: `RateLimitOrderByField`; `search?`: `string`; \} \| `undefined` | The options for the list operation. |
+
+**Returns**
+
+`Promise`\<`RateLimitList`\>
+
+A promise that resolves to the list of rate limits.
+
 <a id="upsert"></a>
 
 ##### `upsert()`
@@ -23,21 +41,3 @@ Upserts a rate limit for the current tenant.
 `Promise`\<`string`\>
 
 A promise that resolves to the key of the upserted rate limit.
-
-<a id="list"></a>
-
-##### `list()`
-
-Lists all rate limits for the current tenant.
-
-**Parameters**
-
-| Parameter | Type                                                                                                                                                                              | Description                         |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `opts`    | \| \{ `offset?`: `number`; `limit?`: `number`; `search?`: `string`; `orderByField?`: `RateLimitOrderByField`; `orderByDirection?`: `RateLimitOrderByDirection`; \} \| `undefined` | The options for the list operation. |
-
-**Returns**
-
-`Promise`\<`RateLimitList`\>
-
-A promise that resolves to the list of rate limits.

@@ -6,46 +6,6 @@ The filters client is a client for interacting with Hatchet's filters API.
 
 #### Methods
 
-<a id="list"></a>
-
-##### `list()`
-
-Lists all filters.
-
-**Parameters**
-
-| Parameter           | Type                                                                                    | Description                                                    |
-| ------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `opts?`             | \{ `limit?`: `number`; `offset?`: `number`; `workflowIds?`: ...[]; `scopes?`: ...[]; \} | The options for the list operation.                            |
-| `opts.limit?`       | `number`                                                                                | The number of filters to return.                               |
-| `opts.offset?`      | `number`                                                                                | The number of filters to skip before returning the result set. |
-| `opts.workflowIds?` | ...[]                                                                                   | A list of workflow IDs to filter by.                           |
-| `opts.scopes?`      | ...[]                                                                                   | A list of scopes to filter by.                                 |
-
-**Returns**
-
-`Promise`\<`V1FilterList`\>
-
-A promise that resolves to the list of filters.
-
-<a id="get"></a>
-
-##### `get()`
-
-Gets a filter by its ID.
-
-**Parameters**
-
-| Parameter  | Type     | Description                  |
-| ---------- | -------- | ---------------------------- |
-| `filterId` | `string` | The ID of the filter to get. |
-
-**Returns**
-
-`Promise`\<`V1Filter`\>
-
-A promise that resolves to the filter.
-
 <a id="create"></a>
 
 ##### `create()`
@@ -81,6 +41,46 @@ Deletes a filter by its ID.
 `Promise`\<`V1Filter`\>
 
 A promise that resolves to the deleted filter.
+
+<a id="get"></a>
+
+##### `get()`
+
+Gets a filter by its ID.
+
+**Parameters**
+
+| Parameter  | Type     | Description                  |
+| ---------- | -------- | ---------------------------- |
+| `filterId` | `string` | The ID of the filter to get. |
+
+**Returns**
+
+`Promise`\<`V1Filter`\>
+
+A promise that resolves to the filter.
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists all filters.
+
+**Parameters**
+
+| Parameter           | Type                                                                                    | Description                                                    |
+| ------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `opts?`             | \{ `limit?`: `number`; `offset?`: `number`; `scopes?`: ...[]; `workflowIds?`: ...[]; \} | The options for the list operation.                            |
+| `opts.limit?`       | `number`                                                                                | The number of filters to return.                               |
+| `opts.offset?`      | `number`                                                                                | The number of filters to skip before returning the result set. |
+| `opts.scopes?`      | ...[]                                                                                   | A list of scopes to filter by.                                 |
+| `opts.workflowIds?` | ...[]                                                                                   | A list of workflow IDs to filter by.                           |
+
+**Returns**
+
+`Promise`\<`V1FilterList`\>
+
+A promise that resolves to the list of filters.
 
 <a id="update"></a>
 

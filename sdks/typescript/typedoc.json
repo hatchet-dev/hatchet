@@ -45,7 +45,7 @@
         "TypeAlias",
         "Reference"
     ],
-  "sort": ["source-order"],
+  "sort": ["alphabetical"],
   "hideGenerator": true,
   "theme": "hatchet-ts-docs",
   // typedoc-plugin-markdown options
