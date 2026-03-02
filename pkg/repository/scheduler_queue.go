@@ -587,7 +587,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	return taskIdToKeyToUnits, nil
 }
 
-func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID, stepIdsToLabelsFromTrigger map[uuid.UUID]*string) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
+func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID, stepIdsToLabelsFromTrigger map[uuid.UUID]*sqlcv1.GetDesiredLabelsRow) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
@@ -634,11 +634,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		labelFromTrigger, ok := stepIdsToLabelsFromTrigger[stepId]
 
 		if ok && labelFromTrigger != nil {
-			stepIdToLabels[stepId] = append(stepIdToLabels[stepId], &sqlcv1.GetDesiredLabelsRow{
-				StepId:     stepId,
-				LabelKey:   "hatchet.dev/desired-worker-label",
-				LabelValue: *labelFromTrigger,
-			})
+			stepIdToLabels[stepId] = append(stepIdToLabels[stepId], labelFromTrigger)
 		}
 	}
 

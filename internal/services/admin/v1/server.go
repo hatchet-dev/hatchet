@@ -495,7 +495,22 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		WorkflowName:       req.WorkflowName,
 		Data:               req.Input,
 		AdditionalMetadata: req.AdditionalMetadata,
-		DesiredWorkerLabel: req.DesiredWorkerLabel,
+	}
+
+	if req.DesiredWorkerLabel != nil {
+		var comparator *string
+		if req.DesiredWorkerLabel.Comparator != nil {
+			c := req.DesiredWorkerLabel.Comparator.String()
+			comparator = &c
+		}
+
+		t.DesiredWorkerLabel = v1.ProtoToDesiredWorkerLabel(
+			req.DesiredWorkerLabel.StrValue,
+			req.DesiredWorkerLabel.IntValue,
+			req.DesiredWorkerLabel.Required,
+			req.DesiredWorkerLabel.Weight,
+			comparator,
+		)
 	}
 
 	if req.Priority != nil {
@@ -1115,3 +1130,5 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 	return steps, nil
 }
+
+

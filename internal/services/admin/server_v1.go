@@ -202,7 +202,22 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		AdditionalMetadata: []byte(additionalMeta),
 		DesiredWorkerId:    desiredWorkerId,
 		Priority:           req.Priority,
-		DesiredWorkerLabel: req.DesiredWorkerLabel,
+	}
+
+	if req.DesiredWorkerLabel != nil {
+		var comparator *string
+		if req.DesiredWorkerLabel.Comparator != nil {
+			c := req.DesiredWorkerLabel.Comparator.String()
+			comparator = &c
+		}
+
+		t.DesiredWorkerLabel = v1.ProtoToDesiredWorkerLabel(
+			req.DesiredWorkerLabel.StrValue,
+			req.DesiredWorkerLabel.IntValue,
+			req.DesiredWorkerLabel.Required,
+			req.DesiredWorkerLabel.Weight,
+			comparator,
+		)
 	}
 
 	if req.Priority != nil {
@@ -354,3 +369,5 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 	return nil
 }
+
+

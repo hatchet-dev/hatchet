@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"sync"
 	"time"
@@ -194,12 +195,23 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint = time.Now()
 
 		stepIds := make([]uuid.UUID, 0, len(qis))
+		stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID]*sqlcv1.GetDesiredLabelsRow)
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepID)
+			var desiredLabel *sqlcv1.GetDesiredLabelsRow
+
+			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
+
+			if err != nil {
+				q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+			}
+
+			stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
+
 		}
 
-		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds)
+		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds, stepIdToDesiredLabelsFromTrigger)
 
 		if err != nil {
 			span.RecordError(err)
@@ -605,12 +617,23 @@ func (q *Queuer) runOptimisticQueue(
 	}
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
+	stepIdToDesiredLabelsFromTrigger := make(map[uuid.UUID]*sqlcv1.GetDesiredLabelsRow)
 
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)
+
+		var desiredLabel *sqlcv1.GetDesiredLabelsRow
+
+		err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
+
+		if err != nil {
+			q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+		}
+
+		stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
 	}
 
-	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
+	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds, stepIdToDesiredLabelsFromTrigger)
 
 	if err != nil {
 		return nil, nil, err

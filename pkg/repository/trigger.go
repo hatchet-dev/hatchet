@@ -66,7 +66,36 @@ type TriggerTaskData struct {
 	Priority *int32 `json:"priority"`
 
 	// (optional) an override for the desired worker label for the task, used for routing a task to a specific worker (or worker pool)
-	DesiredWorkerLabel *string `json:"desired_worker_label"`
+	DesiredWorkerLabel *sqlcv1.GetDesiredLabelsRow `json:"desired_worker_label"`
+}
+
+func ProtoToDesiredWorkerLabel(strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
+	row := &sqlcv1.GetDesiredLabelsRow{
+		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+		Weight:     100,
+	}
+
+	if strValue != nil {
+		row.StrValue = pgtype.Text{String: *strValue, Valid: true}
+	}
+
+	if intValue != nil {
+		row.IntValue = pgtype.Int4{Int32: *intValue, Valid: true}
+	}
+
+	if required != nil {
+		row.Required = *required
+	}
+
+	if weight != nil {
+		row.Weight = *weight
+	}
+
+	if comparator != nil {
+		row.Comparator = sqlcv1.WorkerLabelComparator(*comparator)
+	}
+
+	return row
 }
 
 type createDAGOpts struct {
@@ -450,7 +479,7 @@ type triggerTuple struct {
 	additionalMetadata   []byte
 	filterPayload        []byte
 	input                []byte
-	desiredWorkerLabel   *string
+	desiredWorkerLabel   *sqlcv1.GetDesiredLabelsRow
 }
 
 type createCoreUserEventOpts struct {

@@ -77,7 +77,7 @@ type CreateTaskOpts struct {
 	ChildKey *string
 
 	// (optional) an override for the desired worker label for the task, used for routing a task to a specific worker (or worker pool)
-	DesiredWorkerLabel *string
+	DesiredWorkerLabel *sqlcv1.GetDesiredLabelsRow
 }
 
 type ReplayTasksResult struct {
@@ -1758,7 +1758,7 @@ func (r *sharedRepository) insertTasks(
 	createExpressionOpts := make(map[uuid.UUID][]createTaskExpressionEvalOpt, 0)
 	workflowVersionIds := make([]uuid.UUID, len(tasks))
 	workflowRunIds := make([]uuid.UUID, len(tasks))
-	desiredWorkerLabels := make([]*string, len(tasks))
+	desiredWorkerLabels := make([][]byte, len(tasks))
 
 	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
 
@@ -1801,7 +1801,13 @@ func (r *sharedRepository) insertTasks(
 
 		priorities[i] = priority
 
-		desiredWorkerLabels[i] = task.DesiredWorkerLabel
+		if task.DesiredWorkerLabel != nil {
+			labelBytes, err := json.Marshal(task.DesiredWorkerLabel)
+			if err != nil {
+				return nil, fmt.Errorf("could not marshal desired worker label: %w", err)
+			}
+			desiredWorkerLabels[i] = labelBytes
+		}
 
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 
@@ -2070,7 +2076,7 @@ func (r *sharedRepository) insertTasks(
 				WorkflowVersionIds:           make([]uuid.UUID, 0),
 				WorkflowRunIds:               make([]uuid.UUID, 0),
 				Inputs:                       make([][]byte, 0),
-				DesiredWorkerLabels:          make([]*string, 0),
+				DesiredWorkerLabels:          make([][]byte, 0),
 			}
 		}
 

@@ -166,7 +166,7 @@ type CreateTasksParams struct {
 	RetryMaxBackoff              []pgtype.Int4        `json:"retryMaxBackoff"`
 	WorkflowVersionIds           []uuid.UUID          `json:"workflowVersionIds"`
 	WorkflowRunIds               []uuid.UUID          `json:"workflowRunIds"`
-	DesiredWorkerLabels          []*string            `json:"desiredWorkerLabels"`
+	DesiredWorkerLabels          [][]byte             `json:"desiredWorkerLabels"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
