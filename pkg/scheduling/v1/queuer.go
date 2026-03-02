@@ -201,14 +201,15 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			stepIds = append(stepIds, qi.StepID)
 			var desiredLabel *sqlcv1.GetDesiredLabelsRow
 
-			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
+			if len(qi.DesiredWorkerLabel) > 0 {
+				err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
 
-			if err != nil {
-				q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+				if err != nil {
+					q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+				}
+
+				stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
 			}
-
-			stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
-
 		}
 
 		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds, stepIdToDesiredLabelsFromTrigger)
@@ -622,15 +623,17 @@ func (q *Queuer) runOptimisticQueue(
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)
 
-		var desiredLabel *sqlcv1.GetDesiredLabelsRow
+		if len(qi.DesiredWorkerLabel) > 0 {
+			var desiredLabel *sqlcv1.GetDesiredLabelsRow
 
-		err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
+			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabel)
 
-		if err != nil {
-			q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+			if err != nil {
+				q.l.Error().Err(err).Msgf("error unmarshalling desired worker label for queue item %d", qi.ID)
+			}
+
+			stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
 		}
-
-		stepIdToDesiredLabelsFromTrigger[qi.StepID] = desiredLabel
 	}
 
 	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds, stepIdToDesiredLabelsFromTrigger)
