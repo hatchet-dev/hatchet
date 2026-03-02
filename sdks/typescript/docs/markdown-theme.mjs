@@ -26,6 +26,7 @@ const HEADINGS_TO_REMOVE = [
 const HEADINGS_TO_BOLD = [
   'Parameters',
   'Returns',
+  'Extends',
   'Throws',
   'Overrides',
   'Accessors',

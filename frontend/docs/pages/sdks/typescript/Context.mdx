@@ -7,6 +7,76 @@ There are two types of context classes you'll encounter:
 - Context - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
 - DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
 
+<a id="contextworker"></a>
+
+### ContextWorker
+
+ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
+
+#### Methods
+
+<a id="id"></a>
+
+##### `id()`
+
+Gets the ID of the worker.
+
+**Returns**
+
+`string` \| `undefined`
+
+The ID of the worker.
+
+<a id="hasworkflow"></a>
+
+##### `hasWorkflow()`
+
+Checks if the worker has a registered workflow.
+
+**Parameters**
+
+| Parameter      | Type     | Description                        |
+| -------------- | -------- | ---------------------------------- |
+| `workflowName` | `string` | The name of the workflow to check. |
+
+**Returns**
+
+`boolean`
+
+True if the workflow is registered, otherwise false.
+
+<a id="labels"></a>
+
+##### `labels()`
+
+Gets the current state of the worker labels.
+
+**Returns**
+
+`WorkerLabels`
+
+The labels of the worker.
+
+<a id="upsertlabels"></a>
+
+##### `upsertLabels()`
+
+Upserts the a set of labels on the worker.
+
+**Parameters**
+
+| Parameter | Type           | Description           |
+| --------- | -------------- | --------------------- |
+| `labels`  | `WorkerLabels` | The labels to upsert. |
+
+**Returns**
+
+`Promise`\<`WorkerLabels`\>
+
+A promise that resolves when the labels have been upserted.
+
+---
+
 <a id="context"></a>
 
 ### Context
@@ -16,6 +86,28 @@ There are two types of context classes you'll encounter:
 - [`DurableContext`](#durablecontext)
 
 #### Methods
+
+<a id="rethrowifcancelled"></a>
+
+##### `rethrowIfCancelled()`
+
+Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
+
+Example:
+
+```ts
+try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
+```
+
+**Parameters**
+
+| Parameter | Type      |
+| --------- | --------- |
+| `err`     | `unknown` |
+
+**Returns**
+
+`void`
 
 <a id="parentoutput"></a>
 
@@ -278,11 +370,11 @@ Runs a new workflow and waits for its result.
 
 **Parameters**
 
-| Parameter  | Type                                                                                                                                                                             | Description                                                                 |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `workflow` | \| `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
-| `input`    | `Q`                                                                                                                                                                              | The input data for the workflow.                                            |
-| `options?` | `ChildRunOpts`                                                                                                                                                                   | An options object containing key, sticky, priority, and additionalMetadata. |
+| Parameter  | Type                                                                                                                                                               | Description                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
+| `input`    | `Q`                                                                                                                                                                | The input data for the workflow.                                            |
+| `options?` | `ChildRunOpts`                                                                                                                                                     | An options object containing key, sticky, priority, and additionalMetadata. |
 
 **Returns**
 
@@ -298,11 +390,11 @@ Enqueues a new workflow without waiting for its result.
 
 **Parameters**
 
-| Parameter  | Type                                                            | Description                                                                 |
-| ---------- | --------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `workflow` | `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> | The workflow to enqueue (name, Workflow instance, or WorkflowV1 instance).  |
-| `input`    | `Q`                                                             | The input data for the workflow.                                            |
-| `options?` | `ChildRunOpts`                                                  | An options object containing key, sticky, priority, and additionalMetadata. |
+| Parameter  | Type                                              | Description                                                                 |
+| ---------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> | The workflow to enqueue (name, Workflow instance, or WorkflowV1 instance).  |
+| `input`    | `Q`                                               | The input data for the workflow.                                            |
+| `options?` | `ChildRunOpts`                                    | An options object containing key, sticky, priority, and additionalMetadata. |
 
 **Returns**
 
@@ -367,7 +459,7 @@ The parent workflow run ID, or undefined if not a child workflow.
 DurableContext provides helper methods and useful data to durable tasks at runtime.
 It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
 
-#### Extends
+**Extends**
 
 - [`Context`](#context)\<`T`, `K`\>
 

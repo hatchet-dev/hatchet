@@ -19,7 +19,7 @@ If the input is not a valid UUID, it will look up the workflow by name.
 
 | Parameter  | Type                                                                                           | Description                       |
 | ---------- | ---------------------------------------------------------------------------------------------- | --------------------------------- |
-| `workflow` | \| `string` \| `Workflow` \| `WorkflowDefinition` \| `BaseWorkflowDeclaration`\<`any`, `any`\> | The workflow name, ID, or object. |
+| `workflow` | \| `string` \| `WorkflowDefinition` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
 
 **Returns**
 
@@ -37,7 +37,7 @@ Get a workflow by its name, ID, or object.
 
 | Parameter  | Type                                                                | Description                       |
 | ---------- | ------------------------------------------------------------------- | --------------------------------- |
-| `workflow` | `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`any`, `any`\> | The workflow name, ID, or object. |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
 
 **Returns**
 
@@ -76,7 +76,7 @@ Delete a workflow by its name, ID, or object.
 
 | Parameter  | Type                                                                | Description                       |
 | ---------- | ------------------------------------------------------------------- | --------------------------------- |
-| `workflow` | `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`any`, `any`\> | The workflow name, ID, or object. |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
 
 **Returns**
 

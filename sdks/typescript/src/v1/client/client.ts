@@ -497,6 +497,7 @@ export class HatchetClient<
   /**
    * Get the dispatcher client for sending action events and managing worker registration
    * @returns A dispatcher client instance
+   * @internal
    */
   get dispatcher() {
     if (!this._dispatcher) {
@@ -532,6 +533,7 @@ export class HatchetClient<
   /**
    * Get the durable listener client for managing durable event subscriptions
    * @returns A durable listener client instance
+   * @internal
    */
   get durableListener() {
     if (!this._durableListener) {
@@ -548,6 +550,7 @@ export class HatchetClient<
   /**
    * Get the run listener client for streaming workflow run results
    * @returns A run listener client instance
+   * @internal
    */
   get listener() {
     return this._listener;

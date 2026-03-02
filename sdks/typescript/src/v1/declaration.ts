@@ -113,6 +113,7 @@ type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
  * Prefer using `StickyStrategy.SOFT` / `StickyStrategy.HARD` (v1, non-protobuf).
  * For backwards compatibility, the workflow/task `sticky` field also accepts legacy
  * protobuf enum values (`0`/`1`) and strings (`'SOFT'`/`'HARD'`).
+ * @internal
  */
 export const StickyStrategy = {
   SOFT: 'soft',

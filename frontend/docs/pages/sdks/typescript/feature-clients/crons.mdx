@@ -16,7 +16,7 @@ Creates a new Cron workflow.
 
 | Parameter                  | Type                                                                                                                                                                 | Description                                   |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `workflow`                 | `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`any`, `any`\>                                                                                                  | The workflow identifier or Workflow object.   |
+| `workflow`                 | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow`                                                                                                  | The workflow identifier or Workflow object.   |
 | `cron`                     | \{ `name`: `string`; `expression`: `string`; `input?`: `Record`\<`string`, `any`\>; `additionalMetadata?`: `Record`\<`string`, `string`\>; `priority?`: `number`; \} | The input data for creating the Cron Trigger. |
 | `cron.name`                | `string`                                                                                                                                                             | -                                             |
 | `cron.expression`          | `string`                                                                                                                                                             | -                                             |
