@@ -29,6 +29,10 @@ type UpdateSessionOpts struct {
 
 // UserSessionRepository represents the set of queries on the UserSession model
 type UserSessionRepository interface {
+	RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.UserSession])
+	RegisterUpdateCallback(callback UnscopedCallback[*sqlcv1.UserSession])
+	RegisterDeleteCallback(callback UnscopedCallback[*sqlcv1.UserSession])
+
 	Create(ctx context.Context, opts *CreateSessionOpts) (*sqlcv1.UserSession, error)
 	Update(ctx context.Context, sessionId uuid.UUID, opts *UpdateSessionOpts) (*sqlcv1.UserSession, error)
 	Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
@@ -37,12 +41,40 @@ type UserSessionRepository interface {
 
 type userSessionRepository struct {
 	*sharedRepository
+
+	createCallbacks []UnscopedCallback[*sqlcv1.UserSession]
+	updateCallbacks []UnscopedCallback[*sqlcv1.UserSession]
+	deleteCallbacks []UnscopedCallback[*sqlcv1.UserSession]
 }
 
 func newUserSessionRepository(shared *sharedRepository) UserSessionRepository {
 	return &userSessionRepository{
 		sharedRepository: shared,
 	}
+}
+
+func (r *userSessionRepository) RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.UserSession]) {
+	if r.createCallbacks == nil {
+		r.createCallbacks = make([]UnscopedCallback[*sqlcv1.UserSession], 0)
+	}
+
+	r.createCallbacks = append(r.createCallbacks, callback)
+}
+
+func (r *userSessionRepository) RegisterUpdateCallback(callback UnscopedCallback[*sqlcv1.UserSession]) {
+	if r.updateCallbacks == nil {
+		r.updateCallbacks = make([]UnscopedCallback[*sqlcv1.UserSession], 0)
+	}
+
+	r.updateCallbacks = append(r.updateCallbacks, callback)
+}
+
+func (r *userSessionRepository) RegisterDeleteCallback(callback UnscopedCallback[*sqlcv1.UserSession]) {
+	if r.deleteCallbacks == nil {
+		r.deleteCallbacks = make([]UnscopedCallback[*sqlcv1.UserSession], 0)
+	}
+
+	r.deleteCallbacks = append(r.deleteCallbacks, callback)
 }
 
 func (r *userSessionRepository) Create(ctx context.Context, opts *CreateSessionOpts) (*sqlcv1.UserSession, error) {
@@ -60,11 +92,21 @@ func (r *userSessionRepository) Create(ctx context.Context, opts *CreateSessionO
 		params.Data = opts.Data
 	}
 
-	return r.queries.CreateUserSession(
+	session, err := r.queries.CreateUserSession(
 		ctx,
 		r.pool,
 		params,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cb := range r.createCallbacks {
+		cb.Do(r.l, session)
+	}
+
+	return session, nil
 }
 
 func (r *userSessionRepository) Update(ctx context.Context, sessionId uuid.UUID, opts *UpdateSessionOpts) (*sqlcv1.UserSession, error) {
@@ -81,19 +123,39 @@ func (r *userSessionRepository) Update(ctx context.Context, sessionId uuid.UUID,
 		params.Data = opts.Data
 	}
 
-	return r.queries.UpdateUserSession(
+	session, err := r.queries.UpdateUserSession(
 		ctx,
 		r.pool,
 		params,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cb := range r.updateCallbacks {
+		cb.Do(r.l, session)
+	}
+
+	return session, nil
 }
 
 func (r *userSessionRepository) Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error) {
-	return r.queries.DeleteUserSession(
+	session, err := r.queries.DeleteUserSession(
 		ctx,
 		r.pool,
 		sessionId,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cb := range r.deleteCallbacks {
+		cb.Do(r.l, session)
+	}
+
+	return session, nil
 }
 
 func (r *userSessionRepository) GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error) {
