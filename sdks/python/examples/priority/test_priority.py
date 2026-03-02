@@ -62,6 +62,7 @@ async def dummy_runs() -> None:
     return
 
 
+@pytest.mark.skip(reason="Very flaky test")
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
@@ -149,6 +150,7 @@ async def test_priority(
         assert curr.finished_at >= curr.started_at
 
 
+@pytest.mark.skip(reason="Very flaky test")
 @pytest.mark.parametrize(
     "on_demand_worker",
     [

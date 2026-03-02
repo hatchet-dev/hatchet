@@ -3,6 +3,7 @@
 require "logger"
 require "json"
 require "base64"
+require "set"
 
 module Hatchet
   # TLS configuration for client connections
@@ -28,7 +29,8 @@ module Hatchet
     #   @return [String, nil] Path to root CA certificate file
     # @!attribute server_name
     #   @return [String] Server name for TLS verification
-    attr_accessor :strategy, :cert_file, :key_file, :root_ca_file, :server_name
+    attr_accessor :server_name
+    attr_reader :strategy, :cert_file, :key_file, :root_ca_file
 
     # Initialize TLS configuration
     #
@@ -49,7 +51,7 @@ module Hatchet
     private
 
     def env_var(name)
-      ENV[name]
+      ENV.fetch(name, nil)
     end
   end
 
@@ -62,7 +64,7 @@ module Hatchet
     #   @return [Integer] Port number for healthcheck endpoint
     # @!attribute enabled
     #   @return [Boolean] Whether healthcheck is enabled
-    attr_accessor :port, :enabled
+    attr_reader :port, :enabled
 
     # Initialize healthcheck configuration
     #
@@ -77,7 +79,7 @@ module Hatchet
     private
 
     def env_var(name)
-      ENV[name]
+      ENV.fetch(name, nil)
     end
 
     def parse_int(value)
@@ -95,41 +97,6 @@ module Hatchet
       return value if [true, false].include?(value)
 
       %w[true 1 yes on].include?(value.to_s.downcase)
-    end
-  end
-
-  # OpenTelemetry configuration for observability
-  #
-  # @example Exclude sensitive attributes from telemetry
-  #   otel = OpenTelemetryConfig.new(excluded_attributes: ["password", "api_key"])
-  class OpenTelemetryConfig
-    # @!attribute excluded_attributes
-    #   @return [Array<String>] List of attribute names to exclude from telemetry
-    attr_accessor :excluded_attributes
-
-    # Initialize OpenTelemetry configuration
-    #
-    # @param options [Hash] OpenTelemetry configuration options
-    # @option options [Array<String>] :excluded_attributes List of attribute names to exclude from telemetry
-    def initialize(**options)
-      @excluded_attributes = options[:excluded_attributes] ||
-                         parse_json_array(
-                           env_var("HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES")
-                         ) || []
-    end
-
-    private
-
-    def env_var(name)
-      ENV[name]
-    end
-
-    def parse_json_array(value)
-      return nil if value.nil? || value.empty?
-
-      JSON.parse(value)
-    rescue JSON::ParserError
-      nil
     end
   end
 
@@ -182,29 +149,15 @@ module Hatchet
     # @!attribute grpc_max_send_message_length
     #   @return [Integer] Maximum gRPC send message length in bytes
     # @!attribute worker_preset_labels
-    #   @return [Hash<String, String>] Hash of preset labels for workers
-    # @!attribute enable_force_kill_sync_threads
-    #   @return [Boolean] Enable force killing of sync threads
-    # @!attribute enable_thread_pool_monitoring
-    #   @return [Boolean] Enable thread pool monitoring
-    # @!attribute terminate_worker_after_num_tasks
-    #   @return [Integer, nil] Terminate worker after this many tasks
-    # @!attribute disable_log_capture
-    #   @return [Boolean] Disable log capture
-    # @!attribute grpc_enable_fork_support
-    #   @return [Boolean] Enable gRPC fork support
+    #   @return [Hash<String, String>] Default labels applied to all workers
     # @!attribute tls_config
     #   @return [TLSConfig] TLS configuration
     # @!attribute healthcheck
     #   @return [HealthcheckConfig] Healthcheck configuration
-    # @!attribute otel
-    #   @return [OpenTelemetryConfig] OpenTelemetry configuration
-    attr_accessor :token, :host_port, :server_url, :namespace,
-                  :logger, :listener_v2_timeout, :grpc_max_recv_message_length,
-                  :grpc_max_send_message_length, :worker_preset_labels,
-                  :enable_force_kill_sync_threads, :enable_thread_pool_monitoring,
-                  :terminate_worker_after_num_tasks, :disable_log_capture,
-                  :grpc_enable_fork_support, :tls_config, :healthcheck, :otel
+    attr_reader :token, :host_port, :server_url, :namespace,
+                :logger, :listener_v2_timeout, :grpc_max_recv_message_length,
+                :grpc_max_send_message_length, :worker_preset_labels,
+                :tls_config, :healthcheck
 
     attr_reader :tenant_id
 
@@ -225,15 +178,9 @@ module Hatchet
     # @option options [Integer] :listener_v2_timeout Timeout for listener v2 in milliseconds
     # @option options [Integer] :grpc_max_recv_message_length Maximum gRPC receive message length in bytes (default: 4MB)
     # @option options [Integer] :grpc_max_send_message_length Maximum gRPC send message length in bytes (default: 4MB)
-    # @option options [Hash<String, String>] :worker_preset_labels Hash of preset labels for workers
-    # @option options [Boolean] :enable_force_kill_sync_threads Enable force killing of sync threads (default: false)
-    # @option options [Boolean] :enable_thread_pool_monitoring Enable thread pool monitoring (default: false)
-    # @option options [Integer] :terminate_worker_after_num_tasks Terminate worker after this many tasks
-    # @option options [Boolean] :disable_log_capture Disable log capture (default: false)
-    # @option options [Boolean] :grpc_enable_fork_support Enable gRPC fork support (default: false)
+    # @option options [Hash<String, String>] :worker_preset_labels Default labels applied to all workers (default: {})
     # @option options [TLSConfig] :tls_config Custom TLS configuration
     # @option options [HealthcheckConfig] :healthcheck Custom healthcheck configuration
-    # @option options [OpenTelemetryConfig] :otel Custom OpenTelemetry configuration
     #
     # @raise [Error] if token is missing, empty, or not a valid JWT
     def initialize(**options)
@@ -249,40 +196,19 @@ module Hatchet
       @listener_v2_timeout = parse_int(options[:listener_v2_timeout] || env_var("HATCHET_CLIENT_LISTENER_V2_TIMEOUT"))
       @grpc_max_recv_message_length = parse_int(
         options[:grpc_max_recv_message_length] ||
-        env_var("HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH")
+        env_var("HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH"),
       ) || DEFAULT_GRPC_MAX_MESSAGE_LENGTH
       @grpc_max_send_message_length = parse_int(
         options[:grpc_max_send_message_length] ||
-        env_var("HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH")
+        env_var("HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH"),
       ) || DEFAULT_GRPC_MAX_MESSAGE_LENGTH
 
       @worker_preset_labels = options[:worker_preset_labels] ||
                               parse_hash(env_var("HATCHET_CLIENT_WORKER_PRESET_LABELS")) || {}
-      @enable_force_kill_sync_threads = parse_bool(
-        options[:enable_force_kill_sync_threads] ||
-        env_var("HATCHET_CLIENT_ENABLE_FORCE_KILL_SYNC_THREADS")
-      ) || false
-      @enable_thread_pool_monitoring = parse_bool(
-        options[:enable_thread_pool_monitoring] ||
-        env_var("HATCHET_CLIENT_ENABLE_THREAD_POOL_MONITORING")
-      ) || false
-      @terminate_worker_after_num_tasks = parse_int(
-        options[:terminate_worker_after_num_tasks] ||
-        env_var("HATCHET_CLIENT_TERMINATE_WORKER_AFTER_NUM_TASKS")
-      )
-      @disable_log_capture = parse_bool(
-        options[:disable_log_capture] ||
-        env_var("HATCHET_CLIENT_DISABLE_LOG_CAPTURE")
-      ) || false
-      @grpc_enable_fork_support = parse_bool(
-        options[:grpc_enable_fork_support] ||
-        env_var("HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT")
-      ) || false
 
       # Initialize nested configurations
       @tls_config = options[:tls_config] || TLSConfig.new
       @healthcheck = options[:healthcheck] || HealthcheckConfig.new
-      @otel = options[:otel] || OpenTelemetryConfig.new
 
       # Initialize tenant_id from JWT token
       @tenant_id = ""
@@ -291,15 +217,6 @@ module Hatchet
       apply_token_defaults if valid_jwt_token?
       apply_address_defaults if valid_jwt_token?
       normalize_namespace!
-    end
-
-    def validate!
-      raise Error, "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment." if token.nil? || token.empty?
-
-      return if valid_jwt_token?
-
-      raise Error,
-            "Hatchet Token must be a valid JWT."
     end
 
     # Apply namespace prefix to a resource name
@@ -344,15 +261,26 @@ module Hatchet
         grpc_max_recv_message_length: grpc_max_recv_message_length,
         grpc_max_send_message_length: grpc_max_send_message_length,
         worker_preset_labels: worker_preset_labels,
-        enable_force_kill_sync_threads: enable_force_kill_sync_threads,
-        enable_thread_pool_monitoring: enable_thread_pool_monitoring,
-        terminate_worker_after_num_tasks: terminate_worker_after_num_tasks,
-        disable_log_capture: disable_log_capture,
-        grpc_enable_fork_support: grpc_enable_fork_support
       }
     end
 
+    # Returns authentication metadata for gRPC calls.
+    #
+    # @return [Hash<String, String>] Metadata hash with authorization bearer token
+    def auth_metadata
+      { "authorization" => "bearer #{token}" }
+    end
+
     private
+
+    def validate!
+      raise Error, "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment." if token.nil? || token.empty?
+
+      return if valid_jwt_token?
+
+      raise Error,
+            "Hatchet Token must be a valid JWT."
+    end
 
     def valid_jwt_token?
       !token.nil? && !token.empty? && token.start_with?("ey")
@@ -400,7 +328,7 @@ module Hatchet
     end
 
     def env_var(name)
-      ENV[name]
+      ENV.fetch(name, nil)
     end
 
     def parse_int(value)
@@ -413,17 +341,9 @@ module Hatchet
       nil
     end
 
-    def parse_bool(value)
-      return nil if value.nil?
-      return value if [true, false].include?(value)
-
-      %w[true 1 yes on].include?(value.to_s.downcase)
-    end
-
     def parse_hash(value)
       return nil if value.nil? || value.empty?
 
-      # Simple key=value,key2=value2 parsing
       result = {}
       value.split(",").each do |pair|
         key, val = pair.split("=", 2)
@@ -471,7 +391,7 @@ module Hatchet
       # Decode the payload (second part)
       payload_part = parts[1]
       # Add padding if needed for Base64 decoding
-      payload_part += "=" * (4 - payload_part.length % 4) if payload_part.length % 4 != 0
+      payload_part += "=" * (4 - (payload_part.length % 4)) if payload_part.length % 4 != 0
 
       decoded_payload = Base64.decode64(payload_part)
       JSON.parse(decoded_payload)

@@ -1,5 +1,4 @@
 # > Simple
-
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
@@ -16,7 +15,10 @@ def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", workflows=[simple, simple_durable])
+    worker = hatchet.worker(
+        "test-worker",
+        workflows=[simple, simple_durable],
+    )
     worker.start()
 
 

@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -6,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
 // Workflow represents a running workflow instance and provides methods to retrieve its results.
@@ -40,7 +40,7 @@ func (r *Workflow) WorkflowRunId() string {
 }
 
 type WorkflowResult struct {
-	workflowRun *dispatchercontracts.WorkflowRunEvent
+	workflowRun *workflowRunEvent
 }
 
 func (r *WorkflowResult) StepOutput(key string, v interface{}) error {

@@ -8,7 +8,7 @@ import (
 func ToRateLimitFromSQLC(rl *sqlcv1.ListRateLimitsForTenantNoMutateRow) (*gen.RateLimit, error) {
 	res := &gen.RateLimit{
 		Key:        rl.Key,
-		TenantId:   pgUUIDToStr(rl.TenantId),
+		TenantId:   rl.TenantId.String(),
 		LastRefill: rl.LastRefill.Time,
 		LimitValue: int(rl.LimitValue),
 		Value:      int(rl.Value),

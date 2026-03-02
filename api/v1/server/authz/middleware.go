@@ -10,7 +10,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -78,7 +77,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		}
 
 		// check if the user is a member of the tenant
-		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), sqlchelpers.UUIDToStr(tenant.ID), sqlchelpers.UUIDToStr(user.ID))
+		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
 
 		if err != nil {
 			a.l.Debug().Err(err).Msgf("error getting tenant member")

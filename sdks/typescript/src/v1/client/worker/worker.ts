@@ -1,32 +1,23 @@
 /* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { LegacyHatchetClient } from '@hatchet/clients/hatchet-client';
-import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
+import sleep from '@hatchet/util/sleep';
 import { BaseWorkflowDeclaration } from '../../declaration';
+import type { LegacyWorkflow } from '../../../legacy/legacy-transformer';
+import { normalizeWorkflows } from '../../../legacy/legacy-transformer';
 import { HatchetClient } from '../..';
-import { V1Worker } from './worker-internal';
-
-const DEFAULT_DURABLE_SLOTS = 1_000;
+import { InternalWorker } from './worker-internal';
+import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
+import { isLegacyEngine, LegacyDualWorker } from './deprecated';
 
 /**
  * Options for creating a new hatchet worker
  * @interface CreateWorkerOpts
  */
-export interface CreateWorkerOpts {
-  /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
-  slots?: number;
-  /** (optional) Array of workflows to register */
-  workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
+export interface CreateWorkerOpts extends WorkerSlotOptions {
   /** (optional) Worker labels for affinity-based assignment */
   labels?: WorkerLabels;
   /** (optional) Whether to handle kill signals */
   handleKill?: boolean;
-  /** @deprecated Use slots instead */
-  maxRuns?: number;
-
-  /** (optional) Maximum number of concurrent runs on the durable worker, defaults to 1,000 */
-  durableSlots?: number;
 }
 
 /**
@@ -36,11 +27,15 @@ export class Worker {
   config: CreateWorkerOpts;
   name: string;
   _v1: HatchetClient;
-  _v0: LegacyHatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
-  nonDurable: V1Worker;
-  durable?: V1Worker;
+  _internal: InternalWorker;
+
+  /** Set when connected to a legacy engine that needs dual-worker architecture */
+  private _legacyWorker: LegacyDualWorker | undefined;
+
+  /** Tracks all workflows registered after construction (via registerWorkflow/registerWorkflows) */
+  private _registeredWorkflows: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow> = [];
 
   /**
    * Creates a new HatchetWorker instance
@@ -48,14 +43,12 @@ export class Worker {
    */
   constructor(
     v1: HatchetClient,
-    v0: LegacyHatchetClient,
-    nonDurable: V1Worker,
+    nonDurable: InternalWorker,
     config: CreateWorkerOpts,
     name: string
   ) {
     this._v1 = v1;
-    this._v0 = v0;
-    this.nonDurable = nonDurable;
+    this._internal = nonDurable;
     this.config = config;
     this.name = name;
   }
@@ -66,62 +59,52 @@ export class Worker {
    * @param options - Worker creation options
    * @returns A new HatchetWorker instance
    */
-  static async create(
-    v1: HatchetClient,
-    v0: LegacyHatchetClient,
-    name: string,
-    options: CreateWorkerOpts
-  ) {
-    const opts = {
-      name,
+  static async create(v1: HatchetClient, name: string, options: CreateWorkerOpts) {
+    // Normalize any legacy workflows before resolving worker options
+    const normalizedOptions = {
       ...options,
-      maxRuns: options.slots || options.maxRuns,
+      workflows: options.workflows ? normalizeWorkflows(options.workflows) : undefined,
     };
 
-    const internalWorker = new V1Worker(v1, opts);
-    const worker = new Worker(v1, v0, internalWorker, options, name);
-    await worker.registerWorkflows(options.workflows);
+    const resolvedOptions = resolveWorkerOptions(normalizedOptions);
+    const opts = {
+      name,
+      ...resolvedOptions,
+    };
+
+    const internalWorker = new InternalWorker(v1, opts);
+    const worker = new Worker(v1, internalWorker, normalizedOptions, name);
+    await worker.registerWorkflows(normalizedOptions.workflows);
     return worker;
   }
 
   /**
-   * Registers workflows with the worker
+   * Registers workflows with the worker.
+   * Accepts both v1 BaseWorkflowDeclaration and legacy Workflow objects.
+   * Legacy workflows are automatically transformed and a deprecation warning is emitted.
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>) {
-    for (const wf of workflows || []) {
-      if (wf instanceof BaseWorkflowDeclaration) {
-        // TODO check if tenant is V1
-        await this.nonDurable.registerWorkflowV1(wf);
+  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow>) {
+    const normalized = workflows ? normalizeWorkflows(workflows) : [];
+    for (const wf of normalized) {
+      await this._internal.registerWorkflow(wf);
 
-        if (wf.definition._durableTasks.length > 0) {
-          if (!this.durable) {
-            const opts = {
-              name: `${this.name}-durable`,
-              ...this.config,
-              maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
-            };
-
-            this.durable = new V1Worker(this._v1, opts);
-            await this.durable.registerWorkflowV1(wf, true);
-          }
-          this.durable.registerDurableActionsV1(wf.definition);
-        }
-      } else {
-        // fallback to v0 client for backwards compatibility
-        await this.nonDurable.registerWorkflow(wf);
+      if (wf.definition._durableTasks.length > 0) {
+        this._internal.registerDurableActions(wf.definition);
       }
     }
   }
 
   /**
-   * Registers a single workflow with the worker
+   * Registers a single workflow with the worker.
+   * Accepts both v1 BaseWorkflowDeclaration and legacy Workflow objects.
+   * Legacy workflows are automatically transformed and a deprecation warning is emitted.
    * @param workflow - The workflow to register
    * @returns A promise that resolves when the workflow is registered
    * @deprecated use registerWorkflows instead
    */
-  registerWorkflow(workflow: BaseWorkflowDeclaration<any, any> | V0Workflow) {
+  registerWorkflow(workflow: BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
     return this.registerWorkflows([workflow]);
   }
 
@@ -129,14 +112,21 @@ export class Worker {
    * Starts the worker
    * @returns Promise that resolves when the worker is stopped or killed
    */
-  start() {
-    const workers = [this.nonDurable];
-
-    if (this.durable) {
-      workers.push(this.durable);
+  async start() {
+    // Check engine version and fall back to legacy dual-worker mode if needed
+    if (await isLegacyEngine(this._v1)) {
+      // Include workflows registered after construction (via registerWorkflow/registerWorkflows)
+      // so the legacy worker picks them up.
+      const legacyConfig: CreateWorkerOpts = {
+        ...this.config,
+        workflows: this._registeredWorkflows.length
+          ? (this._registeredWorkflows as BaseWorkflowDeclaration<any, any>[])
+          : this.config.workflows,
+      };
+      this._legacyWorker = await LegacyDualWorker.create(this._v1, this.name, legacyConfig);
+      return this._legacyWorker.start();
     }
-
-    return Promise.all(workers.map((w) => w.start()));
+    return this._internal.start();
   }
 
   /**
@@ -144,13 +134,10 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
-    const workers = [this.nonDurable];
-
-    if (this.durable) {
-      workers.push(this.durable);
+    if (this._legacyWorker) {
+      return this._legacyWorker.stop();
     }
-
-    return Promise.all(workers.map((w) => w.stop()));
+    return this._internal.stop();
   }
 
   /**
@@ -159,7 +146,7 @@ export class Worker {
    * @returns Promise that resolves when labels are updated
    */
   upsertLabels(labels: WorkerLabels) {
-    return this.nonDurable.upsertLabels(labels);
+    return this._internal.upsertLabels(labels);
   }
 
   /**
@@ -167,52 +154,51 @@ export class Worker {
    * @returns The labels for the worker
    */
   getLabels() {
-    return this.nonDurable.labels;
-  }
-
-  /**
-   * Register a webhook with the worker
-   * @param webhook - The webhook to register
-   * @returns A promise that resolves when the webhook is registered
-   */
-  registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this.nonDurable.registerWebhook(webhook);
+    return this._internal.labels;
   }
 
   async isPaused() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.isPaused(this.nonDurable.workerId));
-    }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.isPaused(this.durable.workerId));
+    if (!this._internal?.workerId) {
+      return false;
     }
 
-    const res = await Promise.all(promises);
-
-    return !res.includes(false);
+    return this._v1.workers.isPaused(this._internal.workerId);
   }
 
   // TODO docstrings
   pause() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.pause(this.nonDurable.workerId));
+    if (!this._internal?.workerId) {
+      return Promise.resolve();
     }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.pause(this.durable.workerId));
-    }
-    return Promise.all(promises);
+
+    return this._v1.workers.pause(this._internal.workerId);
   }
 
   unpause() {
-    const promises: Promise<any>[] = [];
-    if (this.nonDurable?.workerId) {
-      promises.push(this._v1.workers.unpause(this.nonDurable.workerId));
+    if (!this._internal?.workerId) {
+      return Promise.resolve();
     }
-    if (this.durable?.workerId) {
-      promises.push(this._v1.workers.unpause(this.durable.workerId));
+
+    return this._v1.workers.unpause(this._internal.workerId);
+  }
+
+  /**
+   * Waits until the worker has connected and registered with the server.
+   * Polls every 200ms. Use after start() to avoid fixed sleeps before running workflows.
+   */
+  async waitUntilReady(timeoutMs = 10_000): Promise<void> {
+    if (this._legacyWorker) {
+      await sleep(2000);
+      return;
     }
-    return Promise.all(promises);
+    const pollInterval = 200;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this._internal?.workerId) return;
+      await sleep(pollInterval);
+    }
+    throw new Error(`Worker ${this.name} did not become ready within ${timeoutMs}ms`);
   }
 }
+
+export { testingExports as __testing } from './slot-utils';

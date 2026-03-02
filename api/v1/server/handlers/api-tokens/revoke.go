@@ -6,7 +6,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -20,7 +19,7 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		), nil
 	}
 
-	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), sqlchelpers.UUIDToStr(apiToken.ID))
+	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), apiToken.ID)
 
 	if err != nil {
 		return nil, err
@@ -29,15 +28,13 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 	ctx.Set(constants.ResourceIdKey.String(), apiToken.ID.String())
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
-	tenantId := sqlchelpers.UUIDToStr(apiToken.TenantId)
-
 	a.config.Analytics.Enqueue(
 		"api-token:revoke",
-		sqlchelpers.UUIDToStr(user.ID),
-		&tenantId,
+		user.ID.String(),
+		apiToken.TenantId,
 		nil,
 		map[string]interface{}{
-			"token_id": apiToken.ID,
+			"token_id": apiToken.ID.String(),
 		},
 	)
 	return gen.ApiTokenUpdateRevoke204Response{}, nil

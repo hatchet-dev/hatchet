@@ -13,7 +13,7 @@ For example, say you'd like to send a notification to a user after 24 hours. Wit
 
 Durable sleep can be used by calling the `SleepFor` method on the `DurableContext` object. This method takes a duration as an argument and will sleep for that duration.
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_sleep.worker.durable_sleep} />
@@ -29,4 +29,7 @@ Durable sleep can be used by calling the `SleepFor` method on the `DurableContex
 <Snippet src={snippets.go.durable.sleep.main.durable_sleep} />
 
 </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.durable_sleep.worker.durable_sleep} />
+  </Tabs.Tab>
 </UniversalTabs>

@@ -21,6 +21,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
@@ -36,7 +38,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec

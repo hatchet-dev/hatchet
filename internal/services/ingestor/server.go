@@ -7,12 +7,13 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -78,7 +79,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	if len(req.Events) == 0 {
 
@@ -194,8 +195,8 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 }
 
 func toEvent(e *sqlcv1.Event) (*contracts.Event, error) {
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
-	eventId := sqlchelpers.UUIDToStr(e.ID)
+	tenantId := e.TenantId.String()
+	eventId := e.ID.String()
 
 	var additionalMeta *string
 
@@ -215,17 +216,17 @@ func toEvent(e *sqlcv1.Event) (*contracts.Event, error) {
 }
 
 type BulkCreateEventOpts struct {
-	TenantId string `validate:"required,uuid"`
+	TenantId uuid.UUID `validate:"required"`
 	Events   []*CreateEventOpts
 }
 
 type CreateEventOpts struct {
-	ReplayedEvent         *string `validate:"omitempty,uuid"`
-	Priority              *int32  `validate:"omitempty,min=1,max=3"`
-	Scope                 *string `validate:"omitempty"`
-	TriggeringWebhookName *string `validate:"omitempty"`
-	TenantId              string  `validate:"required,uuid"`
-	Key                   string  `validate:"required"`
+	ReplayedEvent         *uuid.UUID `validate:"omitempty"`
+	Priority              *int32     `validate:"omitempty,min=1,max=3"`
+	Scope                 *string    `validate:"omitempty"`
+	TriggeringWebhookName *string    `validate:"omitempty"`
+	TenantId              uuid.UUID  `validate:"required"`
+	Key                   string     `validate:"required"`
 	Data                  []byte
 	AdditionalMetadata    []byte
 }

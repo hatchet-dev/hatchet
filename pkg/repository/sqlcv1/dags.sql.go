@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -47,7 +48,7 @@ SELECT
     i.display_name,
     i.workflow_id,
     i.workflow_version_id,
-    i.parent_task_external_id
+    NULLIF(i.parent_task_external_id, '00000000-0000-0000-0000-000000000000'::uuid)
 FROM
     input i
 RETURNING
@@ -55,12 +56,12 @@ RETURNING
 `
 
 type CreateDAGsParams struct {
-	Tenantids             []pgtype.UUID `json:"tenantids"`
-	Externalids           []pgtype.UUID `json:"externalids"`
-	Displaynames          []string      `json:"displaynames"`
-	Workflowids           []pgtype.UUID `json:"workflowids"`
-	Workflowversionids    []pgtype.UUID `json:"workflowversionids"`
-	Parenttaskexternalids []pgtype.UUID `json:"parenttaskexternalids"`
+	Tenantids             []uuid.UUID `json:"tenantids"`
+	Externalids           []uuid.UUID `json:"externalids"`
+	Displaynames          []string    `json:"displaynames"`
+	Workflowids           []uuid.UUID `json:"workflowids"`
+	Workflowversionids    []uuid.UUID `json:"workflowversionids"`
+	Parenttaskexternalids []uuid.UUID `json:"parenttaskexternalids"`
 }
 
 func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams) ([]*V1Dag, error) {

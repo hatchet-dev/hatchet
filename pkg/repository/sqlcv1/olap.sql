@@ -515,7 +515,7 @@ SELECT
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
-    o.external_id::UUID AS output_event_external_id,
+    o.external_id AS output_event_external_id,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -654,15 +654,17 @@ WITH input AS (
         e.task_id, e.retry_count DESC
 ), task_output AS (
     SELECT
+        DISTINCT ON (task_id)
         task_id,
-        MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
-        MAX(external_id::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id
+        output,
+        external_id AS output_event_external_id
     FROM
         relevant_events
     WHERE
         readable_status = 'COMPLETED'
-    GROUP BY
-        task_id
+        AND event_type = 'FINISHED'
+    ORDER BY
+        task_id, event_timestamp DESC
 )
 SELECT
     t.tenant_id,
@@ -696,7 +698,7 @@ SELECT
         WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB as output,
-    o.output_event_external_id::UUID AS output_event_external_id
+    o.output_event_external_id AS output_event_external_id
 FROM
     tasks t
 LEFT JOIN
@@ -788,8 +790,8 @@ WITH tenants AS (
         worker_id IS NOT NULL
     GROUP BY
         tenant_id, task_id, task_inserted_at, retry_count
-), locked_tasks AS (
-    SELECT
+), distinct_tasks_to_lock AS (
+    SELECT DISTINCT ON (t.tenant_id, t.id, t.inserted_at)
         t.tenant_id,
         t.id,
         t.inserted_at,
@@ -801,9 +803,18 @@ WITH tenants AS (
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
-    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    WHERE
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     ORDER BY
-        t.inserted_at, t.id
+        t.tenant_id, t.id, t.inserted_at, t.readable_status
+), locked_tasks AS (
+    SELECT
+        dt.*
+    FROM
+        v1_tasks_olap t
+    JOIN
+        distinct_tasks_to_lock dt ON
+            (dt.inserted_at, dt.id) = (t.inserted_at, t.id)
     FOR UPDATE
 ), already_in_target_partition AS (
     -- Check if rows already exist in the target partition (with the new readable_status)
@@ -1127,7 +1138,7 @@ WITH tenants AS (
         (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
 ), dags_to_update AS (
     -- DAGs that need updating and don't already exist in target partition
-    SELECT
+    SELECT DISTINCT ON (dns.tenant_id, dns.id, dns.inserted_at)
         dns.tenant_id,
         dns.id,
         dns.inserted_at,
@@ -1141,6 +1152,8 @@ WITH tenants AS (
             FROM already_in_target_partition ap
             WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (dns.tenant_id, dns.id, dns.inserted_at)
         )
+    ORDER BY
+        dns.tenant_id, dns.id, dns.inserted_at, dns.old_readable_status
 ), updated_dags AS (
     UPDATE
         v1_dags_olap d

@@ -2,7 +2,7 @@ import { CreateWorkflowVersionOpts, WorkflowVersion } from '@hatchet/protoc/work
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig } from '@clients/hatchet-client';
 import { AdminClient } from './admin-client';
-import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 
 describe('AdminClient', () => {
@@ -134,6 +134,35 @@ describe('AdminClient', () => {
         name: 'workflowName',
         schedules: [now],
       });
+    });
+  });
+
+  describe('runWorkflows', () => {
+    it('should map parentTaskRunExternalId to parentTaskRunExternalId', async () => {
+      const bulkSpy = jest.spyOn(client.client, 'bulkTriggerWorkflow').mockResolvedValue({
+        workflowRunIds: ['run-1'],
+      });
+
+      await client.runWorkflows([
+        {
+          workflowName: 'workflowName',
+          input: { hello: 'world' },
+          options: {
+            parentId: 'parent-wf-run',
+            parentTaskRunExternalId: 'parent-task-run',
+          },
+        },
+      ]);
+
+      expect(bulkSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflows: [
+            expect.objectContaining({
+              parentTaskRunExternalId: 'parent-task-run',
+            }),
+          ],
+        })
+      );
     });
   });
 });

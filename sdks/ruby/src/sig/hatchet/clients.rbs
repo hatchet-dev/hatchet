@@ -1,0 +1,7 @@
+module Hatchet
+  module Clients
+    def self.rest_client: (Config config) -> untyped
+    def self.rest_available?: () -> bool
+    def self.available_clients: () -> Array[Symbol]
+  end
+end

@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/labstack/echo/v4"
 )
 
 func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1FilterCreateRequestObject) (gen.V1FilterCreateResponseObject, error) {
@@ -26,8 +27,14 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 		payload = marshalledPayload
 	}
 
+	workflowId, err := uuid.Parse(request.Body.WorkflowId.String())
+
+	if err != nil {
+		return gen.V1FilterCreate400JSONResponse(apierrors.NewAPIErrors("workflow id is not a valid uuid")), nil
+	}
+
 	params := v1.CreateFilterOpts{
-		Workflowid:    sqlchelpers.UUIDFromStr(request.Body.WorkflowId.String()),
+		Workflowid:    workflowId,
 		Scope:         request.Body.Scope,
 		Expression:    request.Body.Expression,
 		Payload:       payload,
@@ -36,7 +43,7 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 
 	filter, err := t.config.V1.Filters().CreateFilter(
 		ctx.Request().Context(),
-		tenant.ID.String(),
+		tenant.ID,
 		params,
 	)
 

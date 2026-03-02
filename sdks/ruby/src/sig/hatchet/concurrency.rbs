@@ -1,0 +1,20 @@
+module Hatchet
+  module ConcurrencyLimitStrategy
+    CANCEL_IN_PROGRESS: Symbol
+    CANCEL_NEWEST: Symbol
+    GROUP_ROUND_ROBIN: Symbol
+    QUEUE: Symbol
+  end
+
+  class ConcurrencyExpression
+    LIMIT_STRATEGY_MAP: Hash[Symbol, Symbol]
+
+    attr_reader expression: String
+    attr_reader max_runs: Integer
+    attr_reader limit_strategy: Symbol
+
+    def initialize: (expression: String, ?max_runs: Integer, ?limit_strategy: Symbol) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+    def to_proto: () -> untyped
+  end
+end

@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CreateDispatcherOpts struct {
-	ID string `validate:"required,uuid"`
+	ID uuid.UUID `validate:"required"`
 }
 
 type UpdateDispatcherOpts struct {
@@ -23,11 +23,11 @@ type DispatcherRepository interface {
 	CreateNewDispatcher(ctx context.Context, opts *CreateDispatcherOpts) (*sqlcv1.Dispatcher, error)
 
 	// UpdateDispatcher updates a dispatcher for a given tenant.
-	UpdateDispatcher(ctx context.Context, dispatcherId string, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error)
+	UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error)
 
-	Delete(ctx context.Context, dispatcherId string) error
+	Delete(ctx context.Context, dispatcherId uuid.UUID) error
 
-	UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error
+	UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId uuid.UUID, getValidDispatcherId func() string) error) error
 }
 
 type dispatcherRepository struct {
@@ -45,27 +45,26 @@ func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *Cr
 		return nil, err
 	}
 
-	return d.queries.CreateDispatcher(ctx, d.pool, sqlchelpers.UUIDFromStr(opts.ID))
+	return d.queries.CreateDispatcher(ctx, d.pool, opts.ID)
 }
 
-func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId string, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
+func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
 	if err := d.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	return d.queries.UpdateDispatcher(ctx, d.pool, sqlcv1.UpdateDispatcherParams{
-		ID:              sqlchelpers.UUIDFromStr(dispatcherId),
+		ID:              dispatcherId,
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 	})
 }
 
-func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId string) error {
-	_, err := d.queries.DeleteDispatcher(ctx, d.pool, sqlchelpers.UUIDFromStr(dispatcherId))
-
+func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId uuid.UUID) error {
+	_, err := d.queries.DeleteDispatcher(ctx, d.pool, dispatcherId)
 	return err
 }
 
-func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error {
+func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId uuid.UUID, getValidDispatcherId func() string) error) error {
 	tx, err := d.pool.Begin(ctx)
 
 	if err != nil {
@@ -86,12 +85,12 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 		return err
 	}
 
-	dispatchersToDelete := make([]pgtype.UUID, 0)
+	dispatchersToDelete := make([]uuid.UUID, 0)
 
 	for i, dispatcher := range staleDispatchers {
-		err := onStale(sqlchelpers.UUIDToStr(dispatcher.Dispatcher.ID), func() string {
+		err := onStale(dispatcher.Dispatcher.ID, func() string {
 			// assign tickers in round-robin fashion
-			return sqlchelpers.UUIDToStr(activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID)
+			return activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID.String()
 		})
 
 		if err != nil {

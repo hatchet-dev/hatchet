@@ -4,13 +4,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
@@ -40,7 +45,7 @@ type MessageQueueImpl struct {
 	disableTenantExchangePubs bool
 
 	// lru cache for tenant ids
-	tenantIdCache *lru.Cache[string, bool]
+	tenantIdCache *lru.Cache[uuid.UUID, bool]
 
 	pubChannels *channelPool
 	subChannels *channelPool
@@ -210,7 +215,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	}
 
 	// create a new lru cache for tenant ids
-	t.tenantIdCache, _ = lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
+	t.tenantIdCache, _ = lru.New[uuid.UUID, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
 	poolCh, err := subChannelPool.Acquire(ctx)
@@ -265,7 +270,7 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 
 	span.SetAttributes(
 		attribute.String("MessageQueueImpl.SendMessage.queue_name", q.Name()),
-		attribute.String("MessageQueueImpl.SendMessage.tenant_id", msg.TenantID),
+		attribute.String("MessageQueueImpl.SendMessage.tenant_id", msg.TenantID.String()),
 		attribute.String("MessageQueueImpl.SendMessage.message_id", msg.ID),
 		attribute.Int("MessageQueueImpl.SendMessage.num_payloads", len(msg.Payloads)),
 	)
@@ -409,7 +414,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		t.l.Error().
 			Int("message_size_bytes", bodySize).
 			Int("num_messages", len(msg.Payloads)).
-			Str("tenant_id", msg.TenantID).
+			Str("tenant_id", msg.TenantID.String()).
 			Str("queue_name", q.Name()).
 			Str("message_id", msg.ID).
 			Msg("sending a very large message, this may impact performance")
@@ -436,7 +441,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	spanAttrs := []attribute.KeyValue{
 		attribute.String("MessageQueueImpl.publish_message.queue_name", q.Name()),
-		attribute.String("MessageQueueImpl.publish_message.tenant_id", msg.TenantID),
+		attribute.String("MessageQueueImpl.publish_message.tenant_id", msg.TenantID.String()),
 		attribute.String("MessageQueueImpl.publish_message.message_id", msg.ID),
 	}
 
@@ -465,7 +470,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	pubSpan.End()
 
 	// if this is a tenant msg, publish to the tenant exchange
-	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != "" {
+	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != uuid.Nil {
 		// determine if the tenant exchange exists
 		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
 			// register the tenant exchange
@@ -548,7 +553,7 @@ func (t *MessageQueueImpl) Subscribe(
 	}, nil
 }
 
-func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
+func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUID) error {
 	// create a new fanout exchange for the tenant
 	poolCh, err := t.pubChannels.Acquire(ctx)
 
@@ -806,7 +811,7 @@ func (t *MessageQueueImpl) subscribe(
 						t.l.Error().
 							Int64("death_count", deathCount).
 							Str("message_id", msg.ID).
-							Str("tenant_id", msg.TenantID).
+							Str("tenant_id", msg.TenantID.String()).
 							Int("num_payloads", len(msg.Payloads)).
 							Msgf("message has been retried for %d times", deathCount)
 					}
@@ -815,7 +820,7 @@ func (t *MessageQueueImpl) subscribe(
 						t.l.Error().
 							Int64("death_count", deathCount).
 							Str("message_id", msg.ID).
-							Str("tenant_id", msg.TenantID).
+							Str("tenant_id", msg.TenantID.String()).
 							Int("max_death_count", t.maxDeathCount).
 							Msg("permanently rejecting message due to exceeding max death count")
 
@@ -829,6 +834,21 @@ func (t *MessageQueueImpl) subscribe(
 				t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
 
 				if err := preAck(msg); err != nil {
+					if isPermanentPreAckError(err) {
+						t.l.Error().
+							Err(err).
+							Str("message_id", msg.ID).
+							Str("tenant_id", msg.TenantID.String()).
+							Int("num_payloads", len(msg.Payloads)).
+							Msg("dropping message due to permanent pre-ack error")
+
+						if ackErr := rabbitMsg.Ack(false); ackErr != nil {
+							t.l.Error().Err(ackErr).Msg("error acknowledging message after permanent pre-ack error")
+						}
+
+						return
+					}
+
 					t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
 
 					// nack the message
@@ -890,6 +910,31 @@ func (t *MessageQueueImpl) subscribe(
 	}
 
 	return cleanup, nil
+}
+
+func isPermanentPreAckError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// invalid input syntax for type json / jsonb
+		if pgErr.Code == pgerrcode.InvalidTextRepresentation {
+			return true
+		}
+	}
+
+	// Fallback: some error paths may lose pg error type info.
+	errStr := err.Error()
+	if strings.Contains(errStr, fmt.Sprintf("SQLSTATE %s", pgerrcode.InvalidTextRepresentation)) {
+		return true
+	}
+	if strings.Contains(errStr, "invalid input syntax for type json") {
+		return true
+	}
+
+	return false
 }
 
 // identity returns the same host/process unique string for the lifetime of

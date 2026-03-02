@@ -1,0 +1,35 @@
+module Hatchet
+  module Clients
+    module Grpc
+      class Dispatcher
+        attr_reader worker_id: String?
+
+        def initialize: (config: Config, channel: untyped) -> void
+
+        def register: (
+          name: String,
+          actions: Array[String],
+          slots: Integer,
+          ?labels: Hash[String, String | Integer]
+        ) -> untyped
+
+        def listen: (worker_id: String) -> untyped
+        def heartbeat: (worker_id: String) -> untyped
+
+        def send_step_action_event: (
+          action: untyped,
+          event_type: Symbol,
+          ?payload: String,
+          ?retry_count: Integer?,
+          ?should_not_retry: bool?
+        ) -> untyped
+
+        def refresh_timeout: (step_run_id: String, timeout_seconds: Integer | String) -> untyped
+        def release_slot: (step_run_id: String) -> untyped
+        def upsert_worker_labels: (worker_id: String, labels: Hash[String, String | Integer]) -> untyped
+        def subscribe_to_workflow_runs: (untyped request_enum) -> untyped
+        def close: () -> void
+      end
+    end
+  end
+end

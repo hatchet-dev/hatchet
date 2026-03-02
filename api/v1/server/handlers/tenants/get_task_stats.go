@@ -11,7 +11,7 @@ import (
 func (t *TenantService) TenantGetTaskStats(ctx echo.Context, request gen.TenantGetTaskStatsRequestObject) (gen.TenantGetTaskStatsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	stats, err := t.config.V1.Tasks().GetTaskStats(ctx.Request().Context(), tenant.ID.String())
+	stats, err := t.config.V1.Tasks().GetTaskStats(ctx.Request().Context(), tenant.ID)
 	if err != nil {
 		return nil, err
 	}

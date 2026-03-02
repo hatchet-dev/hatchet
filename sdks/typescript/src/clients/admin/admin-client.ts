@@ -39,6 +39,16 @@ export type WorkflowRun<T = object> = {
   input: T;
   options?: {
     parentId?: string | undefined;
+    /**
+     * (optional) the parent task external run id.
+     *
+     * This is the field understood by the workflows gRPC API.
+     */
+    parentTaskRunExternalId?: string | undefined;
+    /**
+     * @deprecated Use `parentTaskRunExternalId` instead.
+     * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+     */
     parentStepRunId?: string | undefined;
     childIndex?: number | undefined;
     childKey?: string | undefined;
@@ -150,6 +160,14 @@ export class AdminClient {
     input: T,
     options?: {
       parentId?: string | undefined;
+      /**
+       * (optional) the parent task external run id.
+       */
+      parentTaskRunExternalId?: string | undefined;
+      /**
+       * @deprecated Use `parentTaskRunExternalId` instead.
+       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+       */
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
@@ -172,6 +190,16 @@ export class AdminClient {
     input: Q,
     options?: {
       parentId?: string | undefined;
+      /**
+       * (optional) the parent task external run id.
+       *
+       * This is the field understood by the workflows gRPC API.
+       */
+      parentTaskRunExternalId?: string | undefined;
+      /**
+       * @deprecated Use `parentTaskRunExternalId` instead.
+       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+       */
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
@@ -185,14 +213,17 @@ export class AdminClient {
     try {
       const inputStr = JSON.stringify(input);
 
+      const opts = options ?? {};
+      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
+
       const resp = this.client.triggerWorkflow({
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options?.additionalMetadata)
-          : undefined,
-        priority: options?.priority,
+        ...rest,
+        // API expects `parentTaskRunExternalId`; accept the old name as an alias.
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        priority: opts.priority,
       });
 
       return new WorkflowRunRef<P>(resp, this.listenerClient, this.workflows, options?.parentId);
@@ -212,6 +243,16 @@ export class AdminClient {
       input: Q;
       options?: {
         parentId?: string | undefined;
+        /**
+         * (optional) the parent task external run id.
+         *
+         * This is the field understood by the workflows gRPC API.
+         */
+        parentTaskRunExternalId?: string | undefined;
+        /**
+         * @deprecated Use `parentTaskRunExternalId` instead.
+         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+         */
         parentStepRunId?: string | undefined;
         childIndex?: number | undefined;
         childKey?: string | undefined;
@@ -226,13 +267,15 @@ export class AdminClient {
       const computedName = applyNamespace(workflowName, this.config.namespace);
       const inputStr = JSON.stringify(input);
 
+      const opts = options ?? {};
+      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
+
       return {
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options.additionalMetadata)
-          : undefined,
+        ...rest,
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
       };
     });
 

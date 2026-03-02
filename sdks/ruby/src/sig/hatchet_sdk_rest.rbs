@@ -1,0 +1,225 @@
+module HatchetSdkRest
+  class CreateEventRequest
+    attr_accessor key: String?
+    attr_accessor data: Hash[String, untyped]?
+    attr_accessor additional_metadata: Hash[String, untyped]?
+    attr_accessor priority: Integer?
+    attr_accessor scope: String?
+
+    def initialize: (
+      ?key: String,
+      ?data: Hash[String, untyped],
+      ?additional_metadata: Hash[String, untyped],
+      ?priority: Integer,
+      ?scope: String
+    ) -> void
+  end
+
+  class BulkCreateEventRequest
+    attr_accessor events: Array[CreateEventRequest]?
+
+    def initialize: (?events: Array[CreateEventRequest]) -> void
+  end
+
+  class V1EventList
+    attr_accessor rows: Array[untyped]?
+    attr_accessor pagination: untyped?
+
+    def initialize: (?rows: Array[untyped], ?pagination: untyped) -> void
+  end
+
+  class CancelEventRequest
+    attr_accessor event_ids: Array[String]?
+    attr_accessor keys: Array[String]?
+    attr_accessor since: String?
+    attr_accessor until: String?
+
+    def initialize: (
+      ?event_ids: Array[String],
+      ?keys: Array[String],
+      ?since: String,
+      ?until: String
+    ) -> void
+  end
+
+  class ReplayEventRequest
+    attr_accessor event_ids: Array[String]?
+    attr_accessor keys: Array[String]?
+    attr_accessor since: String?
+    attr_accessor until: String?
+
+    def initialize: (
+      ?event_ids: Array[String],
+      ?keys: Array[String],
+      ?since: String,
+      ?until: String
+    ) -> void
+  end
+
+  class V1TaskFilter
+    attr_accessor since: String?
+    attr_accessor until: String?
+    attr_accessor statuses: Array[untyped]?
+    attr_accessor workflow_ids: Array[String]?
+    attr_accessor additional_metadata: Array[Hash[String, String]]?
+
+    def initialize: (
+      ?since: String,
+      ?until: String,
+      ?statuses: Array[untyped],
+      ?workflow_ids: Array[String],
+      ?additional_metadata: Array[Hash[String, String]]
+    ) -> void
+  end
+
+  class V1CancelTaskRequest
+    attr_accessor external_ids: Array[String]?
+    attr_accessor filter: V1TaskFilter?
+
+    def initialize: (?external_ids: Array[String], ?filter: V1TaskFilter) -> void
+  end
+
+  class V1ReplayTaskRequest
+    attr_accessor external_ids: Array[String]?
+    attr_accessor filter: V1TaskFilter?
+
+    def initialize: (?external_ids: Array[String], ?filter: V1TaskFilter) -> void
+  end
+
+  class V1TriggerWorkflowRunRequest
+    attr_accessor workflow_name: String?
+    attr_accessor input: Hash[String, untyped]?
+    attr_accessor additional_metadata: Hash[String, untyped]?
+    attr_accessor priority: Integer?
+
+    def initialize: (
+      ?workflow_name: String,
+      ?input: Hash[String, untyped],
+      ?additional_metadata: Hash[String, untyped],
+      ?priority: Integer
+    ) -> void
+  end
+
+  class V1WorkflowRunDetails
+    attr_accessor run: untyped?
+
+    def initialize: (?run: untyped) -> void
+  end
+
+  class V1TaskSummary
+    attr_accessor metadata: untyped?
+    attr_accessor created_at: Time?
+
+    def initialize: (?metadata: untyped, ?created_at: Time) -> void
+  end
+
+  class V1TaskSummaryList
+    attr_accessor rows: Array[V1TaskSummary]?
+
+    def initialize: (?rows: Array[V1TaskSummary]) -> void
+  end
+
+  class V1TaskStatus
+    def self.COMPLETED: () -> String
+    def self.CANCELLED: () -> String
+    def self.FAILED: () -> String
+  end
+
+  class WorkflowRunStatus
+    def self.SUCCEEDED: () -> String
+    def self.FAILED: () -> String
+    def self.CANCELLED: () -> String
+  end
+
+  class EventApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class WorkflowRunsApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class TaskApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class WorkflowApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class WorkerApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class TenantApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class LogApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class FilterApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class CELApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class WorkflowRunApi
+    def initialize: (untyped api_client) -> void
+  end
+
+  class Configuration
+    def self.from_hatchet_config: (untyped config) -> Configuration
+  end
+
+  class ApiClient
+    def initialize: (Configuration config) -> void
+  end
+
+  class UpdateWorkerRequest
+    def initialize: (Hash[Symbol, untyped] opts) -> void
+  end
+
+  class ScheduleWorkflowRunRequest
+    def initialize: (?trigger_at: String, ?input: Hash[String, untyped], ?additional_metadata: Hash[String, untyped]) -> void
+  end
+
+  class UpdateScheduledWorkflowRunRequest
+    def initialize: (?trigger_at: String) -> void
+  end
+
+  class ScheduledWorkflowsBulkDeleteFilter
+    def initialize: (?workflow_id: String?, ?parent_workflow_run_id: String?, ?parent_step_run_id: String?, ?additional_metadata: Array[Hash[String, String]]?) -> void
+  end
+
+  class ScheduledWorkflowsBulkDeleteRequest
+    def initialize: (?scheduled_workflow_run_ids: Array[String]?, ?filter: ScheduledWorkflowsBulkDeleteFilter?) -> void
+  end
+
+  class ScheduledWorkflowsBulkUpdateItem
+    def initialize: (?id: String, ?trigger_at: String) -> void
+  end
+
+  class ScheduledWorkflowsBulkUpdateRequest
+    def initialize: (?updates: Array[ScheduledWorkflowsBulkUpdateItem]) -> void
+  end
+
+  class CreateCronWorkflowTriggerRequest
+    def initialize: (?cron_name: String, ?cron_expression: String, ?input: Hash[String, untyped], ?additional_metadata: Hash[String, untyped], ?priority: Integer?) -> void
+  end
+
+  class V1CELDebugRequest
+    def initialize: (?expression: String, ?input: Hash[String, untyped], ?additional_metadata: Hash[String, untyped]?, ?filter_payload: Hash[String, untyped]?) -> void
+  end
+
+  class V1CreateFilterRequest
+    def initialize: (?workflow_id: String, ?expression: String, ?scope: String, ?payload: Hash[String, untyped]?) -> void
+  end
+
+  class V1UpdateFilterRequest
+    def initialize: (Hash[Symbol, untyped] updates) -> void
+  end
+end

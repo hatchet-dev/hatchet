@@ -1,0 +1,36 @@
+{{ define "content" }}
+Hi there,
+<br>
+<br>
+{{.Summary}}
+<br>
+<br>
+<table class="attributes" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="attributes_content">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td class="attributes_item"><a href="{{.Link}}">{{.Resource}}</a> at {{.Percentage}}% ({{.CurrentValue}}/{{.LimitValue}})</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+{{.Summary2}}
+
+<br>
+<br>
+
+Please review your resource usage and consider upgrading your plan <a href="{{.Link}}">here</a> or reply to this email to reach us.
+
+<br>
+<br>
+Best,
+<br>
+<br>
+The Hatchet Team
+<br>
+<br>
+<small>If you'd like to change your notification settings, you can do so <a href="{{.SettingsLink}}">here.</a></small>
+{{ end }}

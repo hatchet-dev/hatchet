@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -32,8 +33,8 @@ RETURNING id, tenant_id, sleep_until, sleep_duration
 `
 
 type CreateDurableSleepParams struct {
-	TenantID       pgtype.UUID `json:"tenant_id"`
-	SleepDurations []string    `json:"sleep_durations"`
+	TenantID       uuid.UUID `json:"tenant_id"`
+	SleepDurations []string  `json:"sleep_durations"`
 }
 
 func (q *Queries) CreateDurableSleep(ctx context.Context, db DBTX, arg CreateDurableSleepParams) ([]*V1DurableSleep, error) {
@@ -84,7 +85,7 @@ RETURNING id, tenant_id, sleep_until, sleep_duration
 `
 
 type PopDurableSleepParams struct {
-	TenantID pgtype.UUID `json:"tenant_id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 

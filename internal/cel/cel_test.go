@@ -3,9 +3,11 @@
 package cel_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/cel-go/common/types"
+	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 
@@ -14,6 +16,7 @@ import (
 
 func TestCELParser(t *testing.T) {
 	parser := cel.NewCELParser()
+	dummyUuid := uuid.New()
 
 	tests := []struct {
 		expression  string
@@ -61,9 +64,9 @@ func TestCELParser(t *testing.T) {
 						"value": "concatenate ",
 					},
 				}),
-				cel.WithWorkflowRunID("1234"),
+				cel.WithWorkflowRunID(dummyUuid),
 			),
-			expected:    "concatenate 1234",
+			expected:    fmt.Sprintf("concatenate %s", dummyUuid.String()),
 			expectError: false,
 		},
 		{

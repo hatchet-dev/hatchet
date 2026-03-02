@@ -44,7 +44,7 @@ RSpec.describe Hatchet do
         client = Hatchet::Client.new(
           token: valid_token,
           host_port: "custom.example.com:8080",
-          namespace: "custom_namespace"
+          namespace: "custom_namespace",
         )
         expect(client.config.host_port).to eq("custom.example.com:8080")
         expect(client.config.namespace).to eq("custom_namespace_")
@@ -55,7 +55,9 @@ RSpec.describe Hatchet do
       end
 
       it "raises error when no token provided" do
-        expect { Hatchet::Client.new }.to raise_error(Hatchet::Error, "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.")
+        expect do
+          Hatchet::Client.new
+        end.to raise_error(Hatchet::Error, "Hatchet Token is required. Please set HATCHET_CLIENT_TOKEN in your environment.")
       end
     end
 
@@ -71,7 +73,7 @@ RSpec.describe Hatchet do
           token: valid_token,
           host_port: "test.example.com:9090",
           server_url: "https://test.example.com",
-          namespace: "test_ns"
+          namespace: "test_ns",
         )
 
         expect(client.config.host_port).to eq("test.example.com:9090")

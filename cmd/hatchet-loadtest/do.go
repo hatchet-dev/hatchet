@@ -15,15 +15,14 @@ type avgResult struct {
 func do(config LoadTestConfig) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	after := 10 * time.Second
 
-	go func() {
-		time.Sleep(config.Duration + after + config.Wait + 5*time.Second)
-		cancel()
-	}()
+	// The worker may intentionally be delayed (WorkerDelay) before it starts consuming tasks.
+	// The test timeout must include this delay, otherwise we can cancel while work is still expected to complete.
+	timeout := config.WorkerDelay + after + config.Duration + config.Wait + 30*time.Second
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	ch := make(chan int64, 2)
 	durations := make(chan time.Duration, config.Events)
@@ -98,7 +97,20 @@ func do(config LoadTestConfig) error {
 	finalDurationResult := <-durationsResult
 	finalScheduledResult := <-scheduledResult
 
-	log.Printf("ℹ️ emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, config.Events)
+	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
+
+	// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
+	// so `emitted` here is effectively "pushed".
+	log.Printf(
+		"ℹ️ pushed %d, executed %d, uniques %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
+		emitted,
+		executed,
+		uniques,
+		config.Events,
+		config.EventFanout,
+		config.DagSteps,
+		expected,
+	)
 
 	if executed == 0 {
 		return fmt.Errorf("❌ no events executed")
@@ -107,12 +119,12 @@ func do(config LoadTestConfig) error {
 	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
 
-	if int64(config.EventFanout)*emitted*int64(config.DagSteps) != executed {
-		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", int64(config.EventFanout)*emitted*int64(config.DagSteps), executed)
+	if expected != executed {
+		log.Printf("⚠️ warning: pushed and executed counts do not match: expected=%d got=%d", expected, executed)
 	}
 
-	if int64(config.EventFanout)*emitted*int64(config.DagSteps) != uniques {
-		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", int64(config.EventFanout)*emitted, uniques)
+	if expected != uniques {
+		return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps)
 	}
 
 	// Add a small tolerance (1% or 1ms, whichever is smaller)

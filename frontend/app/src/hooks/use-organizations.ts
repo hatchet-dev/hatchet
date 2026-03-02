@@ -6,9 +6,10 @@ import {
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { useAppContext } from '@/providers/app-context';
+import { useUserUniverse } from '@/providers/user-universe';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
+import invariant from 'tiny-invariant';
 
 /**
  * Hook for organization data and operations
@@ -17,7 +18,11 @@ import { useMemo, useCallback } from 'react';
  * Gets organization data from context, but keeps all mutation logic here.
  */
 export function useOrganizations() {
-  const { organizations: organizationData, isCloudEnabled } = useAppContext();
+  const {
+    organizations: organizationData,
+    isLoaded: isUserUniverseLoaded,
+    isCloudEnabled,
+  } = useUserUniverse();
   const { handleApiError } = useApiError({});
 
   // Re-query for mutations (will revalidate the context)
@@ -30,10 +35,13 @@ export function useOrganizations() {
     enabled: isCloudEnabled,
   });
 
-  const organizations = useMemo(
-    () => organizationData?.rows || [],
-    [organizationData?.rows],
-  );
+  const organizations = useMemo(() => {
+    if (isUserUniverseLoaded && isCloudEnabled) {
+      invariant(organizationData);
+      return organizationData;
+    }
+    return [];
+  }, [isUserUniverseLoaded, organizationData, isCloudEnabled]);
 
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {
@@ -142,12 +150,18 @@ export function useOrganizations() {
     mutationFn: async (data: {
       organizationId: string;
       name: string;
-      duration: ManagementTokenDuration;
+      duration?: ManagementTokenDuration;
     }) => {
-      const result = await cloudApi.managementTokenCreate(data.organizationId, {
+      const body: { name: string; duration?: ManagementTokenDuration } = {
         name: data.name,
-        duration: data.duration,
-      });
+      };
+      if (data.duration != null) {
+        body.duration = data.duration;
+      }
+      const result = await cloudApi.managementTokenCreate(
+        data.organizationId,
+        body,
+      );
       return result.data;
     },
     onError: handleApiError,
@@ -203,7 +217,7 @@ export function useOrganizations() {
     (
       organizationId: string,
       name: string,
-      duration: ManagementTokenDuration,
+      duration: ManagementTokenDuration | undefined,
       onSuccess: (data: CreateManagementTokenResponse) => void,
     ) => {
       createTokenMutation.mutate(
@@ -349,7 +363,7 @@ export function useOrganizations() {
     deleteTenantLoading: deleteTenantMutation.isPending,
     updateOrganizationLoading: updateOrganizationMutation.isPending,
     createOrganizationLoading: createOrganizationMutation.isPending,
-    isLoading: organizationListQuery.isLoading,
+    isUserUniverseLoaded,
     error: organizationListQuery.error,
   };
 }

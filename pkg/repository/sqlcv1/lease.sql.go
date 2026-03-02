@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -38,7 +39,7 @@ RETURNING id, "expiresAt", "tenantId", "resourceId", kind
 
 type AcquireOrExtendLeasesParams struct {
 	LeaseDuration    pgtype.Interval `json:"leaseDuration"`
-	Tenantid         pgtype.UUID     `json:"tenantid"`
+	Tenantid         uuid.UUID       `json:"tenantid"`
 	Kind             LeaseKind       `json:"kind"`
 	Resourceids      []string        `json:"resourceids"`
 	Existingleaseids []int64         `json:"existingleaseids"`
@@ -93,9 +94,9 @@ FOR UPDATE
 `
 
 type GetLeasesToAcquireParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Kind        LeaseKind   `json:"kind"`
-	Resourceids []string    `json:"resourceids"`
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Kind        LeaseKind `json:"kind"`
+	Resourceids []string  `json:"resourceids"`
 }
 
 func (q *Queries) GetLeasesToAcquire(ctx context.Context, db DBTX, arg GetLeasesToAcquireParams) error {
@@ -105,11 +106,12 @@ func (q *Queries) GetLeasesToAcquire(ctx context.Context, db DBTX, arg GetLeases
 
 const listActiveWorkers = `-- name: ListActiveWorkers :many
 SELECT
-    w."id",
-    w."maxRuns",
+    DISTINCT w."id",
     w."name"
 FROM
     "Worker" w
+JOIN
+    v1_worker_slot_config wsc ON w."id" = wsc."worker_id"
 WHERE
     w."tenantId" = $1::uuid
     AND w."dispatcherId" IS NOT NULL
@@ -119,12 +121,11 @@ WHERE
 `
 
 type ListActiveWorkersRow struct {
-	ID      pgtype.UUID `json:"id"`
-	MaxRuns int32       `json:"maxRuns"`
-	Name    string      `json:"name"`
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
-func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListActiveWorkersRow, error) {
+func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListActiveWorkersRow, error) {
 	rows, err := db.Query(ctx, listActiveWorkers, tenantid)
 	if err != nil {
 		return nil, err
@@ -133,7 +134,7 @@ func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid pgtyp
 	var items []*ListActiveWorkersRow
 	for rows.Next() {
 		var i ListActiveWorkersRow
-		if err := rows.Scan(&i.ID, &i.MaxRuns, &i.Name); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

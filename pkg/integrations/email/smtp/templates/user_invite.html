@@ -1,0 +1,37 @@
+{{ define "content" }}
+<h1>Hi there!</h1>
+<p>{{.InviteSenderName}} has invited you to join {{.TenantName}} on Hatchet. Use the button below to set up your account and get started:</p>
+<!-- Action -->
+<table class="body-action" align="center" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td align="center">
+      <!-- Border based button https://litmus.com/blog/a-guide-to-bulletproof-buttons-in-email-design -->
+      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+        <tr>
+          <td align="center">
+            <table border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td>
+                  <a href="{{.ActionURL}}" class="button" target="_blank">Get started</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<p>Feel free to <a href="mailto:support@hatchet.run">contact us</a> if you run into any issues.</p>
+<p>Welcome aboard,
+  <br>The Hatchet Team</p>
+<!-- Sub copy -->
+<table class="body-sub">
+  <tr>
+    <td>
+      <p class="sub">If you’re having trouble with the button above, copy and paste the URL below into your web browser.</p>
+      <p class="sub">{{.ActionURL}}</p>
+    </td>
+  </tr>
+</table>
+{{end}}

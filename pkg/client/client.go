@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -28,6 +30,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
+// Deprecated: Client is an internal interface used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Client interface {
 	Admin() AdminClient
 	Cron() CronClient
@@ -69,10 +73,14 @@ type clientImpl struct {
 	v validator.Validator
 }
 
+// Deprecated: ClientOpt is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ClientOpt func(*ClientOpts)
 
 type filesLoaderFunc func() []*types.Workflow
 
+// Deprecated: ClientOpts is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ClientOpts struct {
 	tenantId    string
 	l           *zerolog.Logger
@@ -142,7 +150,8 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	}
 }
 
-// Deprecated: use WithLogger instead
+// Deprecated: WithLogLevel is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithLogLevel(lvl string) ClientOpt {
 	return func(opts *ClientOpts) {
 		logger := logger.NewDefaultLogger("client")
@@ -156,36 +165,48 @@ func WithLogLevel(lvl string) ClientOpt {
 	}
 }
 
+// Deprecated: WithLogger is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithLogger(l *zerolog.Logger) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.l = l
 	}
 }
 
+// Deprecated: WithTenantId is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithTenantId(tenantId string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.tenantId = tenantId
 	}
 }
 
+// Deprecated: WithHostPort is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithHostPort(host string, port int) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.hostPort = fmt.Sprintf("%s:%d", host, port)
 	}
 }
 
+// Deprecated: WithToken is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithToken(token string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.token = token
 	}
 }
 
+// Deprecated: WithNamespace is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithNamespace(namespace string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.namespace = namespace + "_"
 	}
 }
 
+// Deprecated: WithSharedMeta is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithSharedMeta(meta map[string]string) ClientOpt {
 	return func(opts *ClientOpts) {
 		if opts.sharedMeta == nil {
@@ -198,6 +219,8 @@ func WithSharedMeta(meta map[string]string) ClientOpt {
 	}
 }
 
+// Deprecated: InitWorkflows is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func InitWorkflows() ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.initWorkflows = true
@@ -213,7 +236,8 @@ type sharedClientOpts struct {
 	sharedMeta map[string]string
 }
 
-// New creates a new client instance.
+// Deprecated: New is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func New(fs ...ClientOpt) (Client, error) {
 	var token *string
 	initOpts := &ClientOpts{}
@@ -233,6 +257,8 @@ func New(fs ...ClientOpt) (Client, error) {
 	return newFromOpts(opts)
 }
 
+// Deprecated: NewFromConfigFile is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, error) {
 	opts := defaultClientOpts(nil, cf)
 

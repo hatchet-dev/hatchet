@@ -106,6 +106,13 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+    V1WebhookHMACAlgorithm,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+    V1WebhookHMACEncoding,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_deployment_config import (
@@ -170,6 +177,7 @@ from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.serde import remove_null_unicode_character
+from hatchet_sdk.worker.slot_types import SlotType
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -247,6 +255,7 @@ __all__ = [
     "RunStatus",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
+    "SlotType",
     "StepRun",
     "StepRunDiff",
     "StepRunEventType",
@@ -273,6 +282,9 @@ __all__ = [
     "UserTenantMembershipsList",
     "UserTenantPublic",
     "V1TaskStatus",
+    "V1WebhookHMACAlgorithm",
+    "V1WebhookHMACEncoding",
+    "V1WebhookSourceName",
     "Worker",
     "Worker",
     "WorkerContext",

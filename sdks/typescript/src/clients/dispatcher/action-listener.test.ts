@@ -4,7 +4,7 @@ import sleep from '@util/sleep';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { DispatcherClient } from './dispatcher-client';
 import { ActionListener } from './action-listener';
-import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
 
 let dispatcher: DispatcherClient;
 
@@ -17,14 +17,14 @@ const mockAssignedActions: AssignActionMock[] = [
     jobId: 'job1',
     jobName: 'Job One',
     jobRunId: 'run1',
-    stepId: 'step1',
-    stepRunId: 'runStep1',
+    taskId: 'step1',
+    taskRunExternalId: 'runStep1',
     actionId: 'action1',
     actionType: ActionType.START_STEP_RUN,
     actionPayload: 'payload1',
     workflowRunId: 'workflowRun1',
     getGroupKeyRunId: 'groupKeyRun1',
-    stepName: 'step1',
+    taskName: 'step1',
     retryCount: 0,
     priority: 1,
   },
@@ -98,8 +98,8 @@ describe('ActionListener', () => {
     //     jobId: 'job1',
     //     jobName: 'Job One',
     //     jobRunId: 'run1',
-    //     stepId: 'step1',
-    //     stepRunId: 'runStep1',
+    //     taskId: 'step1',
+    //     taskRunId: 'runStep1',
     //     actionId: 'action1',
     //     actionType: ActionType.START_STEP_RUN,
     //     actionPayload: 'payload1',

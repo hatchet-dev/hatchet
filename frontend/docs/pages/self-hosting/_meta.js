@@ -28,10 +28,12 @@ export default {
     },
   },
   "worker-configuration-options": "Worker Configuration Options",
-  "downgrading-versions": "Downgrading Versions",
+  "upgrading-downgrading": "Upgrading and Downgrading",
+  "downgrading-db-schema-manually": "Downgrading DB Schema Manually",
   benchmarking: "Benchmarking",
   "data-retention": "Data Retention",
   "improving-performance": "Improving Performance",
   "read-replicas": "Read Replicas",
   sampling: "Trace Sampling",
+  "smtp-server": "SMTP Server",
 };

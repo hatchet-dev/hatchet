@@ -5,19 +5,23 @@ import {
   ClientConfigSchema,
   HatchetClientOptions,
   LegacyHatchetClient,
+  TaskMiddleware,
+  InferMiddlewareBefore,
+  InferMiddlewareAfter,
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { V0DurableContext } from '@hatchet/step';
 import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
 import { z } from 'zod';
-import { LogLevel } from '@hatchet/clients/event/event-client';
+import { EventClient, LogLevel } from '@hatchet/clients/event/event-client';
+import { DispatcherClient } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { Logger } from '@hatchet/util/logger';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
+import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
-import { createClientFactory } from 'nice-grpc';
+import { ChannelCredentials, ClientFactory, createClientFactory } from 'nice-grpc';
 import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
@@ -30,13 +34,21 @@ import {
   CreateDurableTaskWorkflow,
   CreateDurableTaskWorkflowOpts,
 } from '../declaration';
+import type { LegacyWorkflow } from '../../legacy/legacy-transformer';
+import { getWorkflowName } from '../../legacy/legacy-transformer';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker/worker';
 import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
-import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
+import {
+  InputType,
+  OutputType,
+  UnknownInputType,
+  StrictWorkflowOutputType,
+  Resolved,
+} from '../types';
 import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
 import { FiltersClient } from './features/filters';
@@ -44,26 +56,60 @@ import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
 import { CELClient } from './features/cel';
 import { TenantClient } from './features/tenant';
+import { WebhooksClient } from './features/webhooks';
+import { DurableContext } from './worker/context';
+
+type MergeIfNonEmpty<Base, Extra extends Record<string, any>> = keyof Extra extends never
+  ? Base
+  : Base & Extra;
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
  * It provides methods for creating and executing workflows, as well as managing workers.
+ *
+ * @template GlobalInput - Global input type required by all tasks. Set via `init<T>()`. Defaults to `{}`.
+ * @template MiddlewareBefore - Extra fields merged into task input by pre-middleware hooks. Inferred from middleware config.
+ * @template MiddlewareAfter - Extra fields merged into task output by post-middleware hooks. Inferred from middleware config.
  */
-export class HatchetClient implements IHatchetClient {
-  /** The underlying v0 client instance */
-  _v0: LegacyHatchetClient;
+export class HatchetClient<
+  GlobalInput extends Record<string, any> = {},
+  GlobalOutput extends Record<string, any> = {},
+  MiddlewareBefore extends Record<string, any> = {},
+  MiddlewareAfter extends Record<string, any> = {},
+> implements IHatchetClient
+{
+  private _v0: LegacyHatchetClient | undefined;
   _api: Api;
   _listener: RunListenerClient;
+  private _options: HatchetClientOptions | undefined;
+  private _axiosConfig: AxiosRequestConfig | undefined;
+  private _clientFactory: ClientFactory;
+  private _credentials: ChannelCredentials;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
    */
   get v0() {
+    if (!this._v0) {
+      this._v0 = new LegacyHatchetClient(
+        this._config,
+        this._options,
+        this._axiosConfig,
+        this.runs,
+        this._listener,
+        this.events,
+        this.dispatcher,
+        this.logger,
+        this.durableListener
+      );
+    }
     return this._v0;
   }
 
   /** The tenant ID for the Hatchet client */
   tenantId: string;
+
+  logger: Logger;
 
   _isV1: boolean | undefined = true;
 
@@ -103,26 +149,22 @@ export class HatchetClient implements IHatchetClient {
       this._config = clientConfig;
 
       this.tenantId = clientConfig.tenant_id;
+      this.logger = clientConfig.logger('HatchetClient', clientConfig.log_level);
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
 
-      const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
-      const credentials =
+      this._clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+      this._credentials =
         options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
 
       this._listener = new RunListenerClient(
         this.config,
-        channelFactory(this.config, credentials),
-        clientFactory,
+        channelFactory(this.config, this._credentials),
+        this._clientFactory,
         this.api
       );
 
-      this._v0 = new LegacyHatchetClient(
-        clientConfig,
-        options,
-        axiosConfig,
-        this.runs,
-        this._listener
-      );
+      this._options = options;
+      this._axiosConfig = axiosConfig;
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
@@ -142,7 +184,7 @@ export class HatchetClient implements IHatchetClient {
               );
           }
         })
-        .catch((error) => {
+        .catch(() => {
           // Do nothing here
         });
     } catch (e) {
@@ -152,17 +194,59 @@ export class HatchetClient implements IHatchetClient {
 
   /**
    * Static factory method to create a new Hatchet client instance.
-   * @param config - Optional configuration for the client
-   * @param options - Optional client options
-   * @param axiosConfig - Optional Axios configuration for HTTP requests
-   * @returns A new Hatchet client instance
+   * @template T - Global input type required by all tasks created from this client. Defaults to `{}`.
+   * @template U - Global output type required by all tasks created from this client. Defaults to `{}`.
+   * @param config - Optional configuration for the client.
+   * @param options - Optional client options.
+   * @param axiosConfig - Optional Axios configuration for HTTP requests.
+   * @returns A new Hatchet client instance. Chain `.withMiddleware()` to attach typed middleware.
    */
-  static init(
-    config?: Partial<ClientConfig>,
+  static init<T extends Record<string, any> = {}, U extends Record<string, any> = {}>(
+    config?: Omit<Partial<ClientConfig>, 'middleware'>,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient {
-    return new HatchetClient(config, options, axiosConfig);
+  ): HatchetClient<T, U> {
+    return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<T, U>;
+  }
+
+  /**
+   * Attaches middleware to this client and returns a re-typed instance
+   * with inferred pre/post middleware types.
+   *
+   * Use this after `init<T, U>()` to get full middleware return-type inference
+   * that TypeScript can't provide when global types are explicitly set on `init`.
+   */
+  withMiddleware<
+    const M extends TaskMiddleware<
+      Resolved<GlobalInput, MiddlewareBefore>,
+      Resolved<GlobalOutput, MiddlewareAfter>
+    >,
+  >(
+    middleware: M
+  ): HatchetClient<
+    GlobalInput,
+    GlobalOutput,
+    MiddlewareBefore & InferMiddlewareBefore<M>,
+    MiddlewareAfter & InferMiddlewareAfter<M>
+  > {
+    const existing: TaskMiddleware = (this._config as any).middleware || {};
+    const toArray = <T>(v: T | readonly T[] | undefined): T[] => {
+      if (v == null) return [];
+      if (Array.isArray(v)) return [...v];
+      return [v as T];
+    };
+
+    (this._config as any).middleware = {
+      before: [...toArray(existing.before), ...toArray(middleware.before)],
+      after: [...toArray(existing.after), ...toArray(middleware.after)],
+    };
+
+    return this as unknown as HatchetClient<
+      GlobalInput,
+      GlobalOutput,
+      MiddlewareBefore & InferMiddlewareBefore<M>,
+      MiddlewareAfter & InferMiddlewareAfter<M>
+    >;
   }
 
   private _config: ClientConfig;
@@ -181,8 +265,12 @@ export class HatchetClient implements IHatchetClient {
    */
   workflow<I extends InputType = UnknownInputType, O extends StrictWorkflowOutputType = {}>(
     options: CreateWorkflowOpts
-  ): WorkflowDeclaration<I, O> {
-    return CreateWorkflow<I, O>(options, this);
+  ): WorkflowDeclaration<I, O, Resolved<GlobalInput, MiddlewareBefore>> {
+    return CreateWorkflow<I, O>(options, this) as WorkflowDeclaration<
+      I,
+      O,
+      Resolved<GlobalInput, MiddlewareBefore>
+    >;
   }
 
   /**
@@ -194,8 +282,11 @@ export class HatchetClient implements IHatchetClient {
    * @returns A TaskWorkflowDeclaration instance
    */
   task<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateTaskWorkflowOpts<I, O>
-  ): TaskWorkflowDeclaration<I, O>;
+    options: CreateTaskWorkflowOpts<
+      I & Resolved<GlobalInput, MiddlewareBefore>,
+      MergeIfNonEmpty<O, GlobalOutput>
+    >
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Creates a new task workflow with types inferred from the function parameter.
@@ -217,7 +308,7 @@ export class HatchetClient implements IHatchetClient {
     options: {
       fn: Fn;
     } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'>
-  ): TaskWorkflowDeclaration<I, O>;
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Implementation of the task method.
@@ -235,8 +326,11 @@ export class HatchetClient implements IHatchetClient {
    * @returns A TaskWorkflowDeclaration instance for a durable task
    */
   durableTask<I extends InputType, O extends OutputType>(
-    options: CreateDurableTaskWorkflowOpts<I, O>
-  ): TaskWorkflowDeclaration<I, O>;
+    options: CreateDurableTaskWorkflowOpts<
+      I & Resolved<GlobalInput, MiddlewareBefore>,
+      MergeIfNonEmpty<O, GlobalOutput>
+    >
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Creates a new durable task workflow with types inferred from the function parameter.
@@ -245,7 +339,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A TaskWorkflowDeclaration instance with inferred types
    */
   durableTask<
-    Fn extends (input: I, ctx: V0DurableContext<I>) => O | Promise<O>,
+    Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
     I extends InputType = Parameters<Fn>[0],
     O extends OutputType = ReturnType<Fn> extends Promise<infer P>
       ? P extends OutputType
@@ -258,7 +352,7 @@ export class HatchetClient implements IHatchetClient {
     options: {
       fn: Fn;
     } & Omit<CreateDurableTaskWorkflowOpts<I, O>, 'fn'>
-  ): TaskWorkflowDeclaration<I, O>;
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
 
   /**
    * Implementation of the durableTask method.
@@ -277,19 +371,11 @@ export class HatchetClient implements IHatchetClient {
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
   async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts
   ): Promise<WorkflowRunRef<O>> {
-    let name: string;
-    if (typeof workflow === 'string') {
-      name = workflow;
-    } else if ('id' in workflow) {
-      name = workflow.id;
-    } else {
-      throw new Error('unable to identify workflow');
-    }
-
+    const name = getWorkflowName(workflow);
     return this.admin.runWorkflow<I, O>(name, input, options);
   }
 
@@ -304,7 +390,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async runAndWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
@@ -321,7 +407,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async run<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
@@ -393,17 +479,68 @@ export class HatchetClient implements IHatchetClient {
     return this.scheduled;
   }
 
+  private _dispatcher: DispatcherClient | undefined;
+
+  /**
+   * Get the dispatcher client for sending action events and managing worker registration
+   * @returns A dispatcher client instance
+   */
+  get dispatcher() {
+    if (!this._dispatcher) {
+      this._dispatcher = new DispatcherClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory
+      );
+    }
+    return this._dispatcher;
+  }
+
+  private _event: EventClient | undefined;
+
   /**
    * Get the event client for creating and managing event workflow runs
    * @returns A event client instance
    */
   get events() {
-    return this._v0.event;
+    if (!this._event) {
+      this._event = new EventClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory,
+        this.api
+      );
+    }
+    return this._event;
+  }
+
+  private _durableListener: DurableListenerClient | undefined;
+
+  /**
+   * Get the durable listener client for managing durable event subscriptions
+   * @returns A durable listener client instance
+   */
+  get durableListener() {
+    if (!this._durableListener) {
+      this._durableListener = new DurableListenerClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory,
+        this.api
+      );
+    }
+    return this._durableListener;
   }
 
   /**
-   * Get the event client for creating and managing event workflow runs
-   * @returns A event client instance
+   * Get the run listener client for streaming workflow run results
+   * @returns A run listener client instance
+   */
+  get listener() {
+    return this._listener;
+  }
+
+  /**
    * @deprecated use client.events instead
    */
   get event() {
@@ -446,6 +583,19 @@ export class HatchetClient implements IHatchetClient {
       this._tenant = new TenantClient(this);
     }
     return this._tenant;
+  }
+
+  private _webhooks: WebhooksClient | undefined;
+
+  /**
+   * Get the webhooks client for creating and managing webhooks
+   * @returns A webhooks client instance
+   */
+  get webhooks() {
+    if (!this._webhooks) {
+      this._webhooks = new WebhooksClient(this);
+    }
+    return this._webhooks;
   }
 
   private _ratelimits: RatelimitsClient | undefined;
@@ -525,7 +675,7 @@ export class HatchetClient implements IHatchetClient {
    */
   get admin() {
     if (!this._admin) {
-      this._admin = new AdminClient(this._v0.config, this.api, this.runs);
+      this._admin = new AdminClient(this._config, this.api, this.runs);
     }
     return this._admin;
   }
@@ -543,16 +693,7 @@ export class HatchetClient implements IHatchetClient {
       opts = options || {};
     }
 
-    return Worker.create(this, this._v0, name, opts);
-  }
-
-  /**
-   * Register a webhook with the worker
-   * @param workflows - The workflows to register on the webhooks
-   * @returns A promise that resolves when the webhook is registered
-   */
-  webhooks(workflows: V0Workflow[]) {
-    return this._v0.webhooks(workflows);
+    return Worker.create(this, name, opts);
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {

@@ -9,6 +9,15 @@ WHERE
     sc.tenant_id = @tenantId::uuid AND
     sc.is_active = TRUE;
 
+-- name: GetConcurrencyStrategyById :one
+SELECT
+    sc.*
+FROM
+    v1_step_concurrency sc
+WHERE
+    sc.tenant_id = @tenantId::uuid AND
+    sc.id = @id::bigint;
+
 -- name: ListConcurrencyStrategiesByWorkflowVersionId :many
 SELECT c.*, s."readableId" AS step_readable_id
 FROM v1_step_concurrency c
@@ -473,6 +482,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
@@ -713,6 +724,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING

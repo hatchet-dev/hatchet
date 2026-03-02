@@ -37,6 +37,31 @@ The **Event Key Expression** is a [CEL](https://cel.dev/) expression that you ca
   created events in the previous example.
 </Callout>
 
+#### Scope Expression (Optional)
+
+The **Scope Expression** is an optional [CEL](https://cel.dev/) expression that evaluates to a string used to filter which workflows to trigger. This is useful when you have multiple workflows listening to the same event key but want to route to specific workflows based on the webhook content.
+
+Like the event key expression, you have access to `input` (the webhook payload) and `headers` (the request headers). Some examples:
+
+1. `input.customer_id` would use the customer ID from the payload as the scope
+2. `headers['x-organization-id']` would use a header value as the scope
+3. `input.metadata.environment` could route to different workflows based on environment
+
+#### Static Payload (Optional)
+
+The **Static Payload** is an optional JSON object that gets merged with the incoming webhook payload before it's passed to your workflows. This is useful for:
+
+- Adding constant metadata to all events from this webhook
+- Injecting configuration values that aren't in the original payload
+- Overriding specific fields from the incoming payload
+
+<Callout type="info">
+  When there's a key collision between the incoming webhook payload and the
+  static payload, the static payload values take precedence.
+</Callout>
+
+For example, if you set a static payload of `{"source": "stripe", "environment": "production"}` and receive a webhook with `{"type": "payment_intent.created", "source": "api"}`, the final payload passed to your workflow would be `{"type": "payment_intent.created", "source": "stripe", "environment": "production"}`.
+
 #### Authentication
 
 Finally, you'll need to specify how Hatchet should authenticate incoming webhook requests. For non-generic sources like Stripe and Github, Hatchet has presets for most of the fields, so in most cases you'd only need to provide a secret.

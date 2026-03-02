@@ -5,7 +5,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -17,7 +16,7 @@ func ToUser(user *sqlcv1.User, hasPassword bool, hashedEmail *string) *gen.User 
 	}
 
 	return &gen.User{
-		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(user.ID), user.CreatedAt.Time, user.UpdatedAt.Time),
+		Metadata:      *toAPIMetadata(user.ID, user.CreatedAt.Time, user.UpdatedAt.Time),
 		Email:         types.Email(user.Email),
 		EmailHash:     hashedEmail,
 		EmailVerified: user.EmailVerified,
@@ -34,13 +33,13 @@ func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMe
 	}
 
 	res := &gen.TenantMember{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.ID), tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(tenantMember.ID, tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
 			Email: types.Email(tenantMember.Email),
 			Name:  v1.StringPtr(tenantMember.Name.String),
 		},
 		Tenant: &gen.Tenant{
-			Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.TenantId), tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
+			Metadata:          *toAPIMetadata(tenantMember.TenantId, tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
 			Name:              tenantMember.TenantName,
 			Slug:              tenantMember.TenantSlug,
 			AnalyticsOptOut:   &tenantMember.AnalyticsOptOut,

@@ -65,13 +65,14 @@ export class HatchetLogger implements Logger {
   }
 
   async warn(message: string, error?: Error): Promise<void> {
-    await this.log('WARN', `${message} ${error}`, '93');
+    await this.log('WARN', error ? `${message} ${error}` : message, '93');
   }
 
   async error(message: string, error?: Error): Promise<void> {
-    await this.log('ERROR', `${message} ${error}`, '91');
+    await this.log('ERROR', error ? `${message} ${error}` : message, '91');
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   util(key: UtilKeys, message: string, extra?: LogExtra): void | Promise<void> {
     if (key === 'trace') {
       this.log('INFO', `trace: ${message}`, '35');

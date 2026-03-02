@@ -11,7 +11,7 @@ The on-failure task is a special type of task in Hatchet that allows you to defi
 
 You can define an on-failure task on your task the same as you'd define any other task:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.on_failure.worker.on_failure_step} />
     <Callout variant="warning">
@@ -23,6 +23,9 @@ You can define an on-failure task on your task the same as you'd define any othe
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet src={snippets.go.on_failure.main.on_failure_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.on_failure.worker.on_failure_step} />
   </Tabs.Tab>
 </UniversalTabs>
 

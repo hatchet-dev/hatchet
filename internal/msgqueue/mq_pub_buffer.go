@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
-	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
 // nolint: staticcheck
@@ -52,8 +54,8 @@ type PubFunc func(m *Message) error
 type MQPubBuffer struct {
 	mq MessageQueue
 
-	// buffers is keyed on (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
-	buffers sync.Map
+	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
+	buffers syncx.Map[string, *msgIdPubBuffer]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -79,16 +81,16 @@ type msgWithErrCh struct {
 }
 
 func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait bool) error {
-	if msg.TenantID == "" {
+	if msg.TenantID == uuid.Nil {
 		return nil
 	}
 
 	k := getPubKey(queue, msg.TenantID, msg.ID)
 
-	buf, ok := m.buffers.Load(k)
+	msgBuf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIDPubBuffer(m.ctx, msg.TenantID, msg.ID, func(msg *Message) error {
+		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDPubBuffer(m.ctx, msg.TenantID, msg.ID, func(msg *Message) error {
 			msgCtx, cancel := context.WithTimeout(context.Background(), PUB_TIMEOUT)
 			defer cancel()
 
@@ -105,7 +107,6 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 	}
 
 	// this places some backpressure on the consumer if buffers are full
-	msgBuf := buf.(*msgIdPubBuffer)
 	msgBuf.msgIdPubBufferCh <- msgWithErr
 	msgBuf.notifier <- struct{}{}
 
@@ -116,12 +117,12 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 	return nil
 }
 
-func getPubKey(q Queue, tenantId, msgId string) string {
-	return q.Name() + tenantId + msgId
+func getPubKey(q Queue, tenantId uuid.UUID, msgId string) string {
+	return q.Name() + tenantId.String() + msgId
 }
 
 type msgIdPubBuffer struct {
-	tenantId string
+	tenantId uuid.UUID
 	msgId    string
 
 	msgIdPubBufferCh chan *msgWithErrCh
@@ -135,7 +136,7 @@ type msgIdPubBuffer struct {
 	serialize func(t any) ([]byte, error)
 }
 
-func newMsgIDPubBuffer(ctx context.Context, tenantID, msgID string, pub PubFunc) *msgIdPubBuffer {
+func newMsgIDPubBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, pub PubFunc) *msgIdPubBuffer {
 	b := &msgIdPubBuffer{
 		tenantId:         tenantID,
 		msgId:            msgID,

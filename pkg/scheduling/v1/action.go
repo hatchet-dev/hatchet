@@ -3,6 +3,8 @@ package v1
 import (
 	"slices"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type action struct {
@@ -14,6 +16,13 @@ type action struct {
 
 	// note that slots can be used across multiple actions, hence the pointer
 	slots []*slot
+
+	// slotsByTypeAndWorkerId indexes slots by slotType -> workerId -> slots.
+	//
+	// NOTE: this index contains pointers to the same slot objects as slots.
+	// It is built/replaced during replenish under a.mu and read during assignment
+	// under a.mu (RLock or Lock).
+	slotsByTypeAndWorkerId map[string]map[uuid.UUID][]*slot
 }
 
 func (a *action) activeCount() int {

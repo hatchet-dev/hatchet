@@ -9,6 +9,7 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
+	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -127,9 +128,9 @@ func WithAdditionalMetadata(metadata map[string]interface{}) InputOpts {
 	}
 }
 
-func WithWorkflowRunID(workflowRunID string) InputOpts {
+func WithWorkflowRunID(workflowRunID uuid.UUID) InputOpts {
 	return func(w Input) {
-		w["workflow_run_id"] = workflowRunID
+		w["workflow_run_id"] = workflowRunID.String()
 	}
 }
 
@@ -139,7 +140,7 @@ func WithPayload(payload map[string]interface{}) InputOpts {
 	}
 }
 
-func WithEventID(eventID string) InputOpts {
+func WithEventID(eventID uuid.UUID) InputOpts {
 	return func(w Input) {
 		w["event_id"] = eventID
 	}

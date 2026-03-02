@@ -2,11 +2,12 @@
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 import { parent, child } from './workflow-with-child';
+import { simpleWithZod } from './zod';
 
 async function main() {
   const worker = await hatchet.worker('simple-worker', {
     // 👀 Declare the workflows that the worker can execute
-    workflows: [simple, parent, child],
+    workflows: [simple, simpleWithZod, parent, child],
     // 👀 Declare the number of concurrent task runs the worker can accept
     slots: 100,
   });

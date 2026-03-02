@@ -11,10 +11,12 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -28,7 +30,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -56,6 +58,44 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		return nil, err
 	}
 
+	// notify that a new set of queues have been created
+	// important: this assumes that actions correspond 1:1 with queues, which they do at the moment
+	// but might not in the future
+	actions, err := getActionsForTasks(createOpts)
+
+	if tenant.SchedulerPartitionId.Valid && err == nil {
+		go func() {
+			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			for _, action := range actions {
+				a.l.Debug().Msgf("notifying new queue for tenant %s and action %s", tenantId, action)
+
+				msg, err := tasktypes.NotifyNewQueue(tenantId, action)
+
+				if err != nil {
+					a.l.Err(err).Msg("could not create message for notifying new queue")
+				} else {
+					err = a.mqv1.SendMessage(
+						notifyCtx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msg,
+					)
+
+					if err != nil {
+						a.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
+
+					a.l.Debug().Msgf("notified new queue for tenant %s and action %s", tenantId, action)
+				}
+			}
+		}()
+	} else if err != nil {
+		a.l.Warn().Err(err).Msgf("could not get actions for tasks for workflow version %s, skipping notifying new queues for tenant %s", currWorkflow.WorkflowVersion.ID.String(), tenantId)
+	} else if !tenant.SchedulerPartitionId.Valid {
+		a.l.Debug().Msgf("tenant %s does not have a valid scheduler partition id, skipping notifying new queues for workflow version %s", tenantId, currWorkflow.WorkflowVersion.ID.String())
+	}
+
 	resp := toWorkflowVersion(currWorkflow)
 
 	return resp, nil
@@ -63,7 +103,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	workflow, err := a.repov1.Workflows().GetWorkflowByName(
 		ctx,
@@ -82,7 +122,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		return nil, fmt.Errorf("could not get workflow by name: %w", err)
 	}
 
-	workflowId := sqlchelpers.UUIDToStr(workflow.ID)
+	workflowId := workflow.ID
 
 	currWorkflow, err := a.repov1.Workflows().GetLatestWorkflowVersion(
 		ctx,
@@ -101,10 +141,10 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	isParentTriggered := req.ParentId != nil
 
 	if isParentTriggered {
-		if req.ParentStepRunId == nil {
+		if req.ParentTaskRunExternalId == nil {
 			return nil, status.Error(
 				codes.InvalidArgument,
-				"parent step run id is required when parent id is provided",
+				"parent task run id is required when parent id is provided",
 			)
 		}
 
@@ -173,7 +213,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	if req.Key == "" {
 		return nil, status.Error(
@@ -415,11 +455,11 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 
 func toWorkflowVersion(workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) *contracts.WorkflowVersion {
 	version := &contracts.WorkflowVersion{
-		Id:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		Id:         workflowVersion.WorkflowVersion.ID.String(),
 		CreatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
 		UpdatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
 		Order:      workflowVersion.WorkflowVersion.Order,
-		WorkflowId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+		WorkflowId: workflowVersion.WorkflowVersion.WorkflowId.String(),
 	}
 
 	if workflowVersion.WorkflowVersion.Version.String != "" {
@@ -434,17 +474,17 @@ func toWorkflowVersionLegacy(workflowVersion *sqlcv1.GetWorkflowVersionForEngine
 
 	for i, ref := range scheduledRefs {
 		scheduledWorkflows[i] = &contracts.ScheduledWorkflow{
-			Id:        sqlchelpers.UUIDToStr(ref.ID),
+			Id:        ref.ID.String(),
 			TriggerAt: timestamppb.New(ref.TriggerAt.Time),
 		}
 	}
 
 	version := &contracts.WorkflowVersion{
-		Id:                 sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		Id:                 workflowVersion.WorkflowVersion.ID.String(),
 		CreatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
 		UpdatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
 		Order:              workflowVersion.WorkflowVersion.Order,
-		WorkflowId:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+		WorkflowId:         workflowVersion.WorkflowVersion.WorkflowId.String(),
 		ScheduledWorkflows: scheduledWorkflows,
 	}
 
@@ -453,4 +493,20 @@ func toWorkflowVersionLegacy(workflowVersion *sqlcv1.GetWorkflowVersionForEngine
 	}
 
 	return version
+}
+
+func getActionsForTasks(createOpts *v1.CreateWorkflowVersionOpts) ([]string, error) {
+	actions := make([]string, len(createOpts.Tasks))
+
+	for i, task := range createOpts.Tasks {
+		parsedAction, err := types.ParseActionID(task.Action)
+
+		if err != nil {
+			return nil, err
+		}
+
+		actions[i] = parsedAction.String()
+	}
+
+	return actions, nil
 }

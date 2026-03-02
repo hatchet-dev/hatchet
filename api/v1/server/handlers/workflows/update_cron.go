@@ -8,7 +8,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -21,8 +20,8 @@ func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.Workf
 
 	err := t.config.V1.WorkflowSchedules().UpdateCronWorkflow(
 		dbCtx,
-		sqlchelpers.UUIDToStr(cron.TenantId),
-		sqlchelpers.UUIDToStr(cron.CronId),
+		cron.TenantId,
+		cron.CronId,
 		&v1.UpdateCronOpts{
 			Enabled: request.Body.Enabled,
 		},

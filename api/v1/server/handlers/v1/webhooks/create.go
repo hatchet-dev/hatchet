@@ -4,19 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	canCreate, _, err := w.config.V1.TenantLimit().CanCreate(ctx.Request().Context(), sqlcv1.LimitResourceINCOMINGWEBHOOK, tenant.ID.String(), 1)
+	canCreate, _, err := w.config.V1.TenantLimit().CanCreate(ctx.Request().Context(), sqlcv1.LimitResourceINCOMINGWEBHOOK, tenant.ID, 1)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if webhook can be created: %w", err)
@@ -32,7 +32,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 		}, nil
 	}
 
-	params, err := w.constructCreateOpts(tenant.ID.String(), *request.Body)
+	params, err := w.constructCreateOpts(tenant.ID, *request.Body)
 	if err != nil {
 		return gen.V1WebhookCreate400JSONResponse{
 			Errors: []gen.APIError{
@@ -45,7 +45,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 
 	webhook, err := w.config.V1.Webhooks().CreateWebhook(
 		ctx.Request().Context(),
-		tenant.ID.String(),
+		tenant.ID,
 		params,
 	)
 
@@ -85,9 +85,9 @@ func extractAuthType(request gen.V1CreateWebhookRequest) (sqlcv1.V1IncomingWebho
 	return authType, nil
 }
 
-func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
+func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
 	params := v1.CreateWebhookOpts{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 	}
 
 	discriminator, err := extractAuthType(request)
@@ -121,6 +121,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(basicAuth.SourceName)
 		params.Name = basicAuth.Name
 		params.Eventkeyexpression = basicAuth.EventKeyExpression
+		params.ScopeExpression = basicAuth.ScopeExpression
+		if basicAuth.StaticPayload != nil {
+			payloadBytes, err := json.Marshal(basicAuth.StaticPayload)
+			if err != nil {
+				return params, fmt.Errorf("failed to marshal static payload: %w", err)
+			}
+			params.StaticPayload = payloadBytes
+		}
 		params.AuthConfig = authConfig
 	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
 		apiKeyAuth, err := request.AsV1CreateWebhookRequestAPIKey()
@@ -148,6 +156,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(apiKeyAuth.SourceName)
 		params.Name = apiKeyAuth.Name
 		params.Eventkeyexpression = apiKeyAuth.EventKeyExpression
+		params.ScopeExpression = apiKeyAuth.ScopeExpression
+		if apiKeyAuth.StaticPayload != nil {
+			payloadBytes, err := json.Marshal(apiKeyAuth.StaticPayload)
+			if err != nil {
+				return params, fmt.Errorf("failed to marshal static payload: %w", err)
+			}
+			params.StaticPayload = payloadBytes
+		}
 		params.AuthConfig = authConfig
 	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
 		hmacAuth, err := request.AsV1CreateWebhookRequestHMAC()
@@ -175,6 +191,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(hmacAuth.SourceName)
 		params.Name = hmacAuth.Name
 		params.Eventkeyexpression = hmacAuth.EventKeyExpression
+		params.ScopeExpression = hmacAuth.ScopeExpression
+		if hmacAuth.StaticPayload != nil {
+			payloadBytes, err := json.Marshal(hmacAuth.StaticPayload)
+			if err != nil {
+				return params, fmt.Errorf("failed to marshal static payload: %w", err)
+			}
+			params.StaticPayload = payloadBytes
+		}
 		params.AuthConfig = authConfig
 	default:
 		return params, fmt.Errorf("unsupported auth type: %s", discriminator)

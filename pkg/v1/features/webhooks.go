@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package features
 
 import (
@@ -9,10 +11,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
+// Deprecated: WebhookAuth is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WebhookAuth interface {
 	toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookRequest, error)
 }
 
+// Deprecated: BasicAuth is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type BasicAuth struct {
 	Username string
 	Password string
@@ -33,6 +39,8 @@ func (a BasicAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhook
 	return req, err
 }
 
+// Deprecated: APIKeyAuth is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type APIKeyAuth struct {
 	HeaderName string
 	APIKey     string
@@ -53,6 +61,8 @@ func (a APIKeyAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhoo
 	return req, err
 }
 
+// Deprecated: HMACAuth is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type HMACAuth struct {
 	SigningSecret       string
 	SignatureHeaderName string
@@ -77,6 +87,8 @@ func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 	return req, err
 }
 
+// Deprecated: CreateWebhookOpts is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type CreateWebhookOpts struct {
 	Name               string
 	SourceName         rest.V1WebhookSourceName
@@ -84,10 +96,15 @@ type CreateWebhookOpts struct {
 	Auth               WebhookAuth
 }
 
+// Deprecated: UpdateWebhookOpts is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type UpdateWebhookOpts struct {
-	EventKeyExpression string
+	EventKeyExpression *string
 }
 
+// Deprecated: WebhooksClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // WebhooksClient provides methods for managing webhook configurations.
 type WebhooksClient interface {
 	// List retrieves a collection of webhooks based on the provided parameters.
@@ -111,6 +128,9 @@ type webhooksClientImpl struct {
 	tenantId uuid.UUID
 }
 
+// Deprecated: NewWebhooksClient is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
 // NewWebhooksClient creates a new client for managing webhook configurations.
 func NewWebhooksClient(
 	api *rest.ClientWithResponses,
@@ -124,6 +144,8 @@ func NewWebhooksClient(
 	}
 }
 
+// Deprecated: List is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) List(ctx context.Context, opts rest.V1WebhookListParams) (*rest.V1WebhookList, error) {
 	resp, err := c.api.V1WebhookListWithResponse(
 		ctx,
@@ -137,6 +159,8 @@ func (c *webhooksClientImpl) List(ctx context.Context, opts rest.V1WebhookListPa
 	return resp.JSON200, nil
 }
 
+// Deprecated: Get is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Get(ctx context.Context, webhookName string) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookGetWithResponse(
 		ctx,
@@ -150,6 +174,8 @@ func (c *webhooksClientImpl) Get(ctx context.Context, webhookName string) (*rest
 	return resp.JSON200, nil
 }
 
+// Deprecated: Create is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error) {
 	if opts.Auth == nil {
 		return nil, fmt.Errorf("auth is required")
@@ -172,6 +198,8 @@ func (c *webhooksClientImpl) Create(ctx context.Context, opts CreateWebhookOpts)
 	return resp.JSON200, nil
 }
 
+// Deprecated: Update is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Update(ctx context.Context, webhookName string, opts UpdateWebhookOpts) (*rest.V1Webhook, error) {
 	resp, err := c.api.V1WebhookUpdateWithResponse(
 		ctx,
@@ -188,6 +216,8 @@ func (c *webhooksClientImpl) Update(ctx context.Context, webhookName string, opt
 	return resp.JSON200, nil
 }
 
+// Deprecated: Delete is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *webhooksClientImpl) Delete(ctx context.Context, webhookName string) error {
 	_, err := c.api.V1WebhookDeleteWithResponse(
 		ctx,

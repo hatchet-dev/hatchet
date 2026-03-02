@@ -5,19 +5,17 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
@@ -29,10 +27,9 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 			sqlcv1.V1ReadableStatusOlapCOMPLETED,
 			sqlcv1.V1ReadableStatusOlapCANCELLED,
 		}
-		since             = request.Params.Since
-		workflowIds       = []uuid.UUID{}
-		limit       int64 = 50
-		offset      int64
+		since        = request.Params.Since
+		limit  int64 = 50
+		offset int64
 	)
 
 	if request.Params.Statuses != nil {
@@ -52,6 +49,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		offset = *request.Params.Offset
 	}
 
+	workflowIds := make([]uuid.UUID, 0)
 	if request.Params.WorkflowIds != nil {
 		workflowIds = *request.Params.WorkflowIds
 	}
@@ -88,14 +86,11 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	if request.Params.ParentTaskExternalId != nil {
-		parentTaskExternalId := request.Params.ParentTaskExternalId.String()
-		id := sqlchelpers.UUIDFromStr(parentTaskExternalId)
-		opts.ParentTaskExternalId = &id
+		opts.ParentTaskExternalId = request.Params.ParentTaskExternalId
 	}
 
 	if request.Params.TriggeringEventExternalId != nil {
-		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
-		opts.TriggeringEventExternalId = &id
+		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
@@ -108,7 +103,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		return nil, err
 	}
 
-	dagExternalIds := make([]pgtype.UUID, 0)
+	dagExternalIds := make([]uuid.UUID, 0)
 
 	for _, dag := range dags {
 		if dag.Kind == sqlcv1.V1RunKindDAG {
@@ -127,7 +122,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		return nil, err
 	}
 
-	pgWorkflowIds := make([]pgtype.UUID, 0)
+	pgWorkflowIds := make([]uuid.UUID, 0)
 
 	for _, wf := range dags {
 		pgWorkflowIds = append(pgWorkflowIds, wf.WorkflowID)
@@ -176,7 +171,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
@@ -261,7 +256,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		return nil, err
 	}
 
-	workflowIdsForNames := make([]pgtype.UUID, 0)
+	workflowIdsForNames := make([]uuid.UUID, 0)
 	for _, task := range tasks {
 		workflowIdsForNames = append(workflowIdsForNames, task.WorkflowID)
 	}
@@ -294,7 +289,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
@@ -309,11 +304,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, request gen.V1WorkflowRunDisplayNamesListRequestObject) (gen.V1WorkflowRunDisplayNamesListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	externalIds := make([]pgtype.UUID, len(request.Params.ExternalIds))
-
-	for i, id := range request.Params.ExternalIds {
-		externalIds[i] = sqlchelpers.UUIDFromStr(id.String())
-	}
+	externalIds := request.Params.ExternalIds
 
 	displayNames, err := t.config.V1.OLAP().ListWorkflowRunDisplayNames(
 		ctx.Request().Context(),
@@ -334,7 +325,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, 
 
 func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, request gen.V1WorkflowRunExternalIdsListRequestObject) (gen.V1WorkflowRunExternalIdsListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID.String()
+	tenantId := tenant.ID
 	spanCtx, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list-external-ids")
 	defer span.End()
 
@@ -396,9 +387,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 		return nil, err
 	}
 
-	result := transformers.ToWorkflowRunExternalIds(externalIds)
-
 	return gen.V1WorkflowRunExternalIdsList200JSONResponse(
-		result,
+		externalIds,
 	), nil
 }

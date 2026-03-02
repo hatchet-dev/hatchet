@@ -14,19 +14,6 @@ import pytest
 
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
-    V1CreateWebhookRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
-    V1CreateWebhookRequestAPIKey,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
-    V1CreateWebhookRequestBasicAuth,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
-    V1CreateWebhookRequestHMAC,
-)
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -48,6 +35,9 @@ TEST_API_KEY_HEADER = "X-API-Key"
 TEST_API_KEY_VALUE = "test_api_key_123"
 TEST_HMAC_SIGNATURE_HEADER = "X-Signature"
 TEST_HMAC_SECRET = "test_hmac_secret"
+
+
+hatchet = Hatchet(debug=True)
 
 
 @pytest.fixture
@@ -169,33 +159,18 @@ async def basic_auth_webhook(
     password: str = TEST_BASIC_PASSWORD,
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
-    ## Hack to get the API client
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
-    webhook_request = V1CreateWebhookRequestBasicAuth(
-        sourceName=source_name,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=source_name,
         name=f"test-webhook-basic-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        authType="BASIC",
-        auth=V1WebhookBasicAuth(
-            username=username,
-            password=password,
-        ),
-    )
-
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
+        auth=V1WebhookBasicAuth(username=username, password=password),
     )
 
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 @asynccontextmanager
@@ -206,32 +181,21 @@ async def api_key_webhook(
     api_key: str = TEST_API_KEY_VALUE,
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
-    webhook_request = V1CreateWebhookRequestAPIKey(
-        sourceName=source_name,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=source_name,
         name=f"test-webhook-apikey-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        authType="API_KEY",
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth=V1WebhookAPIKeyAuth(
             headerName=header_name,
             apiKey=api_key,
         ),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
-
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 @asynccontextmanager
@@ -244,14 +208,11 @@ async def hmac_webhook(
     encoding: V1WebhookHMACEncoding = V1WebhookHMACEncoding.HEX,
     source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
 ) -> AsyncGenerator[V1Webhook, None]:
-    client = hatchet.metrics.client()
-    webhook_api = WebhookApi(client)
 
-    webhook_request = V1CreateWebhookRequestHMAC(
-        sourceName=source_name,
+    incoming_webhook = hatchet.webhooks.create(
+        source_name=source_name,
         name=f"test-webhook-hmac-{test_run_id}",
-        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        authType="HMAC",
+        event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         auth=V1WebhookHMACAuth(
             algorithm=algorithm,
             encoding=encoding,
@@ -260,18 +221,10 @@ async def hmac_webhook(
         ),
     )
 
-    incoming_webhook = webhook_api.v1_webhook_create(
-        tenant=hatchet.tenant_id,
-        v1_create_webhook_request=V1CreateWebhookRequest(webhook_request),
-    )
-
     try:
         yield incoming_webhook
     finally:
-        webhook_api.v1_webhook_delete(
-            tenant=hatchet.tenant_id,
-            v1_webhook=incoming_webhook.name,
-        )
+        hatchet.webhooks.delete(incoming_webhook.name)
 
 
 def url(tenant_id: str, webhook_name: str) -> str:
@@ -332,7 +285,8 @@ async def test_basic_auth_success(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -413,7 +367,8 @@ async def test_api_key_success(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -496,7 +451,8 @@ async def test_hmac_success(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -540,7 +496,8 @@ async def test_hmac_different_algorithms_and_encodings(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,
@@ -633,7 +590,8 @@ async def test_different_source_types(
         ) as response:
             assert response.status == 200
             data = await response.json()
-            assert data == {"message": "ok"}
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         await assert_has_runs(
             hatchet,

@@ -2,9 +2,10 @@ import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { queries } from '@/lib/api';
+import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
@@ -61,6 +62,8 @@ export default function Invites() {
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
   const { capture } = useAnalytics();
+  const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
+    useUserUniverse();
 
   const { tenantInvites, orgInvites } = useLoaderData({
     from: appRoutes.onboardingInvitesRoute.to,
@@ -86,14 +89,14 @@ export default function Invites() {
     },
     onSuccess: async (tenantId: string) => {
       await queryClient.invalidateQueries({
-        queryKey: queries.user.listTenantMemberships.queryKey,
+        queryKey: ['pending-invites'],
       });
 
-      const memberships = await queryClient.fetchQuery(
-        queries.user.listTenantMemberships,
-      );
+      invalidateUserUniverse();
 
-      const membership = memberships.rows?.find(
+      const { tenantMemberships } = await getUserUniverse();
+
+      const membership = tenantMemberships.find(
         (m) => m.tenant?.metadata.id === tenantId,
       );
 
@@ -101,6 +104,10 @@ export default function Invites() {
         setTenant(membership.tenant);
         capture('onboarding_tenant_invite_accepted', {
           tenant_id: tenantId,
+        });
+        navigate({
+          to: appRoutes.tenantOverviewRoute.to,
+          params: { tenant: tenantId },
         });
       } else {
         throw new Error('Tenant not found after accepting invite');
@@ -116,6 +123,9 @@ export default function Invites() {
       return data.invite;
     },
     onSuccess: async (inviteId: string) => {
+      await queryClient.invalidateQueries({
+        queryKey: ['pending-invites'],
+      });
       capture('onboarding_tenant_invite_rejected', {
         invite_id: inviteId,
       });
@@ -201,7 +211,10 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () => {
+                            onSuccess: async () => {
+                              await queryClient.invalidateQueries({
+                                queryKey: ['pending-invites'],
+                              });
                               capture('onboarding_org_invite_rejected', {
                                 invite_id: invite.metadata.id,
                               });
@@ -221,7 +234,10 @@ export default function Invites() {
                             inviteId: invite.metadata.id,
                           },
                           {
-                            onSuccess: () => {
+                            onSuccess: async () => {
+                              await queryClient.invalidateQueries({
+                                queryKey: ['pending-invites'],
+                              });
                               capture('onboarding_org_invite_accepted', {
                                 invite_id: invite.metadata.id,
                               });

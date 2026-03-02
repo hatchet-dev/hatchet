@@ -17,9 +17,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledWorkflowId string, scheduled *sqlcv1.PollScheduledWorkflowsRow) error {
+func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledWorkflowId uuid.UUID, scheduled *sqlcv1.PollScheduledWorkflowsRow) error {
 	expiresAt := scheduled.TriggerAt.Time.Add(time.Second * 30)
-	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, scheduledWorkflowId, sqlchelpers.TimestamptzFromTime(expiresAt))
+	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, scheduledWorkflowId.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
 
 	var pgErr *pgconn.PgError
 	// if we get a unique violation, it means we tried to create a duplicate idempotency key, which means this
@@ -31,7 +31,7 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 		return fmt.Errorf("could not create idempotency key: %w", err)
 	}
 
-	key := v1.IdempotencyKey(scheduledWorkflowId)
+	key := v1.IdempotencyKey(scheduledWorkflowId.String())
 
 	// send workflow run to task controller
 	opt := &v1.WorkflowNameTriggerOpts{
@@ -42,7 +42,7 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 			Priority:           &scheduled.Priority,
 		},
 		IdempotencyKey: &key,
-		ExternalId:     uuid.NewString(),
+		ExternalId:     uuid.New(),
 		ShouldSkip:     false,
 	}
 

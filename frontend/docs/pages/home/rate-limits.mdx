@@ -39,7 +39,7 @@ This pattern is especially useful for:
 
 ### Declaring and Consuming Dynamic Rate Limits
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 > Note: `dynamic_key` must be a CEL expression. `units` and `limits` can be either an integer or a CEL expression.
 
@@ -61,6 +61,9 @@ We can add one or more rate limits to a task by adding the `rate_limits` configu
 
 <Snippet src={snippets.go.rate_limiting.main.dynamic_rate_limit} />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.rate_limit.worker.dynamic} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -84,7 +87,7 @@ If a step run exceeds the rate limit, Hatchet re-queues the step run until the r
 
 Define the static rate limits that can be consumed by any step run across all workflow runs using the `put_rate_limit` method in the `Admin` client within your code.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.rate_limit.worker.create_a_rate_limit} />
@@ -103,13 +106,16 @@ Define the static rate limits that can be consumed by any step run across all wo
 
   </Tabs.Tab>
 
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.rate_limit.worker.create_a_rate_limit} />
+  </Tabs.Tab>
 </UniversalTabs>
 
 ### Consuming Static Rate Limits
 
 With your rate limit key defined, specify the units of consumption for a specific key in each step definition by adding the `rate_limits` configuration to your step definition in your workflow.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.rate_limit.worker.static} />
@@ -123,6 +129,9 @@ With your rate limit key defined, specify the units of consumption for a specifi
   <Tabs.Tab>
     <Snippet src={snippets.go.rate_limiting.main.static_rate_limit} />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.rate_limit.worker.static} />
   </Tabs.Tab>
 </UniversalTabs>
 

@@ -1,0 +1,82 @@
+module Hatchet
+  class Config
+    DEFAULT_HOST_PORT: String
+    DEFAULT_SERVER_URL: String
+    DEFAULT_GRPC_MAX_MESSAGE_LENGTH: Integer
+    ENV_FILE_NAMES: Array[String]
+
+    attr_reader token: String
+    attr_reader tenant_id: String
+    attr_reader host_port: String
+    attr_reader server_url: String
+    attr_reader namespace: String
+    attr_reader logger: Logger
+    attr_reader listener_v2_timeout: Integer?
+    attr_reader grpc_max_recv_message_length: Integer
+    attr_reader grpc_max_send_message_length: Integer
+    attr_reader worker_preset_labels: Hash[String, String]
+    attr_reader enable_force_kill_sync_threads: bool
+    attr_reader enable_thread_pool_monitoring: bool
+    attr_reader terminate_worker_after_num_tasks: Integer?
+    attr_reader disable_log_capture: bool
+    attr_reader grpc_enable_fork_support: bool
+    attr_reader tls_config: TLSConfig
+    attr_reader healthcheck: HealthcheckConfig
+    attr_reader otel: OpenTelemetryConfig
+
+    def initialize: (
+      ?token: String,
+      ?host_port: String,
+      ?server_url: String,
+      ?namespace: String,
+      ?logger: Logger,
+      ?listener_v2_timeout: Integer,
+      ?grpc_max_recv_message_length: Integer,
+      ?grpc_max_send_message_length: Integer,
+      ?worker_preset_labels: Hash[String, String],
+      ?enable_force_kill_sync_threads: bool,
+      ?enable_thread_pool_monitoring: bool,
+      ?terminate_worker_after_num_tasks: Integer,
+      ?disable_log_capture: bool,
+      ?grpc_enable_fork_support: bool,
+      ?tls_config: TLSConfig,
+      ?healthcheck: HealthcheckConfig,
+      ?otel: OpenTelemetryConfig
+    ) -> void
+
+    def apply_namespace: (String? resource_name, ?namespace_override: String?) -> String?
+    def hash: () -> Integer
+    def to_h: () -> Hash[Symbol, untyped]
+    def auth_metadata: () -> Hash[String, String]
+  end
+
+  class TLSConfig
+    attr_reader strategy: String
+    attr_reader cert_file: String?
+    attr_reader key_file: String?
+    attr_reader root_ca_file: String?
+    attr_reader server_name: String
+    attr_writer server_name: String
+
+    def initialize: (
+      ?strategy: String,
+      ?cert_file: String,
+      ?key_file: String,
+      ?root_ca_file: String,
+      ?server_name: String
+    ) -> void
+  end
+
+  class HealthcheckConfig
+    attr_reader port: Integer
+    attr_reader enabled: bool
+
+    def initialize: (?port: Integer, ?enabled: bool) -> void
+  end
+
+  class OpenTelemetryConfig
+    attr_accessor excluded_attributes: Array[String]
+
+    def initialize: (?excluded_attributes: Array[String]) -> void
+  end
+end

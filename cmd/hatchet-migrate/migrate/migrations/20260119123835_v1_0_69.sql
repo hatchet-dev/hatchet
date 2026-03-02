@@ -19,6 +19,10 @@ ALTER TABLE "TenantResourceLimit"
     ALTER COLUMN resource TYPE "LimitResource_new"
     USING resource::text::"LimitResource_new";
 
+ALTER TABLE "TenantResourceLimitAlert"
+    ALTER COLUMN resource TYPE "LimitResource_new"
+    USING resource::text::"LimitResource_new";
+
 DROP TYPE "LimitResource" CASCADE;
 
 ALTER TYPE "LimitResource_new" RENAME TO "LimitResource";

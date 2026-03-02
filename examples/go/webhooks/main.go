@@ -59,8 +59,9 @@ func main() {
 
 	// Update the webhook
 	fmt.Println("\nUpdating webhook...")
+	eventKeyExpr := "body.type"
 	updated, err := client.Webhooks().Update(ctx, basicWebhook.Name, features.UpdateWebhookOpts{
-		EventKeyExpression: "body.type",
+		EventKeyExpression: &eventKeyExpr,
 	})
 	if err != nil {
 		log.Fatalf("failed to update webhook: %v", err)

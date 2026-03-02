@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -41,7 +43,9 @@ type EventClient interface {
 
 	BulkPush(ctx context.Context, payloads []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error
 
-	PutLog(ctx context.Context, stepRunId, msg string) error
+	PutLog(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32) error
+
+	PutLogWithTimestamp(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32, createdAt *timestamppb.Timestamp) error
 
 	PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error
 }
@@ -190,17 +194,23 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 	return nil
 }
 
-func (a *eventClientImpl) PutLog(ctx context.Context, stepRunId, msg string) error {
+func (a *eventClientImpl) PutLog(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32) error {
+	return a.PutLogWithTimestamp(ctx, taskRunId, msg, level, taskRetryCount, timestamppb.Now())
+}
+
+func (a *eventClientImpl) PutLogWithTimestamp(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32, createdAt *timestamppb.Timestamp) error {
 	_, err := a.client.PutLog(a.ctx.newContext(ctx), &eventcontracts.PutLogRequest{
-		CreatedAt: timestamppb.Now(),
-		StepRunId: stepRunId,
-		Message:   msg,
+		CreatedAt:         createdAt,
+		TaskRunExternalId: taskRunId,
+		Message:           msg,
+		Level:             level,
+		TaskRetryCount:    taskRetryCount,
 	})
 
 	return err
 }
 
-func (a *eventClientImpl) PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error {
+func (a *eventClientImpl) PutStreamEvent(ctx context.Context, taskRunId string, message []byte, options ...StreamEventOption) error {
 	opts := &streamEventOpts{}
 
 	for _, optionFunc := range options {
@@ -208,9 +218,9 @@ func (a *eventClientImpl) PutStreamEvent(ctx context.Context, stepRunId string, 
 	}
 
 	request := &eventcontracts.PutStreamEventRequest{
-		CreatedAt: timestamppb.Now(),
-		StepRunId: stepRunId,
-		Message:   message,
+		CreatedAt:         timestamppb.Now(),
+		TaskRunExternalId: taskRunId,
+		Message:           message,
 	}
 
 	if opts.index != nil {

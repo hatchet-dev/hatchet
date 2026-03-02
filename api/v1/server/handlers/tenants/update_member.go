@@ -7,7 +7,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -45,7 +44,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 	}
 
 	// Users cannot change their own role
-	if sqlchelpers.UUIDToStr(tenantMember.UserId) == sqlchelpers.UUIDToStr(memberToUpdate.UserId) {
+	if tenantMember.UserId == memberToUpdate.UserId {
 		return gen.TenantMemberUpdate400JSONResponse(
 			apierrors.NewAPIErrors("you cannot change your own role"),
 		), nil
@@ -55,7 +54,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		Role: v1.StringPtr(string(request.Body.Role)),
 	}
 
-	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToUpdate.ID), updateOpts)
+	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), memberToUpdate.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-import asyncio
+import inspect
 import json
 from collections.abc import Callable, Mapping
 from enum import Enum
@@ -130,6 +130,7 @@ class WorkflowConfig(BaseModel):
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)
+    default_additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
 class StepType(str, Enum):
@@ -146,13 +147,13 @@ TaskFunc = AsyncFunc[TWorkflowInput, R] | SyncFunc[TWorkflowInput, R]
 def is_async_fn(
     fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[AsyncFunc[TWorkflowInput, R]]:
-    return asyncio.iscoroutinefunction(fn)
+    return inspect.iscoroutinefunction(fn)
 
 
 def is_sync_fn(
     fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[SyncFunc[TWorkflowInput, R]]:
-    return not asyncio.iscoroutinefunction(fn)
+    return not inspect.iscoroutinefunction(fn)
 
 
 DurableAsyncFunc = Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]]
@@ -165,13 +166,13 @@ DurableTaskFunc = (
 def is_durable_async_fn(
     fn: Callable[..., Any],
 ) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
-    return asyncio.iscoroutinefunction(fn)
+    return inspect.iscoroutinefunction(fn)
 
 
 def is_durable_sync_fn(
     fn: DurableTaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[DurableSyncFunc[TWorkflowInput, R]]:
-    return not asyncio.iscoroutinefunction(fn)
+    return not inspect.iscoroutinefunction(fn)
 
 
 _TModel = TypeVar("_TModel", bound=BaseModel)

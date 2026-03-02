@@ -1,0 +1,21 @@
+module Hatchet
+  module WorkerRuntime
+    class ActionListener
+      MAX_RETRIES: Integer
+      BASE_BACKOFF_SECONDS: Integer
+      MAX_BACKOFF_SECONDS: Integer
+      HEALTHY_CONNECTION_THRESHOLD: Integer
+      HEARTBEAT_INTERVAL: Integer
+      MAX_MISSED_HEARTBEATS: Integer
+
+      def initialize: (
+        dispatcher_client: Clients::Grpc::Dispatcher,
+        worker_id: String,
+        logger: Logger
+      ) -> void
+
+      def start: () { (untyped action) -> void } -> void
+      def stop: () -> void
+    end
+  end
+end

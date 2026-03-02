@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
@@ -30,10 +30,10 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 				return
 			}
 
-			tenantIds := make([]string, 0, len(tenants))
+			tenantIds := make([]uuid.UUID, 0, len(tenants))
 
 			for _, tenant := range tenants {
-				tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+				tenantId := tenant.ID
 				tenantIds = append(tenantIds, tenantId)
 			}
 
@@ -57,7 +57,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 }
 
 func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.UpdateTaskStatusRow) error {
-	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
+	tenantIdToPayloads := make(map[uuid.UUID][]tasktypes.NotifyFinalizedPayload)
 
 	for _, row := range rows {
 		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
@@ -65,7 +65,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 		}
 
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
-			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
+			ExternalId: row.ExternalId,
 			Status:     row.ReadableStatus,
 		})
 	}
@@ -78,7 +78,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 			}
 
 			update := taskPrometheusUpdate{
-				tenantId:       sqlchelpers.UUIDToStr(row.TenantId),
+				tenantId:       row.TenantId,
 				taskId:         row.TaskId,
 				taskInsertedAt: row.TaskInsertedAt,
 				readableStatus: row.ReadableStatus,
@@ -100,7 +100,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 	if len(tenantIdToPayloads) > 0 {
 		for tenantId, payloads := range tenantIdToPayloads {
 			msg, err := msgqueue.NewTenantMessage(
-				tenantId.String(),
+				tenantId,
 				msgqueue.MsgIDWorkflowRunFinished,
 				true,
 				false,
@@ -111,7 +111,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 				return err
 			}
 
-			q := msgqueue.TenantEventConsumerQueue(tenantId.String())
+			q := msgqueue.TenantEventConsumerQueue(tenantId)
 
 			err = o.mq.SendMessage(ctx, q, msg)
 

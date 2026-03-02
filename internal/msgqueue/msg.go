@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 )
 
@@ -15,7 +17,7 @@ type Message struct {
 	Payloads [][]byte `json:"messages"`
 
 	// TenantID is the tenant ID.
-	TenantID string `json:"tenant_id"`
+	TenantID uuid.UUID `json:"tenant_id"`
 
 	// Whether the message should immediately expire if it reaches the queue without an active consumer.
 	ImmediatelyExpire bool `json:"immediately_expire"`
@@ -34,7 +36,7 @@ type Message struct {
 	Compressed bool `json:"compressed,omitempty"`
 }
 
-func NewTenantMessage[T any](tenantId, id string, immediatelyExpire, persistent bool, payloads ...T) (*Message, error) {
+func NewTenantMessage[T any](tenantId uuid.UUID, id string, immediatelyExpire, persistent bool, payloads ...T) (*Message, error) {
 	payloadByteArr := make([][]byte, len(payloads))
 
 	for i, payload := range payloads {

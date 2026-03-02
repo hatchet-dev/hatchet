@@ -1,0 +1,17 @@
+module Hatchet
+  module WorkerRuntime
+    class Runner
+      def initialize: (
+        workflows: Array[Workflow | Task],
+        slots: Integer,
+        dispatcher_client: Clients::Grpc::Dispatcher,
+        event_client: Clients::Grpc::EventClient,
+        logger: Logger,
+        client: Client
+      ) -> void
+
+      def execute: (untyped action) -> void
+      def shutdown: (?timeout: Integer) -> void
+    end
+  end
+end

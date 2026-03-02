@@ -1,0 +1,34 @@
+module Hatchet
+  module Features
+    class TaskMetrics
+      attr_accessor cancelled: Integer
+      attr_accessor completed: Integer
+      attr_accessor failed: Integer
+      attr_accessor queued: Integer
+      attr_accessor running: Integer
+
+      def initialize: (
+        ?cancelled: Integer,
+        ?completed: Integer,
+        ?failed: Integer,
+        ?queued: Integer,
+        ?running: Integer
+      ) -> void
+    end
+
+    class Metrics
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+      def get_queue_metrics: () -> Hash[String, untyped]
+      def scrape_tenant_prometheus_metrics: () -> String
+      def get_task_stats: () -> untyped
+
+      def get_task_metrics: (
+        ?since: Time?,
+        ?until_time: Time?,
+        ?workflow_ids: Array[String]?,
+        ?parent_task_external_id: String?,
+        ?triggering_event_external_id: String?
+      ) -> TaskMetrics
+    end
+  end
+end

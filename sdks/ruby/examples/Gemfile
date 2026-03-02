@@ -1,3 +1,11 @@
-source 'https://rubygems.org'
+# frozen_string_literal: true
 
-gem 'hatchet-sdk', path: '../src'
+source "https://rubygems.org"
+
+gem "hatchet-sdk", path: "../src"
+
+# Testing
+gem "rspec", "~> 3.0"
+
+# HTTP for health checks in worker fixture
+gem "net-http"

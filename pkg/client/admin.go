@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -8,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -15,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -24,7 +28,7 @@ import (
 
 type ChildWorkflowOpts struct {
 	ParentId           string
-	ParentStepRunId    string
+	ParentTaskRunId    string
 	ChildIndex         int
 	ChildKey           *string
 	DesiredWorkerId    *string
@@ -38,8 +42,44 @@ type WorkflowRun struct {
 	Options []RunOptFunc
 }
 
+func taskStatusFromProto(s v1contracts.RunStatus) rest.V1TaskStatus {
+	switch s {
+	case v1contracts.RunStatus_COMPLETED:
+		return rest.V1TaskStatusCOMPLETED
+	case v1contracts.RunStatus_CANCELLED:
+		return rest.V1TaskStatusCANCELLED
+	case v1contracts.RunStatus_FAILED:
+		return rest.V1TaskStatusFAILED
+	case v1contracts.RunStatus_RUNNING:
+		return rest.V1TaskStatusRUNNING
+	default:
+		return rest.V1TaskStatusQUEUED
+	}
+}
+
+type TaskRunDetails struct {
+	ExternalId uuid.UUID
+	ReadableId string
+	Status     rest.V1TaskStatus
+	Output     json.RawMessage
+	Error      *string
+}
+
+type RunDetails struct {
+	ExternalId         uuid.UUID
+	Status             rest.V1TaskStatus
+	Input              json.RawMessage
+	AdditionalMetadata json.RawMessage
+	TaskRuns           map[string]*TaskRunDetails
+	Done               bool
+}
+
 type AdminClient interface {
+	// Deprecated: PutWorkflow is part of the legacy v0 workflow definition system.
+	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
+	// Deprecated: PutWorkflowV1 is an internal method used by the new Go SDK.
+	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 	PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, opts ...PutOptFunc) error
 
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
@@ -53,6 +93,8 @@ type AdminClient interface {
 	RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error)
 
 	PutRateLimit(key string, opts *types.RateLimitOpts) error
+
+	GetRunDetails(ctx context.Context, externalId uuid.UUID) (*RunDetails, error)
 }
 
 type DedupeViolationErr struct {
@@ -105,6 +147,8 @@ func defaultPutOpts() *putOpts {
 	return &putOpts{}
 }
 
+// Deprecated: PutWorkflow is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc) error {
 	opts := defaultPutOpts()
 
@@ -127,6 +171,8 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	return nil
 }
 
+// Deprecated: PutWorkflowV1 is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, fs ...PutOptFunc) error {
 	opts := defaultPutOpts()
 
@@ -342,15 +388,15 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	metadata := string(metadataBytes)
 
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
-		Name:               workflowName,
-		Input:              string(inputBytes),
-		ParentId:           &opts.ParentId,
-		ParentStepRunId:    &opts.ParentStepRunId,
-		ChildIndex:         &childIndex,
-		ChildKey:           opts.ChildKey,
-		DesiredWorkerId:    opts.DesiredWorkerId,
-		AdditionalMetadata: &metadata,
-		Priority:           opts.Priority,
+		Name:                    workflowName,
+		Input:                   string(inputBytes),
+		ParentId:                &opts.ParentId,
+		ParentTaskRunExternalId: &opts.ParentTaskRunId,
+		ChildIndex:              &childIndex,
+		ChildKey:                opts.ChildKey,
+		DesiredWorkerId:         opts.DesiredWorkerId,
+		AdditionalMetadata:      &metadata,
+		Priority:                opts.Priority,
 	})
 
 	if err != nil {
@@ -404,15 +450,15 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 		metadata := string(metadataBytes)
 
 		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
-			Name:               workflowName,
-			Input:              string(inputBytes),
-			ParentId:           &workflow.Opts.ParentId,
-			ParentStepRunId:    &workflow.Opts.ParentStepRunId,
-			ChildIndex:         &childIndex,
-			ChildKey:           workflow.Opts.ChildKey,
-			DesiredWorkerId:    workflow.Opts.DesiredWorkerId,
-			AdditionalMetadata: &metadata,
-			Priority:           workflow.Opts.Priority,
+			Name:                    workflowName,
+			Input:                   string(inputBytes),
+			ParentId:                &workflow.Opts.ParentId,
+			ParentTaskRunExternalId: &workflow.Opts.ParentTaskRunId,
+			ChildIndex:              &childIndex,
+			ChildKey:                workflow.Opts.ChildKey,
+			DesiredWorkerId:         workflow.Opts.DesiredWorkerId,
+			AdditionalMetadata:      &metadata,
+			Priority:                workflow.Opts.Priority,
 		}
 
 	}
@@ -457,6 +503,46 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 	}
 
 	return nil
+}
+
+func (a *adminClientImpl) GetRunDetails(ctx context.Context, externalId uuid.UUID) (*RunDetails, error) {
+	resp, err := a.v1Client.GetRunDetails(a.ctx.newContext(ctx), &v1contracts.GetRunDetailsRequest{
+		ExternalId: externalId.String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not get run details: %w", err)
+	}
+
+	taskRuns := make(map[string]*TaskRunDetails, len(resp.GetTaskRuns()))
+	for readableId, detail := range resp.GetTaskRuns() {
+		var errStr *string
+		if detail.Error != nil {
+			errStr = detail.Error
+		}
+
+		externalId, err := uuid.Parse(detail.ExternalId)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse task run external id: %w", err)
+		}
+
+		taskRuns[readableId] = &TaskRunDetails{
+			ExternalId: externalId,
+			ReadableId: detail.GetReadableId(),
+			Status:     taskStatusFromProto(detail.GetStatus()),
+			Output:     detail.GetOutput(),
+			Error:      errStr,
+		}
+	}
+
+	return &RunDetails{
+		ExternalId:         externalId,
+		Status:             taskStatusFromProto(resp.GetStatus()),
+		Input:              resp.GetInput(),
+		AdditionalMetadata: resp.GetAdditionalMetadata(),
+		TaskRuns:           taskRuns,
+		Done:               resp.GetDone(),
+	}, nil
 }
 
 func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {

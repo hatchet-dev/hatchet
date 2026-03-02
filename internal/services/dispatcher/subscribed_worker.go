@@ -3,6 +3,8 @@ package dispatcher
 import (
 	"sync"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
@@ -16,7 +18,7 @@ type subscribedWorker struct {
 
 	sendMu sync.Mutex
 
-	workerId string
+	workerId uuid.UUID
 
 	backlogSize   int64
 	backlogSizeMu sync.Mutex
@@ -29,7 +31,7 @@ type subscribedWorker struct {
 func newSubscribedWorker(
 	stream contracts.Dispatcher_ListenServer,
 	fin chan<- bool,
-	workerId string,
+	workerId uuid.UUID,
 	maxBacklogSize int64,
 	pubBuffer *msgqueue.MQPubBuffer,
 ) *subscribedWorker {

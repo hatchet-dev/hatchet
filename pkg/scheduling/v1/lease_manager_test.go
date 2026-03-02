@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,39 +20,49 @@ type mockLeaseRepo struct {
 	mock.Mock
 }
 
-func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1Queue, error) {
+func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1Queue, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*sqlcv1.V1Queue), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*v1.ListActiveWorkersResult, error) {
+func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*v1.ListActiveWorkersResult, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*v1.ListActiveWorkersResult), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ListConcurrencyStrategies(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
+func (m *mockLeaseRepo) ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
 	args := m.Called(ctx, tenantId)
 	return args.Get(0).([]*sqlcv1.V1StepConcurrency), args.Error(1)
 }
 
-func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
 	args := m.Called(ctx, kind, resourceIds, existingLeases)
 	return args.Get(0).([]*sqlcv1.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId pgtype.UUID, leases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
 	args := m.Called(ctx, leases)
 	return args.Get(0).([]*sqlcv1.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*sqlcv1.Lease) error {
+func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) error {
 	args := m.Called(ctx, leases)
 	return args.Error(0)
 }
 
+func (m *mockLeaseRepo) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*v1.ListActiveWorkersResult, error) {
+	args := m.Called(ctx, tenantId, workerId)
+	return args.Get(0).(*v1.ListActiveWorkersResult), args.Error(1)
+}
+
+func (m *mockLeaseRepo) GetConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, id int64) (*sqlcv1.V1StepConcurrency, error) {
+	args := m.Called(ctx, tenantId, id)
+	return args.Get(0).(*sqlcv1.V1StepConcurrency), args.Error(1)
+}
+
 func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	l := zerolog.Nop()
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
@@ -62,8 +71,8 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	}
 
 	mockWorkers := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 	mockLeases := []*sqlcv1.Lease{
 		{ID: 1, ResourceId: "worker-1"},
@@ -80,7 +89,7 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 
 func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 	l := zerolog.Nop()
-	tenantId := pgtype.UUID{}
+	tenantId := uuid.UUID{}
 	mockLeaseRepo := &mockLeaseRepo{}
 	leaseManager := &LeaseManager{
 		lr:       mockLeaseRepo,
@@ -106,26 +115,26 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 }
 
 func TestLeaseManager_SendWorkerIds(t *testing.T) {
-	tenantId := pgtype.UUID{}
-	workersCh := make(chan []*v1.ListActiveWorkersResult)
+	tenantId := uuid.UUID{}
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
 		workersCh: workersCh,
 	}
 
 	mockWorkers := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 
-	go leaseManager.sendWorkerIds(mockWorkers)
+	go leaseManager.sendWorkerIds(mockWorkers, false)
 
 	result := <-workersCh
-	assert.Equal(t, mockWorkers, result)
+	assert.Equal(t, mockWorkers, result.items)
 }
 
 func TestLeaseManager_SendQueues(t *testing.T) {
-	tenantId := pgtype.UUID{}
-	queuesCh := make(chan []string)
+	tenantId := uuid.UUID{}
+	queuesCh := make(notifierCh[string])
 	leaseManager := &LeaseManager{
 		tenantId: tenantId,
 		queuesCh: queuesCh,
@@ -133,37 +142,38 @@ func TestLeaseManager_SendQueues(t *testing.T) {
 
 	mockQueues := []string{"queue-1", "queue-2"}
 
-	go leaseManager.sendQueues(mockQueues)
+	go leaseManager.sendQueues(mockQueues, false)
 
 	result := <-queuesCh
-	assert.Equal(t, mockQueues, result)
+	assert.Equal(t, mockQueues, result.items)
 }
 
 func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
-	tenantId := pgtype.UUID{}
-	workersCh := make(chan []*v1.ListActiveWorkersResult)
+	tenantId := uuid.UUID{}
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
 		workersCh: workersCh,
 	}
 
 	mockWorkers1 := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 	mockWorkers2 := []*v1.ListActiveWorkersResult{
-		{ID: uuid.NewString(), Labels: nil},
-		{ID: uuid.NewString(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
 	}
 
 	// Send workers before listener is ready
-	go leaseManager.sendWorkerIds(mockWorkers1)
+	go leaseManager.sendWorkerIds(mockWorkers1, false)
 	time.Sleep(100 * time.Millisecond)
 	resultCh := make(chan []*v1.ListActiveWorkersResult)
 	go func() {
-		resultCh <- <-workersCh
+		msg := <-workersCh
+		resultCh <- msg.items
 	}()
 	time.Sleep(100 * time.Millisecond)
-	go leaseManager.sendWorkerIds(mockWorkers2)
+	go leaseManager.sendWorkerIds(mockWorkers2, false)
 	time.Sleep(100 * time.Millisecond)
 
 	// Ensure only the latest workers are sent over the channel

@@ -5,11 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
 type sharedTenantSub struct {
-	fs        *sync.Map
+	fs        *syncx.Map[int, AckHook]
 	counter   int
 	isRunning bool
 	mu        sync.Mutex
@@ -17,23 +20,21 @@ type sharedTenantSub struct {
 }
 
 type SharedTenantReader struct {
-	tenants *sync.Map
+	tenants *syncx.Map[uuid.UUID, *sharedTenantSub]
 	mq      MessageQueue
 }
 
 func NewSharedTenantReader(mq MessageQueue) *SharedTenantReader {
 	return &SharedTenantReader{
-		tenants: &sync.Map{},
+		tenants: &syncx.Map[uuid.UUID, *sharedTenantSub]{},
 		mq:      mq,
 	}
 }
 
-func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func() error, error) {
-	tenant, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
-		fs: &sync.Map{},
+func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck AckHook) (func() error, error) {
+	t, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
+		fs: &syncx.Map[int, AckHook]{},
 	})
-
-	t := tenant.(*sharedTenantSub)
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -58,9 +59,7 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 		cleanupSingleSub, err := s.mq.Subscribe(q, NoOpHook, func(task *Message) error {
 			var innerErr error
 
-			t.fs.Range(func(key, value interface{}) bool {
-				f := value.(AckHook)
-
+			t.fs.Range(func(key int, f AckHook) bool {
 				if err := f(task); err != nil {
 					innerErr = multierror.Append(innerErr, err)
 				}
@@ -84,7 +83,7 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 
 		t.fs.Delete(subId)
 
-		if lenSyncMap(t.fs) == 0 {
+		if t.fs.Len() == 0 {
 			// shut down the subscription
 			if t.cleanup != nil {
 				if err := t.cleanup(); err != nil {
@@ -99,24 +98,30 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 	}, nil
 }
 
+type sharedBufferedTenantSub struct {
+	cleanup   func() error
+	fs        *syncx.Map[int, DstFunc]
+	counter   int
+	mu        sync.Mutex
+	isRunning bool
+}
+
 type SharedBufferedTenantReader struct {
-	tenants *sync.Map
+	tenants *syncx.Map[uuid.UUID, *sharedBufferedTenantSub]
 	mq      MessageQueue
 }
 
 func NewSharedBufferedTenantReader(mq MessageQueue) *SharedBufferedTenantReader {
 	return &SharedBufferedTenantReader{
-		tenants: &sync.Map{},
+		tenants: &syncx.Map[uuid.UUID, *sharedBufferedTenantSub]{},
 		mq:      mq,
 	}
 }
 
-func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func() error, error) {
-	tenant, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
-		fs: &sync.Map{},
+func (s *SharedBufferedTenantReader) Subscribe(tenantId uuid.UUID, f DstFunc) (func() error, error) {
+	t, _ := s.tenants.LoadOrStore(tenantId, &sharedBufferedTenantSub{
+		fs: &syncx.Map[int, DstFunc]{},
 	})
-
-	t := tenant.(*sharedTenantSub)
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -138,12 +143,10 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func
 			return nil, err
 		}
 
-		subBuffer := NewMQSubBuffer(q, s.mq, func(tenantId, msgId string, payloads [][]byte) error {
+		subBuffer := NewMQSubBuffer(q, s.mq, func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 			var innerErr error
 
-			t.fs.Range(func(key, value interface{}) bool {
-				f := value.(DstFunc)
-
+			t.fs.Range(func(key int, f DstFunc) bool {
 				if err := f(tenantId, msgId, payloads); err != nil {
 					innerErr = multierror.Append(innerErr, err)
 				}
@@ -169,7 +172,7 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func
 
 		t.fs.Delete(subId)
 
-		if lenSyncMap(t.fs) == 0 {
+		if t.fs.Len() == 0 {
 			// shut down the subscription
 			if t.cleanup != nil {
 				if err := t.cleanup(); err != nil {
@@ -182,13 +185,4 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func
 
 		return nil
 	}, nil
-}
-
-func lenSyncMap(m *sync.Map) int {
-	var i int
-	m.Range(func(k, v interface{}) bool {
-		i++
-		return true
-	})
-	return i
 }

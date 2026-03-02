@@ -277,7 +277,7 @@ func TestDetectComponentsMultiple(t *testing.T) {
 	// Check component stats
 	stats := g.GetComponentStats()
 	assert.Equal(t, 3, stats.TotalComponents)
-	assert.Equal(t, 2, stats.LargestComponent) // A-B or C-D
+	assert.Equal(t, 2, stats.LargestComponent)  // A-B or C-D
 	assert.Equal(t, 1, stats.SmallestComponent) // E
 	assert.Equal(t, 1, stats.IsolatedNodes)     // E
 }

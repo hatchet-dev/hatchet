@@ -1,7 +1,6 @@
 package tenants
 
 import (
-	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -11,7 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -79,17 +77,16 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
-	err = t.config.V1.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
-
+	err = t.config.V1.TenantLimit().UpdateLimits(ctx.Request().Context(), tenantId, t.config.V1.TenantLimit().DefaultLimits())
 	if err != nil {
 		return nil, err
 	}
 
 	// add the user as an owner of the tenant
 	_, err = t.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &v1.CreateTenantMemberOpts{
-		UserId: sqlchelpers.UUIDToStr(user.ID),
+		UserId: user.ID,
 		Role:   "OWNER",
 	})
 

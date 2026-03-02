@@ -142,33 +142,33 @@ class RunEventListener:
 
             try:
                 async for workflow_event in listener:
-                    eventType = None
-                    if workflow_event.resourceType == RESOURCE_TYPE_STEP_RUN:
-                        if workflow_event.eventType in step_run_event_type_mapping:
-                            eventType = step_run_event_type_mapping[
-                                workflow_event.eventType
+                    event_type = None
+                    if workflow_event.resource_type == RESOURCE_TYPE_STEP_RUN:
+                        if workflow_event.event_type in step_run_event_type_mapping:
+                            event_type = step_run_event_type_mapping[
+                                workflow_event.event_type
                             ]
                         else:
                             raise Exception(
-                                f"Unknown event type: {workflow_event.eventType}"
+                                f"Unknown event type: {workflow_event.event_type}"
                             )
 
                         yield StepRunEvent(
-                            type=eventType, payload=workflow_event.eventPayload
+                            type=event_type, payload=workflow_event.event_payload
                         )
-                    elif workflow_event.resourceType == RESOURCE_TYPE_WORKFLOW_RUN:
-                        if workflow_event.eventType in step_run_event_type_mapping:
-                            workflowRunEventType = step_run_event_type_mapping[
-                                workflow_event.eventType
+                    elif workflow_event.resource_type == RESOURCE_TYPE_WORKFLOW_RUN:
+                        if workflow_event.event_type in step_run_event_type_mapping:
+                            workflow_run_event_type = step_run_event_type_mapping[
+                                workflow_event.event_type
                             ]
                         else:
                             raise Exception(
-                                f"Unknown event type: {workflow_event.eventType}"
+                                f"Unknown event type: {workflow_event.event_type}"
                             )
 
                         yield StepRunEvent(
-                            type=workflowRunEventType,
-                            payload=workflow_event.eventPayload,
+                            type=workflow_run_event_type,
+                            payload=workflow_event.event_payload,
                         )
 
                     if workflow_event.hangup:
@@ -211,7 +211,7 @@ class RunEventListener:
                         AsyncGenerator[WorkflowEvent, None],
                         self.client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
-                                workflowRunId=self.workflow_run_id,
+                                workflow_run_id=self.workflow_run_id,
                             ),
                             metadata=get_metadata(self.config.token),
                         ),
@@ -221,8 +221,8 @@ class RunEventListener:
                         AsyncGenerator[WorkflowEvent, None],
                         self.client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
-                                additionalMetaKey=self.additional_meta_kv[0],
-                                additionalMetaValue=self.additional_meta_kv[1],
+                                additional_meta_key=self.additional_meta_kv[0],
+                                additional_meta_value=self.additional_meta_kv[1],
                             ),
                             metadata=get_metadata(self.config.token),
                         ),

@@ -127,6 +127,9 @@ WorkflowVersion:
       type: array
       items:
         $ref: "#/ConcurrencySetting"
+    inputJsonSchema:
+      type: object
+      description: The JSON schema for the workflow input.
   required:
     - metadata
     - version
@@ -278,6 +281,14 @@ Step:
     timeout:
       type: string
       description: The timeout of the step.
+    isDurable:
+      type: boolean
+      description: Whether the step is durable.
+    slotRequests:
+      type: object
+      description: Slot requests for the step (slot_type -> units).
+      additionalProperties:
+        type: integer
     children:
       type: array
       items:

@@ -3,7 +3,8 @@ package repository
 import (
 	"encoding/json"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -12,13 +13,13 @@ type TaskOutputEvent struct {
 
 	EventType sqlcv1.V1TaskEventType `json:"event_type"`
 
-	TaskExternalId string `json:"task_external_id"`
+	TaskExternalId uuid.UUID `json:"task_external_id"`
 
 	TaskId int64 `json:"task_id"`
 
 	RetryCount int32 `json:"retry_count"`
 
-	WorkerId *string `json:"worker_id"`
+	WorkerId *uuid.UUID `json:"worker_id"`
 
 	Output []byte `json:"output"`
 
@@ -50,9 +51,8 @@ func NewSkippedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent
 	e.Output = outputMapBytes
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
-	if task.DesiredWorkerID.Valid {
-		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
-		e.WorkerId = &workerId
+	if task.DesiredWorkerID != nil {
+		e.WorkerId = task.DesiredWorkerID
 	}
 
 	return e
@@ -64,9 +64,8 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	e.ErrorMessage = task.InitialStateReason.String
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
 
-	if task.DesiredWorkerID.Valid {
-		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
-		e.WorkerId = &workerId
+	if task.DesiredWorkerID != nil {
+		e.WorkerId = task.DesiredWorkerID
 	}
 
 	return e
@@ -80,7 +79,7 @@ func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEve
 
 func baseFromTasksRow(task *V1TaskWithPayload) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: sqlchelpers.UUIDToStr(task.ExternalID),
+		TaskExternalId: task.ExternalID,
 		TaskId:         task.ID,
 		RetryCount:     task.RetryCount,
 		StepReadableID: task.StepReadableID,
@@ -92,9 +91,8 @@ func NewCompletedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, output []byte) *Ta
 	e.Output = output
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
-	if row.WorkerID.Valid {
-		workerId := sqlchelpers.UUIDToStr(row.WorkerID)
-		e.WorkerId = &workerId
+	if row.WorkerID != uuid.Nil {
+		e.WorkerId = &row.WorkerID
 	}
 
 	return e
@@ -116,7 +114,7 @@ func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 
 func baseFromReleaseTasksRow(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: sqlchelpers.UUIDToStr(row.ExternalID),
+		TaskExternalId: row.ExternalID,
 		TaskId:         row.ID,
 		RetryCount:     row.RetryCount,
 		StepReadableID: row.StepReadableID,

@@ -13,7 +13,7 @@ export const WorkerColumn = {
   name: 'Name',
   type: 'Type',
   startedAt: 'Started at',
-  slots: 'Available Slots',
+  slots: 'Slots',
   lastHeartbeatAt: 'Last seen',
   runtime: 'SDK Version',
 } as const;
@@ -181,11 +181,34 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={WorkerColumn.slots} />
     ),
-    cell: ({ row }) => (
-      <div>
-        {row.original.availableRuns} / {row.original.maxRuns}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const slotConfig = row.original.slotConfig || {};
+      const entries = Object.entries(slotConfig).sort(([a], [b]) =>
+        a.localeCompare(b),
+      );
+
+      if (entries.length === 0) {
+        return <div className="text-xs text-muted-foreground">No slots</div>;
+      }
+
+      return (
+        <div className="space-y-1">
+          {entries.map(([slotType, capacity]) => {
+            const available = capacity?.available;
+            const limit = capacity?.limit;
+            const label =
+              available !== undefined ? `${available} / ${limit}` : `${limit}`;
+
+            return (
+              <div key={slotType} className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{slotType}</span>:{' '}
+                {label}
+              </div>
+            );
+          })}
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: true,
   },

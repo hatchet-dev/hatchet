@@ -4,18 +4,18 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request gen.WorkflowScheduledBulkUpdateRequestObject) (gen.WorkflowScheduledBulkUpdateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantId := tenant.ID
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledBulkUpdate400JSONResponse(gen.APIErrors{
@@ -37,12 +37,11 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 		}
 		chunk := request.Body.Updates[i:end]
 
-		chunkIds := make([]string, 0, len(chunk))
-		chunkUUIDByStr := make(map[string]openapi_types.UUID, len(chunk))
+		chunkIds := make([]uuid.UUID, 0, len(chunk))
+		chunkUUIDByStr := make(map[uuid.UUID]openapi_types.UUID, len(chunk))
 		for _, u := range chunk {
-			idStr := u.Id.String()
-			chunkIds = append(chunkIds, idStr)
-			chunkUUIDByStr[idStr] = u.Id
+			chunkIds = append(chunkIds, u.Id)
+			chunkUUIDByStr[u.Id] = u.Id
 		}
 
 		metaById, err := t.config.V1.WorkflowSchedules().ScheduledWorkflowMetaByIds(dbCtx, tenantId, chunkIds)
@@ -53,9 +52,8 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 		toUpdate := make([]v1.ScheduledWorkflowUpdate, 0, len(chunk))
 		for _, u := range chunk {
 			id := u.Id
-			idStr := id.String()
 
-			meta, ok := metaById[idStr]
+			meta, ok := metaById[id]
 			if !ok {
 				idCp := id
 				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Scheduled workflow not found."})
@@ -69,7 +67,7 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 			}
 
 			toUpdate = append(toUpdate, v1.ScheduledWorkflowUpdate{
-				Id:        idStr,
+				Id:        id,
 				TriggerAt: u.TriggerAt,
 			})
 		}
@@ -79,13 +77,13 @@ func (t *WorkflowService) WorkflowScheduledBulkUpdate(ctx echo.Context, request 
 			return nil, err
 		}
 
-		updatedSet := make(map[string]struct{}, len(updatedIds))
+		updatedSet := make(map[uuid.UUID]struct{}, len(updatedIds))
 		for _, idStr := range updatedIds {
 			updatedSet[idStr] = struct{}{}
 		}
 
 		for _, u := range chunk {
-			if _, ok := updatedSet[u.Id.String()]; ok {
+			if _, ok := updatedSet[u.Id]; ok {
 				updated = append(updated, u.Id)
 			}
 		}

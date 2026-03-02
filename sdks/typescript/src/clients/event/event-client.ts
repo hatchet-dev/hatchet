@@ -11,7 +11,6 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
-import { LegacyHatchetClient } from '../hatchet-client';
 
 // eslint-disable-next-line no-shadow
 export enum LogLevel {
@@ -47,13 +46,13 @@ export class EventClient {
     config: ClientConfig,
     channel: Channel,
     factory: ClientFactory,
-    hatchetClient: LegacyHatchetClient
+    api: HatchetClient['api']
   ) {
     this.config = config;
     this.client = factory.create(EventsServiceDefinition, channel);
     this.logger = config.logger(`Dispatcher`, config.log_level);
     this.retrier = retrier;
-    this.api = hatchetClient.api;
+    this.api = api;
     this.tenantId = config.tenant_id;
   }
 
@@ -116,7 +115,7 @@ export class EventClient {
   }
 
   async putLog(
-    stepRunId: string,
+    taskRunExternalId: string,
     log: string,
     level?: LogLevel,
     taskRetryCount?: number,
@@ -132,7 +131,7 @@ export class EventClient {
     //  fire and forget the log
     await this.client
       .putLog({
-        stepRunId,
+        taskRunExternalId,
         createdAt,
         message: log,
         level: level || LogLevel.INFO,
@@ -145,7 +144,7 @@ export class EventClient {
       });
   }
 
-  async putStream(stepRunId: string, data: string | Uint8Array, index: number | undefined) {
+  async putStream(taskRunExternalId: string, data: string | Uint8Array, index: number | undefined) {
     const createdAt = new Date();
 
     let dataBytes: Uint8Array;
@@ -160,7 +159,7 @@ export class EventClient {
     retrier(
       async () =>
         this.client.putStreamEvent({
-          stepRunId,
+          taskRunExternalId,
           createdAt,
           message: dataBytes,
           eventIndex: index,

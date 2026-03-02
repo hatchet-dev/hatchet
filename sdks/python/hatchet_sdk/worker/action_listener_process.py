@@ -3,6 +3,7 @@ import contextlib
 import logging
 import signal
 import time
+import warnings
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
@@ -34,6 +35,7 @@ from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_step_run_id,
+    ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
@@ -54,7 +56,7 @@ class HealthStatus(str, Enum):
 class ActionEvent:
     action: Action
     type: Any  # TODO type
-    payload: str
+    payload: str | None
     should_not_retry: bool
 
 
@@ -66,7 +68,7 @@ class WorkerActionListenerProcess:
         self,
         name: str,
         actions: list[str],
-        slots: int,
+        slot_config: dict[str, int],
         config: ClientConfig,
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
@@ -76,7 +78,9 @@ class WorkerActionListenerProcess:
     ) -> None:
         self.name = name
         self.actions = actions
-        self.slots = slots
+        self.slot_config = slot_config
+        self._slots = slot_config.get("default", 0)
+        self._durable_slots = slot_config.get("durable", 0)
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
@@ -127,6 +131,24 @@ class WorkerActionListenerProcess:
                 "hatchet_worker_event_loop_lag_seconds",
                 "Event loop lag in seconds (listener process)",
             )
+
+    @property
+    def slots(self) -> int:
+        warnings.warn(
+            "WorkerActionListenerProcess.slots is deprecated; use slot_config['default'] instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._slots
+
+    @property
+    def durable_slots(self) -> int:
+        warnings.warn(
+            "WorkerActionListenerProcess.durable_slots is deprecated; use slot_config['durable'] instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._durable_slots
 
     async def _monitor_event_loop(self) -> None:
         # If the loop is blocked, this coroutine itself can't run; when it resumes,
@@ -319,7 +341,7 @@ class WorkerActionListenerProcess:
                     worker_name=self.name,
                     services=["default"],
                     actions=self.actions,
-                    slots=self.slots,
+                    slot_config=self.slot_config,
                     raw_labels=self.labels,
                 )
             )
@@ -440,6 +462,7 @@ class WorkerActionListenerProcess:
                 ctx_workflow_run_id.set(action.workflow_run_id)
                 ctx_worker_id.set(action.worker_id)
                 ctx_action_key.set(action.key)
+                ctx_task_retry_count.set(action.retry_count)
 
                 # Process the action here
                 match action.action_type:
@@ -448,7 +471,7 @@ class WorkerActionListenerProcess:
                             ActionEvent(
                                 action=action,
                                 type=STEP_EVENT_TYPE_STARTED,  # TODO ack type
-                                payload="",
+                                payload=None,
                                 should_not_retry=False,
                             )
                         )
@@ -516,7 +539,7 @@ class WorkerActionListenerProcess:
 def worker_action_listener_process(
     name: str,
     actions: list[str],
-    slots: int,
+    slot_config: dict[str, int],
     config: ClientConfig,
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
@@ -528,7 +551,7 @@ def worker_action_listener_process(
         process = WorkerActionListenerProcess(
             name=name,
             actions=actions,
-            slots=slots,
+            slot_config=slot_config,
             config=config,
             action_queue=action_queue,
             event_queue=event_queue,

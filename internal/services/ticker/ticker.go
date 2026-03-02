@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -29,11 +30,11 @@ type TickerImpl struct {
 	s      gocron.Scheduler
 	ta     *alerting.TenantAlertManager
 
-	scheduledWorkflows sync.Map
+	scheduledWorkflows syncx.Map[string, context.CancelFunc]
 
 	dv datautils.DataDecoderValidator
 
-	tickerId string
+	tickerId uuid.UUID
 
 	userCronScheduler     gocron.Scheduler
 	userCronSchedulerLock sync.Mutex
@@ -50,7 +51,7 @@ type TickerOpts struct {
 	l    *zerolog.Logger
 
 	repov1   v1.Repository
-	tickerId string
+	tickerId uuid.UUID
 	ta       *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
@@ -60,7 +61,7 @@ func defaultTickerOpts() *TickerOpts {
 	logger := logger.NewDefaultLogger("ticker")
 	return &TickerOpts{
 		l:        &logger,
-		tickerId: uuid.New().String(),
+		tickerId: uuid.New(),
 		dv:       datautils.NewDataDecoderValidator(),
 	}
 }

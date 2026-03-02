@@ -14,6 +14,8 @@ const languageToHighlightAbbreviation = (language: Language) => {
       return "ts";
     case "go":
       return "go";
+    case "ruby":
+      return "rb";
     default:
       const exhaustiveCheck: never = language;
       throw new Error(`Unsupported language: ${exhaustiveCheck}`);

@@ -103,7 +103,9 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
+  V1LogLineLevel,
   V1LogLineList,
+  V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
   V1TaskEventList,
@@ -118,6 +120,7 @@ import {
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
+  V1WebhookResponse,
   V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
@@ -234,6 +237,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The direction to order by */
+      order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
     },
     params: RequestParams = {}
   ) =>
@@ -955,7 +966,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    */
   v1WebhookReceive = (tenant: string, v1Webhook: string, data?: any, params: RequestParams = {}) =>
-    this.request<Record<string, any>, APIErrors>({
+    this.request<V1WebhookResponse, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: 'POST',
       body: data,
