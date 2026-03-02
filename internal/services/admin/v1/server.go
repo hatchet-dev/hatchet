@@ -495,6 +495,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		WorkflowName:       req.WorkflowName,
 		Data:               req.Input,
 		AdditionalMetadata: req.AdditionalMetadata,
+		DesiredWorkerLabel: req.DesiredWorkerLabel,
 	}
 
 	if req.Priority != nil {

@@ -64,6 +64,9 @@ type TriggerTaskData struct {
 
 	// (optional) the priority of the task
 	Priority *int32 `json:"priority"`
+
+	// (optional) an override for the desired worker label for the task, used for routing a task to a specific worker (or worker pool)
+	DesiredWorkerLabel *string `json:"desired_worker_label"`
 }
 
 type createDAGOpts struct {
@@ -447,6 +450,7 @@ type triggerTuple struct {
 	additionalMetadata   []byte
 	filterPayload        []byte
 	input                []byte
+	desiredWorkerLabel   *string
 }
 
 type createCoreUserEventOpts struct {
@@ -857,6 +861,7 @@ func (r *sharedRepository) triggerWorkflows(
 						ChildIndex:           tuple.childIndex,
 						ChildKey:             tuple.childKey,
 						Priority:             tuple.priority,
+						DesiredWorkerLabel:   tuple.desiredWorkerLabel,
 					}
 
 					if isDag {
@@ -2160,6 +2165,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childIndex:           opt.ChildIndex,
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
+				desiredWorkerLabel:   opt.DesiredWorkerLabel,
 			})
 		}
 	}
