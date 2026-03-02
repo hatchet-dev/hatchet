@@ -645,6 +645,12 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	}
 
 	for stepId, labels := range stepIdToLabels {
+		_, stepHasOverride := stepIdsToLabelsFromTrigger[stepId]
+		if stepHasOverride {
+			// if there's an override via the trigger, skip caching
+			continue
+		}
+
 		d.stepIdLabelsCache.Add(stepId, labels)
 	}
 
