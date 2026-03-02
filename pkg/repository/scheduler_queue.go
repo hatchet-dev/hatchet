@@ -597,6 +597,14 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
 	for _, stepId := range uniqueStepIds {
+		_, stepHasOverride := stepIdsToLabelsFromTrigger[stepId]
+
+		if stepHasOverride {
+			// if there's an override via the trigger, skip the cache
+			stepIdsToLookup = append(stepIdsToLookup, stepId)
+			continue
+		}
+
 		if value, found := d.stepIdLabelsCache.Get(stepId); found {
 			stepIdToLabels[stepId] = value
 		} else {
