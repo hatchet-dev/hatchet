@@ -275,7 +275,7 @@ class BulkTriggerWorkflowResponse(_message.Message):
     def __init__(self, workflow_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority")
+    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority", "desired_worker_label")
     NAME_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     PARENT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -285,6 +285,7 @@ class TriggerWorkflowRequest(_message.Message):
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
     DESIRED_WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    DESIRED_WORKER_LABEL_FIELD_NUMBER: _ClassVar[int]
     name: str
     input: str
     parent_id: str
@@ -294,7 +295,8 @@ class TriggerWorkflowRequest(_message.Message):
     additional_metadata: str
     desired_worker_id: str
     priority: int
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
+    desired_worker_label: str
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_label: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)
