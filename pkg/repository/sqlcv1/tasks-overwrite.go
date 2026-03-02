@@ -49,7 +49,7 @@ WITH input AS (
 				unnest($31::integer[]) AS retry_max_backoff,
 				unnest($32::uuid[]) AS workflow_version_id,
 				unnest($33::uuid[]) AS workflow_run_id,
-				unnest($34::text[]) AS desired_worker_label
+				unnest($34::jsonb[]) AS desired_worker_label
         ) AS subquery
 )
 INSERT INTO v1_task (
