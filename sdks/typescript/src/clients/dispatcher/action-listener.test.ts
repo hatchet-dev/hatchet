@@ -4,7 +4,7 @@ import sleep from '@util/sleep';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { DispatcherClient } from './dispatcher-client';
 import { ActionListener } from './action-listener';
-import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
 
 let dispatcher: DispatcherClient;
 

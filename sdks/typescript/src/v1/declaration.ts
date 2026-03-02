@@ -14,8 +14,8 @@ import {
   ScheduledWorkflows,
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { z } from 'zod';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -75,6 +75,13 @@ export type RunOpts = {
    * only used if spawned from within a parent task.
    */
   childKey?: string;
+
+  /**
+   * (optional) when running multiple workflows (array input), if true, return
+   * exceptions in the result array instead of throwing. Successes are outputs,
+   * failures are Error instances.
+   */
+  returnExceptions?: boolean;
 };
 
 /**
@@ -100,29 +107,48 @@ export type TaskOutputType<
 
 type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
 
+/**
+ * Sticky strategy for workflow scheduling.
+ *
+ * Prefer using `StickyStrategy.SOFT` / `StickyStrategy.HARD` (v1, non-protobuf).
+ * For backwards compatibility, the workflow/task `sticky` field also accepts legacy
+ * protobuf enum values (`0`/`1`) and strings (`'SOFT'`/`'HARD'`).
+ */
+export const StickyStrategy = {
+  SOFT: 'soft',
+  HARD: 'hard',
+} as const;
+
+// eslint-disable-next-line no-redeclare
+export type StickyStrategy = (typeof StickyStrategy)[keyof typeof StickyStrategy];
+
+export type StickyStrategyInput = StickyStrategy | 'SOFT' | 'HARD' | 0 | 1;
 export type CreateBaseWorkflowOpts = {
   /**
    * The name of the workflow.
    */
-  name: WorkflowV0['id'];
+  name: string;
   /**
    * (optional) description of the workflow.
    */
-  description?: WorkflowV0['description'];
+  description?: string;
   /**
    * (optional) version of the workflow.
    */
-  version?: WorkflowV0['version'];
+  version?: string;
   /**
    * (optional) sticky strategy for the workflow.
    */
-  sticky?: WorkflowV0['sticky'];
+  sticky?: StickyStrategyInput;
 
   /**
    * (optional) on config for the workflow.
-   * @deprecated use onCrons and onEvents instead
+   * @alias for onCrons and onEvents
    */
-  on?: WorkflowV0['on'];
+  on?: {
+    cron?: string | string[];
+    event?: string | string[];
+  };
 
   /**
    * (optional) cron config for the workflow.
@@ -337,8 +363,22 @@ export class BaseWorkflowDeclaration<
       );
     }
 
+    const inheritedSignal = parentRunContext?.signal;
+
+    // Precheck: if we're being called from a cancelled parent task, do not enqueue more work.
+    // The signal is inherited from the parent task's `ctx.abortController.signal`.
+    throwIfAborted(inheritedSignal, {
+      isTrigger: true,
+      context: parentRunContext?.parentTaskRunExternalId
+        ? `task run ${parentRunContext.parentTaskRunExternalId}`
+        : undefined,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
+    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
+
     const runOpts = {
-      ...options,
+      ...(options ?? {}),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
@@ -374,6 +414,9 @@ export class BaseWorkflowDeclaration<
           // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = _standaloneTaskName;
         }
+        // Ensure result subscriptions inherit cancellation if no signal is provided explicitly.
+        // eslint-disable-next-line no-param-reassign
+        ref.defaultSignal = inheritedSignal;
         res.push(ref);
       });
       return res;
@@ -385,6 +428,7 @@ export class BaseWorkflowDeclaration<
       res._standaloneTaskName = _standaloneTaskName;
     }
 
+    res.defaultSignal = inheritedSignal;
     return res;
   }
 
@@ -429,6 +473,15 @@ export class BaseWorkflowDeclaration<
 
     if (Array.isArray(input)) {
       const refs = await this.runNoWait(input, options, _standaloneTaskName);
+      if (options?.returnExceptions) {
+        const settled = await Promise.allSettled(refs.map((ref) => ref.result()));
+        return settled.map((s) => {
+          if (s.status === 'fulfilled') return s.value;
+          const { reason } = s;
+          if (reason instanceof Error) return reason;
+          return new Error(Array.isArray(reason) ? reason.join('; ') : String(reason));
+        }) as O[];
+      }
       return Promise.all(refs.map((ref) => ref.result()));
     }
 
@@ -449,10 +502,16 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // If called from within a cancelled parent task, do not enqueue scheduled work.
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
     const scheduled = this.client.scheduled.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
     });
 
     return scheduled;
@@ -491,10 +550,16 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // If called from within a cancelled parent task, do not enqueue cron work.
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
     const cronDef = this.client.crons.create(this.definition.name, {
       expression,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
       additionalMetadata: options?.additionalMetadata,
       name,
     });
@@ -715,7 +780,7 @@ export class WorkflowDeclaration<
     }
 
     if (this.definition.onFailure) {
-      this.client?._v0.logger.warn(`onFailure task will override existing onFailure task`);
+      this.client?.logger.warn(`onFailure task will override existing onFailure task`);
     }
 
     this.definition.onFailure = typedOptions;
@@ -750,7 +815,7 @@ export class WorkflowDeclaration<
     }
 
     if (this.definition.onSuccess) {
-      this.client?._v0.logger.warn(`onSuccess task will override existing onSuccess task`);
+      this.client?.logger.warn(`onSuccess task will override existing onSuccess task`);
     }
 
     this.definition.onSuccess = typedOptions;

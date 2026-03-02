@@ -37,7 +37,6 @@ function remapFilename(filename: string): { outRelative: string; basename: strin
 }
 
 function toTitle(basename: string): string {
-  if (basename === 'index' || basename === 'README') return 'Introduction';
   return basename
     .replace(/[-_.]/g, ' ')
     .replace(/[^0-9a-zA-Z ]+/g, '')

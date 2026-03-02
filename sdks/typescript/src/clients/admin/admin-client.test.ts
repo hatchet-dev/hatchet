@@ -2,7 +2,7 @@ import { CreateWorkflowVersionOpts, WorkflowVersion } from '@hatchet/protoc/work
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig } from '@clients/hatchet-client';
 import { AdminClient } from './admin-client';
-import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 
 describe('AdminClient', () => {

@@ -214,7 +214,7 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="z-[80] w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
+        className="w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
         align="start"
       >
         <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">

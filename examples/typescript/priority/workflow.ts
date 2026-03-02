@@ -14,7 +14,7 @@ export const priority = hatchet.task({
 
 // > Task Priority in a Workflow
 export const priorityWf = hatchet.workflow({
-  name: 'priorityWf',
+  name: 'priority-wf',
   defaultPriority: Priority.LOW,
 });
 

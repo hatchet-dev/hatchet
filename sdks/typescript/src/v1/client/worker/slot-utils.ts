@@ -1,5 +1,5 @@
-import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { BaseWorkflowDeclaration } from '../../declaration';
+import type { LegacyWorkflow } from '../../../legacy/legacy-transformer';
 import { SlotConfig, SlotType } from '../../slot-types';
 
 const DEFAULT_DEFAULT_SLOTS = 100;
@@ -10,8 +10,8 @@ export interface WorkerSlotOptions {
   slots?: number;
   /** (optional) Maximum number of concurrent durable tasks, defaults to 1,000 */
   durableSlots?: number;
-  /** (optional) Array of workflows to register */
-  workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
+  /** (optional) Array of workflows to register (supports both v1 and legacy workflow formats) */
+  workflows?: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow>;
   /** @deprecated Use slots instead */
   maxRuns?: number;
 }
@@ -67,7 +67,7 @@ export const testingExports = {
 };
 
 function getRequiredSlotTypes(
-  workflows: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>
+  workflows: Array<BaseWorkflowDeclaration<any, any> | LegacyWorkflow>
 ): Set<SlotType> {
   const required = new Set<SlotType>();
   const addFromRequests = (

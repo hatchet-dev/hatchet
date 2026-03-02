@@ -215,9 +215,8 @@ export function OrganizationSelector({
   };
 
   // Group memberships by organization
-  const { currentOrgData, otherOrgsData, standaloneTenants } = useMemo(() => {
+  const { currentOrgData, otherOrgsData } = useMemo(() => {
     const orgMap = new Map<string, TenantMember[]>();
-    const standalone: TenantMember[] = [];
 
     memberships.forEach((membership) => {
       const tenantId = membership.tenant?.metadata.id || '';
@@ -232,8 +231,6 @@ export function OrganizationSelector({
           orgMap.set(orgId, []);
         }
         orgMap.get(orgId)!.push(membership);
-      } else {
-        standalone.push(membership);
       }
     });
 
@@ -261,7 +258,6 @@ export function OrganizationSelector({
         ? { organization: currentOrg, tenants: currentOrgTenants }
         : null,
       otherOrgsData: otherOrgs,
-      standaloneTenants: standalone,
     };
   }, [
     memberships,
@@ -308,7 +304,7 @@ export function OrganizationSelector({
           side="bottom"
           align="start"
           sideOffset={8}
-          className="z-50 w-[287px] rounded-md border border-border p-0 shadow-md"
+          className="w-[287px] rounded-md border border-border p-0 shadow-md"
         >
           <Command className="border-0">
             <CommandList>
@@ -376,34 +372,6 @@ export function OrganizationSelector({
                       onClose={handleClose}
                       onNavigate={handleNavigate}
                     />
-                  ))}
-                </CommandGroup>
-              )}
-
-              {standaloneTenants.length > 0 && (
-                <CommandGroup heading="Tenants">
-                  {standaloneTenants.map((membership) => (
-                    <CommandItem
-                      key={membership.metadata.id}
-                      value={`standalone-tenant-${membership.tenant?.metadata.id}`}
-                      onSelect={() => {
-                        invariant(membership.tenant);
-                        handleTenantSelect(membership.tenant);
-                        handleClose();
-                      }}
-                      className="cursor-pointer text-sm"
-                    >
-                      <BuildingOffice2Icon className="mr-2 size-4" />
-                      {membership.tenant?.name}
-                      <CheckIcon
-                        className={cn(
-                          'ml-auto size-4',
-                          tenant?.slug === membership.tenant?.slug
-                            ? 'opacity-100'
-                            : 'opacity-0',
-                        )}
-                      />
-                    </CommandItem>
                   ))}
                 </CommandGroup>
               )}

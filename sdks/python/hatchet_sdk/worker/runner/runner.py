@@ -526,10 +526,13 @@ class Runner:
                 f"Tasks must return either a dictionary, a Pydantic BaseModel, or a dataclass which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
-        serialized_output = validator.dump_json(
-            output,  # type: ignore[arg-type]
-            context=HATCHET_PYDANTIC_SENTINEL,
-        ).decode("utf-8")
+        try:
+            serialized_output = validator.dump_json(
+                output,  # type: ignore[arg-type]
+                context=HATCHET_PYDANTIC_SENTINEL,
+            ).decode("utf-8")
+        except Exception as e:
+            raise IllegalTaskOutputError(f"Failed to serialize task output: {e}") from e
 
         if not serialized_output:
             return None

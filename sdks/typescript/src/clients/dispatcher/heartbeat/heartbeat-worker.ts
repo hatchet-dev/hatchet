@@ -66,7 +66,7 @@ class HeartbeatWorker {
 
         if (actualInterval > HEARTBEAT_INTERVAL * 1.2) {
           const message = `Heartbeat interval delay (${actualInterval}ms >> ${HEARTBEAT_INTERVAL}ms)`;
-          this.logger.warn(message);
+          this.logger.debug(message);
           postMessage({
             type: 'warn',
             message,
@@ -117,6 +117,6 @@ class HeartbeatWorker {
 const heartbeat = new HeartbeatWorker(workerData.config, workerData.workerId);
 heartbeat.start();
 
-parentPort?.on(STOP_HEARTBEAT, () => {
-  heartbeat.stop();
+parentPort?.on('message', (msg) => {
+  if (msg === STOP_HEARTBEAT) heartbeat.stop();
 });

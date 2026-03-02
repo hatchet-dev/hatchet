@@ -1,4 +1,4 @@
-import { WorkerLabelComparator } from '@hatchet-dev/typescript-sdk/protoc/workflows';
+import { WorkerLabelComparator } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 
 // > AffinityWorkflow
@@ -11,10 +11,10 @@ const workflow = hatchet.workflow({
 workflow.task({
   name: 'step1',
   fn: async (_, ctx) => {
-    const results: Promise<any>[] = [];
+    const results = [];
     for (let i = 0; i < 50; i++) {
-      const result = await ctx.spawnWorkflow(childWorkflow.id, {});
-      results.push(result.output);
+      const result = await childWorkflow.run({});
+      results.push(result);
     }
     console.log('Spawned 50 child workflows');
     console.log('Results:', await Promise.all(results));

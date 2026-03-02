@@ -13,7 +13,6 @@ on:
       - main
     paths:
       - "sdks/typescript/**"
-
 defaults:
   run:
     working-directory: ./sdks/typescript
@@ -84,7 +83,7 @@ jobs:
 
   test-e2e:
     runs-on: ubicloud-standard-4
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -150,11 +149,15 @@ jobs:
           export SERVER_AUTH_COOKIE_DOMAIN=localhost
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+          export SERVER_LOGGER_LEVEL=info
+          export SERVER_LOGGER_FORMAT=console
+          export DATABASE_LOGGER_LEVEL=warn
+          export DATABASE_LOGGER_FORMAT=console
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
+          go run ./cmd/hatchet-engine --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/engine.log &
+          go run ./cmd/hatchet-api --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/api.log &
 
           sleep 30
       - name: E2E tests
@@ -164,8 +167,23 @@ jobs:
 
           cd sdks/typescript
           export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
+          export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
           export NODE_TLS_REJECT_UNAUTHORIZED=0
           pnpm test:e2e
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sdk-typescript-engine-logs
+          path: engine.log
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sdk-typescript-api-logs
+          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4

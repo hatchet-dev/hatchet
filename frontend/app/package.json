@@ -54,7 +54,7 @@
     "@tanstack/react-router-devtools": "^1.141.0",
     "@tanstack/react-table": "^8.21.2",
     "@types/lodash": "^4.17.20",
-    "axios": "^1.12.0",
+    "axios": "^1.13.5",
     "better-emitter": "^4.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -69,7 +69,7 @@
     "lucide-react": "^0.446.0",
     "monaco-themes": "^0.4.4",
     "posthog-js": "^1.298.1",
-    "qs": "^6.14.1",
+    "qs": "^6.14.2",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -94,13 +94,13 @@
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.5",
     "@types/react-syntax-highlighter": "^15.5.13",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
     "cypress": "^13.17.0",
     "eslint": "^8.57.1",
-    "eslint-config-airbnb-typescript": "^17.1.0",
+    "eslint-config-airbnb-typescript": "^18.0.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-prettier": "^5.2.5",
@@ -114,18 +114,18 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
-    "vite": "^6.3.6"
+    "vite": "^6.4.1"
   },
   "pnpm": {
     "overrides": {
       "preact": "10.28.2",
       "prismjs": "^1.30.0",
-      "qs": "6.14.1",
+      "qs": ">=6.14.2",
       "js-yaml": "^4.1.1",
       "seroval": "1.4.1",
       "lodash": "^4.17.23",
       "lodash-es": "^4.17.23",
-      "tar": "^7.5.7"
+      "tar": "^7.5.8"
     }
   }
 }
