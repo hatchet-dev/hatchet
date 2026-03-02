@@ -28,6 +28,14 @@ import {
   durableSpawnDag,
 } from './durable/workflow';
 import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
+import {
+  evictableSleep,
+  evictableWaitForEvent,
+  evictableChildSpawn,
+  multipleEviction,
+  nonEvictableSleep,
+  childTask as evictionChildTask,
+} from './durable_eviction/workflow';
 import { durableSleep } from './durable_sleep/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
 import { nonRetryableWorkflow } from './non_retryable/workflow';
@@ -67,6 +75,12 @@ const workflows = [
   durableEvent,
   durableEventWithFilter,
   durableSleep,
+  evictableSleep,
+  evictableWaitForEvent,
+  evictableChildSpawn,
+  multipleEviction,
+  nonEvictableSleep,
+  evictionChildTask,
   createLoggingWorkflow(hatchet),
   nonRetryableWorkflow,
   failureWorkflow,
