@@ -129,8 +129,8 @@ class TriggerWorkflowRunRequest(_message.Message):
     input: bytes
     additional_metadata: bytes
     priority: int
-    desired_worker_label: str
-    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., desired_worker_label: _Optional[str] = ...) -> None: ...
+    desired_worker_label: DesiredWorkerLabels
+    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., desired_worker_label: _Optional[_Union[DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
 
 class TriggerWorkflowRunResponse(_message.Message):
     __slots__ = ("external_id",)

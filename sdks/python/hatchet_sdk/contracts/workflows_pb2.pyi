@@ -295,8 +295,8 @@ class TriggerWorkflowRequest(_message.Message):
     additional_metadata: str
     desired_worker_id: str
     priority: int
-    desired_worker_label: str
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_label: _Optional[str] = ...) -> None: ...
+    desired_worker_label: DesiredWorkerLabels
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_label: _Optional[_Union[DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)
