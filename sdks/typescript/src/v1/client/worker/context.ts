@@ -31,8 +31,11 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
+import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
+import { createHash } from 'crypto';
 import { InternalWorker } from './worker-internal';
-import { Duration } from '../duration';
+import { Duration, durationToString } from '../duration';
+import { DurableEvictionManager } from './eviction/eviction-manager';
 // TODO remove this once we have a proper next step type
 
 type TriggerData = Record<string, Record<string, any>>;
@@ -412,7 +415,7 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.v1.dispatcher.refreshTimeout(incrementBy, taskRunExternalId);
+    await this.v1.dispatcher.refreshTimeout(durationToString(incrementBy), taskRunExternalId);
   }
 
   /**
@@ -829,7 +832,44 @@ export class Context<T, K = {}> {
  * It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
  */
 export class DurableContext<T, K = {}> extends Context<T, K> {
-  waitKey: number = 0;
+  private _durableListener: DurableListenerClient;
+  private _evictionManager: DurableEvictionManager | undefined;
+
+  constructor(
+    action: Action,
+    v1: HatchetClient,
+    worker: InternalWorker,
+    durableListener: DurableListenerClient,
+    evictionManager?: DurableEvictionManager
+  ) {
+    super(action, v1, worker);
+    this._durableListener = durableListener;
+    this._evictionManager = evictionManager;
+  }
+
+  get durableListener(): DurableListenerClient {
+    return this._durableListener;
+  }
+
+  /**
+   * The invocation count for the current durable task. Used for deduplication across replays.
+   */
+  get invocationCount(): number {
+    return this.action.durableTaskInvocationCount ?? 1;
+  }
+
+  private async withEvictionWait<T>(
+    waitKind: string,
+    resourceId: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    this._evictionManager?.markWaiting(this.action.taskRunExternalId, waitKind, resourceId);
+    try {
+      return await fn();
+    } finally {
+      this._evictionManager?.markActive(this.action.taskRunExternalId);
+    }
+  }
 
   /**
    * Pauses execution for the specified duration.
@@ -849,32 +889,143 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     this.throwIfCancelled();
-    const pbConditions = conditionsToPb(
-      Render(ConditionAction.CREATE, conditions),
-      this.v1.config.namespace
-    );
+    const rendered = Render(ConditionAction.CREATE, conditions);
+    const pbConditions = conditionsToPb(rendered);
 
-    // eslint-disable-next-line no-plusplus
-    const key = `waitFor-${this.waitKey++}`;
-    await this.v1.durableListener.registerDurableEvent({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-      sleepConditions: pbConditions.sleepConditions,
-      userEventConditions: pbConditions.userEventConditions,
-    });
-    const event = await this.v1.durableListener.result(
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
       {
-        taskId: this.action.taskRunExternalId,
-        signalKey: key,
-      },
-      { signal: this.abortController.signal }
+        kind: 'waitFor',
+        waitForConditions: {
+          sleepConditions: pbConditions.sleepConditions,
+          userEventConditions: pbConditions.userEventConditions,
+        },
+      }
     );
 
-    // Convert event.data from Uint8Array to string if needed
-    const eventData =
-      event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
+    const resourceId = rendered
+      .map((c) => c.base.readableDataKey)
+      .filter(Boolean)
+      .join(',') || `node:${ack.nodeId}`;
 
-    const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
-    return res.CREATE;
+    return this.withEvictionWait('waitFor', resourceId, async () => {
+      const result = await this._durableListener.waitForCallback(
+        this.action.taskRunExternalId,
+        this.invocationCount,
+        ack.branchId,
+        ack.nodeId
+      );
+      return result.payload || {};
+    });
   }
+
+  /**
+   * Spawns a child workflow through the durable event log, waits for the child to complete.
+   * @param workflow - The workflow to spawn.
+   * @param input - The input data for the child workflow.
+   * @param options - Options for spawning the child workflow.
+   * @returns The result of the child workflow.
+   */
+  async spawnChild<Q extends JsonObject, P extends JsonObject>(
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    input?: Q,
+    options?: ChildRunOpts
+  ): Promise<P> {
+    this.throwIfCancelled();
+
+    let workflowName: string;
+    if (typeof workflow === 'string') {
+      workflowName = workflow;
+    } else {
+      workflowName = workflow.name;
+    }
+
+    workflowName = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
+
+    const standaloneTaskName =
+      workflow instanceof TaskWorkflowDeclaration ? workflow._standalone_task_name : undefined;
+
+    const triggerOpts = {
+      name: workflowName,
+      input: JSON.stringify(input || {}),
+      parentId: this.action.workflowRunId,
+      parentTaskRunExternalId: this.action.taskRunExternalId,
+      childIndex: this.spawnIndex,
+      childKey: options?.key,
+      additionalMetadata: options?.additionalMetadata
+        ? JSON.stringify(options.additionalMetadata)
+        : undefined,
+      desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
+      priority: options?.priority,
+    };
+
+    this.spawnIndex += 1;
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      {
+        kind: 'runChild',
+        triggerOpts,
+      }
+    );
+
+    return this.withEvictionWait('runChild', `workflow:${workflowName}`, async () => {
+      const result = await this._durableListener.waitForCallback(
+        this.action.taskRunExternalId,
+        this.invocationCount,
+        ack.branchId,
+        ack.nodeId
+      );
+      return (result.payload || {}) as P;
+    });
+  }
+
+  /**
+   * Memoize a function by storing its result in durable storage. Avoids recomputation on replay.
+   * @param fn - The async function to compute the value.
+   * @param args - The arguments to pass to the function. These form the memoization key.
+   * @returns The memoized value, either from durable storage or freshly computed.
+   */
+  async memo<R>(fn: (...args: any[]) => Promise<R>, ...args: any[]): Promise<R> {
+    this.throwIfCancelled();
+
+    const memoKey = computeMemoKey(this.action.taskRunExternalId, args);
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      {
+        kind: 'memo',
+        memoKey,
+      }
+    );
+
+    if (ack.memoAlreadyExisted && ack.memoResultPayload && ack.memoResultPayload.length > 0) {
+      const serialized = new TextDecoder().decode(ack.memoResultPayload);
+      return JSON.parse(serialized) as R;
+    }
+
+    const result = await fn(...args);
+    const serializedResult = new TextEncoder().encode(JSON.stringify(result));
+
+    await this._durableListener.sendMemoCompletedNotification(
+      this.action.taskRunExternalId,
+      ack.nodeId,
+      ack.branchId,
+      this.invocationCount,
+      memoKey,
+      serializedResult
+    );
+
+    return result;
+  }
+}
+
+function computeMemoKey(taskRunExternalId: string, args: any[]): Uint8Array {
+  const h = createHash('sha256');
+  h.update(taskRunExternalId);
+  h.update(JSON.stringify(args));
+  return new Uint8Array(h.digest());
 }

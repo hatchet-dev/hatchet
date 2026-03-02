@@ -6,7 +6,7 @@ export const durableEvent = hatchet.durableTask({
   name: 'durable-event',
   executionTimeout: '10m',
   fn: async (_, ctx) => {
-    const res = ctx.waitFor({
+    const res = await ctx.waitFor({
       eventKey: 'user:update',
     });
 
@@ -24,7 +24,7 @@ export const durableEventWithFilter = hatchet.durableTask({
   executionTimeout: '10m',
   fn: async (_, ctx) => {
     // > Durable Event With Filter
-    const res = ctx.waitFor({
+    const res = await ctx.waitFor({
       eventKey: 'user:update',
       expression: "input.userId == '1234'",
     });

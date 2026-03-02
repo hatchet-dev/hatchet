@@ -7,6 +7,7 @@ import { Conditions } from './conditions';
 import { Duration } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
 import { Context, DurableContext } from './client/worker/context';
+import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
 
 export { ConcurrencyLimitStrategy, WorkerLabelComparator };
 
@@ -241,7 +242,13 @@ export type CreateWorkflowDurableTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
-> = CreateWorkflowTaskOpts<I, O, C>;
+> = CreateWorkflowTaskOpts<I, O, C> & {
+  /**
+   * Eviction policy for the durable task. Controls TTL-based eviction and capacity-based eviction.
+   * Set to `undefined` to disable eviction.
+   */
+  evictionPolicy?: EvictionPolicy;
+};
 
 /**
  * Options for configuring the onSuccess task that is invoked when a task succeeds.

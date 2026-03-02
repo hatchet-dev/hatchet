@@ -213,10 +213,48 @@ export class RunsClient {
   }
 
   /**
-   * Creates a run reference for a task or workflow run by its ID.
-   * @param id - The ID of the run to create a reference for.
-   * @returns A promise that resolves to the run reference.
+   * Restore an evicted durable task so it can resume execution.
+   * @param taskExternalId - The external ID of the evicted task.
    */
+  async restoreTask(taskExternalId: string) {
+    return this.api.v1TaskRestore(taskExternalId);
+  }
+
+  /**
+   * Fork (reset) a durable task from a specific node, triggering re-execution from that point.
+   * @param workflowRunId - The workflow run ID containing the durable task.
+   * @param nodeId - The node ID to replay from.
+   */
+  async resetDurableTask(workflowRunId: string, nodeId: number) {
+    const run = await this.get(workflowRunId);
+    const tasks = (run as any).taskRuns || (run as any).tasks || [];
+
+    let taskExternalId: string | undefined;
+    if (Array.isArray(tasks)) {
+      taskExternalId = tasks[0]?.taskExternalId || tasks[0]?.externalId;
+    } else if (typeof tasks === 'object') {
+      const first = Object.values(tasks)[0] as any;
+      taskExternalId = first?.taskExternalId || first?.externalId || first?.external_id;
+    }
+
+    if (!taskExternalId) {
+      const details = await this.api.v1WorkflowRunGet(workflowRunId);
+      const taskList = (details.data as any)?.tasks || [];
+      if (Array.isArray(taskList) && taskList.length > 0) {
+        taskExternalId = taskList[0]?.taskExternalId || taskList[0]?.externalId;
+      }
+    }
+
+    if (!taskExternalId) {
+      throw new Error(`Could not find task external ID for workflow run ${workflowRunId}`);
+    }
+
+    return this.api.v1DurableTaskFork(this.tenantId, {
+      taskExternalId,
+      nodeId,
+    });
+  }
+
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
     return new WorkflowRunRef<T>(id, this.listener, this);
   }
