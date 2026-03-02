@@ -166,7 +166,8 @@ describe('durable-e2e', () => {
       expect(result.sleep_3_duration).toBeGreaterThanOrEqual(REPLAY_RESET_SLEEP_SECONDS);
 
       const runId = await ref.getWorkflowRunId();
-      await hatchet.runs.resetDurableTask(runId, nodeId);
+      const taskExternalId = await hatchet.runs.getTaskExternalId(runId);
+      await hatchet.runs.resetDurableTask(taskExternalId, nodeId);
 
       const resetStart = Date.now();
       const resetResult = await ref.output;

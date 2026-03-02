@@ -183,6 +183,7 @@ export class DurableListenerClient {
 
   async stop(): Promise<void> {
     this._running = false;
+    this._startLock = undefined;
     if (this._statusInterval) {
       clearInterval(this._statusInterval);
       this._statusInterval = undefined;
@@ -300,6 +301,18 @@ export class DurableListenerClient {
       d.reject(exc);
     }
     this._pendingEventAcks.clear();
+
+    for (const d of this._pendingCallbacks.values()) {
+      d.reject(exc);
+    }
+    this._pendingCallbacks.clear();
+
+    for (const d of this._pendingEvictionAcks.values()) {
+      d.reject(exc);
+    }
+    this._pendingEvictionAcks.clear();
+
+    this._earlyCompletions.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
