@@ -23,6 +23,8 @@ const TaskMiddlewareSchema = z
   })
   .optional();
 
+const DurationMsSchema = z.number().int().nonnegative().finite();
+
 export const ClientConfigSchema = z.object({
   token: z.string(),
   tls_config: ClientTLSConfigSchema,
@@ -33,6 +35,8 @@ export const ClientConfigSchema = z.object({
   tenant_id: z.string(),
   namespace: z.string().optional(),
   middleware: TaskMiddlewareSchema,
+  cancellation_grace_period: DurationMsSchema.optional().default(1000),
+  cancellation_warning_threshold: DurationMsSchema.optional().default(300),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
@@ -102,7 +106,15 @@ export type InferMiddlewareAfter<M> = M extends { after: infer P }
       : {}
   : {};
 
-export type ClientConfig = z.infer<typeof ClientConfigSchema> & {
+type ClientConfigInferred = z.infer<typeof ClientConfigSchema>;
+
+export type ClientConfig = Omit<
+  ClientConfigInferred,
+  'cancellation_grace_period' | 'cancellation_warning_threshold'
+> & {
+  cancellation_grace_period?: number;
+  cancellation_warning_threshold?: number;
+} & {
   credentials?: ChannelCredentials;
 } & {
   logger: LogConstructor;
