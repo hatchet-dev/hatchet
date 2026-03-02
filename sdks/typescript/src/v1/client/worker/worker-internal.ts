@@ -1,6 +1,10 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-nested-ternary */
 import HatchetError from '@util/errors/hatchet-error';
+import {
+  TaskRunTerminatedError,
+  isTaskRunTerminatedError,
+} from '@util/errors/task-run-terminated-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import {
   StepActionEvent,
@@ -436,14 +440,19 @@ export class InternalWorker {
     this.evictionManager = new DurableEvictionManager({
       durableSlots: totalDurableSlots,
       cancelLocal: (key: ActionKey) => {
-        const ctx = this.contexts[key];
-        if (ctx && ctx.abortController) {
-          ctx.abortController.abort('Evicted');
+        const err = new TaskRunTerminatedError('evicted');
+        const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
+        if (ctx) {
+          const invocationCount = ctx.invocationCount ?? 1;
+          this.client.durableListener.cleanupTaskState(key, invocationCount);
+          if (ctx.abortController) {
+            ctx.abortController.abort(err);
+          }
         }
         const future = this.futures[key];
         if (future) {
           future.promise.catch(() => undefined);
-          future.cancel('Evicted');
+          future.cancel(err);
         }
       },
       requestEvictionWithAck: async (_key: ActionKey, rec: DurableRunRecord) => {
@@ -493,6 +502,7 @@ export class InternalWorker {
       if (!step) {
         this.logger.error(`Registered actions: '${Object.keys(this.action_registry).join(', ')}'`);
         this.logger.error(`Could not find step '${actionId}'`);
+        this.cleanupRun(taskRunExternalId);
         return;
       }
 
@@ -661,17 +671,18 @@ export class InternalWorker {
       try {
         await future.promise;
       } catch (e: any) {
-        const message = e?.message || String(e);
-        // TODO-DURABLE is this cased correctly...
-        if (!message.includes('Cancelled')) {
+        if (!isTaskRunTerminatedError(e)) {
           this.logger.error(
             `Could not wait for task run ${taskRunExternalId} to finish. ` +
               `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
             e
           );
         }
+      } finally {
+        this.cleanupRun(taskRunExternalId);
       }
     } catch (e: any) {
+      this.cleanupRun(taskRunExternalId);
       this.logger.error('Could not send action event (outer): ', e);
     }
   }
@@ -724,8 +735,9 @@ export class InternalWorker {
       const future = this.futures[taskRunExternalId];
       const context = this.contexts[taskRunExternalId];
 
+      const cancelErr = new TaskRunTerminatedError('cancelled', 'Cancelled by worker');
       if (context && context.abortController) {
-        context.abortController.abort('Cancelled by worker'); // TODO this reason is nonsensical
+        context.abortController.abort(cancelErr);
       }
 
       if (future) {
@@ -740,7 +752,7 @@ export class InternalWorker {
         future.promise.catch(() => undefined);
 
         // Cancel the future (rejects the wrapper); user code must still cooperate with AbortSignal.
-        future.cancel('Cancelled by worker'); // TODO this reason is nonsensical
+        future.cancel(cancelErr);
 
         // Track completion of the underlying work (not the cancelable wrapper).
         // Ensure this promise never throws into our supervision flow.
@@ -786,8 +798,7 @@ export class InternalWorker {
         `Cancellation: error while supervising cancellation for task run ${taskRunExternalId}: ${e?.message || e}`
       );
     } finally {
-      delete this.futures[taskRunExternalId];
-      delete this.contexts[taskRunExternalId];
+      this.cleanupRun(taskRunExternalId);
     }
   }
 

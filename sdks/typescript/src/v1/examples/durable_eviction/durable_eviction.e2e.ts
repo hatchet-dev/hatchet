@@ -32,12 +32,23 @@ describe('durable-eviction-e2e', () => {
     const maxPolls = maxPollsOverride || 15;
     const interval = 2000;
 
-    return poll(() => hatchet.runs.get(runId), {
-      timeoutMs: maxPolls * interval,
-      intervalMs: interval,
-      shouldStop: (details: any) => getTaskStatuses(details).includes(targetStatus),
-      label: `status=${targetStatus}`,
-    });
+    return poll(
+      async () => {
+        try {
+          return await hatchet.runs.get(runId);
+        } catch (e: any) {
+          if (e?.response?.status === 404) return undefined;
+          throw e;
+        }
+      },
+      {
+        timeoutMs: maxPolls * interval,
+        intervalMs: interval,
+        shouldStop: (details: any) =>
+          details != null && getTaskStatuses(details).includes(targetStatus),
+        label: `status=${targetStatus}`,
+      }
+    );
   }
 
   it('non-evictable task completes normally', async () => {

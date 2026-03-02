@@ -43,8 +43,14 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
         },
       },
       cancellingTaskRuns: new Set(),
+      evictionManager: undefined,
       futures: { [taskExternalId]: future },
       contexts: { [taskExternalId]: ctx },
+      cleanupRun(id: string) {
+        this.evictionManager?.unregisterRun(id);
+        delete this.futures[id];
+        delete this.contexts[id];
+      },
     };
 
     const action: any = { taskRunExternalId: taskExternalId };
