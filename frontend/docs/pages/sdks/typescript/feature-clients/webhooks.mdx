@@ -73,13 +73,13 @@ Lists all webhooks for the current tenant.
 
 Parameters
 
-| Parameter               | Type                                                                                                        | Description                         |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `options?`              | \{ `limit?`: ... \| ...; `offset?`: ... \| ...; `sourceNames?`: ... \| ...; `webhookNames?`: ... \| ...; \} | The options for the list operation. |
-| `options.limit?`        | ... \| ...                                                                                                  | -                                   |
-| `options.offset?`       | ... \| ...                                                                                                  | -                                   |
-| `options.sourceNames?`  | ... \| ...                                                                                                  | -                                   |
-| `options.webhookNames?` | ... \| ...                                                                                                  | -                                   |
+| Parameter               | Type                                                                                          | Description                         |
+| ----------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `options?`              | \{ `limit?`: `number`; `offset?`: `number`; `sourceNames?`: ...[]; `webhookNames?`: ...[]; \} | The options for the list operation. |
+| `options.limit?`        | `number`                                                                                      | -                                   |
+| `options.offset?`       | `number`                                                                                      | -                                   |
+| `options.sourceNames?`  | ...[]                                                                                         | -                                   |
+| `options.webhookNames?` | ...[]                                                                                         | -                                   |
 
 Returns
 

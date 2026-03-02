@@ -274,9 +274,9 @@ Types can be explicitly specified as generics or inferred from the function sign
 
 Parameters
 
-| Parameter | Type                                                                                                      | Description                        |
-| --------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `options` | `CreateDurableTaskWorkflowOpts`\<`I` & `Resolved`\<..., ...\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Durable task configuration options |
+| Parameter | Type                                                                                                                               | Description                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `options` | `CreateDurableTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Durable task configuration options |
 
 Returns
 
@@ -290,7 +290,7 @@ Parameters
 
 | Parameter | Type                                                                     | Description                                                         |
 | --------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `options` | `object` & `Omit`\<`CreateDurableTaskWorkflowOpts`\<..., ...\>, `"fn"`\> | Durable task configuration options with function that defines types |
+| `options` | `object` & `Omit`\<`CreateDurableTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | Durable task configuration options with function that defines types |
 
 Returns
 
@@ -373,9 +373,9 @@ Types can be explicitly specified as generics or inferred from the function sign
 
 Parameters
 
-| Parameter | Type                                                                                               | Description                |
-| --------- | -------------------------------------------------------------------------------------------------- | -------------------------- |
-| `options` | `CreateTaskWorkflowOpts`\<`I` & `Resolved`\<..., ...\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Task configuration options |
+| Parameter | Type                                                                                                                        | Description                |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `options` | `CreateTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Task configuration options |
 
 Returns
 
@@ -389,7 +389,7 @@ Parameters
 
 | Parameter | Type                                                              | Description                                                 |
 | --------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
-| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<..., ...\>, `"fn"`\> | Task configuration options with function that defines types |
+| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | Task configuration options with function that defines types |
 
 Returns
 

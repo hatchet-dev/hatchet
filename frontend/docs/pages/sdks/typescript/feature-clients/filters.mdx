@@ -68,13 +68,13 @@ Lists all filters.
 
 Parameters
 
-| Parameter           | Type                                                                                                  | Description                                                    |
-| ------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `opts?`             | \{ `limit?`: ... \| ...; `offset?`: ... \| ...; `scopes?`: ... \| ...; `workflowIds?`: ... \| ...; \} | The options for the list operation.                            |
-| `opts.limit?`       | ... \| ...                                                                                            | The number of filters to return.                               |
-| `opts.offset?`      | ... \| ...                                                                                            | The number of filters to skip before returning the result set. |
-| `opts.scopes?`      | ... \| ...                                                                                            | A list of scopes to filter by.                                 |
-| `opts.workflowIds?` | ... \| ...                                                                                            | A list of workflow IDs to filter by.                           |
+| Parameter           | Type                                                                                    | Description                                                    |
+| ------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `opts?`             | \{ `limit?`: `number`; `offset?`: `number`; `scopes?`: ...[]; `workflowIds?`: ...[]; \} | The options for the list operation.                            |
+| `opts.limit?`       | `number`                                                                                | The number of filters to return.                               |
+| `opts.offset?`      | `number`                                                                                | The number of filters to skip before returning the result set. |
+| `opts.scopes?`      | ...[]                                                                                   | A list of scopes to filter by.                                 |
+| `opts.workflowIds?` | ...[]                                                                                   | A list of workflow IDs to filter by.                           |
 
 Returns
 

@@ -14,11 +14,11 @@ Bulk deletes scheduled runs (by explicit IDs and/or a filter).
 
 Parameters
 
-| Parameter             | Type                                                                            | Description                                                       |
-| --------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `opts`                | \{ `filter?`: `ScheduledWorkflowsBulkDeleteFilter`; `scheduledRuns?`: ...[]; \} | Either `scheduledRuns` (ids/objects) and/or a server-side filter. |
-| `opts.filter?`        | `ScheduledWorkflowsBulkDeleteFilter`                                            | -                                                                 |
-| `opts.scheduledRuns?` | ...[]                                                                           | -                                                                 |
+| Parameter             | Type                                                                                     | Description                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `opts`                | \{ `filter?`: `ScheduledWorkflowsBulkDeleteFilter`; `scheduledRuns?`: (... \| ...)[]; \} | Either `scheduledRuns` (ids/objects) and/or a server-side filter. |
+| `opts.filter?`        | `ScheduledWorkflowsBulkDeleteFilter`                                                     | -                                                                 |
+| `opts.scheduledRuns?` | (... \| ...)[]                                                                           | -                                                                 |
 
 Returns
 
@@ -52,14 +52,14 @@ Creates a new Scheduled Run.
 
 Parameters
 
-| Parameter                  | Type                                                                                                                           | Description                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| `workflow`                 | `string` \| `Workflow`                                                                                                         | The workflow name or Workflow object. |
-| `cron`                     | \{ `additionalMetadata?`: `Record`\<..., ...\>; `input?`: `Record`\<..., ...\>; `priority?`: `number`; `triggerAt`: `Date`; \} | -                                     |
-| `cron.additionalMetadata?` | `Record`\<..., ...\>                                                                                                           | -                                     |
-| `cron.input?`              | `Record`\<..., ...\>                                                                                                           | -                                     |
-| `cron.priority?`           | `number`                                                                                                                       | -                                     |
-| `cron.triggerAt`           | `Date`                                                                                                                         | -                                     |
+| Parameter                  | Type                                                                                                                                            | Description                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `workflow`                 | `string` \| `Workflow`                                                                                                                          | The workflow name or Workflow object. |
+| `cron`                     | \{ `additionalMetadata?`: `Record`\<`string`, `string`\>; `input?`: `Record`\<`string`, `any`\>; `priority?`: `number`; `triggerAt`: `Date`; \} | -                                     |
+| `cron.additionalMetadata?` | `Record`\<`string`, `string`\>                                                                                                                  | -                                     |
+| `cron.input?`              | `Record`\<`string`, `any`\>                                                                                                                     | -                                     |
+| `cron.priority?`           | `number`                                                                                                                                        | -                                     |
+| `cron.triggerAt`           | `Date`                                                                                                                                          | -                                     |
 
 Returns
 

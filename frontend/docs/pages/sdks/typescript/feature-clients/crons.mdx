@@ -14,15 +14,15 @@ Creates a new Cron workflow.
 
 Parameters
 
-| Parameter                  | Type                                                                                                                                                | Description                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `workflow`                 | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow`                                                                                 | The workflow identifier or Workflow object.   |
-| `cron`                     | \{ `additionalMetadata?`: `Record`\<..., ...\>; `expression`: `string`; `input?`: `Record`\<..., ...\>; `name`: `string`; `priority?`: `number`; \} | The input data for creating the Cron Trigger. |
-| `cron.additionalMetadata?` | `Record`\<..., ...\>                                                                                                                                | -                                             |
-| `cron.expression`          | `string`                                                                                                                                            | -                                             |
-| `cron.input?`              | `Record`\<..., ...\>                                                                                                                                | -                                             |
-| `cron.name`                | `string`                                                                                                                                            | -                                             |
-| `cron.priority?`           | `number`                                                                                                                                            | -                                             |
+| Parameter                  | Type                                                                                                                                                                 | Description                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `workflow`                 | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow`                                                                                                  | The workflow identifier or Workflow object.   |
+| `cron`                     | \{ `additionalMetadata?`: `Record`\<`string`, `string`\>; `expression`: `string`; `input?`: `Record`\<`string`, `any`\>; `name`: `string`; `priority?`: `number`; \} | The input data for creating the Cron Trigger. |
+| `cron.additionalMetadata?` | `Record`\<`string`, `string`\>                                                                                                                                       | -                                             |
+| `cron.expression`          | `string`                                                                                                                                                             | -                                             |
+| `cron.input?`              | `Record`\<`string`, `any`\>                                                                                                                                          | -                                             |
+| `cron.name`                | `string`                                                                                                                                                             | -                                             |
+| `cron.priority?`           | `number`                                                                                                                                                             | -                                             |
 
 Returns
 

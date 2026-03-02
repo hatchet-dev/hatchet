@@ -98,7 +98,7 @@ Parameters
 
 Returns
 
-`Promise`\<`O` & `Resolved`\<..., ...\>\>
+`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
 
 A promise that resolves with the task output merged with post-middleware fields.
 
@@ -123,7 +123,7 @@ Parameters
 
 Returns
 
-`Promise`\<`O` & `Resolved`\<..., ...\>\>
+`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
 
 A promise that resolves with the task output merged with post-middleware fields.
 
@@ -148,7 +148,7 @@ Parameters
 
 Returns
 
-`Promise`\<`WorkflowRunRef`\<... & ...\>\>
+`Promise`\<`WorkflowRunRef`\<`O` & `Resolved`\<..., ...\>\>\>
 
 A WorkflowRunRef containing the run ID and methods to get results.
 
@@ -169,7 +169,7 @@ Parameters
 
 Returns
 
-`Promise`\<`WorkflowRunRef`\<...\>[]\>
+`Promise`\<`WorkflowRunRef`\<... & ...\>[]\>
 
 A WorkflowRunRef containing the run ID and methods to get results.
 
@@ -262,9 +262,9 @@ or if there is no matching property, the inferred return type of the function.
 
 Parameters
 
-| Parameter | Type                                                              | Description                     |
-| --------- | ----------------------------------------------------------------- | ------------------------------- |
-| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
+| Parameter | Type                                                               | Description                     |
+| --------- | ------------------------------------------------------------------ | ------------------------------- |
+| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<`I`, `TO`\>, `"fn"`\> & `object` | The task configuration options. |
 
 Returns
 
@@ -281,9 +281,9 @@ This will only run if any task in the workflow fails.
 
 Parameters
 
-| Parameter | Type                                                                                                                                  | Description                     |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| `Omit`\<..., ...\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
+| Parameter | Type                                                                                                                                                                       | Description                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<`CreateOnFailureTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
 
 Returns
 
@@ -300,9 +300,9 @@ This will only run if all tasks in the workflow complete successfully.
 
 Parameters
 
-| Parameter | Type                                                                                                                                  | Description                     |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> \| `Omit`\<..., ...\> & `object` | The task configuration options. |
+| Parameter | Type                                                                                                                                                                       | Description                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> \| `Omit`\<`CreateOnSuccessTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
 
 Returns
 
@@ -320,9 +320,9 @@ or if there is no matching property, the inferred return type of the function.
 
 Parameters
 
-| Parameter | Type                                                                                                                               | Description                     |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | \| `Omit`\<..., ...\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `TO`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
+| Parameter | Type                                                                                                                                                                   | Description                     |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<`CreateWorkflowTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `TO`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
 
 Returns
 
@@ -342,7 +342,7 @@ Parameters
 
 | Parameter | Type                                                                     | Description                             |
 | --------- | ------------------------------------------------------------------------ | --------------------------------------- |
-| `options` | `object` & `Omit`\<`CreateWorkflowDurableTaskOpts`\<..., ...\>, `"fn"`\> | The durable task configuration options. |
+| `options` | `object` & `Omit`\<`CreateWorkflowDurableTaskOpts`\<`I`, `O`\>, `"fn"`\> | The durable task configuration options. |
 | `client?` | `IHatchetClient`                                                         | Optional Hatchet client instance.       |
 
 Returns
@@ -363,7 +363,7 @@ Parameters
 
 | Parameter | Type                                                              | Description                       |
 | --------- | ----------------------------------------------------------------- | --------------------------------- |
-| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<..., ...\>, `"fn"`\> | The task configuration options.   |
+| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | The task configuration options.   |
 | `client?` | `IHatchetClient`                                                  | Optional Hatchet client instance. |
 
 Returns

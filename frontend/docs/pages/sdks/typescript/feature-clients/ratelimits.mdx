@@ -14,9 +14,9 @@ Lists all rate limits for the current tenant.
 
 Parameters
 
-| Parameter | Type                                                                                                                                                      | Description                         |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `opts`    | \| \{ `limit?`: ... \| ...; `offset?`: ... \| ...; `orderByDirection?`: ... \| ...; `orderByField?`: ... \| ...; `search?`: ... \| ...; \} \| `undefined` | The options for the list operation. |
+| Parameter | Type                                                                                                                                                                              | Description                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `opts`    | \| \{ `limit?`: `number`; `offset?`: `number`; `orderByDirection?`: `RateLimitOrderByDirection`; `orderByField?`: `RateLimitOrderByField`; `search?`: `string`; \} \| `undefined` | The options for the list operation. |
 
 Returns
 
