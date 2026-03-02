@@ -1,11 +1,5 @@
 ## Hatchet SDK Changelog
 
-## [0.2.0] - 2026-03-02
-
-### Added
-
-- Cron expressions now support an optional leading seconds field (6-part expressions), e.g. `30 * * * * *` to trigger at 30 seconds past every minute.
-
 ## [0.1.1] - 2026-02-27
 
 ### Changed
