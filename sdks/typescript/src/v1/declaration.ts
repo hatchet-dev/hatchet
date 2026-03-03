@@ -9,8 +9,8 @@ import {
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
-import { IHatchetClient } from './client/client.interface';
 import { WorkerLabelComparator } from '@hatchet/protoc/v1/workflows';
+import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
   CreateOnFailureTaskOpts,
