@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -75,7 +74,7 @@ func main() {
 				if label.Key == "affinity" && label.Value != nil {
 					for _, l := range labels {
 						if *label.Value == l {
-							workerLabelToID[l] = w.Metadata.Id.String()
+							workerLabelToID[l] = w.Metadata.Id
 						}
 					}
 				}
