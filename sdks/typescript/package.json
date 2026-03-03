@@ -36,7 +36,7 @@
     "prepublish": "cp package.json dist/package.json; cp README.md dist/; cp -r scripts dist/",
     "publish:ci": "rm -rf ./dist && pnpm run dump-version && pnpm run tsc:build && pnpm run prepublish && cd dist && pnpm publish --access public --no-git-checks",
     "publish:ci:alpha": "rm -rf ./dist && pnpm run dump-version && pnpm run tsc:build && pnpm run prepublish && cd dist && pnpm publish --access public --no-git-checks --tag alpha",
-    "generate-docs": "typedoc",
+    "generate-docs": "ts-node docs/generate.ts",
     "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json"
   },
   "keywords": [],
@@ -73,8 +73,9 @@
     "ts-jest": "^29.3.1",
     "ts-node": "^10.9.2",
     "ts-proto": "^2.7.0",
-    "typedoc": "^0.28.0",
+    "typedoc": "^0.28.17",
     "typedoc-plugin-markdown": "^4.6.0",
+    "typedoc-plugin-no-inherit": "^1.6.1",
     "typescript": "^5.8.2"
   },
   "dependencies": {

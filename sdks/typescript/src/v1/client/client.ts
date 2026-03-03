@@ -1,3 +1,9 @@
+/**
+ * This is the TypeScript SDK reference, documenting methods available for interacting with Hatchet resources.
+ * Check out the [user guide](https://docs.hatchet.run/home/) for an introduction to getting your first tasks running.
+ *
+ * @module Hatchet TypeScript SDK Reference
+ */
 /* eslint-disable no-dupe-class-members */
 /* eslint-disable no-underscore-dangle */
 import {
@@ -88,6 +94,7 @@ export class HatchetClient<
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
+   * @hidden
    */
   get v0() {
     if (!this._v0) {
@@ -122,6 +129,7 @@ export class HatchetClient<
    * @param config - Optional configuration for the client
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
+   * @internal
    */
   constructor(
     config?: Partial<ClientConfig>,
@@ -200,6 +208,7 @@ export class HatchetClient<
    * @param options - Optional client options.
    * @param axiosConfig - Optional Axios configuration for HTTP requests.
    * @returns A new Hatchet client instance. Chain `.withMiddleware()` to attach typed middleware.
+   * @internal
    */
   static init<T extends Record<string, any> = {}, U extends Record<string, any> = {}>(
     config?: Omit<Partial<ClientConfig>, 'middleware'>,
@@ -215,6 +224,7 @@ export class HatchetClient<
    *
    * Use this after `init<T, U>()` to get full middleware return-type inference
    * that TypeScript can't provide when global types are explicitly set on `init`.
+   * @internal
    */
   withMiddleware<
     const M extends TaskMiddleware<
@@ -380,12 +390,12 @@ export class HatchetClient<
   }
 
   /**
-   * @alias run
    * Triggers a workflow run and waits for the result.
    * @template I - The input type for the workflow
    * @template O - The return type of the workflow
    * @param workflow - The workflow to run, either as a Workflow instance or workflow name
    * @param input - The input data for the workflow
+   * @alias run
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
@@ -420,6 +430,7 @@ export class HatchetClient<
   /**
    * Get the CEL client for debugging CEL expressions
    * @returns A CEL client instance
+   * @internal
    */
   get cel() {
     if (!this._cel) {
@@ -445,6 +456,7 @@ export class HatchetClient<
    * Get the cron client for creating and managing cron workflow runs
    * @returns A cron client instance
    * @deprecated use client.crons instead
+   * @hidden
    */
   get cron() {
     return this.crons;
@@ -467,6 +479,7 @@ export class HatchetClient<
    * Get the schedule client for creating and managing scheduled workflow runs
    * @returns A schedule client instance
    * @deprecated use client.scheduled instead
+   * @hidden
    */
   get schedule() {
     return this.scheduled;
@@ -484,6 +497,7 @@ export class HatchetClient<
   /**
    * Get the dispatcher client for sending action events and managing worker registration
    * @returns A dispatcher client instance
+   * @internal
    */
   get dispatcher() {
     if (!this._dispatcher) {
@@ -519,6 +533,7 @@ export class HatchetClient<
   /**
    * Get the durable listener client for managing durable event subscriptions
    * @returns A durable listener client instance
+   * @internal
    */
   get durableListener() {
     if (!this._durableListener) {
@@ -535,6 +550,7 @@ export class HatchetClient<
   /**
    * Get the run listener client for streaming workflow run results
    * @returns A run listener client instance
+   * @internal
    */
   get listener() {
     return this._listener;
@@ -542,6 +558,7 @@ export class HatchetClient<
 
   /**
    * @deprecated use client.events instead
+   * @hidden
    */
   get event() {
     return this.events;
@@ -672,6 +689,7 @@ export class HatchetClient<
   /**
    * Get the admin client for creating and managing workflows
    * @returns A admin client instance
+   * @internal
    */
   get admin() {
     if (!this._admin) {
