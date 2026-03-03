@@ -91,12 +91,8 @@ CREATE TABLE v1_durable_event_log_entry (
     -- The node number in the durable event log. This represents a monotonically increasing
     -- sequence value generated from v1_durable_event_log_file.latest_node_id
     node_id BIGINT NOT NULL,
-    -- The parent node id for this event, if any. This can be null.
-    parent_node_id BIGINT,
     -- The branch id when this event was first seen. A durable event log can be a part of many branches.
     branch_id BIGINT NOT NULL,
-    -- The parent branch id which should be linked to a new branch to its parent branch. This can be null.
-    parent_branch_id BIGINT,
     -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
     -- to determine whether or not there's been a non-determinism error
 

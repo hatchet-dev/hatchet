@@ -89,9 +89,7 @@ INSERT INTO v1_durable_event_log_entry (
     inserted_at,
     kind,
     node_id,
-    parent_node_id,
     branch_id,
-    parent_branch_id,
     invocation_count,
     idempotency_key,
     is_satisfied
@@ -104,9 +102,7 @@ VALUES (
     NOW(),
     @kind::v1_durable_event_log_kind,
     @nodeId::BIGINT,
-    sqlc.narg('parentNodeId')::BIGINT,
     @branchId::BIGINT,
-    sqlc.narg('parentBranchId')::BIGINT,
     @invocationCount::INTEGER,
     @idempotencyKey::BYTEA,
     @isSatisfied::BOOLEAN

@@ -3085,9 +3085,7 @@ type V1DurableEventLogEntry struct {
 	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
 	Kind                  V1DurableEventLogKind `json:"kind"`
 	NodeID                int64                 `json:"node_id"`
-	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
 	BranchID              int64                 `json:"branch_id"`
-	ParentBranchID        pgtype.Int8           `json:"parent_branch_id"`
 	InvocationCount       int32                 `json:"invocation_count"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`

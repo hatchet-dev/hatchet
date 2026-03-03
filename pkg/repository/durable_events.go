@@ -135,9 +135,7 @@ type GetOrCreateLogEntryOpts struct {
 	DurableTaskInsertedAt pgtype.Timestamptz
 	Kind                  sqlcv1.V1DurableEventLogKind
 	NodeId                int64
-	ParentNodeId          *int64
 	BranchId              int64
-	ParentBranchId        *int64
 	InvocationCount       int32
 	IdempotencyKey        []byte
 	IsSatisfied           bool
@@ -174,9 +172,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntry(
 			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
 			Kind:                  opts.Kind,
 			Nodeid:                opts.NodeId,
-			ParentNodeId:          sqlchelpers.ToBigInt(opts.ParentNodeId),
 			Branchid:              opts.BranchId,
-			ParentBranchId:        sqlchelpers.ToBigInt(opts.ParentBranchId),
 			Idempotencykey:        opts.IdempotencyKey,
 			Issatisfied:           opts.IsSatisfied,
 			Invocationcount:       opts.InvocationCount,
@@ -492,6 +488,33 @@ func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, 
 	return nodeIdBranchIdToBranchPoint, nil
 }
 
+func resolveBranchForNode(nodeId, currentBranchId int64, branchPoints map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
+	type transition struct{ fromNodeId, branchId int64 }
+	var chain []transition
+
+	bid := currentBranchId
+	for {
+		var found *sqlcv1.V1DurableEventLogBranchPoint
+		for _, bp := range branchPoints {
+			if bp.NextBranchID == bid {
+				found = bp
+				break
+			}
+		}
+		if found == nil {
+			chain = append(chain, transition{1, bid})
+			break
+		}
+		chain = append(chain, transition{found.FirstNodeIDInNewBranch, bid})
+		bid = found.ParentBranchID
+	}
+
+	sort.Slice(chain, func(i, j int) bool { return chain[i].fromNodeId < chain[j].fromNodeId })
+
+	i := sort.Search(len(chain), func(i int) bool { return chain[i].fromNodeId > nodeId })
+	return chain[i-1].branchId
+}
+
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, fmt.Errorf("invalid opts: %w", err)
@@ -526,23 +549,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	nodeId := logFile.LatestNodeID + 1
 
-	var parentNodeId *int64
-	if logFile.LatestNodeID > 0 {
-		p := logFile.LatestNodeID
-		parentNodeId = &p
-	}
-
-	branchId := logFile.LatestBranchID
-	parentBranchId := logFile.LatestBranchID
-
-	branchPoint, isBranchPoint := branchPoints[NodeIdBranchIdTuple{
-		NodeId:   nodeId,
-		BranchId: logFile.LatestBranchID,
-	}]
-
-	if isBranchPoint {
-		branchId = branchPoint.NextBranchID
-	}
+	branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, branchPoints)
 
 	var inputPayload []byte
 	var resultPayload []byte
@@ -590,8 +597,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			DurableTaskInsertedAt: task.InsertedAt,
 			Kind:                  opts.Kind,
 			NodeId:                nodeId,
-			ParentNodeId:          parentNodeId,
-			ParentBranchId:        &parentBranchId,
 			BranchId:              branchId,
 			InvocationCount:       opts.InvocationCount,
 			IsSatisfied:           isSatisfied,
