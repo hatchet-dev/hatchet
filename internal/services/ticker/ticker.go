@@ -144,15 +144,10 @@ func (t *TickerImpl) Start() (func() error, error) {
 		t.runPollCronSchedules(ctx)()
 		return nil
 	}
-	cleanupFunc, err := t.mqv1.Subscribe(msgqueue.CRON_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
+	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.CRON_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
 	if err != nil {
 		t.l.Log().Err(err).Msg("Could not subscribe to cron update queue")
 	}
-	defer func() {
-		if cleanupFunc() != nil {
-			t.l.Log().Err(err).Msg("Could not cleanup cron update queue")
-		}
-	}()
 
 	// register the ticker
 	_, err = t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
@@ -245,6 +240,10 @@ func (t *TickerImpl) Start() (func() error, error) {
 	t.userCronScheduler.Start()
 
 	cleanup := func() error {
+		if queueCleanupFunc() != nil {
+			t.l.Log().Err(err).Msg("Could not cleanup cron update queue")
+		}
+
 		t.l.Debug().Msg("removing ticker")
 
 		cancel()
