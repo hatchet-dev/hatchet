@@ -33,20 +33,20 @@ type CreateSpansOpts struct {
 }
 
 type OtelSpanRow struct {
-	TraceID            string
-	SpanID             string
-	ParentSpanID       string
+	CreatedAt          time.Time
+	SpanAttributes     map[string]string
+	ResourceAttributes map[string]string
 	SpanName           string
 	SpanKind           string
 	ServiceName        string
 	StatusCode         string
 	StatusMessage      string
-	Duration           uint64
-	CreatedAt          time.Time
-	ResourceAttributes map[string]string
-	SpanAttributes     map[string]string
+	TraceID            string
+	ParentSpanID       string
+	SpanID             string
 	ScopeName          string
 	ScopeVersion       string
+	Duration           uint64
 }
 
 type OTelCollectorRepository interface {
