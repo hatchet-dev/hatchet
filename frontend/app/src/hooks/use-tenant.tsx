@@ -98,7 +98,7 @@ export function useTenantDetails() {
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['user:*'] });
-      await invalidateUserUniverse();
+      invalidateUserUniverse();
       if (data.metadata.id) {
         setTenant(data);
       }
