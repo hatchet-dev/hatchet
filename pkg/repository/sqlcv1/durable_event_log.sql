@@ -183,6 +183,6 @@ FROM v1_durable_event_log_branch_point
 WHERE
     durable_task_id = @durableTaskId::BIGINT
     AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-    AND parent_branch_id = @parentBranchId::BIGINT
+    AND tenant_id = @tenantId::UUID
 ORDER BY id ASC
 ;

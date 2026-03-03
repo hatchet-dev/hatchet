@@ -92,6 +92,11 @@ type CompleteMemoEntryOpts struct {
 	Payload         []byte
 }
 
+type NodeIdBranchIdTuple struct {
+	NodeId   int64
+	BranchId int64
+}
+
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
 	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
@@ -462,15 +467,30 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 	})
 }
 
-func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogBranchPoint, error) {
-	return r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint, error) {
+	branchPoints, err := r.queries.ListDurableEventLogBranchPoints(ctx, tx, sqlcv1.ListDurableEventLogBranchPointsParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Tenantid:              tenantId,
 	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list durable event log branch points: %w", err)
+	}
+
+	nodeIdBranchIdToBranchPoint := make(map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint, len(branchPoints))
+
+	for _, bp := range branchPoints {
+		key := NodeIdBranchIdTuple{
+			NodeId:   bp.FirstNodeIDInNewBranch,
+			BranchId: bp.NextBranchID,
+		}
+
+		nodeIdBranchIdToBranchPoint[key] = bp
+	}
+
+	return nodeIdBranchIdToBranchPoint, nil
 }
-
-
 
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
@@ -493,6 +513,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
+	branchPoints, err := r.listEventLogBranchPoints(ctx, tx, opts.TenantId, task.ID, task.InsertedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list log branch points: %w", err)
+	}
+
 	if logFile.LatestInvocationCount != opts.InvocationCount {
 		// TODO-DURABLE: should evict this invocation if this happens
 		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d. rejecting event write.", logFile.LatestInvocationCount, opts.InvocationCount)
@@ -509,14 +535,13 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	branchId := logFile.LatestBranchID
 	parentBranchId := logFile.LatestBranchID
 
-	if logFile.LatestBranchFirstParentNodeID > 0 && nodeId <= logFile.LatestBranchFirstParentNodeID {
-		parentBranch := logFile.LatestBranchID - 1
-		branchId = parentBranch
-		parentBranchId = parentBranch
-	}
+	branchPoint, isBranchPoint := branchPoints[NodeIdBranchIdTuple{
+		NodeId:   nodeId,
+		BranchId: logFile.LatestBranchID,
+	}]
 
-	if logFile.LatestBranchFirstParentNodeID > 0 && nodeId == logFile.LatestBranchFirstParentNodeID+1 {
-		parentBranchId = logFile.LatestBranchID - 1
+	if isBranchPoint {
+		branchId = branchPoint.NextBranchID
 	}
 
 	var inputPayload []byte

@@ -299,18 +299,18 @@ FROM v1_durable_event_log_branch_point
 WHERE
     durable_task_id = $1::BIGINT
     AND durable_task_inserted_at = $2::TIMESTAMPTZ
-    AND parent_branch_id = $3::BIGINT
+    AND tenant_id = $3::UUID
 ORDER BY id ASC
 `
 
 type ListDurableEventLogBranchPointsParams struct {
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Parentbranchid        int64              `json:"parentbranchid"`
+	Tenantid              uuid.UUID          `json:"tenantid"`
 }
 
 func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, arg ListDurableEventLogBranchPointsParams) ([]*V1DurableEventLogBranchPoint, error) {
-	rows, err := db.Query(ctx, listDurableEventLogBranchPoints, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Parentbranchid)
+	rows, err := db.Query(ctx, listDurableEventLogBranchPoints, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
