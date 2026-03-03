@@ -484,8 +484,8 @@ func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, 
 }
 
 type BranchIdFromNodeIdTuple struct {
-	FromNodeId int64
 	BranchId   int64
+	FromNodeId int64
 }
 
 func resolveBranchForNode(nodeId, currentBranchId int64, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
@@ -496,11 +496,11 @@ func resolveBranchForNode(nodeId, currentBranchId int64, nextBranchIdToBranchPoi
 		branchPoint, found := nextBranchIdToBranchPoint[currBranchId]
 
 		if !found {
-			tree = append(tree, BranchIdFromNodeIdTuple{0, currBranchId})
+			tree = append(tree, BranchIdFromNodeIdTuple{currBranchId, 0})
 			break
 		}
 
-		tree = append(tree, BranchIdFromNodeIdTuple{branchPoint.FirstNodeIDInNewBranch, currBranchId})
+		tree = append(tree, BranchIdFromNodeIdTuple{currBranchId, branchPoint.FirstNodeIDInNewBranch})
 		currBranchId = branchPoint.ParentBranchID
 	}
 
