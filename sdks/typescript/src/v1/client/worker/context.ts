@@ -828,7 +828,10 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     this.throwIfCancelled();
-    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+    const pbConditions = conditionsToPb(
+      Render(ConditionAction.CREATE, conditions),
+      this.v1.config.namespace
+    );
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;

@@ -211,7 +211,7 @@ describe('events-e2e', () => {
 
     sortedEvents.forEach((originalEvent, index) => {
       const returnedEvent = sortedResults[index];
-      expect(returnedEvent.key).toBe(originalEvent.key);
+      expect(returnedEvent.key.endsWith(originalEvent.key)).toBe(true);
     });
   }, 15000);
 
