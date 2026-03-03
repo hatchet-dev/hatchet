@@ -185,6 +185,270 @@ jobs:
           name: sdk-typescript-api-logs
           path: api.log
 
+  old-engine-new-sdk:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
+
+      - name: Determine latest stable release tag
+        working-directory: .
+        run: |
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "ERROR: No stable release tag found"
+            exit 1
+          fi
+          echo "Latest stable tag: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Pull release images
+        working-directory: .
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }}
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{ env.LATEST_TAG }}
+
+      - name: Run migrations
+        working-directory: .
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
+            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+
+      - name: Setup config and seed database
+        working-directory: .
+        run: |
+          mkdir -p generated
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
+            -e SEED_DEVELOPMENT=true \
+            -e SERVER_PORT=8080 \
+            -e SERVER_URL=http://localhost:8080 \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_DEFAULT_ENGINE_VERSION=V1 \
+            -e SERVER_MSGQUEUE_KIND=postgres \
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+
+      - name: Generate API token
+        working-directory: .
+        run: |
+          TOKEN=$(docker run --rm --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-admin token create --config /hatchet/generated --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)
+          echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Start engine
+        working-directory: .
+        run: |
+          docker run -d --name hatchet-engine --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_PORT=8080 \
+            -e SERVER_URL=http://localhost:8080 \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
+            -e SERVER_DEFAULT_ENGINE_VERSION=V1 \
+            -e SERVER_MSGQUEUE_KIND=postgres \
+            -e SERVER_LOGGER_LEVEL=warn \
+            -e SERVER_LOGGER_FORMAT=console \
+            -e DATABASE_LOGGER_LEVEL=warn \
+            -e DATABASE_LOGGER_FORMAT=console \
+            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-engine --config /hatchet/generated
+
+      - name: Start API
+        working-directory: .
+        run: |
+          docker run -d --name hatchet-api --network host \
+            -v ${{ github.workspace }}/generated:/hatchet/generated \
+            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
+            -e SERVER_PORT=8080 \
+            -e SERVER_URL=http://localhost:8080 \
+            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
+            -e SERVER_AUTH_COOKIE_INSECURE=true \
+            -e SERVER_GRPC_PORT=7077 \
+            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
+            -e SERVER_GRPC_INSECURE=true \
+            -e SERVER_MSGQUEUE_KIND=postgres \
+            -e DATABASE_LOGGER_LEVEL=warn \
+            -e DATABASE_LOGGER_FORMAT=console \
+            ghcr.io/hatchet-dev/hatchet/hatchet-api:${{ env.LATEST_TAG }} \
+            /hatchet/hatchet-api --config /hatchet/generated
+          sleep 30
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.16.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=old-engine-new-sdk-ts-${SHORT_SHA}" >> $GITHUB_ENV
+
+      - name: Run e2e tests
+        env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
+          HATCHET_CLIENT_HOST_PORT: localhost:7077
+          HATCHET_CLIENT_SERVER_URL: http://localhost:8080
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        run: |
+          echo "Testing current SDK against engine ${{ env.LATEST_TAG }}"
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          pnpm test:e2e
+
+      - name: Collect engine logs
+        if: always()
+        run: docker logs hatchet-engine > /tmp/engine.log 2>&1 || true
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
+          path: /tmp/engine.log
+
+      - name: Collect API logs
+        if: always()
+        run: docker logs hatchet-api > /tmp/api.log 2>&1 || true
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
+          path: /tmp/api.log
+
+      - name: Teardown
+        if: always()
+        working-directory: .
+        run: |
+          docker rm -f hatchet-engine hatchet-api 2>/dev/null || true
+          docker compose down
+
+  new-engine-old-sdk:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: "1.25"
+
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
+
+      - name: Run migrations
+        working-directory: .
+        run: |
+          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          go run ./cmd/hatchet-migrate
+
+      - name: Setup and start engine
+        working-directory: .
+        run: |
+          export SEED_DEVELOPMENT=true
+          export SERVER_PORT=8080
+          export SERVER_URL=http://localhost:8080
+          export SERVER_AUTH_COOKIE_DOMAIN=localhost
+          export SERVER_AUTH_COOKIE_INSECURE=true
+          export SERVER_DEFAULT_ENGINE_VERSION=V1
+          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+
+          go run ./cmd/hatchet-admin quickstart
+
+          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
+          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
+
+          sleep 30
+
+      - name: Generate API token
+        working-directory: .
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=${{ github.workspace }}/certs/ca.cert" >> $GITHUB_ENV
+
+      - name: Clone main SDK source
+        run: |
+          git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.16.1
+
+      - name: Install old SDK dependencies
+        working-directory: /tmp/old-sdk/sdks/typescript
+        run: pnpm install
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=new-engine-old-sdk-ts-${SHORT_SHA}" >> $GITHUB_ENV
+
+      - name: Run e2e tests against new engine
+        working-directory: /tmp/old-sdk/sdks/typescript
+        env:
+          HATCHET_CLIENT_TLS_SERVER_NAME: cluster
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        run: |
+          echo "Testing main SDK against current engine"
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          pnpm test:e2e
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
+          path: engine.log
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
+          path: api.log
+
   publish:
     runs-on: ubicloud-standard-4
     needs: [lint, test-unit, test-e2e]
