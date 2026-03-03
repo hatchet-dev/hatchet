@@ -8,7 +8,7 @@ from pytest import FixtureRequest
 
 from hatchet_sdk import Hatchet
 from hatchet_sdk.deprecated.deprecation import semver_less_than
-from hatchet_sdk.exceptions import MIN_DURABLE_EVICTION_VERSION
+from hatchet_sdk.engine_version import MinEngineVersion
 from tests.worker_fixture import hatchet_worker
 
 
@@ -28,14 +28,14 @@ async def engine_version(hatchet: Hatchet) -> str | None:
 async def supports_durable_eviction(engine_version: str | None) -> bool:
     if not engine_version:
         return False
-    return not semver_less_than(engine_version, MIN_DURABLE_EVICTION_VERSION)
+    return not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION)
 
 
 @pytest.fixture()
 def _skip_unless_durable_eviction(supports_durable_eviction: bool) -> None:
     if not supports_durable_eviction:
         pytest.skip(
-            f"Engine does not support durable eviction (requires >= {MIN_DURABLE_EVICTION_VERSION})"
+            f"Engine does not support durable eviction (requires >= {MinEngineVersion.DURABLE_EVICTION})"
         )
 
 
