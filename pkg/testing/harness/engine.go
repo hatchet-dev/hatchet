@@ -386,6 +386,7 @@ func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 				"POOL_MODE":         "transaction",
 				"MAX_CLIENT_CONN":   "500",
 				"DEFAULT_POOL_SIZE": "50",
+				"AUTH_TYPE":         "scram-sha-256",
 			},
 		},
 		Started: true,
@@ -406,7 +407,7 @@ func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 	}
 
 	connStr := fmt.Sprintf(
-		"postgresql://user:password@%s:%s/test?sslmode=disable&default_query_exec_mode=exec",
+		"postgresql://user:password@%s:%s/test?sslmode=disable&default_query_exec_mode=cache_describe",
 		host, mappedPort.Port(),
 	)
 
@@ -431,7 +432,7 @@ func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 		db.Close(ctx)
 
 		return connStr, func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
 
 			err = pgBouncerContainer.Terminate(ctx)
