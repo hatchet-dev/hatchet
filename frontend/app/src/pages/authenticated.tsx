@@ -1,3 +1,4 @@
+import { getCloudMetadataQuery } from './auth/hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import SupportChat from '@/components/support-chat';
@@ -10,7 +11,10 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
-import { usePendingInvites } from '@/hooks/use-pending-invites';
+import {
+  pendingInvitesQuery,
+  usePendingInvites,
+} from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -21,6 +25,7 @@ import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -35,6 +40,15 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 const DevtoolsFooter = import.meta.env.DEV
   ? lazy(() => import('../devtools.tsx'))
   : null;
+
+export async function loader(_args: { request: Request }) {
+  const { isCloudEnabled } = await queryClient.fetchQuery(
+    getCloudMetadataQuery,
+  );
+
+  await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
+  return {};
+}
 
 function AuthenticatedInner() {
   const { tenant } = useTenantDetails();
@@ -105,8 +119,7 @@ function AuthenticatedInner() {
     },
   });
 
-  const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
-    usePendingInvites();
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const {
     isCloudEnabled,
@@ -148,9 +161,13 @@ function AuthenticatedInner() {
       return;
     }
 
+    const pendingInvites = pendingInvitesQuery.isSuccess
+      ? pendingInvitesQuery.data
+      : null;
+
     if (
-      pendingInvitesQuery.data &&
-      pendingInvitesQuery.data > 0 &&
+      pendingInvites &&
+      pendingInvites.inviteCount > 0 &&
       !isOnboardingInvitesPage
     ) {
       navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
@@ -158,7 +175,9 @@ function AuthenticatedInner() {
     }
 
     const okayToMakeOnboardingRedirectDecisions =
-      !isPendingInvitesLoading && !isOnboardingPage && isUserUniverseLoaded;
+      pendingInvitesQuery.isSuccess &&
+      !isOnboardingPage &&
+      isUserUniverseLoaded;
 
     if (okayToMakeOnboardingRedirectDecisions) {
       const shouldHaveAnOrganizationButDoesnt =
@@ -228,8 +247,7 @@ function AuthenticatedInner() {
   }, [
     tenant?.metadata.id,
     currentUser,
-    pendingInvitesQuery.data,
-    isPendingInvitesLoading,
+    pendingInvitesQuery,
     tenantMemberships,
     tenant?.version,
     userError,
