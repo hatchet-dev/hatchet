@@ -382,11 +382,12 @@ func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 			ExposedPorts:    []string{"5432/tcp"},
 			HostAccessPorts: []int{pgPort},
 			Env: map[string]string{
-				"DATABASE_URL":      fmt.Sprintf("postgres://user:password@host.testcontainers.internal:%d/test", pgPort),
-				"POOL_MODE":         "transaction",
-				"MAX_CLIENT_CONN":   "500",
-				"DEFAULT_POOL_SIZE": "50",
-				"AUTH_TYPE":         "scram-sha-256",
+				"DATABASE_URL":            fmt.Sprintf("postgres://user:password@host.testcontainers.internal:%d/test", pgPort),
+				"POOL_MODE":               "transaction",
+				"MAX_CLIENT_CONN":         "500",
+				"DEFAULT_POOL_SIZE":       "50",
+				"AUTH_TYPE":               "scram-sha-256",
+				"MAX_PREPARED_STATEMENTS": "256",
 			},
 		},
 		Started: true,
@@ -407,7 +408,7 @@ func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 	}
 
 	connStr := fmt.Sprintf(
-		"postgresql://user:password@%s:%s/test?sslmode=disable&default_query_exec_mode=cache_describe",
+		"postgresql://user:password@%s:%s/test?sslmode=disable",
 		host, mappedPort.Port(),
 	)
 
