@@ -24,7 +24,6 @@ from hatchet_sdk.deprecated.worker import legacy_aio_start
 from hatchet_sdk.exceptions import (
     MIN_DURABLE_EVICTION_VERSION,
     MIN_SLOT_CONFIG_VERSION,
-    EvictionNotSupportedError,
     LifespanSetupError,
     LoopAlreadyRunningError,
 )
@@ -232,19 +231,37 @@ class Worker:
         )
 
     def _check_eviction_support(self, engine_version: str) -> None:
-        """Raise if any registered task has an eviction policy but the engine is too old."""
+        """Warn and strip eviction policies if the engine is too old to support them."""
         if not semver_less_than(engine_version, MIN_DURABLE_EVICTION_VERSION):
             return
 
         tasks_with_eviction = [
-            task.name
+            task
             for task in self.action_registry.values()
             if task.durable_eviction is not None
         ]
         if not tasks_with_eviction:
             return
 
-        raise EvictionNotSupportedError(engine_version)
+        from datetime import datetime, timezone
+
+        from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice
+
+        names = ", ".join(t.name for t in tasks_with_eviction)
+        emit_deprecation_notice(
+            feature="pre-eviction-engine",
+            message=(
+                f"Engine {engine_version} does not support durable eviction "
+                f"(requires >= {MIN_DURABLE_EVICTION_VERSION}). "
+                f"Eviction policies will be ignored for tasks: {names}. "
+                "Please upgrade your Hatchet engine."
+            ),
+            start=datetime(2026, 3, 3, tzinfo=timezone.utc),
+            error_days=180,
+        )
+
+        for task in tasks_with_eviction:
+            task.durable_eviction = None
 
     async def _check_engine_version(self) -> str | None:
         """Returns the engine version string, or None if engine is legacy (pre-slot-config).
