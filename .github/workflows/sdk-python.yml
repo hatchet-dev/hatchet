@@ -388,23 +388,9 @@ jobs:
           echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=${{ github.workspace }}/certs/ca.cert" >> $GITHUB_ENV
           echo "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True" >> $GITHUB_ENV
 
-      - name: Determine latest published SDK version
+      - name: Clone main SDK source
         run: |
-          PYPI_VERSION=$(curl -fsSL https://pypi.org/pypi/hatchet-sdk/json | python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])")
-          if [ -z "$PYPI_VERSION" ]; then
-            echo "ERROR: Could not determine latest hatchet-sdk version from PyPI"
-            exit 1
-          fi
-          echo "Latest published SDK version: $PYPI_VERSION"
-          echo "PYPI_VERSION=$PYPI_VERSION" >> $GITHUB_ENV
-
-      - name: Extract old SDK test suite at published version
-        working-directory: .
-        run: |
-          OLD_TAG="v${{ env.PYPI_VERSION }}"
-          echo "Extracting SDK source at tag: $OLD_TAG"
-          mkdir -p /tmp/old-sdk
-          git archive "$OLD_TAG" sdks/python | tar -x -C /tmp/old-sdk
+          git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -418,7 +404,7 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
-      - name: Install old SDK and test dependencies
+      - name: Install SDK and test dependencies
         working-directory: /tmp/old-sdk/sdks/python
         run: poetry install --no-interaction --all-extras
 
@@ -430,7 +416,7 @@ jobs:
       - name: Run pytest against new engine
         working-directory: /tmp/old-sdk/sdks/python
         run: |
-          echo "Testing SDK ${{ env.PYPI_VERSION }} against current engine"
+          echo "Testing main SDK against current engine"
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
 
