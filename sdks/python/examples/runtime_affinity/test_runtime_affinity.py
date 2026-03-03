@@ -67,7 +67,8 @@ async def test_runtime_affinity(
     workers = [
         w
         for w in (await hatchet.workers.aio_list()).rows or []
-        if w.status == "ACTIVE" and w.name == "runtime-affinity-worker"
+        if w.status == "ACTIVE"
+        and w.name == hatchet.config.apply_namespace("runtime-affinity-worker")
     ]
 
     assert len(workers) == 2
