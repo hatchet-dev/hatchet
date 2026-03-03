@@ -824,13 +824,12 @@ func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
-	newBranchId := logFile.BranchCount + 1
+	newBranchId := logFile.LatestBranchID + 1
 	zero := int64(0)
 
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
 		BranchId:              sqlchelpers.ToBigInt(&newBranchId),
 		NodeId:                sqlchelpers.ToBigInt(&zero),
-		BranchCount:           sqlchelpers.ToBigInt(&newBranchId),
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 	})

@@ -129,7 +129,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 }
 
 const getAndLockLogFile = `-- name: GetAndLockLogFile :one
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, branch_count
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id
 FROM v1_durable_event_log_file
 WHERE
     durable_task_id = $1::BIGINT
@@ -155,7 +155,6 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 		&i.LatestInsertedAt,
 		&i.LatestNodeID,
 		&i.LatestBranchID,
-		&i.BranchCount,
 	)
 	return &i, err
 }
@@ -209,7 +208,7 @@ WITH inputs AS (
         UNNEST($3::UUID[]) AS tenant_id
 )
 
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, branch_count
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id
 FROM v1_durable_event_log_file lf
 WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
     SELECT durable_task_id, durable_task_inserted_at, tenant_id
@@ -240,7 +239,6 @@ func (q *Queries) GetDurableTaskLogFiles(ctx context.Context, db DBTX, arg GetDu
 			&i.LatestInsertedAt,
 			&i.LatestNodeID,
 			&i.LatestBranchID,
-			&i.BranchCount,
 		); err != nil {
 			return nil, err
 		}
@@ -282,7 +280,7 @@ ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
     latest_invocation_count = v1_durable_event_log_file.latest_invocation_count + 1,
     latest_node_id = 0
-RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id, v1_durable_event_log_file.branch_count
+RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id
 `
 
 type IncrementLogFileInvocationCountsParams struct {
@@ -308,7 +306,6 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 			&i.LatestInsertedAt,
 			&i.LatestNodeID,
 			&i.LatestBranchID,
-			&i.BranchCount,
 		); err != nil {
 			return nil, err
 		}
@@ -602,18 +599,16 @@ UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
     latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count),
-    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id),
-    branch_count = COALESCE($4::BIGINT, v1_durable_event_log_file.branch_count)
-WHERE durable_task_id = $5::BIGINT
-  AND durable_task_inserted_at = $6::TIMESTAMPTZ
-RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, branch_count
+    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id)
+WHERE durable_task_id = $4::BIGINT
+  AND durable_task_inserted_at = $5::TIMESTAMPTZ
+RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id
 `
 
 type UpdateLogFileParams struct {
 	NodeId                pgtype.Int8        `json:"nodeId"`
 	InvocationCount       pgtype.Int4        `json:"invocationCount"`
 	BranchId              pgtype.Int8        `json:"branchId"`
-	BranchCount           pgtype.Int8        `json:"branchCount"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }
@@ -623,7 +618,6 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		arg.NodeId,
 		arg.InvocationCount,
 		arg.BranchId,
-		arg.BranchCount,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 	)
@@ -636,7 +630,6 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		&i.LatestInsertedAt,
 		&i.LatestNodeID,
 		&i.LatestBranchID,
-		&i.BranchCount,
 	)
 	return &i, err
 }
