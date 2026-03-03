@@ -4,10 +4,6 @@ on:
   pull_request:
     paths:
       - ".github/**"
-      - "api/**"
-      - "api-contracts/**"
-      - "internal/**"
-      - "pkg/**"
       - "sdks/ruby/**"
   push:
     branches:
@@ -165,6 +161,12 @@ jobs:
             fi
             if [ $((i % 5)) -eq 0 ]; then
               echo "Still waiting for worker health... ${i}s/${MAX_WAIT}s"
+              echo "--- worker.log (last 25 lines) ---"
+              tail -n 25 worker.log 2>/dev/null || true
+              echo "--- engine.log (last 25 lines) ---"
+              tail -n 25 ../../engine.log 2>/dev/null || true
+              echo "--- api.log (last 25 lines) ---"
+              tail -n 25 ../../api.log 2>/dev/null || true
             fi
             sleep $POLL_INTERVAL
           done
