@@ -1,0 +1,18 @@
+export default {
+  index: { display: "hidden" },
+  "durable-task-execution": "Durable Task Execution",
+  "child-spawning": "Child Spawning",
+  "durable-sleep": "Durable Sleep",
+  "durable-events": "Wait For Events",
+  "durable-best-practices": "Best Practices",
+  "task-eviction": "Task Eviction",
+  "directed-acyclic-graphs": "Directed Acyclic Graphs",
+  "parent-conditions": "Parent Conditions",
+  "event-conditions": "Event Conditions",
+  "sleep-conditions": "Sleep Conditions",
+  "combining-conditions": "Combining Conditions",
+  "on-failure-tasks": "On Failure Tasks",
+  "dag-child-spawning": "DAG Child Spawning",
+  "additional-metadata": "Additional Metadata",
+  "mixing-patterns": "Mixing Durable Patterns",
+};

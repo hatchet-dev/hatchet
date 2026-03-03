@@ -7,7 +7,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Multi-agent orchestration uses a coordinating agent that delegates work to specialist agents. Unlike [routing](/guides/ai-agents/routing) (which classifies once and calls one handler), the orchestrator runs a **reasoning loop**: it may call multiple specialists across multiple iterations, passing results between them, until the overall goal is met.
 
-Each specialist is a separate [durable task](/concepts/durable-workflows/durable-task-execution) with its own prompt, tools, timeout, and retry settings. The orchestrator's LLM decides which specialist to call next based on the accumulated context.
+Each specialist is a separate [durable task](/v1/durable-workflows/durable-task-execution) with its own prompt, tools, timeout, and retry settings. The orchestrator's LLM decides which specialist to call next based on the accumulated context.
 
 ```mermaid
 sequenceDiagram
@@ -40,7 +40,7 @@ sequenceDiagram
 
 ## How it maps to Hatchet
 
-The orchestrator is a **[durable task](/concepts/durable-workflows/durable-task-execution)** running a reasoning loop via [child spawning](/concepts/durable-workflows/durable-task-execution/child-spawning). Each specialist is a standalone durable task spawned as a child run. The orchestrator's LLM returns structured tool calls, and each tool name maps to a specialist task.
+The orchestrator is a **[durable task](/v1/durable-workflows/durable-task-execution)** running a reasoning loop via [child spawning](/v1/durable-workflows/child-spawning). Each specialist is a standalone durable task spawned as a child run. The orchestrator's LLM returns structured tool calls, and each tool name maps to a specialist task.
 
 Because each specialist call is a child run, the orchestrator's slot is freed while specialists execute. If the orchestrator dies mid-loop, it resumes from the last checkpoint without re-running completed specialist calls.
 
@@ -80,7 +80,7 @@ Each specialist is a standalone durable task with its own prompt and timeout. Th
 
 ### Orchestrator loop
 
-The orchestrator runs a [reasoning loop](/guides/ai-agents/reasoning-loop): call LLM, parse tool choice, [spawn specialist](/concepts/durable-workflows/durable-task-execution/child-spawning), observe result, repeat. Context accumulates across iterations so later specialist calls have full history.
+The orchestrator runs a [reasoning loop](/guides/ai-agents/reasoning-loop): call LLM, parse tool choice, [spawn specialist](/v1/durable-workflows/child-spawning), observe result, repeat. Context accumulates across iterations so later specialist calls have full history.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -162,7 +162,7 @@ Register all specialists and the orchestrator, then start the worker.
   </Cards.Card>
   <Cards.Card
     title="Child Spawning"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
+    href="/v1/durable-workflows/dag-child-spawning"
   >
     The Hatchet primitive used to spawn specialist tasks from the orchestrator.
   </Cards.Card>
@@ -170,7 +170,7 @@ Register all specialists and the orchestrator, then start the worker.
 
 ## Next Steps
 
-- [Durable Task Execution](/concepts/durable-workflows/durable-task-execution): understand checkpointing and replay for the orchestrator
-- [Child Spawning](/concepts/durable-workflows/durable-task-execution/child-spawning): spawn specialist tasks from the orchestrator loop
-- [Timeouts](/concepts/timeouts): set execution timeouts on the orchestrator and each specialist
-- [Concurrency Control](/concepts/concurrency): limit how many orchestrator runs execute in parallel
+- [Durable Task Execution](/v1/durable-workflows/durable-task-execution): understand checkpointing and replay for the orchestrator
+- [Child Spawning](/v1/durable-workflows/child-spawning): spawn specialist tasks from the orchestrator loop
+- [Timeouts](/v1/error-handling/timeouts): set execution timeouts on the orchestrator and each specialist
+- [Concurrency Control](/v1/flow-control/concurrency): limit how many orchestrator runs execute in parallel

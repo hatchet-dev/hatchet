@@ -11,7 +11,7 @@ AI agents follow a **reason-act-observe** loop that can run for minutes or hours
 
 <AgentLoopDiagram />
 
-In Hatchet, this is implemented as a [durable task](/concepts/durable-workflows/durable-task-execution) with a loop. At each iteration, the task [spawns a child](/concepts/durable-workflows/durable-task-execution/child-spawning) to call the LLM, execute any tool calls, and determine whether additional iterations are required. Each completed iteration is checkpointed, so the agent survives crashes and worker slots are freed between iterations.
+In Hatchet, this is implemented as a [durable task](/v1/durable-workflows/durable-task-execution) with a loop. At each iteration, the task [spawns a child](/v1/durable-workflows/child-spawning) to call the LLM, execute any tool calls, and determine whether additional iterations are required. Each completed iteration is checkpointed, so the agent survives crashes and worker slots are freed between iterations.
 
 ## When to use
 
@@ -21,7 +21,7 @@ In Hatchet, this is implemented as a [durable task](/concepts/durable-workflows/
 | Multi-step research that may take minutes       | Good: durable execution survives long-running loops               |
 | Agent that needs human approval mid-loop        | Good: combine with [Human-in-the-Loop](/guides/human-in-the-loop) |
 | Fixed pipeline (prompt, generate, validate)     | Skip: use [LLM Pipelines](/guides/llm-pipelines) instead          |
-| One-shot classification or extraction           | Skip: a single [task](/concepts/tasks) is simpler                 |
+| One-shot classification or extraction           | Skip: a single [task](/v1/runnables/tasks) is simpler                 |
 
 ## Step-by-step walkthrough
 
@@ -60,7 +60,7 @@ The examples above use a mock LLM. To call a real provider, swap `get_llm_servic
 
 ### Wrap it in a durable task
 
-Create a [durable task](/concepts/durable-workflows/durable-task-execution) that invokes the reasoning loop from Step 1. Concurrency is set to `CANCEL_IN_PROGRESS` so new user messages cancel stale runs.
+Create a [durable task](/v1/durable-workflows/durable-task-execution) that invokes the reasoning loop from Step 1. Concurrency is set to `CANCEL_IN_PROGRESS` so new user messages cancel stale runs.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -89,7 +89,7 @@ Create a [durable task](/concepts/durable-workflows/durable-task-execution) that
 
 ### Stream the response
 
-Emit LLM tokens from the task as they are generated. Clients subscribe to the stream and receive them in real-time. See [Streaming](/concepts/streaming) for the full API.
+Emit LLM tokens from the task as they are generated. Clients subscribe to the stream and receive them in real-time. See [Streaming](/v1/advanced-tasks/streaming) for the full API.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -139,7 +139,7 @@ Start the worker. The task definitions above use `CANCEL_IN_PROGRESS` concurrenc
 
 <Callout type="warning">
   Always set a **timeout** and **max iteration count** on agent loops. Without
-  bounds, an agent can loop indefinitely. See [Timeouts](/concepts/timeouts) for
+  bounds, an agent can loop indefinitely. See [Timeouts](/v1/error-handling/timeouts) for
   configuration.
 </Callout>
 
@@ -190,7 +190,7 @@ Create separate tasks for generation and evaluation. The generator takes a topic
 
 ### Optimization loop
 
-The evaluator-optimizer task loops: generate, evaluate, check score. Each generator and evaluator call is a [spawned child task](/concepts/durable-workflows/durable-task-execution/child-spawning) that is checkpointed on completion.
+The evaluator-optimizer task loops: generate, evaluate, check score. Each generator and evaluator call is a [spawned child task](/v1/durable-workflows/child-spawning) that is checkpointed on completion.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -233,14 +233,14 @@ The evaluator-optimizer task loops: generate, evaluate, check score. Each genera
 <Cards>
   <Cards.Card
     title="Child Spawning"
-    href="/concepts/durable-workflows/durable-task-execution/child-spawning"
+    href="/v1/durable-workflows/child-spawning"
   >
     The core loop pattern behind agent reasoning, where a task re-spawns itself
     until a goal is met.
   </Cards.Card>
   <Cards.Card
     title="Long Waits"
-    href="/concepts/durable-workflows/durable-task-execution/durable-sleep"
+    href="/v1/durable-workflows/durable-sleep"
   >
     Pause agents for human feedback or scheduled retries without holding worker
     slots.
@@ -250,13 +250,13 @@ The evaluator-optimizer task loops: generate, evaluate, check score. Each genera
   </Cards.Card>
   <Cards.Card
     title="Fanout"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
+    href="/v1/durable-workflows/dag-child-spawning"
   >
     Agents that spawn parallel tool calls or sub-agent tasks.
   </Cards.Card>
   <Cards.Card
     title="Branching"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions"
+    href="/v1/durable-workflows/parent-conditions"
   >
     Route agent behavior based on LLM tool call decisions or user preferences.
   </Cards.Card>
@@ -265,6 +265,6 @@ The evaluator-optimizer task loops: generate, evaluate, check score. Each genera
 ## Next Steps
 
 - [What is an Agent?](/guides/ai-agents): overview and pattern index
-- [Durable Workflows](/concepts/durable-workflows/durable-task-execution): understand checkpointing and replay
-- [Streaming](/concepts/streaming): set up real-time LLM output streaming
-- [Concurrency Control](/concepts/concurrency): configure CANCEL_IN_PROGRESS for chat agents
+- [Durable Workflows](/v1/durable-workflows/durable-task-execution): understand checkpointing and replay
+- [Streaming](/v1/advanced-tasks/streaming): set up real-time LLM output streaming
+- [Concurrency Control](/v1/flow-control/concurrency): configure CANCEL_IN_PROGRESS for chat agents

@@ -141,6 +141,63 @@ function extractTitle(value: any): string {
   return "";
 }
 
+function collectPagesFromDir(
+  dir: string,
+  urlPrefix: string,
+  sectionTitle: string,
+  pages: DocPage[],
+): void {
+  const metaPath = path.join(dir, "_meta.js");
+  if (!fs.existsSync(metaPath)) return;
+
+  const meta = parseMetaJs(metaPath);
+
+  for (const [key, value] of Object.entries(meta)) {
+    if (!isDocPage(key, value)) continue;
+
+    const title = extractTitle(value as any);
+    const subDir = path.join(dir, key);
+    const href = `${DOCS_BASE_URL}/${urlPrefix}/${key}`;
+
+    // Check if this key is a folder with its own _meta.js (sub-section)
+    const subMetaPath = path.join(subDir, "_meta.js");
+    if (fs.existsSync(subMetaPath)) {
+      // Add the index page for this folder if it exists and isn't hidden
+      const indexMdx = path.join(subDir, "index.mdx");
+      if (fs.existsSync(indexMdx)) {
+        const indexValue = parseMetaJs(subMetaPath)["index"];
+        if (!indexValue || (typeof indexValue === "object" && indexValue.display !== "hidden")) {
+          pages.push({
+            title: title || key,
+            slug: key,
+            href,
+            filepath: indexMdx,
+            section: sectionTitle,
+          });
+        }
+      }
+      // Recurse into sub-section
+      collectPagesFromDir(subDir, `${urlPrefix}/${key}`, sectionTitle, pages);
+      continue;
+    }
+
+    // Plain .mdx file
+    let mdxPath = path.join(dir, key + ".mdx");
+    if (!fs.existsSync(mdxPath)) {
+      mdxPath = path.join(subDir, "index.mdx");
+    }
+    if (!fs.existsSync(mdxPath)) continue;
+
+    pages.push({
+      title: title || key,
+      slug: key,
+      href,
+      filepath: mdxPath,
+      section: sectionTitle,
+    });
+  }
+}
+
 function collectPages(): DocPage[] {
   const pages: DocPage[] = [];
 
@@ -159,10 +216,11 @@ function collectPages(): DocPage[] {
     const sectionValue = rootMeta[sectionKey] ?? {};
     const sectionTitle =
       typeof sectionValue === "object"
-        ? extractTitle(sectionValue)
+        ? extractTitle(sectionValue as any)
         : sectionKey;
 
     if (!fs.existsSync(sectionMetaPath)) {
+      // Plain top-level .mdx file
       const mdxPath = path.join(PAGES_DIR, sectionKey + ".mdx");
       if (fs.existsSync(mdxPath)) {
         pages.push({
@@ -176,28 +234,8 @@ function collectPages(): DocPage[] {
       continue;
     }
 
-    const sectionMeta = parseMetaJs(sectionMetaPath);
-    for (const [pageKey, pageValue] of Object.entries(sectionMeta)) {
-      if (!isDocPage(pageKey, pageValue)) continue;
-
-      const title = extractTitle(pageValue);
-      let mdxPath = path.join(sectionDir, pageKey + ".mdx");
-
-      if (!fs.existsSync(mdxPath)) {
-        mdxPath = path.join(sectionDir, pageKey, "index.mdx");
-      }
-      if (!fs.existsSync(mdxPath)) continue;
-
-      const href = `${DOCS_BASE_URL}/${sectionKey}/${pageKey}`;
-
-      pages.push({
-        title,
-        slug: pageKey,
-        href,
-        filepath: mdxPath,
-        section: sectionTitle || sectionKey,
-      });
-    }
+    // Recurse into section directory
+    collectPagesFromDir(sectionDir, sectionKey, sectionTitle, pages);
   }
 
   return pages;

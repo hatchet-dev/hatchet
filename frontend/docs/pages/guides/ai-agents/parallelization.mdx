@@ -7,7 +7,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Parallelization spawns multiple independent tasks at the same time and aggregates results before continuing. Inside an agent loop, this typically means running several tool calls concurrently when they don't depend on each other. At a system level, it can mean running the same input through multiple evaluators and picking the best (or majority) result.
 
-Hatchet distributes child runs across all running workers where the task is registered. The parent's slot is [freed while children execute](/concepts/durable-workflows/durable-task-execution/task-eviction), so you don't hold resources during parallel work.
+Hatchet distributes child runs across all running workers where the task is registered. The parent's slot is [freed while children execute](/v1/durable-workflows/task-eviction), so you don't hold resources during parallel work.
 
 There are two common variants:
 
@@ -42,11 +42,11 @@ flowchart LR
 | Multiple evaluators vote on content quality           | Good: voting, aggregate for more reliable decisions                              |
 | Processing a batch of items (100+ documents)          | Good: see [Batch Processing](/guides/batch-processing) for large-scale fanout    |
 | Steps depend on each other (output of A feeds B)      | Skip: run sequentially                                                           |
-| Provider rate limits are tight                        | Careful: parallel calls may hit limits; use [Rate Limits](/concepts/rate-limits) |
+| Provider rate limits are tight                        | Careful: parallel calls may hit limits; use [Rate Limits](/v1/flow-control/rate-limits) |
 
 ## How it maps to Hatchet
 
-The parent task spawns children via [child spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning). Each child runs on any available worker. The parent's slot is [evicted](/concepts/durable-workflows/durable-task-execution/task-eviction) while children execute, so you're not holding resources during the parallel work. When all children complete, the parent resumes and aggregates.
+The parent task spawns children via [child spawning](/v1/durable-workflows/dag-child-spawning). Each child runs on any available worker. The parent's slot is [evicted](/v1/durable-workflows/task-eviction) while children execute, so you're not holding resources during the parallel work. When all children complete, the parent resumes and aggregates.
 
 ## Step-by-step walkthrough
 
@@ -184,7 +184,7 @@ Register all tasks and start the worker.
   </Cards.Card>
   <Cards.Card
     title="Fanout"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
+    href="/v1/durable-workflows/dag-child-spawning"
   >
     The Hatchet concept: spawn children in parallel, parent waits for all.
   </Cards.Card>
@@ -192,7 +192,7 @@ Register all tasks and start the worker.
 
 ## Next Steps
 
-- [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): spawn parallel children from a parent task
-- [Task Eviction](/concepts/durable-workflows/durable-task-execution/task-eviction): free the parent's slot while children execute
-- [Rate Limits](/concepts/rate-limits): throttle parallel calls to external APIs
-- [Concurrency Control](/concepts/concurrency): limit how many children run simultaneously
+- [Child Spawning](/v1/durable-workflows/dag-child-spawning): spawn parallel children from a parent task
+- [Task Eviction](/v1/durable-workflows/task-eviction): free the parent's slot while children execute
+- [Rate Limits](/v1/flow-control/rate-limits): throttle parallel calls to external APIs
+- [Concurrency Control](/v1/flow-control/concurrency): limit how many children run simultaneously

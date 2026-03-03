@@ -1,12 +1,5 @@
 export default {
-  "get-started": {
-    title: "Get Started",
-    type: "page",
-    theme: {
-      toc: false,
-    },
-  },
-  concepts: {
+  v1: {
     title: "Concepts",
     type: "page",
     theme: {
@@ -14,14 +7,11 @@ export default {
     },
   },
   guides: {
-    title: "Guides",
+    title: "Cookbooks",
     type: "page",
     theme: {
       toc: false,
     },
-  },
-  _setup: {
-    display: "hidden",
   },
   "self-hosting": {
     title: "Self-Hosting",

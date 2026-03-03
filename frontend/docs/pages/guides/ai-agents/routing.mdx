@@ -5,7 +5,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Routing
 
-Routing classifies an incoming request and directs it to a specialist [durable task](/concepts/durable-workflows/durable-task-execution). A single entry point handles all requests; the routing logic (an LLM call, a rule-based check, or a keyword match) determines which downstream task runs. Only one branch executes per request.
+Routing classifies an incoming request and directs it to a specialist [durable task](/v1/durable-workflows/durable-task-execution). A single entry point handles all requests; the routing logic (an LLM call, a rule-based check, or a keyword match) determines which downstream task runs. Only one branch executes per request.
 
 This pattern improves response quality because each specialist task has its own prompt, tools, and context optimized for that category. It also simplifies the caller: trigger one task and let the router decide where to send it.
 
@@ -28,11 +28,11 @@ flowchart TD
 | Document processing (invoice vs. receipt vs. contract) | Good: each type needs different extraction logic                                                                |
 | Request triage (simple auto-reply vs. complex agent)   | Good: avoid expensive agent loops for easy questions                                                            |
 | All requests follow the same path                      | Skip: no benefit from routing                                                                                   |
-| Routing rules are simple and known at definition time  | Use [Parent Conditions](/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions) in a DAG instead |
+| Routing rules are simple and known at definition time  | Use [Parent Conditions](/v1/durable-workflows/parent-conditions) in a DAG instead |
 
 ## How it maps to Hatchet
 
-The router is a **[durable task](/concepts/durable-workflows/durable-task-execution)**. It spawns a classifier [child task](/concepts/durable-workflows/durable-task-execution/child-spawning) (or does classification inline), then spawns the matching specialist as a [child run](/concepts/durable-workflows/durable-task-execution/child-spawning). Since each specialist is a separate durable task, they can have their own [timeouts](/concepts/timeouts), [retries](/concepts/retry-policies), [rate limits](/concepts/rate-limits), and [concurrency](/concepts/concurrency) settings.
+The router is a **[durable task](/v1/durable-workflows/durable-task-execution)**. It spawns a classifier [child task](/v1/durable-workflows/child-spawning) (or does classification inline), then spawns the matching specialist as a [child run](/v1/durable-workflows/child-spawning). Since each specialist is a separate durable task, they can have their own [timeouts](/v1/error-handling/timeouts), [retries](/v1/error-handling/retry-policies), [rate limits](/v1/flow-control/rate-limits), and [concurrency](/v1/flow-control/concurrency) settings.
 
 Routing decisions are checkpointed. If the worker dies after classification but before the specialist finishes, the router resumes and does not re-classify.
 
@@ -155,7 +155,7 @@ Register all tasks and start the worker.
   </Cards.Card>
   <Cards.Card
     title="Parent Conditions"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/parent-conditions"
+    href="/v1/durable-workflows/parent-conditions"
   >
     DAG-level branching for when routing rules are fixed at definition time.
   </Cards.Card>
@@ -169,7 +169,7 @@ Register all tasks and start the worker.
 
 ## Next Steps
 
-- [Durable Task Execution](/concepts/durable-workflows/durable-task-execution): understand how the router and specialists checkpoint
-- [Child Spawning](/concepts/durable-workflows/durable-task-execution/child-spawning): spawn specialist tasks from the router
-- [Timeouts](/concepts/timeouts): set execution timeouts on the router and each specialist
-- [Retry Policies](/concepts/retry-policies): configure retries for classification and specialist tasks
+- [Durable Task Execution](/v1/durable-workflows/durable-task-execution): understand how the router and specialists checkpoint
+- [Child Spawning](/v1/durable-workflows/child-spawning): spawn specialist tasks from the router
+- [Timeouts](/v1/error-handling/timeouts): set execution timeouts on the router and each specialist
+- [Retry Policies](/v1/error-handling/retry-policies): configure retries for classification and specialist tasks

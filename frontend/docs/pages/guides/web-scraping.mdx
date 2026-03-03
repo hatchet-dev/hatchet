@@ -121,7 +121,7 @@ Wrap the pipeline in a cron workflow to refresh data on a schedule. The example 
 
 ### Add rate limiting
 
-Target sites will block you if you send too many requests. Create a separate rate-limited scrape task that caps requests to a fixed number per minute across all workers. Hatchet holds back task executions that would exceed the limit, so you stay within budget without adding sleep logic in your code. See [Rate Limits](/concepts/rate-limits) for details.
+Target sites will block you if you send too many requests. Create a separate rate-limited scrape task that caps requests to a fixed number per minute across all workers. Hatchet holds back task executions that would exceed the limit, so you stay within budget without adding sleep logic in your code. See [Rate Limits](/v1/flow-control/rate-limits) for details.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -181,7 +181,7 @@ Register all tasks (including the rate-limited variant) and upsert the rate limi
 <Callout type="warning">
   Always set **timeouts** and **retries** on scrape tasks. Pages can hang
   indefinitely, and transient network failures are common. See
-  [Timeouts](/concepts/timeouts) and [Retry Policies](/concepts/retry-policies).
+  [Timeouts](/v1/error-handling/timeouts) and [Retry Policies](/v1/error-handling/retry-policies).
 </Callout>
 
 ## Common Patterns
@@ -214,7 +214,7 @@ Register all tasks (including the rate-limited variant) and upsert the rate limi
 
 ## Next Steps
 
-- [Cron Triggers](/concepts/cron-runs): cron expression syntax and configuration
-- [Retry Policies](/concepts/retry-policies): handle transient scraping failures
-- [Rate Limits](/concepts/rate-limits): throttle requests to avoid being blocked
-- [Concurrency Control](/concepts/concurrency): limit parallel scrapes per domain
+- [Cron Triggers](/v1/runnables/cron-runs): cron expression syntax and configuration
+- [Retry Policies](/v1/error-handling/retry-policies): handle transient scraping failures
+- [Rate Limits](/v1/flow-control/rate-limits): throttle requests to avoid being blocked
+- [Concurrency Control](/v1/flow-control/concurrency): limit parallel scrapes per domain

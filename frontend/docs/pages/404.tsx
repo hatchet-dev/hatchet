@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 const sections = [
   {
     title: "Get Started",
-    href: "/get-started",
+    href: "/",
     description: "Installation, quickstart, and first workflow",
   },
   {
@@ -95,7 +95,7 @@ export default function Custom404() {
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif',
       }}
     >
-      <Link href="/get-started" style={{ marginBottom: "2.5rem" }}>
+      <Link href="/" style={{ marginBottom: "2.5rem" }}>
         <Logo color={t.logo} />
       </Link>
 

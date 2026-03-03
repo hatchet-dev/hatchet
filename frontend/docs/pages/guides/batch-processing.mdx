@@ -10,7 +10,7 @@ Batch processing involves running the same operation across a large set of items
 
 <BatchProcessingDiagram />
 
-At its core, batch processing is [Fanout](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning) applied at scale. If your batch also has fixed stages (e.g., validate → transform → load), you can combine it with [Pre-Determined Pipelines](/concepts/durable-workflows/directed-acyclic-graphs).
+At its core, batch processing is [Fanout](/v1/durable-workflows/dag-child-spawning) applied at scale. If your batch also has fixed stages (e.g., validate → transform → load), you can combine it with [Pre-Determined Pipelines](/v1/durable-workflows/directed-acyclic-graphs).
 
 ## Step-by-step walkthrough
 
@@ -85,7 +85,7 @@ Each child task processes a single item independently. Failed items are retried 
 
 ### Run the worker
 
-Register and start the worker with both parent and child workflows. For large batches, use [durable workflows](/concepts/durable-workflows/durable-task-execution) so the parent does not hold a slot while waiting.
+Register and start the worker with both parent and child workflows. For large batches, use [durable workflows](/v1/durable-workflows/durable-task-execution) so the parent does not hold a slot while waiting.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -117,7 +117,7 @@ Register and start the worker with both parent and child workflows. For large ba
 <Callout type="warning">
   For batches with thousands of items, use **durable workflows** so the parent
   task doesn't hold a worker slot while waiting for all children to complete.
-  See [Durable Workflows](/concepts/durable-workflows/durable-task-execution)
+  See [Durable Workflows](/v1/durable-workflows/durable-task-execution)
   for details.
 </Callout>
 
@@ -136,13 +136,13 @@ Register and start the worker with both parent and child workflows. For large ba
 <Cards>
   <Cards.Card
     title="Fanout"
-    href="/concepts/durable-workflows/directed-acyclic-graphs/child-spawning"
+    href="/v1/durable-workflows/dag-child-spawning"
   >
     The core pattern behind batch processing, spawning N children from a parent.
   </Cards.Card>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/concepts/durable-workflows/directed-acyclic-graphs"
+    href="/v1/durable-workflows/directed-acyclic-graphs"
   >
     Chain batch processing with multi-stage transforms in a DAG.
   </Cards.Card>
@@ -151,7 +151,7 @@ Register and start the worker with both parent and child workflows. For large ba
   </Cards.Card>
   <Cards.Card
     title="Cycles"
-    href="/concepts/durable-workflows/durable-task-execution/child-spawning"
+    href="/v1/durable-workflows/child-spawning"
   >
     Process paginated results one page at a time with iterative child spawning.
   </Cards.Card>
@@ -159,7 +159,7 @@ Register and start the worker with both parent and child workflows. For large ba
 
 ## Next Steps
 
-- [Child Spawning](/concepts/durable-workflows/directed-acyclic-graphs/child-spawning): learn the fan-out API for batch processing
-- [Bulk Run](/concepts/bulk-run): trigger large batches efficiently
-- [Concurrency Control](/concepts/concurrency): limit concurrent item processing
-- [Rate Limits](/concepts/rate-limits): protect external APIs during batch operations
+- [Child Spawning](/v1/durable-workflows/dag-child-spawning): learn the fan-out API for batch processing
+- [Bulk Run](/v1/runnables/bulk-run): trigger large batches efficiently
+- [Concurrency Control](/v1/flow-control/concurrency): limit concurrent item processing
+- [Rate Limits](/v1/flow-control/rate-limits): protect external APIs during batch operations
