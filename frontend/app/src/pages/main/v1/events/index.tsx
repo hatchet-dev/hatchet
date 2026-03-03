@@ -215,6 +215,8 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
 }
 
 function EventDataSection({ event }: { event: V1Event }) {
+  // fixme: right now this shows all of this data in the `payload` section
+  // instead, we should have separate sections
   const dataToDisplay = {
     id: event.metadata.id,
     seenAt: event.seenAt,
