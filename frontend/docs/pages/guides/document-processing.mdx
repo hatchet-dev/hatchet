@@ -12,7 +12,7 @@ PDF and file pipelines are central to AI workflows: parse documents, extract con
 
 <DocumentProcessingDiagram />
 
-Because the stages are fixed (ingest → parse → extract), document pipelines map naturally to [DAG workflows](/v1/durable-workflows/directed-acyclic-graphs). You can add [child spawning](/v1/durable-workflows/dag-child-spawning) within the ingest or parse stage to process multiple documents in parallel.
+Because the stages are fixed (ingest → parse → extract), document pipelines map naturally to [DAG workflows](/v1/durable-workflows/directed-acyclic-graphs). You can add [child spawning](/v1/durable-workflows/child-spawning) within the ingest or parse stage to process multiple documents in parallel.
 
 ## Step-by-step walkthrough
 
@@ -126,7 +126,7 @@ The examples above use a mock extractor. To wire in a real LLM for extraction, s
 
 ### Run the worker
 
-Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable-workflows/dag-child-spawning) within the ingest stage.
+Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable-workflows/child-spawning) within the ingest stage.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -189,7 +189,7 @@ Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable
   </Cards.Card>
   <Cards.Card
     title="Child Spawning"
-    href="/v1/durable-workflows/dag-child-spawning"
+    href="/v1/durable-workflows/child-spawning"
   >
     Parallelize document processing across your worker fleet.
   </Cards.Card>
@@ -199,6 +199,6 @@ Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable
 
 - [DAG Workflows](/v1/durable-workflows/directed-acyclic-graphs): define multi-stage pipelines with task dependencies
 - [Rate Limits](/v1/flow-control/rate-limits): configure rate limiting for OCR and LLM APIs
-- [Child Spawning](/v1/durable-workflows/dag-child-spawning): fan out to per-document tasks
+- [Child Spawning](/v1/durable-workflows/child-spawning): fan out to per-document tasks
 - [Webhooks](/v1/runnables/webhooks): trigger pipelines from file upload endpoints
 - [Concurrency Control](/v1/flow-control/concurrency): limit parallel document processing

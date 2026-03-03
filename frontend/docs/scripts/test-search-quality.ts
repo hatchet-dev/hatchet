@@ -659,7 +659,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "fan out → child spawning",
     query: "fan out",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/bulk-run", "v1/durable-workflows/dag-child-spawning"],
+    expectAnyOf: ["v1/durable-workflows", "v1/runnables/bulk-run", "v1/durable-workflows/child-spawning"],
   },
   {
     name: "parallel tasks",
@@ -720,7 +720,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "if else → conditional",
     query: "if else workflow",
-    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/parent-conditions"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/conditions"],
     topN: 10,
   },
   {
@@ -793,7 +793,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "wait for event → durable events",
     query: "wait for event",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows", "v1/external-events/pushing-events", "v1/external-events/event-filters", "v1/durable-workflows/durable-sleep", "guides/event-driven"],
+    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows", "v1/external-events/pushing-events", "v1/external-events/event-filters", "v1/durable-workflows/sleep", "guides/event-driven"],
     topN: 10,
   },
   {

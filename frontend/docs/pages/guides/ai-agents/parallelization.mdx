@@ -46,7 +46,7 @@ flowchart LR
 
 ## How it maps to Hatchet
 
-The parent task spawns children via [child spawning](/v1/durable-workflows/dag-child-spawning). Each child runs on any available worker. The parent's slot is [evicted](/v1/durable-workflows/task-eviction) while children execute, so you're not holding resources during the parallel work. When all children complete, the parent resumes and aggregates.
+The parent task spawns children via [child spawning](/v1/durable-workflows/child-spawning). Each child runs on any available worker. The parent's slot is [evicted](/v1/durable-workflows/task-eviction) while children execute, so you're not holding resources during the parallel work. When all children complete, the parent resumes and aggregates.
 
 ## Step-by-step walkthrough
 
@@ -184,7 +184,7 @@ Register all tasks and start the worker.
   </Cards.Card>
   <Cards.Card
     title="Fanout"
-    href="/v1/durable-workflows/dag-child-spawning"
+    href="/v1/durable-workflows/child-spawning"
   >
     The Hatchet concept: spawn children in parallel, parent waits for all.
   </Cards.Card>
@@ -192,7 +192,7 @@ Register all tasks and start the worker.
 
 ## Next Steps
 
-- [Child Spawning](/v1/durable-workflows/dag-child-spawning): spawn parallel children from a parent task
+- [Child Spawning](/v1/durable-workflows/child-spawning): spawn parallel children from a parent task
 - [Task Eviction](/v1/durable-workflows/task-eviction): free the parent's slot while children execute
 - [Rate Limits](/v1/flow-control/rate-limits): throttle parallel calls to external APIs
 - [Concurrency Control](/v1/flow-control/concurrency): limit how many children run simultaneously

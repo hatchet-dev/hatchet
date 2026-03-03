@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-type WaitType = "sleep" | "event";
-
 const LongWaitDiagram: React.FC = () => {
-  const [waitType, setWaitType] = useState<WaitType>("sleep");
   const [phase, setPhase] = useState(0); // 0=running, 1=waiting, 2=resumed, 3=complete
 
   useEffect(() => {
@@ -32,58 +29,21 @@ const LongWaitDiagram: React.FC = () => {
   const isResumed = phase === 2;
   const isDone = phase === 3;
 
-  const waitLabel = waitType === "sleep" ? "Sleep 24h" : "Wait for Event";
-  const waitSublabel =
-    waitType === "sleep" ? "durable pause" : "external signal";
-  const triggerLabel = waitType === "sleep" ? "time elapsed" : "event received";
+  const waitLabel = "Sleep 24h";
+  const waitSublabel = "durable pause";
+  const triggerLabel = "time elapsed";
 
   return (
     <div className="my-8 flex flex-col items-center gap-4">
-      {/* Toggle */}
+      {/* Status */}
       <div className="flex items-center gap-2 rounded-lg border border-neutral-700/40 bg-neutral-900/50 px-4 py-2">
-        <span className="text-xs font-medium text-gray-400">Wait type:</span>
-        {(["sleep", "event"] as WaitType[]).map((type) => (
-          <button
-            key={type}
-            onClick={() => {
-              setWaitType(type);
-              setPhase(0);
-            }}
-            className="rounded-md px-3 py-1 text-xs font-medium transition-all duration-200"
-            style={{
-              backgroundColor:
-                waitType === type
-                  ? type === "sleep"
-                    ? "rgba(99,102,241,0.3)"
-                    : "rgba(245,158,11,0.3)"
-                  : "rgba(50,50,50,0.3)",
-              border: `1px solid ${
-                waitType === type
-                  ? type === "sleep"
-                    ? "rgb(99,102,241)"
-                    : "rgb(245,158,11)"
-                  : "#555"
-              }`,
-              color:
-                waitType === type
-                  ? type === "sleep"
-                    ? "#c7d2fe"
-                    : "#fcd34d"
-                  : "#666",
-            }}
-          >
-            {type === "sleep" ? "Durable Sleep" : "Durable Event"}
-          </button>
-        ))}
         <span
-          className="ml-2 text-xs transition-colors duration-300"
+          className="text-xs transition-colors duration-300"
           style={{
             color: isDone
               ? "#6ee7b7"
               : isWaiting
-                ? waitType === "sleep"
-                  ? "#c7d2fe"
-                  : "#fcd34d"
+                ? "#c7d2fe"
                 : "#6b7280",
           }}
         >
@@ -199,16 +159,12 @@ const LongWaitDiagram: React.FC = () => {
             rx={rx}
             fill={
               isWaiting
-                ? waitType === "sleep"
-                  ? "rgba(49,46,129,0.25)"
-                  : "rgba(120,53,15,0.25)"
+                ? "rgba(49,46,129,0.25)"
                 : "rgba(30,30,30,0.15)"
             }
             stroke={
               isWaiting
-                ? waitType === "sleep"
-                  ? "url(#lw-indigo)"
-                  : "url(#lw-amber)"
+                ? "url(#lw-indigo)"
                 : "#555"
             }
             strokeWidth="1.5"
@@ -224,7 +180,7 @@ const LongWaitDiagram: React.FC = () => {
                 width="5"
                 height="16"
                 rx="1"
-                fill={waitType === "sleep" ? "#818cf8" : "#fcd34d"}
+                fill="#818cf8"
               />
               <rect
                 x={waitX + (nodeW + 60) / 2 + 4}
@@ -232,7 +188,7 @@ const LongWaitDiagram: React.FC = () => {
                 width="5"
                 height="16"
                 rx="1"
-                fill={waitType === "sleep" ? "#818cf8" : "#fcd34d"}
+                fill="#818cf8"
               />
             </g>
           )}
@@ -240,13 +196,7 @@ const LongWaitDiagram: React.FC = () => {
             x={waitX + (nodeW + 60) / 2}
             y={waitY + 10}
             textAnchor="middle"
-            fill={
-              isWaiting
-                ? waitType === "sleep"
-                  ? "#c7d2fe"
-                  : "#fcd34d"
-                : "#888"
-            }
+            fill={isWaiting ? "#c7d2fe" : "#888"}
             fontSize="13"
             fontWeight="500"
             style={{ transition: "fill 0.4s ease" }}

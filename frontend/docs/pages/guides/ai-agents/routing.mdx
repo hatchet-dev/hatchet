@@ -28,7 +28,7 @@ flowchart TD
 | Document processing (invoice vs. receipt vs. contract) | Good: each type needs different extraction logic                                                                |
 | Request triage (simple auto-reply vs. complex agent)   | Good: avoid expensive agent loops for easy questions                                                            |
 | All requests follow the same path                      | Skip: no benefit from routing                                                                                   |
-| Routing rules are simple and known at definition time  | Use [Parent Conditions](/v1/durable-workflows/parent-conditions) in a DAG instead |
+| Routing rules are simple and known at definition time  | Use [Parent Conditions](/v1/durable-workflows/conditions) in a DAG instead |
 
 ## How it maps to Hatchet
 
@@ -155,7 +155,7 @@ Register all tasks and start the worker.
   </Cards.Card>
   <Cards.Card
     title="Parent Conditions"
-    href="/v1/durable-workflows/parent-conditions"
+    href="/v1/durable-workflows/conditions"
   >
     DAG-level branching for when routing rules are fixed at definition time.
   </Cards.Card>

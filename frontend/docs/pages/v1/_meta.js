@@ -14,7 +14,10 @@ export default {
   "your-first-task": "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "intro-to-durable-workflows": "Intro to Durable Workflows",
+  "durable-workflows": {
+    title: "Durable Workflows",
+    theme: { collapsed: true },
+  },
   "--features": {
     title: "Features",
     type: "separator",
@@ -23,10 +26,7 @@ export default {
     title: "Runnables",
     theme: { collapsed: true },
   },
-  "durable-workflows": {
-    title: "Durable Workflows",
-    theme: { collapsed: true },
-  },
+
   runtime: {
     title: "Worker Runtimes",
     theme: { collapsed: true },

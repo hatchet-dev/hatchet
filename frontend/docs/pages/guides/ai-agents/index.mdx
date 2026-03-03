@@ -36,8 +36,8 @@ sequenceDiagram
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent               | [Durable task](/v1/durable-workflows/durable-task-execution)                                                                                                              |
 | Reasoning loop      | [Child spawning](/v1/durable-workflows/child-spawning): task re-spawns itself until done                                                           |
-| Tool calls          | [Child tasks](/v1/durable-workflows/dag-child-spawning): sequential or [parallel](/v1/durable-workflows/dag-child-spawning) |
-| Human approval gate | [WaitForEvent](/v1/durable-workflows/durable-events): slot freed while waiting                                                                     |
+| Tool calls          | [Child tasks](/v1/durable-workflows/child-spawning): sequential or [parallel](/v1/durable-workflows/child-spawning) |
+| Human approval gate | [WaitForEvent](/v1/durable-workflows/events): slot freed while waiting                                                                     |
 | Routing by LLM      | `if`/`else` in code + spawn child to different workflows                                                                                                                        |
 
 ## Why Hatchet for agents

@@ -181,7 +181,7 @@ const BranchingDiagram: React.FC = () => {
               fontSize="12"
               fontWeight="500"
             >
-              Left Branch
+              Task B
             </text>
             <text
               x={410 + nodeWidth / 2}
@@ -219,7 +219,7 @@ const BranchingDiagram: React.FC = () => {
               fontSize="12"
               fontWeight="500"
             >
-              Right Branch
+              Task C
             </text>
             <text
               x={410 + nodeWidth / 2}
@@ -232,7 +232,7 @@ const BranchingDiagram: React.FC = () => {
             </text>
           </g>
 
-          {/* Task B — always active */}
+          {/* Task D — always active */}
           <g style={{ opacity: activeOpacity }}>
             <rect
               x={630}
@@ -252,7 +252,7 @@ const BranchingDiagram: React.FC = () => {
               fontSize="13"
               fontWeight="500"
             >
-              Task B
+              Task D
             </text>
           </g>
 
@@ -265,7 +265,7 @@ const BranchingDiagram: React.FC = () => {
             className="branch-flow"
           />
 
-          {/* Edge: diamond -> Left Branch */}
+          {/* Edge: diamond -> Task B */}
           <path
             d="M 310 140 C 350 140, 370 65, 410 65"
             fill="none"
@@ -279,7 +279,7 @@ const BranchingDiagram: React.FC = () => {
             }}
           />
 
-          {/* Edge: diamond -> Right Branch */}
+          {/* Edge: diamond -> Task C */}
           <path
             d="M 310 140 C 350 140, 370 215, 410 215"
             fill="none"
@@ -293,7 +293,7 @@ const BranchingDiagram: React.FC = () => {
             }}
           />
 
-          {/* Edge: Left Branch -> Task B */}
+          {/* Edge: Task B -> Task D */}
           <path
             d="M 550 65 C 580 65, 600 140, 630 140"
             fill="none"
@@ -307,7 +307,7 @@ const BranchingDiagram: React.FC = () => {
             }}
           />
 
-          {/* Edge: Right Branch -> Task B */}
+          {/* Edge: Task C -> Task D */}
           <path
             d="M 550 215 C 580 215, 600 140, 630 140"
             fill="none"
