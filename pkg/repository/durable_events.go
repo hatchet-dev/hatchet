@@ -488,31 +488,35 @@ func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, 
 	return nodeIdBranchIdToBranchPoint, nil
 }
 
-func resolveBranchForNode(nodeId, currentBranchId int64, branchPoints map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
-	type transition struct{ fromNodeId, branchId int64 }
-	var chain []transition
+type BranchIdFromNodeIdTuple struct {
+	FromNodeId int64
+	BranchId   int64
+}
 
-	bid := currentBranchId
+func resolveBranchForNode(nodeId, currentBranchId int64, branchPoints map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
+	tree := make([]BranchIdFromNodeIdTuple, 0)
+
+	currBranchId := currentBranchId
 	for {
 		var found *sqlcv1.V1DurableEventLogBranchPoint
 		for _, bp := range branchPoints {
-			if bp.NextBranchID == bid {
+			if bp.NextBranchID == currBranchId {
 				found = bp
 				break
 			}
 		}
 		if found == nil {
-			chain = append(chain, transition{1, bid})
+			tree = append(tree, BranchIdFromNodeIdTuple{1, currBranchId})
 			break
 		}
-		chain = append(chain, transition{found.FirstNodeIDInNewBranch, bid})
-		bid = found.ParentBranchID
+		tree = append(tree, BranchIdFromNodeIdTuple{found.FirstNodeIDInNewBranch, currBranchId})
+		currBranchId = found.ParentBranchID
 	}
 
-	sort.Slice(chain, func(i, j int) bool { return chain[i].fromNodeId < chain[j].fromNodeId })
+	sort.Slice(tree, func(i, j int) bool { return tree[i].FromNodeId < tree[j].FromNodeId })
 
-	i := sort.Search(len(chain), func(i int) bool { return chain[i].fromNodeId > nodeId })
-	return chain[i-1].branchId
+	i := sort.Search(len(tree), func(i int) bool { return tree[i].FromNodeId > nodeId })
+	return tree[i-1].BranchId
 }
 
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
