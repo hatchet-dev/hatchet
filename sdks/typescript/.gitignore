@@ -2,9 +2,6 @@
 /certs
 .e2e-worker.pid
 
-# ignore docs for now, because we manually use the docs output to construct docs
-docs
-
 node_modules/
 
 openapi.yaml
