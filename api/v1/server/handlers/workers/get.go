@@ -63,11 +63,7 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 		return nil, err
 	}
 
-	labels, ok := affinity[worker.Worker.ID]
-
-	if !ok {
-		return nil, fmt.Errorf("worker %s has no labels", worker.Worker.ID.String())
-	}
+	labels := affinity[worker.Worker.ID]
 
 	slotConfig := workerSlotConfig[worker.Worker.ID]
 
