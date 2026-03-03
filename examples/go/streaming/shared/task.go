@@ -46,7 +46,6 @@ func StreamTask(ctx hatchet.Context, input StreamTaskInput) (*StreamTaskOutput, 
 	}, nil
 }
 
-
 func StreamingWorkflow(client *hatchet.Client) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask("stream-example", StreamTask)
 }
