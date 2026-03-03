@@ -1,0 +1,505 @@
+# Context
+
+The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
+
+There are two types of context classes you'll encounter:
+
+- Context - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
+- DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
+
+<a id="context"></a>
+
+### Context
+
+Extended by
+
+- [`DurableContext`](#durablecontext)
+
+#### Methods
+
+<a id="additionalmetadata"></a>
+
+##### `additionalMetadata()`
+
+Retrieves additional metadata associated with the current workflow run.
+
+Returns
+
+`Record`\<`string`, `string`\>
+
+A record of metadata key-value pairs.
+
+<a id="bulkrunchildren"></a>
+
+##### `bulkRunChildren()`
+
+Runs multiple children workflows in parallel and waits for all results.
+
+Parameters
+
+| Parameter  | Type       | Description                                                                                  |
+| ---------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
+
+Returns
+
+`Promise`\<`P`[]\>
+
+A list of results from the children workflows.
+
+<a id="bulkrunnowaitchildren"></a>
+
+##### `bulkRunNoWaitChildren()`
+
+Runs multiple children workflows in parallel without waiting for their results.
+
+Parameters
+
+| Parameter  | Type       | Description                                                                                  |
+| ---------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `children` | `object`[] | An array of objects containing the workflow name, input data, and options for each workflow. |
+
+Returns
+
+`Promise`\<`WorkflowRunRef`\<`P`\>[]\>
+
+A list of workflow run references to the enqueued runs.
+
+<a id="childindex"></a>
+
+##### `childIndex()`
+
+Gets the index of this workflow if it was spawned as part of a bulk operation.
+
+Returns
+
+`number` \| `undefined`
+
+The child index number, or undefined if not set.
+
+<a id="childkey"></a>
+
+##### `childKey()`
+
+Gets the key associated with this workflow if it was spawned as a child workflow.
+
+Returns
+
+`string` \| `undefined`
+
+The child key, or undefined if not set.
+
+<a id="errors"></a>
+
+##### `errors()`
+
+Returns errors from any task runs in the workflow.
+
+Returns
+
+`Record`\<`string`, `string`\>
+
+A record mapping task names to error messages.
+
+Throws
+
+A warning if no errors are found (this method should be used in on-failure tasks).
+
+<a id="filterpayload"></a>
+
+##### `filterPayload()`
+
+Gets the payload from the filter that matched when triggering the event.
+
+Returns
+
+`Record`\<`string`, `any`\>
+
+The payload.
+
+<a id="parentoutput"></a>
+
+##### `parentOutput()`
+
+Retrieves the output of a parent task.
+
+Parameters
+
+| Parameter    | Type                                                                                                   | Description                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| `parentTask` | \| `string` \| `CreateWorkflowTaskOpts`\<`any`, `L`\> \| `CreateWorkflowDurableTaskOpts`\<`any`, `L`\> | The a CreateTaskOpts or string of the parent task name. |
+
+Returns
+
+`Promise`\<`L`\>
+
+The output of the specified parent task.
+
+Throws
+
+An error if the task output is not found.
+
+<a id="parentworkflowrunid"></a>
+
+##### `parentWorkflowRunId()`
+
+Gets the ID of the parent workflow run if this workflow was spawned as a child.
+
+Returns
+
+`string` \| `undefined`
+
+The parent workflow run ID, or undefined if not a child workflow.
+
+<a id="putstream"></a>
+
+##### `putStream()`
+
+Streams data from the current task run.
+
+Parameters
+
+| Parameter | Type                                          | Description                            |
+| --------- | --------------------------------------------- | -------------------------------------- |
+| `data`    | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | The data to stream (string or binary). |
+
+Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the data has been streamed.
+
+<a id="refreshtimeout"></a>
+
+##### `refreshTimeout()`
+
+Refreshes the timeout for the current task.
+
+Parameters
+
+| Parameter     | Type       | Description                                                                                                                                                   |
+| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `incrementBy` | `Duration` | The interval by which to increment the timeout. The interval should be specified in the format of '10s' for 10 seconds, '1m' for 1 minute, or '1d' for 1 day. |
+
+Returns
+
+`Promise`\<`void`\>
+
+<a id="releaseslot"></a>
+
+##### `releaseSlot()`
+
+Releases a worker slot for a task run such that the worker can pick up another task.
+Note: this is an advanced feature that may lead to unexpected behavior if used incorrectly.
+
+Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the slot has been released.
+
+<a id="rethrowifcancelled"></a>
+
+##### `rethrowIfCancelled()`
+
+Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
+
+Example:
+
+```ts
+try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
+```
+
+Parameters
+
+| Parameter | Type      |
+| --------- | --------- |
+| `err`     | `unknown` |
+
+Returns
+
+`void`
+
+<a id="retrycount"></a>
+
+##### `retryCount()`
+
+Gets the number of times the current task has been retried.
+
+Returns
+
+`number`
+
+The retry count.
+
+<a id="runchild"></a>
+
+##### `runChild()`
+
+Runs a new workflow and waits for its result.
+
+Parameters
+
+| Parameter  | Type                                                                                                                                                               | Description                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
+| `input`    | `Q`                                                                                                                                                                | The input data for the workflow.                                            |
+| `options?` | `ChildRunOpts`                                                                                                                                                     | An options object containing key, sticky, priority, and additionalMetadata. |
+
+Returns
+
+`Promise`\<`P`\>
+
+The result of the workflow.
+
+<a id="runnowaitchild"></a>
+
+##### `runNoWaitChild()`
+
+Enqueues a new workflow without waiting for its result.
+
+Parameters
+
+| Parameter  | Type                                              | Description                                                                 |
+| ---------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> | The workflow to enqueue (name, Workflow instance, or WorkflowV1 instance).  |
+| `input`    | `Q`                                               | The input data for the workflow.                                            |
+| `options?` | `ChildRunOpts`                                    | An options object containing key, sticky, priority, and additionalMetadata. |
+
+Returns
+
+`Promise`\<`WorkflowRunRef`\<`P`\>\>
+
+A reference to the spawned workflow run.
+
+<a id="taskname"></a>
+
+##### `taskName()`
+
+Gets the name of the current running task.
+
+Returns
+
+`string`
+
+The name of the task.
+
+<a id="taskrunexternalid"></a>
+
+##### `taskRunExternalId()`
+
+Gets the ID of the current task run.
+
+Returns
+
+`string`
+
+The task run ID.
+
+<a id="triggeredbyevent"></a>
+
+##### `triggeredByEvent()`
+
+Determines if the workflow was triggered by an event.
+
+Returns
+
+`boolean`
+
+True if the workflow was triggered by an event, otherwise false.
+
+<a id="triggers"></a>
+
+##### `triggers()`
+
+Gets the dag conditional triggers for the current workflow run.
+
+Returns
+
+`TriggerData`
+
+The triggers for the current workflow.
+
+<a id="userdata"></a>
+
+##### `userData()`
+
+Gets the user data associated with the workflow.
+
+Returns
+
+`K`
+
+The user data.
+
+<a id="workflowid"></a>
+
+##### `workflowId()`
+
+Gets the workflow ID of the currently running workflow.
+
+Returns
+
+`string` \| `undefined`
+
+The workflow id.
+
+<a id="workflowname"></a>
+
+##### `workflowName()`
+
+Gets the name of the current workflow.
+
+Returns
+
+`string`
+
+The name of the workflow.
+
+<a id="workflowrunid"></a>
+
+##### `workflowRunId()`
+
+Gets the ID of the current workflow run.
+
+Returns
+
+`string`
+
+The workflow run ID.
+
+<a id="workflowversionid"></a>
+
+##### `workflowVersionId()`
+
+Gets the workflow version ID of the currently running workflow.
+
+Returns
+
+`string` \| `undefined`
+
+The workflow version ID.
+
+---
+
+<a id="contextworker"></a>
+
+### ContextWorker
+
+ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
+
+#### Methods
+
+<a id="hasworkflow"></a>
+
+##### `hasWorkflow()`
+
+Checks if the worker has a registered workflow.
+
+Parameters
+
+| Parameter      | Type     | Description                        |
+| -------------- | -------- | ---------------------------------- |
+| `workflowName` | `string` | The name of the workflow to check. |
+
+Returns
+
+`boolean`
+
+True if the workflow is registered, otherwise false.
+
+<a id="id"></a>
+
+##### `id()`
+
+Gets the ID of the worker.
+
+Returns
+
+`string` \| `undefined`
+
+The ID of the worker.
+
+<a id="labels"></a>
+
+##### `labels()`
+
+Gets the current state of the worker labels.
+
+Returns
+
+`WorkerLabels`
+
+The labels of the worker.
+
+<a id="upsertlabels"></a>
+
+##### `upsertLabels()`
+
+Upserts the a set of labels on the worker.
+
+Parameters
+
+| Parameter | Type           | Description           |
+| --------- | -------------- | --------------------- |
+| `labels`  | `WorkerLabels` | The labels to upsert. |
+
+Returns
+
+`Promise`\<`WorkerLabels`\>
+
+A promise that resolves when the labels have been upserted.
+
+---
+
+<a id="durablecontext"></a>
+
+### DurableContext
+
+DurableContext provides helper methods and useful data to durable tasks at runtime.
+It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
+
+Extends
+
+- [`Context`](#context)\<`T`, `K`\>
+
+#### Methods
+
+<a id="sleepfor"></a>
+
+##### `sleepFor()`
+
+Pauses execution for the specified duration.
+Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
+
+Parameters
+
+| Parameter          | Type       | Description                |
+| ------------------ | ---------- | -------------------------- |
+| `duration`         | `Duration` | The duration to sleep for. |
+| `readableDataKey?` | `string`   | -                          |
+
+Returns
+
+`Promise`\<`Record`\<`string`, `any`\>\>
+
+A promise that resolves when the sleep duration has elapsed.
+
+<a id="waitfor"></a>
+
+##### `waitFor()`
+
+Pauses execution until the specified conditions are met.
+Conditions are "global" meaning they will wait in real time regardless of transient failures like worker restarts.
+
+Parameters
+
+| Parameter    | Type                           | Description                 |
+| ------------ | ------------------------------ | --------------------------- |
+| `conditions` | `Conditions` \| `Conditions`[] | The conditions to wait for. |
+
+Returns
+
+`Promise`\<`Record`\<`string`, `any`\>\>
+
+A promise that resolves with the event that satisfied the conditions.

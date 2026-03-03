@@ -84,7 +84,8 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 
 	// schedule the cron
 	_, err := t.userCronScheduler.NewJob(
-		gocron.CronJob(cron.Cron, false),
+		// the gocron library accepts either 5 or 6 term crontabs when withSeconds is true
+		gocron.CronJob(cron.Cron, true),
 		gocron.NewTask(
 			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata, &cron.Priority),
 		),

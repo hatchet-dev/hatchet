@@ -1,0 +1,85 @@
+<a id="workflowsclient"></a>
+
+### Workflows Client
+
+The workflows client is a client for managing workflows programmatically within Hatchet.
+
+NOTE: that workflows are the declaration, not the individual runs. If you're looking for runs, use the RunsClient instead.
+
+#### Methods
+
+<a id="delete"></a>
+
+##### `delete()`
+
+Delete a workflow by its name, ID, or object.
+
+Parameters
+
+| Parameter  | Type                                                                | Description                       |
+| ---------- | ------------------------------------------------------------------- | --------------------------------- |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
+
+Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves to the deleted workflow.
+
+<a id="get"></a>
+
+##### `get()`
+
+Get a workflow by its name, ID, or object.
+
+Parameters
+
+| Parameter  | Type                                                                | Description                       |
+| ---------- | ------------------------------------------------------------------- | --------------------------------- |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
+
+Returns
+
+`Promise`\<`Workflow`\>
+
+A promise that resolves to the workflow.
+
+<a id="getworkflowidfromname"></a>
+
+##### `getWorkflowIdFromName()`
+
+Gets the workflow ID from a workflow name, ID, or object.
+If the input is not a valid UUID, it will look up the workflow by name.
+
+Parameters
+
+| Parameter  | Type                                                                                           | Description                       |
+| ---------- | ---------------------------------------------------------------------------------------------- | --------------------------------- |
+| `workflow` | \| `string` \| `WorkflowDefinition` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
+
+Returns
+
+`Promise`\<`string`\>
+
+The workflow ID as a string.
+
+<a id="list"></a>
+
+##### `list()`
+
+List all workflows in the tenant.
+
+Parameters
+
+| Parameter      | Type                                                              | Description                                            |
+| -------------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
+| `opts?`        | \{ `limit?`: `number`; `name?`: `string`; `offset?`: `number`; \} | The options for the list operation.                    |
+| `opts.limit?`  | `number`                                                          | The number to limit by **Format** int **Default** `50` |
+| `opts.name?`   | `string`                                                          | Search by name                                         |
+| `opts.offset?` | `number`                                                          | The number to skip **Format** int **Default** `0`      |
+
+Returns
+
+`Promise`\<`WorkflowList`\>
+
+A promise that resolves to the list of workflows.
