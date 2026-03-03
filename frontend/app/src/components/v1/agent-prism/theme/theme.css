@@ -1,0 +1,245 @@
+:root {
+  @media (prefers-color-scheme: light) {
+    /* General purpose colors */
+    --agentprism-background: 1 0 0; /* white */
+    --agentprism-foreground: 21% 0.034 264.665; /* gray.900 */
+    --agentprism-primary: 21% 0.034 264.665; /* gray.900 */
+    --agentprism-primary-foreground: 98.5% 0.002 247.839; /* gray.50 */
+    --agentprism-secondary: 96.7% 0.003 264.542; /* gray.100 */
+    --agentprism-secondary-foreground: 55.1% 0.027 264.364; /* gray.500 */
+    --agentprism-muted: 98.5% 0.002 247.839; /* gray.50 */
+    --agentprism-muted-foreground: 44.6% 0.03 256.802; /* gray.600 */
+    --agentprism-accent: 96.7% 0.003 264.542; /* gray.100 */
+    --agentprism-accent-foreground: 96.7% 0.003 264.542; /* gray.100 */
+
+    /* Brand colors */
+    --agentprism-brand: 60.6% 0.25 292.717; /* violet.500 */
+    --agentprism-brand-foreground: 1 0 0; /* white */
+    --agentprism-brand-secondary: 70.5% 0.213 47.604; /* orange.500 */
+    --agentprism-brand-secondary-foreground: 1 0 0; /* white */
+
+    /* Borders */
+    --agentprism-border: 92.8% 0.006 264.531; /* gray.200 */
+    --agentprism-border-subtle: 96.7% 0.003 264.542; /* gray.100 */
+    --agentprism-border-strong: 87.2% 0.01 258.338; /* gray.300 */
+    --agentprism-border-inverse: 21% 0.034 264.665; /* gray.900 */
+
+    /* Success status color */
+    --agentprism-success: 69.6% 0.17 162.48; /* emerald.500 */
+    --agentprism-success-muted: 97.9% 0.021 166.113; /* emerald.50 */
+    --agentprism-success-muted-foreground: 50.8% 0.118 165.612; /* emerald.700 */
+
+    /* Error status color */
+    --agentprism-error: 63.7% 0.237 25.331; /* red.500 */
+    --agentprism-error-muted: 97.1% 0.013 17.38; /* red.50 */
+    --agentprism-error-muted-foreground: 57.7% 0.245 27.325; /* red.600 */
+
+    /* Warning status color */
+    --agentprism-warning: 79.5% 0.184 86.047; /* yellow.500 */
+    --agentprism-warning-muted: 98.7% 0.026 102.212; /* yellow.50 */
+    --agentprism-warning-muted-foreground: 55.4% 0.135 66.442; /* yellow.700 */
+
+    /* Pending status color */
+    --agentprism-pending: 60.6% 0.25 292.717; /* violet.500 */
+    --agentprism-pending-muted: 94.3% 0.029 294.588; /* violet.100 */
+    --agentprism-pending-muted-foreground: 54.1% 0.281 293.009; /* violet.600 */
+
+    /* Code syntax highlighting */
+    --agentprism-code-string: 57.7% 0.245 27.325; /* red.600 */
+    --agentprism-code-number: 57.7% 0.245 27.325; /* red.600 */
+    --agentprism-code-key: 54.6% 0.245 262.881; /* blue.600 */
+    --agentprism-code-base: 55.1% 0.027 264.364; /* gray.500 */
+
+    /* Generic badge colors */
+    --agentprism-badge-default: 96.7% 0.003 264.542; /* gray.100 */
+    --agentprism-badge-default-foreground: 44.6% 0.03 256.802; /* gray.600 */
+
+    /* Trace colors (llm) */
+    --agentprism-avatar-llm: 62.7% 0.265 303.9; /* purple.500 */
+    --agentprism-badge-llm: 97.7% 0.014 308.299; /* purple.50 */
+    --agentprism-badge-llm-foreground: 62.7% 0.265 303.9; /* purple.500 */
+    --agentprism-timeline-llm: 71.4% 0.203 305.504; /* purple.400 */
+
+    /* Trace colors (agent) */
+    --agentprism-avatar-agent: 58.5% 0.233 277.117; /* indigo.500 */
+    --agentprism-badge-agent: 96.2% 0.018 272.314; /* indigo.50 */
+    --agentprism-badge-agent-foreground: 58.5% 0.233 277.117; /* indigo.500 */
+    --agentprism-timeline-agent: 67.3% 0.182 276.935; /* indigo.400 */
+
+    /* Trace colors (tool) */
+    --agentprism-avatar-tool: 70.5% 0.213 47.604; /* orange.500 */
+    --agentprism-badge-tool: 98% 0.016 73.684; /* orange.50 */
+    --agentprism-badge-tool-foreground: 70.5% 0.213 47.604; /* orange.500 */
+    --agentprism-timeline-tool: 75% 0.183 55.934; /* orange.400 */
+
+    /* Trace colors (chain) */
+    --agentprism-avatar-chain: 70.4% 0.14 182.503; /* teal.500 */
+    --agentprism-badge-chain: 98.4% 0.014 180.72; /* teal.50 */
+    --agentprism-badge-chain-foreground: 70.4% 0.14 182.503; /* teal.500 */
+    --agentprism-timeline-chain: 77.7% 0.152 181.912; /* teal.400 */
+
+    /* Trace colors (retrieval) */
+    --agentprism-avatar-retrieval: 71.5% 0.143 215.221; /* cyan.500 */
+    --agentprism-badge-retrieval: 98.4% 0.019 200.873; /* cyan.50 */
+    --agentprism-badge-retrieval-foreground: 71.5% 0.143 215.221; /* cyan.500 */
+    --agentprism-timeline-retrieval: 78.9% 0.154 211.53; /* cyan.400 */
+
+    /* Trace colors (embedding) */
+    --agentprism-avatar-embedding: 69.6% 0.17 162.48; /* emerald.500 */
+    --agentprism-badge-embedding: 97.9% 0.021 166.113; /* emerald.50 */
+    --agentprism-badge-embedding-foreground: 69.6% 0.17 162.48; /* emerald.500 */
+    --agentprism-timeline-embedding: 76.5% 0.177 163.223; /* emerald.400 */
+
+    /* Trace colors (guardrail) */
+    --agentprism-avatar-guardrail: 63.7% 0.237 25.331; /* red.500 */
+    --agentprism-badge-guardrail: 97.1% 0.013 17.38; /* red.50 */
+    --agentprism-badge-guardrail-foreground: 63.7% 0.237 25.331; /* red.500 */
+    --agentprism-timeline-guardrail: 70.4% 0.191 22.216; /* red.400 */
+
+    /* Trace colors (create agent) */
+    --agentprism-avatar-create-agent: 68.5% 0.169 237.323; /* sky.500 */
+    --agentprism-badge-create-agent: 97.7% 0.013 236.62; /* sky.50 */
+    --agentprism-badge-create-agent-foreground: 68.5% 0.169 237.323; /* sky.500 */
+    --agentprism-timeline-create-agent: 74.6% 0.16 232.661; /* sky.400 */
+
+    /* Trace colors (span) */
+    --agentprism-avatar-span: 71.5% 0.143 215.221; /* cyan.500 */
+    --agentprism-badge-span: 98.4% 0.019 200.873; /* cyan.50 */
+    --agentprism-badge-span-foreground: 71.5% 0.143 215.221; /* cyan.500 */
+    --agentprism-timeline-span: 78.9% 0.154 211.53; /* cyan.400 */
+
+    /* Trace colors (event) */
+    --agentprism-avatar-event: 69.6% 0.17 162.48; /* emerald.500 */
+    --agentprism-badge-event: 97.9% 0.021 166.113; /* emerald.50 */
+    --agentprism-badge-event-foreground: 69.6% 0.17 162.48; /* emerald.500 */
+    --agentprism-timeline-event: 76.5% 0.177 163.223; /* emerald.400 */
+
+    /* Trace colors (unknown) */
+    --agentprism-avatar-unknown: 55.1% 0.027 264.364; /* gray.500 */
+    --agentprism-badge-unknown: 98.5% 0.002 247.839; /* gray.50 */
+    --agentprism-badge-unknown-foreground: 55.1% 0.027 264.364; /* gray.500 */
+    --agentprism-timeline-unknown: 70.7% 0.022 261.325; /* gray.400 */
+  }
+
+  @media (prefers-color-scheme: dark) {
+    /* General purpose colors */
+    --agentprism-background: 13% 0.028 261.692; /* gray.950 */
+    --agentprism-foreground: 96.7% 0.003 264.542; /* gray.100 */
+    --agentprism-primary: 96.7% 0.003 264.542; /* gray.100 */
+    --agentprism-primary-foreground: 13% 0.028 261.692; /* gray.950 */
+    --agentprism-secondary: 27.8% 0.033 256.848; /* gray.800 */
+    --agentprism-secondary-foreground: 55.1% 0.027 264.364; /* gray.500 */
+    --agentprism-muted: 21% 0.034 264.665; /* gray.900 */
+    --agentprism-muted-foreground: 70.7% 0.022 261.325; /* gray.400 */
+    --agentprism-accent: 96.7% 0.003 264.542; /* gray.100 */
+    --agentprism-accent-foreground: 21% 0.034 264.665; /* gray.900 */
+
+    /* Brand colors */
+    --agentprism-brand: 60.6% 0.25 292.717; /* violet.500 */
+    --agentprism-brand-foreground: 1 0 0; /* white */
+    --agentprism-brand-secondary: 70.5% 0.213 47.604; /* orange.500 */
+    --agentprism-brand-secondary-foreground: 1 0 0; /* white */
+
+    /* Borders */
+    --agentprism-border: 44.6% 0.03 256.802; /* gray.600 */
+    --agentprism-border-subtle: 37.3% 0.034 259.733; /* gray.700 */
+    --agentprism-border-strong: 55.1% 0.027 264.364; /* gray.500 */
+    --agentprism-border-inverse: 92.8% 0.006 264.531; /* gray.200 */
+
+    /* Success status color */
+    --agentprism-success: 72.3% 0.219 149.579; /* green.500 */
+    --agentprism-success-muted: 26.6% 0.065 152.934; /* green.950 */
+    --agentprism-success-muted-foreground: 87.1% 0.15 154.449; /* green.300 */
+
+    /* Error status color */
+    --agentprism-error: 63.7% 0.237 25.331; /* red.500 */
+    --agentprism-error-muted: 25.8% 0.092 26.042; /* red.950 */
+    --agentprism-error-muted-foreground: 80.8% 0.114 19.571; /* red.300 */
+
+    /* Warning status color */
+    --agentprism-warning: 79.5% 0.184 86.047; /* yellow.500 */
+    --agentprism-warning-muted: 28.6% 0.066 53.813; /* yellow.950 */
+    --agentprism-warning-muted-foreground: 90.5% 0.182 98.111; /* yellow.300 */
+
+    /* Pending status color */
+    --agentprism-pending: 60.6% 0.25 292.717; /* violet.500 */
+    --agentprism-pending-muted: 28.3% 0.141 291.089; /* violet.950 */
+    --agentprism-pending-muted-foreground: 70.2% 0.183 293.541; /* violet.400 */
+
+    /* Code syntax highlighting */
+    --agentprism-code-string: 70.4% 0.191 22.216; /* red.400 */
+    --agentprism-code-number: 70.4% 0.191 22.216; /* red.400 */
+    --agentprism-code-key: 80.9% 0.105 251.813; /* blue.300 */
+    --agentprism-code-base: 70.7% 0.022 261.325; /* gray.400 */
+
+    /* Generic badge colors */
+    --agentprism-badge-default: 21% 0.034 264.665; /* gray.900 */
+    --agentprism-badge-default-foreground: 70.7% 0.022 261.325; /* gray.400 */
+
+    /* Trace colors (llm) */
+    --agentprism-avatar-llm: 82.7% 0.119 306.383; /* purple.300 */
+    --agentprism-badge-llm: 29.1% 0.149 302.717; /* purple.950 */
+    --agentprism-badge-llm-foreground: 82.7% 0.119 306.383; /* purple.300 */
+    --agentprism-timeline-llm: 71.4% 0.203 305.504; /* purple.400 */
+
+    /* Trace colors (agent) */
+    --agentprism-avatar-agent: 78.5% 0.115 274.713; /* indigo.300 */
+    --agentprism-badge-agent: 25.7% 0.09 281.288; /* indigo.950 */
+    --agentprism-badge-agent-foreground: 78.5% 0.115 274.713; /* indigo.300 */
+    --agentprism-timeline-agent: 67.3% 0.182 276.935; /* indigo.400 */
+
+    /* Trace colors (tool) */
+    --agentprism-avatar-tool: 83.7% 0.128 66.29; /* orange.300 */
+    --agentprism-badge-tool: 26.6% 0.079 36.259; /* orange.950 */
+    --agentprism-badge-tool-foreground: 83.7% 0.128 66.29; /* orange.300 */
+    --agentprism-timeline-tool: 75% 0.183 55.934; /* orange.400 */
+
+    /* Trace colors (chain) */
+    --agentprism-avatar-chain: 85.5% 0.138 181.071; /* teal.300 */
+    --agentprism-badge-chain: 27.7% 0.046 192.524; /* teal.950 */
+    --agentprism-badge-chain-foreground: 85.5% 0.138 181.071; /* teal.300 */
+    --agentprism-timeline-chain: 77.7% 0.152 181.912; /* teal.400 */
+
+    /* Trace colors (retrieval) */
+    --agentprism-avatar-retrieval: 86.5% 0.127 207.078; /* cyan.300 */
+    --agentprism-badge-retrieval: 30.2% 0.056 229.695; /* cyan.950 */
+    --agentprism-badge-retrieval-foreground: 86.5% 0.127 207.078; /* cyan.300 */
+    --agentprism-timeline-retrieval: 78.9% 0.154 211.53; /* cyan.400 */
+
+    /* Trace colors (embedding) */
+    --agentprism-avatar-embedding: 84.5% 0.143 164.978; /* emerald.300 */
+    --agentprism-badge-embedding: 26.2% 0.051 172.552; /* emerald.950 */
+    --agentprism-badge-embedding-foreground: 84.5% 0.143 164.978; /* emerald.300 */
+    --agentprism-timeline-embedding: 76.5% 0.177 163.223; /* emerald.400 */
+
+    /* Trace colors (guardrail) */
+    --agentprism-avatar-guardrail: 80.8% 0.114 19.571; /* red.300 */
+    --agentprism-badge-guardrail: 25.8% 0.092 26.042; /* red.950 */
+    --agentprism-badge-guardrail-foreground: 80.8% 0.114 19.571; /* red.300 */
+    --agentprism-timeline-guardrail: 70.4% 0.191 22.216; /* red.400 */
+
+    /* Trace colors (create agent) */
+    --agentprism-avatar-create-agent: 82.8% 0.111 230.318; /* sky.300 */
+    --agentprism-badge-create-agent: 29.3% 0.066 243.157; /* sky.950 */
+    --agentprism-badge-create-agent-foreground: 82.8% 0.111 230.318; /* sky.300 */
+    --agentprism-timeline-create-agent: 74.6% 0.16 232.661; /* sky.400 */
+
+    /* Trace colors (span) */
+    --agentprism-avatar-span: 86.5% 0.127 207.078; /* cyan.300 */
+    --agentprism-badge-span: 30.2% 0.056 229.695; /* cyan.950 */
+    --agentprism-badge-span-foreground: 86.5% 0.127 207.078; /* cyan.300 */
+    --agentprism-timeline-span: 78.9% 0.154 211.53; /* cyan.400 */
+
+    /* Trace colors (event) */
+    --agentprism-avatar-event: 84.5% 0.143 164.978; /* emerald.300 */
+    --agentprism-badge-event: 26.2% 0.051 172.552; /* emerald.950 */
+    --agentprism-badge-event-foreground: 84.5% 0.143 164.978; /* emerald.300 */
+    --agentprism-timeline-event: 76.5% 0.177 163.223; /* emerald.400 */
+
+    /* Trace colors (unknown) */
+    --agentprism-avatar-unknown: 87.2% 0.01 258.338; /* gray.300 */
+    --agentprism-badge-unknown: 13% 0.028 261.692; /* gray.950 */
+    --agentprism-badge-unknown-foreground: 87.2% 0.01 258.338; /* gray.300 */
+    --agentprism-timeline-unknown: 70.7% 0.022 261.325; /* gray.400 */
+  }
+}

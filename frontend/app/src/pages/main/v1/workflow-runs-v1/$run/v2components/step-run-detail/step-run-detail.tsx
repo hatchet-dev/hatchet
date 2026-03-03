@@ -316,7 +316,7 @@ export const TaskRunDetail = ({
             {isCloudEnabled && (
               <TabsContent value={TabOption.Traces}>
                 <TaskRunTraces
-                  workflowRunId={taskRun.workflowRunExternalId || taskRun.metadata.id}
+                  taskExternalId={taskRun.metadata.id}
                 />
               </TabsContent>
             )}

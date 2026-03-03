@@ -741,17 +741,17 @@ export class Api<
       ...params,
     });
   /**
-   * @description Lists OTel spans for a workflow run
+   * @description Lists OTel spans for a task
    *
    * @tags Observability
    * @name OtelTracesList
    * @summary List OTel Traces
-   * @request GET:/api/v1/cloud/workflow-runs/{v1-workflow-run}/traces
+   * @request GET:/api/v1/cloud/tasks/{task}/traces
    * @secure
    */
-  otelTracesList = (v1WorkflowRun: string, params: RequestParams = {}) =>
+  otelTracesList = (task: string, params: RequestParams = {}) =>
     this.request<OtelSpanList, APIErrors>({
-      path: `/api/v1/cloud/workflow-runs/${v1WorkflowRun}/traces`,
+      path: `/api/v1/cloud/tasks/${task}/traces`,
       method: "GET",
       secure: true,
       format: "json",

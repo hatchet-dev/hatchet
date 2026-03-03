@@ -51,7 +51,7 @@ type OtelSpanRow struct {
 
 type OTelCollectorRepository interface {
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
-	ListSpansByWorkflowRunID(ctx context.Context, tenantId, workflowRunExternalId uuid.UUID) ([]*OtelSpanRow, error)
+	ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID) ([]*OtelSpanRow, error)
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -69,7 +69,7 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 	return nil
 }
 
-func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRunID(ctx context.Context, tenantId, workflowRunExternalId uuid.UUID) ([]*OtelSpanRow, error) {
+func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID) ([]*OtelSpanRow, error) {
 	// intentional no-op, intended to be overridden
 	return nil, nil
 }
