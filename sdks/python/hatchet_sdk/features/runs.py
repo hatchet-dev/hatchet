@@ -863,26 +863,26 @@ class RunsClient(BaseRestClient):
                 yield chunk.payload
 
     def reset_durable_task(
-        self, task_external_id: str, node_id: int
+        self, task_external_id: str, node_id: int, branch_id: int
     ) -> V1ForkDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
 
         :param task_external_id: The external ID (UUID) of the durable task to reset.
         :param node_id: The node ID to replay from.
+        :param branch_id: The branch ID to replay from.
         :return: The reset response containing the new node_id and branch_id.
         """
         with self.client() as client:
             return self._wra(client).v1_durable_task_fork(
                 tenant=self.client_config.tenant_id,
                 v1_fork_durable_task_request=V1ForkDurableTaskRequest(
-                    taskExternalId=task_external_id,
-                    nodeId=node_id,
+                    taskExternalId=task_external_id, nodeId=node_id, branchId=branch_id
                 ),
             )
 
     async def aio_reset_durable_task(
-        self, task_external_id: str, node_id: int
+        self, task_external_id: str, node_id: int, branch_id: int
     ) -> V1ForkDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
@@ -892,7 +892,7 @@ class RunsClient(BaseRestClient):
         :return: The reset response containing the new node_id and branch_id.
         """
         return await asyncio.to_thread(
-            self.reset_durable_task, task_external_id, node_id
+            self.reset_durable_task, task_external_id, node_id, branch_id
         )
 
     def get_details(self, external_id: str) -> WorkflowRunDetail:

@@ -279,8 +279,7 @@ INSERT INTO v1_durable_event_log_file (
     latest_invocation_count,
     latest_inserted_at,
     latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
+    latest_branch_id
 )
 SELECT
     tenant_id,
@@ -289,8 +288,7 @@ SELECT
     1,
     NOW(),
     0,
-    1,
-    0
+    1
 FROM inputs
 ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
