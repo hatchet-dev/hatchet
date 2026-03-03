@@ -10,7 +10,7 @@ import UniversalTabs from "@/components/UniversalTabs";
   to declare and start your first worker.
 </Callout>
 
-Workers are the processes that actually execute your [tasks](/v1/runnables/tasks). Each worker is a long-running process in your infrastructure that maintains a persistent gRPC connection to the Hatchet engine. Workers receive task assignments, run your code, and report results back. You can run them locally during development, in containers, or on VMs - and scale them independently from the rest of your stack.
+Workers are the processes that actually execute your [tasks](/v1/tasks). Each worker is a long-running process in your infrastructure that maintains a persistent gRPC connection to the Hatchet engine. Workers receive task assignments, run your code, and report results back. You can run them locally during development, in containers, or on VMs - and scale them independently from the rest of your stack.
 
 ## Declaring a worker
 
@@ -61,7 +61,7 @@ Common reasons a worker misses heartbeats:
 
 Every worker has a fixed number of **slots** that control how many tasks it can run concurrently. You configure them with the `slots` option on the worker. If you set `slots=5`, the worker will run up to five tasks at the same time. Any additional tasks wait in the queue until a slot opens up.
 
-Slots are a **local** limit - they protect the individual worker process from overcommitting its CPU, memory, or event loop. [Concurrency controls](/v1/flow-control/concurrency) are a **global** limit across your entire fleet - use them to prevent a single tenant or use-case from monopolizing capacity, or to respect the limits of an external resource like a third-party API or database connection pool. The two work together: concurrency controls decide how many runs Hatchet will allow to be active; slots decide how many of those runs each individual worker is willing to accept.
+Slots are a **local** limit - they protect the individual worker process from overcommitting its CPU, memory, or event loop. [Concurrency controls](/v1/concurrency) are a **global** limit across your entire fleet - use them to prevent a single tenant or use-case from monopolizing capacity, or to respect the limits of an external resource like a third-party API or database connection pool. The two work together: concurrency controls decide how many runs Hatchet will allow to be active; slots decide how many of those runs each individual worker is willing to accept.
 
 ### Choosing a slot count
 
@@ -101,11 +101,11 @@ In development, the fastest way to run a worker is `hatchet worker dev`, which h
 | ----------------------------------------------------- | ----------------------------------------------------------------------- |
 | [Running with Docker](/v1/runtime/docker)               | Containerize workers for deployment.                                    |
 | [Autoscaling Workers](/v1/runtime/autoscaling-workers)  | Scale workers dynamically based on queue depth.                         |
-| [Worker Health Checks](/v1/observability/worker-healthchecks) | Expose `/health` and `/metrics` endpoints for monitoring.               |
+| [Worker Health Checks](/v1/worker-healthchecks) | Expose `/health` and `/metrics` endpoints for monitoring.               |
 | [Preparing for Production](/v1/production)   | Operational best practices for monitoring, error handling, and scaling. |
 
 ## Workers and tasks
 
 Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means you can organize your workers by resource requirements, deployment boundary, or any other criterion - and Hatchet handles routing tasks to the right place.
 
-If you haven't already, read about [tasks](/v1/runnables/tasks) to understand how work is defined and configured.
+If you haven't already, read about [tasks](/v1/tasks) to understand how work is defined and configured.

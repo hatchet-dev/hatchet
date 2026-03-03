@@ -1,6 +1,6 @@
 export default {
   v1: {
-    title: "Concepts",
+    title: "Guide",
     type: "page",
     theme: {
       toc: false,

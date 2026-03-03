@@ -15,7 +15,7 @@ You write functions in Python, Typescript, Go, or Ruby and let Hatchet handle sc
 
 The core mental model has three parts:
 
-- **[Tasks](/v1/your-first-task)** — the fundamental unit of work. A task wraps a single function and gives Hatchet everything it needs to schedule, execute, and observe it.
+- **[Tasks](/v1/tasks)** — the fundamental unit of work. A task wraps a single function and gives Hatchet everything it needs to schedule, execute, and observe it.
 - **[Workers](/v1/workers)** — long-running processes in your infrastructure that pick up and execute tasks.
 - **[Durable Workflows](/v1/durable-workflows)** — compose multiple tasks into durable pipelines with dependencies, retries, and checkpointing.
 
@@ -26,12 +26,12 @@ All tasks and workflows are **defined as code**, making them easy to version, te
 While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
 
 - **Real-time data processing** — data ingestion for keeping LLM contexts up-to-date, ETL pipelines that require fast execution and high throughput.
-- **AI agents** — features like [webhooks](/v1/runnables/webhooks), [child spawning](/v1/durable-workflows/child-spawning), and dynamic workflows are designed to support agentic patterns.
+- **AI agents** — features like [webhooks](/v1/webhooks), [child spawning](/v1/durable-workflows/child-spawning), and dynamic workflows are designed to support agentic patterns.
 - **Event-driven systems** — Hatchet's [eventing features](/v1/external-events/run-on-event) let you build event-driven architectures without additional infrastructure.
 
 ## Why Hatchet?
 
-⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](/v1/flow-control/rate-limits), [fairness](/v1/flow-control/concurrency), and [priorities](/v1/flow-control/priority) without complex configuration.
+⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](/v1/rate-limits), [fairness](/v1/concurrency), and [priorities](/v1/priority) without complex configuration.
 
 🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](/v1/durable-workflows/durable-task-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
 

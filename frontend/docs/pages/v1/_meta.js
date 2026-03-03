@@ -6,53 +6,70 @@ export default {
   index: "🪓 What is Hatchet?",
   quickstart: "Quickstart",
   "using-coding-agents": "Using Coding Agents",
-  "--essentials": {
+  "--fundamentals": {
     title: "Fundamentals",
     type: "separator",
   },
-  "your-first-task": "Tasks",
+  tasks: "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
   "durable-workflows": {
     title: "Durable Workflows",
     theme: { collapsed: true },
   },
-  "--features": {
-    title: "Features",
+  "--triggers": {
+    title: "Triggers",
     type: "separator",
   },
-  runnables: {
-    title: "Runnables",
+  "scheduled-runs": "Scheduled Runs",
+  "cron-runs": "Cron Runs",
+  "bulk-run": "Bulk Runs",
+  webhooks: "Webhooks",
+  "external-events": {
+    title: "Event Triggers",
     theme: { collapsed: true },
   },
-
+  "inter-service-triggering": "Inter-Service Triggering",
+  "--reliability": {
+    title: "Reliability",
+    type: "separator",
+  },
+  "retry-policies": "Retry Policies",
+  timeouts: "Timeouts",
+  cancellation: "Cancellation",
+  "bulk-retries-and-cancellations": "Bulk Retries & Cancellations",
+  "--flow-control": {
+    title: "Flow Control",
+    type: "separator",
+  },
+  concurrency: "Concurrency",
+  "rate-limits": "Rate Limits",
+  priority: "Priority",
+  "--workers-section": {
+    title: "Workers",
+    type: "separator",
+  },
   runtime: {
     title: "Worker Runtimes",
     theme: { collapsed: true },
   },
-  "flow-control": {
-    title: "Flow Control",
-    theme: { collapsed: true },
-  },
-  "error-handling": {
-    title: "Error Handling",
-    theme: { collapsed: true },
-  },
-  "external-events": {
-    title: "External Events",
-    theme: { collapsed: true },
-  },
   "advanced-assignment": {
-    title: "Advanced Assignment",
+    title: "Worker Assignment",
     theme: { collapsed: true },
   },
-  observability: {
+  "--observability": {
     title: "Observability",
-    theme: { collapsed: true },
+    type: "separator",
   },
-  "advanced-tasks": {
-    title: "Advanced Task Features",
-    theme: { collapsed: true },
+  streaming: "Streaming",
+  logging: "Logging",
+  "worker-healthchecks": "Worker Health Checks",
+  opentelemetry: "OpenTelemetry",
+  "prometheus-metrics": "Prometheus Metrics",
+  "additional-metadata": "Additional Metadata",
+  "--operations": {
+    title: "Operations",
+    type: "separator",
   },
   environments: "Environments",
   troubleshooting: {
@@ -79,6 +96,21 @@ export default {
   },
   migrating: {
     title: "V0 to V1 Upgrade Guide",
+    display: "hidden",
+  },
+  "advanced-tasks": {
+    display: "hidden",
+  },
+  runnables: {
+    display: "hidden",
+  },
+  "error-handling": {
+    display: "hidden",
+  },
+  "flow-control": {
+    display: "hidden",
+  },
+  observability: {
     display: "hidden",
   },
 };

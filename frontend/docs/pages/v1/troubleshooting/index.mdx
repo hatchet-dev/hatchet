@@ -42,7 +42,7 @@ If tasks remain in the `QUEUED` state and never move to `RUNNING`:
 
 2. **All worker slots are full** — if every slot is occupied by other tasks, new tasks will wait in the queue. Check worker utilization in the dashboard or increase the [slot count](/v1/runtime/workers#slots).
 
-3. **Concurrency or rate limit is blocking** — if you've configured [concurrency limits](/v1/flow-control/concurrency) or [rate limits](/v1/flow-control/rate-limits), tasks may be held back intentionally. Review your configuration.
+3. **Concurrency or rate limit is blocking** — if you've configured [concurrency limits](/v1/concurrency) or [rate limits](/v1/rate-limits), tasks may be held back intentionally. Review your configuration.
 
 ## Worker keeps disconnecting
 

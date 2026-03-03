@@ -112,7 +112,7 @@ The ingest task (Step 2) fans out to one child per document. Each child splits i
 
 ### Embed and index
 
-Define a standalone `embed-chunk` task, then spawn one [child task](/v1/durable-workflows/child-spawning) per chunk from the DAG's `chunk-and-embed` task. Each child runs on any available worker and is individually retryable, so a single embedding failure does not restart the entire batch. [Rate Limits](/v1/flow-control/rate-limits) throttle embedding API calls across all workers.
+Define a standalone `embed-chunk` task, then spawn one [child task](/v1/durable-workflows/child-spawning) per chunk from the DAG's `chunk-and-embed` task. Each child runs on any available worker and is individually retryable, so a single embedding failure does not restart the entire batch. [Rate Limits](/v1/rate-limits) throttle embedding API calls across all workers.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -205,7 +205,7 @@ Start the worker and register the DAG workflow, the `embed-chunk` child task, an
 
 <Callout type="warning">
   When fanning out to many chunks, ensure your workers have enough slots or use
-  [Concurrency Control](/v1/flow-control/concurrency) to limit how many run
+  [Concurrency Control](/v1/concurrency) to limit how many run
   simultaneously.
 </Callout>
 
@@ -251,6 +251,6 @@ For SaaS applications where multiple tenants share the same pipeline:
 ## Next Steps
 
 - [DAG Workflows](/v1/durable-workflows/directed-acyclic-graphs): define multi-stage pipelines
-- [Rate Limits](/v1/flow-control/rate-limits): configure rate limiting for embedding APIs
+- [Rate Limits](/v1/rate-limits): configure rate limiting for embedding APIs
 - [Child Spawning](/v1/durable-workflows/child-spawning): fan out to per-document tasks
-- [Concurrency Control](/v1/flow-control/concurrency): fair scheduling for multi-tenant indexing
+- [Concurrency Control](/v1/concurrency): fair scheduling for multi-tenant indexing

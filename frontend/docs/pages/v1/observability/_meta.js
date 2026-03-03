@@ -1,7 +1,8 @@
 export default {
   index: { display: "hidden" },
-  "worker-healthchecks": "Worker Health Checks",
-  logging: "Logging",
-  opentelemetry: "OpenTelemetry",
-  "prometheus-metrics": "Prometheus Metrics",
+  "worker-healthchecks": { display: "hidden" },
+  logging: { display: "hidden" },
+  opentelemetry: { display: "hidden" },
+  "prometheus-metrics": { display: "hidden" },
+  "additional-metadata": { display: "hidden" },
 };

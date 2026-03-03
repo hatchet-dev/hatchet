@@ -42,7 +42,7 @@ flowchart LR
 | Multiple evaluators vote on content quality           | Good: voting, aggregate for more reliable decisions                              |
 | Processing a batch of items (100+ documents)          | Good: see [Batch Processing](/guides/batch-processing) for large-scale fanout    |
 | Steps depend on each other (output of A feeds B)      | Skip: run sequentially                                                           |
-| Provider rate limits are tight                        | Careful: parallel calls may hit limits; use [Rate Limits](/v1/flow-control/rate-limits) |
+| Provider rate limits are tight                        | Careful: parallel calls may hit limits; use [Rate Limits](/v1/rate-limits) |
 
 ## How it maps to Hatchet
 
@@ -194,5 +194,5 @@ Register all tasks and start the worker.
 
 - [Child Spawning](/v1/durable-workflows/child-spawning): spawn parallel children from a parent task
 - [Task Eviction](/v1/durable-workflows/task-eviction): free the parent's slot while children execute
-- [Rate Limits](/v1/flow-control/rate-limits): throttle parallel calls to external APIs
-- [Concurrency Control](/v1/flow-control/concurrency): limit how many children run simultaneously
+- [Rate Limits](/v1/rate-limits): throttle parallel calls to external APIs
+- [Concurrency Control](/v1/concurrency): limit how many children run simultaneously

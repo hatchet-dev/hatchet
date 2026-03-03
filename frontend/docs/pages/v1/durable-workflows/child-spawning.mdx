@@ -253,7 +253,7 @@ Process a list of items whose length is only known at runtime. Spawn one child p
 
 <BatchProcessingDiagram />
 
-[Concurrency](/v1/flow-control/concurrency) controls how many children run simultaneously. Hatchet distributes child tasks across available workers, so adding workers increases throughput without code changes. For rate-limited external services (OCR, LLM APIs), combine with [Rate Limits](/v1/flow-control/rate-limits) to throttle child execution across all workers.
+[Concurrency](/v1/concurrency) controls how many children run simultaneously. Hatchet distributes child tasks across available workers, so adding workers increases throughput without code changes. For rate-limited external services (OCR, LLM APIs), combine with [Rate Limits](/v1/rate-limits) to throttle child execution across all workers.
 
 ### Agent loops
 

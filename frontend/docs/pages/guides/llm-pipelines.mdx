@@ -79,7 +79,7 @@ The prompt is passed to your LLM service for generation. The examples above use 
 
 ### Generate and validate
 
-This task takes the prompt from Step 2, calls the LLM, and validates the response. If validation fails, [Retry Policies](/v1/error-handling/retry-policies) retry just this step with a corrective prompt.
+This task takes the prompt from Step 2, calls the LLM, and validates the response. If validation fails, [Retry Policies](/v1/retry-policies) retry just this step with a corrective prompt.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -108,7 +108,7 @@ This task takes the prompt from Step 2, calls the LLM, and validates the respons
 
 ### Run the worker
 
-Start the worker. Configure [Rate Limits](/v1/flow-control/rate-limits) to stay within LLM provider quotas.
+Start the worker. Configure [Rate Limits](/v1/rate-limits) to stay within LLM provider quotas.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -135,7 +135,7 @@ Start the worker. Configure [Rate Limits](/v1/flow-control/rate-limits) to stay 
 
 <Callout type="warning">
   Always set **timeouts** on LLM call steps. Model providers can hang or respond
-  slowly under load. See [Timeouts](/v1/error-handling/timeouts) for configuration.
+  slowly under load. See [Timeouts](/v1/timeouts) for configuration.
 </Callout>
 
 ## Common Patterns
@@ -168,6 +168,6 @@ Start the worker. Configure [Rate Limits](/v1/flow-control/rate-limits) to stay 
 ## Next Steps
 
 - [DAG Workflows](/v1/durable-workflows/directed-acyclic-graphs): define multi-stage LLM pipelines
-- [Rate Limits](/v1/flow-control/rate-limits): configure rate limiting for LLM providers
-- [Retry Policies](/v1/error-handling/retry-policies): handle transient LLM API errors
-- [Streaming](/v1/advanced-tasks/streaming): stream LLM outputs to frontends in real-time
+- [Rate Limits](/v1/rate-limits): configure rate limiting for LLM providers
+- [Retry Policies](/v1/retry-policies): handle transient LLM API errors
+- [Streaming](/v1/streaming): stream LLM outputs to frontends in real-time

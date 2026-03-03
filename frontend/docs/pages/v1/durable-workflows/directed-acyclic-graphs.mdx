@@ -21,7 +21,7 @@ Define tasks and their dependencies upfront. Hatchet knows the full shape of wor
 
 ### Hatchet executes in order
 
-Tasks run as soon as their parents complete. Independent tasks run in parallel automatically. A worker slot is only assigned when a task is ready to execute, so tasks waiting on parents consume no resources. Each task has configurable [retry policies](/v1/error-handling/retry-policies) and [timeouts](/v1/error-handling/timeouts).
+Tasks run as soon as their parents complete. Independent tasks run in parallel automatically. A worker slot is only assigned when a task is ready to execute, so tasks waiting on parents consume no resources. Each task has configurable [retry policies](/v1/retry-policies) and [timeouts](/v1/timeouts).
 
 ### Results flow downstream
 
@@ -37,7 +37,7 @@ Every task execution is tracked in the dashboard — inputs, outputs, durations,
 
 Start by declaring a workflow with a name. The workflow object can declare additional workflow-level configuration options which we'll cover later.
 
-The returned object is an instance of the `Workflow` class, which is the primary interface for interacting with the workflow (i.e. [running](/v1/runnables/run-with-results), [enqueuing](/v1/runnables/run-no-wait), [scheduling](/v1/runnables/scheduled-runs), etc).
+The returned object is an instance of the `Workflow` class, which is the primary interface for interacting with the workflow (i.e. [running](/v1/running-your-task#run-and-wait), [enqueuing](/v1/running-your-task#fire-and-forget), [scheduling](/v1/scheduled-runs), etc).
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -62,7 +62,7 @@ The returned object is an instance of the `Workflow` class, which is the primary
 
 <Callout variant="info">
   The Workflow return object can be interacted with in the same way as a
-  [task](/v1/your-first-task), however, it can only take a subset of
+  [task](/v1/tasks), however, it can only take a subset of
   options which are applied at the task level.
 </Callout>
 
