@@ -137,16 +137,16 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	// initialize the cron schedules, so no need to wait for 15 seconds or
 	// a cron to be created
-	t.runPollCronSchedules(ctx)
+	t.refreshCronSchedules(ctx)
 
 	// add a handler to update the cron schedule on-demand when crons are created
 	cronUpdateHandler := func(task *msgqueue.Message) error {
-		t.runPollCronSchedules(ctx)()
+		t.refreshCronSchedules(ctx)()
 		return nil
 	}
-	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.CRON_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
+	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.CRON_TRIGGER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
 	if err != nil {
-		t.l.Log().Err(err).Msg("Could not subscribe to cron update queue")
+		t.l.Log().Err(err).Msg("Could not subscribe to cron trigger update queue")
 	}
 
 	// register the ticker
@@ -175,7 +175,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		// crons only have a resolution of 1 minute, so only poll every 15 seconds
 		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
-			t.runPollCronSchedules(ctx),
+			t.refreshCronSchedules(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -240,13 +240,13 @@ func (t *TickerImpl) Start() (func() error, error) {
 	t.userCronScheduler.Start()
 
 	cleanup := func() error {
-		if queueCleanupFunc() != nil {
-			t.l.Log().Err(err).Msg("Could not cleanup cron update queue")
-		}
-
 		t.l.Debug().Msg("removing ticker")
 
 		cancel()
+
+		if queueCleanupFunc() != nil {
+			t.l.Log().Err(err).Msg("Could not cleanup cron trigger update queue")
+		}
 
 		if err := t.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)

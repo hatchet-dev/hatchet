@@ -72,9 +72,9 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("error creating cron trigger")), nil
 	}
 	msg := msgqueue.NewCronUpdateMessage(request.Tenant)
-	err = t.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.CRON_UPDATE_QUEUE, msg)
+	err = t.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.CRON_TRIGGER_UPDATE_QUEUE, msg)
 	if err != nil {
-		t.config.Logger.Err(err).Msg("could not send cron update message")
+		t.config.Logger.Err(err).Msg("could not send cron trigger update message")
 	}
 
 	return gen.CronWorkflowTriggerCreate200JSONResponse(
