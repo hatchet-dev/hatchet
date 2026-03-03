@@ -169,7 +169,9 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
     assert result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
     assert result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
 
-    await hatchet.runs.aio_reset_durable_task(ref.workflow_run_id, node_id=node_id)
+    await hatchet.runs.aio_reset_durable_task(
+        ref.workflow_run_id, node_id=node_id, branch_id=1
+    )
 
     start = time.time()
     reset_result = await ref.aio_result()
