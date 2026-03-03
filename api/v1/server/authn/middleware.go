@@ -28,7 +28,7 @@ type AuthN struct {
 func NewAuthN(config *server.ServerConfig) *AuthN {
 	return &AuthN{
 		config:  config,
-		helpers: NewSessionHelpers(config),
+		helpers: NewSessionHelpers(config.SessionStore),
 		l:       config.Logger,
 	}
 }
@@ -90,7 +90,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 	var customErr error
 
 	if r.Security.CustomAuth() {
-		customErr = a.handleCustomAuth(c)
+		customErr = a.handleCustomAuth(c, r)
 
 		c.Set("auth_strategy", "custom")
 
@@ -149,8 +149,8 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
 		// if the session is new, make sure we write a Set-Cookie header to the response
 		if session.IsNew {
-			if err := saveNewSession(c, session); err != nil {
-				a.l.Error().Err(err).Msg("error saving unauthenticated session")
+			if saveErr := a.helpers.SaveNewSession(c, session); saveErr != nil {
+				a.l.Error().Err(saveErr).Msg("error saving unauthenticated session")
 				return fmt.Errorf("error saving unauthenticated session")
 			}
 
@@ -236,12 +236,12 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	return nil
 }
 
-func (a *AuthN) handleCustomAuth(c echo.Context) error {
+func (a *AuthN) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error {
 	if a.config.Auth.CustomAuthenticator == nil {
 		return fmt.Errorf("custom auth handler is not set")
 	}
 
-	return a.config.Auth.CustomAuthenticator.Authenticate(c)
+	return a.config.Auth.CustomAuthenticator.Authenticate(c, r)
 }
 
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")

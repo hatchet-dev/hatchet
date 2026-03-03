@@ -1,0 +1,89 @@
+<a id="cronclient"></a>
+
+### Cron Client
+
+The cron client is a client for managing cron workflows within Hatchet.
+
+#### Methods
+
+<a id="create"></a>
+
+##### `create()`
+
+Creates a new Cron workflow.
+
+Parameters
+
+| Parameter                  | Type                                                                                                                                                                 | Description                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `workflow`                 | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow`                                                                                                  | The workflow identifier or Workflow object.   |
+| `cron`                     | \{ `additionalMetadata?`: `Record`\<`string`, `string`\>; `expression`: `string`; `input?`: `Record`\<`string`, `any`\>; `name`: `string`; `priority?`: `number`; \} | The input data for creating the Cron Trigger. |
+| `cron.additionalMetadata?` | `Record`\<`string`, `string`\>                                                                                                                                       | -                                             |
+| `cron.expression`          | `string`                                                                                                                                                             | -                                             |
+| `cron.input?`              | `Record`\<`string`, `any`\>                                                                                                                                          | -                                             |
+| `cron.name`                | `string`                                                                                                                                                             | -                                             |
+| `cron.priority?`           | `number`                                                                                                                                                             | -                                             |
+
+Returns
+
+`Promise`\<`CronWorkflows`\>
+
+A promise that resolves to the created CronWorkflows object.
+
+Throws
+
+Will throw an error if the input is invalid or the API call fails.
+
+<a id="delete"></a>
+
+##### `delete()`
+
+Deletes an existing Cron Trigger.
+
+Parameters
+
+| Parameter | Type                        | Description                                              |
+| --------- | --------------------------- | -------------------------------------------------------- |
+| `cron`    | `string` \| `CronWorkflows` | The Cron Trigger ID as a string or CronWorkflows object. |
+
+Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when the Cron Trigger is deleted.
+
+<a id="get"></a>
+
+##### `get()`
+
+Retrieves a specific Cron Trigger by its ID.
+
+Parameters
+
+| Parameter | Type                        | Description                                              |
+| --------- | --------------------------- | -------------------------------------------------------- |
+| `cron`    | `string` \| `CronWorkflows` | The Cron Trigger ID as a string or CronWorkflows object. |
+
+Returns
+
+`Promise`\<`CronWorkflows`\>
+
+A promise that resolves to the CronWorkflows object.
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists all Cron Triggers based on the provided query parameters.
+
+Parameters
+
+| Parameter | Type                | Description                                 |
+| --------- | ------------------- | ------------------------------------------- |
+| `query`   | `object` & `object` | Query parameters for listing Cron Triggers. |
+
+Returns
+
+`Promise`\<`CronWorkflowsList`\>
+
+A promise that resolves to a CronWorkflowsList object.
