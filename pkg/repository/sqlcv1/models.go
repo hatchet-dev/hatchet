@@ -3101,7 +3101,7 @@ type V1DurableEventLogFile struct {
 	LatestInsertedAt      pgtype.Timestamptz `json:"latest_inserted_at"`
 	LatestNodeID          int64              `json:"latest_node_id"`
 	LatestBranchID        int64              `json:"latest_branch_id"`
-	BranchCount           int32              `json:"branch_count"`
+	BranchCount           int64              `json:"branch_count"`
 }
 
 type V1DurableSleep struct {

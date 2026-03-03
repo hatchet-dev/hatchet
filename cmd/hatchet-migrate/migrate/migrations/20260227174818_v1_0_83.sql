@@ -59,7 +59,7 @@ CREATE TABLE v1_durable_event_log_file (
     latest_branch_id BIGINT NOT NULL,
 
     -- The number of distinct branches of the durable event log that have been created
-    branch_count INTEGER NOT NULL DEFAULT 1,
+    branch_count BIGINT NOT NULL DEFAULT 1,
 
     CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
 ) PARTITION BY RANGE(durable_task_inserted_at);

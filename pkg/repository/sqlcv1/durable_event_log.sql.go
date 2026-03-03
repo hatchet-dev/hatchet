@@ -12,6 +12,47 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createDurableEventLogBranchPoint = `-- name: CreateDurableEventLogBranchPoint :exec
+INSERT INTO v1_durable_event_log_branch_point (
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    first_node_id_in_new_branch,
+    parent_branch_id,
+    next_branch_id
+)
+VALUES (
+    $1::UUID,
+    $2::BIGINT,
+    $3::TIMESTAMPTZ,
+    $4::BIGINT,
+    $5::BIGINT,
+    $6::BIGINT
+)
+RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+`
+
+type CreateDurableEventLogBranchPointParams struct {
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Durabletaskid          int64              `json:"durabletaskid"`
+	Durabletaskinsertedat  pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Firstnodeidinnewbranch int64              `json:"firstnodeidinnewbranch"`
+	Parentbranchid         int64              `json:"parentbranchid"`
+	Nextbranchid           int64              `json:"nextbranchid"`
+}
+
+func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX, arg CreateDurableEventLogBranchPointParams) error {
+	_, err := db.Exec(ctx, createDurableEventLogBranchPoint,
+		arg.Tenantid,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Firstnodeidinnewbranch,
+		arg.Parentbranchid,
+		arg.Nextbranchid,
+	)
+	return err
+}
+
 const createDurableEventLogEntry = `-- name: CreateDurableEventLogEntry :one
 INSERT INTO v1_durable_event_log_entry (
     tenant_id,
@@ -586,19 +627,19 @@ SET
     latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
     latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id),
-    latest_branch_first_parent_node_id = COALESCE($4::BIGINT, v1_durable_event_log_file.latest_branch_first_parent_node_id)
+    branch_count = COALESCE($4::BIGINT, v1_durable_event_log_file.branch_count)
 WHERE durable_task_id = $5::BIGINT
   AND durable_task_inserted_at = $6::TIMESTAMPTZ
 RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, branch_count
 `
 
 type UpdateLogFileParams struct {
-	NodeId                  pgtype.Int8        `json:"nodeId"`
-	InvocationCount         pgtype.Int4        `json:"invocationCount"`
-	BranchId                pgtype.Int8        `json:"branchId"`
-	BranchFirstParentNodeId pgtype.Int8        `json:"branchFirstParentNodeId"`
-	Durabletaskid           int64              `json:"durabletaskid"`
-	Durabletaskinsertedat   pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	NodeId                pgtype.Int8        `json:"nodeId"`
+	InvocationCount       pgtype.Int4        `json:"invocationCount"`
+	BranchId              pgtype.Int8        `json:"branchId"`
+	BranchCount           pgtype.Int8        `json:"branchCount"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }
 
 func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileParams) (*V1DurableEventLogFile, error) {
@@ -606,7 +647,7 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		arg.NodeId,
 		arg.InvocationCount,
 		arg.BranchId,
-		arg.BranchFirstParentNodeId,
+		arg.BranchCount,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 	)

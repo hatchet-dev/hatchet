@@ -99,7 +99,7 @@ type NodeIdBranchIdTuple struct {
 
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
-	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
+	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
@@ -804,7 +804,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 	return nil
 }
 
-func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error) {
+func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -819,20 +819,32 @@ func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
-	newBranchId := logFile.LatestBranchID + 1
-	lastFastForwardedNode := nodeId - 1
+	newBranchId := logFile.BranchCount + 1
 	zero := int64(0)
 
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-		BranchId:                sqlchelpers.ToBigInt(&newBranchId),
-		NodeId:                  sqlchelpers.ToBigInt(&zero),
-		BranchFirstParentNodeId: sqlchelpers.ToBigInt(&lastFastForwardedNode),
-		Durabletaskid:           task.ID,
-		Durabletaskinsertedat:   task.InsertedAt,
+		BranchId:              sqlchelpers.ToBigInt(&newBranchId),
+		NodeId:                sqlchelpers.ToBigInt(&zero),
+		BranchCount:           sqlchelpers.ToBigInt(&newBranchId),
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update log file for fork: %w", err)
+	}
+
+	err = r.queries.CreateDurableEventLogBranchPoint(ctx, tx, sqlcv1.CreateDurableEventLogBranchPointParams{
+		Tenantid:               tenantId,
+		Firstnodeidinnewbranch: nodeId,
+		Parentbranchid:         branchId,
+		Nextbranchid:           newBranchId,
+		Durabletaskid:          task.ID,
+		Durabletaskinsertedat:  task.InsertedAt,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log branch point for fork: %w", err)
 	}
 
 	if err := optTx.Commit(ctx); err != nil {

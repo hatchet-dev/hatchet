@@ -442,7 +442,7 @@ func (a *AdminServiceImpl) ForkDurableTask(ctx context.Context, req *contracts.F
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	result, err := a.repo.DurableEvents().HandleFork(ctx, tenantId, req.NodeId, task)
+	result, err := a.repo.DurableEvents().HandleFork(ctx, tenantId, req.NodeId, req.BranchId, task)
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fork durable task: %v", err)

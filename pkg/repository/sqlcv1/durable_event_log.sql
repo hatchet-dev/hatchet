@@ -49,10 +49,30 @@ SET
     latest_node_id = COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id),
     latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE(sqlc.narg('branchId')::BIGINT, v1_durable_event_log_file.latest_branch_id),
-    latest_branch_first_parent_node_id = COALESCE(sqlc.narg('branchFirstParentNodeId')::BIGINT, v1_durable_event_log_file.latest_branch_first_parent_node_id)
+    branch_count = COALESCE(sqlc.narg('branchCount')::BIGINT, v1_durable_event_log_file.branch_count)
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;
+
+-- name: CreateDurableEventLogBranchPoint :exec
+INSERT INTO v1_durable_event_log_branch_point (
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    first_node_id_in_new_branch,
+    parent_branch_id,
+    next_branch_id
+)
+VALUES (
+    @tenantId::UUID,
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    @firstNodeIdInNewBranch::BIGINT,
+    @parentBranchId::BIGINT,
+    @nextBranchId::BIGINT
+)
+RETURNING *
+;
 
 -- name: GetDurableEventLogEntry :one
 SELECT *
