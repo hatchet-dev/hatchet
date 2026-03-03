@@ -1356,7 +1356,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         durable_ctx = ctx_durable_context.get()
-        if durable_ctx is not None:
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
             raw = await durable_ctx._spawn_child(self, input, options)
             return cast(
                 R,

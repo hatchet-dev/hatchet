@@ -32,10 +32,7 @@ from hatchet_sdk.conditions import (
     build_conditions_proto,
     flatten_conditions,
 )
-from hatchet_sdk.context.pre_eviction import (
-    aio_wait_for_pre_eviction,
-    spawn_child_pre_eviction,
-)
+from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.exceptions import MIN_DURABLE_EVICTION_VERSION, TaskRunError
@@ -604,9 +601,6 @@ class DurableContext(Context):
         input: TWorkflowInput = cast(Any, EmptyModel()),
         options: TriggerWorkflowOptions | None = None,
     ) -> dict[str, Any]:
-        if not self._supports_durable_eviction:
-            return await spawn_child_pre_eviction(self, workflow, input, options)
-
         assert isinstance(self.durable_event_listener, DurableEventListener)
 
         await self._ensure_stream_started()

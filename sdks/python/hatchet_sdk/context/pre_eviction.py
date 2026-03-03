@@ -6,9 +6,8 @@ Remove this module when support for those engines is dropped.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
     PreEvictionDurableEventListener,
     RegisterDurableEventRequest,
@@ -19,11 +18,9 @@ from hatchet_sdk.conditions import (
     UserEventCondition,
     flatten_conditions,
 )
-from hatchet_sdk.runnables.types import EmptyModel, TWorkflowInput
 
 if TYPE_CHECKING:
     from hatchet_sdk.context.context import DurableContext
-    from hatchet_sdk.runnables.workflow import BaseWorkflow
 
 
 async def aio_wait_for_pre_eviction(
@@ -48,19 +45,3 @@ async def aio_wait_for_pre_eviction(
         task_id, signal_key
     )
     return result
-
-
-async def spawn_child_pre_eviction(
-    ctx: DurableContext,
-    workflow: BaseWorkflow[TWorkflowInput],
-    input: TWorkflowInput = cast(Any, EmptyModel()),
-    options: TriggerWorkflowOptions | None = None,
-) -> dict[str, Any]:
-    """Fall back to a non-durable admin-client trigger on old engines."""
-    serialized = workflow._serialize_input(input, target="string")
-    ref = await ctx.admin_client.aio_run_workflow(
-        workflow.config.name,
-        serialized,
-        options or TriggerWorkflowOptions(),
-    )
-    return await ref.aio_result()
