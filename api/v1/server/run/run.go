@@ -485,25 +485,44 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid event id")
 		}
 
-		parentIdUuid, err := uuid.Parse(parentId)
+		var event *sqlcv1.Event
 
-		if err != nil {
-			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
-		}
+		if t.config.Runtime.EnableDurableUserEventLog {
+			v1Event, err := t.config.V1.Events().Get(timeoutCtx, idUuid)
 
-		v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, idUuid, parentIdUuid)
+			if err != nil {
+				return nil, "", err
+			}
 
-		if err != nil {
-			return nil, "", err
-		}
+			event = &sqlcv1.Event{
+				ID:                 v1Event.ExternalID,
+				TenantId:           v1Event.TenantID,
+				Data:               v1Event.Payload,
+				CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
+				AdditionalMetadata: v1Event.AdditionalMetadata,
+				Key:                v1Event.Key,
+			}
+		} else {
+			parentIdUuid, err := uuid.Parse(parentId)
 
-		event := &sqlcv1.Event{
-			ID:                 v1Event.EventExternalID,
-			TenantId:           v1Event.TenantID,
-			Data:               v1Event.Payload,
-			CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
-			AdditionalMetadata: v1Event.EventAdditionalMetadata,
-			Key:                v1Event.EventKey,
+			if err != nil {
+				return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+			}
+
+			v1Event, err := t.config.V1.OLAP().GetEventWithPayload(timeoutCtx, idUuid, parentIdUuid)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			event = &sqlcv1.Event{
+				ID:                 v1Event.EventExternalID,
+				TenantId:           v1Event.TenantID,
+				Data:               v1Event.Payload,
+				CreatedAt:          pgtype.Timestamp(v1Event.EventSeenAt),
+				AdditionalMetadata: v1Event.EventAdditionalMetadata,
+				Key:                v1Event.EventKey,
+			}
 		}
 
 		return event, event.TenantId.String(), nil

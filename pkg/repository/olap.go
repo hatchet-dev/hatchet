@@ -249,9 +249,9 @@ type OLAPRepository interface {
 
 	// Events queries
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error
-	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
+	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRowWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
-	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
+	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*ListEventsRowWithPayload, error)
 	ListEventKeys(ctx context.Context, tenantId uuid.UUID) ([]string, error)
 
 	GetDAGDurations(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
@@ -2201,7 +2201,7 @@ func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uui
 	return externalIdToEventData, nil
 }
 
-func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error) {
+func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*ListEventsRowWithPayload, error) {
 	event, err := r.queries.GetEventByExternalIdUsingTenantId(ctx, r.readPool, sqlcv1.GetEventByExternalIdUsingTenantIdParams{
 		Tenantid:        tenantId,
 		Eventexternalid: externalId,
@@ -2238,7 +2238,7 @@ func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId
 		failedCount = eventData.FailedCount
 	}
 
-	return &EventWithPayload{
+	return &ListEventsRowWithPayload{
 		ListEventsRow: &ListEventsRow{
 			TenantID:                event.TenantID,
 			EventID:                 event.ID,
@@ -2278,12 +2278,12 @@ type ListEventsRow struct {
 	TriggeringWebhookName   *string            `json:"triggering_webhook_name,omitempty"`
 }
 
-type EventWithPayload struct {
+type ListEventsRowWithPayload struct {
 	*ListEventsRow
 	Payload []byte `json:"payload"`
 }
 
-func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error) {
+func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRowWithPayload, *int64, error) {
 	var (
 		events     []*sqlcv1.V1EventsOlap
 		eventCount int64
@@ -2341,7 +2341,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, fmt.Errorf("error reading event payloads: %v", err)
 	}
 
-	result := make([]*EventWithPayload, 0)
+	result := make([]*ListEventsRowWithPayload, 0)
 
 	for _, event := range events {
 		payload, exists := externalIdToPayload[event.ExternalID]
@@ -2371,7 +2371,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			failedCount = data.FailedCount
 		}
 
-		result = append(result, &EventWithPayload{
+		result = append(result, &ListEventsRowWithPayload{
 			ListEventsRow: &ListEventsRow{
 				TenantID:                event.TenantID,
 				EventID:                 event.ID,

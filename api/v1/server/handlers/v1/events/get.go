@@ -9,7 +9,7 @@ import (
 )
 
 func (t *V1EventsService) V1EventGet(ctx echo.Context, request gen.V1EventGetRequestObject) (gen.V1EventGetResponseObject, error) {
-	event := ctx.Get("v1-event").(*v1.EventWithPayload)
+	event := ctx.Get("v1-event").(*v1.ListEventsRowWithPayload)
 
 	return gen.V1EventGet200JSONResponse(
 		transformers.ToV1Event(event),

@@ -26,7 +26,7 @@ func ToEvent(event *sqlcv1.Event) gen.Event {
 	}
 }
 
-func ToEventFromSQLCV1(event *v1.EventWithPayload) (*gen.Event, error) {
+func ToEventFromSQLCV1(event *v1.ListEventsRowWithPayload) (*gen.Event, error) {
 	var metadata map[string]interface{}
 
 	if event.EventAdditionalMetadata != nil {
