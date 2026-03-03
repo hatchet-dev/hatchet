@@ -665,7 +665,6 @@ class DurableContext(Context):
         :param **kwargs: The keyword arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different keyword arguments will result in different cached values.
 
         :return: The memoized value, either retrieved from durable storage or computed by calling the function.
-        :raises ValueError: If the durable event listener is not available.
         """
         if not self._supports_durable_eviction:
             logger.warning(
