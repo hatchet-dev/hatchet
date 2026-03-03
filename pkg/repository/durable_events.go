@@ -504,7 +504,12 @@ func resolveBranchForNode(nodeId, currentBranchId int64, nextBranchIdToBranchPoi
 		currBranchId = branchPoint.ParentBranchID
 	}
 
-	sort.Slice(tree, func(i, j int) bool { return tree[i].FromNodeId < tree[j].FromNodeId })
+	sort.Slice(tree, func(i, j int) bool {
+		if tree[i].FromNodeId != tree[j].FromNodeId {
+			return tree[i].FromNodeId < tree[j].FromNodeId
+		}
+		return tree[i].BranchId < tree[j].BranchId
+	})
 
 	i := sort.Search(len(tree), func(i int) bool { return tree[i].FromNodeId > nodeId })
 	return tree[i-1].BranchId
