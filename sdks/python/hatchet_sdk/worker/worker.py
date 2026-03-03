@@ -21,7 +21,13 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.deprecated.worker import legacy_aio_start
-from hatchet_sdk.exceptions import LifespanSetupError, LoopAlreadyRunningError
+from hatchet_sdk.exceptions import (
+    MIN_DURABLE_EVICTION_VERSION,
+    MIN_SLOT_CONFIG_VERSION,
+    EvictionNotSupportedError,
+    LifespanSetupError,
+    LoopAlreadyRunningError,
+)
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
@@ -99,6 +105,7 @@ class Worker:
 
         self.action_runner: WorkerActionRunLoopManager | None = None
         self._legacy_durable_action_runner: WorkerActionRunLoopManager | None = None
+        self._engine_version: str | None = None
 
         self.ctx = multiprocessing.get_context("spawn")
 
@@ -208,10 +215,7 @@ class Worker:
         if self.handle_kill:
             sys.exit(0)
 
-    # Minimum engine version that supports multiple slot types.
-    _MIN_SLOT_CONFIG_VERSION = "v0.78.23"
-
-    def _emit_legacy_deprecation(self) -> None:
+    def _emit_legacy_slot_deprecation(self) -> None:
         from datetime import datetime, timezone
 
         from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice
@@ -227,6 +231,21 @@ class Worker:
             error_days=180,
         )
 
+    def _check_eviction_support(self, engine_version: str) -> None:
+        """Raise if any registered task has an eviction policy but the engine is too old."""
+        if not semver_less_than(engine_version, MIN_DURABLE_EVICTION_VERSION):
+            return
+
+        tasks_with_eviction = [
+            task.name
+            for task in self.action_registry.values()
+            if task.durable_eviction is not None
+        ]
+        if not tasks_with_eviction:
+            return
+
+        raise EvictionNotSupportedError(engine_version)
+
     async def _check_engine_version(self) -> str | None:
         """Returns the engine version string, or None if engine is legacy (pre-slot-config).
 
@@ -239,14 +258,14 @@ class Worker:
             version = await self.client.dispatcher.get_version()
 
             # Empty version or older than minimum → legacy
-            if not version or semver_less_than(version, self._MIN_SLOT_CONFIG_VERSION):
-                self._emit_legacy_deprecation()
+            if not version or semver_less_than(version, MIN_SLOT_CONFIG_VERSION):
+                self._emit_legacy_slot_deprecation()
                 return None
 
             return version  # new engine
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.UNIMPLEMENTED:
-                self._emit_legacy_deprecation()
+                self._emit_legacy_slot_deprecation()
                 return None  # old engine
             raise
 
@@ -269,6 +288,9 @@ class Worker:
         if engine_version is None:
             await legacy_aio_start(self)
             return
+
+        self._engine_version = engine_version
+        self._check_eviction_support(engine_version)
 
         lifespan_context = None
         if self.lifespan:
@@ -323,6 +345,7 @@ class Worker:
                 self.client.debug,
                 self.labels,
                 lifespan_context,
+                engine_version=self._engine_version,
             )
 
         raise RuntimeError("event loop not set, cannot start action runner")

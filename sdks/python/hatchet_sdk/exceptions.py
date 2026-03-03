@@ -184,3 +184,19 @@ class IllegalTaskOutputError(Exception):
 
 class LifespanSetupError(Exception):
     pass
+
+
+MIN_SLOT_CONFIG_VERSION = "v0.78.23"
+MIN_DURABLE_EVICTION_VERSION = "v0.80.0"
+
+
+class EvictionNotSupportedError(NonRetryableException):
+    """Raised when an eviction policy is configured against an engine version
+    that does not support durable-task eviction."""
+
+    def __init__(self, engine_version: str | None = None) -> None:
+        version_info = f" (engine version: {engine_version})" if engine_version else ""
+        super().__init__(
+            f"Eviction policies require engine >= {MIN_DURABLE_EVICTION_VERSION}{version_info}. "
+            "Please upgrade your Hatchet engine or remove the eviction policy from your task."
+        )

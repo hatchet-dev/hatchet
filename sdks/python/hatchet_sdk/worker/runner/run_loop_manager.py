@@ -30,6 +30,7 @@ class WorkerActionRunLoopManager:
         debug: bool,
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
+        engine_version: str | None = None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
@@ -42,6 +43,7 @@ class WorkerActionRunLoopManager:
         self.debug = debug
         self.labels = labels
         self.lifespan_context = lifespan_context
+        self.engine_version = engine_version
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
@@ -100,6 +102,7 @@ class WorkerActionRunLoopManager:
             self.labels,
             self.lifespan_context,
             self.log_sender,
+            engine_version=self.engine_version,
         )
 
         logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")

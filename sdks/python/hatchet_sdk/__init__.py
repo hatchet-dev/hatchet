@@ -139,6 +139,7 @@ from hatchet_sdk.contracts.workflows.workflows_pb2 import (
 )
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
+    EvictionNotSupportedError,
     FailedTaskRunExceptionGroup,
     NonDeterminismError,
     NonRetryableException,
@@ -202,6 +203,7 @@ __all__ = [
     "EventOrderByDirection",
     "EventOrderByField",
     "EventWorkflowRunSummary",
+    "EvictionNotSupportedError",
     "FailedTaskRunExceptionGroup",
     "GetStepRunDiffResponse",
     "GithubAppInstallation",
