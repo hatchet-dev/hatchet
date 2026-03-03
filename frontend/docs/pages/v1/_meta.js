@@ -5,7 +5,6 @@ export default {
   },
   index: "🪓 What is Hatchet?",
   quickstart: "Quickstart",
-  advanced: "Manual Setup",
   "using-coding-agents": "Using Coding Agents",
   "--essentials": {
     title: "Fundamentals",

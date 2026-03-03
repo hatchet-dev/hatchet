@@ -52,7 +52,19 @@ hatchet worker dev
   </Tabs.Tab>
   <Tabs.Tab>
 
-You can also run the worker script directly. This requires a `HATCHET_CLIENT_TOKEN` to be set - see [Advanced Setup](/v1/advanced) for how to provision one.
+You can also run the worker script directly. This requires a `HATCHET_CLIENT_TOKEN` environment variable. You can generate an API token from the Hatchet dashboard by navigating to the `Settings` tab and clicking `API Tokens`. Click `Generate API Token` to create a new token, and **do not share it publicly**.
+
+```bash
+export HATCHET_CLIENT_TOKEN="<your-client-token>"
+```
+
+If you are a self-hosted user without TLS enabled, also set:
+
+```bash
+export HATCHET_CLIENT_TLS_STRATEGY=none
+```
+
+Then run your worker:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
