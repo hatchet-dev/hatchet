@@ -378,7 +378,7 @@ func extractPort(connStr string) (int, error) {
 func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 	pgBouncerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:           "edoburu/pgbouncer",
+			Image:           "edoburu/pgbouncer:v1.25.1-p0",
 			ExposedPorts:    []string{"5432/tcp"},
 			HostAccessPorts: []int{pgPort},
 			Env: map[string]string{

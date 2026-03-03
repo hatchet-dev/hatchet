@@ -382,6 +382,11 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
           TESTING_MATRIX_PGBOUNCER_ENABLED: "true"
+          # PgBouncer in transaction mode adds per-query overhead (extra network hop,
+          # Parse per query instead of reusing prepared statements, DISCARD ALL on
+          # backend return). Relax the threshold since this test validates correctness,
+          # not connection pooling efficiency.
+          HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD: 500ms
 
   load-online-migrate:
     runs-on: ubicloud-standard-8
