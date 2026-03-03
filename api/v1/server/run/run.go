@@ -46,6 +46,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -643,20 +644,43 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid event id")
 		}
 
-		parentIdUuid, err := uuid.Parse(parentId)
+		var event *repository.ListEventsRowWithPayload
 
-		if err != nil {
-			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
-		}
+		if t.config.Runtime.EnableDurableUserEventLog {
+			v1Event, err := t.config.V1.Events().Get(context.Background(), idUuid)
 
-		event, err := t.config.V1.OLAP().GetEventWithPayload(
-			context.Background(),
-			idUuid,
-			parentIdUuid,
-		)
+			if err != nil {
+				return nil, "", err
+			}
 
-		if err != nil {
-			return nil, "", err
+			event = &repository.ListEventsRowWithPayload{
+				ListEventsRow: &repository.ListEventsRow{
+					EventExternalID:         v1Event.ExternalID,
+					TenantID:                v1Event.TenantID,
+					EventKey:                v1Event.Key,
+					EventID:                 v1Event.ID,
+					EventSeenAt:             v1Event.SeenAt,
+					EventAdditionalMetadata: v1Event.AdditionalMetadata,
+					EventScope:              v1Event.Scope.String,
+				},
+				Payload: v1Event.Payload,
+			}
+		} else {
+			parentIdUuid, err := uuid.Parse(parentId)
+
+			if err != nil {
+				return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+			}
+
+			event, err = t.config.V1.OLAP().GetEventWithPayload(
+				context.Background(),
+				idUuid,
+				parentIdUuid,
+			)
+
+			if err != nil {
+				return nil, "", err
+			}
 		}
 
 		return event, event.TenantID.String(), nil
