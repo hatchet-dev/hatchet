@@ -878,7 +878,7 @@ func (r *sharedRepository) triggerWorkflows(
 				} else {
 					labels := tuple.desiredWorkerLabels
 
-					for i, _ := range labels {
+					for i := range labels {
 						labels[i].StepId = stepId
 					}
 
