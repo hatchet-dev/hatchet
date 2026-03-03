@@ -463,7 +463,7 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 	})
 }
 
-func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint, error) {
+func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (map[int64]*sqlcv1.V1DurableEventLogBranchPoint, error) {
 	branchPoints, err := r.queries.ListDurableEventLogBranchPoints(ctx, tx, sqlcv1.ListDurableEventLogBranchPointsParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
@@ -474,18 +474,13 @@ func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, 
 		return nil, fmt.Errorf("failed to list durable event log branch points: %w", err)
 	}
 
-	nodeIdBranchIdToBranchPoint := make(map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint, len(branchPoints))
+	nextBranchIdToBranchPoint := make(map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(branchPoints))
 
 	for _, bp := range branchPoints {
-		key := NodeIdBranchIdTuple{
-			NodeId:   bp.FirstNodeIDInNewBranch,
-			BranchId: bp.NextBranchID,
-		}
-
-		nodeIdBranchIdToBranchPoint[key] = bp
+		nextBranchIdToBranchPoint[bp.NextBranchID] = bp
 	}
 
-	return nodeIdBranchIdToBranchPoint, nil
+	return nextBranchIdToBranchPoint, nil
 }
 
 type BranchIdFromNodeIdTuple struct {
@@ -493,24 +488,20 @@ type BranchIdFromNodeIdTuple struct {
 	BranchId   int64
 }
 
-func resolveBranchForNode(nodeId, currentBranchId int64, branchPoints map[NodeIdBranchIdTuple]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
+func resolveBranchForNode(nodeId, currentBranchId int64, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
 	tree := make([]BranchIdFromNodeIdTuple, 0)
 
 	currBranchId := currentBranchId
 	for {
-		var found *sqlcv1.V1DurableEventLogBranchPoint
-		for _, bp := range branchPoints {
-			if bp.NextBranchID == currBranchId {
-				found = bp
-				break
-			}
-		}
-		if found == nil {
+		branchPoint, found := nextBranchIdToBranchPoint[currBranchId]
+
+		if !found {
 			tree = append(tree, BranchIdFromNodeIdTuple{0, currBranchId})
 			break
 		}
-		tree = append(tree, BranchIdFromNodeIdTuple{found.FirstNodeIDInNewBranch, currBranchId})
-		currBranchId = found.ParentBranchID
+
+		tree = append(tree, BranchIdFromNodeIdTuple{branchPoint.FirstNodeIDInNewBranch, currBranchId})
+		currBranchId = branchPoint.ParentBranchID
 	}
 
 	sort.Slice(tree, func(i, j int) bool { return tree[i].FromNodeId < tree[j].FromNodeId })
