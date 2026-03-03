@@ -7,7 +7,6 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -54,25 +53,28 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 		return nil, fmt.Errorf("worker %s has no actions", worker.Worker.ID.String())
 	}
 
-	respStepRuns := make([]gen.RecentStepRuns, 0)
-
-	slotConfig := workerSlotConfig[worker.Worker.ID]
-
-	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, slotConfig, actions, &workerWorkflows)
-
-	workerResp.RecentStepRuns = &respStepRuns
-
 	affinity, err := t.config.V1.Workers().ListWorkerLabels(
 		reqCtx,
 		worker.Worker.TenantId,
-		worker.Worker.ID,
+		[]uuid.UUID{worker.Worker.ID},
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	workerResp.Labels = transformers.ToWorkerLabels(affinity)
+	labels, ok := affinity[worker.Worker.ID]
+
+	if !ok {
+		return nil, fmt.Errorf("worker %s has no labels", worker.Worker.ID.String())
+	}
+
+	slotConfig := workerSlotConfig[worker.Worker.ID]
+
+	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, slotConfig, actions, &workerWorkflows, labels)
+
+	respStepRuns := make([]gen.RecentStepRuns, 0)
+	workerResp.RecentStepRuns = &respStepRuns
 
 	return gen.WorkerGet200JSONResponse(workerResp), nil
 }

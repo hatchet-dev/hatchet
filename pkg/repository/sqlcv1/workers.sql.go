@@ -1026,6 +1026,7 @@ func (q *Queries) ListTotalActiveSlotsPerTenant(ctx context.Context, db DBTX) ([
 
 const listWorkerLabels = `-- name: ListWorkerLabels :many
 SELECT
+    "workerId",
     "id",
     "key",
     "intValue",
@@ -1033,10 +1034,11 @@ SELECT
     "createdAt",
     "updatedAt"
 FROM "WorkerLabel" wl
-WHERE wl."workerId" = $1::uuid
+WHERE wl."workerId" = ANY($1::uuid[])
 `
 
 type ListWorkerLabelsRow struct {
+	WorkerId  uuid.UUID        `json:"workerId"`
 	ID        int64            `json:"id"`
 	Key       string           `json:"key"`
 	IntValue  pgtype.Int4      `json:"intValue"`
@@ -1045,8 +1047,8 @@ type ListWorkerLabelsRow struct {
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 }
 
-func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.UUID) ([]*ListWorkerLabelsRow, error) {
-	rows, err := db.Query(ctx, listWorkerLabels, workerid)
+func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerids []uuid.UUID) ([]*ListWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, listWorkerLabels, workerids)
 	if err != nil {
 		return nil, err
 	}
@@ -1055,6 +1057,7 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.U
 	for rows.Next() {
 		var i ListWorkerLabelsRow
 		if err := rows.Scan(
+			&i.WorkerId,
 			&i.ID,
 			&i.Key,
 			&i.IntValue,

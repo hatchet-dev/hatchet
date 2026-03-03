@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -59,8 +60,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotConfig, actions []string, workflows *[]*sqlcv1.Workflow) *gen.Worker {
-
+func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotConfig, actions []string, workflows *[]*sqlcv1.Workflow, labels []*sqlcv1.ListWorkerLabelsRow) *gen.Worker {
 	dispatcherId := worker.DispatcherId
 
 	status := gen.ACTIVE
@@ -82,6 +82,8 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 		slotConfigInt = &tmp
 	}
 
+	workerLabels := transformers.ToWorkerLabels(labels)
+
 	res := &gen.Worker{
 		Metadata: gen.APIResourceMeta{
 			Id:        worker.ID.String(),
@@ -95,6 +97,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 		SlotConfig:   slotConfigInt,
 		RuntimeInfo:  ToWorkerRuntimeInfo(worker),
 		WebhookId:    worker.WebhookId,
+		Labels:       workerLabels,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {
