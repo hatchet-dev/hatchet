@@ -135,8 +135,26 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
 
+	// initialize the cron schedules, so no need to wait for 15 seconds or
+	// a cron to be created
+	t.runPollCronSchedules(ctx)
+
+	// add a handler to update the cron schedule on-demand when crons are created
+	cronUpdateHandler := func(task *msgqueue.Message) error {
+		t.runPollCronSchedules(ctx)()
+		return nil
+	}
+	errFunc, err := t.mqv1.Subscribe(msgqueue.CRON_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
+	if err != nil {
+		t.l.Log().Err(err).Msg("Could not subscribe to cron update queue")
+		err = errFunc()
+		if err != nil {
+			t.l.Log().Err(err).Msg("Could not cleanup cron update queue")
+		}
+	}
+
 	// register the ticker
-	_, err := t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
+	_, err = t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
 		ID: t.tickerId,
 	})
 
@@ -173,6 +191,8 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	_, err = t.s.NewJob(
 		// we look ahead every 5 seconds
+		// FIXME: add another queue similar to cron jobs so that tasks scheduled less than 5 seconds
+		// into the future do not take 5 seconds to be triggered
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
 			t.runPollSchedules(ctx),

@@ -59,6 +59,19 @@ func NewTenantMessage[T any](tenantId uuid.UUID, id string, immediatelyExpire, p
 	}, nil
 }
 
+func NewCronUpdateMessage(tenantId uuid.UUID) *Message {
+	uid, _ := uuid.NewUUID()
+	msg := &Message{
+		ID:                uid.String(),
+		Payloads:          nil,
+		TenantID:          tenantId,
+		ImmediatelyExpire: true,
+		Persistent:        false,
+		Retries:           5,
+	}
+	return msg
+}
+
 func DecodeAndValidateSingleton(dv datautils.DataDecoderValidator, payloads [][]byte, target interface{}) error {
 	if len(payloads) != 1 {
 		return fmt.Errorf("expected exactly one payload, got %d", len(payloads))
