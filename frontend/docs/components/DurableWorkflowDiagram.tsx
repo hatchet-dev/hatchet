@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 
 const DurableWorkflowDiagram: React.FC = () => {
   // Phases: 0=running, 1=checkpoint, 2=interrupted, 3=resumed, 4=complete
@@ -28,34 +29,34 @@ const DurableWorkflowDiagram: React.FC = () => {
 
   const phaseColors = [
     {
-      fill: "rgba(49,46,129,0.3)",
-      stroke: "rgb(99,102,241)",
-      text: "#c7d2fe",
-      sub: "#818cf8",
+      fill: fill.activeNode,
+      stroke: brand.blue,
+      text: brand.cyan,
+      sub: brand.blue,
     },
     {
-      fill: "rgba(120,53,15,0.25)",
-      stroke: "rgb(245,158,11)",
-      text: "#fcd34d",
-      sub: "#d97706",
+      fill: fill.running,
+      stroke: state.running,
+      text: state.runningLight,
+      sub: state.runningDark,
     },
     {
-      fill: "rgba(127,29,29,0.25)",
-      stroke: "rgb(239,68,68)",
-      text: "#fca5a5",
-      sub: "#ef4444",
+      fill: fill.failed,
+      stroke: state.failed,
+      text: state.failedLight,
+      sub: state.failed,
     },
     {
-      fill: "rgba(6,78,59,0.3)",
-      stroke: "rgb(16,185,129)",
-      text: "#a7f3d0",
-      sub: "#6ee7b7",
+      fill: fill.success,
+      stroke: state.success,
+      text: state.successLighter,
+      sub: state.successLight,
     },
     {
-      fill: "rgba(6,78,59,0.3)",
-      stroke: "rgb(16,185,129)",
-      text: "#a7f3d0",
-      sub: "#6ee7b7",
+      fill: fill.success,
+      stroke: state.success,
+      text: state.successLighter,
+      sub: state.successLight,
     },
   ];
 
@@ -66,7 +67,7 @@ const DurableWorkflowDiagram: React.FC = () => {
     "restoring...",
     "complete!",
   ];
-  const statusColors = ["#818cf8", "#fcd34d", "#fca5a5", "#6ee7b7", "#6ee7b7"];
+  const statusColors = [brand.blue, state.runningLight, state.failedLight, state.successLight, state.successLight];
 
   return (
     <div className="my-8 flex flex-col items-center gap-4">
@@ -81,11 +82,11 @@ const DurableWorkflowDiagram: React.FC = () => {
               backgroundColor:
                 i < phase
                   ? i === 2
-                    ? "rgb(239,68,68)"
-                    : "rgb(16,185,129)"
+                    ? state.failed
+                    : state.success
                   : i === phase
                     ? phaseColors[i].stroke
-                    : "#444",
+                    : inactive.dot,
               boxShadow:
                 i === phase ? `0 0 6px ${phaseColors[i].stroke}` : "none",
             }}
@@ -107,35 +108,35 @@ const DurableWorkflowDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient id="dw-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
+            <linearGradient id="dw-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(129,140,248)"
+                stopColor={gradient.blue[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="dw-amber" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
+            <linearGradient id="dw-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.yellow[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(252,211,77)"
+                stopColor={gradient.yellow[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
             <linearGradient id="dw-red" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(239,68,68)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor={gradient.red[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(248,113,113)"
+                stopColor={gradient.red[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="dw-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
+            <linearGradient id="dw-green" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(52,211,153)"
+                stopColor={gradient.green[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
@@ -157,7 +158,7 @@ const DurableWorkflowDiagram: React.FC = () => {
             y1={y + nodeH + 20}
             x2="730"
             y2={y + nodeH + 20}
-            stroke="#333"
+            stroke={inactive.edge}
             strokeWidth="1"
           />
 
@@ -169,10 +170,10 @@ const DurableWorkflowDiagram: React.FC = () => {
             y2={y + nodeH + 20}
             stroke={
               phase === 2
-                ? "rgb(239,68,68)"
+                ? state.failed
                 : phase >= 3
-                  ? "rgb(16,185,129)"
-                  : "rgb(99,102,241)"
+                  ? state.success
+                  : brand.blue
             }
             strokeWidth="2"
             style={{ transition: "all 0.6s ease" }}
@@ -183,14 +184,14 @@ const DurableWorkflowDiagram: React.FC = () => {
             const nextX = steps[i + 1].x;
             const isCurrent = i === phase;
 
-            let edgeColor = "#333";
+            let edgeColor = inactive.edge;
             if (i < phase) {
               edgeColor =
                 i === 1
-                  ? "rgb(245,158,11)"
+                  ? state.running
                   : i === 2
-                    ? "rgb(16,185,129)"
-                    : "rgb(99,102,241)";
+                    ? state.success
+                    : brand.blue;
             }
             if (isCurrent) {
               edgeColor = phaseColors[phase].stroke;
@@ -217,18 +218,18 @@ const DurableWorkflowDiagram: React.FC = () => {
             const isActive = i === phase;
             const isPast = i < phase;
 
-            let fill = "rgba(30,30,30,0.15)";
-            let stroke = "#444";
-            let textColor = "#666";
-            let subColor = "#555";
+            let nodeFill = fill.inactiveNode;
+            let stroke = inactive.edge;
+            let textColor = inactive.text;
+            let subColor = inactive.stroke;
 
             if (isActive) {
-              fill = phaseColors[i].fill;
+              nodeFill = phaseColors[i].fill;
               stroke = phaseColors[i].stroke;
               textColor = phaseColors[i].text;
               subColor = phaseColors[i].sub;
             } else if (isPast) {
-              fill = phaseColors[i].fill;
+              nodeFill = phaseColors[i].fill;
               stroke = phaseColors[i].stroke;
               textColor = phaseColors[i].text;
               subColor = phaseColors[i].sub;
@@ -242,7 +243,7 @@ const DurableWorkflowDiagram: React.FC = () => {
                   width={nodeW}
                   height={nodeH}
                   rx={rx}
-                  fill={fill}
+                  fill={nodeFill}
                   stroke={stroke}
                   strokeWidth={isActive ? "2" : "1.5"}
                   strokeDasharray={
@@ -283,7 +284,7 @@ const DurableWorkflowDiagram: React.FC = () => {
                       height="14"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#ef4444"
+                      stroke={state.failed}
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -301,7 +302,7 @@ const DurableWorkflowDiagram: React.FC = () => {
                       height="14"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#fcd34d"
+                      stroke={state.runningLight}
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -321,11 +322,11 @@ const DurableWorkflowDiagram: React.FC = () => {
                   fill={
                     i < phase
                       ? i === 2
-                        ? "rgb(239,68,68)"
-                        : "rgb(16,185,129)"
+                        ? state.failed
+                        : state.success
                       : i === phase
                         ? phaseColors[i].stroke
-                        : "#444"
+                        : inactive.dot
                   }
                   style={{ transition: "all 0.4s ease" }}
                 />
@@ -344,7 +345,7 @@ const DurableWorkflowDiagram: React.FC = () => {
               <path
                 d={`M ${steps[1].x + nodeW / 2} ${y + nodeH + 34} C ${steps[1].x + nodeW / 2} ${y + nodeH + 60}, ${steps[3].x + nodeW / 2} ${y + nodeH + 60}, ${steps[3].x + nodeW / 2} ${y + nodeH + 34}`}
                 fill="none"
-                stroke="rgb(16,185,129)"
+                stroke={state.success}
                 strokeWidth="1.5"
                 strokeDasharray="4 3"
               />
@@ -352,7 +353,7 @@ const DurableWorkflowDiagram: React.FC = () => {
                 x={(steps[1].x + steps[3].x) / 2 + nodeW / 2}
                 y={y + nodeH + 62}
                 textAnchor="middle"
-                fill="#6ee7b7"
+                fill={state.successLight}
                 fontSize="9"
               >
                 replay from checkpoint

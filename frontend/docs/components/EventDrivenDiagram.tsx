@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, inactive, container, fill } from "./diagram-colors";
 
 type SourceType = "Webhook" | "Cron" | "Event";
 
 const SOURCES: { label: SourceType; color: string }[] = [
-  { label: "Webhook", color: "#818cf8" },
-  { label: "Cron", color: "#38bdf8" },
-  { label: "Event", color: "#fbbf24" },
+  { label: "Webhook", color: brand.blue },
+  { label: "Cron", color: brand.magenta },
+  { label: "Event", color: state.running },
 ];
 
 const SourceIcon: React.FC<{
@@ -94,8 +95,8 @@ const EventDrivenDiagram: React.FC = () => {
     <div
       className="my-6 rounded-xl border p-6"
       style={{
-        borderColor: "rgba(99,102,241,0.2)",
-        backgroundColor: "rgba(49,46,129,0.04)",
+        borderColor: container.border,
+        backgroundColor: container.bg,
       }}
     >
       <svg
@@ -118,8 +119,8 @@ const EventDrivenDiagram: React.FC = () => {
                 width={90}
                 height={40}
                 rx={8}
-                fill={isActive ? `${src.color}15` : "#1f2937"}
-                stroke={isActive ? src.color : "#374151"}
+                fill={isActive ? `${src.color}15` : inactive.fill}
+                stroke={isActive ? src.color : inactive.stroke}
                 strokeWidth={isActive ? 2 : 1}
                 style={{ transition: "all 0.4s ease" }}
               />
@@ -127,14 +128,14 @@ const EventDrivenDiagram: React.FC = () => {
               <foreignObject x={30} y={y + 10} width={14} height={14}>
                 <SourceIcon
                   type={src.label}
-                  color={isActive ? src.color : "#6b7280"}
+                  color={isActive ? src.color : inactive.text}
                 />
               </foreignObject>
               <text
                 x={72}
                 y={y + 25}
                 fontSize="10"
-                fill={isActive ? src.color : "#9ca3af"}
+                fill={isActive ? src.color : brand.cyanDark}
                 fontWeight={isActive ? 600 : 400}
                 style={{ transition: "all 0.4s ease" }}
               >
@@ -147,7 +148,7 @@ const EventDrivenDiagram: React.FC = () => {
                 y1={y + 20}
                 x2={170}
                 y2={90}
-                stroke={isActive ? src.color : "#374151"}
+                stroke={isActive ? src.color : inactive.stroke}
                 strokeWidth={isActive ? 2 : 1}
                 opacity={isActive ? 1 : 0.3}
                 style={{ transition: "all 0.4s ease" }}
@@ -163,11 +164,11 @@ const EventDrivenDiagram: React.FC = () => {
           width={100}
           height={50}
           rx={12}
-          fill="rgba(99,102,241,0.1)"
-          stroke="#818cf8"
+          fill={fill.blue}
+          stroke={brand.blue}
           strokeWidth={2}
         />
-        <text x={220} y={85} textAnchor="middle" fontSize="10" fill="#c7d2fe">
+        <text x={220} y={85} textAnchor="middle" fontSize="10" fill={brand.cyan}>
           Hatchet
         </text>
         <text
@@ -175,7 +176,7 @@ const EventDrivenDiagram: React.FC = () => {
           y={100}
           textAnchor="middle"
           fontSize="10"
-          fill="#818cf8"
+          fill={brand.blue}
           fontWeight={600}
         >
           Engine
@@ -194,7 +195,7 @@ const EventDrivenDiagram: React.FC = () => {
                 y1={90}
                 x2={330}
                 y2={y + 20}
-                stroke={isActive ? "#34d399" : "#374151"}
+                stroke={isActive ? state.success : inactive.stroke}
                 strokeWidth={isActive ? 2 : 1}
                 opacity={isActive ? 1 : 0.3}
                 style={{ transition: "all 0.4s ease" }}
@@ -207,21 +208,21 @@ const EventDrivenDiagram: React.FC = () => {
                 width={90}
                 height={40}
                 rx={8}
-                fill={isActive ? "rgba(52,211,153,0.1)" : "#1f2937"}
-                stroke={isActive ? "#34d399" : "#374151"}
+                fill={isActive ? fill.successLight : inactive.fill}
+                stroke={isActive ? state.success : inactive.stroke}
                 strokeWidth={isActive ? 2 : 1}
                 style={{ transition: "all 0.4s ease" }}
               />
               {/* Gear icon */}
               <foreignObject x={368} y={y + 5} width={14} height={14}>
-                <GearIcon color={isActive ? "#34d399" : "#6b7280"} />
+                <GearIcon color={isActive ? state.success : inactive.text} />
               </foreignObject>
               <text
                 x={375}
                 y={y + 33}
                 textAnchor="middle"
                 fontSize="9"
-                fill={isActive ? "#34d399" : "#9ca3af"}
+                fill={isActive ? state.success : brand.cyanDark}
                 style={{ transition: "all 0.4s ease" }}
               >
                 Worker {i + 1}
@@ -238,13 +239,13 @@ const EventDrivenDiagram: React.FC = () => {
             key={src.label}
             className="flex items-center gap-1.5 text-xs"
             style={{
-              color: i === activeSource ? src.color : "#6b7280",
+              color: i === activeSource ? src.color : inactive.text,
               transition: "color 0.4s ease",
             }}
           >
             <SourceIcon
               type={src.label}
-              color={i === activeSource ? src.color : "#6b7280"}
+              color={i === activeSource ? src.color : inactive.text}
               size={12}
             />
             {src.label}

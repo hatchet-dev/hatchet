@@ -1,4 +1,5 @@
 import React from "react";
+import { brand, inactive, gradient } from "./diagram-colors";
 
 const PipelineDiagram: React.FC = () => {
   // Layout:
@@ -34,10 +35,10 @@ const PipelineDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient id="pipe-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(168,85,247)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor="rgb(188, 70, 221)" stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(192,132,252)"
+                stopColor="rgb(213, 133, 239)"
                 stopOpacity="0.3"
               />
             </linearGradient>
@@ -48,10 +49,10 @@ const PipelineDiagram: React.FC = () => {
               x2="100%"
               y2="0%"
             >
-              <stop offset="0%" stopColor="rgb(168,85,247)" stopOpacity="0.8" />
+              <stop offset="0%" stopColor="rgb(188, 70, 221)" stopOpacity="0.8" />
               <stop
                 offset="100%"
-                stopColor="rgb(129,140,248)"
+                stopColor="rgb(133, 189, 255)"
                 stopOpacity="0.6"
               />
             </linearGradient>
@@ -76,7 +77,7 @@ const PipelineDiagram: React.FC = () => {
                 width={nodeWidth}
                 height={nodeHeight}
                 rx={nodeRx}
-                fill="rgba(88,28,135,0.25)"
+                fill="rgba(188, 70, 221, 0.2)"
                 stroke="url(#pipe-grad)"
                 strokeWidth="1.5"
               />
@@ -84,7 +85,7 @@ const PipelineDiagram: React.FC = () => {
                 x={node.x + nodeWidth / 2}
                 y={node.y + nodeHeight / 2 + 5}
                 textAnchor="middle"
-                fill="#e9d5ff"
+                fill="#D585EF"
                 fontSize="13"
                 fontWeight="500"
               >
@@ -108,7 +109,7 @@ const PipelineDiagram: React.FC = () => {
                 key={`edge-${i}`}
                 d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
                 fill="none"
-                stroke="rgb(192,132,252)"
+                stroke="rgb(213, 133, 239)"
                 strokeWidth="2"
                 className="pipe-flow"
                 style={{ animationDelay: `${i * 0.15}s` }}
@@ -121,7 +122,7 @@ const PipelineDiagram: React.FC = () => {
             x={30 + nodeWidth / 2}
             y={25}
             textAnchor="middle"
-            fill="#9ca3af"
+            fill="#A5C5E9"
             fontSize="10"
           >
             parallel
@@ -133,7 +134,7 @@ const PipelineDiagram: React.FC = () => {
             height={255}
             rx={12}
             fill="none"
-            stroke="rgb(168,85,247)"
+            stroke="rgb(188, 70, 221)"
             strokeWidth="1"
             strokeOpacity="0.2"
             strokeDasharray="4 4"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 
 const LongWaitDiagram: React.FC = () => {
   const [phase, setPhase] = useState(0); // 0=running, 1=waiting, 2=resumed, 3=complete
@@ -41,10 +42,10 @@ const LongWaitDiagram: React.FC = () => {
           className="text-xs transition-colors duration-300"
           style={{
             color: isDone
-              ? "#6ee7b7"
+              ? state.successLight
               : isWaiting
-                ? "#c7d2fe"
-                : "#6b7280",
+                ? brand.cyan
+                : state.queued,
           }}
         >
           {isDone
@@ -65,27 +66,27 @@ const LongWaitDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient id="lw-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
+            <linearGradient id="lw-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(129,140,248)"
+                stopColor={gradient.blue[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="lw-amber" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
+            <linearGradient id="lw-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.yellow[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(252,211,77)"
+                stopColor={gradient.yellow[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="lw-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
+            <linearGradient id="lw-green" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(52,211,153)"
+                stopColor={gradient.green[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
@@ -115,8 +116,8 @@ const LongWaitDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={phase === 0 ? "rgba(49,46,129,0.3)" : "rgba(49,46,129,0.15)"}
-            stroke={phase === 0 ? "url(#lw-indigo)" : "#555"}
+            fill={phase === 0 ? fill.activeNode : fill.inactiveNode}
+            stroke={phase === 0 ? "url(#lw-blue)" : inactive.stroke}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -124,7 +125,7 @@ const LongWaitDiagram: React.FC = () => {
             x={taskX + nodeW / 2}
             y={taskY + nodeH / 2 - 2}
             textAnchor="middle"
-            fill={phase === 0 ? "#c7d2fe" : "#888"}
+            fill={phase === 0 ? brand.cyan : inactive.textLight}
             fontSize="13"
             fontWeight="500"
           >
@@ -134,7 +135,7 @@ const LongWaitDiagram: React.FC = () => {
             x={taskX + nodeW / 2}
             y={taskY + nodeH / 2 + 14}
             textAnchor="middle"
-            fill={phase === 0 ? "#818cf8" : "#666"}
+            fill={phase === 0 ? brand.blue : inactive.text}
             fontSize="9"
           >
             do work
@@ -144,7 +145,7 @@ const LongWaitDiagram: React.FC = () => {
           <path
             d={`M ${taskX + nodeW + 2} ${taskY + nodeH / 2} L ${waitX - 2} ${waitY + nodeH / 2}`}
             fill="none"
-            stroke={phase === 0 ? "rgb(129,140,248)" : "#555"}
+            stroke={phase === 0 ? gradient.blue[0] : inactive.stroke}
             strokeWidth="2"
             className={phase === 0 ? "lw-flow" : ""}
             style={{ transition: "stroke 0.4s ease" }}
@@ -159,13 +160,13 @@ const LongWaitDiagram: React.FC = () => {
             rx={rx}
             fill={
               isWaiting
-                ? "rgba(49,46,129,0.25)"
-                : "rgba(30,30,30,0.15)"
+                ? "rgba(10, 16, 41, 0.25)"
+                : fill.inactiveNode
             }
             stroke={
               isWaiting
-                ? "url(#lw-indigo)"
-                : "#555"
+                ? "url(#lw-blue)"
+                : inactive.stroke
             }
             strokeWidth="1.5"
             strokeDasharray={isWaiting ? "6 4" : "none"}
@@ -180,7 +181,7 @@ const LongWaitDiagram: React.FC = () => {
                 width="5"
                 height="16"
                 rx="1"
-                fill="#818cf8"
+                fill={brand.blue}
               />
               <rect
                 x={waitX + (nodeW + 60) / 2 + 4}
@@ -188,7 +189,7 @@ const LongWaitDiagram: React.FC = () => {
                 width="5"
                 height="16"
                 rx="1"
-                fill="#818cf8"
+                fill={brand.blue}
               />
             </g>
           )}
@@ -196,7 +197,7 @@ const LongWaitDiagram: React.FC = () => {
             x={waitX + (nodeW + 60) / 2}
             y={waitY + 10}
             textAnchor="middle"
-            fill={isWaiting ? "#c7d2fe" : "#888"}
+            fill={isWaiting ? brand.cyan : inactive.textLight}
             fontSize="13"
             fontWeight="500"
             style={{ transition: "fill 0.4s ease" }}
@@ -208,7 +209,7 @@ const LongWaitDiagram: React.FC = () => {
               x={waitX + (nodeW + 60) / 2}
               y={waitY + 28}
               textAnchor="middle"
-              fill="#666"
+              fill={inactive.text}
               fontSize="9"
             >
               {waitSublabel}
@@ -220,7 +221,7 @@ const LongWaitDiagram: React.FC = () => {
             x={waitX + (nodeW + 60) / 2}
             y={waitY + nodeH + 30}
             textAnchor="middle"
-            fill={isResumed || isDone ? "#6ee7b7" : "#555"}
+            fill={isResumed || isDone ? state.successLight : inactive.stroke}
             fontSize="9"
             style={{ transition: "fill 0.4s ease" }}
           >
@@ -231,7 +232,7 @@ const LongWaitDiagram: React.FC = () => {
           <path
             d={`M ${waitX + nodeW + 62} ${waitY + nodeH / 2} L ${resumeX - 2} ${resumeY + nodeH / 2}`}
             fill="none"
-            stroke={isResumed ? "rgb(16,185,129)" : "#444"}
+            stroke={isResumed ? gradient.green[0] : inactive.edge}
             strokeWidth="2"
             className={isResumed ? "lw-flow" : ""}
             style={{
@@ -247,8 +248,8 @@ const LongWaitDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={isResumed ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.15)"}
-            stroke={isResumed ? "url(#lw-emerald)" : "#444"}
+            fill={isResumed ? fill.success : fill.inactiveNode}
+            stroke={isResumed ? "url(#lw-green)" : inactive.edge}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -256,7 +257,7 @@ const LongWaitDiagram: React.FC = () => {
             x={resumeX + nodeW / 2}
             y={resumeY + nodeH / 2 - 2}
             textAnchor="middle"
-            fill={isResumed ? "#a7f3d0" : "#666"}
+            fill={isResumed ? state.successLighter : inactive.text}
             fontSize="13"
             fontWeight="500"
             style={{ transition: "fill 0.4s ease" }}
@@ -267,7 +268,7 @@ const LongWaitDiagram: React.FC = () => {
             x={resumeX + nodeW / 2}
             y={resumeY + nodeH / 2 + 14}
             textAnchor="middle"
-            fill={isResumed ? "#6ee7b7" : "#555"}
+            fill={isResumed ? state.successLight : inactive.stroke}
             fontSize="9"
             style={{ transition: "fill 0.4s ease" }}
           >
@@ -278,7 +279,7 @@ const LongWaitDiagram: React.FC = () => {
           <path
             d={`M ${resumeX + nodeW + 2} ${resumeY + nodeH / 2} L ${completeX - 2} ${completeY + nodeH / 2}`}
             fill="none"
-            stroke={isDone ? "rgb(16,185,129)" : "#444"}
+            stroke={isDone ? gradient.green[0] : inactive.edge}
             strokeWidth="2"
             className={isDone ? "lw-flow" : ""}
             style={{
@@ -294,8 +295,8 @@ const LongWaitDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={isDone ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.15)"}
-            stroke={isDone ? "url(#lw-emerald)" : "#444"}
+            fill={isDone ? fill.success : fill.inactiveNode}
+            stroke={isDone ? "url(#lw-green)" : inactive.edge}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -303,7 +304,7 @@ const LongWaitDiagram: React.FC = () => {
             x={completeX + nodeW / 2}
             y={completeY + nodeH / 2 - 2}
             textAnchor="middle"
-            fill={isDone ? "#a7f3d0" : "#666"}
+            fill={isDone ? state.successLighter : inactive.text}
             fontSize="13"
             fontWeight="500"
             style={{ transition: "fill 0.4s ease" }}
@@ -314,7 +315,7 @@ const LongWaitDiagram: React.FC = () => {
             x={completeX + nodeW / 2}
             y={completeY + nodeH / 2 + 14}
             textAnchor="middle"
-            fill={isDone ? "#6ee7b7" : "#555"}
+            fill={isDone ? state.successLight : inactive.stroke}
             fontSize="9"
             style={{ transition: "fill 0.4s ease" }}
           >

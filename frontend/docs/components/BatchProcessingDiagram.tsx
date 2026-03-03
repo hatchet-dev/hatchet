@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, inactive, container, fill } from "./diagram-colors";
 
 const ITEMS = Array.from({ length: 8 }, (_, i) => i);
 
@@ -40,17 +41,17 @@ const BatchProcessingDiagram: React.FC = () => {
   }, []);
 
   const colors = {
-    pending: "#374151",
-    processing: "#fbbf24",
-    done: "#34d399",
+    pending: "#1C2B4A",
+    processing: "#EAB308",
+    done: "#22C55E",
   };
 
   return (
     <div
       className="my-6 rounded-xl border p-6"
       style={{
-        borderColor: "rgba(99,102,241,0.2)",
-        backgroundColor: "rgba(49,46,129,0.04)",
+        borderColor: "rgba(51, 146, 255, 0.2)",
+        backgroundColor: "rgba(10, 16, 41, 0.04)",
       }}
     >
       <svg
@@ -65,8 +66,8 @@ const BatchProcessingDiagram: React.FC = () => {
           width={70}
           height={45}
           rx={8}
-          fill="rgba(99,102,241,0.1)"
-          stroke="#818cf8"
+          fill="rgba(51, 146, 255, 0.1)"
+          stroke="#3392FF"
           strokeWidth={1.5}
         />
         {/* List icon */}
@@ -76,7 +77,7 @@ const BatchProcessingDiagram: React.FC = () => {
             height="14"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#818cf8"
+            stroke="#3392FF"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -94,7 +95,7 @@ const BatchProcessingDiagram: React.FC = () => {
           y={89}
           textAnchor="middle"
           fontSize="9"
-          fill="#818cf8"
+          fill="#3392FF"
           fontWeight={600}
         >
           Batch Input
@@ -106,10 +107,10 @@ const BatchProcessingDiagram: React.FC = () => {
           y1={78}
           x2={110}
           y2={78}
-          stroke="#818cf8"
+          stroke="#3392FF"
           strokeWidth={1.5}
         />
-        <polygon points="110,78 104,74 104,82" fill="#818cf8" />
+        <polygon points="110,78 104,74 104,82" fill="#3392FF" />
 
         {/* Fan-out items grid (2 rows x 4 cols) */}
         {ITEMS.map((item) => {
@@ -163,7 +164,7 @@ const BatchProcessingDiagram: React.FC = () => {
                     ? `${color}15`
                     : status === "processing"
                       ? `${color}15`
-                      : "#1f2937"
+                      : "#0A1029"
                 }
                 stroke={color}
                 strokeWidth={status === "pending" ? 1 : 2}
@@ -234,10 +235,10 @@ const BatchProcessingDiagram: React.FC = () => {
           y1={78}
           x2={355}
           y2={78}
-          stroke="#34d399"
+          stroke="#22C55E"
           strokeWidth={1.5}
         />
-        <polygon points="355,78 349,74 349,82" fill="#34d399" />
+        <polygon points="355,78 349,74 349,82" fill="#22C55E" />
 
         {/* Results box */}
         <rect
@@ -246,8 +247,8 @@ const BatchProcessingDiagram: React.FC = () => {
           width={70}
           height={45}
           rx={8}
-          fill="rgba(52,211,153,0.1)"
-          stroke="#34d399"
+          fill="rgba(34, 197, 94, 0.1)"
+          stroke="#22C55E"
           strokeWidth={1.5}
         />
         {/* Bar chart icon */}
@@ -257,7 +258,7 @@ const BatchProcessingDiagram: React.FC = () => {
             height="14"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#34d399"
+            stroke="#22C55E"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -272,7 +273,7 @@ const BatchProcessingDiagram: React.FC = () => {
           y={89}
           textAnchor="middle"
           fontSize="9"
-          fill="#34d399"
+          fill="#22C55E"
           fontWeight={600}
         >
           Results
@@ -284,19 +285,19 @@ const BatchProcessingDiagram: React.FC = () => {
         <div className="flex w-full items-center gap-3">
           <div
             className="h-2 flex-1 overflow-hidden rounded-full"
-            style={{ backgroundColor: "rgba(55,65,81,0.5)" }}
+            style={{ backgroundColor: "rgba(10, 16, 41, 0.5)" }}
           >
             <div
               className="h-full rounded-full"
               style={{
                 width: `${(completedCount / ITEMS.length) * 100}%`,
                 backgroundColor:
-                  completedCount === ITEMS.length ? "#34d399" : "#fbbf24",
+                  completedCount === ITEMS.length ? "#22C55E" : "#EAB308",
                 transition: "all 0.4s ease",
               }}
             />
           </div>
-          <span className="text-xs tabular-nums" style={{ color: "#9ca3af" }}>
+          <span className="text-xs tabular-nums" style={{ color: "#A5C5E9" }}>
             {completedCount}/{ITEMS.length}
           </span>
         </div>

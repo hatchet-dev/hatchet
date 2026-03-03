@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 
 const CycleDiagram: React.FC = () => {
   const [iteration, setIteration] = useState(0);
@@ -37,23 +38,23 @@ const CycleDiagram: React.FC = () => {
             style={{
               backgroundColor:
                 i < iteration
-                  ? "rgba(16,185,129,0.3)"
+                  ? fill.success
                   : i === iteration && !isDone
-                    ? "rgba(245,158,11,0.3)"
-                    : "rgba(50,50,50,0.3)",
+                    ? fill.running
+                    : fill.activeNode,
               border: `1px solid ${
                 i < iteration
-                  ? "rgb(16,185,129)"
+                  ? gradient.green[0]
                   : i === iteration && !isDone
-                    ? "rgb(245,158,11)"
-                    : "#555"
+                    ? gradient.yellow[0]
+                    : inactive.stroke
               }`,
               color:
                 i < iteration
-                  ? "#6ee7b7"
+                  ? state.successLight
                   : i === iteration && !isDone
-                    ? "#fcd34d"
-                    : "#666",
+                    ? state.runningLight
+                    : inactive.text,
             }}
           >
             {i + 1}
@@ -61,7 +62,7 @@ const CycleDiagram: React.FC = () => {
         ))}
         <span
           className="ml-1 text-xs font-medium transition-colors duration-300"
-          style={{ color: isDone ? "#6ee7b7" : "#6b7280" }}
+          style={{ color: isDone ? state.successLight : state.queued }}
         >
           {isDone ? "done!" : "running..."}
         </span>
@@ -76,44 +77,44 @@ const CycleDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient
-              id="cycle-amber"
+              id="cycle-yellow"
               x1="0%"
               y1="0%"
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor={gradient.yellow[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(252,211,77)"
+                stopColor={gradient.yellow[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
             <linearGradient
-              id="cycle-indigo"
+              id="cycle-blue"
               x1="0%"
               y1="0%"
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(129,140,248)"
+                stopColor={gradient.blue[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
             <linearGradient
-              id="cycle-emerald"
+              id="cycle-green"
               x1="0%"
               y1="0%"
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(52,211,153)"
+                stopColor={gradient.green[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
@@ -136,8 +137,8 @@ const CycleDiagram: React.FC = () => {
             width={nodeWidth}
             height={nodeHeight}
             rx={nodeRx}
-            fill={!isDone ? "rgba(49,46,129,0.3)" : "rgba(49,46,129,0.15)"}
-            stroke={!isDone ? "url(#cycle-indigo)" : "#555"}
+            fill={!isDone ? fill.activeNode : fill.inactiveNode}
+            stroke={!isDone ? "url(#cycle-blue)" : inactive.stroke}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -145,7 +146,7 @@ const CycleDiagram: React.FC = () => {
             x={taskX + nodeWidth / 2}
             y={taskY + nodeHeight / 2 - 2}
             textAnchor="middle"
-            fill={!isDone ? "#c7d2fe" : "#888"}
+            fill={!isDone ? brand.cyan : inactive.textLight}
             fontSize="13"
             fontWeight="500"
           >
@@ -155,7 +156,7 @@ const CycleDiagram: React.FC = () => {
             x={taskX + nodeWidth / 2}
             y={taskY + nodeHeight / 2 + 14}
             textAnchor="middle"
-            fill={!isDone ? "#818cf8" : "#666"}
+            fill={!isDone ? brand.blue : inactive.text}
             fontSize="9"
           >
             do work
@@ -165,21 +166,21 @@ const CycleDiagram: React.FC = () => {
           <g transform={`translate(${checkX}, ${checkY})`}>
             <polygon
               points="0,-30 45,0 0,30 -45,0"
-              fill="rgba(120,53,15,0.3)"
-              stroke="url(#cycle-amber)"
+              fill={fill.running}
+              stroke="url(#cycle-yellow)"
               strokeWidth="1.5"
             />
             <text
               x={0}
               y={-2}
               textAnchor="middle"
-              fill="#fcd34d"
+              fill={state.runningLight}
               fontSize="9"
               fontWeight="600"
             >
               {isDone ? "done ✓" : "done?"}
             </text>
-            <text x={0} y={12} textAnchor="middle" fill="#d97706" fontSize="8">
+            <text x={0} y={12} textAnchor="middle" fill={state.runningDark} fontSize="8">
               {isDone ? "" : "not yet"}
             </text>
           </g>
@@ -191,8 +192,8 @@ const CycleDiagram: React.FC = () => {
             width={nodeWidth}
             height={nodeHeight}
             rx={nodeRx}
-            fill={isDone ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.15)"}
-            stroke={isDone ? "url(#cycle-emerald)" : "#444"}
+            fill={isDone ? fill.success : fill.inactiveNode}
+            stroke={isDone ? "url(#cycle-green)" : inactive.edge}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -200,7 +201,7 @@ const CycleDiagram: React.FC = () => {
             x={doneX + nodeWidth / 2}
             y={doneY + nodeHeight / 2 - 2}
             textAnchor="middle"
-            fill={isDone ? "#a7f3d0" : "#666"}
+            fill={isDone ? state.successLighter : inactive.text}
             fontSize="13"
             fontWeight="500"
             style={{ transition: "fill 0.4s ease" }}
@@ -211,7 +212,7 @@ const CycleDiagram: React.FC = () => {
             x={doneX + nodeWidth / 2}
             y={doneY + nodeHeight / 2 + 14}
             textAnchor="middle"
-            fill={isDone ? "#6ee7b7" : "#555"}
+            fill={isDone ? state.successLight : inactive.stroke}
             fontSize="9"
             style={{ transition: "fill 0.4s ease" }}
           >
@@ -222,7 +223,7 @@ const CycleDiagram: React.FC = () => {
           <path
             d={`M ${taskX + nodeWidth + 2} ${taskY + nodeHeight / 2} L ${checkX - 47} ${checkY}`}
             fill="none"
-            stroke={!isDone ? "rgb(129,140,248)" : "#555"}
+            stroke={!isDone ? gradient.blue[0] : inactive.stroke}
             strokeWidth="2"
             className={!isDone ? "cycle-flow" : ""}
             style={{ transition: "stroke 0.4s ease" }}
@@ -232,7 +233,7 @@ const CycleDiagram: React.FC = () => {
           <path
             d={`M ${checkX + 47} ${checkY} L ${doneX - 2} ${doneY + nodeHeight / 2}`}
             fill="none"
-            stroke={isDone ? "rgb(16,185,129)" : "#444"}
+            stroke={isDone ? gradient.green[0] : inactive.edge}
             strokeWidth="2"
             className={isDone ? "cycle-flow" : ""}
             style={{
@@ -245,7 +246,7 @@ const CycleDiagram: React.FC = () => {
             x={(checkX + 47 + doneX - 2) / 2}
             y={doneY + nodeHeight / 2 - 10}
             textAnchor="middle"
-            fill={isDone ? "#6ee7b7" : "#555"}
+            fill={isDone ? state.successLight : inactive.stroke}
             fontSize="9"
             style={{ transition: "fill 0.4s ease" }}
           >
@@ -256,7 +257,7 @@ const CycleDiagram: React.FC = () => {
           <path
             d={`M ${checkX} ${checkY + 30} C ${checkX} ${checkY + 80}, ${taskX + nodeWidth / 2} ${taskY + nodeHeight + 50}, ${taskX + nodeWidth / 2} ${taskY + nodeHeight + 2}`}
             fill="none"
-            stroke={!isDone ? "rgb(245,158,11)" : "#444"}
+            stroke={!isDone ? gradient.yellow[0] : inactive.edge}
             strokeWidth="2"
             className={!isDone ? "cycle-flow" : ""}
             style={{
@@ -269,7 +270,7 @@ const CycleDiagram: React.FC = () => {
             x={(checkX + taskX + nodeWidth / 2) / 2}
             y={checkY + 75}
             textAnchor="middle"
-            fill={!isDone ? "#fcd34d" : "#555"}
+            fill={!isDone ? state.runningLight : inactive.stroke}
             fontSize="9"
             style={{ transition: "fill 0.4s ease" }}
           >

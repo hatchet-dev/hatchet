@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, inactive, container } from "./diagram-colors";
 
 const STAGES = [
-  { id: "ingest", label: "Ingest", color: "#818cf8" },
-  { id: "parse", label: "Parse", color: "#38bdf8" },
-  { id: "extract", label: "Extract", color: "#fbbf24" },
-  { id: "validate", label: "Validate", color: "#a78bfa" },
-  { id: "output", label: "Output", color: "#34d399" },
+  { id: "ingest", label: "Ingest", color: "#3392FF" },
+  { id: "parse", label: "Parse", color: "#BC46DD" },
+  { id: "extract", label: "Extract", color: "#EAB308" },
+  { id: "validate", label: "Validate", color: "#B8D41C" },
+  { id: "output", label: "Output", color: "#22C55E" },
 ] as const;
 
 type StageId = (typeof STAGES)[number]["id"];
@@ -91,8 +92,8 @@ const DocumentProcessingDiagram: React.FC = () => {
     <div
       className="my-6 rounded-xl border p-6"
       style={{
-        borderColor: "rgba(99,102,241,0.2)",
-        backgroundColor: "rgba(49,46,129,0.04)",
+        borderColor: "rgba(51, 146, 255, 0.2)",
+        backgroundColor: "rgba(10, 16, 41, 0.04)",
       }}
     >
       <svg
@@ -115,14 +116,14 @@ const DocumentProcessingDiagram: React.FC = () => {
                 y1={y}
                 x2={toX - 2}
                 y2={y}
-                stroke={isActive ? STAGES[i].color : "#374151"}
+                stroke={isActive ? STAGES[i].color : "#1C2B4A"}
                 strokeWidth={isActive ? 2 : 1.5}
                 opacity={isActive ? 1 : 0.4}
                 style={{ transition: "all 0.5s ease" }}
               />
               <polygon
                 points={`${toX - 2},${y} ${toX - 8},${y - 4} ${toX - 8},${y + 4}`}
-                fill={isActive ? STAGES[i].color : "#374151"}
+                fill={isActive ? STAGES[i].color : "#1C2B4A"}
                 opacity={isActive ? 1 : 0.4}
                 style={{ transition: "all 0.5s ease" }}
               />
@@ -162,8 +163,8 @@ const DocumentProcessingDiagram: React.FC = () => {
                 width={stageWidth}
                 height={60}
                 rx={10}
-                fill={isActive ? `${stage.color}15` : "#1f2937"}
-                stroke={isActive ? stage.color : "#374151"}
+                fill={isActive ? `${stage.color}15` : "#0A1029"}
+                stroke={isActive ? stage.color : "#1C2B4A"}
                 strokeWidth={isActive ? 2 : 1}
                 style={{ transition: "all 0.5s ease" }}
               />
@@ -175,7 +176,7 @@ const DocumentProcessingDiagram: React.FC = () => {
               >
                 <StageIcon
                   id={stage.id}
-                  color={isActive ? stage.color : "#6b7280"}
+                  color={isActive ? stage.color : "#64748B"}
                 />
               </foreignObject>
               <text
@@ -184,7 +185,7 @@ const DocumentProcessingDiagram: React.FC = () => {
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight={isActive ? 600 : 400}
-                fill={isActive ? stage.color : "#9ca3af"}
+                fill={isActive ? stage.color : "#A5C5E9"}
                 style={{ transition: "all 0.5s ease" }}
               >
                 {stage.label}
@@ -203,7 +204,7 @@ const DocumentProcessingDiagram: React.FC = () => {
             y={125}
             textAnchor="middle"
             fontSize="9"
-            fill="#38bdf8"
+            fill="#BC46DD"
           >
             per-file fanout
           </text>
@@ -212,7 +213,7 @@ const DocumentProcessingDiagram: React.FC = () => {
             y1={102}
             x2={startX + 1 * (stageWidth + gap) + stageWidth / 2}
             y2={118}
-            stroke="#38bdf8"
+            stroke="#BC46DD"
             strokeWidth={1}
             strokeDasharray="3 2"
           />
@@ -228,7 +229,7 @@ const DocumentProcessingDiagram: React.FC = () => {
             y={125}
             textAnchor="middle"
             fontSize="9"
-            fill="#fbbf24"
+            fill="#EAB308"
           >
             rate-limited
           </text>
@@ -237,7 +238,7 @@ const DocumentProcessingDiagram: React.FC = () => {
             y1={102}
             x2={startX + 2 * (stageWidth + gap) + stageWidth / 2}
             y2={118}
-            stroke="#fbbf24"
+            stroke="#EAB308"
             strokeWidth={1}
             strokeDasharray="3 2"
           />
@@ -253,7 +254,7 @@ const DocumentProcessingDiagram: React.FC = () => {
             y={125}
             textAnchor="middle"
             fontSize="9"
-            fill="#a78bfa"
+            fill="#B8D41C"
           >
             retries on failure
           </text>
@@ -262,7 +263,7 @@ const DocumentProcessingDiagram: React.FC = () => {
             y1={102}
             x2={startX + 3 * (stageWidth + gap) + stageWidth / 2}
             y2={118}
-            stroke="#a78bfa"
+            stroke="#B8D41C"
             strokeWidth={1}
             strokeDasharray="3 2"
           />
@@ -277,7 +278,7 @@ const DocumentProcessingDiagram: React.FC = () => {
             style={{
               width: i === activeStage ? 32 : 12,
               backgroundColor:
-                i === activeStage ? stage.color : "rgba(55,65,81,0.5)",
+                i === activeStage ? stage.color : "rgba(10, 16, 41, 0.5)",
               transition: "all 0.5s ease",
             }}
           />

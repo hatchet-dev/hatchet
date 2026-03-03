@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, inactive, container } from "./diagram-colors";
 
 const PHASES = ["reason", "action", "observation"] as const;
 type Phase = (typeof PHASES)[number];
 
 const PHASE_CONFIG: Record<Phase, { label: string; color: string }> = {
-  reason: { label: "Reason", color: "#818cf8" },
-  action: { label: "Action", color: "#38bdf8" },
-  observation: { label: "Observation", color: "#fbbf24" },
+  reason: { label: "Reason", color: brand.blue },
+  action: { label: "Action", color: brand.magenta },
+  observation: { label: "Observation", color: state.running },
 };
 
 /** Small SVG icons rendered inline, no emojis */
@@ -14,12 +15,11 @@ const PhaseIcon: React.FC<{ phase: Phase; active: boolean }> = ({
   phase,
   active,
 }) => {
-  const color = active ? PHASE_CONFIG[phase].color : "#6b7280";
+  const color = active ? PHASE_CONFIG[phase].color : inactive.text;
   const size = 18;
 
   switch (phase) {
     case "reason":
-      // Lightbulb icon
       return (
         <svg
           width={size}
@@ -37,7 +37,6 @@ const PhaseIcon: React.FC<{ phase: Phase; active: boolean }> = ({
         </svg>
       );
     case "action":
-      // Zap/bolt icon
       return (
         <svg
           width={size}
@@ -53,7 +52,6 @@ const PhaseIcon: React.FC<{ phase: Phase; active: boolean }> = ({
         </svg>
       );
     case "observation":
-      // Eye icon
       return (
         <svg
           width={size}
@@ -91,7 +89,6 @@ const AgentLoopDiagram: React.FC = () => {
 
   const phase = PHASES[phaseIdx];
 
-  // Horizontal layout: 3 nodes evenly spaced
   const svgW = 520;
   const svgH = 160;
   const nodeY = 70;
@@ -107,8 +104,8 @@ const AgentLoopDiagram: React.FC = () => {
     <div
       className="my-6 rounded-xl border p-6"
       style={{
-        borderColor: "rgba(99,102,241,0.2)",
-        backgroundColor: "rgba(49,46,129,0.04)",
+        borderColor: container.border,
+        backgroundColor: container.bg,
       }}
     >
       <svg
@@ -126,7 +123,7 @@ const AgentLoopDiagram: React.FC = () => {
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#4b5563" />
+            <polygon points="0 0, 10 3.5, 0 7" fill={inactive.stroke} />
           </marker>
           <marker
             id="arrow-reason"
@@ -137,7 +134,7 @@ const AgentLoopDiagram: React.FC = () => {
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#818cf8" />
+            <polygon points="0 0, 10 3.5, 0 7" fill={brand.blue} />
           </marker>
           <marker
             id="arrow-action"
@@ -148,7 +145,7 @@ const AgentLoopDiagram: React.FC = () => {
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#38bdf8" />
+            <polygon points="0 0, 10 3.5, 0 7" fill={brand.magenta} />
           </marker>
           <marker
             id="arrow-observation"
@@ -159,7 +156,7 @@ const AgentLoopDiagram: React.FC = () => {
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+            <polygon points="0 0, 10 3.5, 0 7" fill={state.running} />
           </marker>
         </defs>
 
@@ -175,7 +172,7 @@ const AgentLoopDiagram: React.FC = () => {
               y1={from.y}
               x2={to.x - 34}
               y2={to.y}
-              stroke={isActive ? PHASE_CONFIG[PHASES[i]].color : "#4b5563"}
+              stroke={isActive ? PHASE_CONFIG[PHASES[i]].color : inactive.stroke}
               strokeWidth={isActive ? 2 : 1.5}
               markerEnd={`url(#${arrowMarkerId})`}
               opacity={isActive ? 1 : 0.5}
@@ -194,7 +191,7 @@ const AgentLoopDiagram: React.FC = () => {
             <path
               d={`M ${from.x} ${from.y + 30} C ${from.x} ${curveY + 10}, ${to.x} ${curveY + 10}, ${to.x} ${to.y + 30}`}
               fill="none"
-              stroke={isActive ? PHASE_CONFIG.observation.color : "#4b5563"}
+              stroke={isActive ? PHASE_CONFIG.observation.color : inactive.stroke}
               strokeWidth={isActive ? 2 : 1.5}
               strokeDasharray="6 4"
               opacity={isActive ? 1 : 0.35}
@@ -210,7 +207,7 @@ const AgentLoopDiagram: React.FC = () => {
           y={nodeY + 78}
           textAnchor="middle"
           fontSize="10"
-          fill="#6b7280"
+          fill={inactive.text}
           fontStyle="italic"
         >
           iteration {iteration}/3
@@ -224,7 +221,6 @@ const AgentLoopDiagram: React.FC = () => {
 
           return (
             <g key={p}>
-              {/* Glow ring */}
               {isActive && (
                 <rect
                   x={pos.x - 36}
@@ -243,19 +239,17 @@ const AgentLoopDiagram: React.FC = () => {
                   />
                 </rect>
               )}
-              {/* Node box */}
               <rect
                 x={pos.x - 30}
                 y={pos.y - 30}
                 width={60}
                 height={60}
                 rx={14}
-                fill={isActive ? `${config.color}18` : "#1f2937"}
-                stroke={isActive ? config.color : "#374151"}
+                fill={isActive ? `${config.color}18` : brand.navy}
+                stroke={isActive ? config.color : inactive.stroke}
                 strokeWidth={isActive ? 2 : 1.5}
                 style={{ transition: "all 0.4s ease" }}
               />
-              {/* Icon */}
               <foreignObject
                 x={pos.x - 9}
                 y={pos.y - 18}
@@ -264,14 +258,13 @@ const AgentLoopDiagram: React.FC = () => {
               >
                 <PhaseIcon phase={p} active={isActive} />
               </foreignObject>
-              {/* Label */}
               <text
                 x={pos.x}
                 y={pos.y + 14}
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight={isActive ? 600 : 400}
-                fill={isActive ? config.color : "#9ca3af"}
+                fill={isActive ? config.color : brand.cyanDark}
                 style={{ transition: "all 0.4s ease" }}
               >
                 {config.label}
@@ -291,8 +284,8 @@ const AgentLoopDiagram: React.FC = () => {
               backgroundColor:
                 phase === p
                   ? `${PHASE_CONFIG[p].color}20`
-                  : "rgba(55,65,81,0.3)",
-              color: phase === p ? PHASE_CONFIG[p].color : "#6b7280",
+                  : "rgba(10, 16, 41, 0.3)",
+              color: phase === p ? PHASE_CONFIG[p].color : inactive.text,
               border: `1px solid ${phase === p ? `${PHASE_CONFIG[p].color}40` : "transparent"}`,
               transition: "all 0.4s ease",
             }}

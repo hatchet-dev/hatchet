@@ -1,4 +1,5 @@
 import React from "react";
+import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 
 const FanoutDiagram: React.FC = () => {
   const childYPositions = [40, 110, 180, 270];
@@ -14,38 +15,38 @@ const FanoutDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient
-              id="indigo-grad"
+              id="blue-grad"
               x1="0%"
               y1="0%"
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor="rgb(51, 146, 255)" stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(129,140,248)"
+                stopColor="rgb(133, 189, 255)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="cyan-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(34,211,238)" stopOpacity="0.6" />
+            <linearGradient id="magenta-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(188, 70, 221)" stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(103,232,249)"
+                stopColor="rgb(213, 133, 239)"
                 stopOpacity="0.3"
               />
             </linearGradient>
             <linearGradient
-              id="emerald-grad"
+              id="green-grad"
               x1="0%"
               y1="0%"
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor="rgb(34, 197, 94)" stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(52,211,153)"
+                stopColor="rgb(74, 222, 128)"
                 stopOpacity="0.3"
               />
             </linearGradient>
@@ -72,15 +73,15 @@ const FanoutDiagram: React.FC = () => {
             width="170"
             height="80"
             rx="12"
-            fill="rgba(49,46,129,0.3)"
-            stroke="url(#indigo-grad)"
+            fill="rgba(10, 16, 41, 0.3)"
+            stroke="url(#blue-grad)"
             strokeWidth="2"
           />
           <text
             x="105"
             y="160"
             textAnchor="middle"
-            fill="#c7d2fe"
+            fill="#B8D9FF"
             fontSize="14"
             fontWeight="600"
           >
@@ -90,7 +91,7 @@ const FanoutDiagram: React.FC = () => {
             x="105"
             y="180"
             textAnchor="middle"
-            fill="#818cf8"
+            fill="#3392FF"
             fontSize="11"
           >
             spawn(input)
@@ -102,7 +103,7 @@ const FanoutDiagram: React.FC = () => {
               key={`out-${i}`}
               d={`M 190 165 C 260 165, 260 ${cy + 25}, 320 ${cy + 25}`}
               fill="none"
-              stroke="rgb(99,102,241)"
+              stroke="rgb(51, 146, 255)"
               strokeWidth="1.5"
               strokeOpacity="0.7"
               className="flow-line-out"
@@ -119,15 +120,15 @@ const FanoutDiagram: React.FC = () => {
                 width="150"
                 height="50"
                 rx="10"
-                fill="rgba(22,78,99,0.3)"
-                stroke="url(#cyan-grad)"
+                fill="rgba(188, 70, 221, 0.2)"
+                stroke="url(#magenta-grad)"
                 strokeWidth="1.5"
               />
               <text
                 x="395"
                 y={childYPositions[i] + 30}
                 textAnchor="middle"
-                fill="#a5f3fc"
+                fill="#D585EF"
                 fontSize="12"
                 fontWeight="500"
               >
@@ -141,7 +142,7 @@ const FanoutDiagram: React.FC = () => {
             x="395"
             y="255"
             textAnchor="middle"
-            fill="#6b7280"
+            fill="#64748B"
             fontSize="18"
             fontWeight="bold"
           >
@@ -155,15 +156,15 @@ const FanoutDiagram: React.FC = () => {
             width="150"
             height="50"
             rx="10"
-            fill="rgba(22,78,99,0.3)"
-            stroke="url(#cyan-grad)"
+            fill="rgba(188, 70, 221, 0.2)"
+            stroke="url(#magenta-grad)"
             strokeWidth="1.5"
           />
           <text
             x="395"
             y={childYPositions[3] + 30}
             textAnchor="middle"
-            fill="#a5f3fc"
+            fill="#D585EF"
             fontSize="12"
             fontWeight="500"
           >
@@ -176,7 +177,7 @@ const FanoutDiagram: React.FC = () => {
               key={`in-${i}`}
               d={`M 470 ${cy + 25} C 540 ${cy + 25}, 540 165, 600 165`}
               fill="none"
-              stroke="rgb(16,185,129)"
+              stroke="rgb(34, 197, 94)"
               strokeWidth="1.5"
               strokeOpacity="0.7"
               className="flow-line-in"
@@ -191,15 +192,15 @@ const FanoutDiagram: React.FC = () => {
             width="180"
             height="80"
             rx="12"
-            fill="rgba(6,78,59,0.3)"
-            stroke="url(#emerald-grad)"
+            fill="rgba(34, 197, 94, 0.3)"
+            stroke="url(#green-grad)"
             strokeWidth="2"
           />
           <text
             x="690"
             y="160"
             textAnchor="middle"
-            fill="#a7f3d0"
+            fill="#86EFAC"
             fontSize="14"
             fontWeight="600"
           >
@@ -209,7 +210,7 @@ const FanoutDiagram: React.FC = () => {
             x="690"
             y="180"
             textAnchor="middle"
-            fill="#6ee7b7"
+            fill="#4ADE80"
             fontSize="11"
           >
             await all children

@@ -1,5 +1,9 @@
 // Using ESM for Nextra v4
 import nextra from 'nextra'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Configure Nextra for MDX and docs
 const withNextra = nextra({
@@ -13,6 +17,13 @@ const withNextra = nextra({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  webpack(config) {
+    config.resolve.alias['@theguild/remark-mermaid/mermaid'] = path.resolve(
+      __dirname,
+      'components/Mermaid.tsx',
+    )
+    return config
+  },
   transpilePackages: ["react-tweet"],
   swcMinify: false,
   images: {

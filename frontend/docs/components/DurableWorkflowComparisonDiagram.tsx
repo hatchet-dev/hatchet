@@ -1,4 +1,5 @@
 import React from "react";
+import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 
 const DurableWorkflowComparisonDiagram: React.FC = () => {
   const nodeW = 130;
@@ -20,7 +21,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
             >
               <defs>
                 <linearGradient
-                  id="dc-indigo"
+                  id="dc-blue"
                   x1="0%"
                   y1="0%"
                   x2="100%"
@@ -28,17 +29,17 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 >
                   <stop
                     offset="0%"
-                    stopColor="rgb(99,102,241)"
+                    stopColor={gradient.blue[0]}
                     stopOpacity="0.6"
                   />
                   <stop
                     offset="100%"
-                    stopColor="rgb(129,140,248)"
+                    stopColor={gradient.blue[1]}
                     stopOpacity="0.3"
                   />
                 </linearGradient>
                 <linearGradient
-                  id="dc-amber"
+                  id="dc-yellow"
                   x1="0%"
                   y1="0%"
                   x2="100%"
@@ -46,17 +47,17 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 >
                   <stop
                     offset="0%"
-                    stopColor="rgb(245,158,11)"
+                    stopColor={gradient.yellow[0]}
                     stopOpacity="0.6"
                   />
                   <stop
                     offset="100%"
-                    stopColor="rgb(252,211,77)"
+                    stopColor={gradient.yellow[1]}
                     stopOpacity="0.3"
                   />
                 </linearGradient>
                 <linearGradient
-                  id="dc-cyan"
+                  id="dc-magenta"
                   x1="0%"
                   y1="0%"
                   x2="100%"
@@ -64,12 +65,12 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 >
                   <stop
                     offset="0%"
-                    stopColor="rgb(34,211,238)"
+                    stopColor={gradient.magenta[0]}
                     stopOpacity="0.6"
                   />
                   <stop
                     offset="100%"
-                    stopColor="rgb(103,232,249)"
+                    stopColor={gradient.magenta[1]}
                     stopOpacity="0.3"
                   />
                 </linearGradient>
@@ -89,7 +90,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x="170"
                 y="20"
                 textAnchor="middle"
-                fill="#c7d2fe"
+                fill={brand.cyan}
                 fontSize="13"
                 fontWeight="600"
               >
@@ -99,7 +100,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x="170"
                 y="34"
                 textAnchor="middle"
-                fill="#818cf8"
+                fill={brand.blue}
                 fontSize="10"
               >
                 shape of work is dynamic
@@ -113,7 +114,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 height="344"
                 rx="12"
                 fill="none"
-                stroke="#444"
+                stroke={inactive.edge}
                 strokeWidth="1"
                 strokeDasharray="6 4"
               />
@@ -125,15 +126,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(49,46,129,0.3)"
-                stroke="url(#dc-indigo)"
+                fill={fill.activeNode}
+                stroke="url(#dc-blue)"
                 strokeWidth="1.5"
               />
               <text
                 x={30 + nodeW / 2}
                 y={64 + nodeH / 2 - 4}
                 textAnchor="middle"
-                fill="#c7d2fe"
+                fill={brand.cyan}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -143,7 +144,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={30 + nodeW / 2}
                 y={64 + nodeH / 2 + 8}
                 textAnchor="middle"
-                fill="#818cf8"
+                fill={brand.blue}
                 fontSize="9"
               >
                 line 12
@@ -155,7 +156,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 y1={64 + nodeH}
                 x2={30 + nodeW / 2}
                 y2={64 + nodeH + 18}
-                stroke="rgb(129,140,248)"
+                stroke={brand.blue}
                 strokeWidth="2"
                 className="dc-flow"
               />
@@ -167,8 +168,8 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(120,53,15,0.25)"
-                stroke="url(#dc-amber)"
+                fill={fill.running}
+                stroke="url(#dc-yellow)"
                 strokeWidth="1.5"
                 strokeDasharray="4 3"
               />
@@ -176,7 +177,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={30 + nodeW / 2}
                 y={118 + nodeH / 2 - 4}
                 textAnchor="middle"
-                fill="#fcd34d"
+                fill={state.runningLight}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -186,7 +187,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={30 + nodeW / 2}
                 y={118 + nodeH / 2 + 8}
                 textAnchor="middle"
-                fill="#d97706"
+                fill={state.runningDark}
                 fontSize="9"
               >
                 checkpoint
@@ -199,7 +200,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 height="13"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#fcd34d"
+                stroke={state.runningLight}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -215,7 +216,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 y1={118 + nodeH}
                 x2={30 + nodeW / 2}
                 y2={118 + nodeH + 18}
-                stroke="rgb(129,140,248)"
+                stroke={brand.blue}
                 strokeWidth="2"
                 className="dc-flow"
               />
@@ -227,15 +228,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(22,78,99,0.3)"
-                stroke="url(#dc-cyan)"
+                fill={fill.magenta}
+                stroke="url(#dc-magenta)"
                 strokeWidth="1.5"
               />
               <text
                 x={30 + nodeW / 2}
                 y={172 + nodeH / 2 - 4}
                 textAnchor="middle"
-                fill="#a5f3fc"
+                fill={brand.magentaLight}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -245,7 +246,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={30 + nodeW / 2}
                 y={172 + nodeH / 2 + 8}
                 textAnchor="middle"
-                fill="#67e8f9"
+                fill={brand.magenta}
                 fontSize="9"
               >
                 fan-out
@@ -255,7 +256,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
               <path
                 d={`M ${30 + nodeW} ${172 + nodeH / 2} C ${30 + nodeW + 30} ${172 + nodeH / 2}, ${210} ${172}, ${220} ${172}`}
                 fill="none"
-                stroke="rgb(34,211,238)"
+                stroke={brand.magenta}
                 strokeWidth="1.5"
                 className="dc-flow"
                 style={{ animationDelay: "0.1s" }}
@@ -263,7 +264,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
               <path
                 d={`M ${30 + nodeW} ${172 + nodeH / 2} C ${30 + nodeW + 30} ${172 + nodeH / 2}, ${210} ${212}, ${220} ${212}`}
                 fill="none"
-                stroke="rgb(34,211,238)"
+                stroke={brand.magenta}
                 strokeWidth="1.5"
                 className="dc-flow"
                 style={{ animationDelay: "0.2s" }}
@@ -276,15 +277,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={smallW}
                 height={smallH}
                 rx={6}
-                fill="rgba(22,78,99,0.2)"
-                stroke="rgb(34,211,238)"
+                fill={fill.magentaLight}
+                stroke={brand.magenta}
                 strokeWidth="1"
               />
               <text
                 x={220 + smallW / 2}
                 y={158 + smallH / 2 + 1}
                 textAnchor="middle"
-                fill="#a5f3fc"
+                fill={brand.magentaLight}
                 fontSize="10"
                 fontWeight="500"
               >
@@ -298,15 +299,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={smallW}
                 height={smallH}
                 rx={6}
-                fill="rgba(22,78,99,0.2)"
-                stroke="rgb(34,211,238)"
+                fill={fill.magentaLight}
+                stroke={brand.magenta}
                 strokeWidth="1"
               />
               <text
                 x={220 + smallW / 2}
                 y={198 + smallH / 2 + 1}
                 textAnchor="middle"
-                fill="#a5f3fc"
+                fill={brand.magentaLight}
                 fontSize="10"
                 fontWeight="500"
               >
@@ -318,7 +319,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={220 + smallW / 2}
                 y={242}
                 textAnchor="middle"
-                fill="#67e8f9"
+                fill={brand.magenta}
                 fontSize="11"
               >
                 ...
@@ -330,7 +331,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 y1={172 + nodeH}
                 x2={30 + nodeW / 2}
                 y2={172 + nodeH + 18}
-                stroke="rgb(129,140,248)"
+                stroke={brand.blue}
                 strokeWidth="2"
                 className="dc-flow"
               />
@@ -342,8 +343,8 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(120,53,15,0.25)"
-                stroke="url(#dc-amber)"
+                fill={fill.running}
+                stroke="url(#dc-yellow)"
                 strokeWidth="1.5"
                 strokeDasharray="4 3"
               />
@@ -351,7 +352,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={30 + nodeW / 2}
                 y={226 + nodeH / 2 - 4}
                 textAnchor="middle"
-                fill="#fcd34d"
+                fill={state.runningLight}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -361,7 +362,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={30 + nodeW / 2}
                 y={226 + nodeH / 2 + 8}
                 textAnchor="middle"
-                fill="#d97706"
+                fill={state.runningDark}
                 fontSize="9"
               >
                 checkpoint
@@ -374,7 +375,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 height="13"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#fcd34d"
+                stroke={state.runningLight}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -390,7 +391,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 y1={226 + nodeH}
                 x2={30 + nodeW / 2}
                 y2={226 + nodeH + 18}
-                stroke="rgb(129,140,248)"
+                stroke={brand.blue}
                 strokeWidth="2"
                 className="dc-flow"
               />
@@ -402,15 +403,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(49,46,129,0.3)"
-                stroke="url(#dc-indigo)"
+                fill={fill.activeNode}
+                stroke="url(#dc-blue)"
                 strokeWidth="1.5"
               />
               <text
                 x={30 + nodeW / 2}
                 y={280 + nodeH / 2 - 4}
                 textAnchor="middle"
-                fill="#c7d2fe"
+                fill={brand.cyan}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -420,7 +421,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={30 + nodeW / 2}
                 y={280 + nodeH / 2 + 8}
                 textAnchor="middle"
-                fill="#818cf8"
+                fill={brand.blue}
                 fontSize="9"
               >
                 line 20
@@ -432,7 +433,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 y1={64}
                 x2={18}
                 y2={280 + nodeH}
-                stroke="#555"
+                stroke={inactive.stroke}
                 strokeWidth="1"
               />
               <line
@@ -440,7 +441,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 y1={64}
                 x2={24}
                 y2={64}
-                stroke="#555"
+                stroke={inactive.stroke}
                 strokeWidth="1"
               />
               <line
@@ -448,14 +449,14 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 y1={280 + nodeH}
                 x2={24}
                 y2={280 + nodeH}
-                stroke="#555"
+                stroke={inactive.stroke}
                 strokeWidth="1"
               />
               <text
                 x={12}
                 y={190}
                 textAnchor="middle"
-                fill="#6b7280"
+                fill={inactive.text}
                 fontSize="9"
                 transform="rotate(-90, 12, 190)"
               >
@@ -467,7 +468,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={220 + smallW / 2}
                 y={255}
                 textAnchor="middle"
-                fill="#6b7280"
+                fill={inactive.text}
                 fontSize="8"
               >
                 run on any worker
@@ -478,7 +479,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={170}
                 y={338}
                 textAnchor="middle"
-                fill="#6b7280"
+                fill={inactive.text}
                 fontSize="8"
               >
                 procedural · checkpoints · N decided at runtime
@@ -495,7 +496,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
             >
               <defs>
                 <linearGradient
-                  id="dg-indigo"
+                  id="dg-blue"
                   x1="0%"
                   y1="0%"
                   x2="100%"
@@ -503,17 +504,17 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 >
                   <stop
                     offset="0%"
-                    stopColor="rgb(99,102,241)"
+                    stopColor={gradient.blue[0]}
                     stopOpacity="0.6"
                   />
                   <stop
                     offset="100%"
-                    stopColor="rgb(129,140,248)"
+                    stopColor={gradient.blue[1]}
                     stopOpacity="0.3"
                   />
                 </linearGradient>
                 <linearGradient
-                  id="dg-cyan"
+                  id="dg-magenta"
                   x1="0%"
                   y1="0%"
                   x2="100%"
@@ -521,17 +522,17 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 >
                   <stop
                     offset="0%"
-                    stopColor="rgb(34,211,238)"
+                    stopColor={gradient.magenta[0]}
                     stopOpacity="0.6"
                   />
                   <stop
                     offset="100%"
-                    stopColor="rgb(103,232,249)"
+                    stopColor={gradient.magenta[1]}
                     stopOpacity="0.3"
                   />
                 </linearGradient>
                 <linearGradient
-                  id="dg-emerald"
+                  id="dg-green"
                   x1="0%"
                   y1="0%"
                   x2="100%"
@@ -539,12 +540,12 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 >
                   <stop
                     offset="0%"
-                    stopColor="rgb(16,185,129)"
+                    stopColor={gradient.green[0]}
                     stopOpacity="0.6"
                   />
                   <stop
                     offset="100%"
-                    stopColor="rgb(52,211,153)"
+                    stopColor={gradient.green[1]}
                     stopOpacity="0.3"
                   />
                 </linearGradient>
@@ -564,7 +565,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x="170"
                 y="20"
                 textAnchor="middle"
-                fill="#c7d2fe"
+                fill={brand.cyan}
                 fontSize="13"
                 fontWeight="600"
               >
@@ -574,7 +575,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x="170"
                 y="34"
                 textAnchor="middle"
-                fill="#818cf8"
+                fill={brand.blue}
                 fontSize="10"
               >
                 shape of work is known upfront
@@ -588,7 +589,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 height="344"
                 rx="12"
                 fill="none"
-                stroke="#444"
+                stroke={inactive.edge}
                 strokeWidth="1"
                 strokeDasharray="6 4"
               />
@@ -600,15 +601,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(49,46,129,0.3)"
-                stroke="url(#dg-indigo)"
+                fill={fill.activeNode}
+                stroke="url(#dg-blue)"
                 strokeWidth="1.5"
               />
               <text
                 x={105 + nodeW / 2}
                 y={80 + nodeH / 2 + 1}
                 textAnchor="middle"
-                fill="#c7d2fe"
+                fill={brand.cyan}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -619,14 +620,14 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
               <path
                 d={`M ${170} ${80 + nodeH} C ${170} ${80 + nodeH + 30}, ${85} ${164}, ${85} ${170}`}
                 fill="none"
-                stroke="rgb(34,211,238)"
+                stroke={brand.magenta}
                 strokeWidth="2"
                 className="dg-flow"
               />
               <path
                 d={`M ${170} ${80 + nodeH} C ${170} ${80 + nodeH + 30}, ${255} ${164}, ${255} ${170}`}
                 fill="none"
-                stroke="rgb(34,211,238)"
+                stroke={brand.magenta}
                 strokeWidth="2"
                 className="dg-flow"
                 style={{ animationDelay: "0.15s" }}
@@ -639,15 +640,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(22,78,99,0.3)"
-                stroke="url(#dg-cyan)"
+                fill={fill.magenta}
+                stroke="url(#dg-magenta)"
                 strokeWidth="1.5"
               />
               <text
                 x={20 + nodeW / 2}
                 y={170 + nodeH / 2 + 1}
                 textAnchor="middle"
-                fill="#a5f3fc"
+                fill={brand.magentaLight}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -661,15 +662,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(22,78,99,0.3)"
-                stroke="url(#dg-cyan)"
+                fill={fill.magenta}
+                stroke="url(#dg-magenta)"
                 strokeWidth="1.5"
               />
               <text
                 x={190 + nodeW / 2}
                 y={170 + nodeH / 2 + 1}
                 textAnchor="middle"
-                fill="#a5f3fc"
+                fill={brand.magentaLight}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -680,7 +681,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
               <path
                 d={`M ${85} ${170 + nodeH} C ${85} ${170 + nodeH + 30}, ${170} ${254}, ${170} ${260}`}
                 fill="none"
-                stroke="rgb(16,185,129)"
+                stroke={state.success}
                 strokeWidth="2"
                 className="dg-flow"
                 style={{ animationDelay: "0.3s" }}
@@ -688,7 +689,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
               <path
                 d={`M ${255} ${170 + nodeH} C ${255} ${170 + nodeH + 30}, ${170} ${254}, ${170} ${260}`}
                 fill="none"
-                stroke="rgb(16,185,129)"
+                stroke={state.success}
                 strokeWidth="2"
                 className="dg-flow"
                 style={{ animationDelay: "0.4s" }}
@@ -701,15 +702,15 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 width={nodeW}
                 height={nodeH}
                 rx={rx}
-                fill="rgba(6,78,59,0.3)"
-                stroke="url(#dg-emerald)"
+                fill={fill.success}
+                stroke="url(#dg-green)"
                 strokeWidth="1.5"
               />
               <text
                 x={105 + nodeW / 2}
                 y={260 + nodeH / 2 + 1}
                 textAnchor="middle"
-                fill="#a7f3d0"
+                fill={state.successLighter}
                 fontSize="11"
                 fontWeight="500"
               >
@@ -721,7 +722,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={105 + nodeW / 2}
                 y={80 + nodeH + 14}
                 textAnchor="middle"
-                fill="#818cf8"
+                fill={brand.blue}
                 fontSize="8"
               >
                 start
@@ -730,7 +731,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={170}
                 y={152}
                 textAnchor="middle"
-                fill="#67e8f9"
+                fill={brand.magenta}
                 fontSize="8"
               >
                 parallel
@@ -739,7 +740,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={170}
                 y={254}
                 textAnchor="middle"
-                fill="#6ee7b7"
+                fill={state.successLight}
                 fontSize="8"
               >
                 waits for both
@@ -750,7 +751,7 @@ const DurableWorkflowComparisonDiagram: React.FC = () => {
                 x={170}
                 y={338}
                 textAnchor="middle"
-                fill="#6b7280"
+                fill={inactive.text}
                 fontSize="8"
               >
                 declared graph · fixed shape · each task independent

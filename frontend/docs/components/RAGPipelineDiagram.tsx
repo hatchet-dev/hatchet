@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, inactive, container } from "./diagram-colors";
 
 const STAGES = [
-  { id: "ingest", label: "Ingest", color: "#818cf8" },
-  { id: "chunk", label: "Chunk", color: "#38bdf8" },
-  { id: "embed", label: "Embed", color: "#fbbf24" },
-  { id: "index", label: "Index", color: "#34d399" },
-  { id: "query", label: "Query", color: "#f472b6" },
+  { id: "ingest", label: "Ingest", color: "#3392FF" },
+  { id: "chunk", label: "Chunk", color: "#BC46DD" },
+  { id: "embed", label: "Embed", color: "#EAB308" },
+  { id: "index", label: "Index", color: "#22C55E" },
+  { id: "query", label: "Query", color: "#B8D41C" },
 ] as const;
 
 type StageId = (typeof STAGES)[number]["id"];
@@ -96,8 +97,8 @@ const RAGPipelineDiagram: React.FC = () => {
     <div
       className="my-6 rounded-xl border p-6"
       style={{
-        borderColor: "rgba(99,102,241,0.2)",
-        backgroundColor: "rgba(49,46,129,0.04)",
+        borderColor: "rgba(51, 146, 255, 0.2)",
+        backgroundColor: "rgba(10, 16, 41, 0.04)",
       }}
     >
       <svg
@@ -120,14 +121,14 @@ const RAGPipelineDiagram: React.FC = () => {
                 y1={y}
                 x2={toX - 2}
                 y2={y}
-                stroke={isActive ? STAGES[i].color : "#374151"}
+                stroke={isActive ? STAGES[i].color : "#1C2B4A"}
                 strokeWidth={isActive ? 2 : 1.5}
                 opacity={isActive ? 1 : 0.4}
                 style={{ transition: "all 0.5s ease" }}
               />
               <polygon
                 points={`${toX - 2},${y} ${toX - 8},${y - 4} ${toX - 8},${y + 4}`}
-                fill={isActive ? STAGES[i].color : "#374151"}
+                fill={isActive ? STAGES[i].color : "#1C2B4A"}
                 opacity={isActive ? 1 : 0.4}
                 style={{ transition: "all 0.5s ease" }}
               />
@@ -169,8 +170,8 @@ const RAGPipelineDiagram: React.FC = () => {
                 width={stageWidth}
                 height={60}
                 rx={10}
-                fill={isActive ? `${stage.color}15` : "#1f2937"}
-                stroke={isActive ? stage.color : "#374151"}
+                fill={isActive ? `${stage.color}15` : "#0A1029"}
+                stroke={isActive ? stage.color : "#1C2B4A"}
                 strokeWidth={isActive ? 2 : 1}
                 style={{ transition: "all 0.5s ease" }}
               />
@@ -183,7 +184,7 @@ const RAGPipelineDiagram: React.FC = () => {
               >
                 <StageIcon
                   id={stage.id}
-                  color={isActive ? stage.color : "#6b7280"}
+                  color={isActive ? stage.color : "#64748B"}
                 />
               </foreignObject>
               {/* Label */}
@@ -193,7 +194,7 @@ const RAGPipelineDiagram: React.FC = () => {
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight={isActive ? 600 : 400}
-                fill={isActive ? stage.color : "#9ca3af"}
+                fill={isActive ? stage.color : "#A5C5E9"}
                 style={{ transition: "all 0.5s ease" }}
               >
                 {stage.label}
@@ -212,7 +213,7 @@ const RAGPipelineDiagram: React.FC = () => {
             y={125}
             textAnchor="middle"
             fontSize="9"
-            fill="#38bdf8"
+            fill="#BC46DD"
           >
             fan-out to N chunks
           </text>
@@ -221,7 +222,7 @@ const RAGPipelineDiagram: React.FC = () => {
             y1={102}
             x2={startX + 1 * (stageWidth + gap) + stageWidth / 2}
             y2={118}
-            stroke="#38bdf8"
+            stroke="#BC46DD"
             strokeWidth={1}
             strokeDasharray="3 2"
           />
@@ -237,7 +238,7 @@ const RAGPipelineDiagram: React.FC = () => {
             y={125}
             textAnchor="middle"
             fontSize="9"
-            fill="#fbbf24"
+            fill="#EAB308"
           >
             rate-limited API
           </text>
@@ -246,7 +247,7 @@ const RAGPipelineDiagram: React.FC = () => {
             y1={102}
             x2={startX + 2 * (stageWidth + gap) + stageWidth / 2}
             y2={118}
-            stroke="#fbbf24"
+            stroke="#EAB308"
             strokeWidth={1}
             strokeDasharray="3 2"
           />
@@ -262,7 +263,7 @@ const RAGPipelineDiagram: React.FC = () => {
             y={125}
             textAnchor="middle"
             fontSize="9"
-            fill="#34d399"
+            fill="#22C55E"
           >
             retries on failure
           </text>
@@ -271,7 +272,7 @@ const RAGPipelineDiagram: React.FC = () => {
             y1={102}
             x2={startX + 3 * (stageWidth + gap) + stageWidth / 2}
             y2={118}
-            stroke="#34d399"
+            stroke="#22C55E"
             strokeWidth={1}
             strokeDasharray="3 2"
           />
@@ -287,7 +288,7 @@ const RAGPipelineDiagram: React.FC = () => {
             style={{
               width: i === activeStage ? 32 : 12,
               backgroundColor:
-                i === activeStage ? stage.color : "rgba(55,65,81,0.5)",
+                i === activeStage ? stage.color : "rgba(10, 16, 41, 0.5)",
               transition: "all 0.5s ease",
             }}
           />

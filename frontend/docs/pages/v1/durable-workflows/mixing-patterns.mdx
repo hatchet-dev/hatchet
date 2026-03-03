@@ -34,7 +34,7 @@ This is useful when most of your pipeline is a fixed graph but one step needs dy
 graph LR
     A[Prepare Data] --> B[Durable: Agentic Loop]
     B --> C[Publish Results]
-    style B stroke:#f59e0b,stroke-dasharray: 5 5
+    style B stroke:#3392FF,stroke-dasharray: 5 5
 ```
 
 The durable task (`Agentic Loop`) can spawn children, sleep, wait for events, or loop until a condition is met. When it completes, the downstream `Publish Results` task runs automatically.
@@ -51,10 +51,10 @@ graph TD
     DAG1 -->|result| DT
     DAG2 -->|result| DT
     DAG3 -->|result| DT
-    style DT stroke:#6366f1
-    style DAG1 stroke:#10b981
-    style DAG2 stroke:#10b981
-    style DAG3 stroke:#10b981
+    style DT stroke:#3392FF
+    style DAG1 stroke:#22C55E
+    style DAG2 stroke:#22C55E
+    style DAG3 stroke:#22C55E
 ```
 
 The durable task decides at runtime how many batches to process, spawns a DAG workflow for each one, and collects the results. The DAG workflows run in parallel across your worker fleet while the durable task's slot is freed.
@@ -71,10 +71,10 @@ graph TD
     A -->|spawns| A2[Task: Subtask]
     B -->|spawns| B1[Durable: Sub-Agent]
     B1 -->|spawns| B1a[Task: Subtask]
-    style Root stroke:#6366f1,stroke-dasharray: 5 5
-    style A stroke:#6366f1,stroke-dasharray: 5 5
-    style B stroke:#6366f1,stroke-dasharray: 5 5
-    style B1 stroke:#6366f1,stroke-dasharray: 5 5
+    style Root stroke:#3392FF,stroke-dasharray: 5 5
+    style A stroke:#3392FF,stroke-dasharray: 5 5
+    style B stroke:#3392FF,stroke-dasharray: 5 5
+    style B1 stroke:#3392FF,stroke-dasharray: 5 5
 ```
 
 This pattern is ideal for agent-based systems where each level of the tree decides what to do next. Each durable task in the tree can sleep, wait for events, or spawn more children, and none of them hold a worker slot while waiting.

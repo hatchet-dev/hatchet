@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 
 const HumanInLoopDiagram: React.FC = () => {
   const [phase, setPhase] = useState(0); // 0=agent, 1=waiting, 2=human, 3=resume, 4=complete
@@ -44,12 +45,12 @@ const HumanInLoopDiagram: React.FC = () => {
         className="text-xs font-medium transition-colors duration-300"
         style={{
           color: isDone
-            ? "#6ee7b7"
+            ? "#4ADE80"
             : isHuman
-              ? "#fcd34d"
+              ? "#FACC15"
               : isWaiting
-                ? "#fbbf24"
-                : "#6b7280",
+                ? "#EAB308"
+                : "#64748B",
         }}
       >
         {isDone
@@ -72,38 +73,38 @@ const HumanInLoopDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient
-              id="hitl-indigo"
+              id="hitl-blue"
               x1="0%"
               y1="0%"
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor="rgb(51, 146, 255)" stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(129,140,248)"
+                stopColor="rgb(133, 189, 255)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="hitl-amber" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(245,158,11)" stopOpacity="0.6" />
+            <linearGradient id="hitl-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="rgb(234, 179, 8)" stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(252,211,77)"
+                stopColor="rgb(250, 204, 21)"
                 stopOpacity="0.3"
               />
             </linearGradient>
             <linearGradient
-              id="hitl-emerald"
+              id="hitl-green"
               x1="0%"
               y1="0%"
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
+              <stop offset="0%" stopColor="rgb(34, 197, 94)" stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(52,211,153)"
+                stopColor="rgb(74, 222, 128)"
                 stopOpacity="0.3"
               />
             </linearGradient>
@@ -133,8 +134,8 @@ const HumanInLoopDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={isAgent ? "rgba(49,46,129,0.3)" : "rgba(49,46,129,0.15)"}
-            stroke={isAgent ? "url(#hitl-indigo)" : "#555"}
+            fill={isAgent ? "rgba(10, 16, 41, 0.3)" : "rgba(10, 16, 41, 0.15)"}
+            stroke={isAgent ? "url(#hitl-blue)" : "#1C2B4A"}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -142,7 +143,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={agentX + nodeW / 2}
             y={flowY - 4}
             textAnchor="middle"
-            fill={isAgent ? "#c7d2fe" : "#888"}
+            fill={isAgent ? "#B8D9FF" : "#4A6080"}
             fontSize="12"
             fontWeight="500"
           >
@@ -152,7 +153,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={agentX + nodeW / 2}
             y={flowY + 12}
             textAnchor="middle"
-            fill={isAgent ? "#818cf8" : "#666"}
+            fill={isAgent ? "#3392FF" : "#64748B"}
             fontSize="9"
           >
             proposes
@@ -162,7 +163,7 @@ const HumanInLoopDiagram: React.FC = () => {
           <path
             d={`M ${agentX + nodeW + 2} ${flowY} L ${waitX - 2} ${flowY}`}
             fill="none"
-            stroke={isAgent ? "rgb(129,140,248)" : "#555"}
+            stroke={isAgent ? "rgb(51, 146, 255)" : "#1C2B4A"}
             strokeWidth="2"
             className={isAgent ? "hitl-flow" : ""}
             style={{ transition: "stroke 0.4s ease" }}
@@ -175,8 +176,8 @@ const HumanInLoopDiagram: React.FC = () => {
             width={waitW}
             height={nodeH + 24}
             rx={rx}
-            fill={waitActive ? "rgba(120,53,15,0.25)" : "rgba(30,30,30,0.15)"}
-            stroke={waitActive ? "url(#hitl-amber)" : "#555"}
+            fill={waitActive ? "rgba(234, 179, 8, 0.25)" : "rgba(10, 16, 41, 0.15)"}
+            stroke={waitActive ? "url(#hitl-yellow)" : "#1C2B4A"}
             strokeWidth="1.5"
             strokeDasharray={waitActive ? "6 4" : "none"}
             style={{ transition: "all 0.4s ease" }}
@@ -185,7 +186,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={waitX + waitW / 2}
             y={flowY - 10}
             textAnchor="middle"
-            fill={waitActive ? "#fcd34d" : "#888"}
+            fill={waitActive ? "#FACC15" : "#4A6080"}
             fontSize="11"
             fontWeight="500"
           >
@@ -195,7 +196,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={waitX + waitW / 2}
             y={flowY + 6}
             textAnchor="middle"
-            fill={waitActive ? "#fbbf24" : "#666"}
+            fill={waitActive ? "#EAB308" : "#64748B"}
             fontSize="9"
           >
             {isWaiting ? "slot freed" : "WaitForEvent"}
@@ -208,7 +209,7 @@ const HumanInLoopDiagram: React.FC = () => {
                 width="5"
                 height="12"
                 rx="1"
-                fill="#fcd34d"
+                fill="#FACC15"
               />
               <rect
                 x={waitX + waitW / 2 + 2}
@@ -216,7 +217,7 @@ const HumanInLoopDiagram: React.FC = () => {
                 width="5"
                 height="12"
                 rx="1"
-                fill="#fcd34d"
+                fill="#FACC15"
               />
             </g>
           )}
@@ -234,7 +235,7 @@ const HumanInLoopDiagram: React.FC = () => {
               y1={flowY - nodeH / 2 - 12}
               x2={waitX + waitW / 2}
               y2={humanY + humanH}
-              stroke={isHuman ? "#fcd34d" : "#666"}
+              stroke={isHuman ? "#FACC15" : "#64748B"}
               strokeWidth="1.5"
               strokeDasharray="4 4"
               opacity={waitActive ? 0.8 : 0.4}
@@ -246,8 +247,8 @@ const HumanInLoopDiagram: React.FC = () => {
               width={humanW}
               height={humanH}
               rx={rx}
-              fill={isHuman ? "rgba(245,158,11,0.25)" : "rgba(30,30,30,0.2)"}
-              stroke={isHuman ? "url(#hitl-amber)" : "#555"}
+              fill={isHuman ? "rgba(234, 179, 8, 0.25)" : "rgba(10, 16, 41, 0.2)"}
+              stroke={isHuman ? "url(#hitl-yellow)" : "#1C2B4A"}
               strokeWidth="1.5"
               style={{ transition: "all 0.4s ease" }}
             />
@@ -260,13 +261,13 @@ const HumanInLoopDiagram: React.FC = () => {
                 cy="5"
                 r="4"
                 fill="none"
-                stroke={isHuman ? "#fcd34d" : "#666"}
+                stroke={isHuman ? "#FACC15" : "#64748B"}
                 strokeWidth="1.5"
               />
               <path
                 d="M2 18c0-3 2-6 6-6s6 3 6 6"
                 fill="none"
-                stroke={isHuman ? "#fcd34d" : "#666"}
+                stroke={isHuman ? "#FACC15" : "#64748B"}
                 strokeWidth="1.5"
               />
             </g>
@@ -274,7 +275,7 @@ const HumanInLoopDiagram: React.FC = () => {
               x={humanX + humanW / 2}
               y={humanY + 34}
               textAnchor="middle"
-              fill={isHuman ? "#fcd34d" : "#9ca3af"}
+              fill={isHuman ? "#FACC15" : "#A5C5E9"}
               fontSize="10"
               fontWeight={isHuman ? 600 : 400}
             >
@@ -284,7 +285,7 @@ const HumanInLoopDiagram: React.FC = () => {
               x={humanX + humanW / 2}
               y={humanY + 44}
               textAnchor="middle"
-              fill={isHuman ? "#fbbf24" : "#6b7280"}
+              fill={isHuman ? "#EAB308" : "#64748B"}
               fontSize="8"
             >
               approves
@@ -295,7 +296,7 @@ const HumanInLoopDiagram: React.FC = () => {
           <path
             d={`M ${waitX + waitW + 2} ${flowY} L ${resumeX - 2} ${flowY}`}
             fill="none"
-            stroke={isResumed || isDone ? "rgb(16,185,129)" : "#444"}
+            stroke={isResumed || isDone ? "rgb(34, 197, 94)" : "#162035"}
             strokeWidth="2"
             className={isResumed || isDone ? "hitl-flow" : ""}
             style={{
@@ -311,8 +312,8 @@ const HumanInLoopDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={isResumed ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.15)"}
-            stroke={isResumed ? "url(#hitl-emerald)" : "#444"}
+            fill={isResumed ? "rgba(34, 197, 94, 0.3)" : "rgba(10, 16, 41, 0.15)"}
+            stroke={isResumed ? "url(#hitl-green)" : "#162035"}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -320,7 +321,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={resumeX + nodeW / 2}
             y={flowY - 4}
             textAnchor="middle"
-            fill={isResumed ? "#a7f3d0" : "#666"}
+            fill={isResumed ? "#86EFAC" : "#64748B"}
             fontSize="12"
             fontWeight="500"
           >
@@ -330,7 +331,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={resumeX + nodeW / 2}
             y={flowY + 12}
             textAnchor="middle"
-            fill={isResumed ? "#6ee7b7" : "#555"}
+            fill={isResumed ? "#4ADE80" : "#1C2B4A"}
             fontSize="9"
           >
             event received
@@ -340,7 +341,7 @@ const HumanInLoopDiagram: React.FC = () => {
           <path
             d={`M ${resumeX + nodeW + 2} ${flowY} L ${completeX - 2} ${flowY}`}
             fill="none"
-            stroke={isDone ? "rgb(16,185,129)" : "#444"}
+            stroke={isDone ? "rgb(34, 197, 94)" : "#162035"}
             strokeWidth="2"
             className={isDone ? "hitl-flow" : ""}
             style={{
@@ -356,8 +357,8 @@ const HumanInLoopDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={isDone ? "rgba(6,78,59,0.3)" : "rgba(30,30,30,0.15)"}
-            stroke={isDone ? "url(#hitl-emerald)" : "#444"}
+            fill={isDone ? "rgba(34, 197, 94, 0.3)" : "rgba(10, 16, 41, 0.15)"}
+            stroke={isDone ? "url(#hitl-green)" : "#162035"}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}
           />
@@ -365,7 +366,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={completeX + nodeW / 2}
             y={flowY - 4}
             textAnchor="middle"
-            fill={isDone ? "#a7f3d0" : "#666"}
+            fill={isDone ? "#86EFAC" : "#64748B"}
             fontSize="12"
             fontWeight="500"
           >
@@ -375,7 +376,7 @@ const HumanInLoopDiagram: React.FC = () => {
             x={completeX + nodeW / 2}
             y={flowY + 12}
             textAnchor="middle"
-            fill={isDone ? "#6ee7b7" : "#555"}
+            fill={isDone ? "#4ADE80" : "#1C2B4A"}
             fontSize="9"
           >
             continue

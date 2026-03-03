@@ -1,4 +1,5 @@
 import React from "react";
+import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 
 const WorkflowDiagram: React.FC = () => {
   const nodeW = 130;
@@ -14,27 +15,27 @@ const WorkflowDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient id="wf-indigo" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.6" />
+            <linearGradient id="wf-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(129,140,248)"
+                stopColor={gradient.blue[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="wf-cyan" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(34,211,238)" stopOpacity="0.6" />
+            <linearGradient id="wf-magenta" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.magenta[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(103,232,249)"
+                stopColor={gradient.magenta[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="wf-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(16,185,129)" stopOpacity="0.6" />
+            <linearGradient id="wf-green" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
               <stop
                 offset="100%"
-                stopColor="rgb(52,211,153)"
+                stopColor={gradient.green[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
@@ -55,7 +56,7 @@ const WorkflowDiagram: React.FC = () => {
             x="360"
             y="24"
             textAnchor="middle"
-            fill="#9ca3af"
+            fill={brand.cyanDark}
             fontSize="11"
             fontWeight="500"
             letterSpacing="0.05em"
@@ -71,7 +72,7 @@ const WorkflowDiagram: React.FC = () => {
             height="216"
             rx="14"
             fill="none"
-            stroke="#444"
+            stroke={inactive.edge}
             strokeWidth="1"
             strokeDasharray="6 4"
           />
@@ -84,15 +85,15 @@ const WorkflowDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill="rgba(49,46,129,0.3)"
-            stroke="url(#wf-indigo)"
+            fill={fill.activeNode}
+            stroke="url(#wf-blue)"
             strokeWidth="1.5"
           />
           <text
             x={40 + nodeW / 2}
             y={60 + nodeH / 2 + 1}
             textAnchor="middle"
-            fill="#c7d2fe"
+            fill={brand.cyan}
             fontSize="12"
             fontWeight="500"
           >
@@ -103,7 +104,7 @@ const WorkflowDiagram: React.FC = () => {
           <path
             d={`M ${40 + nodeW + 2} ${60 + nodeH / 2} L ${248} ${60 + nodeH / 2}`}
             fill="none"
-            stroke="rgb(129,140,248)"
+            stroke={brand.blue}
             strokeWidth="2"
             className="wf-flow"
           />
@@ -115,15 +116,15 @@ const WorkflowDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill="rgba(49,46,129,0.3)"
-            stroke="url(#wf-indigo)"
+            fill={fill.activeNode}
+            stroke="url(#wf-blue)"
             strokeWidth="1.5"
           />
           <text
             x={250 + nodeW / 2}
             y={60 + nodeH / 2 + 1}
             textAnchor="middle"
-            fill="#c7d2fe"
+            fill={brand.cyan}
             fontSize="12"
             fontWeight="500"
           >
@@ -135,7 +136,7 @@ const WorkflowDiagram: React.FC = () => {
           <path
             d={`M ${250 + nodeW + 2} ${60 + nodeH / 2} C ${430} ${60 + nodeH / 2}, ${430} ${60 + nodeH / 2}, ${460} ${60 + nodeH / 2}`}
             fill="none"
-            stroke="rgb(34,211,238)"
+            stroke={brand.magenta}
             strokeWidth="2"
             className="wf-flow"
             style={{ animationDelay: "0.2s" }}
@@ -145,7 +146,7 @@ const WorkflowDiagram: React.FC = () => {
           <path
             d={`M ${250 + nodeW + 2} ${60 + nodeH / 2} C ${420} ${60 + nodeH / 2}, ${420} ${170 + nodeH / 2}, ${460} ${170 + nodeH / 2}`}
             fill="none"
-            stroke="rgb(34,211,238)"
+            stroke={brand.magenta}
             strokeWidth="2"
             className="wf-flow"
             style={{ animationDelay: "0.3s" }}
@@ -158,15 +159,15 @@ const WorkflowDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill="rgba(22,78,99,0.3)"
-            stroke="url(#wf-cyan)"
+            fill={fill.magenta}
+            stroke="url(#wf-magenta)"
             strokeWidth="1.5"
           />
           <text
             x={460 + nodeW / 2}
             y={60 + nodeH / 2 + 1}
             textAnchor="middle"
-            fill="#a5f3fc"
+            fill={brand.magentaLight}
             fontSize="12"
             fontWeight="500"
           >
@@ -180,15 +181,15 @@ const WorkflowDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill="rgba(22,78,99,0.3)"
-            stroke="url(#wf-cyan)"
+            fill={fill.magenta}
+            stroke="url(#wf-magenta)"
             strokeWidth="1.5"
           />
           <text
             x={460 + nodeW / 2}
             y={170 + nodeH / 2 + 1}
             textAnchor="middle"
-            fill="#a5f3fc"
+            fill={brand.magentaLight}
             fontSize="12"
             fontWeight="500"
           >
@@ -203,7 +204,7 @@ const WorkflowDiagram: React.FC = () => {
             x={40 + nodeW / 2}
             y={60 + nodeH + 16}
             textAnchor="middle"
-            fill="#818cf8"
+            fill={brand.blue}
             fontSize="9"
           >
             start
@@ -212,7 +213,7 @@ const WorkflowDiagram: React.FC = () => {
             x={315}
             y={60 + nodeH + 16}
             textAnchor="middle"
-            fill="#818cf8"
+            fill={brand.blue}
             fontSize="9"
           >
             depends on A
@@ -221,7 +222,7 @@ const WorkflowDiagram: React.FC = () => {
             x={525}
             y={60 + nodeH + 16}
             textAnchor="middle"
-            fill="#67e8f9"
+            fill={brand.magenta}
             fontSize="9"
           >
             parallel
@@ -230,7 +231,7 @@ const WorkflowDiagram: React.FC = () => {
             x={525}
             y={170 + nodeH + 16}
             textAnchor="middle"
-            fill="#67e8f9"
+            fill={brand.magenta}
             fontSize="9"
           >
             parallel
@@ -242,17 +243,17 @@ const WorkflowDiagram: React.FC = () => {
             y1="50"
             x2="430"
             y2="240"
-            stroke="#444"
+            stroke={inactive.edge}
             strokeWidth="1"
             strokeDasharray="4 4"
             opacity="0.5"
           />
-          <text x="432" y="248" fill="#6b7280" fontSize="8" textAnchor="start">
+          <text x="432" y="248" fill={inactive.text} fontSize="8" textAnchor="start">
             fan-out
           </text>
 
           {/* Labels for sections */}
-          <text x="200" y="248" fill="#6b7280" fontSize="8" textAnchor="middle">
+          <text x="200" y="248" fill={inactive.text} fontSize="8" textAnchor="middle">
             sequential
           </text>
         </svg>
