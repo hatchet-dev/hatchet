@@ -17,6 +17,7 @@ func (t *V1WorkflowRunsService) V1DurableTaskFork(ctx echo.Context, request gen.
 	grpcReq := &contracts.ForkDurableTaskRequest{
 		TaskExternalId: request.Body.TaskExternalId.String(),
 		NodeId:         request.Body.NodeId,
+		BranchId:       request.Body.BranchId,
 	}
 
 	resp, err := t.proxyForkDurableTask.Do(

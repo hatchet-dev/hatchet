@@ -1639,6 +1639,9 @@ type V1FilterList struct {
 
 // V1ForkDurableTaskRequest defines model for V1ForkDurableTaskRequest.
 type V1ForkDurableTaskRequest struct {
+	// BranchId The branch id to replay from.
+	BranchId int64 `json:"branchId"`
+
 	// NodeId The node id to replay from.
 	NodeId int64 `json:"nodeId"`
 

@@ -157,9 +157,14 @@ V1ForkDurableTaskRequest:
       type: integer
       format: int64
       description: The node id to replay from.
+    branchId:
+      type: integer
+      format: int64
+      description: The branch id to replay from.
   required:
     - taskExternalId
     - nodeId
+    - branchId
 
 V1ForkDurableTaskResponse:
   properties:
