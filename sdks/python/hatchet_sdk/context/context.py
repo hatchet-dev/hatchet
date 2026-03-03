@@ -530,7 +530,9 @@ class DurableContext(Context):
     def _supports_durable_eviction(self) -> bool:
         if not self._engine_version:
             return False
-        return not semver_less_than(self._engine_version, MinEngineVersion.DURABLE_EVICTION)
+        return not semver_less_than(
+            self._engine_version, MinEngineVersion.DURABLE_EVICTION
+        )
 
     @property
     def wait_index(self) -> int:

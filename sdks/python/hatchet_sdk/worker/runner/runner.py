@@ -146,9 +146,7 @@ class Runner:
                 self.config, admin_client=self.admin_client
             )
         elif has_durable_tasks:
-            self.durable_event_listener = PreEvictionDurableEventListener(
-                self.config
-            )
+            self.durable_event_listener = PreEvictionDurableEventListener(self.config)
         else:
             self.durable_event_listener = None
 
