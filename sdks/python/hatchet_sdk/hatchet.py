@@ -194,7 +194,6 @@ class Hatchet:
 
         :return: The engine version string, or ``None`` if the engine is too old
             to support GetVersion.
-        :raises grpc.RpcError: For transient gRPC errors after retries are exhausted.
         """
         return await self._client.dispatcher.get_version()
 
