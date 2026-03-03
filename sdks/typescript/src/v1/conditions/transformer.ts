@@ -5,11 +5,11 @@ import {
   UserEventMatchCondition,
   BaseMatchCondition,
 } from '@hatchet/protoc/v1/shared/condition';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
 import { CreateWorkflowTaskOpts } from '../task';
 import { Action, BaseCondition, Condition } from './base';
 import { ParentCondition } from './parent-condition';
-import { applyNamespace } from '@hatchet/util/apply-namespace';
 
 export function taskConditionsToPb(
   task: Omit<CreateWorkflowTaskOpts<any, any>, 'fn'>,
