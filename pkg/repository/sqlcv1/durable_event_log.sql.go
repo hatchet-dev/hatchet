@@ -98,7 +98,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 }
 
 const getAndLockLogFile = `-- name: GetAndLockLogFile :one
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, branch_count
 FROM v1_durable_event_log_file
 WHERE
     durable_task_id = $1::BIGINT
@@ -124,7 +124,7 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 		&i.LatestInsertedAt,
 		&i.LatestNodeID,
 		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
+		&i.BranchCount,
 	)
 	return &i, err
 }
@@ -180,7 +180,7 @@ WITH inputs AS (
         UNNEST($3::UUID[]) AS tenant_id
 )
 
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, branch_count
 FROM v1_durable_event_log_file lf
 WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
     SELECT durable_task_id, durable_task_inserted_at, tenant_id
@@ -211,7 +211,7 @@ func (q *Queries) GetDurableTaskLogFiles(ctx context.Context, db DBTX, arg GetDu
 			&i.LatestInsertedAt,
 			&i.LatestNodeID,
 			&i.LatestBranchID,
-			&i.LatestBranchFirstParentNodeID,
+			&i.BranchCount,
 		); err != nil {
 			return nil, err
 		}
@@ -255,7 +255,7 @@ ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
     latest_invocation_count = v1_durable_event_log_file.latest_invocation_count + 1,
     latest_node_id = 0
-RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id, v1_durable_event_log_file.latest_branch_first_parent_node_id
+RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id, v1_durable_event_log_file.branch_count
 `
 
 type IncrementLogFileInvocationCountsParams struct {
@@ -281,7 +281,7 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 			&i.LatestInsertedAt,
 			&i.LatestNodeID,
 			&i.LatestBranchID,
-			&i.LatestBranchFirstParentNodeID,
+			&i.BranchCount,
 		); err != nil {
 			return nil, err
 		}
@@ -544,7 +544,7 @@ SET
     latest_branch_first_parent_node_id = COALESCE($4::BIGINT, v1_durable_event_log_file.latest_branch_first_parent_node_id)
 WHERE durable_task_id = $5::BIGINT
   AND durable_task_inserted_at = $6::TIMESTAMPTZ
-RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, branch_count
 `
 
 type UpdateLogFileParams struct {
@@ -574,7 +574,7 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		&i.LatestInsertedAt,
 		&i.LatestNodeID,
 		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
+		&i.BranchCount,
 	)
 	return &i, err
 }

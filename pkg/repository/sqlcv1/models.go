@@ -3065,6 +3065,15 @@ type V1DagsOlap struct {
 	TotalTasks           int32                `json:"total_tasks"`
 }
 
+type V1DurableEventLogBranchPoint struct {
+	TenantID               uuid.UUID          `json:"tenant_id"`
+	DurableTaskID          int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt  pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`
+	ParentBranchID         int64              `json:"parent_branch_id"`
+	NextBranchID           int64              `json:"next_branch_id"`
+}
+
 type V1DurableEventLogEntry struct {
 	TenantID              uuid.UUID             `json:"tenant_id"`
 	ExternalID            uuid.UUID             `json:"external_id"`
@@ -3083,14 +3092,14 @@ type V1DurableEventLogEntry struct {
 }
 
 type V1DurableEventLogFile struct {
-	TenantID                      uuid.UUID          `json:"tenant_id"`
-	DurableTaskID                 int64              `json:"durable_task_id"`
-	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
-	LatestInvocationCount         int32              `json:"latest_invocation_count"`
-	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
-	LatestNodeID                  int64              `json:"latest_node_id"`
-	LatestBranchID                int64              `json:"latest_branch_id"`
-	LatestBranchFirstParentNodeID int64              `json:"latest_branch_first_parent_node_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	DurableTaskID         int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	LatestInvocationCount int32              `json:"latest_invocation_count"`
+	LatestInsertedAt      pgtype.Timestamptz `json:"latest_inserted_at"`
+	LatestNodeID          int64              `json:"latest_node_id"`
+	LatestBranchID        int64              `json:"latest_branch_id"`
+	BranchCount           int32              `json:"branch_count"`
 }
 
 type V1DurableSleep struct {
