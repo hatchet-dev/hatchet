@@ -437,7 +437,7 @@ func (a *AdminServiceImpl) ForkDurableTask(ctx context.Context, req *contracts.F
 		return nil, status.Error(codes.InvalidArgument, "invalid task_external_id")
 	}
 
-	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
