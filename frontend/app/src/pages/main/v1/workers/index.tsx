@@ -88,7 +88,7 @@ export default function Workers() {
           <p className="text-lg font-semibold">No workers found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.concepts.workers}
+              doc={docsPages.v1.workers}
               label="Learn about running workers"
             />
           </div>

@@ -75,6 +75,7 @@ func Child(client *hatchet.Client) *hatchet.StandaloneTask {
 	)
 }
 
+
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {
@@ -125,6 +126,7 @@ func main() {
 		if err != nil {
 			return err
 		}
+
 
 		_ = childResult
 

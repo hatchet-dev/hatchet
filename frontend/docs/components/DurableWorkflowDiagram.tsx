@@ -202,7 +202,7 @@ const DurableWorkflowDiagram: React.FC = () => {
             const nextX = steps[i + 1].x;
             const isCurrent = i === phase;
 
-            let edgeColor = inactive.edge;
+            let edgeColor: string = inactive.edge;
             if (i < phase) {
               edgeColor =
                 i === 1 ? state.running : i === 2 ? state.success : brand.blue;
@@ -232,10 +232,10 @@ const DurableWorkflowDiagram: React.FC = () => {
             const isActive = i === phase;
             const isPast = i < phase;
 
-            let nodeFill = fill.inactiveNode;
-            let stroke = inactive.edge;
-            let textColor = inactive.text;
-            let subColor = inactive.stroke;
+            let nodeFill: string = fill.inactiveNode;
+            let stroke: string = inactive.edge;
+            let textColor: string = inactive.text;
+            let subColor: string = inactive.stroke;
 
             if (isActive) {
               nodeFill = phaseColors[i].fill;

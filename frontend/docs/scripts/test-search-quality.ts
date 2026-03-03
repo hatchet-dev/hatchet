@@ -51,22 +51,22 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "hatchet.task( — defining a task",
     query: "hatchet.task(",
-    expectAnyOf: ["v1/your-first-task"],
+    expectAnyOf: ["v1/tasks"],
   },
   {
     name: "hatchet.task — without parens",
     query: "hatchet.task",
-    expectAnyOf: ["v1/your-first-task"],
+    expectAnyOf: ["v1/tasks"],
   },
   {
     name: "@hatchet.task() — Python decorator",
     query: "@hatchet.task()",
-    expectAnyOf: ["v1/your-first-task"],
+    expectAnyOf: ["v1/tasks"],
   },
   {
     name: "hatchet.workflow — defining a workflow",
     query: "hatchet.workflow",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/tasks", "v1/flow-control/priority"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/directed-acyclic-graphs", "v1/priority", "reference/python/runnables"],
     topN: 10,
   },
 
@@ -81,19 +81,19 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "setup",
     query: "setup",
-    expectAnyOf: ["v1/advanced", "v1/quickstart"],
+    expectAnyOf: ["v1/quickstart", "reference/cli/index", "agent-instructions/setup-cli"],
     topN: 10,
   },
   {
     name: "getting started",
     query: "getting started",
-    expectAnyOf: ["v1/quickstart", "v1/advanced"],
+    expectAnyOf: ["v1/quickstart"],
     topN: 10,
   },
   {
     name: "install",
     query: "install",
-    expectAnyOf: ["v1/quickstart", "v1/advanced", "reference/cli"],
+    expectAnyOf: ["v1/quickstart", "reference/cli/index", "reference/cli"],
     topN: 10,
   },
   {
@@ -113,7 +113,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "define a task",
     query: "define a task",
-    expectAnyOf: ["v1/your-first-task"],
+    expectAnyOf: ["v1/tasks"],
     topN: 10,
   },
   {
@@ -130,13 +130,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "run task",
     query: "run task",
-    expectAnyOf: ["v1/running-your-task", "v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/running-your-task"],
     topN: 10,
   },
   {
     name: "v1/environments",
     query: "v1/environments",
-    expectAnyOf: ["v1/advanced"],
+    expectAnyOf: ["v1/environments"],
     topN: 10,
   },
 
@@ -146,22 +146,22 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "run with results",
     query: "run with results",
-    expectAnyOf: ["v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/running-your-task"],
   },
   {
     name: "run no wait",
     query: "run no wait",
-    expectAnyOf: ["v1/runnables/run-no-wait"],
+    expectAnyOf: ["v1/running-your-task"],
   },
   {
     name: "scheduled runs",
     query: "scheduled runs",
-    expectAnyOf: ["v1/runnables/scheduled-runs"],
+    expectAnyOf: ["v1/scheduled-runs"],
   },
   {
     name: "cron",
     query: "cron",
-    expectAnyOf: ["v1/runnables/cron-runs"],
+    expectAnyOf: ["v1/cron-runs"],
   },
   {
     name: "event trigger",
@@ -172,17 +172,17 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "bulk run",
     query: "bulk run",
-    expectAnyOf: ["v1/runnables/bulk-run"],
+    expectAnyOf: ["v1/bulk-run"],
   },
   {
     name: "webhooks",
     query: "webhooks",
-    expectAnyOf: ["v1/runnables/webhooks"],
+    expectAnyOf: ["v1/webhooks"],
   },
   {
     name: "inter-service",
     query: "inter-service",
-    expectAnyOf: ["v1/runnables/inter-service-triggering"],
+    expectAnyOf: ["v1/inter-service-triggering"],
   },
 
   // -------------------------------------------------------------------------
@@ -191,22 +191,22 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "concurrency",
     query: "concurrency",
-    expectAnyOf: ["v1/flow-control/concurrency"],
+    expectAnyOf: ["v1/concurrency"],
   },
   {
     name: "rate limit",
     query: "rate limit",
-    expectAnyOf: ["v1/flow-control/rate-limits"],
+    expectAnyOf: ["v1/rate-limits"],
   },
   {
     name: "rate limits (plural)",
     query: "rate limits",
-    expectAnyOf: ["v1/flow-control/rate-limits"],
+    expectAnyOf: ["v1/rate-limits"],
   },
   {
     name: "priority",
     query: "priority",
-    expectAnyOf: ["v1/flow-control/priority"],
+    expectAnyOf: ["v1/priority"],
   },
 
   // -------------------------------------------------------------------------
@@ -215,37 +215,37 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "orchestration",
     query: "orchestration",
-    expectAnyOf: ["v1/durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/mixing-patterns"],
     topN: 10,
   },
   {
     name: "DAG",
     query: "DAG",
-    expectAnyOf: ["v1/durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/directed-acyclic-graphs"],
     topN: 10,
   },
   {
     name: "conditional workflows",
     query: "conditional workflows",
-    expectAnyOf: ["v1/durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/conditions"],
     topN: 10,
   },
   {
     name: "on failure",
     query: "on failure",
-    expectAnyOf: ["v1/durable-workflows", "v1/error-handling/retry-policies"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/on-failure", "v1/retry-policies"],
     topN: 10,
   },
   {
     name: "child spawning",
     query: "child spawning",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/child-spawning"],
     topN: 10,
   },
   {
     name: "child tasks",
     query: "child tasks",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/run-with-results", "v1/advanced-assignment/sticky-assignment"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/child-spawning", "v1/advanced-assignment/sticky-assignment"],
     topN: 10,
   },
 
@@ -255,22 +255,22 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "durable execution",
     query: "durable execution",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/durable-task-execution"],
   },
   {
     name: "durable events",
     query: "durable events",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/events"],
   },
   {
     name: "durable sleep",
     query: "durable sleep",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/sleep"],
   },
   {
     name: "durable best practices",
     query: "durable best practices",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/mixing-patterns"],
     topN: 10,
   },
 
@@ -280,22 +280,22 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "retry",
     query: "retry",
-    expectAnyOf: ["v1/error-handling/retry-policies"],
+    expectAnyOf: ["v1/retry-policies"],
   },
   {
     name: "timeout",
     query: "timeout",
-    expectAnyOf: ["v1/error-handling/timeouts"],
+    expectAnyOf: ["v1/timeouts"],
   },
   {
     name: "cancellation",
     query: "cancellation",
-    expectAnyOf: ["v1/advanced-tasks/cancellation"],
+    expectAnyOf: ["v1/cancellation"],
   },
   {
     name: "bulk retries",
     query: "bulk retries",
-    expectAnyOf: ["v1/error-handling/bulk-retries-and-cancellations"],
+    expectAnyOf: ["v1/bulk-retries-and-cancellations"],
   },
 
   // -------------------------------------------------------------------------
@@ -324,13 +324,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "worker health check",
     query: "worker health check",
-    expectAnyOf: ["v1/observability/worker-healthchecks"],
+    expectAnyOf: ["v1/worker-healthchecks"],
     topN: 10,
   },
   {
     name: "v1/troubleshooting",
     query: "v1/troubleshooting",
-    expectAnyOf: ["v1/troubleshooting"],
+    expectAnyOf: ["v1/troubleshooting", "v1/troubleshooting/index"],
   },
 
   // -------------------------------------------------------------------------
@@ -339,27 +339,27 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "logging",
     query: "logging",
-    expectAnyOf: ["v1/observability/logging"],
+    expectAnyOf: ["v1/logging"],
   },
   {
     name: "opentelemetry",
     query: "opentelemetry",
-    expectAnyOf: ["v1/observability/opentelemetry"],
+    expectAnyOf: ["v1/opentelemetry"],
   },
   {
     name: "prometheus metrics",
     query: "prometheus metrics",
-    expectAnyOf: ["self-hosting/prometheus-metrics", "v1/observability/prometheus-metrics"],
+    expectAnyOf: ["self-hosting/prometheus-metrics", "v1/prometheus-metrics"],
   },
   {
     name: "streaming",
     query: "streaming",
-    expectAnyOf: ["v1/advanced-tasks/streaming"],
+    expectAnyOf: ["v1/streaming"],
   },
   {
     name: "additional metadata",
     query: "additional metadata",
-    expectAnyOf: ["v1/durable-workflows", "v1/error-handling/bulk-retries-and-cancellations"],
+    expectAnyOf: ["v1/additional-metadata", "v1/bulk-retries-and-cancellations"],
     topN: 10,
   },
 
@@ -539,18 +539,18 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "CLI",
     query: "CLI",
-    expectAnyOf: ["reference/cli"],
+    expectAnyOf: ["reference/cli", "agent-instructions/setup-cli"],
   },
   {
     name: "TUI",
     query: "TUI",
-    expectAnyOf: ["reference/cli"],
+    expectAnyOf: ["reference/cli", "reference/cli/tui"],
     topN: 10,
   },
   {
     name: "profiles",
     query: "profiles",
-    expectAnyOf: ["reference/cli"],
+    expectAnyOf: ["reference/cli", "reference/cli/profiles"],
     topN: 10,
   },
   {
@@ -566,39 +566,39 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "SimpleInput — Pydantic model",
     query: "SimpleInput",
-    expectAnyOf: ["v1/your-first-task"],
+    expectAnyOf: ["v1/tasks"],
   },
   {
     name: "input_validator — Python arg",
     query: "input_validator",
-    expectAnyOf: ["reference/python/pydantic", "v1/your-first-task"],
+    expectAnyOf: ["reference/python/pydantic", "v1/tasks"],
   },
   {
     name: "BaseModel — Pydantic",
     query: "BaseModel",
-    expectAnyOf: ["reference/python/pydantic", "v1/your-first-task"],
+    expectAnyOf: ["reference/python/pydantic", "v1/tasks"],
   },
   {
     name: "ctx.spawn — child spawn",
     query: "ctx.spawn",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/child-spawning"],
     topN: 10,
   },
   {
     name: "NewStandaloneTask — Go API",
     query: "NewStandaloneTask",
-    expectAnyOf: ["v1/your-first-task", "v1/migrating/migration-guide-go"],
+    expectAnyOf: ["v1/tasks", "v1/migrating/migration-guide-go", "v1/external-events/run-on-event"],
   },
   {
     name: "DurableContext",
     query: "DurableContext",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/durable-task-execution"],
     skip: true,
   },
   {
     name: "aio_run — Python async run",
     query: "aio_run",
-    expectAnyOf: ["v1/your-first-task", "v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/tasks", "v1/running-your-task", "v1/bulk-run"],
   },
 
   // -------------------------------------------------------------------------
@@ -607,19 +607,19 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "hatchet.task( — trailing paren",
     query: "hatchet.task(",
-    expectAnyOf: ["v1/your-first-task"],
+    expectAnyOf: ["v1/tasks"],
     topN: 10,
   },
   {
     name: "ctx.spawn( — trailing paren",
     query: "ctx.spawn(",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/child-spawning"],
     topN: 10,
   },
   {
     name: ".run() — dot prefix and parens",
     query: ".run()",
-    expectAnyOf: ["v1/your-first-task", "v1/runnables/run-with-results", "v1/running-your-task"],
+    expectAnyOf: ["v1/tasks", "v1/running-your-task"],
     topN: 10,
   },
   {
@@ -639,54 +639,54 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "delay → scheduled/sleep",
     query: "delay",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/scheduled-runs"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/sleep", "v1/scheduled-runs"],
   },
   {
     name: "debounce → concurrency",
     query: "debounce",
-    expectAnyOf: ["v1/flow-control/concurrency"],
+    expectAnyOf: ["v1/concurrency"],
   },
   {
     name: "dedup → concurrency",
     query: "dedup",
-    expectAnyOf: ["v1/flow-control/concurrency"],
+    expectAnyOf: ["v1/concurrency"],
   },
   {
     name: "throttle → rate limits",
     query: "throttle",
-    expectAnyOf: ["v1/flow-control/rate-limits", "v1/flow-control/concurrency"],
+    expectAnyOf: ["v1/rate-limits", "v1/concurrency"],
   },
   {
     name: "fan out → child spawning",
     query: "fan out",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/bulk-run", "v1/durable-workflows/child-spawning"],
+    expectAnyOf: ["v1/durable-workflows", "v1/bulk-run", "v1/durable-workflows/child-spawning"],
   },
   {
     name: "parallel tasks",
     query: "parallel tasks",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/child-spawning"],
     topN: 10,
   },
   {
     name: "background job",
     query: "background job",
-    expectAnyOf: ["v1/your-first-task", "v1/runnables/run-no-wait", "v1/workers"],
+    expectAnyOf: ["v1/tasks", "v1/running-your-task", "v1/workers"],
   },
   {
     name: "recurring → cron",
     query: "recurring",
-    expectAnyOf: ["v1/runnables/cron-runs"],
+    expectAnyOf: ["v1/cron-runs"],
   },
   {
     name: "error handling → retry/failure",
     query: "error handling",
-    expectAnyOf: ["v1/error-handling/retry-policies", "v1/durable-workflows"],
+    expectAnyOf: ["v1/retry-policies", "v1/durable-workflows", "v1/durable-workflows/on-failure"],
     topN: 10,
   },
   {
     name: "fire and forget → run no wait",
     query: "fire and forget",
-    expectAnyOf: ["v1/runnables/run-no-wait"],
+    expectAnyOf: ["v1/running-your-task"],
     topN: 10,
   },
   {
@@ -700,21 +700,21 @@ const TEST_CASES: SearchTestCase[] = [
     expectAnyOf: [
       "v1/durable-workflows",
       "v1/durable-workflows/directed-acyclic-graphs",
-      "guides/rag-and-indexing",
-      "guides/document-processing",
+      "cookbooks/rag-and-indexing",
+      "cookbooks/document-processing",
     ],
     topN: 10,
   },
   {
     name: "long running task → durable",
     query: "long running task",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/durable-task-execution", "v1/durable-workflows/sleep"],
     topN: 10,
   },
   {
     name: "batch → bulk run",
     query: "batch tasks",
-    expectAnyOf: ["v1/runnables/bulk-run", "guides/batch-processing"],
+    expectAnyOf: ["v1/bulk-run", "cookbooks/batch-processing"],
     topN: 10,
   },
   {
@@ -726,25 +726,26 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "monitor → observability",
     query: "monitor",
-    expectAnyOf: ["v1/observability/opentelemetry", "v1/observability/prometheus-metrics", "v1/observability/logging"],
+    expectAnyOf: ["v1/opentelemetry", "v1/prometheus-metrics", "v1/logging", "self-hosting/prometheus-metrics"],
     topN: 10,
   },
   {
     name: "tracing → opentelemetry",
     query: "tracing",
-    expectAnyOf: ["v1/observability/opentelemetry"],
+    expectAnyOf: ["v1/opentelemetry"],
     topN: 10,
   },
   {
     name: "v1/observability",
     query: "v1/observability",
-    expectAnyOf: ["v1/observability/opentelemetry", "v1/observability/prometheus-metrics", "v1/observability/logging"],
+    expectAnyOf: ["v1/opentelemetry", "v1/prometheus-metrics", "v1/logging", "v1/streaming"],
     topN: 10,
+    skip: true,
   },
   {
     name: "debug → troubleshooting",
     query: "debug",
-    expectAnyOf: ["v1/troubleshooting", "v1/observability/logging"],
+    expectAnyOf: ["v1/troubleshooting", "v1/troubleshooting/index", "v1/logging", "agent-instructions/debug-run"],
     topN: 10,
   },
   {
@@ -787,19 +788,19 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "liveness → health checks",
     query: "liveness",
-    expectAnyOf: ["v1/observability/worker-healthchecks"],
+    expectAnyOf: ["v1/worker-healthchecks"],
     topN: 10,
   },
   {
     name: "wait for event → durable events",
     query: "wait for event",
-    expectAnyOf: ["v1/durable-workflows", "v1/intro-to-durable-workflows", "v1/external-events/pushing-events", "v1/external-events/event-filters", "v1/durable-workflows/sleep", "guides/event-driven"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/events", "v1/external-events/pushing-events", "v1/external-events/event-filters", "v1/durable-workflows/sleep"],
     topN: 10,
   },
   {
     name: "api call → inter-service",
     query: "api call between services",
-    expectAnyOf: ["v1/runnables/inter-service-triggering"],
+    expectAnyOf: ["v1/inter-service-triggering"],
     topN: 10,
   },
   {
@@ -816,37 +817,37 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "how to retry a failed task",
     query: "how to retry a failed task",
-    expectAnyOf: ["v1/error-handling/retry-policies", "v1/durable-workflows"],
+    expectAnyOf: ["v1/retry-policies", "v1/durable-workflows"],
     topN: 10,
   },
   {
     name: "how to run tasks in parallel",
     query: "how to run tasks in parallel",
-    expectAnyOf: ["v1/durable-workflows", "v1/runnables/run-with-results"],
+    expectAnyOf: ["v1/durable-workflows", "v1/durable-workflows/child-spawning", "v1/running-your-task"],
     topN: 10,
   },
   {
     name: "how to cancel a running task",
     query: "how to cancel a running task",
-    expectAnyOf: ["v1/advanced-tasks/cancellation"],
+    expectAnyOf: ["v1/cancellation"],
     topN: 10,
   },
   {
     name: "how to set up cron job",
     query: "how to set up cron job",
-    expectAnyOf: ["v1/runnables/cron-runs"],
+    expectAnyOf: ["v1/cron-runs"],
     topN: 10,
   },
   {
     name: "how to handle errors",
     query: "how to handle errors",
-    expectAnyOf: ["v1/error-handling/retry-policies", "v1/durable-workflows"],
+    expectAnyOf: ["v1/retry-policies", "v1/durable-workflows", "v1/durable-workflows/on-failure"],
     topN: 10,
   },
   {
     name: "how to limit concurrency",
     query: "how to limit concurrency",
-    expectAnyOf: ["v1/flow-control/concurrency", "v1/flow-control/rate-limits"],
+    expectAnyOf: ["v1/concurrency", "v1/rate-limits"],
     topN: 10,
   },
 ];

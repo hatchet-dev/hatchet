@@ -6,8 +6,8 @@ export default {
   index: "🪓 What is Hatchet?",
   quickstart: "Quickstart",
   "using-coding-agents": "Using Coding Agents",
-  "--fundamentals": {
-    title: "Fundamentals",
+  "--foundation": {
+    title: "Foundation",
     type: "separator",
   },
   tasks: "Tasks",

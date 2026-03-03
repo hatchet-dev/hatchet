@@ -47,7 +47,7 @@ export default function WorkflowTable() {
           <p className="text-lg font-semibold">No workflows found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages['get-started']['your-first-task']}
+              doc={docsPages.v1.quickstart}
               label="Learn about creating workflows and tasks"
             />
           </div>
