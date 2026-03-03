@@ -52,7 +52,6 @@ export function useTenantDetails() {
   const setTenant = useCallback(
     (tenant: Tenant) => {
       setLastTenant(tenant);
-      queryClient.clear();
 
       const isOnTenantRoute = Boolean(
         matchRoute({
@@ -79,7 +78,7 @@ export function useTenantDetails() {
         params: { tenant: tenant.metadata.id },
       });
     },
-    [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
+    [matchRoute, navigate, setLastTenant, tenantParamInPath],
   );
 
   // Tenant and membership now come from AppContext
