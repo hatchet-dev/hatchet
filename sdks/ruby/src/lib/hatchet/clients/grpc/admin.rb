@@ -83,6 +83,10 @@ module Hatchet
                                                  end
           end
 
+          if options[:desired_worker_labels]
+            request_args[:desired_worker_labels] = build_trigger_worker_labels(options[:desired_worker_labels])
+          end
+
           request = ::TriggerWorkflowRequest.new(**request_args)
 
           begin
@@ -131,6 +135,10 @@ module Hatchet
                                                    else
                                                      JSON.generate(opts[:additional_metadata])
                                                    end
+            end
+
+            if opts[:desired_worker_labels]
+              request_args[:desired_worker_labels] = build_trigger_worker_labels(opts[:desired_worker_labels])
             end
 
             ::TriggerWorkflowRequest.new(**request_args)
@@ -240,6 +248,31 @@ module Hatchet
         end
 
         private
+
+        COMPARATOR_MAP = {
+          equal: :EQUAL, not_equal: :NOT_EQUAL,
+          greater_than: :GREATER_THAN, greater_than_or_equal: :GREATER_THAN_OR_EQUAL,
+          less_than: :LESS_THAN, less_than_or_equal: :LESS_THAN_OR_EQUAL,
+        }.freeze
+
+        def build_trigger_worker_labels(labels)
+          labels.each_with_object({}) do |(k, v), map|
+            dwl = if v.is_a?(Hash)
+                    dwl_args = {}
+                    dwl_args[:str_value] = v[:str_value].to_s if v[:str_value]
+                    dwl_args[:int_value] = v[:int_value] if v[:int_value]
+                    dwl_args[:required] = v[:required] if v.key?(:required)
+                    dwl_args[:weight] = v[:weight] if v[:weight]
+                    dwl_args[:comparator] = COMPARATOR_MAP[v[:comparator]] || :EQUAL if v[:comparator]
+                    ::DesiredWorkerLabels.new(**dwl_args)
+                  elsif v.is_a?(Integer)
+                    ::DesiredWorkerLabels.new(int_value: v)
+                  else
+                    ::DesiredWorkerLabels.new(str_value: v.to_s)
+                  end
+            map[k.to_s] = dwl
+          end
+        end
 
         def ensure_connected!
           return if @v0_stub && @v1_stub

@@ -10,6 +10,7 @@ import {
 import { z } from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
+import { WorkerLabelComparator } from '@hatchet/protoc/v1/workflows';
 import {
   CreateWorkflowTaskOpts,
   CreateOnFailureTaskOpts,
@@ -74,6 +75,19 @@ export type RunOpts = {
    * failures are Error instances.
    */
   returnExceptions?: boolean;
+
+  /**
+   * (optional) desired worker labels for routing the workflow run to specific workers.
+   */
+  desiredWorkerLabels?: Record<
+    string,
+    {
+      value: string | number;
+      required?: boolean;
+      weight?: number;
+      comparator?: WorkerLabelComparator;
+    }
+  >;
 };
 
 /**

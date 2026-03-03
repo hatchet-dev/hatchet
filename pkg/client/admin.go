@@ -27,13 +27,14 @@ import (
 )
 
 type ChildWorkflowOpts struct {
-	ParentId           string
-	ParentTaskRunId    string
-	ChildIndex         int
-	ChildKey           *string
-	DesiredWorkerId    *string
-	AdditionalMetadata *map[string]string
-	Priority           *int32
+	ParentId            string
+	ParentTaskRunId     string
+	ChildIndex          int
+	ChildKey            *string
+	DesiredWorkerId     *string
+	AdditionalMetadata  *map[string]string
+	Priority            *int32
+	DesiredWorkerLabels map[string]*admincontracts.DesiredWorkerLabels
 }
 
 type WorkflowRun struct {
@@ -277,6 +278,14 @@ func WithPriority(priority int32) RunOptFunc {
 	}
 }
 
+func WithDesiredWorkerLabels(labels map[string]*admincontracts.DesiredWorkerLabels) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		r.DesiredWorkerLabels = labels
+
+		return nil
+	}
+}
+
 // func WithSticky(sticky bool) RunOptFunc {
 // 	return func(r *admincontracts.TriggerWorkflowRequest) error {
 // 		r.Sticky = &sticky
@@ -397,6 +406,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		DesiredWorkerId:         opts.DesiredWorkerId,
 		AdditionalMetadata:      &metadata,
 		Priority:                opts.Priority,
+		DesiredWorkerLabels:     opts.DesiredWorkerLabels,
 	})
 
 	if err != nil {
@@ -459,6 +469,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			DesiredWorkerId:         workflow.Opts.DesiredWorkerId,
 			AdditionalMetadata:      &metadata,
 			Priority:                workflow.Opts.Priority,
+			DesiredWorkerLabels:     workflow.Opts.DesiredWorkerLabels,
 		}
 
 	}
