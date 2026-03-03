@@ -131,11 +131,30 @@ jobs:
           bundler-cache: true
           working-directory: ./sdks/ruby/examples
 
+      - name: Wait for API readiness
+        working-directory: .
+        run: |
+          echo "Waiting for API at http://localhost:8080/api/ready..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/api/ready > /dev/null 2>&1; then
+              echo "API ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "API did not become ready within 60s"
+              tail -n 50 engine.log 2>/dev/null || true
+              tail -n 50 api.log 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+          sleep 5
+
       - name: Start example worker and wait for health
         working-directory: ./sdks/ruby/examples
         run: |
           export HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT=8001
-          bundle exec ruby worker.rb > worker.log 2>&1 &
+          stdbuf -o0 -e0 bundle exec ruby worker.rb > worker.log 2>&1 &
           WORKER_PID=$!
           echo "Worker started with PID $WORKER_PID"
 
