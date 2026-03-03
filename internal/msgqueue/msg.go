@@ -59,10 +59,9 @@ func NewTenantMessage[T any](tenantId uuid.UUID, id string, immediatelyExpire, p
 	}, nil
 }
 
-func NewCronUpdateMessage(tenantId uuid.UUID) *Message {
-	uid, _ := uuid.NewUUID()
+func NewCronUpdateMessage(tenantId uuid.UUID, id string) *Message {
 	msg := &Message{
-		ID:                uid.String(),
+		ID:                id,
 		Payloads:          nil,
 		TenantID:          tenantId,
 		ImmediatelyExpire: true,

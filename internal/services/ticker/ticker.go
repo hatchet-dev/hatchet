@@ -146,7 +146,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.CRON_TRIGGER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
 	if err != nil {
-		t.l.Log().Err(err).Msg("Could not subscribe to cron trigger update queue")
+		t.l.Err(err).Msg("Could not subscribe to cron trigger update queue")
 	}
 
 	// register the ticker
@@ -245,7 +245,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		cancel()
 
 		if queueCleanupFunc() != nil {
-			t.l.Log().Err(err).Msg("Could not cleanup cron trigger update queue")
+			t.l.Err(err).Msg("Could not cleanup cron trigger update queue")
 		}
 
 		if err := t.s.Shutdown(); err != nil {
