@@ -122,6 +122,10 @@ SELECT create_v1_range_partition('v1_durable_event_log_entry', (NOW() + INTERVAL
 CREATE TABLE v1_durable_event_log_branch_point (
     tenant_id UUID NOT NULL,
 
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     durable_task_id BIGINT NOT NULL,
 
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
@@ -158,6 +162,7 @@ ALTER TABLE "Worker" ADD COLUMN "durableTaskDispatcherId" UUID;
 -- +goose StatementBegin
 DROP TABLE v1_durable_event_log_entry;
 DROP TABLE v1_durable_event_log_file;
+DROP TABLE v1_durable_event_log_branch_point;
 DROP TYPE v1_durable_event_log_kind;
 
 ALTER TABLE v1_match

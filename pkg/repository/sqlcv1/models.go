@@ -3067,6 +3067,8 @@ type V1DagsOlap struct {
 
 type V1DurableEventLogBranchPoint struct {
 	TenantID               uuid.UUID          `json:"tenant_id"`
+	ID                     int64              `json:"id"`
+	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
 	DurableTaskID          int64              `json:"durable_task_id"`
 	DurableTaskInsertedAt  pgtype.Timestamptz `json:"durable_task_inserted_at"`
 	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`

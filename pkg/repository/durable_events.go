@@ -455,18 +455,22 @@ func (r *sharedRepository) incrementDurableTaskInvocationCounts(ctx context.Cont
 }
 
 func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
-	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+	return r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Tenantid:              tenantId,
 	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to lock log file: %w", err)
-	}
-
-	return logFile, nil
 }
+
+func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogBranchPoint, error) {
+	return r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+		Durabletaskid:         durableTaskId,
+		Durabletaskinsertedat: durableTaskInsertedAt,
+		Tenantid:              tenantId,
+	})
+}
+
+
 
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {

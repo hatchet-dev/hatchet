@@ -293,6 +293,51 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 	return items, nil
 }
 
+const listDurableEventLogBranchPoints = `-- name: ListDurableEventLogBranchPoints :many
+SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+FROM v1_durable_event_log_branch_point
+WHERE
+    durable_task_id = $1::BIGINT
+    AND durable_task_inserted_at = $2::TIMESTAMPTZ
+    AND parent_branch_id = $3::BIGINT
+ORDER BY id ASC
+`
+
+type ListDurableEventLogBranchPointsParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Parentbranchid        int64              `json:"parentbranchid"`
+}
+
+func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, arg ListDurableEventLogBranchPointsParams) ([]*V1DurableEventLogBranchPoint, error) {
+	rows, err := db.Query(ctx, listDurableEventLogBranchPoints, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Parentbranchid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1DurableEventLogBranchPoint
+	for rows.Next() {
+		var i V1DurableEventLogBranchPoint
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.FirstNodeIDInNewBranch,
+			&i.ParentBranchID,
+			&i.NextBranchID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSatisfiedEntries = `-- name: ListSatisfiedEntries :many
 WITH inputs AS (
     SELECT

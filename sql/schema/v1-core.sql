@@ -2350,6 +2350,10 @@ CREATE TABLE v1_durable_event_log_entry (
 CREATE TABLE v1_durable_event_log_branch_point (
     tenant_id UUID NOT NULL,
 
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     durable_task_id BIGINT NOT NULL,
 
     durable_task_inserted_at TIMESTAMPTZ NOT NULL,
