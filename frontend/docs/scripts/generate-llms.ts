@@ -782,6 +782,7 @@ function buildSearchIndex(
   const miniSearch = new MiniSearch<SearchDoc>(MINISEARCH_OPTIONS);
 
   const docs: SearchDoc[] = [];
+  const seenIds = new Set<string>();
   for (const page of pages) {
     const raw = fs.readFileSync(page.filepath, "utf-8");
     const md = convertMdxToMarkdown(raw, snippetTree, languages, page.filepath);
@@ -793,9 +794,17 @@ function buildSearchIndex(
     for (const section of sections) {
       if (!section.content.trim()) continue;
 
-      const id = section.slug
+      let id = section.slug
         ? `${pageRoute}#${section.slug}`
         : pageRoute;
+
+      if (seenIds.has(id)) {
+        let suffix = 2;
+        while (seenIds.has(`${id}-${suffix}`)) suffix++;
+        id = `${id}-${suffix}`;
+      }
+      seenIds.add(id);
+
       const title = section.heading || page.title;
 
       docs.push({
