@@ -35,7 +35,8 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.deprecated.deprecation import semver_less_than
-from hatchet_sdk.exceptions import MIN_DURABLE_EVICTION_VERSION, TaskRunError
+from hatchet_sdk.engine_version import MinEngineVersion
+from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import (
@@ -514,11 +515,22 @@ class DurableContext(Context):
         self._durable_eviction_manager = durable_eviction_manager
         self._engine_version = engine_version
 
+    def _get_durable_listener(self) -> DurableEventListener:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable task client is not available")
+
+        if not isinstance(self.durable_event_listener, DurableEventListener):
+            raise TypeError(
+                "Expected DurableEventListener, got "
+                f"{type(self.durable_event_listener).__name__}"
+            )
+        return self.durable_event_listener
+
     @property
     def _supports_durable_eviction(self) -> bool:
         if not self._engine_version:
             return False
-        return not semver_less_than(self._engine_version, MIN_DURABLE_EVICTION_VERSION)
+        return not semver_less_than(self._engine_version, MinEngineVersion.DURABLE_EVICTION)
 
     @property
     def wait_index(self) -> int:
@@ -530,6 +542,7 @@ class DurableContext(Context):
 
         return index
 
+    # todo: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -550,7 +563,7 @@ class DurableContext(Context):
         if not self._supports_durable_eviction:
             return await aio_wait_for_pre_eviction(self, signal_key, *conditions)
 
-        assert isinstance(self.durable_event_listener, DurableEventListener)
+        listener = self._get_durable_listener()
 
         await self._ensure_stream_started()
 
@@ -558,7 +571,7 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        ack = await self.durable_event_listener.send_event(
+        ack = await listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
             event=WaitForEvent(wait_for_conditions=conditions_proto),
@@ -572,7 +585,7 @@ class DurableContext(Context):
             action_key=self.action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
-            result = await self.durable_event_listener.wait_for_callback(
+            result = await listener.wait_for_callback(
                 durable_task_external_id=self.step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
@@ -595,17 +608,18 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
+    # todo: instrumentor for this
     async def _spawn_child(
         self,
         workflow: BaseWorkflow[TWorkflowInput],
         input: TWorkflowInput = cast(Any, EmptyModel()),
         options: TriggerWorkflowOptions | None = None,
     ) -> dict[str, Any]:
-        assert isinstance(self.durable_event_listener, DurableEventListener)
+        listener = self._get_durable_listener()
 
         await self._ensure_stream_started()
 
-        ack = await self.durable_event_listener.send_event(
+        ack = await listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
             event=RunChildEvent(
@@ -621,7 +635,7 @@ class DurableContext(Context):
             action_key=self.action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
-            result = await self.durable_event_listener.wait_for_callback(
+            result = await listener.wait_for_callback(
                 durable_task_external_id=self.step_run_id,
                 node_id=ack.node_id,
                 branch_id=ack.branch_id,
@@ -665,18 +679,18 @@ class DurableContext(Context):
                 "Engine does not support memoization (requires >= %s). "
                 "aio_memo will execute the function but results will not be "
                 "persisted across replays. Upgrade your engine to enable durable memoization.",
-                MIN_DURABLE_EVICTION_VERSION,
+                MinEngineVersion.DURABLE_EVICTION,
             )
             return await fn(*args, **kwargs)
 
-        assert isinstance(self.durable_event_listener, DurableEventListener)
+        listener = self._get_durable_listener()
 
         run_external_id = self.step_run_id
         adapter = TypeAdapter(result_validator)
 
         key = _compute_memo_key(self.step_run_id, *args, **kwargs)
 
-        ack = await self.durable_event_listener.send_event(
+        ack = await listener.send_event(
             durable_task_external_id=run_external_id,
             invocation_count=self.invocation_count,
             event=MemoEvent(memo_key=key, result=None),
@@ -700,7 +714,7 @@ class DurableContext(Context):
 
             await self._ensure_stream_started()
 
-            await self.durable_event_listener.send_memo_completed_notification(
+            await listener.send_memo_completed_notification(
                 durable_task_external_id=run_external_id,
                 node_id=ack.node_id,
                 branch_id=ack.branch_id,

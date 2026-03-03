@@ -33,8 +33,8 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.deprecated.deprecation import semver_less_than
+from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import (
-    MIN_DURABLE_EVICTION_VERSION,
     IllegalTaskOutputError,
     NonRetryableException,
     TaskRunError,
@@ -135,21 +135,20 @@ class Runner:
         )
         self._supports_durable_eviction = bool(
             engine_version
-            and not semver_less_than(engine_version, MIN_DURABLE_EVICTION_VERSION)
+            and not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION)
         )
 
         self.durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
         )
-        if has_durable_tasks:
-            if self._supports_durable_eviction:
-                self.durable_event_listener = DurableEventListener(
-                    self.config, admin_client=self.admin_client
-                )
-            else:
-                self.durable_event_listener = PreEvictionDurableEventListener(
-                    self.config
-                )
+        if has_durable_tasks and self._supports_durable_eviction:
+            self.durable_event_listener = DurableEventListener(
+                self.config, admin_client=self.admin_client
+            )
+        elif has_durable_tasks:
+            self.durable_event_listener = PreEvictionDurableEventListener(
+                self.config
+            )
         else:
             self.durable_event_listener = None
 

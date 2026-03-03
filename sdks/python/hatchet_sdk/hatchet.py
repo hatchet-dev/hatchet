@@ -192,12 +192,11 @@ class Hatchet:
     async def aio_engine_version(self) -> str | None:
         """Fetch the engine version via the dispatcher's GetVersion RPC.
 
-        :return: The engine version string, or None if the engine is too old to support GetVersion.
+        :return: The engine version string, or ``None`` if the engine is too old
+            to support GetVersion.
+        :raises grpc.RpcError: For transient gRPC errors after retries are exhausted.
         """
-        try:
-            return await self._client.dispatcher.get_version()
-        except Exception:
-            return None
+        return await self._client.dispatcher.get_version()
 
     def worker(
         self,

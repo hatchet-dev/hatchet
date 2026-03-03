@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 from collections.abc import AsyncGenerator, Callable
+from datetime import datetime, timezone
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from enum import Enum
@@ -14,16 +15,13 @@ from types import FrameType
 from typing import Any, TypeVar
 from warnings import warn
 
-import grpc
-
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
-from hatchet_sdk.deprecated.deprecation import semver_less_than
+from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice, semver_less_than
 from hatchet_sdk.deprecated.worker import legacy_aio_start
+from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import (
-    MIN_DURABLE_EVICTION_VERSION,
-    MIN_SLOT_CONFIG_VERSION,
     LifespanSetupError,
     LoopAlreadyRunningError,
 )
@@ -215,10 +213,6 @@ class Worker:
             sys.exit(0)
 
     def _emit_legacy_slot_deprecation(self) -> None:
-        from datetime import datetime, timezone
-
-        from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice
-
         emit_deprecation_notice(
             feature="legacy-engine",
             message=(
@@ -232,7 +226,7 @@ class Worker:
 
     def _check_eviction_support(self, engine_version: str) -> None:
         """Warn and strip eviction policies if the engine is too old to support them."""
-        if not semver_less_than(engine_version, MIN_DURABLE_EVICTION_VERSION):
+        if not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION):
             return
 
         tasks_with_eviction = [
@@ -243,25 +237,18 @@ class Worker:
         if not tasks_with_eviction:
             return
 
-        from datetime import datetime, timezone
-
-        from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice
-
         names = ", ".join(t.name for t in tasks_with_eviction)
         emit_deprecation_notice(
             feature="pre-eviction-engine",
             message=(
                 f"Engine {engine_version} does not support durable eviction "
-                f"(requires >= {MIN_DURABLE_EVICTION_VERSION}). "
+                f"(requires >= {MinEngineVersion.DURABLE_EVICTION}). "
                 f"Eviction policies will be ignored for tasks: {names}. "
                 "Please upgrade your Hatchet engine."
             ),
             start=datetime(2026, 3, 3, tzinfo=timezone.utc),
             error_days=180,
         )
-
-        for task in tasks_with_eviction:
-            task.durable_eviction = None
 
     async def _check_engine_version(self) -> str | None:
         """Returns the engine version string, or None if engine is legacy (pre-slot-config).
@@ -270,21 +257,13 @@ class Worker:
         version for slot_config support. Returns the version string for modern
         engines so callers can branch on specific versions.
         """
+        version = await self.client.dispatcher.get_version()
 
-        try:
-            version = await self.client.dispatcher.get_version()
+        if not version or semver_less_than(version, MinEngineVersion.SLOT_CONFIG):
+            self._emit_legacy_slot_deprecation()
+            return None
 
-            # Empty version or older than minimum → legacy
-            if not version or semver_less_than(version, MIN_SLOT_CONFIG_VERSION):
-                self._emit_legacy_slot_deprecation()
-                return None
-
-            return version  # new engine
-        except grpc.RpcError as e:
-            if e.code() == grpc.StatusCode.UNIMPLEMENTED:
-                self._emit_legacy_slot_deprecation()
-                return None  # old engine
-            raise
+        return version
 
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
