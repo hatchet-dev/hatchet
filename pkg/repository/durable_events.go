@@ -506,7 +506,7 @@ func resolveBranchForNode(nodeId, currentBranchId int64, branchPoints map[NodeId
 			}
 		}
 		if found == nil {
-			tree = append(tree, BranchIdFromNodeIdTuple{1, currBranchId})
+			tree = append(tree, BranchIdFromNodeIdTuple{0, currBranchId})
 			break
 		}
 		tree = append(tree, BranchIdFromNodeIdTuple{found.FirstNodeIDInNewBranch, currBranchId})
