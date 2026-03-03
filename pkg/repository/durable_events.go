@@ -536,7 +536,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
-	branchPoints, err := r.listEventLogBranchPoints(ctx, tx, opts.TenantId, task.ID, task.InsertedAt)
+	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, opts.TenantId, task.ID, task.InsertedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list log branch points: %w", err)
@@ -549,7 +549,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	nodeId := logFile.LatestNodeID + 1
 
-	branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, branchPoints)
+	branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
 	var inputPayload []byte
 	var resultPayload []byte
