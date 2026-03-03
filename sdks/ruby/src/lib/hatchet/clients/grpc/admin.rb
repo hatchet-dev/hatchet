@@ -137,9 +137,7 @@ module Hatchet
                                                    end
             end
 
-            if opts[:desired_worker_labels]
-              request_args[:desired_worker_labels] = build_trigger_worker_labels(opts[:desired_worker_labels])
-            end
+            request_args[:desired_worker_labels] = build_trigger_worker_labels(opts[:desired_worker_labels]) if opts[:desired_worker_labels]
 
             ::TriggerWorkflowRequest.new(**request_args)
           end
@@ -247,13 +245,13 @@ module Hatchet
           @v1_stub = nil
         end
 
-        private
-
         COMPARATOR_MAP = {
           equal: :EQUAL, not_equal: :NOT_EQUAL,
           greater_than: :GREATER_THAN, greater_than_or_equal: :GREATER_THAN_OR_EQUAL,
           less_than: :LESS_THAN, less_than_or_equal: :LESS_THAN_OR_EQUAL,
         }.freeze
+
+        private
 
         def build_trigger_worker_labels(labels)
           labels.each_with_object({}) do |(k, v), map|
