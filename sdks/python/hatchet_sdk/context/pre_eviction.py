@@ -44,7 +44,9 @@ async def aio_wait_for_pre_eviction(
 
     ctx.durable_event_listener.register_durable_event(request)
 
-    result: dict[str, Any] = await ctx.durable_event_listener.result(task_id, signal_key)
+    result: dict[str, Any] = await ctx.durable_event_listener.result(
+        task_id, signal_key
+    )
     return result
 
 
