@@ -749,7 +749,7 @@ func (s *Scheduler) tryAssignBatch(
 		labelOverrides, ok := taskIdsToLabelOverrides[qi.TaskID]
 
 		if ok {
-			labels = append(labels, labelOverrides...)
+			labels = labelOverrides
 		}
 
 		// Backwards-compatible default: if no slot requests are provided for a step,
