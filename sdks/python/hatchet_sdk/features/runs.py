@@ -889,6 +889,7 @@ class RunsClient(BaseRestClient):
 
         :param task_external_id: The external ID (UUID) of the durable task to reset.
         :param node_id: The node ID to replay from.
+        :param branch_id: The branch ID to replay from.
         :return: The reset response containing the new node_id and branch_id.
         """
         return await asyncio.to_thread(
