@@ -21,7 +21,7 @@ func (g *SlackAppService) UserUpdateSlackOauthStart(ctx echo.Context, _ gen.User
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, nil, "Slack OAuth is not configured on this Hatchet instance.")
 	}
 
-	sh := authn.NewSessionHelpers(g.config)
+	sh := authn.NewSessionHelpers(g.config.SessionStore)
 
 	if err := sh.SaveKV(ctx, "tenant", tenantId.String()); err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
