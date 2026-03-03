@@ -54,6 +54,7 @@ type Repository interface {
 	WorkflowSchedules() WorkflowScheduleRepository
 	OTelCollector() OTelCollectorRepository
 	OverwriteOTelCollectorRepository(o OTelCollectorRepository)
+	Events() EventsRepository
 }
 
 type repositoryImpl struct {
@@ -88,6 +89,7 @@ type repositoryImpl struct {
 	userSession       UserSessionRepository
 	workflowSchedules WorkflowScheduleRepository
 	otelcol           OTelCollectorRepository
+	events            EventsRepository
 }
 
 func NewRepository(
@@ -141,6 +143,7 @@ func NewRepository(
 		userSession:       newUserSessionRepository(shared),
 		workflowSchedules: newWorkflowScheduleRepository(shared),
 		otelcol:           newOTelCollectorRepository(shared),
+		events:            newEventsRepository(shared),
 	}
 
 	return impl, func() error {
@@ -296,4 +299,8 @@ func (r *repositoryImpl) OTelCollector() OTelCollectorRepository {
 
 func (r *repositoryImpl) OverwriteOTelCollectorRepository(o OTelCollectorRepository) {
 	r.otelcol = o
+}
+
+func (r *repositoryImpl) Events() EventsRepository {
+	return r.events
 }
