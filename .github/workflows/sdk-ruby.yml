@@ -150,9 +150,9 @@ jobs:
               echo "=== worker.log ==="
               cat worker.log || true
               echo "=== tail engine.log ==="
-              tail -n 80 ../../engine.log 2>/dev/null || true
+              tail -n 80 "$GITHUB_WORKSPACE/engine.log" 2>/dev/null || true
               echo "=== tail api.log ==="
-              tail -n 80 ../../api.log 2>/dev/null || true
+              tail -n 80 "$GITHUB_WORKSPACE/api.log" 2>/dev/null || true
               exit 1
             fi
             if curl -sf http://localhost:8001/health > /dev/null 2>&1; then
@@ -164,9 +164,9 @@ jobs:
               echo "--- worker.log (last 25 lines) ---"
               tail -n 25 worker.log 2>/dev/null || true
               echo "--- engine.log (last 25 lines) ---"
-              tail -n 25 ../../engine.log 2>/dev/null || true
+              tail -n 25 "$GITHUB_WORKSPACE/engine.log" 2>/dev/null || true
               echo "--- api.log (last 25 lines) ---"
-              tail -n 25 ../../api.log 2>/dev/null || true
+              tail -n 25 "$GITHUB_WORKSPACE/api.log" 2>/dev/null || true
             fi
             sleep $POLL_INTERVAL
           done
@@ -175,9 +175,9 @@ jobs:
           echo "=== worker.log ==="
           cat worker.log || true
           echo "=== tail engine.log ==="
-          tail -n 80 ../../engine.log 2>/dev/null || true
+          tail -n 80 "$GITHUB_WORKSPACE/engine.log" 2>/dev/null || true
           echo "=== tail api.log ==="
-          tail -n 80 ../../api.log 2>/dev/null || true
+          tail -n 80 "$GITHUB_WORKSPACE/api.log" 2>/dev/null || true
           exit 1
 
       - name: Run e2e tests
