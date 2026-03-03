@@ -148,6 +148,11 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: "/guides/:path*",
+        destination: "/cookbooks/:path*",
+        permanent: true,
+      },
+      {
         source: "/v1/advanced-tasks/cancellation",
         destination: "/v1/cancellation",
         permanent: true,
@@ -970,13 +975,13 @@ const nextConfig = {
       },
       {
         source: "/get-started/use-cases",
-        destination: "/v1/guides/rag-and-indexing",
+        destination: "/cookbooks/rag-and-indexing",
         permanent: false,
         basePath: false,
       },
       {
         source: "/get-started/use-cases/:path*",
-        destination: "/v1/guides/:path*",
+        destination: "/cookbooks/:path*",
         permanent: false,
         basePath: false,
       },
@@ -1035,7 +1040,7 @@ const nextConfig = {
         basePath: false,
       },
       {
-        source: '/:path((?!api|ingest|v1|v0|compute|home|get-started|features|guides|migrating|cli|sdk|sdks|concepts|contributing|self-hosting|launches|blog|llms|pages|favicon\\.ico|.*\\.png|.*\\.gif|.*\\.svg|_next/.*|monitoring\\-demo\\.mp4).*)',
+        source: '/:path((?!api|ingest|v1|v0|compute|home|get-started|features|guides|cookbooks|migrating|cli|sdk|sdks|concepts|contributing|self-hosting|launches|blog|llms|pages|favicon\\.ico|.*\\.png|.*\\.gif|.*\\.svg|_next/.*|monitoring\\-demo\\.mp4).*)',
         destination: '/v1/:path*',
         permanent: false,
         basePath: false,

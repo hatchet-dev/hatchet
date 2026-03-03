@@ -72,36 +72,42 @@ const HumanInLoopDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient
-              id="hitl-blue"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor="rgb(51, 146, 255)" stopOpacity="0.6" />
+            <linearGradient id="hitl-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop
+                offset="0%"
+                stopColor="rgb(51, 146, 255)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(133, 189, 255)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="hitl-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(234, 179, 8)" stopOpacity="0.6" />
+            <linearGradient
+              id="hitl-yellow"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop
+                offset="0%"
+                stopColor="rgb(234, 179, 8)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(250, 204, 21)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="hitl-green"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor="rgb(34, 197, 94)" stopOpacity="0.6" />
+            <linearGradient id="hitl-green" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop
+                offset="0%"
+                stopColor="rgb(34, 197, 94)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(74, 222, 128)"
@@ -176,7 +182,9 @@ const HumanInLoopDiagram: React.FC = () => {
             width={waitW}
             height={nodeH + 24}
             rx={rx}
-            fill={waitActive ? "rgba(234, 179, 8, 0.25)" : "rgba(10, 16, 41, 0.15)"}
+            fill={
+              waitActive ? "rgba(234, 179, 8, 0.25)" : "rgba(10, 16, 41, 0.15)"
+            }
             stroke={waitActive ? "url(#hitl-yellow)" : "#1C2B4A"}
             strokeWidth="1.5"
             strokeDasharray={waitActive ? "6 4" : "none"}
@@ -247,7 +255,9 @@ const HumanInLoopDiagram: React.FC = () => {
               width={humanW}
               height={humanH}
               rx={rx}
-              fill={isHuman ? "rgba(234, 179, 8, 0.25)" : "rgba(10, 16, 41, 0.2)"}
+              fill={
+                isHuman ? "rgba(234, 179, 8, 0.25)" : "rgba(10, 16, 41, 0.2)"
+              }
               stroke={isHuman ? "url(#hitl-yellow)" : "#1C2B4A"}
               strokeWidth="1.5"
               style={{ transition: "all 0.4s ease" }}
@@ -312,7 +322,9 @@ const HumanInLoopDiagram: React.FC = () => {
             width={nodeW}
             height={nodeH}
             rx={rx}
-            fill={isResumed ? "rgba(34, 197, 94, 0.3)" : "rgba(10, 16, 41, 0.15)"}
+            fill={
+              isResumed ? "rgba(34, 197, 94, 0.3)" : "rgba(10, 16, 41, 0.15)"
+            }
             stroke={isResumed ? "url(#hitl-green)" : "#162035"}
             strokeWidth="1.5"
             style={{ transition: "all 0.4s ease" }}

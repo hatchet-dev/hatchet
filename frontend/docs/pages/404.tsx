@@ -1,29 +1,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const sections = [
-  {
-    title: "Get Started",
-    href: "/",
-    description: "Installation, quickstart, and first workflow",
-  },
-  {
-    title: "Concepts",
-    href: "/concepts",
-    description: "Core ideas behind Hatchet workflows",
-  },
-  {
-    title: "Guides",
-    href: "/guides",
-    description: "Step-by-step tutorials and patterns",
-  },
-  {
-    title: "Self-Hosting",
-    href: "/self-hosting",
-    description: "Deploy Hatchet in your own infrastructure",
-  },
-];
-
 const Logo = ({ color }: { color: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -124,53 +101,33 @@ export default function Custom404() {
         This page doesn&apos;t exist. It may have been moved or removed.
       </p>
 
-      <nav
+      <Link
+        href="/"
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "0.75rem",
-          width: "100%",
-          maxWidth: "36rem",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.75rem 1.5rem",
+          borderRadius: "0.5rem",
+          border: `1px solid ${t.border}`,
+          background: t.cardBg,
+          color: t.fg,
+          fontSize: "0.9375rem",
+          fontWeight: 600,
+          textDecoration: "none",
+          transition: "background-color 0.15s ease, border-color 0.15s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = t.hoverBg;
+          e.currentTarget.style.borderColor = t.muted;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = t.cardBg;
+          e.currentTarget.style.borderColor = t.border;
         }}
       >
-        {sections.map((s) => (
-          <Link
-            key={s.href}
-            href={s.href}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.25rem",
-              padding: "0.875rem 1rem",
-              borderRadius: "0.5rem",
-              border: `1px solid ${t.border}`,
-              background: t.cardBg,
-              textDecoration: "none",
-              transition:
-                "background-color 0.15s ease, border-color 0.15s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = t.hoverBg;
-              e.currentTarget.style.borderColor = t.muted;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = t.cardBg;
-              e.currentTarget.style.borderColor = t.border;
-            }}
-          >
-            <span
-              style={{ fontSize: "0.9375rem", fontWeight: 600, color: t.fg }}
-            >
-              {s.title}
-            </span>
-            <span
-              style={{ fontSize: "0.8125rem", color: t.muted, lineHeight: 1.4 }}
-            >
-              {s.description}
-            </span>
-          </Link>
-        ))}
-      </nav>
+        &larr; Back to Home
+      </Link>
     </div>
   );
 }

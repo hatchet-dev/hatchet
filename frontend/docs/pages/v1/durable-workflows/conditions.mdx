@@ -33,10 +33,11 @@ This is one of the key advantages of durable tasks: branching logic is expressed
 
 <Callout type="warning">
   Branching logic must be **deterministic** between checkpoints. If the task is
-  evicted and replayed, the same branches must execute in the same order.
-  Base decisions on checkpoint outputs (child results, event payloads) rather
-  than wall-clock time or external state that may change between replays.
-  See [Best Practices](/v1/durable-workflows/mixing-patterns#determinism-in-durable-tasks) for details.
+  evicted and replayed, the same branches must execute in the same order. Base
+  decisions on checkpoint outputs (child results, event payloads) rather than
+  wall-clock time or external state that may change between replays. See [Best
+  Practices](/v1/durable-workflows/mixing-patterns#determinism-in-durable-tasks)
+  for details.
 </Callout>
 
 ## Or Groups

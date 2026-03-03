@@ -117,8 +117,8 @@ Register and start the worker with both parent and child workflows. For large ba
 <Callout type="warning">
   For batches with thousands of items, use **durable workflows** so the parent
   task doesn't hold a worker slot while waiting for all children to complete.
-  See [Durable Workflows](/v1/durable-workflows/durable-task-execution)
-  for details.
+  See [Durable Workflows](/v1/durable-workflows/durable-task-execution) for
+  details.
 </Callout>
 
 ## Common Patterns
@@ -134,10 +134,7 @@ Register and start the worker with both parent and child workflows. For large ba
 ## Related Patterns
 
 <Cards>
-  <Cards.Card
-    title="Fanout"
-    href="/v1/durable-workflows/child-spawning"
-  >
+  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
     The core pattern behind batch processing, spawning N children from a parent.
   </Cards.Card>
   <Cards.Card
@@ -146,13 +143,10 @@ Register and start the worker with both parent and child workflows. For large ba
   >
     Chain batch processing with multi-stage transforms in a DAG.
   </Cards.Card>
-  <Cards.Card title="RAG & Indexing" href="/guides/rag-and-indexing">
+  <Cards.Card title="RAG & Indexing" href="/cookbooks/rag-and-indexing">
     A specialized batch processing use case for document indexing pipelines.
   </Cards.Card>
-  <Cards.Card
-    title="Cycles"
-    href="/v1/durable-workflows/child-spawning"
-  >
+  <Cards.Card title="Cycles" href="/v1/durable-workflows/child-spawning">
     Process paginated results one page at a time with iterative child spawning.
   </Cards.Card>
 </Cards>

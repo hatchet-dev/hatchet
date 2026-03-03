@@ -65,7 +65,9 @@ The parent task will run and spawn the child task, then collect the results.
 
 You can spawn a task from within a task by calling the `run` method on the task object from within a task function. This will associate the runs in the dashboard for easier debugging.
 
-<Snippet src={snippets.typescript.simple.run.spawning_tasks_from_within_a_task} />
+<Snippet
+  src={snippets.typescript.simple.run.spawning_tasks_from_within_a_task}
+/>
 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
@@ -111,8 +113,8 @@ You can run multiple tasks in parallel by calling `Run` multiple times in gorout
 
 <Callout type="info">
   While you can run multiple tasks in parallel using the `Run` method, this is
-  not recommended for large numbers of tasks. Instead, use [bulk
-  run methods](/v1/bulk-run) for large parallel task execution.
+  not recommended for large numbers of tasks. Instead, use [bulk run
+  methods](/v1/bulk-run) for large parallel task execution.
 </Callout>
 
 ## Fire and forget
@@ -139,7 +141,9 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
 
 You can use your task object to enqueue a task by calling the `run_no_wait` method. This returns a `WorkflowRunRef` without waiting for the result.
 
-<Snippet src={snippets.typescript.simple.enqueue.enqueuing_a_workflow_fire_and_forget} />
+<Snippet
+  src={snippets.typescript.simple.enqueue.enqueuing_a_workflow_fire_and_forget}
+/>
 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
@@ -201,13 +205,13 @@ In the Hatchet Dashboard, navigate to "Task Runs" in the left sidebar and click 
 
 Hatchet supports additional trigger patterns for more advanced use cases:
 
-| Style         | Use case                                             | Doc                                           |
-| ------------- | ---------------------------------------------------- | --------------------------------------------- |
-| **Scheduled** | Run once at a specific time in the future            | [Scheduled Trigger](/v1/scheduled-runs) |
-| **Cron**      | Run on a recurring schedule (daily, weekly, etc.)    | [Cron Trigger](/v1/cron-runs)           |
-| **Events**    | Run when an event is emitted (e.g. webhooks, queues) | [Event Trigger](/v1/external-events/run-on-event)       |
-| **Bulk**      | Run the same task many times with different inputs   | [Bulk Run Many](/v1/bulk-run)           |
-| **Webhooks**  | Let external systems trigger workflows via HTTP      | [Webhooks](/v1/webhooks)                |
+| Style         | Use case                                             | Doc                                               |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| **Scheduled** | Run once at a specific time in the future            | [Scheduled Trigger](/v1/scheduled-runs)           |
+| **Cron**      | Run on a recurring schedule (daily, weekly, etc.)    | [Cron Trigger](/v1/cron-runs)                     |
+| **Events**    | Run when an event is emitted (e.g. webhooks, queues) | [Event Trigger](/v1/external-events/run-on-event) |
+| **Bulk**      | Run the same task many times with different inputs   | [Bulk Run Many](/v1/bulk-run)                     |
+| **Webhooks**  | Let external systems trigger workflows via HTTP      | [Webhooks](/v1/webhooks)                          |
 
 ## Next steps
 

@@ -172,7 +172,9 @@ const AgentLoopDiagram: React.FC = () => {
               y1={from.y}
               x2={to.x - 34}
               y2={to.y}
-              stroke={isActive ? PHASE_CONFIG[PHASES[i]].color : inactive.stroke}
+              stroke={
+                isActive ? PHASE_CONFIG[PHASES[i]].color : inactive.stroke
+              }
               strokeWidth={isActive ? 2 : 1.5}
               markerEnd={`url(#${arrowMarkerId})`}
               opacity={isActive ? 1 : 0.5}
@@ -191,7 +193,9 @@ const AgentLoopDiagram: React.FC = () => {
             <path
               d={`M ${from.x} ${from.y + 30} C ${from.x} ${curveY + 10}, ${to.x} ${curveY + 10}, ${to.x} ${to.y + 30}`}
               fill="none"
-              stroke={isActive ? PHASE_CONFIG.observation.color : inactive.stroke}
+              stroke={
+                isActive ? PHASE_CONFIG.observation.color : inactive.stroke
+              }
               strokeWidth={isActive ? 2 : 1.5}
               strokeDasharray="6 4"
               opacity={isActive ? 1 : 0.35}

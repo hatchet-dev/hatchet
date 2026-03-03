@@ -14,36 +14,42 @@ const FanoutDiagram: React.FC = () => {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient
-              id="blue-grad"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor="rgb(51, 146, 255)" stopOpacity="0.6" />
+            <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop
+                offset="0%"
+                stopColor="rgb(51, 146, 255)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(133, 189, 255)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient id="magenta-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(188, 70, 221)" stopOpacity="0.6" />
+            <linearGradient
+              id="magenta-grad"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop
+                offset="0%"
+                stopColor="rgb(188, 70, 221)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(213, 133, 239)"
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="green-grad"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor="rgb(34, 197, 94)" stopOpacity="0.6" />
+            <linearGradient id="green-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop
+                offset="0%"
+                stopColor="rgb(34, 197, 94)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(74, 222, 128)"

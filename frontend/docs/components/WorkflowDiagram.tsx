@@ -16,7 +16,11 @@ const WorkflowDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient id="wf-blue" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.blue[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.blue[1]}
@@ -24,7 +28,11 @@ const WorkflowDiagram: React.FC = () => {
               />
             </linearGradient>
             <linearGradient id="wf-magenta" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.magenta[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.magenta[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.magenta[1]}
@@ -32,7 +40,11 @@ const WorkflowDiagram: React.FC = () => {
               />
             </linearGradient>
             <linearGradient id="wf-green" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.green[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.green[1]}
@@ -248,12 +260,24 @@ const WorkflowDiagram: React.FC = () => {
             strokeDasharray="4 4"
             opacity="0.5"
           />
-          <text x="432" y="248" fill={inactive.text} fontSize="8" textAnchor="start">
+          <text
+            x="432"
+            y="248"
+            fill={inactive.text}
+            fontSize="8"
+            textAnchor="start"
+          >
             fan-out
           </text>
 
           {/* Labels for sections */}
-          <text x="200" y="248" fill={inactive.text} fontSize="8" textAnchor="middle">
+          <text
+            x="200"
+            y="248"
+            fill={inactive.text}
+            fontSize="8"
+            textAnchor="middle"
+          >
             sequential
           </text>
         </svg>

@@ -21,7 +21,7 @@ In Hatchet, this is implemented as a [durable task](/v1/durable-workflows/durabl
 | Multi-step research that may take minutes       | Good: durable execution survives long-running loops               |
 | Agent that needs human approval mid-loop        | Good: combine with [Human-in-the-Loop](/guides/human-in-the-loop) |
 | Fixed pipeline (prompt, generate, validate)     | Skip: use [LLM Pipelines](/guides/llm-pipelines) instead          |
-| One-shot classification or extraction           | Skip: a single [task](/v1/tasks) is simpler                 |
+| One-shot classification or extraction           | Skip: a single [task](/v1/tasks) is simpler                       |
 
 ## Step-by-step walkthrough
 
@@ -238,26 +238,17 @@ The evaluator-optimizer task loops: generate, evaluate, check score. Each genera
     The core loop pattern behind agent reasoning, where a task re-spawns itself
     until a goal is met.
   </Cards.Card>
-  <Cards.Card
-    title="Long Waits"
-    href="/v1/durable-workflows/sleep"
-  >
+  <Cards.Card title="Long Waits" href="/v1/durable-workflows/sleep">
     Pause agents for human feedback or scheduled retries without holding worker
     slots.
   </Cards.Card>
-  <Cards.Card title="Human-in-the-Loop" href="/guides/human-in-the-loop">
+  <Cards.Card title="Human-in-the-Loop" href="/cookbooks/human-in-the-loop">
     Add approval gates to agent workflows. Pause for human review, then resume.
   </Cards.Card>
-  <Cards.Card
-    title="Fanout"
-    href="/v1/durable-workflows/child-spawning"
-  >
+  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
     Agents that spawn parallel tool calls or sub-agent tasks.
   </Cards.Card>
-  <Cards.Card
-    title="Branching"
-    href="/v1/durable-workflows/conditions"
-  >
+  <Cards.Card title="Branching" href="/v1/durable-workflows/conditions">
     Route agent behavior based on LLM tool call decisions or user preferences.
   </Cards.Card>
 </Cards>

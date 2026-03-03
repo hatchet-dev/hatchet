@@ -163,12 +163,12 @@ Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable
 
 ## Common Patterns
 
-| Pattern                     | Description                                                                                                           |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Invoice extraction**      | Parse invoices, extract line items and totals with LLM, validate amounts, post to ERP                                 |
-| **Contract analysis**       | Extract clauses and terms, classify risk, route for legal review                                                      |
-| **Resume parsing**          | Parse resumes, extract skills and experience, match to job requisitions                                               |
-| **Form processing**         | Extract form fields from scans, validate against schemas, submit to backend systems                                   |
+| Pattern                     | Description                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Invoice extraction**      | Parse invoices, extract line items and totals with LLM, validate amounts, post to ERP                           |
+| **Contract analysis**       | Extract clauses and terms, classify risk, route for legal review                                                |
+| **Resume parsing**          | Parse resumes, extract skills and experience, match to job requisitions                                         |
+| **Form processing**         | Extract form fields from scans, validate against schemas, submit to backend systems                             |
 | **Document classification** | Classify documents by type, route to appropriate [DAG workflows](/v1/durable-workflows/directed-acyclic-graphs) |
 
 ## Related Patterns
@@ -180,11 +180,11 @@ Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable
   >
     The fixed-stage DAG pattern that document pipelines are built on.
   </Cards.Card>
-  <Cards.Card title="RAG & Data Indexing" href="/guides/rag-and-indexing">
+  <Cards.Card title="RAG & Data Indexing" href="/cookbooks/rag-and-indexing">
     When your goal is retrieval (chunk, embed, index) rather than extract and
     transform.
   </Cards.Card>
-  <Cards.Card title="Batch Processing" href="/guides/batch-processing">
+  <Cards.Card title="Batch Processing" href="/cookbooks/batch-processing">
     General-purpose batch patterns that apply to document workloads.
   </Cards.Card>
   <Cards.Card

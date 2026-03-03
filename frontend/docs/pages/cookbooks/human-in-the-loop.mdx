@@ -159,8 +159,8 @@ Register and start the worker. Use [Branching](/v1/durable-workflows/conditions)
 
 <Callout type="warning">
   Always set an **execution timeout** on the durable task itself so it does not
-  wait indefinitely if a human never responds. See
-  [Timeouts](/v1/timeouts) for configuration.
+  wait indefinitely if a human never responds. See [Timeouts](/v1/timeouts) for
+  configuration.
 </Callout>
 
 ## Common Patterns
@@ -177,26 +177,17 @@ For DAG workflows with a fixed approval gate, use [Event Conditions](/v1/durable
 ## Related Patterns
 
 <Cards>
-  <Cards.Card
-    title="Long Waits"
-    href="/v1/durable-workflows/sleep"
-  >
+  <Cards.Card title="Long Waits" href="/v1/durable-workflows/sleep">
     Pause workflows for external signals (events or sleep) without holding
     slots.
   </Cards.Card>
-  <Cards.Card title="AI Agents" href="/guides/ai-agents">
+  <Cards.Card title="AI Agents" href="/cookbooks/ai-agents">
     Agent workflows that may need human approval at decision points.
   </Cards.Card>
-  <Cards.Card
-    title="Branching"
-    href="/v1/durable-workflows/conditions"
-  >
+  <Cards.Card title="Branching" href="/v1/durable-workflows/conditions">
     Route workflow behavior based on approve vs reject from the event payload.
   </Cards.Card>
-  <Cards.Card
-    title="Event Conditions"
-    href="/v1/durable-workflows/events"
-  >
+  <Cards.Card title="Event Conditions" href="/v1/durable-workflows/events">
     Declare approval gates in DAG workflows when the wait is known at definition
     time.
   </Cards.Card>

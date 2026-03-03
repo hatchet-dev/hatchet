@@ -67,7 +67,11 @@ const LongWaitDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient id="lw-blue" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.blue[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.blue[1]}
@@ -75,7 +79,11 @@ const LongWaitDiagram: React.FC = () => {
               />
             </linearGradient>
             <linearGradient id="lw-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.yellow[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.yellow[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.yellow[1]}
@@ -83,7 +91,11 @@ const LongWaitDiagram: React.FC = () => {
               />
             </linearGradient>
             <linearGradient id="lw-green" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.green[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.green[1]}
@@ -158,16 +170,8 @@ const LongWaitDiagram: React.FC = () => {
             width={nodeW + 60}
             height={nodeH + 30}
             rx={rx}
-            fill={
-              isWaiting
-                ? "rgba(10, 16, 41, 0.25)"
-                : fill.inactiveNode
-            }
-            stroke={
-              isWaiting
-                ? "url(#lw-blue)"
-                : inactive.stroke
-            }
+            fill={isWaiting ? "rgba(10, 16, 41, 0.25)" : fill.inactiveNode}
+            stroke={isWaiting ? "url(#lw-blue)" : inactive.stroke}
             strokeWidth="1.5"
             strokeDasharray={isWaiting ? "6 4" : "none"}
             style={{ transition: "all 0.4s ease" }}

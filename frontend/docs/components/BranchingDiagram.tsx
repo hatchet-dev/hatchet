@@ -67,7 +67,11 @@ const BranchingDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor={gradient.yellow[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.yellow[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.yellow[1]}
@@ -81,7 +85,11 @@ const BranchingDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.blue[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.blue[1]}
@@ -95,7 +103,11 @@ const BranchingDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.green[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.green[1]}

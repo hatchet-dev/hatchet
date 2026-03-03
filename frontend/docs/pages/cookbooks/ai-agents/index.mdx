@@ -32,13 +32,13 @@ sequenceDiagram
 
 ## How agents map to Hatchet
 
-| Agent concept       | Hatchet primitive                                                                                                                                                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agent               | [Durable task](/v1/durable-workflows/durable-task-execution)                                                                                                              |
-| Reasoning loop      | [Child spawning](/v1/durable-workflows/child-spawning): task re-spawns itself until done                                                           |
+| Agent concept       | Hatchet primitive                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Agent               | [Durable task](/v1/durable-workflows/durable-task-execution)                                                        |
+| Reasoning loop      | [Child spawning](/v1/durable-workflows/child-spawning): task re-spawns itself until done                            |
 | Tool calls          | [Child tasks](/v1/durable-workflows/child-spawning): sequential or [parallel](/v1/durable-workflows/child-spawning) |
-| Human approval gate | [WaitForEvent](/v1/durable-workflows/events): slot freed while waiting                                                                     |
-| Routing by LLM      | `if`/`else` in code + spawn child to different workflows                                                                                                                        |
+| Human approval gate | [WaitForEvent](/v1/durable-workflows/events): slot freed while waiting                                              |
+| Routing by LLM      | `if`/`else` in code + spawn child to different workflows                                                            |
 
 ## Why Hatchet for agents
 
@@ -57,26 +57,29 @@ sequenceDiagram
 ## Agent patterns
 
 <Cards>
-  <Cards.Card title="Reasoning Loop" href="/guides/ai-agents/reasoning-loop">
+  <Cards.Card title="Reasoning Loop" href="/cookbooks/ai-agents/reasoning-loop">
     The core agent pattern. Reason → act → observe → repeat until done. Includes
     the evaluator-optimizer variant.
   </Cards.Card>
-  <Cards.Card title="Routing" href="/guides/ai-agents/routing">
+  <Cards.Card title="Routing" href="/cookbooks/ai-agents/routing">
     Classify incoming requests with an LLM or rule, then route to a specialist.
   </Cards.Card>
-  <Cards.Card title="Multi-Agent" href="/guides/ai-agents/multi-agent">
+  <Cards.Card title="Multi-Agent" href="/cookbooks/ai-agents/multi-agent">
     An orchestrator delegates to specialist workflows. Each specialist has its
     own prompt and tools.
   </Cards.Card>
-  <Cards.Card title="Parallelization" href="/guides/ai-agents/parallelization">
+  <Cards.Card
+    title="Parallelization"
+    href="/cookbooks/ai-agents/parallelization"
+  >
     Fan out independent tool calls or sub-tasks in parallel. Aggregate results
     before the agent continues.
   </Cards.Card>
-  <Cards.Card title="Human-in-the-Loop" href="/guides/human-in-the-loop">
+  <Cards.Card title="Human-in-the-Loop" href="/cookbooks/human-in-the-loop">
     Pause the agent for human approval. The slot is freed; the agent resumes
     when the event arrives.
   </Cards.Card>
-  <Cards.Card title="Streaming" href="/guides/streaming">
+  <Cards.Card title="Streaming" href="/cookbooks/streaming">
     Pipe LLM tokens to frontends in real time.
   </Cards.Card>
 </Cards>

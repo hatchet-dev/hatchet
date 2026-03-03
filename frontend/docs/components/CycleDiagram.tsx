@@ -83,21 +83,23 @@ const CycleDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor={gradient.yellow[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.yellow[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.yellow[1]}
                 stopOpacity="0.3"
               />
             </linearGradient>
-            <linearGradient
-              id="cycle-blue"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
+            <linearGradient id="cycle-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop
+                offset="0%"
+                stopColor={gradient.blue[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.blue[1]}
@@ -111,7 +113,11 @@ const CycleDiagram: React.FC = () => {
               x2="100%"
               y2="100%"
             >
-              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.green[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.green[1]}
@@ -180,7 +186,13 @@ const CycleDiagram: React.FC = () => {
             >
               {isDone ? "done ✓" : "done?"}
             </text>
-            <text x={0} y={12} textAnchor="middle" fill={state.runningDark} fontSize="8">
+            <text
+              x={0}
+              y={12}
+              textAnchor="middle"
+              fill={state.runningDark}
+              fontSize="8"
+            >
               {isDone ? "" : "not yet"}
             </text>
           </g>

@@ -6,7 +6,7 @@ export default {
       toc: false,
     },
   },
-  guides: {
+  cookbooks: {
     title: "Cookbooks",
     type: "page",
     theme: {

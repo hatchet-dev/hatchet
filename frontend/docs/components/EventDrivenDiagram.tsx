@@ -168,7 +168,13 @@ const EventDrivenDiagram: React.FC = () => {
           stroke={brand.blue}
           strokeWidth={2}
         />
-        <text x={220} y={85} textAnchor="middle" fontSize="10" fill={brand.cyan}>
+        <text
+          x={220}
+          y={85}
+          textAnchor="middle"
+          fontSize="10"
+          fill={brand.cyan}
+        >
           Hatchet
         </text>
         <text

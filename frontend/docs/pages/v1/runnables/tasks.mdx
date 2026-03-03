@@ -6,8 +6,8 @@ import UniversalTabs from "@/components/UniversalTabs";
 # Tasks
 
 <Callout type="info">
-  Just getting started? Check out the [essentials
-  guide](/v1/tasks) to declare and run your first task.
+  Just getting started? Check out the [essentials guide](/v1/tasks) to declare
+  and run your first task.
 </Callout>
 
 Everything you run in Hatchet is a **task** - a named function that you can trigger, retry, schedule, and observe. Tasks can be configured to handle the problems that come up in real systems: transient failures, resource contention, overloaded downstream services, and more.
@@ -54,27 +54,27 @@ A task can also be **CANCELLED** at any point - either explicitly or by a [timeo
 
 The runnable returned by a task definition supports several trigger methods:
 
-| Method                               | What it does                                            |
-| ------------------------------------ | ------------------------------------------------------- |
-| [Run](/v1/running-your-task#run-and-wait)    | Trigger the task and wait for the result.               |
+| Method                                               | What it does                                            |
+| ---------------------------------------------------- | ------------------------------------------------------- |
+| [Run](/v1/running-your-task#run-and-wait)            | Trigger the task and wait for the result.               |
 | [Run no wait](/v1/running-your-task#fire-and-forget) | Enqueue the task and return immediately.                |
-| [Schedule](/v1/scheduled-runs) | Schedule the task to run at a specific time.            |
-| [Cron](/v1/cron-runs)          | Run the task on a recurring schedule.                   |
-| [Bulk run](/v1/bulk-run)       | Trigger many instances of the task at once.             |
-| [On event](/v1/external-events/run-on-event)   | Trigger the task automatically when an event is pushed. |
-| [Webhook](/v1/webhooks)        | Trigger the task from an external HTTP request.         |
+| [Schedule](/v1/scheduled-runs)                       | Schedule the task to run at a specific time.            |
+| [Cron](/v1/cron-runs)                                | Run the task on a recurring schedule.                   |
+| [Bulk run](/v1/bulk-run)                             | Trigger many instances of the task at once.             |
+| [On event](/v1/external-events/run-on-event)         | Trigger the task automatically when an event is pushed. |
+| [Webhook](/v1/webhooks)                              | Trigger the task from an external HTTP request.         |
 
 ## Configuring a task
 
 Tasks can be configured to handle common problems in distributed systems. For example, you might want to automatically retry a task when an external API returns a transient error, or limit how many instances of a task run at the same time to avoid overwhelming a downstream service.
 
-| Concept                                      | What it does                                               |
-| -------------------------------------------- | ---------------------------------------------------------- |
-| [Retries](/v1/retry-policies)          | Retry the task on failure, with optional backoff.          |
-| [Timeouts](/v1/timeouts)               | Limit how long a task may wait to be scheduled or to run.  |
-| [Concurrency](/v1/concurrency)         | Limit how many runs of this task execute at once.          |
-| [Rate limits](/v1/rate-limits)         | Throttle task execution over a time window.                |
-| [Priority](/v1/priority)               | Influence scheduling order relative to other queued tasks. |
+| Concept                                                    | What it does                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------- |
+| [Retries](/v1/retry-policies)                              | Retry the task on failure, with optional backoff.          |
+| [Timeouts](/v1/timeouts)                                   | Limit how long a task may wait to be scheduled or to run.  |
+| [Concurrency](/v1/concurrency)                             | Limit how many runs of this task execute at once.          |
+| [Rate limits](/v1/rate-limits)                             | Throttle task execution over a time window.                |
+| [Priority](/v1/priority)                                   | Influence scheduling order relative to other queued tasks. |
 | [Worker affinity](/v1/advanced-assignment/worker-affinity) | Prefer or require specific workers for this task.          |
 
 ## Input and output

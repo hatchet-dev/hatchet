@@ -35,14 +35,14 @@ flowchart LR
 
 ## When to use
 
-| Scenario                                              | Fit                                                                              |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Agent calls 3 independent APIs (weather, news, stock) | Good: no dependencies between calls, latency drops to max of the three           |
-| Content generation + safety guardrail in parallel     | Good: sectioning, both run at once, block if unsafe                              |
-| Multiple evaluators vote on content quality           | Good: voting, aggregate for more reliable decisions                              |
-| Processing a batch of items (100+ documents)          | Good: see [Batch Processing](/guides/batch-processing) for large-scale fanout    |
-| Steps depend on each other (output of A feeds B)      | Skip: run sequentially                                                           |
-| Provider rate limits are tight                        | Careful: parallel calls may hit limits; use [Rate Limits](/v1/rate-limits) |
+| Scenario                                              | Fit                                                                           |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Agent calls 3 independent APIs (weather, news, stock) | Good: no dependencies between calls, latency drops to max of the three        |
+| Content generation + safety guardrail in parallel     | Good: sectioning, both run at once, block if unsafe                           |
+| Multiple evaluators vote on content quality           | Good: voting, aggregate for more reliable decisions                           |
+| Processing a batch of items (100+ documents)          | Good: see [Batch Processing](/guides/batch-processing) for large-scale fanout |
+| Steps depend on each other (output of A feeds B)      | Skip: run sequentially                                                        |
+| Provider rate limits are tight                        | Careful: parallel calls may hit limits; use [Rate Limits](/v1/rate-limits)    |
 
 ## How it maps to Hatchet
 
@@ -168,24 +168,21 @@ Register all tasks and start the worker.
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Batch Processing" href="/guides/batch-processing">
+  <Cards.Card title="Batch Processing" href="/cookbooks/batch-processing">
     Large-scale fan-out with concurrency limits and progress tracking.
   </Cards.Card>
-  <Cards.Card title="Reasoning Loop" href="/guides/ai-agents/reasoning-loop">
+  <Cards.Card title="Reasoning Loop" href="/cookbooks/ai-agents/reasoning-loop">
     Parallelization applies within one iteration of an agent loop when multiple
     tools are independent.
   </Cards.Card>
   <Cards.Card
     title="Evaluator-Optimizer"
-    href="/guides/ai-agents/reasoning-loop#variant-evaluator-optimizer"
+    href="/cookbooks/ai-agents/reasoning-loop#variant-evaluator-optimizer"
   >
     Combine voting (parallel evaluators) with optimization (feedback loop) for
     higher-quality iteration.
   </Cards.Card>
-  <Cards.Card
-    title="Fanout"
-    href="/v1/durable-workflows/child-spawning"
-  >
+  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
     The Hatchet concept: spawn children in parallel, parent waits for all.
   </Cards.Card>
 </Cards>

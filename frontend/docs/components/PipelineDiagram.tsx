@@ -35,7 +35,11 @@ const PipelineDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient id="pipe-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgb(188, 70, 221)" stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor="rgb(188, 70, 221)"
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(213, 133, 239)"
@@ -49,7 +53,11 @@ const PipelineDiagram: React.FC = () => {
               x2="100%"
               y2="0%"
             >
-              <stop offset="0%" stopColor="rgb(188, 70, 221)" stopOpacity="0.8" />
+              <stop
+                offset="0%"
+                stopColor="rgb(188, 70, 221)"
+                stopOpacity="0.8"
+              />
               <stop
                 offset="100%"
                 stopColor="rgb(133, 189, 255)"

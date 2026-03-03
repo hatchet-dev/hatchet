@@ -67,7 +67,13 @@ const DurableWorkflowDiagram: React.FC = () => {
     "restoring...",
     "complete!",
   ];
-  const statusColors = [brand.blue, state.runningLight, state.failedLight, state.successLight, state.successLight];
+  const statusColors = [
+    brand.blue,
+    state.runningLight,
+    state.failedLight,
+    state.successLight,
+    state.successLight,
+  ];
 
   return (
     <div className="my-8 flex flex-col items-center gap-4">
@@ -109,7 +115,11 @@ const DurableWorkflowDiagram: React.FC = () => {
         >
           <defs>
             <linearGradient id="dw-blue" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.blue[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.blue[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.blue[1]}
@@ -117,7 +127,11 @@ const DurableWorkflowDiagram: React.FC = () => {
               />
             </linearGradient>
             <linearGradient id="dw-yellow" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.yellow[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.yellow[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.yellow[1]}
@@ -133,7 +147,11 @@ const DurableWorkflowDiagram: React.FC = () => {
               />
             </linearGradient>
             <linearGradient id="dw-green" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradient.green[0]} stopOpacity="0.6" />
+              <stop
+                offset="0%"
+                stopColor={gradient.green[0]}
+                stopOpacity="0.6"
+              />
               <stop
                 offset="100%"
                 stopColor={gradient.green[1]}
@@ -187,11 +205,7 @@ const DurableWorkflowDiagram: React.FC = () => {
             let edgeColor = inactive.edge;
             if (i < phase) {
               edgeColor =
-                i === 1
-                  ? state.running
-                  : i === 2
-                    ? state.success
-                    : brand.blue;
+                i === 1 ? state.running : i === 2 ? state.success : brand.blue;
             }
             if (isCurrent) {
               edgeColor = phaseColors[phase].stroke;

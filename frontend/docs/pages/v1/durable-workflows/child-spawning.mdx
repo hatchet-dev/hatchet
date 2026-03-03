@@ -21,8 +21,8 @@ A durable task can spawn child tasks at runtime. This is one of the core reasons
 
 <Callout type="info">
   Waiting for child results puts the parent task into an [evictable
-  state](/v1/durable-workflows/task-eviction), the
-  worker slot is freed and the parent is re-queued when results are available.
+  state](/v1/durable-workflows/task-eviction), the worker slot is freed and the
+  parent is re-queued when results are available.
 </Callout>
 
 Because the parent is evicted while children execute:

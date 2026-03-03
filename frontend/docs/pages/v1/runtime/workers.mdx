@@ -6,8 +6,8 @@ import UniversalTabs from "@/components/UniversalTabs";
 # Workers
 
 <Callout type="info">
-  Just getting started? Check out the [essentials guide](/v1/workers)
-  to declare and start your first worker.
+  Just getting started? Check out the [essentials guide](/v1/workers) to declare
+  and start your first worker.
 </Callout>
 
 Workers are the processes that actually execute your [tasks](/v1/tasks). Each worker is a long-running process in your infrastructure that maintains a persistent gRPC connection to the Hatchet engine. Workers receive task assignments, run your code, and report results back. You can run them locally during development, in containers, or on VMs - and scale them independently from the rest of your stack.
@@ -85,8 +85,8 @@ When running in Kubernetes or a similar orchestrator, you can autoscale workers 
 
 By default, Hatchet distributes tasks to any available worker that has registered the task. You can influence this behavior in several ways:
 
-| Concept                                              | What it does                                                    |
-| ---------------------------------------------------- | --------------------------------------------------------------- |
+| Concept                                                            | What it does                                                    |
+| ------------------------------------------------------------------ | --------------------------------------------------------------- |
 | [Worker Affinity](/v1/advanced-assignment/worker-affinity)         | Prefer or require specific workers based on labels and weights. |
 | [Sticky Assignment](/v1/advanced-assignment/sticky-assignment)     | Pin related tasks in a workflow to the same worker.             |
 | [Manual Slot Release](/v1/advanced-assignment/manual-slot-release) | Free a worker slot before the task function returns.            |
@@ -97,12 +97,12 @@ These are useful when a worker has specialized hardware (a GPU, a loaded ML mode
 
 In development, the fastest way to run a worker is `hatchet worker dev`, which handles authentication and hot-reloads your code on changes. In production, you'll run workers as standalone processes or containers.
 
-| Concept                                               | What it does                                                            |
-| ----------------------------------------------------- | ----------------------------------------------------------------------- |
-| [Running with Docker](/v1/runtime/docker)               | Containerize workers for deployment.                                    |
-| [Autoscaling Workers](/v1/runtime/autoscaling-workers)  | Scale workers dynamically based on queue depth.                         |
-| [Worker Health Checks](/v1/worker-healthchecks) | Expose `/health` and `/metrics` endpoints for monitoring.               |
-| [Preparing for Production](/v1/production)   | Operational best practices for monitoring, error handling, and scaling. |
+| Concept                                                | What it does                                                            |
+| ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| [Running with Docker](/v1/runtime/docker)              | Containerize workers for deployment.                                    |
+| [Autoscaling Workers](/v1/runtime/autoscaling-workers) | Scale workers dynamically based on queue depth.                         |
+| [Worker Health Checks](/v1/worker-healthchecks)        | Expose `/health` and `/metrics` endpoints for monitoring.               |
+| [Preparing for Production](/v1/production)             | Operational best practices for monitoring, error handling, and scaling. |
 
 ## Workers and tasks
 

@@ -12,21 +12,22 @@ A durable task is a single long-running function that acts as an **orchestrator*
 
 <Callout type="info">
   If you know the full graph of work upfront (every task and dependency is fixed
-  before execution begins), use a [DAG](/v1/durable-workflows/directed-acyclic-graphs)
-  instead. You can always [mix both patterns](/v1/durable-workflows/mixing-patterns)
-  in the same application.
+  before execution begins), use a
+  [DAG](/v1/durable-workflows/directed-acyclic-graphs) instead. You can always
+  [mix both patterns](/v1/durable-workflows/mixing-patterns) in the same
+  application.
 </Callout>
 
 ## When to Use Durable Tasks
 
-| Scenario                          | Why Durable?                                                                                                                                                                                |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot. See [Batch Processing](/guides/batch-processing) and [Document Processing](/guides/document-processing).     |
-| **Agentic workflows**             | An agent decides what to do next, spawns subtasks, loops, or stops at runtime. See [AI Agents](/guides/ai-agents/reasoning-loop).                                                          |
-| **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute.                                                                                                                                    |
-| **Human-in-the-loop**             | Wait for approval events without holding resources. See [Human-in-the-Loop](/guides/human-in-the-loop).                                                                                    |
-| **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows.                                                                                                                    |
-| **Crash-resilient pipelines**     | Automatically resume from checkpoints after failures.                                                                                                                                      |
+| Scenario                          | Why Durable?                                                                                                                                                                            |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot. See [Batch Processing](/guides/batch-processing) and [Document Processing](/guides/document-processing). |
+| **Agentic workflows**             | An agent decides what to do next, spawns subtasks, loops, or stops at runtime. See [AI Agents](/guides/ai-agents/reasoning-loop).                                                       |
+| **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute.                                                                                                                                 |
+| **Human-in-the-loop**             | Wait for approval events without holding resources. See [Human-in-the-Loop](/guides/human-in-the-loop).                                                                                 |
+| **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows.                                                                                                                 |
+| **Crash-resilient pipelines**     | Automatically resume from checkpoints after failures.                                                                                                                                   |
 
 ## How It Works
 
@@ -71,13 +72,13 @@ When the wait completes, Hatchet re-queues the task on any available worker. It 
 
 Declare a task as durable (using `durable_task` instead of `task`) and it receives a `DurableContext` instead of a normal `Context`. The `DurableContext` extends `Context` with methods for checkpointing and waiting:
 
-| Method                        | Purpose                                                                                                                                                                       |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`SleepFor(duration)`**      | Pause for a fixed duration. Respects the original sleep time on restart; if interrupted after 23 of 24 hours, only sleeps 1 more hour.                                        |
-| **`WaitForEvent(key, expr)`** | Wait for an external event by key, with optional [CEL filter](https://github.com/google/cel-spec) expression on the payload.                                                  |
+| Method                        | Purpose                                                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`SleepFor(duration)`**      | Pause for a fixed duration. Respects the original sleep time on restart; if interrupted after 23 of 24 hours, only sleeps 1 more hour.                                         |
+| **`WaitForEvent(key, expr)`** | Wait for an external event by key, with optional [CEL filter](https://github.com/google/cel-spec) expression on the payload.                                                   |
 | **`WaitFor(conditions)`**     | General-purpose wait accepting any combination of sleep conditions, event conditions, or or-groups. `SleepFor` and `WaitForEvent` are convenience wrappers around this method. |
-| **`Memo(function)`**          | Run functions whose outputs are memoized based on the input arguments.                                                                                                        |
-| **`RunChild(task, input)`**   | Spawn a child task and wait for its result. The parent is evicted during the wait.                                                                                            |
+| **`Memo(function)`**          | Run functions whose outputs are memoized based on the input arguments.                                                                                                         |
+| **`RunChild(task, input)`**   | Spawn a child task and wait for its result. The parent is evicted during the wait.                                                                                             |
 
 ## Example Task
 
@@ -88,8 +89,8 @@ Now add tasks to the workflow. The first is a regular task; the second is a dura
 <Snippet src={snippets.python.durable.worker.add_durable_task} />
 
 <Callout type="info">
-  The `durable_task` decorator gives the function a `DurableContext` instead of a
-  regular `Context`. This is the only difference in declaration; the task
+  The `durable_task` decorator gives the function a `DurableContext` instead of
+  a regular `Context`. This is the only difference in declaration; the task
   registers and runs on the same worker as regular tasks.
 </Callout>
 
