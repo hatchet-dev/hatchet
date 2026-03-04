@@ -68,9 +68,6 @@ jobs:
       - name: Install tmux
         run: sudo apt-get install -y tmux
 
-      - name: Install tmux
-        run: sudo apt-get install -y tmux
-
       - name: Build CLI
         run: |
           cd cmd/hatchet-cli
