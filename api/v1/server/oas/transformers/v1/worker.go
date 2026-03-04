@@ -55,7 +55,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 
 	if worker.Language.Valid {
 		langStr := string(worker.Language.WorkerSDKS)
-		if strings.ToLower(langStr) == "GO" {
+		if strings.ToLower(langStr) == "go" {
 			langStr = "GOLANG"
 		}
 
