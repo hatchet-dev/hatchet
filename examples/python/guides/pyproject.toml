@@ -6,7 +6,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
-hatchet-sdk = "^1.28.0"
+hatchet-sdk = "^1.27.2"
 # LLM integrations
 openai = "^1.0.0"
 anthropic = "^0.39.0"

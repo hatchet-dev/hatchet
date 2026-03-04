@@ -3,7 +3,7 @@ module github.com/hatchet-dev/hatchet/examples/go/guides
 go 1.25.0
 
 require (
-	github.com/hatchet-dev/hatchet v1.28.0
+	github.com/hatchet-dev/hatchet v1.27.2
 	github.com/sashabaranov/go-openai v1.28.0
 )
 
