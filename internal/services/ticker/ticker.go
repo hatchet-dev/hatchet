@@ -246,7 +246,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 		cancel()
 
-		if queueCleanupFunc() != nil {
+		if err = queueCleanupFunc(); err != nil {
 			t.l.Err(err).Msg("Could not cleanup cron trigger update queue")
 		}
 
