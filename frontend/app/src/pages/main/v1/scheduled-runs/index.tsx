@@ -267,7 +267,7 @@ export default function ScheduledRunsTable({
             <p className="text-lg font-semibold">No runs found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.home['scheduled-runs']}
+                doc={docsPages.v1['scheduled-runs']}
                 label="Learn about scheduled runs"
               />
             </div>

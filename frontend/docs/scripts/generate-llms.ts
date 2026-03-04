@@ -98,8 +98,15 @@ function parseMetaJs(filepath: string): Record<string, any> {
   content = content.replace(pattern, '$1"$2":');
   // Apply twice to catch keys that were adjacent
   content = content.replace(pattern, '$1"$2":');
+  // Quote unquoted keys inside inline objects (e.g. { collapsed: true })
+  content = content.replace(
+    /(\{\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:/g,
+    '$1"$2":',
+  );
   // Remove trailing commas before closing braces
   content = content.replace(/,(\s*\n?\s*})(\s*);?/g, "$1");
+  // Strip trailing semicolon from export default {...};
+  content = content.replace(/\s*;\s*$/, "");
 
   try {
     return JSON.parse(content);
@@ -134,6 +141,63 @@ function extractTitle(value: any): string {
   return "";
 }
 
+function collectPagesFromDir(
+  dir: string,
+  urlPrefix: string,
+  sectionTitle: string,
+  pages: DocPage[],
+): void {
+  const metaPath = path.join(dir, "_meta.js");
+  if (!fs.existsSync(metaPath)) return;
+
+  const meta = parseMetaJs(metaPath);
+
+  for (const [key, value] of Object.entries(meta)) {
+    if (!isDocPage(key, value)) continue;
+
+    const title = extractTitle(value as any);
+    const subDir = path.join(dir, key);
+    const href = `${DOCS_BASE_URL}/${urlPrefix}/${key}`;
+
+    // Check if this key is a folder with its own _meta.js (sub-section)
+    const subMetaPath = path.join(subDir, "_meta.js");
+    if (fs.existsSync(subMetaPath)) {
+      // Add the index page for this folder if it exists and isn't hidden
+      const indexMdx = path.join(subDir, "index.mdx");
+      if (fs.existsSync(indexMdx)) {
+        const indexValue = parseMetaJs(subMetaPath)["index"];
+        if (!indexValue || (typeof indexValue === "object" && indexValue.display !== "hidden")) {
+          pages.push({
+            title: title || key,
+            slug: key,
+            href,
+            filepath: indexMdx,
+            section: sectionTitle,
+          });
+        }
+      }
+      // Recurse into sub-section
+      collectPagesFromDir(subDir, `${urlPrefix}/${key}`, sectionTitle, pages);
+      continue;
+    }
+
+    // Plain .mdx file
+    let mdxPath = path.join(dir, key + ".mdx");
+    if (!fs.existsSync(mdxPath)) {
+      mdxPath = path.join(subDir, "index.mdx");
+    }
+    if (!fs.existsSync(mdxPath)) continue;
+
+    pages.push({
+      title: title || key,
+      slug: key,
+      href,
+      filepath: mdxPath,
+      section: sectionTitle,
+    });
+  }
+}
+
 function collectPages(): DocPage[] {
   const pages: DocPage[] = [];
 
@@ -152,10 +216,11 @@ function collectPages(): DocPage[] {
     const sectionValue = rootMeta[sectionKey] ?? {};
     const sectionTitle =
       typeof sectionValue === "object"
-        ? extractTitle(sectionValue)
+        ? extractTitle(sectionValue as any)
         : sectionKey;
 
     if (!fs.existsSync(sectionMetaPath)) {
+      // Plain top-level .mdx file
       const mdxPath = path.join(PAGES_DIR, sectionKey + ".mdx");
       if (fs.existsSync(mdxPath)) {
         pages.push({
@@ -169,28 +234,8 @@ function collectPages(): DocPage[] {
       continue;
     }
 
-    const sectionMeta = parseMetaJs(sectionMetaPath);
-    for (const [pageKey, pageValue] of Object.entries(sectionMeta)) {
-      if (!isDocPage(pageKey, pageValue)) continue;
-
-      const title = extractTitle(pageValue);
-      let mdxPath = path.join(sectionDir, pageKey + ".mdx");
-
-      if (!fs.existsSync(mdxPath)) {
-        mdxPath = path.join(sectionDir, pageKey, "index.mdx");
-      }
-      if (!fs.existsSync(mdxPath)) continue;
-
-      const href = `${DOCS_BASE_URL}/${sectionKey}/${pageKey}`;
-
-      pages.push({
-        title,
-        slug: pageKey,
-        href,
-        filepath: mdxPath,
-        section: sectionTitle || sectionKey,
-      });
-    }
+    // Recurse into section directory
+    collectPagesFromDir(sectionDir, sectionKey, sectionTitle, pages);
   }
 
   return pages;
@@ -366,7 +411,7 @@ function expandUniversalTabs(
   languages: string[] | null,
 ): string {
   const pattern =
-    /<UniversalTabs\s+items=\{(\[[^\]]*\])\}(?:\s+optionKey=["']([^"']*)["'])?\s*>((?:(?!<UniversalTabs)[\s\S])*?)<\/UniversalTabs>/g;
+    /<UniversalTabs\s+items=\{(\[[^\]]*\])\}(?:\s+optionKey=["']([^"']*)["'])?(?:\s+variant=["'][^"']*["'])?\s*>((?:(?!<UniversalTabs)[\s\S])*?)<\/UniversalTabs>/g;
 
   function processTabsBlock(
     _match: string,
@@ -737,6 +782,7 @@ function buildSearchIndex(
   const miniSearch = new MiniSearch<SearchDoc>(MINISEARCH_OPTIONS);
 
   const docs: SearchDoc[] = [];
+  const seenIds = new Set<string>();
   for (const page of pages) {
     const raw = fs.readFileSync(page.filepath, "utf-8");
     const md = convertMdxToMarkdown(raw, snippetTree, languages, page.filepath);
@@ -748,9 +794,17 @@ function buildSearchIndex(
     for (const section of sections) {
       if (!section.content.trim()) continue;
 
-      const id = section.slug
+      let id = section.slug
         ? `${pageRoute}#${section.slug}`
         : pageRoute;
+
+      if (seenIds.has(id)) {
+        let suffix = 2;
+        while (seenIds.has(`${id}-${suffix}`)) suffix++;
+        id = `${id}-${suffix}`;
+      }
+      seenIds.add(id);
+
       const title = section.heading || page.title;
 
       docs.push({
