@@ -50,7 +50,7 @@ const (
 	TASK_PROCESSING_QUEUE        staticQueue = "task_processing_queue_v2"
 	OLAP_QUEUE                   staticQueue = "olap_queue_v2"
 	DISPATCHER_DEAD_LETTER_QUEUE staticQueue = "dispatcher_dlq_v2"
-	CRON_TRIGGER_UPDATE_QUEUE    staticQueue = "cron_trigger_update_queue"
+	TICKER_UPDATE_QUEUE          staticQueue = "ticker_update_queue_v2"
 )
 
 func (s staticQueue) Name() string {

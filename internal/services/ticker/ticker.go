@@ -146,7 +146,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		t.refreshCronSchedules(ctx)()
 		return nil
 	}
-	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.CRON_TRIGGER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
+	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
 	if err != nil {
 		t.l.Err(err).Msg("Could not subscribe to cron trigger update queue")
 	}
