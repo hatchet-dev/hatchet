@@ -66,6 +66,8 @@ func (t *TickerImpl) refreshCronSchedules(ctx context.Context) func() {
 				}
 			}
 
+		} else {
+			t.l.Debug().Msgf("ticker: skipping cron refresh")
 		}
 
 	}
