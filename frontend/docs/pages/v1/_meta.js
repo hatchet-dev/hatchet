@@ -42,7 +42,7 @@ export default {
   concurrency: "Concurrency",
   "rate-limits": "Rate Limits",
   priority: "Priority",
-"--durable-workflows-section": {
+  "--durable-workflows-section": {
     title: "Durable Workflows",
     type: "separator",
   },

@@ -163,21 +163,18 @@ Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable
 
 ## Common Patterns
 
-| Pattern                     | Description                                                                                                     |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Invoice extraction**      | Parse invoices, extract line items and totals with LLM, validate amounts, post to ERP                           |
-| **Contract analysis**       | Extract clauses and terms, classify risk, route for legal review                                                |
-| **Resume parsing**          | Parse resumes, extract skills and experience, match to job requisitions                                         |
-| **Form processing**         | Extract form fields from scans, validate against schemas, submit to backend systems                             |
+| Pattern                     | Description                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Invoice extraction**      | Parse invoices, extract line items and totals with LLM, validate amounts, post to ERP                  |
+| **Contract analysis**       | Extract clauses and terms, classify risk, route for legal review                                       |
+| **Resume parsing**          | Parse resumes, extract skills and experience, match to job requisitions                                |
+| **Form processing**         | Extract form fields from scans, validate against schemas, submit to backend systems                    |
 | **Document classification** | Classify documents by type, route to appropriate [DAG workflows](/v1/patterns/directed-acyclic-graphs) |
 
 ## Related Patterns
 
 <Cards>
-  <Cards.Card
-    title="DAG Workflows"
-    href="/v1/patterns/directed-acyclic-graphs"
-  >
+  <Cards.Card title="DAG Workflows" href="/v1/patterns/directed-acyclic-graphs">
     The fixed-stage DAG pattern that document pipelines are built on.
   </Cards.Card>
   <Cards.Card title="RAG & Data Indexing" href="/cookbooks/rag-and-indexing">

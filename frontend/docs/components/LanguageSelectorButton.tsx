@@ -190,7 +190,11 @@ export function LanguageSelectorButton() {
 
   return (
     <div className="relative ml-auto">
-      <Dialog onOpenChange={(open) => { if (open) dismissCallout(); }}>
+      <Dialog
+        onOpenChange={(open) => {
+          if (open) dismissCallout();
+        }}
+      >
         <DialogTrigger asChild>
           <Button
             variant="outline"
@@ -212,7 +216,8 @@ export function LanguageSelectorButton() {
           <DialogHeader>
             <DialogTitle>Docs preferences</DialogTitle>
             <DialogDescription>
-              Customize your documentation experience by selecting your your stack for code examples.
+              Customize your documentation experience by selecting your your
+              stack for code examples.
             </DialogDescription>
           </DialogHeader>
           <LanguageModalContent />

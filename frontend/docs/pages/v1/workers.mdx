@@ -105,9 +105,8 @@ Once the worker starts, you will see logs confirming it is connected:
 
 <Callout type="info">
   For self-hosted users, you may need to set additional gRPC configuration
-  options. See the
-  [Self-Hosting](/self-hosting/worker-configuration-options) docs for
-  details.
+  options. See the [Self-Hosting](/self-hosting/worker-configuration-options)
+  docs for details.
 </Callout>
 
 ## Worker lifecycle
@@ -166,7 +165,7 @@ By default, Hatchet distributes tasks to any available worker that has registere
 | ------------------------------------------------------------------ | --------------------------------------------------------------- |
 | [Worker Affinity](/v1/advanced-assignment/worker-affinity)         | Prefer or require specific workers based on labels and weights. |
 | [Sticky Assignment](/v1/advanced-assignment/sticky-assignment)     | Pin related tasks in a workflow to the same worker.             |
-| [Manual Slot Release](/v1/advanced-assignment/manual-slot-release)  | Free a worker slot before the task function returns.            |
+| [Manual Slot Release](/v1/advanced-assignment/manual-slot-release) | Free a worker slot before the task function returns.            |
 
 These are useful when a worker has specialized hardware (a GPU, a loaded ML model), or when co-locating related tasks on the same worker avoids redundant setup.
 
@@ -174,12 +173,12 @@ These are useful when a worker has specialized hardware (a GPU, a loaded ML mode
 
 In development, the fastest way to run a worker is `hatchet worker dev`, which handles authentication and hot-reloads your code on changes. In production, you'll run workers as standalone processes or containers.
 
-| Concept                                                | What it does                                                            |
-| ------------------------------------------------------ | ----------------------------------------------------------------------- |
-| [Running with Docker](/v1/docker)               | Containerize workers for deployment.                                   |
-| [Autoscaling Workers](/v1/autoscaling-workers) | Scale workers dynamically based on queue depth.                         |
-| [Worker Health Checks](/v1/worker-healthchecks)        | Expose `/health` and `/metrics` endpoints for monitoring.               |
-| [Preparing for Production](/v1/production)             | Operational best practices for monitoring, error handling, and scaling. |
+| Concept                                         | What it does                                                            |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| [Running with Docker](/v1/docker)               | Containerize workers for deployment.                                    |
+| [Autoscaling Workers](/v1/autoscaling-workers)  | Scale workers dynamically based on queue depth.                         |
+| [Worker Health Checks](/v1/worker-healthchecks) | Expose `/health` and `/metrics` endpoints for monitoring.               |
+| [Preparing for Production](/v1/production)      | Operational best practices for monitoring, error handling, and scaling. |
 
 ## Workers and tasks
 
