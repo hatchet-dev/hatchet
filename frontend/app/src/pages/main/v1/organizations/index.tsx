@@ -9,7 +9,11 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import type { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
-import { Tenant } from '@/lib/api/generated/data-contracts';
+import {
+  Tenant,
+  TenantMember,
+  TenantMemberRole,
+} from '@/lib/api/generated/data-contracts';
 import { globalEmitter } from '@/lib/global-emitter';
 import { getCloudMetadataQuery } from '@/pages/auth/hooks/use-cloud';
 import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
@@ -17,47 +21,57 @@ import { userUniverseQuery, useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import {
+  ArrowRightIcon,
   EllipsisVerticalIcon,
   TrashIcon,
   PlusIcon,
 } from '@heroicons/react/24/outline';
-import { Link, useLoaderData } from '@tanstack/react-router';
+import { Link, useLoaderData, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import invariant from 'tiny-invariant';
 
-const makeMapOfTenantIdsToTenant = (tenants: Tenant[]) => {
-  const map = new Map<string, Tenant>();
+type TenantWithRole = Tenant & {
+  currentUsersRole: TenantMemberRole;
+};
+
+const makeMapOfTenantIdsToTenantMember = (tenants: TenantMember[]) => {
+  const map = new Map<string, TenantWithRole>();
   tenants.forEach((t) => {
-    map.set(t.metadata.id, t);
+    if (t.tenant) {
+      map.set(t.tenant.metadata.id, {
+        ...t.tenant,
+        currentUsersRole: t.role,
+      });
+    }
   });
   return map;
 };
 
 const mapTenantsToOrganizations = (
   organizations: OrganizationForUser[],
-  tenantsById: Map<string, Tenant>,
+  tenantsById: Map<string, TenantWithRole>,
 ) =>
   organizations.map((org) => ({
     ...org,
     tenants: org.tenants
       .map((t) => tenantsById.get(t.id))
-      .filter((t): t is Tenant => t != null),
+      .filter((t): t is TenantWithRole => t != null),
   }));
 
 type OrgWithTenants = Omit<OrganizationForUser, 'tenants'> & {
-  tenants: Tenant[];
+  tenants: TenantWithRole[];
 };
 
 export const loader = async (): Promise<
   | {
       isCloudEnabled: true;
       organizationsWithTenants: OrgWithTenants[];
-      tenantIdToTenant: Map<string, Tenant>;
+      tenantIdToTenant: Map<string, TenantWithRole>;
     }
   | {
       isCloudEnabled: false;
-      tenants: Tenant[];
-      tenantIdToTenant: Map<string, Tenant>;
+      tenants: TenantWithRole[];
+      tenantIdToTenant: Map<string, TenantWithRole>;
     }
 > => {
   const { isCloudEnabled } = await queryClient.fetchQuery(
@@ -68,11 +82,7 @@ export const loader = async (): Promise<
     userUniverseQuery({ isCloudEnabled, isCloudLoaded: true }),
   );
 
-  const tenants = tenantMemberships
-    .map((m) => m.tenant)
-    .filter((t): t is Tenant => !!t);
-
-  const tenantIdToTenant = makeMapOfTenantIdsToTenant(tenants);
+  const tenantIdToTenant = makeMapOfTenantIdsToTenantMember(tenantMemberships);
 
   if (isCloudEnabled) {
     invariant(organizations);
@@ -88,15 +98,21 @@ export const loader = async (): Promise<
 
   return {
     isCloudEnabled: false,
-    tenants,
+    tenants: Array.from(tenantIdToTenant.values()),
     tenantIdToTenant,
   };
 };
 
-const makeTenantColumns = (onArchive?: (tenant: Tenant) => void) => [
+const makeTenantColumns = ({
+  onArchive,
+  onViewTenant,
+}: {
+  onArchive?: (tenant: TenantWithRole) => void;
+  onViewTenant: (tenantId: string) => void;
+}) => [
   {
     columnLabel: 'Name',
-    cellRenderer: (tenant: Tenant) => (
+    cellRenderer: (tenant: TenantWithRole) => (
       <Link
         to={appRoutes.tenantRoute.to}
         params={{ tenant: tenant.metadata.id }}
@@ -108,7 +124,7 @@ const makeTenantColumns = (onArchive?: (tenant: Tenant) => void) => [
   },
   {
     columnLabel: 'ID',
-    cellRenderer: (tenant: Tenant) => (
+    cellRenderer: (tenant: TenantWithRole) => (
       <div className="flex items-center gap-2">
         <span className="font-mono text-sm">{tenant.metadata.id}</span>
         <CopyToClipboard text={tenant.metadata.id} />
@@ -117,13 +133,13 @@ const makeTenantColumns = (onArchive?: (tenant: Tenant) => void) => [
   },
   {
     columnLabel: 'Slug',
-    cellRenderer: (tenant: Tenant) => (
+    cellRenderer: (tenant: TenantWithRole) => (
       <span className="text-muted-foreground">{tenant.slug}</span>
     ),
   },
   {
     columnLabel: 'Actions',
-    cellRenderer: (tenant: Tenant) => (
+    cellRenderer: (tenant: TenantWithRole) => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -131,6 +147,10 @@ const makeTenantColumns = (onArchive?: (tenant: Tenant) => void) => [
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onViewTenant(tenant.metadata.id)}>
+            <ArrowRightIcon className="mr-2 size-4" />
+            View Tenant
+          </DropdownMenuItem>
           {onArchive && (
             <DropdownMenuItem onClick={() => onArchive(tenant)}>
               <TrashIcon className="mr-2 size-4" />
@@ -143,7 +163,9 @@ const makeTenantColumns = (onArchive?: (tenant: Tenant) => void) => [
   },
 ];
 
-const TenantList = ({ tenants }: { tenants: Tenant[] }) => {
+const TenantList = ({ tenants }: { tenants: TenantWithRole[] }) => {
+  const navigate = useNavigate();
+
   if (tenants.length === 0) {
     return (
       <div className="py-16 text-center">
@@ -155,10 +177,18 @@ const TenantList = ({ tenants }: { tenants: Tenant[] }) => {
     );
   }
 
+  const columns = makeTenantColumns({
+    onViewTenant: (tenantId) =>
+      navigate({
+        to: appRoutes.tenantRoute.to,
+        params: { tenant: tenantId },
+      }),
+  });
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Tenants</h2>
-      <SimpleTable data={tenants} columns={makeTenantColumns()} />
+      <SimpleTable data={tenants} columns={columns} />
     </div>
   );
 };
@@ -168,17 +198,25 @@ const OrganizationList = ({
 }: {
   organizationsWithTenants: OrgWithTenants[];
 }) => {
+  const navigate = useNavigate();
   const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const [tenantToArchive, setTenantToArchive] = useState<{
-    tenant: Tenant;
+    tenant: TenantWithRole;
     orgName: string;
   } | null>(null);
 
-  const tenantColumns = makeTenantColumns((tenant) => {
-    const org = organizationsWithTenants.find((o) =>
-      o.tenants.some((t) => t.metadata.id === tenant.metadata.id),
-    );
-    setTenantToArchive({ tenant, orgName: org?.name ?? '' });
+  const tenantColumns = makeTenantColumns({
+    onViewTenant: (tenantId) =>
+      navigate({
+        to: appRoutes.tenantRoute.to,
+        params: { tenant: tenantId },
+      }),
+    onArchive: (tenant) => {
+      const org = organizationsWithTenants.find((o) =>
+        o.tenants.some((t) => t.metadata.id === tenant.metadata.id),
+      );
+      setTenantToArchive({ tenant, orgName: org?.name ?? '' });
+    },
   });
 
   if (organizationsWithTenants.length === 0) {
