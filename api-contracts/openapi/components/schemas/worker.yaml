@@ -149,6 +149,14 @@ Worker:
         - ACTIVE
         - INACTIVE
         - PAUSED
+    maxRuns:
+      type: integer
+      description: The maximum number of runs this worker can execute concurrently. Deprecated - use slotConfig for per-slot-type limits (sum non-durable for equivalent).
+      deprecated: true
+    availableRuns:
+      type: integer
+      description: The number of runs currently available for this worker. Deprecated - use slotConfig for per-slot-type availability (sum non-durable for equivalent).
+      deprecated: true
     slotConfig:
       type: object
       description: Slot availability and limits for this worker (slot_type -> { available, limit }).

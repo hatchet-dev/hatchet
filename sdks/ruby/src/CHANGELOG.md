@@ -1,5 +1,11 @@
 ## Hatchet SDK Changelog
 
+## [0.2.1] - 2026-03-04
+
+### Changed
+
+- Patch release: API contract and generated client updates (worker schema)
+
 ## [0.2.0] - 2026-03-03
 
 ### Added
