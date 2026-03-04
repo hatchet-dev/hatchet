@@ -188,62 +188,13 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
 	defer span.End()
 
-	var parentTask *sqlcv1.FlattenExternalIdsRow
 	span.SetAttributes(
 		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
 		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
 		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
 	)
 
-	additionalMeta := ""
-
-	if req.AdditionalMetadata != nil {
-		additionalMeta = *req.AdditionalMetadata
-	}
-
-	var desiredWorkerId *uuid.UUID
-	if req.DesiredWorkerId != nil {
-		workerId, err := uuid.Parse(*req.DesiredWorkerId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
-		}
-		desiredWorkerId = &workerId
-	}
-
-	t := &v1.TriggerTaskData{
-		WorkflowName:       req.Name,
-		Data:               []byte(req.Input),
-		AdditionalMetadata: []byte(additionalMeta),
-		DesiredWorkerId:    desiredWorkerId,
-		Priority:           req.Priority,
-	}
-
-	if len(req.DesiredWorkerLabels) > 0 {
-		labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(req.DesiredWorkerLabels))
-		for key, label := range req.DesiredWorkerLabels {
-			var comparator *string
-			if label.Comparator != nil {
-				c := label.Comparator.String()
-				comparator = &c
-			}
-			labels = append(labels, v1.ProtoToDesiredWorkerLabel(
-				key,
-				label.StrValue,
-				label.IntValue,
-				label.Required,
-				label.Weight,
-				comparator,
-			))
-		}
-		t.DesiredWorkerLabels = labels
-	}
-
-	if req.Priority != nil {
-		if *req.Priority < 1 || *req.Priority > 3 {
-			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
-		}
-		t.Priority = req.Priority
-	}
+	var parentTask *sqlcv1.FlattenExternalIdsRow
 
 	if req.ParentTaskRunExternalId != nil {
 		parentTaskExternalId, err := uuid.Parse(*req.ParentTaskRunExternalId)
