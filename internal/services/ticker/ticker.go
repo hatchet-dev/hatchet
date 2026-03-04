@@ -39,6 +39,8 @@ type TickerImpl struct {
 	userCronScheduler     gocron.Scheduler
 	userCronSchedulerLock sync.Mutex
 
+	userCronRefreshLock sync.Mutex
+
 	// maps a unique key for the cron schedule to a UUID, because the gocron library depends on uuids
 	// as unique identifiers for scheduled jobs
 	userCronSchedulesToIds map[string]string
@@ -137,7 +139,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	// initialize the cron schedules, so no need to wait for 15 seconds or
 	// a cron to be created
-	t.refreshCronSchedules(ctx)
+	t.refreshCronSchedules(ctx)()
 
 	// add a handler to update the cron schedule on-demand when crons are created
 	cronUpdateHandler := func(task *msgqueue.Message) error {

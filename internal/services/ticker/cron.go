@@ -20,48 +20,54 @@ func (t *TickerImpl) refreshCronSchedules(ctx context.Context) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
+		// prevent multiple refreshes from running simultaneously
+		if t.userCronRefreshLock.TryLock() {
+			defer t.userCronRefreshLock.Unlock()
 
-		t.l.Debug().Msgf("ticker: polling cron schedules")
+			t.l.Debug().Msgf("ticker: polling cron schedules")
 
-		crons, err := t.repov1.Ticker().PollCronSchedules(ctx, t.tickerId)
+			crons, err := t.repov1.Ticker().PollCronSchedules(ctx, t.tickerId)
 
-		if err != nil {
-			t.l.Err(err).Msg("could not poll cron schedules")
-			return
-		}
-
-		// guard access to the userCronScheduler and userCronSchedulesToIds
-		t.userCronSchedulerLock.Lock()
-		defer t.userCronSchedulerLock.Unlock()
-
-		newCronKeys := make(map[string]bool)
-
-		for _, cron := range crons {
-			cronKey := getCronKey(cron)
-
-			newCronKeys[cronKey] = true
-
-			t.l.Debug().Msgf("ticker: handling cron %s", cronKey)
-
-			// if the cron is already scheduled, skip
-			if _, ok := t.userCronSchedulesToIds[cronKey]; ok {
-				continue
+			if err != nil {
+				t.l.Err(err).Msg("could not poll cron schedules")
+				return
 			}
 
-			// if the cron is not scheduled, schedule it
-			if err := t.handleScheduleCron(ctx, cron); err != nil {
-				t.l.Err(err).Msg("could not schedule cron")
-			}
-		}
+			// guard access to the userCronScheduler and userCronSchedulesToIds
+			t.userCronSchedulerLock.Lock()
+			defer t.userCronSchedulerLock.Unlock()
 
-		// cancel any crons that are no longer assigned to this ticker
-		for key := range t.userCronSchedulesToIds {
-			if _, ok := newCronKeys[key]; !ok {
-				if err := t.handleCancelCron(ctx, key); err != nil {
-					t.l.Err(err).Msg("could not cancel cron")
+			newCronKeys := make(map[string]bool)
+
+			for _, cron := range crons {
+				cronKey := getCronKey(cron)
+
+				newCronKeys[cronKey] = true
+
+				t.l.Debug().Msgf("ticker: handling cron %s", cronKey)
+
+				// if the cron is already scheduled, skip
+				if _, ok := t.userCronSchedulesToIds[cronKey]; ok {
+					continue
+				}
+
+				// if the cron is not scheduled, schedule it
+				if err := t.handleScheduleCron(ctx, cron); err != nil {
+					t.l.Err(err).Msg("could not schedule cron")
 				}
 			}
+
+			// cancel any crons that are no longer assigned to this ticker
+			for key := range t.userCronSchedulesToIds {
+				if _, ok := newCronKeys[key]; !ok {
+					if err := t.handleCancelCron(ctx, key); err != nil {
+						t.l.Err(err).Msg("could not cancel cron")
+					}
+				}
+			}
+
 		}
+
 	}
 }
 
