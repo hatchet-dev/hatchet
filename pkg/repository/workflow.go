@@ -284,7 +284,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, err
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, 60000)
 
 	if err != nil {
 		return nil, err
@@ -296,7 +296,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	var oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow
 
 	// check whether the workflow exists
-	existingWorkflow, err := r.queries.GetWorkflowByName(ctx, r.pool, sqlcv1.GetWorkflowByNameParams{
+	existingWorkflow, err := r.queries.GetWorkflowByName(ctx, tx, sqlcv1.GetWorkflowByNameParams{
 		Tenantid: tenantId,
 		Name:     opts.Name,
 	})

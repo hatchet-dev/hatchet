@@ -11,16 +11,12 @@ import {
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
-import { Workflow } from '@hatchet/workflow';
 import {
-  ConcurrencyLimitStrategy,
-  CreateWorkflowJobOpts,
-  CreateWorkflowStepOpts,
+  CreateStepRateLimit,
   DesiredWorkerLabels,
-  WorkflowConcurrencyOpts,
+  StickyStrategy,
 } from '@hatchet/protoc/workflows';
-import { Logger } from '@hatchet/util/logger';
-import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
+import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import {
@@ -34,8 +30,9 @@ import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import sleep from '@hatchet/util/sleep';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -53,7 +50,7 @@ export interface WorkerOpts {
   enableHealthServer?: boolean;
 }
 
-export class V1Worker {
+export class InternalWorker {
   client: HatchetClient;
   name: string;
   workerId: string | undefined;
@@ -61,7 +58,7 @@ export class V1Worker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
-  workflow_registry: Array<WorkflowDefinition | Workflow> = [];
+  workflow_registry: Array<WorkflowDefinition> = [];
   listener: ActionListener | undefined;
   futures: Record<Action['taskRunExternalId'], HatchetPromise<any>> = {};
   contexts: Record<Action['taskRunExternalId'], Context<any, any>> = {};
@@ -160,62 +157,7 @@ export class V1Worker {
     this.logger.debug(`Worker status changed to: ${status}`);
   }
 
-  private registerActions(workflow: Workflow) {
-    const newActions = workflow.steps.reduce<ActionRegistry>((acc, step) => {
-      acc[`${workflow.id}:${step.name.toLowerCase()}`] = step.run;
-      return acc;
-    }, {});
-
-    const onFailureAction = workflow.onFailure
-      ? {
-          [`${workflow.id}-on-failure:${workflow.onFailure.name}`]: workflow.onFailure.run,
-        }
-      : {};
-
-    this.action_registry = {
-      ...this.action_registry,
-      ...newActions,
-      ...onFailureAction,
-    };
-
-    this.action_registry =
-      workflow.concurrency?.name && workflow.concurrency.key
-        ? {
-            ...this.action_registry,
-            [`${workflow.id}:${workflow.concurrency.name.toLowerCase()}`]: workflow.concurrency.key,
-          }
-        : {
-            ...this.action_registry,
-          };
-  }
-
-  getHandler(workflows: Workflow[]) {
-    throw new Error('Not implemented');
-    // TODO v1
-    // for (const workflow of workflows) {
-    //   const wf: Workflow = {
-    //     ...workflow,
-    //     id: this.client.config.namespace + workflow.id,
-    //   };
-
-    //   this.registerActions(wf);
-    // }
-
-    // return new WebhookHandler(this, workflows);
-  }
-
-  async registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this.client._v0.admin.registerWebhook({ ...webhook });
-  }
-
-  /**
-   * @deprecated use registerWorkflow instead
-   */
-  async register_workflow(initWorkflow: Workflow) {
-    return this.registerWorkflow(initWorkflow);
-  }
-
-  registerDurableActionsV1(workflow: WorkflowDefinition) {
+  registerDurableActions(workflow: WorkflowDefinition) {
     const newActions = workflow._durableTasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
@@ -234,7 +176,7 @@ export class V1Worker {
     };
   }
 
-  private registerActionsV1(workflow: WorkflowDefinition) {
+  private registerActions(workflow: WorkflowDefinition) {
     const newActions = workflow._tasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
@@ -262,7 +204,7 @@ export class V1Worker {
     };
   }
 
-  async registerWorkflowV1(
+  async registerWorkflow(
     initWorkflow: BaseWorkflowDeclaration<any, any>,
     durable: boolean = false
   ) {
@@ -307,8 +249,8 @@ export class V1Worker {
           inputs: '{}',
           parents: [],
           retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
-          rateLimits: mapRateLimit(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: toPbWorkerLabel(
+          rateLimits: mapRateLimitPb(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: mapWorkerLabelPb(
             onFailure.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
           ),
           concurrency: [],
@@ -328,11 +270,11 @@ export class V1Worker {
         onSuccessTask = {
           name: 'on-success-task',
           fn: workflow.onSuccess,
-          timeout: '60s',
+          executionTimeout: '60s',
           parents,
           retries: 0,
           rateLimits: [],
-          desiredWorkerLabels: {},
+          desiredWorkerLabels: undefined,
           concurrency: [],
         };
       }
@@ -344,7 +286,8 @@ export class V1Worker {
         onSuccessTask = {
           name: 'on-success-task',
           fn: onSuccess.fn,
-          timeout: onSuccess.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
+          executionTimeout:
+            onSuccess.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
           scheduleTimeout: onSuccess.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
           parents,
           retries: onSuccess.retries || workflow.taskDefaults?.retries || 0,
@@ -359,26 +302,23 @@ export class V1Worker {
         workflow._tasks.push(onSuccessTask);
       }
 
-      // cron and event triggers
-      if (workflow.on) {
-        this.logger.warn(
-          `\`on\` for event and cron triggers is deprecated and will be removed soon, use \`onEvents\` and \`onCrons\` instead for ${
-            workflow.name
-          }`
-        );
-      }
-
       const eventTriggers = [
         ...(workflow.onEvents || []).map((event) =>
           applyNamespace(event, this.client.config.namespace)
         ),
-        ...(workflow.on?.event
-          ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
+        ...(workflow.on && 'event' in workflow.on && workflow.on.event
+          ? Array.isArray(workflow.on.event)
+            ? workflow.on.event.map((event) => applyNamespace(event, this.client.config.namespace))
+            : [applyNamespace(workflow.on.event, this.client.config.namespace)]
           : []),
       ];
-      const cronTriggers = [
+      const cronTriggers: string[] = [
         ...(workflow.onCrons || []),
-        ...(workflow.on?.cron ? [workflow.on.cron] : []),
+        ...(workflow.on && 'cron' in workflow.on && workflow.on.cron
+          ? Array.isArray(workflow.on.cron)
+            ? workflow.on.cron
+            : [workflow.on.cron]
+          : []),
       ];
 
       const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
@@ -394,13 +334,35 @@ export class V1Worker {
 
       const durableTaskSet = new Set(workflow._durableTasks);
 
-      const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
+      let stickyStrategy: StickyStrategy | undefined;
+      // `workflow.sticky` is optional. When omitted, we don't set any sticky strategy.
+      //
+      // When provided, `workflow.sticky` is a v1 (non-protobuf) config which may also include
+      // legacy protobuf enum values for backwards compatibility.
+      if (workflow.sticky != null) {
+        switch (workflow.sticky) {
+          case 'soft':
+          case 'SOFT':
+          case 0:
+            stickyStrategy = StickyStrategy.SOFT;
+            break;
+          case 'hard':
+          case 'HARD':
+          case 1:
+            stickyStrategy = StickyStrategy.HARD;
+            break;
+          default:
+            throw new HatchetError(`Invalid sticky strategy: ${workflow.sticky}`);
+        }
+      }
+
+      const registeredWorkflow = this.client.admin.putWorkflow({
         name: workflow.name,
         description: workflow.description || '',
         version: workflow.version || '',
         eventTriggers,
         cronTriggers,
-        sticky: workflow.sticky,
+        sticky: stickyStrategy,
         concurrencyArr,
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
@@ -418,8 +380,8 @@ export class V1Worker {
           parents: task.parents?.map((p) => p.name) ?? [],
           userData: '{}',
           retries: task.retries || workflow.taskDefaults?.retries || 0,
-          rateLimits: mapRateLimit(task.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: toPbWorkerLabel(
+          rateLimits: mapRateLimitPb(task.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: mapWorkerLabelPb(
             task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
           ),
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
@@ -453,104 +415,11 @@ export class V1Worker {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
     }
 
-    this.registerActionsV1(workflow);
-  }
-
-  async registerWorkflow(initWorkflow: Workflow) {
-    const workflow: Workflow = {
-      ...initWorkflow,
-      id: applyNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
-    };
-    try {
-      if (workflow.concurrency?.key && workflow.concurrency.expression) {
-        throw new HatchetError(
-          'Cannot have both key function and expression in workflow concurrency configuration'
-        );
-      }
-
-      const concurrency: WorkflowConcurrencyOpts | undefined =
-        workflow.concurrency?.name || workflow.concurrency?.expression
-          ? {
-              action: !workflow.concurrency.expression
-                ? `${workflow.id}:${workflow.concurrency.name}`
-                : undefined,
-              maxRuns: workflow.concurrency.maxRuns || 1,
-              expression: workflow.concurrency.expression,
-              limitStrategy:
-                workflow.concurrency.limitStrategy || ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-            }
-          : undefined;
-
-      const onFailureJob: CreateWorkflowJobOpts | undefined = workflow.onFailure
-        ? {
-            name: `${workflow.id}-on-failure`,
-            description: workflow.description,
-            steps: [
-              {
-                readableId: workflow.onFailure.name,
-                action: `${workflow.id}-on-failure:${workflow.onFailure.name}`,
-                timeout: workflow.onFailure.timeout || '60s',
-                inputs: '{}',
-                parents: [],
-                userData: '{}',
-                retries: workflow.onFailure.retries || 0,
-                rateLimits: mapRateLimit(workflow.onFailure.rate_limits),
-                workerLabels: {}, // no worker labels for on failure steps
-              },
-            ],
-          }
-        : undefined;
-
-      const registeredWorkflow = this.client._v0.admin.putWorkflow({
-        name: workflow.id,
-        description: workflow.description,
-        version: workflow.version || '',
-        eventTriggers:
-          workflow.on && workflow.on.event
-            ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
-            : [],
-        cronTriggers: workflow.on && workflow.on.cron ? [workflow.on.cron] : [],
-        scheduledTriggers: [],
-        concurrency,
-        scheduleTimeout: workflow.scheduleTimeout,
-        onFailureJob,
-        sticky: workflow.sticky,
-        jobs: [
-          {
-            name: workflow.id,
-            description: workflow.description,
-            steps: workflow.steps.map<CreateWorkflowStepOpts>((step) => ({
-              readableId: step.name,
-              action: `${workflow.id}:${step.name}`,
-              timeout: step.timeout || '60s',
-              inputs: '{}',
-              parents: step.parents ?? [],
-              userData: '{}',
-              retries: step.retries || 0,
-              rateLimits: mapRateLimit(step.rate_limits),
-              workerLabels: toPbWorkerLabel(step.worker_labels),
-              backoffFactor: step.backoff?.factor,
-              backoffMaxSeconds: step.backoff?.maxSeconds,
-            })),
-          },
-        ],
-      });
-      this.registeredWorkflowPromises.push(registeredWorkflow);
-      await registeredWorkflow;
-      this.workflow_registry.push(workflow);
-    } catch (e: any) {
-      throw new HatchetError(`Could not register workflow: ${e.message}`);
-    }
-
     this.registerActions(workflow);
   }
 
-  registerAction<T, K>(actionId: string, action: StepRunFunction<T, K>) {
-    this.action_registry[actionId.toLowerCase()] = action;
-  }
-
   async handleStartStepRun(action: Action) {
-    const { actionId, taskRunExternalId } = action;
+    const { actionId, taskRunExternalId, taskName } = action;
 
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
@@ -566,13 +435,48 @@ export class V1Worker {
       }
 
       const run = async () => {
-        parentRunContextManager.setContext({
-          parentId: action.workflowRunId,
-          parentTaskRunExternalId: taskRunExternalId,
-          childIndex: 0,
-          desiredWorkerId: this.workerId || '',
-        });
-        return step(context);
+        const { middleware } = this.client.config;
+
+        if (middleware?.before) {
+          const hooks = Array.isArray(middleware.before) ? middleware.before : [middleware.before];
+          for (const hook of hooks) {
+            const extra = await hook(context.input, context as any);
+            if (extra !== undefined) {
+              const merged = { ...(context.input as any), ...extra };
+              (context as any).input = merged;
+              if ((context as any).data && typeof (context as any).data === 'object') {
+                (context as any).data.input = merged;
+              }
+            }
+          }
+        }
+
+        let result: any = await parentRunContextManager.runWithContext(
+          {
+            parentId: action.workflowRunId,
+            parentTaskRunExternalId: taskRunExternalId,
+            childIndex: 0,
+            desiredWorkerId: this.workerId || '',
+            signal: context.abortController.signal,
+          },
+          () => {
+            // Precheck: if cancellation already happened, don't execute user code.
+            throwIfAborted(context.abortController.signal);
+            return step(context);
+          }
+        );
+
+        if (middleware?.after) {
+          const hooks = Array.isArray(middleware.after) ? middleware.after : [middleware.after];
+          for (const hook of hooks) {
+            const extra = await hook(result, context as any, context.input);
+            if (extra !== undefined) {
+              result = extra;
+            }
+          }
+        }
+
+        return result;
       };
 
       const success = async (result: any) => {
@@ -581,7 +485,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.info(`Task run ${taskRunExternalId} succeeded`);
+          this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
 
           // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
@@ -591,7 +495,7 @@ export class V1Worker {
             result || null,
             action.retryCount
           );
-          await this.client._v0.dispatcher.sendStepActionEvent(event);
+          await this.client.dispatcher.sendStepActionEvent(event);
         } catch (actionEventError: any) {
           this.logger.error(
             `Could not send completed action event: ${actionEventError.message || actionEventError}`
@@ -607,7 +511,7 @@ export class V1Worker {
           );
 
           try {
-            await this.client._v0.dispatcher.sendStepActionEvent(failureEvent);
+            await this.client.dispatcher.sendStepActionEvent(failureEvent);
           } catch (failureEventError: any) {
             this.logger.error(
               `Could not send failed action event: ${failureEventError.message || failureEventError}`
@@ -632,7 +536,7 @@ export class V1Worker {
             return;
           }
 
-          this.logger.error(`Task run ${taskRunExternalId} failed: ${error.message}`);
+          this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
           if (error.stack) {
             this.logger.error(error.stack);
@@ -649,7 +553,7 @@ export class V1Worker {
             },
             action.retryCount
           );
-          await this.client._v0.dispatcher.sendStepActionEvent(event);
+          await this.client.dispatcher.sendStepActionEvent(event);
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
@@ -668,6 +572,19 @@ export class V1Worker {
             await failure(e);
             return;
           }
+
+          // Postcheck: user code may swallow AbortError; don't report completion after cancellation.
+          // If we reached this point and the signal is aborted, the task likely caught/ignored cancellation.
+          if (context.abortController.signal.aborted) {
+            this.logger.warn(
+              `Cancellation: task run ${taskRunExternalId} returned after cancellation was signaled. ` +
+                `This usually means an AbortError was caught and not propagated. ` +
+                `See https://docs.hatchet.run/home/cancellation`
+            );
+            return;
+          }
+          throwIfAborted(context.abortController.signal);
+
           await success(result);
         })()
       );
@@ -681,7 +598,7 @@ export class V1Worker {
         undefined,
         action.retryCount
       );
-      this.client._v0.dispatcher.sendStepActionEvent(event).catch((e) => {
+      this.client.dispatcher.sendStepActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
       });
 
@@ -689,9 +606,8 @@ export class V1Worker {
         await future.promise;
       } catch (e: any) {
         const message = e?.message || String(e);
-        if (message.includes('Cancelled')) {
-          this.logger.debug(`Task run ${taskRunExternalId} was cancelled`);
-        } else {
+        // TODO is this cased correctly...
+        if (!message.includes('Cancelled')) {
           this.logger.error(
             `Could not wait for task run ${taskRunExternalId} to finish. ` +
               `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
@@ -705,7 +621,7 @@ export class V1Worker {
   }
 
   async handleStartGroupKeyRun(action: Action) {
-    const { actionId, getGroupKeyRunId, taskRunExternalId } = action;
+    const { actionId, getGroupKeyRunId, taskRunExternalId, taskName } = action;
 
     this.logger.error(
       'Concurrency Key Functions have been deprecated and will be removed in a future release. Use Concurrency Expressions instead.'
@@ -737,7 +653,7 @@ export class V1Worker {
       };
 
       const success = (result: any) => {
-        this.logger.info(`Task run ${taskRunExternalId} succeeded`);
+        this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
 
         try {
           // Send the action event to the dispatcher
@@ -746,7 +662,7 @@ export class V1Worker {
             GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED,
             result
           );
-          this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
         } catch (e: any) {
@@ -759,7 +675,7 @@ export class V1Worker {
       };
 
       const failure = (error: any) => {
-        this.logger.error(`Task run ${key} failed: ${error.message}`);
+        this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
         try {
           // Send the action event to the dispatcher
@@ -768,7 +684,7 @@ export class V1Worker {
             GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED,
             error
           );
-          this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
         } catch (e: any) {
@@ -788,7 +704,7 @@ export class V1Worker {
         action,
         GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED
       );
-      this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+      this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
       });
 
@@ -840,26 +756,73 @@ export class V1Worker {
   }
 
   async handleCancelStepRun(action: Action) {
-    const { taskRunExternalId } = action;
+    const { taskRunExternalId, taskName } = action;
+
     try {
-      this.logger.info(`Cancelling task run ${taskRunExternalId}`);
       const future = this.futures[taskRunExternalId];
       const context = this.contexts[taskRunExternalId];
 
       if (context && context.abortController) {
-        context.abortController.abort('Cancelled by worker');
+        context.abortController.abort('Cancelled by worker'); // TODO this reason is nonsensical
       }
 
       if (future) {
-        future.promise.catch(() => {
-          this.logger.info(`Cancelled task run ${taskRunExternalId}`);
-        });
-        future.cancel('Cancelled by worker');
-        await future.promise;
+        const start = Date.now();
+        const warningThresholdMs = this.client.config.cancellation_warning_threshold ?? 300;
+        const gracePeriodMs = this.client.config.cancellation_grace_period ?? 1000;
+        const warningMs = Math.max(0, warningThresholdMs);
+        const graceMs = Math.max(0, gracePeriodMs);
+
+        // Ensure cancelling this future doesn't create an unhandled rejection in cases
+        // where the main action handler isn't currently awaiting `future.promise`.
+        future.promise.catch(() => undefined);
+
+        // Cancel the future (rejects the wrapper); user code must still cooperate with AbortSignal.
+        future.cancel('Cancelled by worker'); // TODO this reason is nonsensical
+
+        // Track completion of the underlying work (not the cancelable wrapper).
+        // Ensure this promise never throws into our supervision flow.
+        const completion = (future.inner ?? future.promise).catch(() => undefined);
+
+        // Wait until warning threshold, then log if still running.
+        if (warningMs > 0) {
+          const winner = await Promise.race([
+            completion.then(() => 'done' as const),
+            sleep(warningMs).then(() => 'warn' as const),
+          ]);
+
+          if (winner === 'warn') {
+            const milliseconds = Date.now() - start;
+            this.logger.warn(
+              `Cancellation: task run ${taskRunExternalId} has not cancelled after ${milliseconds}ms. Consider checking for blocking operations. ` +
+                `See https://docs.hatchet.run/home/cancellation`
+            );
+          }
+        }
+
+        // Wait until grace period (total), then log if still running.
+        const elapsedMs = Date.now() - start;
+        const remainingMs = graceMs - elapsedMs;
+        const winner = await Promise.race([
+          completion.then(() => 'done' as const),
+          sleep(Math.max(0, remainingMs)).then(() => 'grace' as const),
+        ]);
+
+        if (winner === 'done') {
+          this.logger.info(taskRunLog(taskName, taskRunExternalId, 'cancelled'));
+        } else {
+          const totalElapsedMs = Date.now() - start;
+          this.logger.error(
+            `Cancellation: task run ${taskRunExternalId} still running after cancellation grace period ` +
+              `${totalElapsedMs}ms.\n` +
+              `JavaScript cannot force-kill user code; see: https://docs.hatchet.run/home/cancellation`
+          );
+        }
       }
     } catch (e: any) {
-      // Expected: the promise rejects when cancelled
-      this.logger.debug(`Task run ${taskRunExternalId} cancellation completed`);
+      this.logger.error(
+        `Cancellation: error while supervising cancellation for task run ${taskRunExternalId}: ${e?.message || e}`
+      );
     } finally {
       delete this.futures[taskRunExternalId];
       delete this.contexts[taskRunExternalId];
@@ -908,7 +871,7 @@ export class V1Worker {
    * Override in subclasses to change registration behavior (e.g. legacy engines).
    */
   protected async createListener(): Promise<ActionListener> {
-    return this.client._v0.dispatcher.getActionListener({
+    return this.client.dispatcher.getActionListener({
       workerName: this.name,
       services: ['default'],
       actions: Object.keys(this.action_registry),
@@ -948,9 +911,9 @@ export class V1Worker {
       this.logger.info(`Worker ${this.name} listening for actions`);
 
       for await (const action of generator) {
-        this.logger.info(
-          `Worker ${this.name} received action ${action.actionId}:${action.actionType}`
-        );
+        const receivedType = actionMap(action.actionType);
+
+        this.logger.info(taskRunLog(action.taskName, action.taskRunExternalId, `${receivedType}`));
 
         void this.handleAction(action);
       }
@@ -988,22 +951,22 @@ export class V1Worker {
       return this.labels;
     }
 
-    this.client._v0.dispatcher.upsertWorkerLabels(this.workerId, labels);
+    this.client.dispatcher.upsertWorkerLabels(this.workerId, labels);
 
     return this.labels;
   }
 }
 
-function toPbWorkerLabel(
-  in_: CreateStep<unknown, unknown>['worker_labels']
+function mapWorkerLabelPb(
+  in_: CreateWorkflowTaskOpts<any, any>['desiredWorkerLabels']
 ): Record<string, DesiredWorkerLabels> {
   if (!in_) {
     return {};
   }
 
   return Object.entries(in_).reduce<Record<string, DesiredWorkerLabels>>(
-    (acc, [key, value]) => {
-      if (!value) {
+    (acc, [key, label]) => {
+      if (!label) {
         return {
           ...acc,
           [key]: {
@@ -1013,22 +976,22 @@ function toPbWorkerLabel(
         };
       }
 
-      if (typeof value === 'string') {
+      if (typeof label === 'string') {
         return {
           ...acc,
           [key]: {
-            strValue: value,
+            strValue: label,
             intValue: undefined,
           },
         };
       }
 
-      if (typeof value === 'number') {
+      if (typeof label === 'number') {
         return {
           ...acc,
           [key]: {
             strValue: undefined,
-            intValue: value,
+            intValue: label,
           },
         };
       }
@@ -1036,11 +999,11 @@ function toPbWorkerLabel(
       return {
         ...acc,
         [key]: {
-          strValue: typeof value.value === 'string' ? value.value : undefined,
-          intValue: typeof value.value === 'number' ? value.value : undefined,
-          required: value.required,
-          weight: value.weight,
-          comparator: value.comparator,
+          strValue: typeof label.value === 'string' ? label.value : undefined,
+          intValue: typeof label.value === 'number' ? label.value : undefined,
+          required: label.required,
+          weight: label.weight,
+          comparator: label.comparator,
         },
       };
     },
@@ -1060,4 +1023,86 @@ function getLeaves(tasks: LeafableTask[]): LeafableTask[] {
 
 function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
   return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
+}
+
+export function mapRateLimitPb(
+  limits: CreateWorkflowTaskOpts<any, any>['rateLimits']
+): CreateStepRateLimit[] {
+  if (!limits) return [];
+
+  return limits.map((l) => {
+    let key = l.staticKey;
+    const keyExpression = l.dynamicKey;
+
+    if (l.key !== undefined) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        'key is deprecated and will be removed in a future release, please use staticKey instead'
+      );
+      key = l.key;
+    }
+
+    if (keyExpression !== undefined) {
+      if (key !== undefined) {
+        throw new Error('Cannot have both static key and dynamic key set');
+      }
+      key = keyExpression;
+      if (!validateCelExpression(keyExpression)) {
+        throw new Error(`Invalid CEL expression: ${keyExpression}`);
+      }
+    }
+
+    if (key === undefined) {
+      throw new Error(`Invalid key`);
+    }
+
+    let units: number | undefined;
+    let unitsExpression: string | undefined;
+    if (typeof l.units === 'number') {
+      units = l.units;
+    } else {
+      if (!validateCelExpression(l.units)) {
+        throw new Error(`Invalid CEL expression: ${l.units}`);
+      }
+      unitsExpression = l.units;
+    }
+
+    let limitExpression: string | undefined;
+    if (l.limit !== undefined) {
+      if (typeof l.limit === 'number') {
+        limitExpression = `${l.limit}`;
+      } else {
+        if (!validateCelExpression(l.limit)) {
+          throw new Error(`Invalid CEL expression: ${l.limit}`);
+        }
+
+        limitExpression = l.limit;
+      }
+    }
+
+    if (keyExpression !== undefined && limitExpression === undefined) {
+      throw new Error('CEL based keys requires limit to be set');
+    }
+
+    if (limitExpression === undefined) {
+      limitExpression = `-1`;
+    }
+
+    return {
+      key,
+      keyExpr: keyExpression,
+      units,
+      unitsExpr: unitsExpression,
+      limitValuesExpr: limitExpression,
+      duration: l.duration,
+    };
+  });
+}
+
+// Helper function to validate CEL expressions
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function validateCelExpression(_expr: string): boolean {
+  // FIXME: this is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
+  // For now, we'll just return true to mimic the behavior.
+  return true;
 }

@@ -1744,7 +1744,7 @@ func (r *sharedRepository) insertTasks(
 	parentStrategyIds := make([][]pgtype.Int8, len(tasks))
 	strategyIds := make([][]int64, len(tasks))
 	concurrencyKeys := make([][]string, len(tasks))
-	parentTaskExternalIds := make([]uuid.UUID, len(tasks))
+	parentTaskExternalIds := make([]*uuid.UUID, len(tasks))
 	parentTaskIds := make([]pgtype.Int8, len(tasks))
 	parentTaskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	childIndices := make([]pgtype.Int8, len(tasks))
@@ -1823,9 +1823,7 @@ func (r *sharedRepository) insertTasks(
 			dagInsertedAts[i] = task.DagInsertedAt
 		}
 
-		if task.ParentTaskExternalId != nil {
-			parentTaskExternalIds[i] = *task.ParentTaskExternalId
-		}
+		parentTaskExternalIds[i] = task.ParentTaskExternalId
 
 		if task.ParentTaskId != nil {
 			parentTaskIds[i] = pgtype.Int8{
@@ -2055,7 +2053,7 @@ func (r *sharedRepository) insertTasks(
 				Concurrencyparentstrategyids: make([][]pgtype.Int8, 0),
 				ConcurrencyStrategyIds:       make([][]int64, 0),
 				ConcurrencyKeys:              make([][]string, 0),
-				ParentTaskExternalIds:        make([]uuid.UUID, 0),
+				ParentTaskExternalIds:        make([]*uuid.UUID, 0),
 				ParentTaskIds:                make([]pgtype.Int8, 0),
 				ParentTaskInsertedAts:        make([]pgtype.Timestamptz, 0),
 				ChildIndex:                   make([]pgtype.Int8, 0),
@@ -3139,7 +3137,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 			var parentExternalId uuid.UUID
 
-			if task.ParentTaskExternalID == nil {
+			if task.ParentTaskExternalID != nil {
 				parentExternalId = *task.ParentTaskExternalID
 			}
 			k := getChildSignalEventKey(parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)

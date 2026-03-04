@@ -5,12 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Dispatch, SetStateAction } from 'react';
 
-export function useApiError(props: {
-  setFieldErrors?: Dispatch<SetStateAction<Record<string, string>>>;
-  // if setErrors is passed, it will be used to pass the errors. otherwise,
-  // it will use the global toast.
-  setErrors?: (errors: string[]) => void;
-}): {
+export function useApiError(
+  props: {
+    setFieldErrors?: Dispatch<SetStateAction<Record<string, string>>>;
+    // if setErrors is passed, it will be used to pass the errors. otherwise,
+    // it will use the global toast.
+    setErrors?: (errors: string[]) => void;
+  } = {},
+): {
   handleApiError: (error: AxiosError) => void;
 } {
   const { toast } = useToast();

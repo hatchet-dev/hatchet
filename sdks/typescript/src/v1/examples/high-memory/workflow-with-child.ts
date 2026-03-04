@@ -23,7 +23,7 @@ export const child = hatchet.task({
 
 export const parent = hatchet.task({
   name: 'parent',
-  timeout: '10m',
+  executionTimeout: '10m',
   fn: async (input: ParentInput, ctx) => {
     // lets generate large payload 1 mb
     const largePayload = new Array(1024 * 1024).fill('a').join('');

@@ -5,6 +5,59 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.2] - 2026-02-28
+
+### Added
+
+- Adds the `worker_id` to the `Context`
+
+### Changed
+
+- Fixes a bug where failed serialization of task outputs causes the task to hang indefinitely.
+
+## [1.27.1] - 2026-02-27
+
+### Changed
+
+- Updated internal dependencies to address security advisories.
+
+## [1.27.0] - 2026-02-27
+
+### Added
+
+- Adds a `get_current_context` helper on the main `Hatchet` client to allow users to get the current `Context` in tasks (generally in functions called from tasks) without needing to drill the `Context` through function parameters.
+
+### Changed
+
+- Significantly improves serialization performance for task inputs and outputs by using the `dump_json` method on the `TypeAdapter` to do serialization in Rust. Mimics a similar [recent change in FastAPI](https://github.com/fastapi/fastapi/pull/14962).
+
+## [1.26.2] - 2026-02-26
+
+### Added
+
+- Adds `retry_transport_errors` and `retry_transport_methods` to `TenacityConfig` to optionally retry REST transport-level failures for configured HTTP methods (default: `GET`, `DELETE`). Default behavior is unchanged.
+
+### Changed
+
+- Uses a structured `http_method` on `RestTransportError` for determining retry eligibility.
+
+## [1.26.1] - 2026-02-25
+
+### Added
+
+- Adds `retry_429` to `TenacityConfig` (default: `False`) to optionally retry REST HTTP 429 responses.
+- Adds `TooManyRequestsException` and maps REST HTTP 429 responses to it.
+
+## [1.26.0] - 2026-02-25
+
+### Fixed
+
+- Fixes dependencies not working when using `type Dependency = Annotated[..., ...]` syntax for annotations on python version 3.12 and 3.13. Adds `typing-inspection` as a dependency.
+
+### Changed
+
+- Changes one function in the python SDK to use `inspect.iscoroutinefunction` instead of `asyncio.iscoroutinefunction` which is deprecated.
+
 ## [1.25.2] - 2026-02-19
 
 ### Fixed

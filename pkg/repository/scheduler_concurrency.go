@@ -136,7 +136,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
-
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
 
 	if err != nil {

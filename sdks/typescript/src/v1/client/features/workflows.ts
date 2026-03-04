@@ -1,22 +1,35 @@
-import { Workflow } from '@hatchet/workflow';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
+import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
+import {
+  isLegacyWorkflow,
+  warnLegacyWorkflow,
+} from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
 import { isValidUUID } from '@util/uuid';
 import { HatchetClient } from '../client';
 
 export const workflowNameString = (
-  workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+  workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow
 ) => {
   if (typeof workflow === 'string') {
     return workflow;
   }
-  if (typeof workflow === 'object' && 'id' in workflow) {
+  if (typeof workflow === 'object' && 'name' in workflow) {
+    return workflow.name as string;
+  }
+  if (isLegacyWorkflow(workflow)) {
+    warnLegacyWorkflow();
     return workflow.id;
   }
-  return workflow.name;
+  throw new Error(
+    'Invalid workflow: must be a string, Workflow object, or WorkflowDefinition object'
+  );
 };
 
 /**
- * WorkflowsClient is used to list and manage workflows
+ * The workflows client is a client for managing workflows programmatically within Hatchet.
+ *
+ * NOTE: that workflows are the declaration, not the individual runs. If you're looking for runs, use the RunsClient instead.
+ *
  */
 export class WorkflowsClient {
   api: HatchetClient['api'];
@@ -42,7 +55,7 @@ export class WorkflowsClient {
    * @returns The workflow ID as a string.
    */
   async getWorkflowIdFromName(
-    workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+    workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow
   ): Promise<string> {
     const str = (() => {
       if (typeof workflow === 'string') {
@@ -51,13 +64,6 @@ export class WorkflowsClient {
 
       if (typeof workflow === 'object' && 'name' in workflow) {
         return workflow.name;
-      }
-
-      if (typeof workflow === 'object' && 'id' in workflow) {
-        if (!workflow.id) {
-          throw new Error('Workflow ID is required');
-        }
-        return workflow.id;
       }
 
       throw new Error(
@@ -76,7 +82,12 @@ export class WorkflowsClient {
     return str;
   }
 
-  async get(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
+  /**
+   * Get a workflow by its name, ID, or object.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to the workflow.
+   */
+  async get(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
     // Get workflow name string
     const name = workflowNameString(workflow);
 
@@ -116,12 +127,22 @@ export class WorkflowsClient {
     }
   }
 
+  /**
+   * List all workflows in the tenant.
+   * @param opts - The options for the list operation.
+   * @returns A promise that resolves to the list of workflows.
+   */
   async list(opts?: Parameters<typeof this.api.workflowList>[1]) {
     const { data } = await this.api.workflowList(this.tenantId, opts);
     return data;
   }
 
-  async delete(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
+  /**
+   * Delete a workflow by its name, ID, or object.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to the deleted workflow.
+   */
+  async delete(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
     const name = workflowNameString(workflow);
 
     try {

@@ -7,23 +7,23 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
 
-	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type SessionHelpers struct {
-	config *server.ServerConfig
+	ss *cookie.UserSessionStore
 }
 
-func NewSessionHelpers(config *server.ServerConfig) *SessionHelpers {
+func NewSessionHelpers(ss *cookie.UserSessionStore) *SessionHelpers {
 	return &SessionHelpers{
-		config: config,
+		ss: ss,
 	}
 }
 
 func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) error {
-	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 }
 
 func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
-	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func (s *SessionHelpers) SaveKV(
 	c echo.Context,
 	k, v string,
 ) error {
-	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func (s *SessionHelpers) GetKey(
 	c echo.Context,
 	k string,
 ) (string, error) {
-	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
 		return "", err
@@ -117,7 +117,7 @@ func (s *SessionHelpers) RemoveKey(
 	c echo.Context,
 	k string,
 ) error {
-	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func (s *SessionHelpers) SaveOAuthState(
 		return "", err
 	}
 
-	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
 		return "", err
@@ -165,7 +165,7 @@ func (s *SessionHelpers) ValidateOAuthState(
 ) (isValidated bool, isOAuthTriggered bool, err error) {
 	stateKey := fmt.Sprintf("oauth_state_%s", integration)
 
-	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
 		return false, false, err
@@ -198,7 +198,7 @@ func (s *SessionHelpers) ValidateOAuthState(
 	return true, isOAuthTriggered, nil
 }
 
-func saveNewSession(c echo.Context, session *sessions.Session) error {
+func (s *SessionHelpers) SaveNewSession(c echo.Context, session *sessions.Session) error {
 	session.Values["authenticated"] = false
 
 	return session.Save(c.Request(), c.Response())

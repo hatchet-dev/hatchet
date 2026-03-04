@@ -1,13 +1,13 @@
 # Configuration Options
 
-The Hatchet server and engine can be configured via environment variables using several prefixes. This document contains a comprehensive list of all 195+ available options organized by component.
+The Hatchet server and engine can be configured via environment variables using several prefixes. This document contains a comprehensive list of all 197+ available options organized by component.
 
 ## Environment Variable Prefixes
 
 Hatchet uses the following environment variable prefixes:
 
 - **`SERVER_`** (173 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
-- **`DATABASE_`** (13 variables) - PostgreSQL database connection and configuration
+- **`DATABASE_`** (15 variables) - PostgreSQL database connection and configuration
 - **`READ_REPLICA_`** (4 variables) - Read replica database configuration
 - **`ADMIN_`** (3 variables) - Administrator user setup for initial seeding
 - **`DEFAULT_`** (3 variables) - Default tenant configuration
@@ -140,34 +140,36 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Database Configuration
 
-| Variable                     | Description                  | Default Value       |
-| ---------------------------- | ---------------------------- | ------------------- |
-| `DATABASE_URL`               | PostgreSQL connection string | `127.0.0.1`         |
-| `DATABASE_POSTGRES_HOST`     | PostgreSQL host              | `127.0.0.1`         |
-| `DATABASE_POSTGRES_PORT`     | PostgreSQL port              | `5431`              |
-| `DATABASE_POSTGRES_USERNAME` | PostgreSQL username          | `hatchet`           |
-| `DATABASE_POSTGRES_PASSWORD` | PostgreSQL password          | `hatchet`           |
-| `DATABASE_POSTGRES_DB_NAME`  | PostgreSQL database name     | `hatchet`           |
-| `DATABASE_POSTGRES_SSL_MODE` | PostgreSQL SSL mode          | `disable`           |
-| `DATABASE_MAX_CONNS`         | Max database connections     | `50`                |
-| `DATABASE_MIN_CONNS`         | Min database connections     | `10`                |
-| `DATABASE_MAX_QUEUE_CONNS`   | Max queue connections        | `50`                |
-| `DATABASE_MIN_QUEUE_CONNS`   | Min queue connections        | `10`                |
-| `DATABASE_LOG_QUERIES`       | Log database queries         | `false`             |
-| `CACHE_DURATION`             | Cache duration               | `5s`                |
-| `ADMIN_EMAIL`                | Admin email for seeding      | `admin@example.com` |
-| `ADMIN_PASSWORD`             | Admin password for seeding   | `Admin123!!`        |
-| `ADMIN_NAME`                 | Admin name for seeding       | `Admin`             |
-| `DEFAULT_TENANT_NAME`        | Default tenant name          | `Default`           |
-| `DEFAULT_TENANT_SLUG`        | Default tenant slug          | `default`           |
-| `DEFAULT_TENANT_ID`          | Default tenant ID            |                     |
-| `SEED_DEVELOPMENT`           | Development seeding flag     |                     |
-| `READ_REPLICA_ENABLED`       | Enable read replica          | `false`             |
-| `READ_REPLICA_DATABASE_URL`  | Read replica database URL    |                     |
-| `READ_REPLICA_MAX_CONNS`     | Read replica max connections | `50`                |
-| `READ_REPLICA_MIN_CONNS`     | Read replica min connections | `10`                |
-| `DATABASE_LOGGER_LEVEL`      | Database logger level        |                     |
-| `DATABASE_LOGGER_FORMAT`     | Database logger format       |                     |
+| Variable                      | Description                                           | Default Value       |
+| ----------------------------- | ----------------------------------------------------- | ------------------- |
+| `DATABASE_URL`                | PostgreSQL connection string                          | `127.0.0.1`         |
+| `DATABASE_POSTGRES_HOST`      | PostgreSQL host                                       | `127.0.0.1`         |
+| `DATABASE_POSTGRES_PORT`      | PostgreSQL port                                       | `5431`              |
+| `DATABASE_POSTGRES_USERNAME`  | PostgreSQL username                                   | `hatchet`           |
+| `DATABASE_POSTGRES_PASSWORD`  | PostgreSQL password                                   | `hatchet`           |
+| `DATABASE_POSTGRES_DB_NAME`   | PostgreSQL database name                              | `hatchet`           |
+| `DATABASE_POSTGRES_SSL_MODE`  | PostgreSQL SSL mode                                   | `disable`           |
+| `DATABASE_MAX_CONNS`          | Max database connections                              | `50`                |
+| `DATABASE_MIN_CONNS`          | Min database connections                              | `10`                |
+| `DATABASE_MAX_QUEUE_CONNS`    | Max queue connections                                 | `50`                |
+| `DATABASE_MIN_QUEUE_CONNS`    | Min queue connections                                 | `10`                |
+| `DATABASE_MAX_CONN_LIFETIME`  | Max lifetime of a connection                          | `15m`               |
+| `DATABASE_MAX_CONN_IDLE_TIME` | Max time a connection can be idle before being closed | `1m`                |
+| `DATABASE_LOG_QUERIES`        | Log database queries                                  | `false`             |
+| `CACHE_DURATION`              | Cache duration                                        | `5s`                |
+| `ADMIN_EMAIL`                 | Admin email for seeding                               | `admin@example.com` |
+| `ADMIN_PASSWORD`              | Admin password for seeding                            | `Admin123!!`        |
+| `ADMIN_NAME`                  | Admin name for seeding                                | `Admin`             |
+| `DEFAULT_TENANT_NAME`         | Default tenant name                                   | `Default`           |
+| `DEFAULT_TENANT_SLUG`         | Default tenant slug                                   | `default`           |
+| `DEFAULT_TENANT_ID`           | Default tenant ID                                     |                     |
+| `SEED_DEVELOPMENT`            | Development seeding flag                              |                     |
+| `READ_REPLICA_ENABLED`        | Enable read replica                                   | `false`             |
+| `READ_REPLICA_DATABASE_URL`   | Read replica database URL                             |                     |
+| `READ_REPLICA_MAX_CONNS`      | Read replica max connections                          | `50`                |
+| `READ_REPLICA_MIN_CONNS`      | Read replica min connections                          | `10`                |
+| `DATABASE_LOGGER_LEVEL`       | Database logger level                                 |                     |
+| `DATABASE_LOGGER_FORMAT`      | Database logger format                                |                     |
 
 ## Security Check Configuration
 

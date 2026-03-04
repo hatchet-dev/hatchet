@@ -11,6 +11,11 @@ import {
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
+import {
+  AdminServiceClient,
+  AdminServiceDefinition,
+  CreateWorkflowVersionRequest,
+} from '@hatchet/protoc/v1/workflows';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
@@ -40,7 +45,8 @@ export type WorkflowRun<T = object> = {
 
 export class AdminClient {
   config: ClientConfig;
-  grpc: WorkflowServiceClient;
+  workflowsGrpc: WorkflowServiceClient;
+  adminGrpc: AdminServiceClient;
   listenerClient: RunListenerClient;
   runs: RunsClient;
   logger: Logger;
@@ -50,9 +56,22 @@ export class AdminClient {
     this.logger = config.logger(`Admin`, config.log_level);
 
     const { client, channel, factory } = createGrpcClient(config, WorkflowServiceDefinition);
-    this.grpc = client;
+    this.workflowsGrpc = client;
+    this.adminGrpc = factory.create(AdminServiceDefinition, channel);
     this.listenerClient = new RunListenerClient(config, channel, factory, api);
     this.runs = runs;
+  }
+
+  /**
+   * Creates a new workflow or updates an existing workflow via the v1 admin service.
+   * @param workflow a workflow definition to create
+   */
+  async putWorkflow(workflow: CreateWorkflowVersionRequest) {
+    try {
+      return await retrier(async () => this.adminGrpc.putWorkflow(workflow), this.logger);
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
   }
 
   /**
@@ -88,7 +107,7 @@ export class AdminClient {
     }
   ) {
     try {
-      const computedName = applyNamespace(workflowName, this.config.namespace);
+      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
 
       const inputStr = JSON.stringify(input);
 
@@ -105,7 +124,10 @@ export class AdminClient {
         priority: opts.priority,
       };
 
-      const resp = await retrier(async () => this.grpc.triggerWorkflow(request), this.logger);
+      const resp = await retrier(
+        async () => this.workflowsGrpc.triggerWorkflow(request),
+        this.logger
+      );
 
       const id = resp.workflowRunId;
 
@@ -159,7 +181,7 @@ export class AdminClient {
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      const computedName = applyNamespace(workflowName, this.config.namespace);
+      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
       const inputStr = JSON.stringify(input);
 
       const opts = options ?? {};
@@ -192,7 +214,7 @@ export class AdminClient {
 
         // Call the bulk trigger workflow method for this batch
         const bulkTriggerWorkflowResponse = await retrier(
-          async () => this.grpc.bulkTriggerWorkflow(request),
+          async () => this.workflowsGrpc.bulkTriggerWorkflow(request),
           this.logger
         );
 
@@ -227,6 +249,6 @@ export class AdminClient {
       duration,
     };
 
-    await retrier(async () => this.grpc.putRateLimit(request), this.logger);
+    await retrier(async () => this.workflowsGrpc.putRateLimit(request), this.logger);
   }
 }

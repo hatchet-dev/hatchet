@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import json
 from collections.abc import Callable, Mapping
@@ -148,7 +147,7 @@ TaskFunc = AsyncFunc[TWorkflowInput, R] | SyncFunc[TWorkflowInput, R]
 def is_async_fn(
     fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[AsyncFunc[TWorkflowInput, R]]:
-    return asyncio.iscoroutinefunction(fn)
+    return inspect.iscoroutinefunction(fn)
 
 
 def is_sync_fn(

@@ -190,7 +190,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		config.MinConns = int32(cf.MinConns) // nolint: gosec
 	}
 
-	config.MaxConnLifetime = 15 * 60 * time.Second
+	config.MaxConnLifetime = cf.MaxConnLifetime
+	config.MaxConnIdleTime = cf.MaxConnIdleTime
 
 	// Check database instance timezone if enforcement is enabled
 	if cf.EnforceUTCTimezone {
@@ -242,7 +243,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			readReplicaConfig.MinConns = int32(cf.ReadReplicaMinConns) // nolint: gosec
 		}
 
-		readReplicaConfig.MaxConnLifetime = 15 * 60 * time.Second
+		readReplicaConfig.MaxConnLifetime = cf.MaxConnLifetime
+		readReplicaConfig.MaxConnIdleTime = cf.MaxConnIdleTime
 		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 		// Check read replica database instance timezone if enforcement is enabled
@@ -511,7 +513,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		analyticsEmitter.Enqueue(
 			"user:create",
-			opts.ID.String(),
+			opts.User.ID.String(),
 			nil,
 			map[string]interface{}{
 				"email":    opts.Email,

@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { StickyStrategy } from '@hatchet/protoc/workflows';
+import { StickyStrategy } from '@hatchet/v1';
 import { hatchet } from '../hatchet-client';
 import { child } from '../child_workflows/workflow';
 

@@ -40,7 +40,13 @@ function loadIndex(basePath: string = ""): Promise<MiniSearch> {
 
 /** Convert a MiniSearch doc id to a Next.js route. */
 function idToRoute(id: string): string {
-  return "/" + id.replace("hatchet://docs/", "");
+  return (
+    "/" +
+    id
+      .replace("hatchet://docs/", "")
+      .replace(/\/index$/, "")
+      .replace(/\/index#/, "#")
+  );
 }
 
 /** Extract the page route (without anchor) from a result. */

@@ -253,6 +253,11 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: "/home/install-docs-mcp",
+        destination: "/home/coding-agents",
+        permanent: true,
+      },
+      {
         source: "/home/basics/overview",
         destination: "/v1/setup/advanced",
         permanent: false,
