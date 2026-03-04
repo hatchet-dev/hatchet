@@ -1,3 +1,10 @@
+/**
+ * `Runnables` in the Hatchet TypeScript SDK are things that can be run, namely tasks and workflows. The two main types of runnables you'll encounter are:
+ *
+ * - `WorkflowDeclaration`, returned by `hatchet.workflow(...)`, which lets you define tasks and call `run()`, `schedule()`, `cron()`, etc.
+ * - `TaskWorkflowDeclaration`, returned by `hatchet.task(...)`, which is a single standalone task that exposes the same execution helpers as a workflow.
+ * @module Runnables
+ */
 /* eslint-disable max-classes-per-file */
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
@@ -42,6 +49,7 @@ type AdditionalMetadata = Record<string, string>;
 
 /**
  * Options for running a workflow.
+ * @hidden
  */
 export type RunOpts = {
   /**
@@ -78,12 +86,14 @@ export type RunOpts = {
 
 /**
  * Helper type to safely extract output types from task results
+ * @hidden
  */
 export type TaskOutput<O, Key extends string, Fallback> =
   O extends Record<Key, infer Value> ? (Value extends OutputType ? Value : Fallback) : Fallback;
 
 /**
  * Extracts a property from an object type based on task name, or falls back to inferred type
+ * @hidden
  */
 export type TaskOutputType<
   O,
@@ -103,6 +113,7 @@ type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
  * Prefer using `StickyStrategy.SOFT` / `StickyStrategy.HARD` (v1, non-protobuf).
  * For backwards compatibility, the workflow/task `sticky` field also accepts legacy
  * protobuf enum values (`0`/`1`) and strings (`'SOFT'`/`'HARD'`).
+ * @internal
  */
 export const StickyStrategy = {
   SOFT: 'soft',
@@ -183,6 +194,7 @@ export type CreateDurableTaskWorkflowOpts<
 
 /**
  * Options for creating a new workflow.
+ * @hidden
  */
 export type CreateWorkflowOpts = CreateBaseWorkflowOpts & {
   /**
@@ -194,6 +206,7 @@ export type CreateWorkflowOpts = CreateBaseWorkflowOpts & {
 /**
  * Default configuration for all tasks in the workflow.
  * Can be overridden by task-specific options.
+ * @hidden
  */
 export type TaskDefaults = {
   /**
@@ -249,6 +262,7 @@ export type TaskDefaults = {
 
 /**
  * Internal definition of a workflow and its tasks.
+ * @hidden
  */
 export type WorkflowDefinition = CreateWorkflowOpts & {
   /**
@@ -280,6 +294,7 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
  * Represents a workflow that can be executed by Hatchet.
  * @template I The input type for the workflow.
  * @template O The return type of the workflow.
+ * @internal
  */
 export class BaseWorkflowDeclaration<
   I extends InputType = UnknownInputType,
@@ -287,11 +302,13 @@ export class BaseWorkflowDeclaration<
 > {
   /**
    * The Hatchet client instance used to execute the workflow.
+   * @internal
    */
   client: IHatchetClient | undefined;
 
   /**
    * The internal workflow definition.
+   * @internal
    */
   definition: WorkflowDefinition;
 
@@ -299,6 +316,7 @@ export class BaseWorkflowDeclaration<
    * Creates a new workflow instance.
    * @param options The options for creating the workflow.
    * @param client Optional Hatchet client instance.
+   * @internal
    */
   constructor(options: CreateWorkflowOpts, client?: IHatchetClient) {
     this.definition = {
@@ -311,7 +329,7 @@ export class BaseWorkflowDeclaration<
   }
 
   /**
-   * Triggers a workflow run without waiting for completion.
+   * Synchronously trigger a workflow run without waiting for it to complete. This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
    * @param input The input data for the workflow.
    * @param options Optional configuration for this workflow run.
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
@@ -633,6 +651,7 @@ export class BaseWorkflowDeclaration<
 
   /**
    * @deprecated use definition.name instead
+   * @hidden
    */
   get id() {
     return this.definition.name;
@@ -647,6 +666,44 @@ export class BaseWorkflowDeclaration<
   }
 }
 
+/**
+ * A Hatchet workflow, which lets you define tasks and perform actions on the workflow.
+ *
+ * Workflows in Hatchet represent coordinated units of work that can be triggered,
+ * scheduled, or run on a cron schedule. Each workflow can contain multiple tasks
+ * that can be arranged in dependencies (DAGs), with customized retry behavior,
+ * timeouts, concurrency controls, and more.
+ *
+ * Example:
+ * ```typescript
+ * import { hatchet } from './hatchet-client';
+ *
+ * type MyInput = { name: string };
+ *
+ * const workflow = hatchet.workflow<MyInput>({
+ *   name: 'my-workflow',
+ * });
+ *
+ * workflow.task({
+ *   name: 'greet',
+ *   fn: async (input) => {
+ *     return { message: `Hello, ${input.name}!` };
+ *   },
+ * });
+ *
+ * // Run the workflow
+ * await workflow.run({ name: 'World' });
+ * ```
+ *
+ * Workflows support various execution patterns, including:
+ * - One-time execution with `run()` and `runNoWait()`
+ * - Scheduled execution with `schedule()`
+ * - Cron-based recurring execution with `cron()`
+ * - Bulk execution by passing an array input to `run()` and `runNoWait()`
+ *
+ * Tasks within workflows can be defined with `workflow.task()` or
+ * `workflow.durableTask()` and arranged into complex dependency patterns.
+ */
 export class WorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
@@ -804,10 +861,26 @@ export class WorkflowDeclaration<
 }
 
 /**
- * A standalone task workflow that can be run, scheduled, or triggered via cron.
+ * A standalone task declaration that can be run like a workflow.
  *
- * @template I - The task-specific input type.
- * @template O - The task output type.
+ * `TaskWorkflowDeclaration` is returned by `hatchet.task(...)` and wraps a single
+ * task definition while exposing the same execution helpers as workflows, such as
+ * `run()`, `runNoWait()`, `schedule()`, and `cron()` (inherited from
+ * `BaseWorkflowDeclaration`).
+ *
+ * Example:
+ * ```typescript
+ * const greet = hatchet.task<{ name: string }, { message: string }>({
+ *   name: 'greet',
+ *   fn: async (input) => ({ message: `Hello, ${input.name}!` }),
+ * });
+ *
+ * await greet.run({ name: 'World' });
+ * const ref = await greet.runNoWait({ name: 'World' });
+ * ```
+ *
+ * @template I The input type for the standalone task.
+ * @template O The output type returned by the standalone task.
  * @template GlobalInput - Global input type from the client, merged into all run/schedule/cron input signatures.
  * @template MiddlewareBefore - Extra fields added to the task fn input by pre-middleware hooks.
  * @template MiddlewareAfter - Extra fields merged into the task output by post-middleware hooks.
@@ -842,6 +915,7 @@ export class TaskWorkflowDeclaration<
     input: I & GlobalInput,
     options?: RunOpts
   ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  /** @hidden */
   async runAndWait(
     input: (I & GlobalInput)[],
     options?: RunOpts
@@ -871,6 +945,7 @@ export class TaskWorkflowDeclaration<
     input: I & GlobalInput,
     options?: RunOpts
   ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  /** @hidden */
   async run(
     input: (I & GlobalInput)[],
     options?: RunOpts
@@ -967,7 +1042,7 @@ export class TaskWorkflowDeclaration<
     return super.cron(name, expression, input, options);
   }
 
-  /** Returns the underlying task definition for this declaration. */
+  // Returns the underlying task definition for this declaration.
   get taskDef() {
     return this.definition._tasks[0];
   }

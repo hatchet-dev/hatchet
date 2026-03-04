@@ -57,7 +57,7 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, existingUser)
+	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, existingUser)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to save authenticated session")

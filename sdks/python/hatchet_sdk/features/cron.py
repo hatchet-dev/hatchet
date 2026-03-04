@@ -60,9 +60,9 @@ class CreateCronTriggerConfig(BaseModel):
             return alias
 
         parts = v.split()
-        if len(parts) != 5:
+        if len(parts) not in (5, 6):
             raise ValueError(
-                "Cron expression must have 5 parts: minute hour day month weekday"
+                "Cron expression must have 5 or 6 parts parts: minute hour day month weekday"
             )
 
         for part in parts:

@@ -1,3 +1,12 @@
+/**
+ * The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
+ *
+ * There are two types of context classes you'll encounter:
+ *
+ * - Context - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
+ * - DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
+ * @module Context
+ */
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable max-classes-per-file */
 import {
@@ -193,6 +202,7 @@ export class Context<T, K = {}> {
    * @returns A record mapping task names to error messages.
    * @throws A warning if no errors are found (this method should be used in on-failure tasks).
    * @deprecated use ctx.errors() instead
+   * @hidden
    */
   stepRunErrors(): Record<string, string> {
     return this.errors();
@@ -299,6 +309,7 @@ export class Context<T, K = {}> {
    * Gets the ID of the current task run.
    * @returns The task run ID.
    * @deprecated use taskRunExternalId() instead
+   * @hidden
    */
   taskRunId(): string {
     return this.taskRunExternalId();
@@ -317,6 +328,7 @@ export class Context<T, K = {}> {
    * @param message - The message to log.
    * @param level - The log level (optional).
    * @deprecated use ctx.logger.infoger.info, ctx.logger.infoger.debug, ctx.logger.infoger.warn, ctx.logger.infoger.error, ctx.logger.infoger.trace instead
+   * @hidden
    */
   log(message: string, level?: LogLevel, extra?: LogExtra) {
     const { taskRunExternalId } = this.action;
@@ -630,6 +642,7 @@ export class Context<T, K = {}> {
    * @returns The output of the task.
    * @throws An error if the task output is not found.
    * @deprecated use ctx.parentOutput instead
+   * @hidden
    */
   stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
@@ -645,6 +658,7 @@ export class Context<T, K = {}> {
    * Gets the input data for the current workflow.
    * @returns The input data for the workflow.
    * @deprecated use task input parameter instead
+   * @hidden
    */
   workflowInput(): T {
     return this.input;
@@ -654,6 +668,7 @@ export class Context<T, K = {}> {
    * Gets the name of the current task.
    * @returns The name of the task.
    * @deprecated use ctx.taskName instead
+   * @hidden
    */
   stepName(): string {
     return this.taskName();
@@ -665,6 +680,7 @@ export class Context<T, K = {}> {
    * @param workflows - An array of objects containing the workflow name, input data, and options for each workflow.
    * @returns A list of references to the spawned workflow runs.
    * @deprecated Use bulkRunNoWaitChildren or bulkRunChildren instead.
+   * @hidden
    */
   async spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
     workflows: Array<{
@@ -750,6 +766,7 @@ export class Context<T, K = {}> {
    * @param options - Additional options for spawning the workflow.
    * @returns A reference to the spawned workflow run.
    * @deprecated Use runChild or runNoWaitChild instead.
+   * @hidden
    */
   async spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
     workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
@@ -807,6 +824,10 @@ export class Context<T, K = {}> {
   }
 }
 
+/**
+ * DurableContext provides helper methods and useful data to durable tasks at runtime.
+ * It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
+ */
 export class DurableContext<T, K = {}> extends Context<T, K> {
   waitKey: number = 0;
 
