@@ -255,7 +255,8 @@ module Hatchet
 
         def build_trigger_worker_labels(labels)
           labels.each_with_object({}) do |(k, v), map|
-            dwl = if v.is_a?(Hatchet::DesiredWorkerLabel)
+            dwl = case v
+                  when Hatchet::DesiredWorkerLabel
                     dwl_args = {}
                     if v.value.is_a?(Integer)
                       dwl_args[:int_value] = v.value
@@ -266,7 +267,7 @@ module Hatchet
                     dwl_args[:weight] = v.weight if v.weight
                     dwl_args[:comparator] = COMPARATOR_MAP[v.comparator] || :EQUAL
                     ::DesiredWorkerLabels.new(**dwl_args)
-                  elsif v.is_a?(Hash)
+                  when Hash
                     dwl_args = {}
                     dwl_args[:str_value] = v[:str_value].to_s if v[:str_value]
                     dwl_args[:int_value] = v[:int_value] if v[:int_value]
@@ -274,7 +275,7 @@ module Hatchet
                     dwl_args[:weight] = v[:weight] if v[:weight]
                     dwl_args[:comparator] = COMPARATOR_MAP[v[:comparator]] || :EQUAL if v[:comparator]
                     ::DesiredWorkerLabels.new(**dwl_args)
-                  elsif v.is_a?(Integer)
+                  when Integer
                     ::DesiredWorkerLabels.new(int_value: v)
                   else
                     ::DesiredWorkerLabels.new(str_value: v.to_s)
