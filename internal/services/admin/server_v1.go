@@ -204,6 +204,26 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		Priority:           req.Priority,
 	}
 
+	if len(req.DesiredWorkerLabels) > 0 {
+		labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(req.DesiredWorkerLabels))
+		for key, label := range req.DesiredWorkerLabels {
+			var comparator *string
+			if label.Comparator != nil {
+				c := label.Comparator.String()
+				comparator = &c
+			}
+			labels = append(labels, v1.ProtoToDesiredWorkerLabel(
+				key,
+				label.StrValue,
+				label.IntValue,
+				label.Required,
+				label.Weight,
+				comparator,
+			))
+		}
+		t.DesiredWorkerLabels = labels
+	}
+
 	if req.Priority != nil {
 		if *req.Priority < 1 || *req.Priority > 3 {
 			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)

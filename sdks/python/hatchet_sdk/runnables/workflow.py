@@ -33,11 +33,10 @@ from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
-    DesiredWorkerLabels,
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
-from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk.labels import DesiredWorkerLabel, transform_desired_worker_label
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
@@ -116,17 +115,6 @@ class ComputedTaskParameters(BaseModel):
         )
 
         return self
-
-
-def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
-    value = d.value
-    return DesiredWorkerLabels(
-        str_value=value if not isinstance(value, int) else None,
-        int_value=value if isinstance(value, int) else None,
-        required=d.required,
-        weight=d.weight,
-        comparator=d.comparator,  # type: ignore[arg-type]
-    )
 
 
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):

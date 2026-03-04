@@ -427,7 +427,7 @@ func (q *Queries) ListActionsForWorkers(ctx context.Context, db DBTX, arg ListAc
 
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
-    id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count
+    id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label
 FROM
     v1_queue_item qi
 WHERE
@@ -484,6 +484,7 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 			&i.Sticky,
 			&i.DesiredWorkerID,
 			&i.RetryCount,
+			&i.DesiredWorkerLabel,
 		); err != nil {
 			return nil, err
 		}
@@ -503,7 +504,7 @@ WITH input AS (
         UNNEST($4::integer[]) AS retry_count
 )
 SELECT
-    qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count
+    qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count, qi.desired_worker_label
 FROM
     v1_queue_item qi
 WHERE
@@ -549,6 +550,7 @@ func (q *Queries) ListQueueItemsForTasks(ctx context.Context, db DBTX, arg ListQ
 			&i.Sticky,
 			&i.DesiredWorkerID,
 			&i.RetryCount,
+			&i.DesiredWorkerLabel,
 		); err != nil {
 			return nil, err
 		}
@@ -614,7 +616,8 @@ WITH input AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
 )
 INSERT INTO v1_rate_limited_queue_items (
     requeue_after,
@@ -632,7 +635,8 @@ INSERT INTO v1_rate_limited_queue_items (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     i.requeue_after,
@@ -650,7 +654,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM moved_items
 JOIN input i ON moved_items.id = i.id
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -739,7 +744,8 @@ WITH ready_items AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM
         v1_rate_limited_queue_items
     WHERE
@@ -785,7 +791,8 @@ INSERT INTO v1_queue_item (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     tenant_id,
@@ -802,7 +809,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
 `

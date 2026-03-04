@@ -497,6 +497,10 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		AdditionalMetadata: req.AdditionalMetadata,
 	}
 
+	if len(req.DesiredWorkerLabels) > 0 {
+		t.DesiredWorkerLabels = protoMapToDesiredWorkerLabels(req.DesiredWorkerLabels)
+	}
+
 	if req.Priority != nil {
 		if *req.Priority < 1 || *req.Priority > 3 {
 			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
@@ -1113,4 +1117,24 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 	}
 
 	return steps, nil
+}
+
+func protoMapToDesiredWorkerLabels(m map[string]*contracts.DesiredWorkerLabels) []*sqlcv1.GetDesiredLabelsRow {
+	labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(m))
+	for key, label := range m {
+		var comparator *string
+		if label.Comparator != nil {
+			c := label.Comparator.String()
+			comparator = &c
+		}
+		labels = append(labels, v1.ProtoToDesiredWorkerLabel(
+			key,
+			label.StrValue,
+			label.IntValue,
+			label.Required,
+			label.Weight,
+			comparator,
+		))
+	}
+	return labels
 }

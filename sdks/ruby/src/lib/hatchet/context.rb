@@ -36,6 +36,9 @@ module Hatchet
     # @return [Hash, nil] Filter payload for event-triggered workflows
     attr_reader :filter_payload
 
+    # @return [String, nil] The worker ID assigned by the server
+    attr_reader :worker_id
+
     # @param workflow_run_id [String] The workflow run ID
     # @param step_run_id [String] The step run ID
     # @param action [Object, nil] The action object from the dispatcher
@@ -62,10 +65,12 @@ module Hatchet
       deps: {},
       priority: nil,
       filter_payload: nil,
-      worker_context: nil
+      worker_context: nil,
+      worker_id: nil
     )
       @workflow_run_id = workflow_run_id
       @step_run_id = step_run_id
+      @worker_id = worker_id
       @action = action
       @client = client
       @dispatcher_client = dispatcher_client

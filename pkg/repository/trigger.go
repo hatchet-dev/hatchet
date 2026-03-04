@@ -64,6 +64,39 @@ type TriggerTaskData struct {
 
 	// (optional) the priority of the task
 	Priority *int32 `json:"priority"`
+
+	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
+}
+
+func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
+	row := &sqlcv1.GetDesiredLabelsRow{
+		Key:        key,
+		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+		Weight:     100,
+	}
+
+	if strValue != nil {
+		row.StrValue = pgtype.Text{String: *strValue, Valid: true}
+	}
+
+	if intValue != nil {
+		row.IntValue = pgtype.Int4{Int32: *intValue, Valid: true}
+	}
+
+	if required != nil {
+		row.Required = *required
+	}
+
+	if weight != nil {
+		row.Weight = *weight
+	}
+
+	if comparator != nil {
+		row.Comparator = sqlcv1.WorkerLabelComparator(*comparator)
+	}
+
+	return row
 }
 
 type createDAGOpts struct {
@@ -447,6 +480,7 @@ type triggerTuple struct {
 	additionalMetadata   []byte
 	filterPayload        []byte
 	input                []byte
+	desiredWorkerLabels  []*sqlcv1.GetDesiredLabelsRow
 }
 
 type createCoreUserEventOpts struct {
@@ -842,6 +876,12 @@ func (r *sharedRepository) triggerWorkflows(
 						TriggerPriority:             priority,
 					})
 				} else {
+					labels := tuple.desiredWorkerLabels
+
+					for i := range labels {
+						labels[i].StepId = stepId
+					}
+
 					opt := CreateTaskOpts{
 						ExternalId:           taskExternalId,
 						WorkflowRunId:        tuple.externalId,
@@ -857,6 +897,7 @@ func (r *sharedRepository) triggerWorkflows(
 						ChildIndex:           tuple.childIndex,
 						ChildKey:             tuple.childKey,
 						Priority:             tuple.priority,
+						DesiredWorkerLabels:  labels,
 					}
 
 					if isDag {
@@ -2160,6 +2201,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childIndex:           opt.ChildIndex,
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
+				desiredWorkerLabels:  opt.DesiredWorkerLabels,
 			})
 		}
 	}
