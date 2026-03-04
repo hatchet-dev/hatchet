@@ -439,8 +439,6 @@ jobs:
 
       - name: Run unit tests
         working-directory: /tmp/old-sdk/sdks/ruby/src
-        env:
-          HATCHET_CLIENT_TLS_STRATEGY: none
         run: |
           echo "Testing main SDK against current engine"
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
@@ -448,8 +446,6 @@ jobs:
 
       - name: Run integration tests
         working-directory: /tmp/old-sdk/sdks/ruby/src
-        env:
-          HATCHET_CLIENT_TLS_STRATEGY: none
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for old examples
@@ -461,8 +457,6 @@ jobs:
 
       - name: Start example worker
         working-directory: /tmp/old-sdk/sdks/ruby/examples
-        env:
-          HATCHET_CLIENT_TLS_STRATEGY: none
         run: bundle exec ruby worker.rb > worker.log 2>&1 &
 
       - name: Wait for worker health
@@ -481,8 +475,6 @@ jobs:
 
       - name: Run e2e tests
         working-directory: /tmp/old-sdk/sdks/ruby/examples
-        env:
-          HATCHET_CLIENT_TLS_STRATEGY: none
         run: bundle exec rspec -f d --fail-fast
 
       - name: Upload worker logs

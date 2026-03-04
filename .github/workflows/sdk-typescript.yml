@@ -363,10 +363,6 @@ jobs:
 
       - name: Run e2e tests against new engine
         working-directory: /tmp/old-sdk/sdks/typescript
-        env:
-          HATCHET_CLIENT_TLS_STRATEGY: none
-          HATCHET_CLIENT_TLS_SERVER_NAME: cluster
-          NODE_TLS_REJECT_UNAUTHORIZED: "0"
         run: |
           echo "Testing main SDK against current engine"
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
