@@ -44,6 +44,43 @@ const nextConfig = {
         permanent: false,
         basePath: false,
       },
+      // Reference section index → entry points
+      {
+        source: '/reference',
+        destination: '/reference/python/client',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/',
+        destination: '/reference/python/client',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/python',
+        destination: '/reference/python/client',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/python/',
+        destination: '/reference/python/client',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/typescript',
+        destination: '/reference/typescript/client',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/typescript/',
+        destination: '/reference/typescript/client',
+        permanent: false,
+        basePath: false,
+      },
       {
         source: '/get-started/setup',
         destination: '/v1/setup/advanced',
@@ -883,12 +920,6 @@ const nextConfig = {
         basePath: false,
       },
       {
-        source: "/self-hosting/:path*",
-        destination: "/v1/self-hosting/:path*",
-        permanent: false,
-        basePath: false,
-      },
-      {
         source: "/concepts/:path*",
         destination: "/v1/:path*",
         permanent: false,
@@ -1041,12 +1072,6 @@ const nextConfig = {
       {
         source: "/home/:path*",
         destination: "/v1/:path*",
-        permanent: false,
-        basePath: false,
-      },
-      {
-        source: '/:path((?!api|ingest|v1|v0|compute|home|get-started|features|guides|cookbooks|migrating|cli|sdk|sdks|concepts|contributing|self-hosting|launches|blog|llms|pages|favicon\\.ico|.*\\.png|.*\\.gif|.*\\.svg|_next/.*|monitoring\\-demo\\.mp4).*)',
-        destination: '/v1/:path*',
         permanent: false,
         basePath: false,
       },
