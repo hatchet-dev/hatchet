@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -69,36 +68,6 @@ func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.DesiredWorkerLabels = labels
 	}
-}
-
-func desiredWorkerLabelsToProto(labels map[string]*DesiredWorkerLabel) map[string]*admincontracts.DesiredWorkerLabels {
-	result := make(map[string]*admincontracts.DesiredWorkerLabels, len(labels))
-
-	for key, label := range labels {
-		proto := &admincontracts.DesiredWorkerLabels{
-			Required: &label.Required,
-			Weight:   &label.Weight,
-		}
-
-		if label.Comparator != nil {
-			comparator := admincontracts.WorkerLabelComparator(*label.Comparator)
-			proto.Comparator = &comparator
-		}
-
-		switch v := label.Value.(type) {
-		case string:
-			proto.StrValue = &v
-		case int:
-			intVal := int32(v) // nolint: gosec
-			proto.IntValue = &intVal
-		case int32:
-			proto.IntValue = &v
-		}
-
-		result[key] = proto
-	}
-
-	return result
 }
 
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
@@ -646,7 +615,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 	}
 
 	if runOpts.DesiredWorkerLabels != nil {
-		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(desiredWorkerLabelsToProto(runOpts.DesiredWorkerLabels)))
+		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
 	}
 
 	var v0Workflow *v0Client.Workflow
