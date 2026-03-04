@@ -211,92 +211,30 @@ jobs:
 
       - name: Pull release images
         working-directory: .
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{ env.LATEST_TAG }}
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml pull hatchet-migrate hatchet-admin hatchet-engine hatchet-api
 
       - name: Run migrations
         working-directory: .
-        run: |
-          docker run --rm --network host \
-            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
-            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm hatchet-migrate
 
       - name: Setup config and seed database
         working-directory: .
         run: |
           mkdir -p generated
-          docker run --rm --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
-            -e SEED_DEVELOPMENT=true \
-            -e SERVER_PORT=8080 \
-            -e SERVER_URL=http://localhost:8080 \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_DEFAULT_ENGINE_VERSION=V1 \
-            -e SERVER_MSGQUEUE_KIND=postgres \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+          docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm \
+            hatchet-admin /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
 
       - name: Generate API token
         working-directory: .
         run: |
-          TOKEN=$(docker run --rm --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-admin token create --config /hatchet/generated --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)
+          TOKEN=$(docker compose -f docker-compose.yml -f docker-compose.release.yml run -T --rm \
+            hatchet-admin /hatchet/hatchet-admin token create --config /hatchet/generated --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)
           echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Start engine
+      - name: Start engine and API
         working-directory: .
         run: |
-          docker run -d --name hatchet-engine --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_PORT=8080 \
-            -e SERVER_URL=http://localhost:8080 \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            -e SERVER_DEFAULT_ENGINE_VERSION=V1 \
-            -e SERVER_MSGQUEUE_KIND=postgres \
-            -e SERVER_LOGGER_LEVEL=warn \
-            -e SERVER_LOGGER_FORMAT=console \
-            -e DATABASE_LOGGER_LEVEL=warn \
-            -e DATABASE_LOGGER_FORMAT=console \
-            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-engine --config /hatchet/generated
-
-      - name: Start API
-        working-directory: .
-        run: |
-          docker run -d --name hatchet-api --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable" \
-            -e SERVER_PORT=8080 \
-            -e SERVER_URL=http://localhost:8080 \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_MSGQUEUE_KIND=postgres \
-            -e DATABASE_LOGGER_LEVEL=warn \
-            -e DATABASE_LOGGER_FORMAT=console \
-            ghcr.io/hatchet-dev/hatchet/hatchet-api:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-api --config /hatchet/generated
+          docker compose -f docker-compose.yml -f docker-compose.release.yml up -d hatchet-engine hatchet-api
           sleep 30
 
       - name: Install pnpm
@@ -326,8 +264,6 @@ jobs:
       - name: Run e2e tests
         env:
           HATCHET_CLIENT_TLS_STRATEGY: none
-          HATCHET_CLIENT_HOST_PORT: localhost:7077
-          HATCHET_CLIENT_SERVER_URL: http://localhost:8080
           HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
           NODE_TLS_REJECT_UNAUTHORIZED: "0"
         run: |
@@ -337,7 +273,8 @@ jobs:
 
       - name: Collect engine logs
         if: always()
-        run: docker logs hatchet-engine > /tmp/engine.log 2>&1 || true
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-engine > /tmp/engine.log 2>&1 || true
 
       - name: Upload engine logs
         if: always()
@@ -348,7 +285,8 @@ jobs:
 
       - name: Collect API logs
         if: always()
-        run: docker logs hatchet-api > /tmp/api.log 2>&1 || true
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-api > /tmp/api.log 2>&1 || true
 
       - name: Upload API logs
         if: always()
@@ -360,9 +298,7 @@ jobs:
       - name: Teardown
         if: always()
         working-directory: .
-        run: |
-          docker rm -f hatchet-engine hatchet-api 2>/dev/null || true
-          docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml down
 
   new-engine-old-sdk:
     runs-on: ubicloud-standard-4
@@ -428,6 +364,7 @@ jobs:
       - name: Run e2e tests against new engine
         working-directory: /tmp/old-sdk/sdks/typescript
         env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
           HATCHET_CLIENT_TLS_SERVER_NAME: cluster
           NODE_TLS_REJECT_UNAUTHORIZED: "0"
         run: |

@@ -1,0 +1,68 @@
+services:
+  hatchet-migrate:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${LATEST_TAG}
+    environment:
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+
+  hatchet-admin:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${LATEST_TAG}
+    environment:
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+      SEED_DEVELOPMENT: "true"
+      SERVER_PORT: "8080"
+      SERVER_URL: "http://localhost:8080"
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "true"
+      SERVER_GRPC_PORT: "7077"
+      SERVER_GRPC_BROADCAST_ADDRESS: "localhost:7077"
+      SERVER_GRPC_INSECURE: "true"
+      SERVER_DEFAULT_ENGINE_VERSION: V1
+      SERVER_MSGQUEUE_KIND: postgres
+    volumes:
+      - ./generated:/hatchet/generated
+
+  hatchet-engine:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${LATEST_TAG}
+    command: /hatchet/hatchet-engine --config /hatchet/generated
+    restart: on-failure
+    ports:
+      - "7077:7077"
+    environment:
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+      SERVER_GRPC_PORT: "7077"
+      SERVER_GRPC_BROADCAST_ADDRESS: "localhost:7077"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_INSECURE: "true"
+      SERVER_PORT: "8080"
+      SERVER_URL: "http://localhost:8080"
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "true"
+      SERVER_DEFAULT_ENGINE_VERSION: V1
+      SERVER_MSGQUEUE_KIND: postgres
+      SERVER_LOGGER_LEVEL: warn
+      SERVER_LOGGER_FORMAT: console
+      DATABASE_LOGGER_LEVEL: warn
+      DATABASE_LOGGER_FORMAT: console
+    volumes:
+      - ./generated:/hatchet/generated
+
+  hatchet-api:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-api:${LATEST_TAG}
+    command: /hatchet/hatchet-api --config /hatchet/generated
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+      SERVER_PORT: "8080"
+      SERVER_URL: "http://localhost:8080"
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "true"
+      SERVER_GRPC_PORT: "7077"
+      SERVER_GRPC_BROADCAST_ADDRESS: "localhost:7077"
+      SERVER_GRPC_INSECURE: "true"
+      SERVER_MSGQUEUE_KIND: postgres
+      DATABASE_LOGGER_LEVEL: warn
+      DATABASE_LOGGER_FORMAT: console
+    volumes:
+      - ./generated:/hatchet/generated
