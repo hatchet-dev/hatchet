@@ -1,11 +1,5 @@
 ## Hatchet SDK Changelog
 
-## [0.2.0] - 2026-03-03
-
-### Added
-
-- Adds `desired_worker_labels` support to `trigger_workflow` and `bulk_trigger_workflow` to allow dynamically routing task runs to a specific worker at trigger time
-
 ## [0.1.1] - 2026-02-27
 
 ### Changed
