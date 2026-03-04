@@ -515,7 +515,8 @@ class DurableContext(Context):
         self._durable_eviction_manager = durable_eviction_manager
         self._engine_version = engine_version
 
-    def _get_durable_listener(self) -> DurableEventListener:
+    @property
+    def _durable_listener(self) -> DurableEventListener:
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
@@ -565,7 +566,7 @@ class DurableContext(Context):
         if not self._supports_durable_eviction:
             return await aio_wait_for_pre_eviction(self, signal_key, *conditions)
 
-        listener = self._get_durable_listener()
+        listener = self._durable_listener
 
         await self._ensure_stream_started()
 
@@ -617,7 +618,7 @@ class DurableContext(Context):
         input: TWorkflowInput = cast(Any, EmptyModel()),
         options: TriggerWorkflowOptions | None = None,
     ) -> dict[str, Any]:
-        listener = self._get_durable_listener()
+        listener = self._durable_listener
 
         await self._ensure_stream_started()
 
@@ -685,7 +686,7 @@ class DurableContext(Context):
             )
             return await fn(*args, **kwargs)
 
-        listener = self._get_durable_listener()
+        listener = self._durable_listener
 
         run_external_id = self.step_run_id
         adapter = TypeAdapter(result_validator)

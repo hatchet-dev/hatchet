@@ -189,7 +189,7 @@ class Hatchet:
         """
         return self._client.config.namespace
 
-    async def aio_engine_version(self) -> str | None:
+    async def aio_get_engine_version(self) -> str | None:
         """Fetch the engine version via the dispatcher's GetVersion RPC.
 
         :return: The engine version string, or ``None`` if the engine is too old
