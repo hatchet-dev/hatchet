@@ -33,7 +33,7 @@ type ChildWorkflowOpts struct {
 	DesiredWorkerId     *string
 	AdditionalMetadata  *map[string]string
 	Priority            *int32
-	DesiredWorkerLabels map[string]*admincontracts.DesiredWorkerLabels
+	DesiredWorkerLabels map[string]*v1contracts.DesiredWorkerLabels
 }
 
 type WorkflowRun struct {
@@ -277,8 +277,8 @@ func WithPriority(priority int32) RunOptFunc {
 	}
 }
 
-func WithDesiredWorkerLabels(labels map[string]*admincontracts.DesiredWorkerLabels) RunOptFunc {
-	return func(r *admincontracts.TriggerWorkflowRequest) error {
+func WithDesiredWorkerLabels(labels map[string]*v1contracts.DesiredWorkerLabels) RunOptFunc {
+	return func(r *v1contracts.TriggerWorkflowRequest) error {
 		r.DesiredWorkerLabels = labels
 
 		return nil

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -71,17 +70,17 @@ func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 	}
 }
 
-func desiredWorkerLabelsToProto(labels map[string]*DesiredWorkerLabel) map[string]*admincontracts.DesiredWorkerLabels {
-	result := make(map[string]*admincontracts.DesiredWorkerLabels, len(labels))
+func desiredWorkerLabelsToProto(labels map[string]*DesiredWorkerLabel) map[string]*v1.DesiredWorkerLabels {
+	result := make(map[string]*v1.DesiredWorkerLabels, len(labels))
 
 	for key, label := range labels {
-		proto := &admincontracts.DesiredWorkerLabels{
+		proto := &v1.DesiredWorkerLabels{
 			Required: &label.Required,
 			Weight:   &label.Weight,
 		}
 
 		if label.Comparator != nil {
-			comparator := admincontracts.WorkerLabelComparator(*label.Comparator)
+			comparator := v1.WorkerLabelComparator(*label.Comparator)
 			proto.Comparator = &comparator
 		}
 

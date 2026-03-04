@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -536,21 +535,21 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
 
-func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map[string]*admincontracts.DesiredWorkerLabels {
+func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map[string]*v1.DesiredWorkerLabels {
 	if labels == nil {
 		return nil
 	}
 
-	result := make(map[string]*admincontracts.DesiredWorkerLabels, len(labels))
+	result := make(map[string]*v1.DesiredWorkerLabels, len(labels))
 
 	for key, label := range labels {
-		proto := &admincontracts.DesiredWorkerLabels{
+		proto := &v1.DesiredWorkerLabels{
 			Required: &label.Required,
 			Weight:   &label.Weight,
 		}
 
 		if label.Comparator != nil {
-			comparator := admincontracts.WorkerLabelComparator(*label.Comparator)
+			comparator := v1.WorkerLabelComparator(*label.Comparator)
 			proto.Comparator = &comparator
 		}
 
