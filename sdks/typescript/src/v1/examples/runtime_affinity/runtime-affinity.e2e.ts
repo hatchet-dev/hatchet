@@ -1,29 +1,15 @@
-import { makeE2EClient, stopWorker } from '../__e2e__/harness';
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
+import { WorkerList } from '@hatchet-dev/typescript-sdk/clients/rest/generated/data-contracts';
+import { stopWorker } from '../__e2e__/harness';
 import { Worker } from '../../client/worker/worker';
+import { hatchet } from '../hatchet-client';
 import { affinityExampleTask } from './workflow';
 
 const labels = ['foo', 'bar'] as const;
 
 describe('runtime-affinity-e2e', () => {
-  const hatchet = makeE2EClient();
   let workerA: Worker | undefined;
   let workerB: Worker | undefined;
-
-  beforeAll(async () => {
-    workerA = await hatchet.worker('runtime-affinity-worker', {
-      workflows: [affinityExampleTask],
-      labels: { affinity: labels[0] },
-    });
-    void workerA.start();
-    await workerA.waitUntilReady(10_000);
-
-    workerB = await hatchet.worker('runtime-affinity-worker', {
-      workflows: [affinityExampleTask],
-      labels: { affinity: labels[1] },
-    });
-    void workerB.start();
-    await workerB.waitUntilReady(10_000);
-  });
 
   afterAll(async () => {
     await stopWorker(workerA);
@@ -31,9 +17,25 @@ describe('runtime-affinity-e2e', () => {
   });
 
   it('routes runs to the correct worker based on desired labels', async () => {
-    const allWorkers = await hatchet.workers.list();
+    workerA = await hatchet.worker('runtime-affinity-worker', {
+      workflows: [affinityExampleTask],
+      labels: { affinity: labels[0] },
+    });
+    workerA.start().catch((err) => console.error('[affinity-test] workerA start error:', err));
+    await workerA.waitUntilReady(10_000);
+
+    workerB = await hatchet.worker('runtime-affinity-worker', {
+      workflows: [affinityExampleTask],
+      labels: { affinity: labels[1] },
+    });
+    workerB.start().catch((err) => console.error('[affinity-test] workerB start error:', err));
+    await workerB.waitUntilReady(10_000);
+
+    await sleep(5_000);
+
+    const allWorkers: WorkerList = await hatchet.workers.list();
     const activeWorkers = (allWorkers.rows || []).filter(
-      (w: any) => w.status === 'ACTIVE' && `${w.name}`.includes('runtime-affinity-worker')
+      (w) => w.status === 'ACTIVE' && `${w.name}`.includes('runtime-affinity-worker')
     );
 
     expect(activeWorkers.length).toBe(2);
@@ -64,7 +66,7 @@ describe('runtime-affinity-e2e', () => {
         }
       );
 
-      expect((res as any).worker_id).toBe(workerLabelToId[targetWorker]);
+      expect(res.worker_id).toBe(workerLabelToId[targetWorker]);
     }
   }, 120_000);
 });
