@@ -60,8 +60,8 @@ export default {
     type: "separator",
   },
   logging: "Logging",
-  "worker-healthchecks": "Worker Health Checks",
   opentelemetry: "OpenTelemetry",
+  "worker-healthchecks": "Worker Health Checks",
   "prometheus-metrics": "Prometheus Metrics",
   "additional-metadata": "Additional Metadata",
   "--operations": {
