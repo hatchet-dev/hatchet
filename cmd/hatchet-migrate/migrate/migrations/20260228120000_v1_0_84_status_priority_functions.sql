@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE OR REPLACE FUNCTION v1_status_priority(s v1_readable_status_olap)
+CREATE OR REPLACE FUNCTION v1_status_to_priority(s v1_readable_status_olap)
 RETURNS int IMMUTABLE LANGUAGE sql AS $$
     SELECT CASE s
         WHEN 'QUEUED'    THEN 1
@@ -26,5 +26,5 @@ $$;
 -- +goose StatementEnd
 
 -- +goose Down
-DROP FUNCTION IF EXISTS v1_status_from_priority(int);
-DROP FUNCTION IF EXISTS v1_status_priority(v1_readable_status_olap);
+DROP FUNCTION v1_status_from_priority(int);
+DROP FUNCTION v1_status_to_priority(v1_readable_status_olap);

@@ -12,7 +12,7 @@ CREATE TYPE v1_readable_status_olap AS ENUM (
 -- NOTE: enum ordering puts EVICTED after COMPLETED, but logically EVICTED is
 -- non-terminal and should rank below terminal statuses. These functions provide
 -- the canonical priority ordering for aggregation and comparison.
-CREATE OR REPLACE FUNCTION v1_status_priority(s v1_readable_status_olap)
+CREATE OR REPLACE FUNCTION v1_status_to_priority(s v1_readable_status_olap)
 RETURNS int IMMUTABLE LANGUAGE sql AS $$
     SELECT CASE s
         WHEN 'QUEUED'    THEN 1
