@@ -21,6 +21,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.workflows.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
+from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
@@ -115,6 +116,7 @@ class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     desired_worker_id: str | None = None
     sticky: bool = False
     key: str | None = None
+    desired_worker_label: dict[str, DesiredWorkerLabel] | None = None
 
 
 class WorkflowRunTriggerConfig(BaseModel):
@@ -175,6 +177,7 @@ class AdminClient:
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
         priority: int | None = None
+        desired_worker_label: dict[str, DesiredWorkerLabel] | None = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -197,6 +200,19 @@ class AdminClient:
     ) -> trigger_protos.TriggerWorkflowRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
+        desired_worker_labels = None
+        if _options.desired_worker_label:
+            desired_worker_labels = {
+                key: trigger_protos.DesiredWorkerLabels(
+                    str_value=d.value if not isinstance(d.value, int) else None,
+                    int_value=d.value if isinstance(d.value, int) else None,
+                    required=d.required,
+                    weight=d.weight,
+                    comparator=d.comparator,  # type: ignore[arg-type]
+                )
+                for key, d in _options.desired_worker_label.items()
+            }
+
         return trigger_protos.TriggerWorkflowRequest(
             name=workflow_name,
             input=input,
@@ -207,6 +223,7 @@ class AdminClient:
             additional_metadata=_options.additional_metadata,
             desired_worker_id=_options.desired_worker_id,
             priority=_options.priority,
+            desired_worker_labels=desired_worker_labels,
         )
 
     def _parse_schedule(
@@ -375,6 +392,7 @@ class AdminClient:
             namespace=options.namespace,
             sticky=options.sticky,
             key=options.key,
+            desired_worker_label=options.desired_worker_label,
         )
 
         namespace = options.namespace or self.namespace

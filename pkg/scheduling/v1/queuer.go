@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"sync"
 	"time"
@@ -194,9 +195,22 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint = time.Now()
 
 		stepIds := make([]uuid.UUID, 0, len(qis))
+		taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepID)
+
+			if len(qi.DesiredWorkerLabel) > 0 {
+				var desiredLabels []*sqlcv1.GetDesiredLabelsRow
+
+				err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
+
+				if err != nil {
+					q.l.Error().Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
+				}
+
+				taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
+			}
 		}
 
 		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds)
@@ -227,7 +241,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		getSlotRequestsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -605,9 +619,22 @@ func (q *Queuer) runOptimisticQueue(
 	}
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
+	taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)
+
+		if len(qi.DesiredWorkerLabel) > 0 {
+			var desiredLabels []*sqlcv1.GetDesiredLabelsRow
+
+			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
+
+			if err != nil {
+				q.l.Error().Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
+			}
+
+			taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
+		}
 	}
 
 	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
@@ -621,7 +648,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults

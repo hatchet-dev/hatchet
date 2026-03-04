@@ -47,9 +47,15 @@ def worker() -> Generator[Popen[bytes], None, None]:
         yield proc
 
 
-@pytest.fixture(scope="session")
-def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
+def _on_demand_worker_fixture(
+    request: FixtureRequest,
+) -> Generator[Popen[bytes], None, None]:
     command, port = cast(tuple[list[str], int], request.param)
 
     with hatchet_worker(command, port) as proc:
         yield proc
+
+
+@pytest.fixture(scope="session")
+def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
+    yield from _on_demand_worker_fixture(request)

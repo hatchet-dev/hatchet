@@ -126,7 +126,7 @@ module Hatchet
 
       # Register the worker with the dispatcher
       response = @client.dispatcher_grpc.register(
-        name: @name,
+        name: @client.config.apply_namespace(@name),
         actions: action_ids,
         slots: @slots,
         labels: @labels,

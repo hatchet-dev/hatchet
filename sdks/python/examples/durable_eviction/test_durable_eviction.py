@@ -29,8 +29,8 @@ from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from tests.worker_fixture import hatchet_worker
 
-POLL_INTERVAL = 2
-MAX_POLLS = 15
+POLL_INTERVAL = 0.2
+MAX_POLLS = 150
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
@@ -311,3 +311,62 @@ async def test_graceful_termination_evicts_waiting_runs(hatchet: Hatchet) -> Non
         assert (
             V1TaskStatus.EVICTED in statuses
         ), f"Expected EVICTED after SIGTERM, got: {statuses}"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_eviction_plus_replay(hatchet: Hatchet) -> None:
+    """After eviction, replay (not restore) should re-queue the run from the beginning."""
+    ref = evictable_sleep.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED)
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+
+    result = await ref.aio_result()
+    assert result["status"] == "completed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
+    """Cancelling an evicted run should transition it to CANCELLED."""
+    ref = evictable_sleep.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    details = await _poll_until_status(
+        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+    )
+    statuses = {t.status for t in details.task_runs.values()}
+    assert V1TaskStatus.EVICTED in statuses, f"Expected EVICTED, got: {statuses}"
+
+    await hatchet.runs.aio_cancel(ref.workflow_run_id)
+
+    status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+    for _ in range(MAX_POLLS):
+        status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+        if status == V1TaskStatus.CANCELLED:
+            break
+        await asyncio.sleep(POLL_INTERVAL)
+    else:
+        status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
+
+    assert status == V1TaskStatus.CANCELLED
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_restore_idempotency(hatchet: Hatchet) -> None:
+    """Restoring twice on the same evicted task should not cause duplicate execution."""
+    ref = evictable_sleep.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    details = await _poll_until_status(
+        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+    )
+    task_id = _get_task_id(details)
+
+    with hatchet.runs.client() as client:
+        TaskApi(client).v1_task_restore(task=task_id)
+        TaskApi(client).v1_task_restore(task=task_id)
+
+    result = await ref.aio_result()
+    assert result["status"] == "completed"

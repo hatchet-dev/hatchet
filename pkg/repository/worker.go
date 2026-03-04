@@ -94,7 +94,7 @@ type WorkerRepository interface {
 	GetWorkerWorkflowsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
-	ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error)
+	ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow, error)
 
 	// ListWorkerSlotConfigs returns slot config for workers.
 	ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
@@ -308,8 +308,20 @@ func (w *workerRepository) GetWorkerWorkflowsByWorkerId(ctx context.Context, ten
 	})
 }
 
-func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error) {
-	return w.queries.ListWorkerLabels(ctx, w.pool, workerId)
+func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow, error) {
+	labels, err := w.queries.ListWorkerLabels(ctx, w.pool, workerIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list worker labels: %w", err)
+	}
+
+	workerIdToLabels := make(map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow)
+
+	for _, label := range labels {
+		workerIdToLabels[label.WorkerId] = append(workerIdToLabels[label.WorkerId], label)
+	}
+
+	return workerIdToLabels, nil
 }
 
 func (w *workerRepository) ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {

@@ -476,6 +476,13 @@ export interface TriggerWorkflowRequest {
   desiredWorkerId?: string | undefined;
   /** (optional) override for the priority of the workflow tasks, will set all tasks to this priority */
   priority?: number | undefined;
+  /** (optional) override for the desired worker labels for the workflow tasks, used for routing to specific workers (or worker pools) */
+  desiredWorkerLabels: { [key: string]: DesiredWorkerLabels };
+}
+
+export interface TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
+  key: string;
+  value: DesiredWorkerLabels | undefined;
 }
 
 export interface TriggerWorkflowResponse {
@@ -2498,6 +2505,7 @@ function createBaseTriggerWorkflowRequest(): TriggerWorkflowRequest {
     additionalMetadata: undefined,
     desiredWorkerId: undefined,
     priority: undefined,
+    desiredWorkerLabels: {},
   };
 }
 
@@ -2530,6 +2538,12 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     if (message.priority !== undefined) {
       writer.uint32(72).int32(message.priority);
     }
+    Object.entries(message.desiredWorkerLabels).forEach(([key, value]) => {
+      TriggerWorkflowRequest_DesiredWorkerLabelsEntry.encode(
+        { key: key as any, value },
+        writer.uint32(82).fork()
+      ).join();
+    });
     return writer;
   },
 
@@ -2612,6 +2626,20 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
           message.priority = reader.int32();
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          const entry10 = TriggerWorkflowRequest_DesiredWorkerLabelsEntry.decode(
+            reader,
+            reader.uint32()
+          );
+          if (entry10.value !== undefined) {
+            message.desiredWorkerLabels[entry10.key] = entry10.value;
+          }
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2638,6 +2666,15 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
         ? globalThis.String(object.desiredWorkerId)
         : undefined,
       priority: isSet(object.priority) ? globalThis.Number(object.priority) : undefined,
+      desiredWorkerLabels: isObject(object.desiredWorkerLabels)
+        ? Object.entries(object.desiredWorkerLabels).reduce<{ [key: string]: DesiredWorkerLabels }>(
+            (acc, [key, value]) => {
+              acc[key] = DesiredWorkerLabels.fromJSON(value);
+              return acc;
+            },
+            {}
+          )
+        : {},
     };
   },
 
@@ -2670,6 +2707,15 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     if (message.priority !== undefined) {
       obj.priority = Math.round(message.priority);
     }
+    if (message.desiredWorkerLabels) {
+      const entries = Object.entries(message.desiredWorkerLabels);
+      if (entries.length > 0) {
+        obj.desiredWorkerLabels = {};
+        entries.forEach(([k, v]) => {
+          obj.desiredWorkerLabels[k] = DesiredWorkerLabels.toJSON(v);
+        });
+      }
+    }
     return obj;
   },
 
@@ -2687,9 +2733,107 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
     message.additionalMetadata = object.additionalMetadata ?? undefined;
     message.desiredWorkerId = object.desiredWorkerId ?? undefined;
     message.priority = object.priority ?? undefined;
+    message.desiredWorkerLabels = Object.entries(object.desiredWorkerLabels ?? {}).reduce<{
+      [key: string]: DesiredWorkerLabels;
+    }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = DesiredWorkerLabels.fromPartial(value);
+      }
+      return acc;
+    }, {});
     return message;
   },
 };
+
+function createBaseTriggerWorkflowRequest_DesiredWorkerLabelsEntry(): TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
+  return { key: '', value: undefined };
+}
+
+export const TriggerWorkflowRequest_DesiredWorkerLabelsEntry: MessageFns<TriggerWorkflowRequest_DesiredWorkerLabelsEntry> =
+  {
+    encode(
+      message: TriggerWorkflowRequest_DesiredWorkerLabelsEntry,
+      writer: BinaryWriter = new BinaryWriter()
+    ): BinaryWriter {
+      if (message.key !== '') {
+        writer.uint32(10).string(message.key);
+      }
+      if (message.value !== undefined) {
+        DesiredWorkerLabels.encode(message.value, writer.uint32(18).fork()).join();
+      }
+      return writer;
+    },
+
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number
+    ): TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
+      const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseTriggerWorkflowRequest_DesiredWorkerLabelsEntry();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.key = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.value = DesiredWorkerLabels.decode(reader, reader.uint32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    },
+
+    fromJSON(object: any): TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
+      return {
+        key: isSet(object.key) ? globalThis.String(object.key) : '',
+        value: isSet(object.value) ? DesiredWorkerLabels.fromJSON(object.value) : undefined,
+      };
+    },
+
+    toJSON(message: TriggerWorkflowRequest_DesiredWorkerLabelsEntry): unknown {
+      const obj: any = {};
+      if (message.key !== '') {
+        obj.key = message.key;
+      }
+      if (message.value !== undefined) {
+        obj.value = DesiredWorkerLabels.toJSON(message.value);
+      }
+      return obj;
+    },
+
+    create(
+      base?: DeepPartial<TriggerWorkflowRequest_DesiredWorkerLabelsEntry>
+    ): TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
+      return TriggerWorkflowRequest_DesiredWorkerLabelsEntry.fromPartial(base ?? {});
+    },
+    fromPartial(
+      object: DeepPartial<TriggerWorkflowRequest_DesiredWorkerLabelsEntry>
+    ): TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
+      const message = createBaseTriggerWorkflowRequest_DesiredWorkerLabelsEntry();
+      message.key = object.key ?? '';
+      message.value =
+        object.value !== undefined && object.value !== null
+          ? DesiredWorkerLabels.fromPartial(object.value)
+          : undefined;
+      return message;
+    },
+  };
 
 function createBaseTriggerWorkflowResponse(): TriggerWorkflowResponse {
   return { workflowRunId: '' };
