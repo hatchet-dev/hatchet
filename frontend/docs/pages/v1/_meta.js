@@ -49,19 +49,16 @@ export default {
     title: "Workers",
     type: "separator",
   },
-  runtime: {
-    title: "Worker Runtimes",
-    theme: { collapsed: true },
-  },
+  docker: "Running with Docker",
+  "autoscaling-workers": "Autoscaling Workers",
   "advanced-assignment": {
-    title: "Worker Assignment",
+    title: "Advanced Assignment",
     theme: { collapsed: true },
   },
   "--observability": {
     title: "Observability",
     type: "separator",
   },
-  streaming: "Streaming",
   logging: "Logging",
   "worker-healthchecks": "Worker Health Checks",
   opentelemetry: "OpenTelemetry",
@@ -71,6 +68,8 @@ export default {
     title: "Operations",
     type: "separator",
   },
+  middleware: "Middleware",
+  streaming: "Streaming",
   environments: "Environments",
   troubleshooting: {
     title: "Troubleshooting",

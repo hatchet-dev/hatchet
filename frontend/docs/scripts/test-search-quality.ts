@@ -319,7 +319,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "autoscaling workers",
     query: "autoscaling workers",
-    expectAnyOf: ["v1/runtime/autoscaling-workers"],
+    expectAnyOf: ["v1/autoscaling-workers", "v1/runtime/autoscaling-workers"],
   },
   {
     name: "worker health check",
@@ -437,12 +437,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "docker compose",
     query: "docker compose",
-    expectAnyOf: ["self-hosting/docker-compose", "v1/runtime/docker"],
+    expectAnyOf: ["self-hosting/docker-compose", "v1/docker", "v1/runtime/docker"],
   },
   {
     name: "running with docker",
     query: "running with docker",
-    expectAnyOf: ["v1/runtime/docker", "self-hosting/docker-compose"],
+    expectAnyOf: ["v1/docker", "v1/runtime/docker", "self-hosting/docker-compose"],
     topN: 10,
   },
   {
@@ -692,7 +692,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "scale workers → autoscaling",
     query: "scale workers",
-    expectAnyOf: ["v1/runtime/autoscaling-workers"],
+    expectAnyOf: ["v1/autoscaling-workers", "v1/runtime/autoscaling-workers"],
   },
   {
     name: "pipeline → DAG",
@@ -751,7 +751,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "deploy → docker/k8s",
     query: "deploy",
-    expectAnyOf: ["v1/runtime/docker", "self-hosting/docker-compose", "self-hosting/kubernetes-quickstart"],
+    expectAnyOf: ["v1/docker", "v1/runtime/docker", "self-hosting/docker-compose", "self-hosting/kubernetes-quickstart"],
     topN: 10,
   },
   {

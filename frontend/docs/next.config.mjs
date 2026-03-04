@@ -477,8 +477,14 @@ const nextConfig = {
       },
       {
         source: "/concepts/understanding-slots",
-        destination: "/v1/runtime/workers#slots",
+        destination: "/v1/workers#slots",
         permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/v1/runtime/workers",
+        destination: "/v1/workers",
+        permanent: false,
         basePath: false,
       },
       {
@@ -1183,14 +1189,20 @@ const nextConfig = {
       // Essentials → Concepts moves
       {
         source: "/get-started/docker",
-        destination: "/v1/runtime/docker",
+        destination: "/v1/docker",
         permanent: true,
         basePath: false,
       },
       {
         source: "/v1/get-started/docker",
-        destination: "/v1/runtime/docker",
+        destination: "/v1/docker",
         permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/v1/runtime/docker",
+        destination: "/v1/docker",
+        permanent: false,
         basePath: false,
       },
       {
@@ -1207,14 +1219,20 @@ const nextConfig = {
       },
       {
         source: "/get-started/autoscaling-workers",
-        destination: "/v1/runtime/autoscaling-workers",
+        destination: "/v1/autoscaling-workers",
         permanent: true,
         basePath: false,
       },
       {
         source: "/v1/get-started/autoscaling-workers",
-        destination: "/v1/runtime/autoscaling-workers",
+        destination: "/v1/autoscaling-workers",
         permanent: true,
+        basePath: false,
+      },
+      {
+        source: "/v1/runtime/autoscaling-workers",
+        destination: "/v1/autoscaling-workers",
+        permanent: false,
         basePath: false,
       },
     ];

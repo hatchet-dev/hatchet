@@ -185,6 +185,7 @@ CMD ["node", "dist/worker.js"]
     Yarn's `--frozen-lockfile` ensures your dependencies match the lock file exactly.
 </Callout>
   </Tabs.Tab>
+
   <Tabs.Tab>
 
 ```dockerfile
@@ -212,6 +213,7 @@ CMD ["/app/hatchet-worker"]
 ```
 
   </Tabs.Tab>
+
   <Tabs.Tab>
 {/* TODO-RUBY: verify and test this, possibly all dockerfiles */}
 ```dockerfile
@@ -245,4 +247,3 @@ CMD ["bundle", "exec", "ruby", "worker.rb"]
   </Tabs.Tab>
 
 </Tabs>
-```
