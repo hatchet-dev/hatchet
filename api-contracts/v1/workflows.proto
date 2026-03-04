@@ -6,6 +6,7 @@ package v1;
 
 import "google/protobuf/timestamp.proto";
 import "v1/shared/condition.proto";
+import "v1/shared/trigger.proto";
 
 // AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
 service AdminService {
@@ -48,6 +49,7 @@ message TriggerWorkflowRunRequest {
     bytes input = 2;
     bytes additional_metadata = 3;
     optional int32 priority = 4;
+    map<string, DesiredWorkerLabels> desired_worker_labels = 5;
 }
 
 message TriggerWorkflowRunResponse {
@@ -131,40 +133,6 @@ message Concurrency {
     optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 }
 
-enum WorkerLabelComparator {
-    EQUAL = 0;
-    NOT_EQUAL = 1;
-    GREATER_THAN = 2;
-    GREATER_THAN_OR_EQUAL = 3;
-    LESS_THAN = 4;
-    LESS_THAN_OR_EQUAL = 5;
-}
-
-message DesiredWorkerLabels {
-    // value of the affinity
-    optional string str_value = 1;
-    optional int32 int_value = 2;
-
-    /**
-    * (optional) Specifies whether the affinity setting is required.
-    * If required, the worker will not accept actions that do not have a truthy affinity setting.
-    *
-    * Defaults to false.
-    */
-    optional bool required = 3;
-
-    /**
-    * (optional) Specifies the comparator for the affinity setting.
-    * If not set, the default is EQUAL.
-    */
-    optional WorkerLabelComparator comparator = 4;
-
-    /**
-    * (optional) Specifies the weight of the affinity setting.
-    * If not set, the default is 100.
-    */
-    optional int32 weight = 5;
-}
 
 // CreateTaskOpts represents options to create a task.
 message CreateTaskOpts {
