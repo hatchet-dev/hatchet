@@ -15,6 +15,7 @@ import {
   RiFunctionLine,
   RiToolsLine,
   RiPlayLargeLine,
+  RiOrganizationChart,
 } from 'react-icons/ri';
 
 export function sideNavItems(opts: {
@@ -268,6 +269,23 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantFiltersRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiFilterLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+      ],
+    },
+    {
+      key: 'admin',
+      title: 'Admin',
+      itemsClassName: 'space-y-1',
+      items: [
+        {
+          key: 'organizations',
+          name: 'Organizations',
+          to: appRoutes.tenantOrganizationsRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiOrganizationChart
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
