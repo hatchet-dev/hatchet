@@ -1,6 +1,7 @@
 package transformers
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,7 +54,12 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	}
 
 	if worker.Language.Valid {
-		lang := gen.WorkerRuntimeSDKs(worker.Language.WorkerSDKS)
+		langStr := string(worker.Language.WorkerSDKS)
+		if strings.ToLower(langStr) == "GO" {
+			langStr = "GOLANG"
+		}
+
+		lang := gen.WorkerRuntimeSDKs(langStr)
 		runtime.Language = &lang
 	}
 
