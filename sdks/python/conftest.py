@@ -21,7 +21,7 @@ async def hatchet() -> AsyncGenerator[Hatchet, None]:
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def engine_version(hatchet: Hatchet) -> str | None:
-    return await hatchet.aio_engine_version()
+    return await hatchet.aio_get_engine_version()
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
