@@ -38,10 +38,10 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
-    DesiredWorkerLabels,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.logger import logger

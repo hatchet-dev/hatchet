@@ -203,7 +203,7 @@ class AdminClient:
         desired_worker_labels = None
         if _options.desired_worker_label:
             desired_worker_labels = {
-                key: v0_workflow_protos.DesiredWorkerLabels(
+                key: trigger_protos.DesiredWorkerLabels(
                     str_value=d.value if not isinstance(d.value, int) else None,
                     int_value=d.value if isinstance(d.value, int) else None,
                     required=d.required,
