@@ -28,7 +28,11 @@ async def aio_wait_for_pre_eviction(
     signal_key: str,
     *conditions: SleepCondition | UserEventCondition | OrGroup,
 ) -> dict[str, Any]:
-    assert isinstance(ctx.durable_event_listener, PreEvictionDurableEventListener)
+    if not isinstance(ctx.durable_event_listener, PreEvictionDurableEventListener):
+        raise TypeError(
+            "Expected PreEvictionDurableEventListener, got "
+            f"{type(ctx.durable_event_listener).__name__}"
+        )
 
     task_id = ctx.step_run_id
 
