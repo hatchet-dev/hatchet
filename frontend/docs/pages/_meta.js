@@ -3,21 +3,21 @@ export default {
     title: "Guide",
     type: "page",
     theme: {
-      toc: false,
+      toc: true,
     },
   },
   cookbooks: {
     title: "Cookbooks",
     type: "page",
     theme: {
-      toc: false,
+      toc: true,
     },
   },
   "self-hosting": {
     title: "Self-Hosting",
     type: "page",
     theme: {
-      toc: false,
+      toc: true,
     },
   },
   reference: {
@@ -52,7 +52,7 @@ export default {
     type: "page",
     display: "hidden",
     theme: {
-      toc: false,
+      toc: true,
     },
   },
   "agent-instructions": {
