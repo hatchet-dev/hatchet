@@ -13,10 +13,7 @@ export default {
   tasks: "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "durable-workflows": {
-    title: "Durable Workflows",
-    theme: { collapsed: true },
-  },
+  "durable-workflows-overview": "Intro to Durable Workflows",
   "--triggers": {
     title: "Triggers",
     type: "separator",
@@ -45,6 +42,20 @@ export default {
   concurrency: "Concurrency",
   "rate-limits": "Rate Limits",
   priority: "Priority",
+"--durable-workflows-section": {
+    title: "Durable Workflows",
+    type: "separator",
+  },
+  patterns: {
+    title: "Patterns",
+    theme: { collapsed: true },
+  },
+  "child-spawning": "Child Spawning",
+  sleep: "Sleep & Delays",
+  events: "Wait For Events",
+  conditions: "Conditions & Branching",
+  "on-failure": "Error Handling",
+  "task-eviction": "Resource Management",
   "--workers-section": {
     title: "Workers",
     type: "separator",

@@ -1,7 +1,3 @@
----
-asIndexPage: true
----
-
 import { Callout, Cards } from "nextra/components";
 import DurableWorkflowComparisonDiagram from "@/components/DurableWorkflowComparisonDiagram";
 
@@ -21,7 +17,7 @@ Your code describes the steps; Hatchet makes them durable and resumable.
 
 ## Two patterns
 
-Hatchet supports two patterns for building durable workflows, and you can [mix them](/v1/durable-workflows/mixing-patterns) within the same application. Both are durable — the difference is how you express the work. The key difference is whether you know the **shape of work** ahead of time.
+Hatchet supports two patterns for building durable workflows, and you can [mix them](/v1/patterns/mixing-patterns) within the same application. Both are durable — the difference is how you express the work. The key difference is whether you know the **shape of work** ahead of time.
 
 <DurableWorkflowComparisonDiagram />
 
@@ -39,7 +35,7 @@ Hatchet supports two patterns for building durable workflows, and you can [mix t
 
 ## Choosing a pattern
 
-DAGs are **easier to visualize and reason about** — every task, dependency, and data flow is visible as a graph. Durable tasks offer **more flexibility** — they can branch, loop, and spawn children dynamically — but their runtime behavior is harder to predict from the code alone. When in doubt, start with a DAG and reach for a durable task only when you need capabilities a static graph can't express. You can always [mix both patterns](/v1/durable-workflows/mixing-patterns) in the same application.
+DAGs are **easier to visualize and reason about** — every task, dependency, and data flow is visible as a graph. Durable tasks offer **more flexibility** — they can branch, loop, and spawn children dynamically — but their runtime behavior is harder to predict from the code alone. When in doubt, start with a DAG and reach for a durable task only when you need capabilities a static graph can't express. You can always [mix both patterns](/v1/patterns/mixing-patterns) in the same application.
 
 ## How workflows relate to tasks
 
@@ -48,19 +44,19 @@ A workflow is a **container of tasks**. Both standalone tasks and workflows are 
 <Cards>
   <Cards.Card
     title="Durable Task Execution"
-    href="/v1/durable-workflows/durable-task-execution"
+    href="/v1/patterns/durable-task-execution"
   >
     Checkpoints, durable context, and when to use it.
   </Cards.Card>
   <Cards.Card
     title="Directed Acyclic Graphs"
-    href="/v1/durable-workflows/directed-acyclic-graphs"
+    href="/v1/patterns/directed-acyclic-graphs"
   >
     Multi-task workflows with dependencies and parallel execution.
   </Cards.Card>
   <Cards.Card
     title="Mixing Patterns"
-    href="/v1/durable-workflows/mixing-patterns"
+    href="/v1/patterns/mixing-patterns"
   >
     Combine durable tasks and DAGs within the same workflow.
   </Cards.Card>

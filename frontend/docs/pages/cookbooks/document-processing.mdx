@@ -8,11 +8,11 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Document Processing
 
-PDF and file pipelines are central to AI workflows: parse documents, extract content with OCR or LLMs, validate and enrich the data, and classify or route it. We'll structure these as Hatchet [DAG workflows](/v1/durable-workflows/directed-acyclic-graphs).
+PDF and file pipelines are central to AI workflows: parse documents, extract content with OCR or LLMs, validate and enrich the data, and classify or route it. We'll structure these as Hatchet [DAG workflows](/v1/patterns/directed-acyclic-graphs).
 
 <DocumentProcessingDiagram />
 
-Because the stages are fixed (ingest → parse → extract), document pipelines map naturally to [DAG workflows](/v1/durable-workflows/directed-acyclic-graphs). You can add [child spawning](/v1/durable-workflows/child-spawning) within the ingest or parse stage to process multiple documents in parallel.
+Because the stages are fixed (ingest → parse → extract), document pipelines map naturally to [DAG workflows](/v1/patterns/directed-acyclic-graphs). You can add [child spawning](/v1/durable-workflows/child-spawning) within the ingest or parse stage to process multiple documents in parallel.
 
 ## Step-by-step walkthrough
 
@@ -169,14 +169,14 @@ Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable
 | **Contract analysis**       | Extract clauses and terms, classify risk, route for legal review                                                |
 | **Resume parsing**          | Parse resumes, extract skills and experience, match to job requisitions                                         |
 | **Form processing**         | Extract form fields from scans, validate against schemas, submit to backend systems                             |
-| **Document classification** | Classify documents by type, route to appropriate [DAG workflows](/v1/durable-workflows/directed-acyclic-graphs) |
+| **Document classification** | Classify documents by type, route to appropriate [DAG workflows](/v1/patterns/directed-acyclic-graphs) |
 
 ## Related Patterns
 
 <Cards>
   <Cards.Card
     title="DAG Workflows"
-    href="/v1/durable-workflows/directed-acyclic-graphs"
+    href="/v1/patterns/directed-acyclic-graphs"
   >
     The fixed-stage DAG pattern that document pipelines are built on.
   </Cards.Card>
@@ -197,7 +197,7 @@ Start the worker. For per-document parallelism, use [Child Spawning](/v1/durable
 
 ## Next Steps
 
-- [DAG Workflows](/v1/durable-workflows/directed-acyclic-graphs): define multi-stage pipelines with task dependencies
+- [DAG Workflows](/v1/patterns/directed-acyclic-graphs): define multi-stage pipelines with task dependencies
 - [Rate Limits](/v1/rate-limits): configure rate limiting for OCR and LLM APIs
 - [Child Spawning](/v1/durable-workflows/child-spawning): fan out to per-document tasks
 - [Webhooks](/v1/webhooks): trigger pipelines from file upload endpoints

@@ -76,7 +76,7 @@ Tasks can be configured to handle common problems in distributed systems. For ex
 
 Every task receives an **input** - a JSON-serializable object passed when the task is triggered. The value you return from the task function becomes the task's **output**, which callers receive when they await the result.
 
-When a task is part of a [workflow](/v1/durable-workflows), its output is also available to downstream tasks through the context object, so data flows naturally from one step to the next. See [Accessing Parent Task Outputs](/v1/durable-workflows/directed-acyclic-graphs#accessing-parent-task-outputs) for details.
+When a task is part of a [workflow](/v1/durable-workflows), its output is also available to downstream tasks through the context object, so data flows naturally from one step to the next. See [Accessing Parent Task Outputs](/v1/patterns/directed-acyclic-graphs#accessing-parent-task-outputs) for details.
 
 ## The context object
 

@@ -5,7 +5,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Routing
 
-Routing classifies an incoming request and directs it to a specialist [durable task](/v1/durable-workflows/durable-task-execution). A single entry point handles all requests; the routing logic (an LLM call, a rule-based check, or a keyword match) determines which downstream task runs. Only one branch executes per request.
+Routing classifies an incoming request and directs it to a specialist [durable task](/v1/patterns/durable-task-execution). A single entry point handles all requests; the routing logic (an LLM call, a rule-based check, or a keyword match) determines which downstream task runs. Only one branch executes per request.
 
 This pattern improves response quality because each specialist task has its own prompt, tools, and context optimized for that category. It also simplifies the caller: trigger one task and let the router decide where to send it.
 
@@ -32,7 +32,7 @@ flowchart TD
 
 ## How it maps to Hatchet
 
-The router is a **[durable task](/v1/durable-workflows/durable-task-execution)**. It spawns a classifier [child task](/v1/durable-workflows/child-spawning) (or does classification inline), then spawns the matching specialist as a [child run](/v1/durable-workflows/child-spawning). Since each specialist is a separate durable task, they can have their own [timeouts](/v1/timeouts), [retries](/v1/retry-policies), [rate limits](/v1/rate-limits), and [concurrency](/v1/concurrency) settings.
+The router is a **[durable task](/v1/patterns/durable-task-execution)**. It spawns a classifier [child task](/v1/durable-workflows/child-spawning) (or does classification inline), then spawns the matching specialist as a [child run](/v1/durable-workflows/child-spawning). Since each specialist is a separate durable task, they can have their own [timeouts](/v1/timeouts), [retries](/v1/retry-policies), [rate limits](/v1/rate-limits), and [concurrency](/v1/concurrency) settings.
 
 Routing decisions are checkpointed. If the worker dies after classification but before the specialist finishes, the router resumes and does not re-classify.
 
@@ -166,7 +166,7 @@ Register all tasks and start the worker.
 
 ## Next Steps
 
-- [Durable Task Execution](/v1/durable-workflows/durable-task-execution): understand how the router and specialists checkpoint
+- [Durable Task Execution](/v1/patterns/durable-task-execution): understand how the router and specialists checkpoint
 - [Child Spawning](/v1/durable-workflows/child-spawning): spawn specialist tasks from the router
 - [Timeouts](/v1/timeouts): set execution timeouts on the router and each specialist
 - [Retry Policies](/v1/retry-policies): configure retries for classification and specialist tasks

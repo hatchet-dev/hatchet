@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { useLanguage } from "../context/LanguageContext";
 import {
@@ -14,12 +14,15 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+
+const CALLOUT_DISMISSED_KEY = "docsLanguageCalloutDismissed";
 
 function ThemedIcon({ src, size = 12 }: { src: string; size?: number }) {
   return (
@@ -161,16 +164,38 @@ export function LanguageSelectorButton() {
   const basePath = router.basePath || "";
   const { selectedLanguage } = useLanguage();
   const current = resolveSelected(selectedLanguage);
+  const [showCallout, setShowCallout] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const dismissed = localStorage.getItem(CALLOUT_DISMISSED_KEY) === "true";
+      const hasChosenLanguage =
+        localStorage.getItem("uiOptions") !== null ||
+        localStorage.getItem("selectedLanguage") !== null;
+      setShowCallout(!dismissed && !hasChosenLanguage);
+    } catch {
+      setShowCallout(true);
+    }
+  }, []);
+
+  const dismissCallout = () => {
+    setShowCallout(false);
+    try {
+      localStorage.setItem(CALLOUT_DISMISSED_KEY, "true");
+    } catch {
+      /* noop */
+    }
+  };
 
   return (
-    <div className="ml-auto">
-      <Dialog>
+    <div className="relative ml-auto">
+      <Dialog onOpenChange={(open) => { if (open) dismissCallout(); }}>
         <DialogTrigger asChild>
           <Button
             variant="outline"
             size="sm"
             className="h-8 gap-2 px-3.5 py-2"
-            title={`Docs preferences (${current})`}
             aria-label={`Choose documentation language (${current})`}
           >
             <ThemedIcon
@@ -186,6 +211,9 @@ export function LanguageSelectorButton() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Docs preferences</DialogTitle>
+            <DialogDescription>
+              Customize your documentation experience by selecting your your stack for code examples.
+            </DialogDescription>
           </DialogHeader>
           <LanguageModalContent />
           <DialogFooter>
@@ -195,6 +223,17 @@ export function LanguageSelectorButton() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {showCallout && (
+        <div className="absolute top-full right-2 z-50 mt-2 w-64 animate-in fade-in-0 slide-in-from-top-1 duration-300">
+          <div className="relative rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--popover))] px-3 py-2.5 text-sm text-[hsl(var(--popover-foreground))] shadow-md">
+            <div className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 border-l border-t border-[hsl(var(--border))] bg-[hsl(var(--popover))]" />
+            <span className="whitespace-normal">
+              👋 Select a language so examples match your stack
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

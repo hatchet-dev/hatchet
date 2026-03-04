@@ -8,7 +8,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 LLM pipelines chain multiple model calls together with validation, retries, and structured outputs. Hatchet turns each step into a durable task so failures retry individually, rate limits protect provider APIs, and the full pipeline is observable in the dashboard.
 
-Because each LLM call maps to a task and validation steps gate what runs next, these pipelines are a natural fit for [DAG Workflows](/v1/durable-workflows/directed-acyclic-graphs).
+Because each LLM call maps to a task and validation steps gate what runs next, these pipelines are a natural fit for [DAG Workflows](/v1/patterns/directed-acyclic-graphs).
 
 ## Step-by-step walkthrough
 
@@ -167,7 +167,7 @@ Start the worker. Configure [Rate Limits](/v1/rate-limits) to stay within LLM pr
 
 ## Next Steps
 
-- [DAG Workflows](/v1/durable-workflows/directed-acyclic-graphs): define multi-stage LLM pipelines
+- [DAG Workflows](/v1/patterns/directed-acyclic-graphs): define multi-stage LLM pipelines
 - [Rate Limits](/v1/rate-limits): configure rate limiting for LLM providers
 - [Retry Policies](/v1/retry-policies): handle transient LLM API errors
 - [Streaming](/v1/streaming): stream LLM outputs to frontends in real-time

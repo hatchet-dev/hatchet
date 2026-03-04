@@ -102,7 +102,7 @@ export default function Custom404() {
       </p>
 
       <Link
-        href="/"
+        href="/v1"
         style={{
           display: "inline-flex",
           alignItems: "center",

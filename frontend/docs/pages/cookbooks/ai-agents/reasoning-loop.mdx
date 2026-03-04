@@ -11,7 +11,7 @@ AI agents follow a **reason-act-observe** loop that can run for minutes or hours
 
 <AgentLoopDiagram />
 
-In Hatchet, this is implemented as a [durable task](/v1/durable-workflows/durable-task-execution) with a loop. At each iteration, the task [spawns a child](/v1/durable-workflows/child-spawning) to call the LLM, execute any tool calls, and determine whether additional iterations are required. Each completed iteration is checkpointed, so the agent survives crashes and worker slots are freed between iterations.
+In Hatchet, this is implemented as a [durable task](/v1/patterns/durable-task-execution) with a loop. At each iteration, the task [spawns a child](/v1/durable-workflows/child-spawning) to call the LLM, execute any tool calls, and determine whether additional iterations are required. Each completed iteration is checkpointed, so the agent survives crashes and worker slots are freed between iterations.
 
 ## When to use
 
@@ -60,7 +60,7 @@ The examples above use a mock LLM. To call a real provider, swap `get_llm_servic
 
 ### Wrap it in a durable task
 
-Create a [durable task](/v1/durable-workflows/durable-task-execution) that invokes the reasoning loop from Step 1. Concurrency is set to `CANCEL_IN_PROGRESS` so new user messages cancel stale runs.
+Create a [durable task](/v1/patterns/durable-task-execution) that invokes the reasoning loop from Step 1. Concurrency is set to `CANCEL_IN_PROGRESS` so new user messages cancel stale runs.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -256,6 +256,6 @@ The evaluator-optimizer task loops: generate, evaluate, check score. Each genera
 ## Next Steps
 
 - [What is an Agent?](/guides/ai-agents): overview and pattern index
-- [Durable Workflows](/v1/durable-workflows/durable-task-execution): understand checkpointing and replay
+- [Durable Workflows](/v1/patterns/durable-task-execution): understand checkpointing and replay
 - [Streaming](/v1/streaming): set up real-time LLM output streaming
 - [Concurrency Control](/v1/concurrency): configure CANCEL_IN_PROGRESS for chat agents

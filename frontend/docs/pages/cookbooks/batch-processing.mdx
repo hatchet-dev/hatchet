@@ -10,7 +10,7 @@ Batch processing involves running the same operation across a large set of items
 
 <BatchProcessingDiagram />
 
-At its core, batch processing is [Fanout](/v1/durable-workflows/child-spawning) applied at scale. If your batch also has fixed stages (e.g., validate → transform → load), you can combine it with [Pre-Determined Pipelines](/v1/durable-workflows/directed-acyclic-graphs).
+At its core, batch processing is [Fanout](/v1/durable-workflows/child-spawning) applied at scale. If your batch also has fixed stages (e.g., validate → transform → load), you can combine it with [Pre-Determined Pipelines](/v1/patterns/directed-acyclic-graphs).
 
 ## Step-by-step walkthrough
 
@@ -85,7 +85,7 @@ Each child task processes a single item independently. Failed items are retried 
 
 ### Run the worker
 
-Register and start the worker with both parent and child workflows. For large batches, use [durable workflows](/v1/durable-workflows/durable-task-execution) so the parent does not hold a slot while waiting.
+Register and start the worker with both parent and child workflows. For large batches, use [durable workflows](/v1/patterns/durable-task-execution) so the parent does not hold a slot while waiting.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -117,7 +117,7 @@ Register and start the worker with both parent and child workflows. For large ba
 <Callout type="warning">
   For batches with thousands of items, use **durable workflows** so the parent
   task doesn't hold a worker slot while waiting for all children to complete.
-  See [Durable Workflows](/v1/durable-workflows/durable-task-execution) for
+  See [Durable Workflows](/v1/patterns/durable-task-execution) for
   details.
 </Callout>
 
@@ -139,7 +139,7 @@ Register and start the worker with both parent and child workflows. For large ba
   </Cards.Card>
   <Cards.Card
     title="Pre-Determined Pipelines"
-    href="/v1/durable-workflows/directed-acyclic-graphs"
+    href="/v1/patterns/directed-acyclic-graphs"
   >
     Chain batch processing with multi-stage transforms in a DAG.
   </Cards.Card>

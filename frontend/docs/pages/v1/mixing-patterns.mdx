@@ -1,6 +1,6 @@
 import { Callout } from "nextra/components";
 
-# Patterns & Best Practices
+# Best Practices
 
 ## Choosing a Pattern
 
@@ -14,7 +14,7 @@ Use a **DAG** for any portion of work whose shape you know upfront, and use a **
 | Fully dynamic, shape decided at runtime        | Durable task spawning tasks/durable tasks    |
 | Agent that reasons and acts in a loop          | Durable task spawning children per iteration |
 
-[DAGs](/v1/durable-workflows/directed-acyclic-graphs) are inherently deterministic, since their shape is predefined and intermediate results are cached. If your workflow can be represented as a DAG, prefer that. Reach for a durable task only when you need capabilities a static graph can't express.
+[DAGs](/v1/patterns/directed-acyclic-graphs) are inherently deterministic, since their shape is predefined and intermediate results are cached. If your workflow can be represented as a DAG, prefer that. Reach for a durable task only when you need capabilities a static graph can't express.
 
 <Callout type="info">
   You don't have to choose one pattern for your entire application. Different

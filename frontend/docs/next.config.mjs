@@ -81,6 +81,55 @@ const nextConfig = {
         permanent: false,
         basePath: false,
       },
+      // Section directories without index → first page
+      {
+        source: '/v1/migrating',
+        destination: '/v1/migrating/v1-sdk-improvements',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/v1/migrating/',
+        destination: '/v1/migrating/v1-sdk-improvements',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/agent-instructions',
+        destination: '/agent-instructions/setup-cli',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/agent-instructions/',
+        destination: '/agent-instructions/setup-cli',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/typescript/feature-clients',
+        destination: '/reference/typescript/feature-clients/crons',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/typescript/feature-clients/',
+        destination: '/reference/typescript/feature-clients/crons',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/python/feature-clients',
+        destination: '/reference/python/feature-clients/cron',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/reference/python/feature-clients/',
+        destination: '/reference/python/feature-clients/cron',
+        permanent: false,
+        basePath: false,
+      },
       {
         source: '/get-started/setup',
         destination: '/v1/setup/advanced',
@@ -320,7 +369,7 @@ const nextConfig = {
       },
       {
         source: "/home/features/durable-execution",
-        destination: "/v1/durable-workflows/durable-task-execution",
+        destination: "/v1/patterns/durable-task-execution",
         permanent: false,
         basePath: false,
       },
@@ -417,13 +466,13 @@ const nextConfig = {
       // Redirect old /concepts/X paths to new durable-workflows structure
       {
         source: "/concepts/workflows",
-        destination: "/v1/durable-workflows",
+        destination: "/v1/durable-workflows-overview",
         permanent: true,
         basePath: false,
       },
       {
         source: "/concepts/dags",
-        destination: "/v1/durable-workflows/directed-acyclic-graphs",
+        destination: "/v1/patterns/directed-acyclic-graphs",
         permanent: true,
         basePath: false,
       },
@@ -453,7 +502,7 @@ const nextConfig = {
       },
       {
         source: "/concepts/durable-execution",
-        destination: "/v1/durable-workflows/durable-task-execution",
+        destination: "/v1/patterns/durable-task-execution",
         permanent: true,
         basePath: false,
       },
@@ -471,7 +520,7 @@ const nextConfig = {
       },
       {
         source: "/concepts/durable-best-practices",
-        destination: "/v1/durable-workflows/mixing-patterns",
+        destination: "/v1/patterns/mixing-patterns",
         permanent: true,
         basePath: false,
       },
@@ -633,7 +682,7 @@ const nextConfig = {
       },
       {
         source: "/home/:slug(dags|orchestration)",
-        destination: "/v1/durable-workflows/directed-acyclic-graphs",
+        destination: "/v1/patterns/directed-acyclic-graphs",
         permanent: true,
         basePath: false,
       },
@@ -663,7 +712,7 @@ const nextConfig = {
       },
       {
         source: "/home/durable-execution",
-        destination: "/v1/durable-workflows/durable-task-execution",
+        destination: "/v1/patterns/durable-task-execution",
         permanent: true,
         basePath: false,
       },
@@ -681,7 +730,7 @@ const nextConfig = {
       },
       {
         source: "/home/durable-best-practices",
-        destination: "/v1/durable-workflows/mixing-patterns",
+        destination: "/v1/patterns/mixing-patterns",
         permanent: true,
         basePath: false,
       },
@@ -831,7 +880,7 @@ const nextConfig = {
       },
       {
         source: "/:slug(dags|orchestration)",
-        destination: "/v1/durable-workflows/directed-acyclic-graphs",
+        destination: "/v1/patterns/directed-acyclic-graphs",
         permanent: true,
         basePath: false,
       },
@@ -861,7 +910,7 @@ const nextConfig = {
       },
       {
         source: "/durable-execution",
-        destination: "/v1/durable-workflows/durable-task-execution",
+        destination: "/v1/patterns/durable-task-execution",
         permanent: true,
         basePath: false,
       },
@@ -879,7 +928,7 @@ const nextConfig = {
       },
       {
         source: "/durable-best-practices",
-        destination: "/v1/durable-workflows/mixing-patterns",
+        destination: "/v1/patterns/mixing-patterns",
         permanent: true,
         basePath: false,
       },
@@ -957,7 +1006,7 @@ const nextConfig = {
       },
       {
         source: "/get-started/patterns/pre-determined-pipelines",
-        destination: "/v1/durable-workflows/directed-acyclic-graphs",
+        destination: "/v1/patterns/directed-acyclic-graphs",
         permanent: false,
         basePath: false,
       },
@@ -993,7 +1042,7 @@ const nextConfig = {
       },
       {
         source: "/v1/guides/pre-determined-pipelines",
-        destination: "/v1/durable-workflows/directed-acyclic-graphs",
+        destination: "/v1/patterns/directed-acyclic-graphs",
         permanent: false,
         basePath: false,
       },
@@ -1154,6 +1203,74 @@ const nextConfig = {
         permanent: true,
         basePath: false,
       },
+      // Durable workflows: base path → overview (index removed)
+      {
+        source: "/v1/durable-workflows",
+        destination: "/v1/durable-workflows-overview",
+        permanent: false,
+        basePath: false,
+      },
+      // Durable workflows: old paths (pages moved to patterns/) → new paths
+      {
+        source: "/v1/durable-workflows/durable-task-execution",
+        destination: "/v1/patterns/durable-task-execution",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/durable-workflows/durable-task-execution/",
+        destination: "/v1/patterns/durable-task-execution",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/durable-workflows/directed-acyclic-graphs",
+        destination: "/v1/patterns/directed-acyclic-graphs",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/durable-workflows/directed-acyclic-graphs/",
+        destination: "/v1/patterns/directed-acyclic-graphs",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/durable-workflows/mixing-patterns",
+        destination: "/v1/patterns/mixing-patterns",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/durable-workflows/mixing-patterns/",
+        destination: "/v1/patterns/mixing-patterns",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/durable-workflows/patterns",
+        destination: "/v1/patterns/durable-task-execution",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/patterns",
+        destination: "/v1/patterns/durable-task-execution",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/patterns/",
+        destination: "/v1/patterns/durable-task-execution",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/v1/durable-workflows/patterns/",
+        destination: "/v1/patterns/durable-task-execution",
+        permanent: false,
+        basePath: false,
+      },
       // Durable workflows page unification redirects
       {
         source: "/v1/durable-workflows/sleep-conditions",
@@ -1176,13 +1293,13 @@ const nextConfig = {
       // Essentials durable-workflows subpage consolidation
       {
         source: "/v1/get-started/durable-workflows/durable-task-execution",
-        destination: "/v1/durable-workflows/durable-task-execution",
+        destination: "/v1/patterns/durable-task-execution",
         permanent: true,
         basePath: false,
       },
       {
         source: "/v1/get-started/durable-workflows/directed-acyclic-graph",
-        destination: "/v1/durable-workflows/directed-acyclic-graphs",
+        destination: "/v1/patterns/directed-acyclic-graphs",
         permanent: true,
         basePath: false,
       },

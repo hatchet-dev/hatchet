@@ -1,7 +1,7 @@
 export default {
   index: "Overview",
   "--ai": {
-    title: "Artificial Intelligence",
+    title: "AI",
     type: "separator",
   },
   "ai-agents": { title: "AI Agents" },

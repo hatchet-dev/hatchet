@@ -7,7 +7,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # RAG & Data Indexing
 
-RAG and indexing pipelines share a common shape: ingest documents, split them into chunks, generate embeddings, and write to a vector database. Because the stages are known upfront, these pipelines map naturally to a [DAG workflow](/v1/durable-workflows/directed-acyclic-graphs), where each stage is a task and dependencies between stages are declared before execution begins.
+RAG and indexing pipelines share a common shape: ingest documents, split them into chunks, generate embeddings, and write to a vector database. Because the stages are known upfront, these pipelines map naturally to a [DAG workflow](/v1/patterns/directed-acyclic-graphs), where each stage is a task and dependencies between stages are declared before execution begins.
 
 <RAGPipelineDiagram />
 
@@ -21,7 +21,7 @@ You'll define a workflow, then add tasks for ingesting, chunking, embedding, and
 
 ### Define the workflow
 
-Define your input type and create an empty [DAG workflow](/v1/durable-workflows/directed-acyclic-graphs). You'll add tasks to this workflow in the following steps.
+Define your input type and create an empty [DAG workflow](/v1/patterns/directed-acyclic-graphs). You'll add tasks to this workflow in the following steps.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -221,7 +221,7 @@ For SaaS applications where multiple tenants share the same pipeline:
 <Cards>
   <Cards.Card
     title="DAG Workflows"
-    href="/v1/durable-workflows/directed-acyclic-graphs"
+    href="/v1/patterns/directed-acyclic-graphs"
   >
     Declare tasks and dependencies upfront so Hatchet can execute them in order.
   </Cards.Card>
@@ -243,7 +243,7 @@ For SaaS applications where multiple tenants share the same pipeline:
 
 ## Next Steps
 
-- [DAG Workflows](/v1/durable-workflows/directed-acyclic-graphs): define multi-stage pipelines
+- [DAG Workflows](/v1/patterns/directed-acyclic-graphs): define multi-stage pipelines
 - [Rate Limits](/v1/rate-limits): configure rate limiting for embedding APIs
 - [Child Spawning](/v1/durable-workflows/child-spawning): fan out to per-document tasks
 - [Concurrency Control](/v1/concurrency): fair scheduling for multi-tenant indexing

@@ -11,7 +11,7 @@ Agents generally fall into two categories:
 
 You can build both with Hatchet, but most teams choose semi-autonomous agents for the majority of production workloads because they are easier to reason about, test, and run more reliably.
 
-Agents fail in production when the process hosting them dies mid-loop, when they hold resources for hours or days while waiting on external input, or when a long-running reasoning chain exhausts a timeout. Hatchet solves these problems by making every agent a **[durable task](/v1/durable-workflows/durable-task-execution)**.
+Agents fail in production when the process hosting them dies mid-loop, when they hold resources for hours or days while waiting on external input, or when a long-running reasoning chain exhausts a timeout. Hatchet solves these problems by making every agent a **[durable task](/v1/patterns/durable-task-execution)**.
 
 ```mermaid
 sequenceDiagram
@@ -34,7 +34,7 @@ sequenceDiagram
 
 | Agent concept       | Hatchet primitive                                                                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Agent               | [Durable task](/v1/durable-workflows/durable-task-execution)                                                        |
+| Agent               | [Durable task](/v1/patterns/durable-task-execution)                                                        |
 | Reasoning loop      | [Child spawning](/v1/durable-workflows/child-spawning): task re-spawns itself until done                            |
 | Tool calls          | [Child tasks](/v1/durable-workflows/child-spawning): sequential or [parallel](/v1/durable-workflows/child-spawning) |
 | Human approval gate | [WaitForEvent](/v1/durable-workflows/events): slot freed while waiting                                              |
