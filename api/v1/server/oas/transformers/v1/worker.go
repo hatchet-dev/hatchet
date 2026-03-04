@@ -79,31 +79,52 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 		status = gen.INACTIVE
 	}
 
+	const slotTypeDurable = "durable"
+
 	var slotConfigInt *map[string]gen.WorkerSlotConfig
+	var availableRunsPtr *int
+	var maxRuns int
 	if len(slotConfig) > 0 {
 		tmp := make(map[string]gen.WorkerSlotConfig, len(slotConfig))
+		allNonDurableAvailableKnown := true
+		var availableRuns int
 		for k, v := range slotConfig {
 			tmp[k] = v
+			if k != slotTypeDurable {
+				maxRuns += v.Limit
+				if v.Available != nil {
+					availableRuns += *v.Available
+				} else {
+					allNonDurableAvailableKnown = false
+				}
+			}
 		}
 		slotConfigInt = &tmp
+		if allNonDurableAvailableKnown {
+			availableRunsPtr = &availableRuns
+		}
+	} else {
+		maxRuns = int(worker.MaxRuns)
 	}
-
 	workerLabels := transformers.ToWorkerLabels(labels)
 
+	maxRunsPtr := &maxRuns
 	res := &gen.Worker{
 		Metadata: gen.APIResourceMeta{
 			Id:        worker.ID.String(),
 			CreatedAt: worker.CreatedAt.Time,
 			UpdatedAt: worker.UpdatedAt.Time,
 		},
-		Name:         worker.Name,
-		Type:         gen.WorkerType(worker.Type),
-		Status:       &status,
-		DispatcherId: dispatcherId,
-		SlotConfig:   slotConfigInt,
-		RuntimeInfo:  ToWorkerRuntimeInfo(worker),
-		WebhookId:    worker.WebhookId,
-		Labels:       workerLabels,
+		Name:          worker.Name,
+		Type:          gen.WorkerType(worker.Type),
+		Status:        &status,
+		DispatcherId:  dispatcherId,
+		MaxRuns:       maxRunsPtr,
+		AvailableRuns: availableRunsPtr,
+		SlotConfig:    slotConfigInt,
+		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
+		WebhookId:     worker.WebhookId,
+		Labels:        workerLabels,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

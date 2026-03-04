@@ -43,6 +43,12 @@ module HatchetSdkRest
     # The status of the worker.
     attr_accessor :status
 
+    # The maximum number of runs this worker can execute concurrently. Deprecated - use slotConfig for per-slot-type limits (sum non-durable for equivalent).
+    attr_accessor :max_runs
+
+    # The number of runs currently available for this worker. Deprecated - use slotConfig for per-slot-type availability (sum non-durable for equivalent).
+    attr_accessor :available_runs
+
     # Slot availability and limits for this worker (slot_type -> { available, limit }).
     attr_accessor :slot_config
 
@@ -95,6 +101,8 @@ module HatchetSdkRest
         :'slots' => :'slots',
         :'recent_step_runs' => :'recentStepRuns',
         :'status' => :'status',
+        :'max_runs' => :'maxRuns',
+        :'available_runs' => :'availableRuns',
         :'slot_config' => :'slotConfig',
         :'dispatcher_id' => :'dispatcherId',
         :'labels' => :'labels',
@@ -127,6 +135,8 @@ module HatchetSdkRest
         :'slots' => :'Array<SemaphoreSlots>',
         :'recent_step_runs' => :'Array<RecentStepRuns>',
         :'status' => :'String',
+        :'max_runs' => :'Integer',
+        :'available_runs' => :'Integer',
         :'slot_config' => :'Hash<String, WorkerSlotConfig>',
         :'dispatcher_id' => :'String',
         :'labels' => :'Array<WorkerLabel>',
@@ -210,6 +220,14 @@ module HatchetSdkRest
 
       if attributes.key?(:'status')
         self.status = attributes[:'status']
+      end
+
+      if attributes.key?(:'max_runs')
+        self.max_runs = attributes[:'max_runs']
+      end
+
+      if attributes.key?(:'available_runs')
+        self.available_runs = attributes[:'available_runs']
       end
 
       if attributes.key?(:'slot_config')
@@ -356,6 +374,8 @@ module HatchetSdkRest
           slots == o.slots &&
           recent_step_runs == o.recent_step_runs &&
           status == o.status &&
+          max_runs == o.max_runs &&
+          available_runs == o.available_runs &&
           slot_config == o.slot_config &&
           dispatcher_id == o.dispatcher_id &&
           labels == o.labels &&
@@ -373,7 +393,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, type, last_heartbeat_at, last_listener_established, actions, registered_workflows, slots, recent_step_runs, status, slot_config, dispatcher_id, labels, webhook_url, webhook_id, runtime_info].hash
+      [metadata, name, type, last_heartbeat_at, last_listener_established, actions, registered_workflows, slots, recent_step_runs, status, max_runs, available_runs, slot_config, dispatcher_id, labels, webhook_url, webhook_id, runtime_info].hash
     end
 
     # Builds the object from hash
