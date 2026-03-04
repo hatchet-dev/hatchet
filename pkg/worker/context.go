@@ -90,6 +90,12 @@ type HatchetContext interface {
 
 	WasSkipped(parent create.NamedTask) bool
 
+	TenantId() string
+
+	WorkerId() string
+
+	ActionId() string
+
 	client() client.Client
 
 	action() *client.Action
@@ -205,6 +211,18 @@ func (h *hatchetContext) client() client.Client {
 
 func (h *hatchetContext) action() *client.Action {
 	return h.a
+}
+
+func (h *hatchetContext) TenantId() string {
+	return h.a.TenantId
+}
+
+func (h *hatchetContext) WorkerId() string {
+	return h.a.WorkerId
+}
+
+func (h *hatchetContext) ActionId() string {
+	return h.a.ActionId
 }
 
 func (h *hatchetContext) Worker() HatchetWorkerContext {

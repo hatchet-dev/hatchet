@@ -1,16 +1,14 @@
-import type { TraceRecord, TraceSpan } from "@evilmartians/agent-prism-types";
-
+import { type BadgeProps } from '../Badge';
+import { type SpanCardViewOptions } from '../SpanCard/SpanCard';
+import { useIsMobile, useIsMounted } from '../shared';
+import { TraceViewerDesktopLayout } from './TraceViewerDesktopLayout';
+import { TraceViewerMobileLayout } from './TraceViewerMobileLayout';
 import {
   filterSpansRecursively,
   flattenSpans,
-} from "@evilmartians/agent-prism-data";
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import { type BadgeProps } from "../Badge";
-import { useIsMobile, useIsMounted } from "../shared";
-import { type SpanCardViewOptions } from "../SpanCard/SpanCard";
-import { TraceViewerDesktopLayout } from "./TraceViewerDesktopLayout";
-import { TraceViewerMobileLayout } from "./TraceViewerMobileLayout";
+} from '@evilmartians/agent-prism-data';
+import type { TraceRecord, TraceSpan } from '@evilmartians/agent-prism-types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export interface TraceViewerData {
   traceRecord: TraceRecord;
@@ -32,7 +30,7 @@ export const TraceViewer = ({
   const isMounted = useIsMounted();
 
   const [selectedSpan, setSelectedSpan] = useState<TraceSpan | undefined>();
-  const [searchValue, setSearchValue] = useState("");
+  const [searchValue, setSearchValue] = useState('');
   const [traceListExpanded, setTraceListExpanded] = useState(true);
 
   const [selectedTrace, setSelectedTrace] = useState<

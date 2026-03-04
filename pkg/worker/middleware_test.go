@@ -146,6 +146,18 @@ func (c *testHatchetContext) FilterPayload() map[string]interface{} {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) ActionId() string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) TenantId() string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) WorkerId() string {
+	panic("not implemented")
+}
+
 func TestAddMiddleware(t *testing.T) {
 	m := middlewares{}
 	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {

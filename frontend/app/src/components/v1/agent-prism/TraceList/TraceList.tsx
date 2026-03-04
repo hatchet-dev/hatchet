@@ -1,13 +1,10 @@
-import type { TraceRecord } from "@evilmartians/agent-prism-types";
-
-import cn from "classnames";
-import { ArrowLeft } from "lucide-react";
-
-import type { BadgeProps } from "../Badge";
-
-import { Badge } from "../Badge";
-import { IconButton } from "../IconButton";
-import { TraceListItem } from "./TraceListItem";
+import type { BadgeProps } from '../Badge';
+import { Badge } from '../Badge';
+import { IconButton } from '../IconButton';
+import { TraceListItem } from './TraceListItem';
+import type { TraceRecord } from '@evilmartians/agent-prism-types';
+import cn from 'classnames';
+import { ArrowLeft } from 'lucide-react';
 
 type TraceRecordWithBadges = TraceRecord & {
   badges?: Array<BadgeProps>;
@@ -33,16 +30,16 @@ export const TraceList = ({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col",
-        expanded ? "h-full w-full gap-3" : "h-auto w-fit gap-1",
+        'flex min-w-0 flex-col',
+        expanded ? 'h-full w-full gap-3' : 'h-auto w-fit gap-1',
         className,
       )}
     >
       <header className="flex min-h-6 shrink-0 items-center justify-between gap-2">
         <div
           className={cn(
-            "flex items-center gap-2",
-            expanded ? "opacity-100" : "hidden opacity-0",
+            'flex items-center gap-2',
+            expanded ? 'opacity-100' : 'hidden opacity-0',
           )}
         >
           <h2 className="text-agentprism-muted-foreground">Traces</h2>
@@ -55,10 +52,10 @@ export const TraceList = ({
         </div>
 
         <IconButton
-          aria-label={expanded ? "Collapse Trace List" : "Expand Trace List"}
+          aria-label={expanded ? 'Collapse Trace List' : 'Expand Trace List'}
           onClick={() => onExpandStateChange(!expanded)}
         >
-          <ArrowLeft className={cn("size-3", expanded ? "" : "rotate-180")} />
+          <ArrowLeft className={cn('size-3', expanded ? '' : 'rotate-180')} />
         </IconButton>
       </header>
 

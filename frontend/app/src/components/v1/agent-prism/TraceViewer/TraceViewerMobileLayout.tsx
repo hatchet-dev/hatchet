@@ -1,10 +1,9 @@
-import { ArrowLeft } from "lucide-react";
-
-import { Button } from "../Button";
-import { DetailsView } from "../DetailsView/DetailsView";
-import { TraceList } from "../TraceList/TraceList";
-import { type TraceViewerLayoutProps } from "../TraceViewer/TraceViewer";
-import { TraceViewerTreeViewContainer } from "./TraceViewerTreeViewContainer";
+import { Button } from '../Button';
+import { DetailsView } from '../DetailsView/DetailsView';
+import { TraceList } from '../TraceList/TraceList';
+import { type TraceViewerLayoutProps } from '../TraceViewer/TraceViewer';
+import { TraceViewerTreeViewContainer } from './TraceViewerTreeViewContainer';
+import { ArrowLeft } from 'lucide-react';
 
 export const TraceViewerMobileLayout = ({
   traceRecords,

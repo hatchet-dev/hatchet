@@ -8,7 +8,7 @@ import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Waterfall } from '../waterfall';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
-import { TaskRunTraces } from './task-run-traces';
+import { TaskRunTrace } from './task-run-trace';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Button } from '@/components/v1/ui/button';
@@ -20,10 +20,10 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
@@ -37,7 +37,7 @@ export enum TabOption {
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
   Logs = 'logs',
-  Traces = 'traces',
+  Trace = 'trace',
   Waterfall = 'waterfall',
   AdditionalMetadata = 'additional-metadata',
   Activity = 'activity',
@@ -253,8 +253,8 @@ export const TaskRunDetail = ({
                 Logs
               </TabsTrigger>
               {isCloudEnabled && (
-                <TabsTrigger variant="underlined" value={TabOption.Traces}>
-                  Traces
+                <TabsTrigger variant="underlined" value={TabOption.Trace}>
+                  Trace
                 </TabsTrigger>
               )}
               <TabsTrigger
@@ -314,10 +314,8 @@ export const TaskRunDetail = ({
               <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
             </TabsContent>
             {isCloudEnabled && (
-              <TabsContent value={TabOption.Traces}>
-                <TaskRunTraces
-                  taskExternalId={taskRun.metadata.id}
-                />
+              <TabsContent value={TabOption.Trace}>
+                <TaskRunTrace taskExternalId={taskRun.metadata.id} />
               </TabsContent>
             )}
             <TabsContent value={TabOption.AdditionalMetadata}>

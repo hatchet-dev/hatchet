@@ -1,8 +1,7 @@
-import { type FC } from "react";
-import JSONPretty from "react-json-pretty";
-import colors from "tailwindcss/colors";
-
-import { agentPrismPrefix } from "../theme";
+import { agentPrismPrefix } from '../theme';
+import { type FC } from 'react';
+import JSONPretty from 'react-json-pretty';
+import colors from 'tailwindcss/colors';
 
 export interface JsonViewerProps {
   content: string;
@@ -13,7 +12,7 @@ export interface JsonViewerProps {
 export const DetailsViewJsonOutput: FC<JsonViewerProps> = ({
   content,
   id,
-  className = "",
+  className = '',
 }) => {
   return (
     <JSONPretty

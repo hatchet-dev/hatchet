@@ -1,9 +1,7 @@
-import type { TraceRecord } from "@evilmartians/agent-prism-types";
-
-import type { AvatarProps } from "../Avatar";
-
-import { Avatar } from "../Avatar";
-import { Badge } from "../Badge";
+import type { AvatarProps } from '../Avatar';
+import { Avatar } from '../Avatar';
+import { Badge } from '../Badge';
+import type { TraceRecord } from '@evilmartians/agent-prism-types';
 
 interface TraceListItemHeaderProps {
   trace: TraceRecord;
@@ -28,7 +26,7 @@ export const TraceListItemHeader = ({
         <Badge
           size="4"
           label={
-            trace.spansCount === 1 ? "1 span" : `${trace.spansCount} spans`
+            trace.spansCount === 1 ? '1 span' : `${trace.spansCount} spans`
           }
         />
       </div>

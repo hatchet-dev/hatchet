@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import { type FC } from 'react';
 
 const OpenAILogo: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -91,7 +91,7 @@ type BrandLogoProps = {
 
 export const BrandLogo: FC<BrandLogoProps> = ({
   brand,
-  className = "size-4",
+  className = 'size-4',
   fallback = null,
 }) => {
   const Logo = LOGO_REGISTRY[brand as BrandType];

@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 import ctypes
 import functools
 from collections.abc import Callable
@@ -312,8 +313,17 @@ class Runner:
                     dependencies,
                 )
 
+                # Copy the full contextvars snapshot (including OpenTelemetry span
+                # context) so that child spans created in the thread inherit the
+                # correct trace_id and parent_span_id from the active
+                # hatchet.start_step_run span.
+                ctx_snapshot = contextvars.copy_context()
                 loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(self.thread_pool, pfunc)
+                return await loop.run_in_executor(
+                    self.thread_pool,
+                    ctx_snapshot.run,
+                    pfunc,
+                )
             finally:
                 self.cleanup_run_id(action.key)
 

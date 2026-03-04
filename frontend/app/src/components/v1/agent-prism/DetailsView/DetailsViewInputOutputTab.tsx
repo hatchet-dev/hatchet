@@ -1,22 +1,19 @@
-import type { TraceSpan } from "@evilmartians/agent-prism-types";
-import type { ReactElement } from "react";
-
-import { useState, useEffect } from "react";
-
-import type { TabItem } from "../Tabs";
-
-import { CollapsibleSection } from "../CollapsibleSection";
-import { TabSelector } from "../TabSelector";
+import { CollapsibleSection } from '../CollapsibleSection';
+import { TabSelector } from '../TabSelector';
+import type { TabItem } from '../Tabs';
 import {
   DetailsViewContentViewer,
   type DetailsViewContentViewMode,
-} from "./DetailsViewContentViewer";
+} from './DetailsViewContentViewer';
+import type { TraceSpan } from '@evilmartians/agent-prism-types';
+import type { ReactElement } from 'react';
+import { useState, useEffect } from 'react';
 
 interface DetailsViewInputOutputTabProps {
   data: TraceSpan;
 }
 
-type IOSection = "Input" | "Output";
+type IOSection = 'Input' | 'Output';
 
 export const DetailsViewInputOutputTab = ({
   data,
@@ -37,7 +34,7 @@ export const DetailsViewInputOutputTab = ({
   let parsedInput: string | null = null;
   let parsedOutput: string | null = null;
 
-  if (typeof data.input === "string") {
+  if (typeof data.input === 'string') {
     try {
       parsedInput = JSON.parse(data.input);
     } catch {
@@ -45,7 +42,7 @@ export const DetailsViewInputOutputTab = ({
     }
   }
 
-  if (typeof data.output === "string") {
+  if (typeof data.output === 'string') {
     try {
       parsedOutput = JSON.parse(data.output);
     } catch {
@@ -55,14 +52,14 @@ export const DetailsViewInputOutputTab = ({
 
   return (
     <div className="space-y-4">
-      {typeof data.input === "string" && (
+      {typeof data.input === 'string' && (
         <IOSection
           section="Input"
           content={data.input}
           parsedContent={parsedInput}
         />
       )}
-      {typeof data.output === "string" && (
+      {typeof data.output === 'string' && (
         <IOSection
           section="Output"
           content={data.output}
@@ -85,18 +82,18 @@ const IOSection = ({
   parsedContent,
 }: IOSectionProps): ReactElement => {
   const [tab, setTab] = useState<DetailsViewContentViewMode>(
-    parsedContent ? "json" : "plain",
+    parsedContent ? 'json' : 'plain',
   );
 
   useEffect(() => {
-    if (tab === "json" && !parsedContent) {
-      setTab("plain");
+    if (tab === 'json' && !parsedContent) {
+      setTab('plain');
     }
   }, [tab, parsedContent]);
 
   const tabItems: TabItem<DetailsViewContentViewMode>[] = [
-    { value: "json", label: "JSON", disabled: !parsedContent },
-    { value: "plain", label: "Plain" },
+    { value: 'json', label: 'JSON', disabled: !parsedContent },
+    { value: 'plain', label: 'Plain' },
   ];
 
   return (
@@ -106,7 +103,7 @@ const IOSection = ({
       rightContent={
         <TabSelector<DetailsViewContentViewMode>
           items={tabItems}
-          defaultValue={parsedContent ? "json" : "plain"}
+          defaultValue={parsedContent ? 'json' : 'plain'}
           value={tab}
           onValueChange={setTab}
           theme="pill"

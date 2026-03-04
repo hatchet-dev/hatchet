@@ -1,6 +1,5 @@
-import type { TraceSpan } from "@evilmartians/agent-prism-types";
-
-import { SpanBadge } from "../SpanBadge";
+import { SpanBadge } from '../SpanBadge';
+import type { TraceSpan } from '@evilmartians/agent-prism-types';
 
 interface SpanCardBagdesProps {
   data: TraceSpan;

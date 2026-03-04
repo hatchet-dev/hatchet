@@ -1,3 +1,4 @@
+import contextvars
 import json
 from collections.abc import Callable, Collection, Coroutine
 from importlib.metadata import version
@@ -14,8 +15,9 @@ try:
     )
     from opentelemetry.instrumentation.utils import unwrap
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
+    from opentelemetry.sdk.trace import ReadableSpan, Span
     from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
     from opentelemetry.trace import (
         NoOpTracerProvider,
         SpanKind,
@@ -32,6 +34,28 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     raise ModuleNotFoundError(
         "To use the HatchetInstrumentor, you must install Hatchet's `otel` extra using (e.g.) `pip install hatchet-sdk[otel]`"
     ) from e
+
+# ContextVar that holds the hatchet.* attributes from the active
+# hatchet.start_step_run span so they can be injected into child spans.
+_hatchet_span_attributes: contextvars.ContextVar[dict[str, str | int] | None] = (
+    contextvars.ContextVar("_hatchet_span_attributes", default=None)
+)
+
+
+class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
+    """SpanProcessor that injects hatchet.* attributes into every span
+    created within a step run context, so that child spans are queryable
+    by the same attributes (e.g. hatchet.step_run_id) as the parent."""
+
+    def __init__(self, span_exporter: SpanExporter) -> None:
+        super().__init__(span_exporter)
+
+    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
+        attrs = _hatchet_span_attributes.get()
+        if attrs and span.is_recording():
+            for key, value in attrs.items():
+                span.set_attribute(key, value)
+        super().on_start(span, parent_context)
 
 import inspect
 from datetime import datetime
@@ -262,7 +286,9 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             insecure=insecure,
         )
 
-        self.tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
+        self.tracer_provider.add_span_processor(
+            _HatchetAttributeSpanProcessor(span_exporter)
+        )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return ()
@@ -369,18 +395,24 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self.config.otel.include_task_name_in_start_step_run_span_name:
             span_name += f".{action.action_id}"
 
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes=action.get_otel_attributes(self.config),
-            context=traceparent,
-            kind=SpanKind.CONSUMER,
-        ) as span:
-            result = await wrapped(*args, **kwargs)
+        hatchet_attrs = action.get_otel_attributes(self.config)
+        token = _hatchet_span_attributes.set(hatchet_attrs)
 
-            if isinstance(result, Exception):
-                span.set_status(StatusCode.ERROR, str(result))
+        try:
+            with self._tracer.start_as_current_span(
+                span_name,
+                attributes=hatchet_attrs,
+                context=traceparent,
+                kind=SpanKind.CONSUMER,
+            ) as span:
+                result = await wrapped(*args, **kwargs)
 
-            return result
+                if isinstance(result, Exception):
+                    span.set_status(StatusCode.ERROR, str(result))
+
+                return result
+        finally:
+            _hatchet_span_attributes.reset(token)
 
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_cancel_action(

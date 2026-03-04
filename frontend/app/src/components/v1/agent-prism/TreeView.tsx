@@ -1,13 +1,10 @@
-import type { TraceSpan } from "@evilmartians/agent-prism-types";
-
-import { flattenSpans, findTimeRange } from "@evilmartians/agent-prism-data";
-import cn from "classnames";
-import { type FC } from "react";
-
-import type { SpanCardViewOptions } from "./SpanCard/SpanCard";
-
-import { BrandLogo } from "./BrandLogo";
-import { SpanCard } from "./SpanCard/SpanCard";
+import { BrandLogo } from './BrandLogo';
+import type { SpanCardViewOptions } from './SpanCard/SpanCard';
+import { SpanCard } from './SpanCard/SpanCard';
+import { flattenSpans, findTimeRange } from '@evilmartians/agent-prism-data';
+import type { TraceSpan } from '@evilmartians/agent-prism-types';
+import cn from 'classnames';
+import { type FC } from 'react';
 
 interface TreeViewProps {
   spans: TraceSpan[];
@@ -22,7 +19,7 @@ interface TreeViewProps {
 export const TreeView: FC<TreeViewProps> = ({
   spans,
   onSpanSelect,
-  className = "",
+  className = '',
   selectedSpan,
   expandedSpansIds,
   onExpandSpansIdsChange,
@@ -34,7 +31,7 @@ export const TreeView: FC<TreeViewProps> = ({
   return (
     <div className="w-full min-w-0 px-4">
       <ul
-        className={cn(className, "overflow-x-auto pt-2")}
+        className={cn(className, 'overflow-x-auto pt-2')}
         role="tree"
         aria-label="Hierarchical card list"
       >
@@ -58,8 +55,8 @@ export const TreeView: FC<TreeViewProps> = ({
                 brand
                   ? {
                       children: <BrandLogo brand={brand.type} />,
-                      size: "4",
-                      rounded: "sm",
+                      size: '4',
+                      rounded: 'sm',
                       category: span.type,
                     }
                   : undefined

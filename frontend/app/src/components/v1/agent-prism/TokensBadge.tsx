@@ -1,14 +1,11 @@
-import type { ComponentPropsWithRef } from "react";
+import type { BadgeProps } from './Badge';
+import { Badge } from './Badge';
+import { Coins } from 'lucide-react';
+import type { ComponentPropsWithRef } from 'react';
 
-import { Coins } from "lucide-react";
-
-import type { BadgeProps } from "./Badge";
-
-import { Badge } from "./Badge";
-
-export type TokensBadgeProps = ComponentPropsWithRef<"span"> & {
+export type TokensBadgeProps = ComponentPropsWithRef<'span'> & {
   tokensCount: number;
-  size?: BadgeProps["size"];
+  size?: BadgeProps['size'];
 };
 
 export const TokensBadge = ({

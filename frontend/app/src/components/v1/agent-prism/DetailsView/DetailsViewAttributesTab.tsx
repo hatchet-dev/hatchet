@@ -1,22 +1,20 @@
-import { type TraceSpan } from "@evilmartians/agent-prism-types";
-import { type ReactElement, useState } from "react";
-
-import type { TabItem } from "../Tabs";
-
-import { CollapsibleSection } from "../CollapsibleSection";
-import { TabSelector } from "../TabSelector";
+import { CollapsibleSection } from '../CollapsibleSection';
+import { TabSelector } from '../TabSelector';
+import type { TabItem } from '../Tabs';
 import {
   DetailsViewContentViewer,
   type DetailsViewContentViewMode,
-} from "./DetailsViewContentViewer";
+} from './DetailsViewContentViewer';
+import { type TraceSpan } from '@evilmartians/agent-prism-types';
+import { type ReactElement, useState } from 'react';
 
 interface AttributesTabProps {
   data: TraceSpan;
 }
 
 const TAB_ITEMS: TabItem<DetailsViewContentViewMode>[] = [
-  { value: "json", label: "JSON" },
-  { value: "plain", label: "Plain" },
+  { value: 'json', label: 'JSON' },
+  { value: 'plain', label: 'Plain' },
 ];
 
 export const DetailsViewAttributesTab = ({
@@ -40,10 +38,10 @@ export const DetailsViewAttributesTab = ({
           stringValue ||
           attribute.value.intValue?.toString() ||
           attribute.value.boolValue?.toString() ||
-          "N/A";
+          'N/A';
 
         let parsedJson: string | null = null;
-        if (typeof stringValue === "string") {
+        if (typeof stringValue === 'string') {
           try {
             parsedJson = JSON.parse(stringValue);
           } catch {
@@ -96,7 +94,7 @@ const AttributeSection = ({
   parsedContent,
   id,
 }: AttributeSectionProps): ReactElement => {
-  const [tab, setTab] = useState<DetailsViewContentViewMode>("json");
+  const [tab, setTab] = useState<DetailsViewContentViewMode>('json');
 
   return (
     <CollapsibleSection

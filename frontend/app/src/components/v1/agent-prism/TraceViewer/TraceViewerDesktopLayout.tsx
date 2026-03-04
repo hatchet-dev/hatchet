@@ -1,10 +1,9 @@
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-
-import { DetailsView } from "../DetailsView/DetailsView";
-import { TraceList } from "../TraceList/TraceList";
-import { type TraceViewerLayoutProps } from "./TraceViewer";
-import { TraceViewerPlaceholder } from "./TraceViewerPlaceholder";
-import { TraceViewerTreeViewContainer } from "./TraceViewerTreeViewContainer";
+import { DetailsView } from '../DetailsView/DetailsView';
+import { TraceList } from '../TraceList/TraceList';
+import { type TraceViewerLayoutProps } from './TraceViewer';
+import { TraceViewerPlaceholder } from './TraceViewerPlaceholder';
+import { TraceViewerTreeViewContainer } from './TraceViewerTreeViewContainer';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 export const TraceViewerDesktopLayout = ({
   traceRecords,

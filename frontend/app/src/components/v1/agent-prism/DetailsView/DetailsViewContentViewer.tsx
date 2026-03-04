@@ -1,9 +1,8 @@
-import { type ReactElement } from "react";
+import { CopyButton } from '../CopyButton';
+import { DetailsViewJsonOutput } from './DetailsViewJsonOutput';
+import { type ReactElement } from 'react';
 
-import { CopyButton } from "../CopyButton";
-import { DetailsViewJsonOutput } from "./DetailsViewJsonOutput";
-
-export type DetailsViewContentViewMode = "json" | "plain";
+export type DetailsViewContentViewMode = 'json' | 'plain';
 
 export interface DetailsViewContentViewerProps {
   content: string;
@@ -20,7 +19,7 @@ export const DetailsViewContentViewer = ({
   mode,
   label,
   id,
-  className = "",
+  className = '',
 }: DetailsViewContentViewerProps): ReactElement => {
   if (!content) {
     return (
@@ -37,7 +36,7 @@ export const DetailsViewContentViewer = ({
       <div className="absolute right-1.5 top-1.5 z-10">
         <CopyButton label={label} content={content} />
       </div>
-      {mode === "json" && parsedContent ? (
+      {mode === 'json' && parsedContent ? (
         <DetailsViewJsonOutput content={parsedContent} id={id} />
       ) : (
         <div className="bg-agentprism-background rounded-lg p-4">

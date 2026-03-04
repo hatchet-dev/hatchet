@@ -1,19 +1,16 @@
-import type { TraceSpan } from "@evilmartians/agent-prism-types";
-import type { ReactNode } from "react";
-
-import { getDurationMs, formatDuration } from "@evilmartians/agent-prism-data";
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
-
-import type { AvatarProps } from "../Avatar";
-
-import { Avatar } from "../Avatar";
-import { IconButton } from "../IconButton";
-import { PriceBadge } from "../PriceBadge";
-import { SpanBadge } from "../SpanBadge";
-import { SpanStatus } from "../SpanStatus";
-import { TimestampBadge } from "../TimestampBadge";
-import { TokensBadge } from "../TokensBadge";
+import type { AvatarProps } from '../Avatar';
+import { Avatar } from '../Avatar';
+import { IconButton } from '../IconButton';
+import { PriceBadge } from '../PriceBadge';
+import { SpanBadge } from '../SpanBadge';
+import { SpanStatus } from '../SpanStatus';
+import { TimestampBadge } from '../TimestampBadge';
+import { TokensBadge } from '../TokensBadge';
+import { getDurationMs, formatDuration } from '@evilmartians/agent-prism-data';
+import type { TraceSpan } from '@evilmartians/agent-prism-types';
+import { Check, Copy } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useState } from 'react';
 
 export interface DetailsViewHeaderProps {
   data: TraceSpan;
@@ -51,7 +48,7 @@ export const DetailsViewHeader = ({
   };
 
   return (
-    <div className={className || "flex flex-wrap items-center gap-2"}>
+    <div className={className || 'flex flex-wrap items-center gap-2'}>
       {avatar && <Avatar size="4" {...avatar} />}
 
       <span className="text-agentprism-foreground tracking-wide">
@@ -65,7 +62,7 @@ export const DetailsViewHeader = ({
       {copyButton && (
         <IconButton
           aria-label={
-            copyButton.isEnabled ? "Copy span details" : "Copy disabled"
+            copyButton.isEnabled ? 'Copy span details' : 'Copy disabled'
           }
           variant="ghost"
           onClick={handleCopy}
@@ -80,17 +77,17 @@ export const DetailsViewHeader = ({
 
       <SpanBadge category={data.type} />
 
-      {typeof data.tokensCount === "number" && (
+      {typeof data.tokensCount === 'number' && (
         <TokensBadge tokensCount={data.tokensCount} />
       )}
 
-      {typeof data.cost === "number" && <PriceBadge cost={data.cost} />}
+      {typeof data.cost === 'number' && <PriceBadge cost={data.cost} />}
 
       <span className="text-agentprism-muted-foreground text-xs">
         LATENCY: {formatDuration(durationMs)}
       </span>
 
-      {typeof data.startTime === "number" && (
+      {typeof data.startTime === 'number' && (
         <TimestampBadge timestamp={data.startTime} />
       )}
 

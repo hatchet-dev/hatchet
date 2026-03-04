@@ -1,12 +1,10 @@
-import type { TraceSpan } from "@evilmartians/agent-prism-types";
-
-import type { SpanCardViewOptions } from "../SpanCard/SpanCard";
-
-import { Badge } from "../Badge";
-import { TraceListItemHeader } from "../TraceList/TraceListItemHeader";
-import { TreeView } from "../TreeView";
-import { type TraceRecordWithDisplayData } from "./TraceViewer";
-import { TraceViewerSearchAndControls } from "./TraceViewerSearchAndControls";
+import { Badge } from '../Badge';
+import type { SpanCardViewOptions } from '../SpanCard/SpanCard';
+import { TraceListItemHeader } from '../TraceList/TraceListItemHeader';
+import { TreeView } from '../TreeView';
+import { type TraceRecordWithDisplayData } from './TraceViewer';
+import { TraceViewerSearchAndControls } from './TraceViewerSearchAndControls';
+import type { TraceSpan } from '@evilmartians/agent-prism-types';
 
 export const TraceViewerTreeViewContainer = ({
   searchValue,

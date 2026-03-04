@@ -1,17 +1,13 @@
+import { convertOtelSpans } from './otel-span-adapter';
+import { TreeView } from '@/components/v1/agent-prism/TreeView';
+import { Loading } from '@/components/v1/ui/loading';
+import { cloudApi } from '@/lib/api/api';
 import { openTelemetrySpanAdapter } from '@evilmartians/agent-prism-data';
 import { flattenSpans } from '@evilmartians/agent-prism-data';
-import { TreeView } from '@/components/v1/agent-prism/TreeView';
-import { cloudApi } from '@/lib/api/api';
-import { Loading } from '@/components/v1/ui/loading';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { convertOtelSpans } from './otel-span-adapter';
 
-export function TaskRunTraces({
-  taskExternalId,
-}: {
-  taskExternalId: string;
-}) {
+export function TaskRunTrace({ taskExternalId }: { taskExternalId: string }) {
   const tracesQuery = useQuery({
     queryKey: ['cloud:traces', taskExternalId],
     queryFn: async () => {
@@ -57,7 +53,7 @@ export function TaskRunTraces({
   if (traceSpans.length === 0) {
     return (
       <div className="py-4 text-sm text-muted-foreground">
-        No traces found for this workflow run. To collect traces, use the{' '}
+        No trace found for this task run. To collect traces, use the{' '}
         <code className="rounded bg-muted px-1 py-0.5 text-xs">
           HatchetInstrumentor
         </code>{' '}

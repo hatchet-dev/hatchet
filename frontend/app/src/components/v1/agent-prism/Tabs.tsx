@@ -1,8 +1,7 @@
-import type { ComponentPropsWithRef } from "react";
-
-import * as RadixTabs from "@radix-ui/react-tabs";
-import cn from "classnames";
-import * as React from "react";
+import * as RadixTabs from '@radix-ui/react-tabs';
+import cn from 'classnames';
+import type { ComponentPropsWithRef } from 'react';
+import * as React from 'react';
 
 export interface TabItem<T extends string = string> {
   value: T;
@@ -11,14 +10,14 @@ export interface TabItem<T extends string = string> {
   disabled?: boolean;
 }
 
-export type TabTheme = "underline" | "pill";
+export type TabTheme = 'underline' | 'pill';
 
 const BASE_TRIGGER =
-  "text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed";
+  'text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
 
 const THEMES = {
   underline: {
-    list: "h-9 flex border-b border-agentprism-border",
+    list: 'h-9 flex border-b border-agentprism-border',
     trigger: `w-full justify-center px-3 ${BASE_TRIGGER}
       text-agentprism-secondary-foreground data-[state=active]:text-agentprism-foreground
       border-b-2 border-transparent data-[state=active]:border-agentprism-border-inverse
@@ -27,7 +26,7 @@ const THEMES = {
       data-[state=inactive]:[&:not(:disabled)]:hover:text-agentprism-muted-foreground`,
   },
   pill: {
-    list: "h-9 inline-flex gap-1 p-1 bg-agentprism-secondary rounded-lg",
+    list: 'h-9 inline-flex gap-1 p-1 bg-agentprism-secondary rounded-lg',
     trigger: `px-3 ${BASE_TRIGGER} rounded-md
       text-agentprism-muted-foreground data-[state=active]:text-agentprism-foreground
       data-[state=inactive]:[&:not(:disabled)]:hover:bg-agentprism-background/50 data-[state=active]:bg-agentprism-background data-[state=active]:shadow-sm
@@ -36,8 +35,8 @@ const THEMES = {
 } as const;
 
 export type TabsProps<T extends string = string> = Omit<
-  ComponentPropsWithRef<"div">,
-  "dir"
+  ComponentPropsWithRef<'div'>,
+  'dir'
 > & {
   /**
    * Array of tab items to display
@@ -83,7 +82,7 @@ export type TabsProps<T extends string = string> = Omit<
   /**
    * The direction of the content of the tabs
    */
-  dir?: "ltr" | "rtl";
+  dir?: 'ltr' | 'rtl';
 };
 
 export const Tabs = <T extends string = string>({
@@ -91,10 +90,10 @@ export const Tabs = <T extends string = string>({
   defaultValue,
   value,
   onValueChange,
-  theme = "underline",
-  className = "",
-  tabsListClassName = "",
-  triggerClassName = "",
+  theme = 'underline',
+  className = '',
+  tabsListClassName = '',
+  triggerClassName = '',
   dir,
   ...rest
 }: TabsProps<T>) => {
@@ -121,7 +120,7 @@ export const Tabs = <T extends string = string>({
             value={item.value}
             disabled={item.disabled}
             className={cn(
-              "group flex items-center overflow-hidden",
+              'group flex items-center overflow-hidden',
               currentTheme.trigger,
               triggerClassName,
             )}
