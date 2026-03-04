@@ -6,4 +6,11 @@ export default {
       toc: true,
     },
   },
+  typescript: {
+    title: "TypeScript SDK",
+    type: "page",
+    theme: {
+      toc: true,
+    },
+  },
 };
