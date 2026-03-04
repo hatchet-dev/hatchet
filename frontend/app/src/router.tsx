@@ -1,7 +1,9 @@
+import { getCloudMetadataQuery } from './pages/auth/hooks/use-cloud';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
-import api, { queries } from '@/lib/api';
+import { userUniverseQuery } from './providers/user-universe';
+import api from '@/lib/api';
 import queryClient from '@/query-client';
 import {
   RouterProvider,
@@ -81,10 +83,19 @@ const onboardingVerifyRoute = createRoute({
 });
 
 const organizationsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
   component: lazyRouteComponent(
     () => import('./pages/organizations/$organization'),
+    'default',
+  ),
+});
+
+const organizationsNewRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'organizations/new',
+  component: lazyRouteComponent(
+    () => import('./pages/organizations/new'),
     'default',
   ),
 });
@@ -100,10 +111,27 @@ const authenticatedRoute = createRoute({
 });
 
 const onboardingCreateTenantRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-tenant'),
+    'default',
+  ),
+  loader: async () => {
+    const { isCloudEnabled } = await queryClient.fetchQuery(
+      getCloudMetadataQuery,
+    );
+    return queryClient.fetchQuery(
+      userUniverseQuery({ isCloudEnabled, isCloudLoaded: true }),
+    );
+  },
+});
+
+const onboardingCreateOrganizationRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'onboarding/create-organization',
+  component: lazyRouteComponent(
+    () => import('./pages/onboarding/create-organization'),
     'default',
   ),
 });
@@ -138,13 +166,10 @@ const tenantRoute = createRoute({
   loader: async ({ params }) => {
     // Ensure the tenant in the URL is one the user actually has access to.
     // If not, throw a 403 so the global error boundary can show a friendly message.
-    const memberships = await queryClient.fetchQuery({
-      ...queries.user.listTenantMemberships,
-      retry: false,
-    });
+    const { data: memberships } = await api.tenantMembershipsList();
 
     const hasAccess = Boolean(
-      memberships?.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
+      memberships.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
     );
 
     if (!hasAccess) {
@@ -557,10 +582,12 @@ const tenantRoutes = [
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
   onboardingVerifyRoute,
-  organizationsRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
+    onboardingCreateOrganizationRoute,
     onboardingInvitesRoute,
+    organizationsRoute,
+    organizationsNewRoute,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,
@@ -587,8 +614,10 @@ export const appRoutes = {
   authRegisterRoute,
   onboardingVerifyRoute,
   organizationsRoute,
+  organizationsNewRoute,
   authenticatedRoute,
   onboardingCreateTenantRoute,
+  onboardingCreateOrganizationRoute,
   onboardingInvitesRoute,
   tenantRoute,
   tenantEventsRoute,

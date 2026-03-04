@@ -132,7 +132,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose time range" />
                 </SelectTrigger>
-                <SelectContent className="z-[80]">
+                <SelectContent>
                   <SelectItem value="1h">1 hour</SelectItem>
                   <SelectItem value="6h">6 hours</SelectItem>
                   <SelectItem value="1d">1 day</SelectItem>
@@ -528,7 +528,7 @@ export function DataTableOptions<TData>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="z-[70] max-h-[32rem] w-96 overflow-y-auto p-0 shadow-lg"
+        className="max-h-[32rem] w-96 overflow-y-auto p-0 shadow-lg"
       >
         <DataTableOptionsContent
           table={table}

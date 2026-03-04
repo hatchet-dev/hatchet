@@ -42,6 +42,7 @@ from examples.durable.worker import (
     durable_spawn_dag,
     durable_non_determinism,
     durable_replay_reset,
+    memo_task,
 )
 from examples.durable_complex.concurrency.worker import (
     durable_concurrency_cancel_in_progress_workflow,
@@ -196,6 +197,7 @@ def main() -> None:
             durable_timeout_completes_workflow,
             durable_refresh_timeout_workflow,
             durable_timeout_eviction_workflow,
+            memo_task,
             evictable_sleep,
             evictable_wait_for_event,
             evictable_child_spawn,

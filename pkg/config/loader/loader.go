@@ -513,7 +513,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		analyticsEmitter.Enqueue(
 			"user:create",
-			opts.ID.String(),
+			opts.User.ID.String(),
 			nil,
 			map[string]interface{}{
 				"email":    opts.Email,

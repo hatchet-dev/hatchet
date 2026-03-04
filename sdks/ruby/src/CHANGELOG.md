@@ -1,5 +1,11 @@
 ## Hatchet SDK Changelog
 
+## [0.1.1] - 2026-02-27
+
+### Changed
+
+- Updated internal dependencies to address security advisories.
+
 ## [0.1.0] - 2025-02-15
 
 - Initial release of the Ruby SDK for Hatchet

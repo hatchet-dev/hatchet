@@ -1,7 +1,7 @@
 import { StepActionEventType } from '@hatchet/protoc/dispatcher';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { DispatcherClient } from './dispatcher-client';
-import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
 
 let client: DispatcherClient;
 

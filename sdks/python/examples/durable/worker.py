@@ -284,6 +284,33 @@ async def durable_replay_reset(
     )
 
 
+class SleepResult(BaseModel):
+    message: str
+    duration: float
+
+
+class MemoInput(BaseModel):
+    message: str
+
+
+async def expensive_computation(message: str) -> SleepResult:
+    await asyncio.sleep(SLEEP_TIME)
+
+    return SleepResult(message=message, duration=SLEEP_TIME)
+
+
+@hatchet.durable_task(input_validator=MemoInput)
+async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
+    start = time.time()
+    res = await ctx.aio_memo(
+        expensive_computation,
+        SleepResult,
+        input.message,
+    )
+
+    return SleepResult(message=res.message, duration=time.time() - start)
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",

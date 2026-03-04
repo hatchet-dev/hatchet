@@ -95,6 +95,9 @@ describe('Create Tenant: redirect to invites', () => {
           .click();
       });
 
+    // Wait for the navigation after sign in to complete
+    cy.location('pathname', { timeout: 30000 }).should('not.eq', '/auth/login');
+
     // Step 5: Try to navigate to create-tenant page
     // The user should be redirected to invites page
     cy.visit('/onboarding/create-tenant', { failOnStatusCode: false });

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 from warnings import warn
+
+from pydantic import TypeAdapter
 
 from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
@@ -14,6 +18,9 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
+    MemoEvent,
+    RunChildEvent,
+    WaitForEvent,
 )
 from hatchet_sdk.conditions import (
     OrGroup,
@@ -23,11 +30,16 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.v1.dispatcher_pb2 import DurableTaskEventKind
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
+from hatchet_sdk.runnables.types import (
+    EmptyModel,
+    R,
+    TWorkflowInput,
+    ValidTaskReturnType,
+)
+from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
@@ -36,11 +48,22 @@ from hatchet_sdk.worker.durable_eviction.instrumentation import (
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
+PMemo = ParamSpec("PMemo")
+TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
+
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.workflow import (
         BaseWorkflow,
     )
+
+
+def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
+    h = hashlib.sha256()
+    h.update(task_run_external_id.encode())
+    h.update(json.dumps(args, default=str, sort_keys=True).encode())
+    h.update(json.dumps(kwargs, default=str, sort_keys=True).encode())
+    return h.digest()
 
 
 class Context:
@@ -400,6 +423,10 @@ class Context:
     def task_name(self) -> str:
         return self._task_name
 
+    @property
+    def worker_id(self) -> str:
+        return self.action.worker_id
+
     def fetch_task_run_error(
         self,
         task: Task[TWorkflowInput, R],
@@ -513,9 +540,7 @@ class DurableContext(Context):
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
-            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
-            payload=None,
-            wait_for_conditions=conditions_proto,
+            event=WaitForEvent(wait_for_conditions=conditions_proto),
         )
         node_id = ack.node_id
         branch_id = ack.branch_id
@@ -564,10 +589,11 @@ class DurableContext(Context):
         ack = await self.durable_event_listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
-            kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
-            payload=workflow._serialize_input(input),
-            workflow_name=workflow.config.name,
-            trigger_workflow_opts=options,
+            event=RunChildEvent(
+                workflow_name=workflow.config.name,
+                input=workflow._serialize_input(input, target="string"),
+                trigger_workflow_opts=options or TriggerWorkflowOptions(),
+            ),
         )
 
         async with aio_durable_eviction_wait(
@@ -594,3 +620,68 @@ class DurableContext(Context):
     @property
     def invocation_count(self) -> int:
         return self.action.durable_task_invocation_count or 1
+
+    async def aio_memo(
+        self,
+        fn: Callable[PMemo, Awaitable[TMemo]],
+        result_validator: type[TMemo],
+        /,
+        *args: PMemo.args,
+        **kwargs: PMemo.kwargs,
+    ) -> TMemo:
+        """
+        Memoize a function by storing its result in durable storage. This is useful for caching the results of expensive computations that you don't want to repeat on every workflow replay without needing to spawn a child workflow or set up an external cache. The function signature is intended to behave similarly to `asyncio.to_thread` or other similar uses of partially applied functions, where you pass in the function and its arguments separately.
+
+        Note that memoization is performed at the _task run_ level, meaning you cannot cache across tasks (whether they're part of the same workflow or otherwise).
+
+        :param fn: The function to compute the value to be memoized. This should be an async function that returns the value to be memoized.
+        :param result_validator: The type of the result to be memoized. This is used for validating the result when it's retrieved from durable storage and for properly serializing the result of the function call. This is required and generally we recommend using either a Pydantic model, a dataclass, or a TypedDict, but you can also use `dict` as an escape hatch.
+        :param *args: The arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different arguments will result in different cached values.
+        :param **kwargs: The keyword arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different keyword arguments will result in different cached values.
+
+        :return: The memoized value, either retrieved from durable storage or computed by calling the function.
+        :raises ValueError: If the durable event listener is not available.
+        """
+
+        if self.durable_event_listener is None:
+            raise ValueError("Durable event listener is not available")
+
+        run_external_id = self.step_run_id
+        adapter = TypeAdapter(result_validator)
+
+        key = _compute_memo_key(self.step_run_id, *args, **kwargs)
+
+        ack = await self.durable_event_listener.send_event(
+            durable_task_external_id=run_external_id,
+            invocation_count=self.invocation_count,
+            event=MemoEvent(memo_key=key, result=None),
+        )
+
+        if ack.memo_already_existed and ack.memo_result_payload is None:
+            logger.warning(
+                "memo key found in durable storage but no data was returned. rerunning the function to recompute the value. "
+            )
+
+        if ack.memo_already_existed and ack.memo_result_payload is not None:
+            serialized_result = ack.memo_result_payload
+            result = adapter.validate_json(
+                serialized_result, context=HATCHET_PYDANTIC_SENTINEL
+            )
+        else:
+            result = await fn(*args, **kwargs)
+            serialized_result = adapter.dump_json(
+                result, context=HATCHET_PYDANTIC_SENTINEL
+            )
+
+            await self._ensure_stream_started()
+
+            await self.durable_event_listener.send_memo_completed_notification(
+                durable_task_external_id=run_external_id,
+                node_id=ack.node_id,
+                branch_id=ack.branch_id,
+                invocation_count=self.invocation_count,
+                memo_result_payload=serialized_result,
+                memo_key=key,
+            )
+
+        return result

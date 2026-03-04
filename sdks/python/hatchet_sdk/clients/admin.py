@@ -119,7 +119,7 @@ class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
 
 class WorkflowRunTriggerConfig(BaseModel):
     workflow_name: str
-    input: JSONSerializableMapping
+    input: str | None
     options: TriggerWorkflowOptions
     key: str | None = None
 
@@ -192,19 +192,14 @@ class AdminClient:
     def _prepare_workflow_request(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
-        try:
-            payload_data = json.dumps(input)
-        except json.JSONDecodeError as e:
-            raise ValueError("Error encoding payload") from e
-
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
         return trigger_protos.TriggerWorkflowRequest(
             name=workflow_name,
-            input=payload_data,
+            input=input,
             parent_id=_options.parent_id,
             parent_task_run_external_id=_options.parent_step_run_id,
             child_index=_options.child_index,
@@ -232,13 +227,13 @@ class AdminClient:
         self,
         name: str,
         schedules: list[datetime | timestamp_pb2.Timestamp],
-        input: JSONSerializableMapping | None = None,
+        input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
         return v0_workflow_protos.ScheduleWorkflowRequest(
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
-            input=json.dumps(input),
+            input=input,
             parent_id=options.parent_id,
             parent_task_run_external_id=options.parent_step_run_id,
             child_index=options.child_index,
@@ -265,7 +260,7 @@ class AdminClient:
         self,
         name: str,
         schedules: list[datetime | timestamp_pb2.Timestamp],
-        input: JSONSerializableMapping | None = None,
+        input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.WorkflowVersion:
         return await asyncio.to_thread(
@@ -315,7 +310,7 @@ class AdminClient:
         self,
         name: str,
         schedules: list[datetime | timestamp_pb2.Timestamp],
-        input: JSONSerializableMapping | None = None,
+        input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
@@ -348,7 +343,7 @@ class AdminClient:
     def _create_workflow_run_request(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
@@ -392,7 +387,7 @@ class AdminClient:
     def run_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
@@ -423,7 +418,7 @@ class AdminClient:
     async def aio_run_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         client = self._get_or_create_v0_client()

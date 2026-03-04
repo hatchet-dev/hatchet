@@ -72,6 +72,7 @@ export class HatchetLogger implements Logger {
     await this.log('ERROR', error ? `${message} ${error}` : message, '91');
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   util(key: UtilKeys, message: string, extra?: LogExtra): void | Promise<void> {
     if (key === 'trace') {
       this.log('INFO', `trace: ${message}`, '35');

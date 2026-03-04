@@ -412,6 +412,9 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	case *contracts.DurableTaskRequest_WorkerStatus:
 		return d.handleWorkerStatus(ctx, invocation, msg.WorkerStatus)
 
+	case *contracts.DurableTaskRequest_CompleteMemo:
+		return d.handleCompleteMemo(ctx, invocation, msg.CompleteMemo)
+
 	default:
 		return status.Errorf(codes.InvalidArgument, "unknown message type: %T", msg)
 	}
@@ -542,6 +545,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		WaitForConditions: createConditionOpts,
 		InvocationCount:   req.InvocationCount,
 		TriggerOpts:       triggerOpts,
+		MemoKey:           req.MemoKey,
 	})
 
 	var nde *v1.NonDeterminismError
@@ -574,14 +578,18 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		}
 	}
 
+	ackResp := &contracts.DurableTaskEventAckResponse{
+		InvocationCount:       req.InvocationCount,
+		DurableTaskExternalId: req.DurableTaskExternalId,
+		NodeId:                ingestionResult.NodeId,
+		BranchId:              ingestionResult.BranchId,
+		MemoAlreadyExisted:    ingestionResult.AlreadyExisted,
+		MemoResultPayload:     ingestionResult.ResultPayload,
+	}
+
 	err = invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_TriggerAck{
-			TriggerAck: &contracts.DurableTaskEventAckResponse{
-				InvocationCount:       req.InvocationCount,
-				DurableTaskExternalId: req.DurableTaskExternalId,
-				NodeId:                ingestionResult.NodeId,
-				BranchId:              ingestionResult.BranchId,
-			},
+			TriggerAck: ackResp,
 		},
 	})
 
@@ -602,6 +610,32 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, ingestionResult.NodeId)
 			return status.Errorf(codes.Internal, "failed to deliver callback completion: %v", err)
 		}
+	}
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) handleCompleteMemo(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskCompleteMemoRequest,
+) error {
+	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+	}
+
+	err = d.repo.DurableEvents().CompleteMemoEntry(ctx, v1.CompleteMemoEntryOpts{
+		TenantId:        invocation.tenantId,
+		TaskExternalId:  taskExternalId,
+		InvocationCount: req.InvocationCount,
+		BranchId:        req.BranchId,
+		NodeId:          req.NodeId,
+		MemoKey:         req.MemoKey,
+		Payload:         req.Payload,
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to complete memo entry: %v", err)
 	}
 
 	return nil
