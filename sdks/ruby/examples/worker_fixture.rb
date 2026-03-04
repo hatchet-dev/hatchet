@@ -46,7 +46,7 @@ module HatchetWorkerFixture
 
     ENV["HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT"] = healthcheck_port.to_s
 
-    stdin, stdout, stderr, wait_thr = Open3.popen3(*command)
+    stdin, stdout, stderr, wait_thr = Open3.popen3(*command, pgroup: true)
     pid = wait_thr.pid
 
     # Log output in background threads
