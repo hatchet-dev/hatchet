@@ -70,10 +70,10 @@ type IngestDurableTaskEventResult struct {
 	CreatedDAGs  []*DAGWithData
 }
 
-type HandleForkResult struct {
+type HandleBranchResult struct {
+	EventLogFile *sqlcv1.V1DurableEventLogFile
 	NodeId       int64
 	BranchId     int64
-	EventLogFile *sqlcv1.V1DurableEventLogFile
 }
 
 type IncrementDurableTaskInvocationCountsOpts struct {
@@ -94,7 +94,7 @@ type CompleteMemoEntryOpts struct {
 
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
-	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
+	HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
@@ -775,7 +775,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 	return nil
 }
 
-func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error) {
+func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -803,14 +803,14 @@ func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to update log file for fork: %w", err)
+		return nil, fmt.Errorf("failed to update log file for branch: %w", err)
 	}
 
 	if err := optTx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
-	return &HandleForkResult{
+	return &HandleBranchResult{
 		NodeId:       nodeId,
 		BranchId:     newBranchId,
 		EventLogFile: logFile,
