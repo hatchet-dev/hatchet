@@ -212,10 +212,26 @@ tasks:
   lint:
     cmds:
       - task: lint-go
+      - task: lint-go-guides
+      - task: lint-python-guides
+      - task: lint-typescript-guides
+      - task: lint-ruby-guides
       - task: lint-app
       - task: lint-docs
   lint-go:
     cmd: golangci-lint run ./... --config .golangci.yml
+  lint-go-guides:
+    dir: sdks/guides/go
+    cmd: golangci-lint run ./... --config .golangci.yml
+  lint-python-guides:
+    dir: sdks/guides/python
+    cmd: poetry run ruff check .
+  lint-typescript-guides:
+    dir: sdks/guides/typescript
+    cmd: pnpm install && pnpm run lint:check
+  lint-ruby-guides:
+    dir: sdks/guides/ruby
+    cmd: bundle install && bundle exec rubocop
   lint-app:
     dir: frontend/app
     cmd: pnpm run lint:check

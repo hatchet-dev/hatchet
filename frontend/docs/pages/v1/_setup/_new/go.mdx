@@ -1,0 +1,68 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
+
+#### Create a new project directory and cd into it
+
+```bash copy
+mkdir hatchet-tutorial && cd hatchet-tutorial
+```
+
+#### Initialize a new go project with required dependencies
+
+```bash copy
+go mod init hatchet-tutorial
+```
+
+#### Create project directories
+
+```bash copy
+mkdir workflows && mkdir workers
+```
+
+#### Instantiate your Hatchet Client
+
+In the `workers` directory, create a Hatchet client
+
+```go copy
+package main
+
+import (
+	"log"
+
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+)
+
+func main() {
+	client, err := hatchet.NewClient()
+	if err != nil {
+		log.Fatalf("failed to create hatchet client: %v", err)
+	}
+}
+```
+
+#### Start a Worker
+
+The fastest way to run a worker during development is with the Hatchet CLI:
+
+```bash copy
+hatchet worker dev
+```
+
+You can also run the worker script directly. This requires a `HATCHET_CLIENT_TOKEN` environment variable. You can generate an API token from the Hatchet dashboard by navigating to the `Settings` tab and clicking `API Tokens`. Click `Generate API Token` to create a new token, and **do not share it publicly**.
+
+```bash copy
+export HATCHET_CLIENT_TOKEN="<your-client-token>"
+```
+
+If you are a self-hosted user without TLS enabled, also set:
+
+```bash copy
+export HATCHET_CLIENT_TLS_STRATEGY=none
+```
+
+Then run your worker:
+
+```bash copy
+go run main.go
+```

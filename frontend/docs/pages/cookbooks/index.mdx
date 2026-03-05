@@ -1,0 +1,61 @@
+---
+asIndexPage: true
+---
+
+import { Callout, Cards } from "nextra/components";
+
+# Cookbooks
+
+End-to-end examples for common use cases, with working code in Python, TypeScript, Go, and Ruby. Each cookbook builds a complete workflow you can run locally and adapt to your own project.
+
+<Callout type="info">
+  These guides assume you have the Hatchet SDK installed and a worker running.
+  If you haven't done that yet, start with [Get Started](/).
+</Callout>
+
+## AI
+
+<Cards>
+  <Cards.Card title="AI Agents" href="/cookbooks/ai-agents">
+    Build agents that reason, act, and observe in a loop. Covers reasoning
+    loops, routing, multi-agent orchestration, and parallelization.
+  </Cards.Card>
+  <Cards.Card title="Human-in-the-Loop" href="/cookbooks/human-in-the-loop">
+    Pause a task for human review or approval, freeing the worker slot until the
+    decision arrives. The task resumes exactly where it left off.
+  </Cards.Card>
+  <Cards.Card title="RAG & Data Indexing" href="/cookbooks/rag-and-indexing">
+    Ingest documents, split into chunks, generate embeddings, and write to a
+    vector database using a DAG workflow.
+  </Cards.Card>
+  <Cards.Card title="LLM Pipelines" href="/cookbooks/llm-pipelines">
+    Chain multiple model calls with validation, retries, and structured outputs.
+    Each step is a durable task with independent retry and rate-limit controls.
+  </Cards.Card>
+</Cards>
+
+## Data & Processing
+
+<Cards>
+  <Cards.Card title="Batch Processing" href="/cookbooks/batch-processing">
+    Run the same operation across a large set of items with fan-out, retry, and
+    concurrency control.
+  </Cards.Card>
+  <Cards.Card title="Document Processing" href="/cookbooks/document-processing">
+    Parse PDFs and files, extract content with OCR or LLMs, validate, enrich,
+    and classify using a DAG pipeline.
+  </Cards.Card>
+  <Cards.Card title="Web Scraping" href="/cookbooks/web-scraping">
+    Fetch, process, and store web content with retries, timeouts, rate limits,
+    and cron scheduling for recurring refreshes.
+  </Cards.Card>
+</Cards>
+
+## Troubleshooting
+
+<Cards>
+  <Cards.Card title="Troubleshooting Workers" href="/v1/troubleshooting">
+    Debug common issues with Hatchet workers, including connection failures,
+    tasks stuck in queued state, and phantom workers.
+  </Cards.Card>
+</Cards>
