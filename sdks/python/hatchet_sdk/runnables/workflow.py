@@ -703,16 +703,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
-        durable_ctx = ctx_durable_context.get()
-        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
-            config = WorkflowRunTriggerConfig(
-                workflow_name=self.config.name,
-                input=self._serialize_input(input, target="string"),
-                options=self._create_options_with_combined_additional_meta(options),
-            )
-            refs = await durable_ctx._spawn_children_no_wait(self, [config])
-            return refs[0]
-
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input, target="string"),
@@ -734,6 +724,21 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary.
         """
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            config = WorkflowRunTriggerConfig(
+                workflow_name=self.config.name,
+                input=self._serialize_input(input, target="string"),
+                options=self._create_options_with_combined_additional_meta(options),
+            )
+            refs = await durable_ctx._spawn_children_no_wait(self, [config])
+            node_id, branch_id, workflow_name = refs[0]
+            return await durable_ctx._aio_result_for_spawned_child(
+                node_id=node_id,
+                branch_id=branch_id,
+                workflow_name=workflow_name,
+            )
+
         ref = await self.aio_run_no_wait(input, options)
         return await ref.aio_result()
 
@@ -804,6 +809,21 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            refs = await durable_ctx._spawn_children_no_wait(self, workflows)
+            return await asyncio.gather(
+                *[
+                    durable_ctx._aio_result_for_spawned_child(
+                        node_id=node_id,
+                        branch_id=branch_id,
+                        workflow_name=workflow_name,
+                    )
+                    for node_id, branch_id, workflow_name in refs
+                ],
+                return_exceptions=return_exceptions,
+            )
+
         refs = await self.aio_run_many_no_wait(workflows)
         return await asyncio.gather(
             *[ref.aio_result() for ref in refs], return_exceptions=return_exceptions
@@ -838,10 +858,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
         """
-        durable_ctx = ctx_durable_context.get()
-        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
-            return await durable_ctx._spawn_children_no_wait(self, workflows)
-
         return await self.client._client.admin.aio_run_workflows(workflows=workflows)
 
     def _parse_task_name(

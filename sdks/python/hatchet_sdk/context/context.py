@@ -56,7 +56,6 @@ from hatchet_sdk.worker.durable_eviction.instrumentation import (
 )
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
-from hatchet_sdk.workflow_run import WorkflowRunRef
 
 PMemo = ParamSpec("PMemo")
 TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
@@ -620,7 +619,7 @@ class DurableContext(Context):
         self,
         workflow: BaseWorkflow[TWorkflowInput],
         configs: list[WorkflowRunTriggerConfig],
-    ) -> list[WorkflowRunRef]:
+    ) -> list[tuple[int, int, str]]:
         listener = self._durable_listener
 
         await self._ensure_stream_started()
@@ -641,18 +640,32 @@ class DurableContext(Context):
         )
 
         return [
-            DurableWorkflowRunRef(
-                listener=listener,
-                step_run_id=self.step_run_id,
-                invocation_count=self.invocation_count,
-                node_id=entry.node_id,
-                branch_id=entry.branch_id,
-                workflow_name=configs[i].workflow_name,
-                action_key=self.action.key,
-                eviction_manager=self._durable_eviction_manager,
-            )
+            (entry.node_id, entry.branch_id, configs[i].workflow_name)
             for i, entry in enumerate(ack.run_entries)
         ]
+
+    async def _aio_result_for_spawned_child(
+        self,
+        node_id: int,
+        branch_id: int,
+        workflow_name: str,
+    ) -> dict[str, Any]:
+        listener = self._durable_listener
+
+        async with aio_durable_eviction_wait(
+            wait_kind="spawn_child",
+            resource_id=workflow_name,
+            action_key=self.action.key,
+            eviction_manager=self._durable_eviction_manager,
+        ):
+            result = await listener.wait_for_callback(
+                durable_task_external_id=self.step_run_id,
+                node_id=node_id,
+                branch_id=branch_id,
+                invocation_count=self.invocation_count,
+            )
+
+        return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:
         if not isinstance(self.durable_event_listener, DurableEventListener):
@@ -736,52 +749,3 @@ class DurableContext(Context):
         return result
 
 
-class DurableWorkflowRunRef(WorkflowRunRef):
-    """A ref for durable child workflow runs that resolves via the durable event listener."""
-
-    def __init__(
-        self,
-        listener: DurableEventListener,
-        step_run_id: str,
-        invocation_count: int,
-        node_id: int,
-        branch_id: int,
-        workflow_name: str,
-        action_key: str,
-        eviction_manager: DurableEvictionManager | None,
-    ):
-        self.workflow_run_id = f"durable:{step_run_id}:{node_id}"
-        self._listener = listener
-        self._step_run_id = step_run_id
-        self._invocation_count = invocation_count
-        self._node_id = node_id
-        self._branch_id = branch_id
-        self._workflow_name = workflow_name
-        self._action_key = action_key
-        self._eviction_manager = eviction_manager
-
-    async def aio_result(self) -> dict[str, Any]:
-        async with aio_durable_eviction_wait(
-            wait_kind="spawn_child",
-            resource_id=self._workflow_name,
-            action_key=self._action_key,
-            eviction_manager=self._eviction_manager,
-        ):
-            result = await self._listener.wait_for_callback(
-                durable_task_external_id=self._step_run_id,
-                node_id=self._node_id,
-                branch_id=self._branch_id,
-                invocation_count=self._invocation_count,
-            )
-        return result.payload or {}
-
-    def result(self) -> dict[str, Any]:
-        raise NotImplementedError(
-            "Synchronous result() is not supported for durable workflow run refs. "
-            "Use aio_result() instead."
-        )
-
-    def stream(self) -> Any:
-        raise NotImplementedError(
-            "stream() is not supported for durable workflow run refs."
-        )
