@@ -18,6 +18,8 @@ from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
+requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
+
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_concurrency(hatchet: Hatchet) -> None:
@@ -131,6 +133,7 @@ async def test_durable_concurrency_cancel_newest(hatchet: Hatchet) -> None:
     )
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_concurrency_eviction_holds_slot(hatchet: Hatchet) -> None:
     """Evicted runs must NOT release their concurrency slot.
