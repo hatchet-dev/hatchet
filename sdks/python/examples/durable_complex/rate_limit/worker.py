@@ -11,7 +11,6 @@ from hatchet_sdk.runnables.eviction import EvictionPolicy
 hatchet = Hatchet(debug=True)
 
 RATE_LIMIT_KEY = "durable-complex-rate-limit"
-RATE_LIMIT_DYNAMIC_PREFIX = "durable-rate-limit-dynamic"
 SLEEP_SECONDS = 6
 EVICTION_POLICY = EvictionPolicy(
     ttl=timedelta(seconds=1),

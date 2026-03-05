@@ -47,7 +47,7 @@ async def test_durable_rate_limit(hatchet: Hatchet) -> None:
             "durableratelimitworkflow:durable_rate_limit_task",
         )
         assert out.get("status") == "completed"
-    assert elapsed >= 2.5
+    assert elapsed >= 6.5
 
 
 @requires_durable_eviction
