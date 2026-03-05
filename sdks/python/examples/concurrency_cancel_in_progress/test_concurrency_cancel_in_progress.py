@@ -17,11 +17,12 @@ async def test_run(hatchet: Hatchet) -> None:
     refs: list[WorkflowRunRef] = []
 
     for i in range(10):
-        ref = await concurrency_cancel_in_progress_workflow.aio_run_no_wait(
+        ref = await concurrency_cancel_in_progress_workflow.aio_run(
             WorkflowInput(group="A"),
             options=TriggerWorkflowOptions(
                 additional_metadata={"test_run_id": test_run_id, "i": str(i)},
             ),
+            wait_for_result=False,
         )
         refs.append(ref)
         await asyncio.sleep(1)

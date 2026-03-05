@@ -128,12 +128,12 @@ def main() -> None:
                 time.sleep(1)
                 print(f"\n--- Triggering tasks (tick {tick + 1}/5) ---")
                 try:
-                    ref = simple.run_no_wait()
+                    ref = simple.run(wait_for_result=False)
                     print(f"Task triggered: {ref}")
                 except Exception as e:
                     log_failure(f"task trigger (tick {tick + 1}/5)", e)
                 try:
-                    ref = simple_durable.run_no_wait()
+                    ref = simple_durable.run(wait_for_result=False)
                     print(f"Durable task triggered: {ref}")
                 except Exception as e:
                     log_failure(f"durable task trigger (tick {tick + 1}/5)", e)

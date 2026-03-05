@@ -65,13 +65,13 @@ class Hatchet:
     ):
         if debug is not None:
             warnings.warn(
-                "The `debug` parameter is deprecated and will be removed in v2.0.0. Please set the debug mode using the HATCHET_DEBUG environment variable instead.",
+                "The `debug` parameter is deprecated and will be removed in v2.0.0. Please set the debug mode using the HATCHET_CLIENT_DEBUG environment variable instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
 
         _config = config or ClientConfig()
-        _debug = debug or _config.debug
+        _debug = _config.debug if debug is None else debug
 
         if _debug:
             logger.setLevel(logging.DEBUG)

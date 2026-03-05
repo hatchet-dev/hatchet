@@ -12,9 +12,10 @@ async def test_run(hatchet: Hatchet) -> None:
     mock_input = MockInput(foo=str(uuid4()))
     test_run_id = str(uuid4())
     meta = {"test_run_id": test_run_id}
-    ref = run_detail_test_workflow.run_no_wait(
+    ref = run_detail_test_workflow.run(
         input=mock_input,
         options=TriggerWorkflowOptions(additional_metadata=meta),
+        wait_for_result=False,
     )
 
     await asyncio.sleep(2)
