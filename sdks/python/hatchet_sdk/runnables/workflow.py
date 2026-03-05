@@ -893,9 +893,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         if not wait_for_result:
             return refs
 
+        if return_exceptions:
+            return await gather_max_concurrency(
+                *[ref.aio_result() for ref in refs],
+                return_exceptions=True,
+                max_concurrency=10,
+            )
+
         return await gather_max_concurrency(
             *[ref.aio_result() for ref in refs],
-            return_exceptions=return_exceptions,
+            return_exceptions=False,
             max_concurrency=10,
         )
 
