@@ -6,7 +6,7 @@ from hatchet_sdk import (
     TriggerWorkflowOptions,
 )
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 # > StickyWorker
 

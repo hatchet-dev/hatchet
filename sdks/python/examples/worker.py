@@ -55,7 +55,7 @@ from examples.webhook_with_scope.worker import (
 from examples.webhooks.worker import webhook
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 def main() -> None:
