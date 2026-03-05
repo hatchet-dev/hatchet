@@ -666,6 +666,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	if len(retrieveOpts) > 0 {
 		existingPayloads, err = r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 		if err != nil {
+			// TODO-DURABLE: this should be a fatal error
 			existingPayloads = nil
 		}
 	}
