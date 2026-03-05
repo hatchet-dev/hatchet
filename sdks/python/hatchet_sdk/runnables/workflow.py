@@ -723,6 +723,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
         :returns: The result of the workflow execution as a dictionary.
+
+        Raises:
+            RuntimeError: If durable child workflow spawning returns no run references.
         """
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
