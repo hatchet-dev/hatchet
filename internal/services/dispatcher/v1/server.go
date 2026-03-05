@@ -646,23 +646,29 @@ func (d *DispatcherServiceImpl) handleDurableTaskRunEvent(
 		return status.Errorf(codes.Internal, "failed to ingest durable task run events: %v", err)
 	}
 
-	// Signal created tasks/DAGs and build ack entries
+	// Build ack entries and collect created tasks/DAGs for a single batched signal.
 	ackResp := &contracts.DurableTaskEventAckResponse{
 		InvocationCount:       req.InvocationCount,
 		DurableTaskExternalId: req.DurableTaskExternalId,
 	}
 
+	createdTasks := make([]*v1.V1TaskWithPayload, 0)
+	createdDAGs := make([]*v1.DAGWithData, 0)
+
 	for _, entry := range result.Entries {
-		if len(entry.CreatedTasks) > 0 || len(entry.CreatedDAGs) > 0 {
-			if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, entry.CreatedTasks, entry.CreatedDAGs); sigErr != nil {
-				d.l.Error().Err(sigErr).Msgf("failed to signal created tasks/DAGs for durable run trigger at node %d", entry.NodeId)
-			}
-		}
+		createdTasks = append(createdTasks, entry.CreatedTasks...)
+		createdDAGs = append(createdDAGs, entry.CreatedDAGs...)
 
 		ackResp.RunEntries = append(ackResp.RunEntries, &contracts.DurableTaskRunAckEntry{
 			NodeId:   entry.NodeId,
 			BranchId: entry.BranchId,
 		})
+	}
+
+	if len(createdTasks) > 0 || len(createdDAGs) > 0 {
+		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, createdTasks, createdDAGs); sigErr != nil {
+			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
+		}
 	}
 
 	err = invocation.send(&contracts.DurableTaskResponse{
