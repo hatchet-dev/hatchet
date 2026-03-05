@@ -74,8 +74,10 @@ async def evictable_child_spawn(
     child_result = await child_task.aio_run()
     return {"child": child_result, "status": "completed"}
 
+
 class BulkChildTaskInput(BaseModel):
     sleep_for: timedelta
+
 
 @hatchet.task(
     input_validator=BulkChildTaskInput,
@@ -85,15 +87,20 @@ async def bulk_child_task(input: BulkChildTaskInput, ctx: Context) -> dict[str, 
     await asyncio.sleep(input.sleep_for.total_seconds())
     return {"sleep_for": input.sleep_for.total_seconds(), "status": "completed"}
 
+
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
-async def evictable_child_bulk_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def evictable_child_bulk_spawn(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
     child_results = await child_task.aio_run_many(
         [
             bulk_child_task.create_bulk_run_item(
-                input=BulkChildTaskInput(sleep_for=timedelta(seconds=(EVICTION_TTL_SECONDS+5) * (i+1))),
+                input=BulkChildTaskInput(
+                    sleep_for=timedelta(seconds=(EVICTION_TTL_SECONDS + 5) * (i + 1))
+                ),
                 key=f"child{i}",
             )
             for i in range(3)

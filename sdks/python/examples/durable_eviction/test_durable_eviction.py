@@ -250,6 +250,7 @@ async def test_evictable_child_spawn_restore_completes(hatchet: Hatchet) -> None
     assert result["status"] == "completed"
     assert result["child"] == {"child_status": "completed"}
 
+
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_child_bulk_spawn_restore_completes(hatchet: Hatchet) -> None:
@@ -268,8 +269,11 @@ async def test_evictable_child_bulk_spawn_restore_completes(hatchet: Hatchet) ->
 
     result = await ref.aio_result()
     assert eviction_count == 3, f"Expected 3 evictions, got {eviction_count}"
-    assert result["child_results"] == [{"message": "hello from child"} for _ in range(10)]
+    assert result["child_results"] == [
+        {"message": "hello from child"} for _ in range(10)
+    ]
     assert result["status"] == "completed"
+
 
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")

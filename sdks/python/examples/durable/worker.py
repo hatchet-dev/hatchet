@@ -197,8 +197,11 @@ async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str
     child_result = await spawn_child_task.aio_run()
     return {"child_output": child_result}
 
+
 @hatchet.durable_task()
-async def durable_with_bulk_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def durable_with_bulk_spawn(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
     child_results = await spawn_child_task.aio_run_many(
         [
             spawn_child_task.create_bulk_run_item(

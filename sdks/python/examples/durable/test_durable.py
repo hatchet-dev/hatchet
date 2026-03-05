@@ -85,11 +85,14 @@ async def test_durable_child_spawn() -> None:
 
     assert result["child_output"] == {"message": "hello from child"}
 
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_child_bulk_spawn() -> None:
     result = await durable_with_bulk_spawn.aio_run()
 
-    assert result["child_outputs"] == [{"message": "hello from child"} for _ in range(10)]
+    assert result["child_outputs"] == [
+        {"message": "hello from child"} for _ in range(10)
+    ]
 
 
 @requires_durable_eviction
