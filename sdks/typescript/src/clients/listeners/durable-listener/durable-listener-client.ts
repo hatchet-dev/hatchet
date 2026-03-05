@@ -590,6 +590,17 @@ export class DurableListenerClient {
     return this._legacyPooledListener.subscribe(request);
   }
 
+  /**
+   * @deprecated Legacy backward-compat: subscribes and waits for a single result.
+   */
+  async result(
+    request: { taskId: string; signalKey: string },
+    opts?: { signal?: AbortSignal }
+  ): Promise<DurableEvent> {
+    const subscriber = this.subscribe(request);
+    return subscriber.get({ signal: opts?.signal });
+  }
+
   private _legacyPooledListener: LegacyPooledListener | undefined;
 }
 

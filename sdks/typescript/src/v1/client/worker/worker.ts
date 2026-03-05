@@ -7,7 +7,13 @@ import { normalizeWorkflows } from '../../../legacy/legacy-transformer';
 import { HatchetClient } from '../..';
 import { InternalWorker } from './worker-internal';
 import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
-import { isLegacyEngine, LegacyDualWorker } from './deprecated';
+import {
+  isLegacyEngine,
+  fetchEngineVersion,
+  LegacyDualWorker,
+  emitDeprecationNotice,
+} from './deprecated';
+import { MinEngineVersion, supportsEviction } from './engine-version';
 
 /**
  * Options for creating a new hatchet worker
@@ -126,7 +132,42 @@ export class Worker {
       this._legacyWorker = await LegacyDualWorker.create(this._v1, this.name, legacyConfig);
       return this._legacyWorker.start();
     }
+
+    const engineVersion = await fetchEngineVersion(this._v1).catch(() => undefined);
+    this._checkEvictionSupport(engineVersion);
+    this._internal.engineVersion = engineVersion;
+
     return this._internal.start();
+  }
+
+  private _checkEvictionSupport(engineVersion: string | undefined): void {
+    if (supportsEviction(engineVersion)) return;
+
+    const workflows = (this.config.workflows || []) as BaseWorkflowDeclaration<any, any>[];
+    const tasksWithEviction: string[] = [];
+
+    for (const wf of workflows) {
+      if (!(wf instanceof BaseWorkflowDeclaration)) continue;
+      for (const task of wf.definition._durableTasks) {
+        if (task.evictionPolicy) {
+          tasksWithEviction.push(`${wf.definition.name}:${task.name}`);
+        }
+      }
+    }
+
+    if (tasksWithEviction.length === 0) return;
+
+    const names = tasksWithEviction.join(', ');
+    const logger = this._v1.config.logger('Worker', this._v1.config.log_level);
+    emitDeprecationNotice(
+      'pre-eviction-engine',
+      `Engine ${engineVersion || 'unknown'} does not support durable eviction ` +
+        `(requires >= ${MinEngineVersion.DURABLE_EVICTION}). ` +
+        `Eviction policies will be ignored for tasks: ${names}. ` +
+        `Please upgrade your Hatchet engine.`,
+      new Date('2026-03-01T00:00:00Z'),
+      logger
+    );
   }
 
   /**

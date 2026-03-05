@@ -36,6 +36,8 @@ import { createHash } from 'crypto';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';
+import { supportsEviction } from './engine-version';
+import { waitForPreEviction } from './deprecated/pre-eviction';
 // TODO remove this once we have a proper next step type
 
 type TriggerData = Record<string, Record<string, any>>;
@@ -834,17 +836,25 @@ export class Context<T, K = {}> {
 export class DurableContext<T, K = {}> extends Context<T, K> {
   private _durableListener: DurableListenerClient;
   private _evictionManager: DurableEvictionManager | undefined;
+  private _engineVersion: string | undefined;
+  private _waitKey: number = 0;
 
   constructor(
     action: Action,
     v1: HatchetClient,
     worker: InternalWorker,
     durableListener: DurableListenerClient,
-    evictionManager?: DurableEvictionManager
+    evictionManager?: DurableEvictionManager,
+    engineVersion?: string
   ) {
     super(action, v1, worker);
     this._durableListener = durableListener;
     this._evictionManager = evictionManager;
+    this._engineVersion = engineVersion;
+  }
+
+  get supportsEviction(): boolean {
+    return supportsEviction(this._engineVersion);
   }
 
   get durableListener(): DurableListenerClient {
@@ -889,6 +899,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     this.throwIfCancelled();
+
+    if (!this.supportsEviction) {
+      return this._waitForPreEviction(conditions);
+    }
+
     const rendered = Render(ConditionAction.CREATE, conditions);
     const pbConditions = conditionsToPb(rendered);
 
@@ -919,6 +934,20 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       );
       return result.payload || {};
     });
+  }
+
+  private async _waitForPreEviction(
+    conditions: Conditions | Conditions[]
+  ): Promise<Record<string, any>> {
+    const { result, nextWaitKey } = await waitForPreEviction(
+      this._durableListener,
+      this.action.taskRunExternalId,
+      this._waitKey,
+      conditions,
+      this.abortController.signal
+    );
+    this._waitKey = nextWaitKey;
+    return result;
   }
 
   private _buildTriggerOpts<Q extends JsonObject>(

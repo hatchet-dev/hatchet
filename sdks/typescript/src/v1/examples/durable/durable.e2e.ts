@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import sleep from '@hatchet/util/sleep';
-import { makeE2EClient } from '../__e2e__/harness';
+import { makeE2EClient, checkDurableEvictionSupport } from '../__e2e__/harness';
 import {
   durableWorkflow,
   EVENT_KEY,
@@ -18,6 +18,19 @@ import {
 
 describe('durable-e2e', () => {
   const hatchet = makeE2EClient();
+  let evictionSupported = false;
+
+  beforeAll(async () => {
+    evictionSupported = await checkDurableEvictionSupport(hatchet);
+  });
+
+  function requireEviction() {
+    if (!evictionSupported) {
+      // eslint-disable-next-line no-console
+      console.log('Skipping: engine does not support durable eviction');
+    }
+    return !evictionSupported;
+  }
 
   it('durable workflow waits for sleep + event', async () => {
     const ref = await durableWorkflow.runNoWait({});
@@ -61,6 +74,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable sleep cancel + replay', async () => {
+    if (requireEviction()) return;
     const ref = await waitForSleepTwice.runNoWait({});
 
     await sleep((SLEEP_TIME_SECONDS * 1000) / 2);
@@ -87,6 +101,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable sleep + event + spawn replay', async () => {
+    if (requireEviction()) return;
     const start = Date.now();
     const ref = await durableSleepEventSpawn.runNoWait({});
 
@@ -120,6 +135,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable completed replay', async () => {
+    if (requireEviction()) return;
     const ref = await waitForSleepTwice.runNoWait({});
 
     const start = Date.now();
@@ -150,6 +166,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable non-determinism', async () => {
+    if (requireEviction()) return;
     const ref = await durableNonDeterminism.runNoWait({});
     const result = await ref.output;
 
@@ -166,6 +183,7 @@ describe('durable-e2e', () => {
   it.each([1, 2, 3])(
     'durable replay reset from node %i',
     async (nodeId) => {
+      if (requireEviction()) return;
       const ref = await durableReplayReset.runNoWait({});
       const result = await ref.output;
 
@@ -202,6 +220,7 @@ describe('durable-e2e', () => {
   );
 
   it('durable memoization via replay', async () => {
+    if (requireEviction()) return;
     const message = randomUUID();
     const start1 = Date.now();
     const ref = await memoTask.runNoWait({ message });

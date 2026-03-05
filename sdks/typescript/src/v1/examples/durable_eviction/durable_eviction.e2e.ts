@@ -1,6 +1,6 @@
 import sleep from '@hatchet/util/sleep';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
-import { makeE2EClient, poll } from '../__e2e__/harness';
+import { makeE2EClient, poll, checkDurableEvictionSupport } from '../__e2e__/harness';
 import {
   evictableSleep,
   evictableWaitForEvent,
@@ -25,6 +25,19 @@ function getTaskExternalId(details: any): string | undefined {
 
 describe('durable-eviction-e2e', () => {
   const hatchet = makeE2EClient();
+  let evictionSupported = false;
+
+  beforeAll(async () => {
+    evictionSupported = await checkDurableEvictionSupport(hatchet);
+  });
+
+  function requireEviction() {
+    if (!evictionSupported) {
+      // eslint-disable-next-line no-console
+      console.log('Skipping: engine does not support durable eviction');
+    }
+    return !evictionSupported;
+  }
 
   async function pollUntilStatus(
     runId: string,
@@ -54,6 +67,7 @@ describe('durable-eviction-e2e', () => {
   }
 
   it('non-evictable task completes normally', async () => {
+    if (requireEviction()) return;
     const start = Date.now();
     const result = await nonEvictableSleep.run({});
     const elapsed = (Date.now() - start) / 1000;
@@ -63,6 +77,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('non-evictable task is never evicted past TTL', async () => {
+    if (requireEviction()) return;
     const ref = await nonEvictableSleep.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -78,6 +93,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('evictable task is evicted after TTL', async () => {
+    if (requireEviction()) return;
     const ref = await evictableSleep.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -89,6 +105,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('evictable task restore re-enqueues the task', async () => {
+    if (requireEviction()) return;
     const ref = await evictableSleep.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -105,6 +122,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('evictable task restore completes', async () => {
+    if (requireEviction()) return;
     const start = Date.now();
     const ref = await evictableSleep.runNoWait({});
     const runId = await ref.getWorkflowRunId();
@@ -123,6 +141,7 @@ describe('durable-eviction-e2e', () => {
   }, 180_000);
 
   it('evictable wait-for-event is evicted after TTL', async () => {
+    if (requireEviction()) return;
     const ref = await evictableWaitForEvent.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -134,6 +153,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('evictable wait-for-event restore + event completes', async () => {
+    if (requireEviction()) return;
     const ref = await evictableWaitForEvent.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -152,6 +172,7 @@ describe('durable-eviction-e2e', () => {
   }, 180_000);
 
   it('evictable child spawn is evicted after TTL', async () => {
+    if (requireEviction()) return;
     const ref = await evictableChildSpawn.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -163,6 +184,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('evictable child spawn restore completes', async () => {
+    if (requireEviction()) return;
     const ref = await evictableChildSpawn.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -179,6 +201,7 @@ describe('durable-eviction-e2e', () => {
   }, 180_000);
 
   it('evictable child spawn restore re-enqueues', async () => {
+    if (requireEviction()) return;
     const ref = await evictableChildSpawn.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -195,6 +218,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('evictable child bulk spawn restore completes', async () => {
+    if (requireEviction()) return;
     const ref = await evictableChildBulkSpawn.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -219,6 +243,7 @@ describe('durable-eviction-e2e', () => {
   }, 300_000);
 
   it('multiple eviction cycles', async () => {
+    if (requireEviction()) return;
     const start = Date.now();
     const ref = await multipleEviction.runNoWait({});
     const runId = await ref.getWorkflowRunId();
@@ -248,6 +273,7 @@ describe('durable-eviction-e2e', () => {
   }, 300_000);
 
   it('eviction plus replay completes', async () => {
+    if (requireEviction()) return;
     const ref = await evictableSleep.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -261,6 +287,7 @@ describe('durable-eviction-e2e', () => {
   }, 180_000);
 
   it('cancel after eviction transitions to CANCELLED', async () => {
+    if (requireEviction()) return;
     const ref = await evictableSleep.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -277,6 +304,7 @@ describe('durable-eviction-e2e', () => {
   }, 120_000);
 
   it('restore idempotency - double restore completes once', async () => {
+    if (requireEviction()) return;
     const ref = await evictableSleep.runNoWait({});
     const runId = await ref.getWorkflowRunId();
 
@@ -292,6 +320,7 @@ describe('durable-eviction-e2e', () => {
   }, 180_000);
 
   it('graceful termination evicts waiting runs', async () => {
+    if (requireEviction()) return;
     const { spawn } = await import('child_process');
 
     const workerProc = spawn(

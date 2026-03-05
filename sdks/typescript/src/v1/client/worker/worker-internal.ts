@@ -73,6 +73,7 @@ export class InternalWorker {
   slots?: number;
   durableSlots?: number;
   slotConfig: SlotConfig;
+  engineVersion: string | undefined;
 
   logger: Logger;
 
@@ -494,7 +495,14 @@ export class InternalWorker {
         const mgr = this.ensureEvictionManager();
         const evictionPolicy = this.eviction_policies.get(actionId);
         mgr.registerRun(taskRunExternalId, taskRunExternalId, evictionPolicy);
-        context = new DurableContext(action, this.client, this, durableListener, mgr);
+        context = new DurableContext(
+          action,
+          this.client,
+          this,
+          durableListener,
+          mgr,
+          this.engineVersion
+        );
       } else {
         context = new Context(action, this.client, this);
       }
