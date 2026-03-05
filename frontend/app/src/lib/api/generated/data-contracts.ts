@@ -686,6 +686,11 @@ export interface V1BranchDurableTaskRequest {
    * @format int64
    */
   nodeId: number;
+  /**
+   * The branch id to replay from.
+   * @format int64
+   */
+  branchId: number;
 }
 
 export interface V1BranchDurableTaskResponse {

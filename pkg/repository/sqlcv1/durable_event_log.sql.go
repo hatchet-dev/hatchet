@@ -12,6 +12,47 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createDurableEventLogBranchPoint = `-- name: CreateDurableEventLogBranchPoint :exec
+INSERT INTO v1_durable_event_log_branch_point (
+    tenant_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    first_node_id_in_new_branch,
+    parent_branch_id,
+    next_branch_id
+)
+VALUES (
+    $1::UUID,
+    $2::BIGINT,
+    $3::TIMESTAMPTZ,
+    $4::BIGINT,
+    $5::BIGINT,
+    $6::BIGINT
+)
+RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+`
+
+type CreateDurableEventLogBranchPointParams struct {
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Durabletaskid          int64              `json:"durabletaskid"`
+	Durabletaskinsertedat  pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Firstnodeidinnewbranch int64              `json:"firstnodeidinnewbranch"`
+	Parentbranchid         int64              `json:"parentbranchid"`
+	Nextbranchid           int64              `json:"nextbranchid"`
+}
+
+func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX, arg CreateDurableEventLogBranchPointParams) error {
+	_, err := db.Exec(ctx, createDurableEventLogBranchPoint,
+		arg.Tenantid,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Firstnodeidinnewbranch,
+		arg.Parentbranchid,
+		arg.Nextbranchid,
+	)
+	return err
+}
+
 const createDurableEventLogEntry = `-- name: CreateDurableEventLogEntry :one
 INSERT INTO v1_durable_event_log_entry (
     tenant_id,
@@ -21,9 +62,7 @@ INSERT INTO v1_durable_event_log_entry (
     inserted_at,
     kind,
     node_id,
-    parent_node_id,
     branch_id,
-    parent_branch_id,
     invocation_count,
     idempotency_key,
     is_satisfied
@@ -37,14 +76,12 @@ VALUES (
     $5::v1_durable_event_log_kind,
     $6::BIGINT,
     $7::BIGINT,
-    $8::BIGINT,
-    $9::BIGINT,
-    $10::INTEGER,
-    $11::BYTEA,
-    $12::BOOLEAN
+    $8::INTEGER,
+    $9::BYTEA,
+    $10::BOOLEAN
 )
 ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, invocation_count, idempotency_key, is_satisfied
 `
 
 type CreateDurableEventLogEntryParams struct {
@@ -54,9 +91,7 @@ type CreateDurableEventLogEntryParams struct {
 	Durabletaskinsertedat pgtype.Timestamptz    `json:"durabletaskinsertedat"`
 	Kind                  V1DurableEventLogKind `json:"kind"`
 	Nodeid                int64                 `json:"nodeid"`
-	ParentNodeId          pgtype.Int8           `json:"parentNodeId"`
 	Branchid              int64                 `json:"branchid"`
-	ParentBranchId        pgtype.Int8           `json:"parentBranchId"`
 	Invocationcount       int32                 `json:"invocationcount"`
 	Idempotencykey        []byte                `json:"idempotencykey"`
 	Issatisfied           bool                  `json:"issatisfied"`
@@ -70,9 +105,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 		arg.Durabletaskinsertedat,
 		arg.Kind,
 		arg.Nodeid,
-		arg.ParentNodeId,
 		arg.Branchid,
-		arg.ParentBranchId,
 		arg.Invocationcount,
 		arg.Idempotencykey,
 		arg.Issatisfied,
@@ -87,9 +120,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 		&i.DurableTaskInsertedAt,
 		&i.Kind,
 		&i.NodeID,
-		&i.ParentNodeID,
 		&i.BranchID,
-		&i.ParentBranchID,
 		&i.InvocationCount,
 		&i.IdempotencyKey,
 		&i.IsSatisfied,
@@ -98,7 +129,7 @@ func (q *Queries) CreateDurableEventLogEntry(ctx context.Context, db DBTX, arg C
 }
 
 const getAndLockLogFile = `-- name: GetAndLockLogFile :one
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id
 FROM v1_durable_event_log_file
 WHERE
     durable_task_id = $1::BIGINT
@@ -124,13 +155,12 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 		&i.LatestInsertedAt,
 		&i.LatestNodeID,
 		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
 	)
 	return &i, err
 }
 
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, invocation_count, idempotency_key, is_satisfied
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -162,9 +192,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 		&i.DurableTaskInsertedAt,
 		&i.Kind,
 		&i.NodeID,
-		&i.ParentNodeID,
 		&i.BranchID,
-		&i.ParentBranchID,
 		&i.InvocationCount,
 		&i.IdempotencyKey,
 		&i.IsSatisfied,
@@ -180,7 +208,7 @@ WITH inputs AS (
         UNNEST($3::UUID[]) AS tenant_id
 )
 
-SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id
 FROM v1_durable_event_log_file lf
 WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
     SELECT durable_task_id, durable_task_inserted_at, tenant_id
@@ -211,7 +239,6 @@ func (q *Queries) GetDurableTaskLogFiles(ctx context.Context, db DBTX, arg GetDu
 			&i.LatestInsertedAt,
 			&i.LatestNodeID,
 			&i.LatestBranchID,
-			&i.LatestBranchFirstParentNodeID,
 		); err != nil {
 			return nil, err
 		}
@@ -238,8 +265,7 @@ INSERT INTO v1_durable_event_log_file (
     latest_invocation_count,
     latest_inserted_at,
     latest_node_id,
-    latest_branch_id,
-    latest_branch_first_parent_node_id
+    latest_branch_id
 )
 SELECT
     tenant_id,
@@ -248,14 +274,13 @@ SELECT
     1,
     NOW(),
     0,
-    1,
-    0
+    1
 FROM inputs
 ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
     latest_invocation_count = v1_durable_event_log_file.latest_invocation_count + 1,
     latest_node_id = 0
-RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id, v1_durable_event_log_file.latest_branch_first_parent_node_id
+RETURNING v1_durable_event_log_file.tenant_id, v1_durable_event_log_file.durable_task_id, v1_durable_event_log_file.durable_task_inserted_at, v1_durable_event_log_file.latest_invocation_count, v1_durable_event_log_file.latest_inserted_at, v1_durable_event_log_file.latest_node_id, v1_durable_event_log_file.latest_branch_id
 `
 
 type IncrementLogFileInvocationCountsParams struct {
@@ -281,7 +306,51 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 			&i.LatestInsertedAt,
 			&i.LatestNodeID,
 			&i.LatestBranchID,
-			&i.LatestBranchFirstParentNodeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDurableEventLogBranchPoints = `-- name: ListDurableEventLogBranchPoints :many
+SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+FROM v1_durable_event_log_branch_point
+WHERE
+    durable_task_id = $1::BIGINT
+    AND durable_task_inserted_at = $2::TIMESTAMPTZ
+    AND tenant_id = $3::UUID
+ORDER BY id ASC
+`
+
+type ListDurableEventLogBranchPointsParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Tenantid              uuid.UUID          `json:"tenantid"`
+}
+
+func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, arg ListDurableEventLogBranchPointsParams) ([]*V1DurableEventLogBranchPoint, error) {
+	rows, err := db.Query(ctx, listDurableEventLogBranchPoints, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1DurableEventLogBranchPoint
+	for rows.Next() {
+		var i V1DurableEventLogBranchPoint
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.FirstNodeIDInNewBranch,
+			&i.ParentBranchID,
+			&i.NextBranchID,
 		); err != nil {
 			return nil, err
 		}
@@ -306,7 +375,7 @@ WITH inputs AS (
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
 )
 
-SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.parent_branch_id, e.invocation_count, e.idempotency_key, e.is_satisfied, twn.external_id AS task_external_id
+SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.invocation_count, e.idempotency_key, e.is_satisfied, twn.external_id AS task_external_id
 FROM v1_durable_event_log_entry e
 JOIN tasks_with_nodes twn ON (twn.id, twn.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
@@ -330,9 +399,7 @@ type ListSatisfiedEntriesRow struct {
 	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
 	Kind                  V1DurableEventLogKind `json:"kind"`
 	NodeID                int64                 `json:"node_id"`
-	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
 	BranchID              int64                 `json:"branch_id"`
-	ParentBranchID        pgtype.Int8           `json:"parent_branch_id"`
 	InvocationCount       int32                 `json:"invocation_count"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
@@ -357,9 +424,7 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 			&i.DurableTaskInsertedAt,
 			&i.Kind,
 			&i.NodeID,
-			&i.ParentNodeID,
 			&i.BranchID,
-			&i.ParentBranchID,
 			&i.InvocationCount,
 			&i.IdempotencyKey,
 			&i.IsSatisfied,
@@ -382,7 +447,7 @@ WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
   AND branch_id = $3::BIGINT
   AND node_id = $4::BIGINT
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, invocation_count, idempotency_key, is_satisfied
 `
 
 type MarkDurableEventLogEntrySatisfiedParams struct {
@@ -409,9 +474,7 @@ func (q *Queries) MarkDurableEventLogEntrySatisfied(ctx context.Context, db DBTX
 		&i.DurableTaskInsertedAt,
 		&i.Kind,
 		&i.NodeID,
-		&i.ParentNodeID,
 		&i.BranchID,
-		&i.ParentBranchID,
 		&i.InvocationCount,
 		&i.IdempotencyKey,
 		&i.IsSatisfied,
@@ -435,7 +498,7 @@ WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
   AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
   AND v1_durable_event_log_entry.node_id = inputs.node_id
   AND v1_durable_event_log_entry.branch_id = inputs.branch_id
-RETURNING v1_durable_event_log_entry.tenant_id, v1_durable_event_log_entry.external_id, v1_durable_event_log_entry.inserted_at, v1_durable_event_log_entry.id, v1_durable_event_log_entry.durable_task_id, v1_durable_event_log_entry.durable_task_inserted_at, v1_durable_event_log_entry.kind, v1_durable_event_log_entry.node_id, v1_durable_event_log_entry.parent_node_id, v1_durable_event_log_entry.branch_id, v1_durable_event_log_entry.parent_branch_id, v1_durable_event_log_entry.invocation_count, v1_durable_event_log_entry.idempotency_key, v1_durable_event_log_entry.is_satisfied
+RETURNING v1_durable_event_log_entry.tenant_id, v1_durable_event_log_entry.external_id, v1_durable_event_log_entry.inserted_at, v1_durable_event_log_entry.id, v1_durable_event_log_entry.durable_task_id, v1_durable_event_log_entry.durable_task_inserted_at, v1_durable_event_log_entry.kind, v1_durable_event_log_entry.node_id, v1_durable_event_log_entry.branch_id, v1_durable_event_log_entry.invocation_count, v1_durable_event_log_entry.idempotency_key, v1_durable_event_log_entry.is_satisfied
 `
 
 type UpdateDurableEventLogEntriesSatisfiedParams struct {
@@ -468,9 +531,7 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 			&i.DurableTaskInsertedAt,
 			&i.Kind,
 			&i.NodeID,
-			&i.ParentNodeID,
 			&i.BranchID,
-			&i.ParentBranchID,
 			&i.InvocationCount,
 			&i.IdempotencyKey,
 			&i.IsSatisfied,
@@ -494,7 +555,7 @@ WHERE durable_task_id = $3::BIGINT
   AND durable_task_inserted_at = $4::TIMESTAMPTZ
   AND branch_id = $5::BIGINT
   AND node_id = $6::BIGINT
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, parent_node_id, branch_id, parent_branch_id, invocation_count, idempotency_key, is_satisfied
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, invocation_count, idempotency_key, is_satisfied
 `
 
 type UpdateDurableEventLogEntryInvocationCountParams struct {
@@ -525,9 +586,7 @@ func (q *Queries) UpdateDurableEventLogEntryInvocationCount(ctx context.Context,
 		&i.DurableTaskInsertedAt,
 		&i.Kind,
 		&i.NodeID,
-		&i.ParentNodeID,
 		&i.BranchID,
-		&i.ParentBranchID,
 		&i.InvocationCount,
 		&i.IdempotencyKey,
 		&i.IsSatisfied,
@@ -540,20 +599,18 @@ UPDATE v1_durable_event_log_file
 SET
     latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
     latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count),
-    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id),
-    latest_branch_first_parent_node_id = COALESCE($4::BIGINT, v1_durable_event_log_file.latest_branch_first_parent_node_id)
-WHERE durable_task_id = $5::BIGINT
-  AND durable_task_inserted_at = $6::TIMESTAMPTZ
-RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_branch_first_parent_node_id
+    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id)
+WHERE durable_task_id = $4::BIGINT
+  AND durable_task_inserted_at = $5::TIMESTAMPTZ
+RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id
 `
 
 type UpdateLogFileParams struct {
-	NodeId                  pgtype.Int8        `json:"nodeId"`
-	InvocationCount         pgtype.Int4        `json:"invocationCount"`
-	BranchId                pgtype.Int8        `json:"branchId"`
-	BranchFirstParentNodeId pgtype.Int8        `json:"branchFirstParentNodeId"`
-	Durabletaskid           int64              `json:"durabletaskid"`
-	Durabletaskinsertedat   pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	NodeId                pgtype.Int8        `json:"nodeId"`
+	InvocationCount       pgtype.Int4        `json:"invocationCount"`
+	BranchId              pgtype.Int8        `json:"branchId"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }
 
 func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileParams) (*V1DurableEventLogFile, error) {
@@ -561,7 +618,6 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		arg.NodeId,
 		arg.InvocationCount,
 		arg.BranchId,
-		arg.BranchFirstParentNodeId,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 	)
@@ -574,7 +630,6 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		&i.LatestInsertedAt,
 		&i.LatestNodeID,
 		&i.LatestBranchID,
-		&i.LatestBranchFirstParentNodeID,
 	)
 	return &i, err
 }

@@ -59,6 +59,7 @@ message TriggerWorkflowRunResponse {
 message BranchDurableTaskRequest {
     string task_external_id = 1; // (required) the external id (uuid) of the durable task
     int64 node_id = 2; // (required) the node id to branch from
+    int64 branch_id = 3; // (required) the branch id to branch from
 }
 
 message BranchDurableTaskResponse {

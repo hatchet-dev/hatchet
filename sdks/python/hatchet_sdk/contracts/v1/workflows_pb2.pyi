@@ -134,12 +134,14 @@ class TriggerWorkflowRunResponse(_message.Message):
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
 class BranchDurableTaskRequest(_message.Message):
-    __slots__ = ("task_external_id", "node_id")
+    __slots__ = ("task_external_id", "node_id", "branch_id")
     TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
     task_external_id: str
     node_id: int
-    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
+    branch_id: int
+    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
 
 class BranchDurableTaskResponse(_message.Message):
     __slots__ = ("task_external_id", "node_id", "branch_id")

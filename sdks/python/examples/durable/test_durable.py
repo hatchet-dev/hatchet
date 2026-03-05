@@ -175,7 +175,9 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
     assert result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
     assert result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
 
-    await hatchet.runs.aio_reset_durable_task(ref.workflow_run_id, node_id=node_id)
+    await hatchet.runs.aio_reset_durable_task(
+        ref.workflow_run_id, node_id=node_id, branch_id=1
+    )
 
     start = time.time()
     reset_result = await ref.aio_result()
@@ -187,13 +189,63 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
         reset_result.sleep_3_duration,
     ]
 
-    for i, duration in enumerate(durations):
-        if i + 1 >= node_id:
-            assert duration >= REPLAY_RESET_SLEEP_TIME
+    for i, duration in enumerate(durations, start=1):
+        if i < node_id:
+            assert duration < 1
         else:
-            assert duration < REPLAY_RESET_SLEEP_TIME
+            assert duration >= REPLAY_RESET_SLEEP_TIME
 
     sleeps_to_redo = 3 - node_id + 1
+    assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
+    ref = await durable_replay_reset.aio_run_no_wait()
+
+    result = await ref.aio_result()
+
+    assert result.sleep_1_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
+    assert result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
+
+    reset_from_node_id = 1
+
+    await hatchet.runs.aio_reset_durable_task(
+        ref.workflow_run_id, node_id=reset_from_node_id, branch_id=1
+    )
+
+    start = time.time()
+    await asyncio.sleep(1)
+    reset_result = await ref.aio_result()
+    reset_elapsed = time.time() - start
+
+    assert reset_result.sleep_1_duration >= REPLAY_RESET_SLEEP_TIME
+    assert reset_result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
+    assert reset_result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
+
+    sleeps_to_redo = 3 - reset_from_node_id + 1
+    assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
+
+    reset_from_node_id = 2
+    await hatchet.runs.aio_reset_durable_task(
+        ## branch off branch 2 this time
+        ref.workflow_run_id,
+        node_id=reset_from_node_id,
+        branch_id=2,
+    )
+
+    start = time.time()
+    await asyncio.sleep(1)
+    reset_result = await ref.aio_result()
+    reset_elapsed = time.time() - start
+
+    assert reset_result.sleep_1_duration < 1
+    assert reset_result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
+    assert reset_result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
+
+    sleeps_to_redo = 3 - reset_from_node_id + 1
     assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
 
 

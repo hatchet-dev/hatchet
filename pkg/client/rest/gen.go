@@ -1391,6 +1391,9 @@ type UserTenantPublic struct {
 
 // V1BranchDurableTaskRequest defines model for V1BranchDurableTaskRequest.
 type V1BranchDurableTaskRequest struct {
+	// BranchId The branch id to replay from.
+	BranchId int64 `json:"branchId"`
+
 	// NodeId The node id to replay from.
 	NodeId int64 `json:"nodeId"`
 

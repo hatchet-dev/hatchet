@@ -3065,6 +3065,17 @@ type V1DagsOlap struct {
 	TotalTasks           int32                `json:"total_tasks"`
 }
 
+type V1DurableEventLogBranchPoint struct {
+	TenantID               uuid.UUID          `json:"tenant_id"`
+	ID                     int64              `json:"id"`
+	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
+	DurableTaskID          int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt  pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`
+	ParentBranchID         int64              `json:"parent_branch_id"`
+	NextBranchID           int64              `json:"next_branch_id"`
+}
+
 type V1DurableEventLogEntry struct {
 	TenantID              uuid.UUID             `json:"tenant_id"`
 	ExternalID            uuid.UUID             `json:"external_id"`
@@ -3074,23 +3085,20 @@ type V1DurableEventLogEntry struct {
 	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
 	Kind                  V1DurableEventLogKind `json:"kind"`
 	NodeID                int64                 `json:"node_id"`
-	ParentNodeID          pgtype.Int8           `json:"parent_node_id"`
 	BranchID              int64                 `json:"branch_id"`
-	ParentBranchID        pgtype.Int8           `json:"parent_branch_id"`
 	InvocationCount       int32                 `json:"invocation_count"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
 }
 
 type V1DurableEventLogFile struct {
-	TenantID                      uuid.UUID          `json:"tenant_id"`
-	DurableTaskID                 int64              `json:"durable_task_id"`
-	DurableTaskInsertedAt         pgtype.Timestamptz `json:"durable_task_inserted_at"`
-	LatestInvocationCount         int32              `json:"latest_invocation_count"`
-	LatestInsertedAt              pgtype.Timestamptz `json:"latest_inserted_at"`
-	LatestNodeID                  int64              `json:"latest_node_id"`
-	LatestBranchID                int64              `json:"latest_branch_id"`
-	LatestBranchFirstParentNodeID int64              `json:"latest_branch_first_parent_node_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	DurableTaskID         int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	LatestInvocationCount int32              `json:"latest_invocation_count"`
+	LatestInsertedAt      pgtype.Timestamptz `json:"latest_inserted_at"`
+	LatestNodeID          int64              `json:"latest_node_id"`
+	LatestBranchID        int64              `json:"latest_branch_id"`
 }
 
 type V1DurableSleep struct {
