@@ -118,7 +118,10 @@ describe('Tenant Invite: accept', () => {
     // Decline all remaining invites so the page redirects
     const declineAll = (remaining = 20) => {
       cy.get('body').then(($body) => {
-        if (remaining > 0 && $body.find('button:contains("Decline")').length > 0) {
+        if (
+          remaining > 0 &&
+          $body.find('button:contains("Decline")').length > 0
+        ) {
           cy.intercept('POST', '/api/v1/users/invites/reject').as(
             'rejectInvite',
           );
