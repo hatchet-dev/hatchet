@@ -5,7 +5,7 @@ from typing import Any
 from hatchet_sdk import Context, EmptyModel, Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.exceptions import DedupeViolationError
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 dedupe_parent_wf = hatchet.workflow(name="DedupeParent")
 dedupe_child_wf = hatchet.workflow(name="DedupeChild")

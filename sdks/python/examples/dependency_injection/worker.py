@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from hatchet_sdk import Context, Depends, DurableContext, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=False)
+hatchet = Hatchet()
 
 SYNC_DEPENDENCY_VALUE = "sync_dependency_value"
 ASYNC_DEPENDENCY_VALUE = "async_dependency_value"
@@ -196,27 +196,6 @@ async def durable_async_task_with_dependencies(
     )
 
 
-@hatchet.durable_task()
-def durable_sync_task_with_dependencies(
-    _i: EmptyModel,
-    ctx: DurableContext,
-    async_dep: Annotated[str, Depends(async_dep)],
-    sync_dep: Annotated[str, Depends(sync_dep)],
-    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
-    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
-    chained_dep: Annotated[str, Depends(chained_dep)],
-    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
-) -> Output:
-    return Output(
-        sync_dep=sync_dep,
-        async_dep=async_dep,
-        async_cm_dep=async_cm_dep,
-        sync_cm_dep=sync_cm_dep,
-        chained_dep=chained_dep,
-        chained_async_dep=chained_async_dep,
-    )
-
-
 di_workflow = hatchet.workflow(
     name="dependency-injection-workflow",
 )
@@ -285,27 +264,6 @@ async def wf_durable_async_task_with_dependencies(
     )
 
 
-@di_workflow.durable_task()
-def wf_durable_sync_task_with_dependencies(
-    _i: EmptyModel,
-    ctx: DurableContext,
-    async_dep: Annotated[str, Depends(async_dep)],
-    sync_dep: Annotated[str, Depends(sync_dep)],
-    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
-    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
-    chained_dep: Annotated[str, Depends(chained_dep)],
-    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
-) -> Output:
-    return Output(
-        sync_dep=sync_dep,
-        async_dep=async_dep,
-        async_cm_dep=async_cm_dep,
-        sync_cm_dep=sync_cm_dep,
-        chained_dep=chained_dep,
-        chained_async_dep=chained_async_dep,
-    )
-
-
 def main() -> None:
     worker = hatchet.worker(
         "dependency-injection-worker",
@@ -313,7 +271,6 @@ def main() -> None:
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_sync_task_with_dependencies,
             di_workflow,
             task_with_type_aliases,
         ],

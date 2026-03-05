@@ -10,7 +10,7 @@ from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     multiple_concurrent_cancellations_test_workflow,
 )
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 def main(slots: int) -> None:

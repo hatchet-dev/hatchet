@@ -41,7 +41,7 @@ def priority_to_int(priority: Priority) -> int:
 async def dummy_runs() -> None:
     priority: Priority = "high"
 
-    await priority_workflow.aio_run_many_no_wait(
+    await priority_workflow.aio_run_many(
         [
             priority_workflow.create_bulk_run_item(
                 options=TriggerWorkflowOptions(
@@ -54,7 +54,8 @@ async def dummy_runs() -> None:
                 )
             )
             for ix in range(40)
-        ]
+        ],
+        wait_for_result=False,
     )
 
     await asyncio.sleep(3)
@@ -81,7 +82,7 @@ async def test_priority(
     choices: list[Priority] = ["low", "medium", "high", "default"]
     N = 30
 
-    run_refs = await priority_workflow.aio_run_many_no_wait(
+    run_refs = await priority_workflow.aio_run_many(
         [
             priority_workflow.create_bulk_run_item(
                 options=TriggerWorkflowOptions(
@@ -95,7 +96,8 @@ async def test_priority(
             )
             for ix in range(N)
             for pr in [choice(choices)]
-        ]
+        ],
+        wait_for_result=False,
     )
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 class ParentInput(BaseModel):

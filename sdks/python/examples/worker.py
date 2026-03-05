@@ -27,7 +27,6 @@ from examples.dependency_injection.worker import (
     async_task_with_dependencies,
     di_workflow,
     durable_async_task_with_dependencies,
-    durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
     task_with_type_aliases,
 )
@@ -55,7 +54,7 @@ from examples.webhook_with_scope.worker import (
 from examples.webhooks.worker import webhook
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 def main() -> None:
@@ -107,7 +106,6 @@ def main() -> None:
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_sync_task_with_dependencies,
             task_with_type_aliases,
             say_hello,
             say_hello_unsafely,

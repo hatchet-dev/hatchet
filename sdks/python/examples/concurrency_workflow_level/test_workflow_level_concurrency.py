@@ -55,7 +55,7 @@ class RunMetadata(BaseModel):
 async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
-    run_refs = await concurrency_workflow_level_workflow.aio_run_many_no_wait(
+    run_refs = await concurrency_workflow_level_workflow.aio_run_many(
         [
             concurrency_workflow_level_workflow.create_bulk_run_item(
                 WorkflowInput(
@@ -72,7 +72,8 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
                 ),
             )
             for _ in range(100)
-        ]
+        ],
+        wait_for_result=False,
     )
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])

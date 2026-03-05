@@ -1,5 +1,6 @@
 import asyncio
 import json
+import warnings
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
@@ -51,8 +52,9 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration
+from hatchet_sdk.utils.timedelta_to_expression import Duration, _warn_if_str_duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -657,18 +659,39 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param options: Additional options for workflow execution.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+
+        .. deprecated::
+            Use ``run(wait_for_result=False)`` instead.
         """
-        return self.client._client.admin.run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(options),
+        warnings.warn(
+            "run_no_wait() is deprecated, use run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return self.run(input=input, options=options, wait_for_result=False)
+
+    @overload
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[True] = True,
+    ) -> dict[str, Any]: ...
+
+    @overload
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> WorkflowRunRef: ...
 
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> dict[str, Any]:
+        wait_for_result: bool = True,
+    ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow synchronously and wait for it to complete.
 
@@ -676,8 +699,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param wait_for_result: If True, block until completion and return the result. If False, return a WorkflowRunRef immediately.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
 
         ref = self.client._client.admin.run_workflow(
@@ -685,6 +709,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
+
+        if not wait_for_result:
+            return ref
 
         return ref.result()
 
@@ -701,19 +728,39 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param options: Additional options for workflow execution.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
-        """
 
-        return await self.client._client.admin.aio_run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(options),
+        .. deprecated::
+            Use ``aio_run(wait_for_result=False)`` instead.
+        """
+        warnings.warn(
+            "aio_run_no_wait() is deprecated, use aio_run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return await self.aio_run(input=input, options=options, wait_for_result=False)
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[True] = True,
+    ) -> dict[str, Any]: ...
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> WorkflowRunRef: ...
 
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> dict[str, Any]:
+        wait_for_result: bool = True,
+    ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow asynchronously and wait for it to complete.
 
@@ -721,14 +768,18 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param wait_for_result: If True, await completion and return the result. If False, return a WorkflowRunRef immediately.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
+
+        if not wait_for_result:
+            return ref
 
         return await ref.aio_result()
 
@@ -747,6 +798,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[True],
+        wait_for_result: Literal[True] = True,
     ) -> list[dict[str, Any] | BaseException]: ...
 
     @overload
@@ -754,24 +806,41 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[False] = False,
+        wait_for_result: Literal[True] = True,
     ) -> list[dict[str, Any]]: ...
+
+    @overload
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        *,
+        wait_for_result: Literal[False],
+    ) -> list[WorkflowRunRef]: ...
 
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: bool = False,
-    ) -> list[dict[str, Any]] | list[dict[str, Any] | BaseException]:
+        wait_for_result: bool = True,
+    ) -> (
+        list[dict[str, Any]]
+        | list[dict[str, Any] | BaseException]
+        | list[WorkflowRunRef]
+    ):
         """
-        Run a workflow in bulk and wait for all runs to complete.
-        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+        Run a workflow in bulk.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
-        :returns: A list of results for each workflow run.
+        :param wait_for_result: If True, block until all runs complete and return results. If False, return a list of WorkflowRunRef immediately.
+        :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
         refs = self.client._client.admin.run_workflows(
             workflows=workflows,
         )
+
+        if not wait_for_result:
+            return refs
 
         return [self._get_result(ref, return_exceptions) for ref in refs]
 
@@ -780,6 +849,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[True],
+        wait_for_result: Literal[True] = True,
     ) -> list[dict[str, Any] | BaseException]: ...
 
     @overload
@@ -787,27 +857,53 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[False] = False,
+        wait_for_result: Literal[True] = True,
     ) -> list[dict[str, Any]]: ...
+
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        *,
+        wait_for_result: Literal[False],
+    ) -> list[WorkflowRunRef]: ...
 
     async def aio_run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: bool = False,
-    ) -> list[dict[str, Any]] | list[dict[str, Any] | BaseException]:
+        wait_for_result: bool = True,
+    ) -> (
+        list[dict[str, Any]]
+        | list[dict[str, Any] | BaseException]
+        | list[WorkflowRunRef]
+    ):
         """
-        Run a workflow in bulk and wait for all runs to complete.
-        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+        Run a workflow in bulk asynchronously.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
-        :returns: A list of results for each workflow run.
+        :param wait_for_result: If True, await completion and return results. If False, return a list of WorkflowRunRef immediately.
+        :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
         refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
-        return await asyncio.gather(
-            *[ref.aio_result() for ref in refs], return_exceptions=return_exceptions
+        if not wait_for_result:
+            return refs
+
+        if return_exceptions:
+            return await gather_max_concurrency(
+                *[ref.aio_result() for ref in refs],
+                return_exceptions=True,
+                max_concurrency=10,
+            )
+
+        return await gather_max_concurrency(
+            *[ref.aio_result() for ref in refs],
+            return_exceptions=False,
+            max_concurrency=10,
         )
 
     def run_many_no_wait(
@@ -821,10 +917,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
+
+        .. deprecated::
+            Use ``run_many(wait_for_result=False)`` instead.
         """
-        return self.client._client.admin.run_workflows(
-            workflows=workflows,
+        warnings.warn(
+            "run_many_no_wait() is deprecated, use run_many(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return self.run_many(workflows, wait_for_result=False)
 
     async def aio_run_many_no_wait(
         self,
@@ -836,12 +938,17 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
-
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
+
+        .. deprecated::
+            Use ``aio_run_many(wait_for_result=False)`` instead.
         """
-        return await self.client._client.admin.aio_run_workflows(
-            workflows=workflows,
+        warnings.warn(
+            "aio_run_many_no_wait() is deprecated, use aio_run_many(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return await self.aio_run_many(workflows, wait_for_result=False)
 
     def _parse_task_name(
         self,
@@ -901,6 +1008,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a `Task` object.
         """
+
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
@@ -1004,6 +1113,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
+
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
@@ -1082,6 +1193,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a `Task` object.
         """
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[
@@ -1152,6 +1264,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a Task object.
         """
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[
@@ -1298,11 +1411,28 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             ),
         )
 
+    @overload
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> R:
+        wait_for_result: Literal[True] = True,
+    ) -> R: ...
+
+    @overload
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> TaskRunRef[TWorkflowInput, R]: ...
+
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: bool = True,
+    ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow synchronously and wait for it to complete.
 
@@ -1310,16 +1440,40 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
+        :param wait_for_result: If True, block until completion and return the result. If False, return a TaskRunRef immediately.
 
-        :returns: The extracted result of the workflow execution.
+        :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
-        return self._extract_result(self._workflow.run(input, options))
+        if not wait_for_result:
+            ref = self._workflow.run(input, options, wait_for_result=False)
+            return TaskRunRef[TWorkflowInput, R](self, ref)
+
+        return self._extract_result(
+            self._workflow.run(input, options, wait_for_result=True)
+        )
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[True] = True,
+    ) -> R: ...
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> R:
+        wait_for_result: bool = True,
+    ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow asynchronously and wait for it to complete.
 
@@ -1327,11 +1481,17 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param wait_for_result: If True, await completion and return the result. If False, return a TaskRunRef immediately.
 
-        :returns: The extracted result of the workflow execution.
+        :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
-        result = await self._workflow.aio_run(input, options)
-        return self._extract_result(result)
+
+        if not wait_for_result:
+            ref = await self._workflow.aio_run(input, options, wait_for_result=False)
+            return TaskRunRef[TWorkflowInput, R](self, ref)
+
+        res = await self._workflow.aio_run(input, options, wait_for_result=True)
+        return await asyncio.to_thread(self._extract_result, res)
 
     def run_no_wait(
         self,
@@ -1347,10 +1507,16 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
-        """
-        ref = self._workflow.run_no_wait(input, options)
 
-        return TaskRunRef[TWorkflowInput, R](self, ref)
+        .. deprecated::
+            Use ``run(wait_for_result=False)`` instead.
+        """
+        warnings.warn(
+            "run_no_wait() is deprecated, use run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.run(input=input, options=options, wait_for_result=False)
 
     async def aio_run_no_wait(
         self,
@@ -1365,16 +1531,23 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param options: Additional options for workflow execution.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
-        """
-        ref = await self._workflow.aio_run_no_wait(input, options)
 
-        return TaskRunRef[TWorkflowInput, R](self, ref)
+        .. deprecated::
+            Use ``aio_run(wait_for_result=False)`` instead.
+        """
+        warnings.warn(
+            "aio_run_no_wait() is deprecated, use aio_run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aio_run(input=input, options=options, wait_for_result=False)
 
     @overload
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[True],
+        wait_for_result: Literal[True] = True,
     ) -> list[R | BaseException]: ...
 
     @overload
@@ -1382,25 +1555,42 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[False] = False,
+        wait_for_result: Literal[True] = True,
     ) -> list[R]: ...
 
+    @overload
     def run_many(
-        self, workflows: list[WorkflowRunTriggerConfig], return_exceptions: bool = False
-    ) -> list[R] | list[R | BaseException]:
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        *,
+        wait_for_result: Literal[False],
+    ) -> list[TaskRunRef[TWorkflowInput, R]]: ...
+
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: bool = False,
+        wait_for_result: bool = True,
+    ) -> list[R] | list[R | BaseException] | list[TaskRunRef[TWorkflowInput, R]]:
         """
-        Run a workflow in bulk and wait for all runs to complete.
-        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+        Run a workflow in bulk.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
-        :returns: A list of results for each workflow run.
+        :param wait_for_result: If True, block until all runs complete and return results. If False, return a list of TaskRunRef immediately.
+        :returns: A list of results for each workflow run, or a list of TaskRunRef if wait_for_result is False.
         """
+        if not wait_for_result:
+            refs = self._workflow.run_many(workflows, wait_for_result=False)
+            return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+
         return [
             self._extract_result(result)
             for result in self._workflow.run_many(
                 workflows,
                 ## hack: typing needs literal
                 True if return_exceptions else False,  # noqa: SIM210
+                wait_for_result=True,
             )
         ]
 
@@ -1409,6 +1599,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[True],
+        wait_for_result: Literal[True] = True,
     ) -> list[R | BaseException]: ...
 
     @overload
@@ -1416,25 +1607,42 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
         return_exceptions: Literal[False] = False,
+        wait_for_result: Literal[True] = True,
     ) -> list[R]: ...
 
+    @overload
     async def aio_run_many(
-        self, workflows: list[WorkflowRunTriggerConfig], return_exceptions: bool = False
-    ) -> list[R] | list[R | BaseException]:
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        *,
+        wait_for_result: Literal[False],
+    ) -> list[TaskRunRef[TWorkflowInput, R]]: ...
+
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: bool = False,
+        wait_for_result: bool = True,
+    ) -> list[R] | list[R | BaseException] | list[TaskRunRef[TWorkflowInput, R]]:
         """
-        Run a workflow in bulk and wait for all runs to complete.
-        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+        Run a workflow in bulk asynchronously.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
-        :returns: A list of results for each workflow run.
+        :param wait_for_result: If True, await completion and return results. If False, return a list of TaskRunRef immediately.
+        :returns: A list of results for each workflow run, or a list of TaskRunRef if wait_for_result is False.
         """
+        if not wait_for_result:
+            refs = await self._workflow.aio_run_many(workflows, wait_for_result=False)
+            return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+
         return [
             self._extract_result(result)
             for result in await self._workflow.aio_run_many(
                 workflows,
                 ## hack: typing needs literal
                 True if return_exceptions else False,  # noqa: SIM210
+                wait_for_result=True,
             )
         ]
 
@@ -1444,14 +1652,18 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         """
         Run a workflow in bulk without waiting for all runs to complete.
 
-        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
-
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
-        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
-        """
-        refs = self._workflow.run_many_no_wait(workflows)
+        :returns: A list of `TaskRunRef` objects, each representing a reference to a workflow run.
 
-        return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+        .. deprecated::
+            Use ``run_many(wait_for_result=False)`` instead.
+        """
+        warnings.warn(
+            "run_many_no_wait() is deprecated, use run_many(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.run_many(workflows, wait_for_result=False)
 
     async def aio_run_many_no_wait(
         self, workflows: list[WorkflowRunTriggerConfig]
@@ -1459,15 +1671,18 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         """
         Run a workflow in bulk without waiting for all runs to complete.
 
-        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
-
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of `TaskRunRef` objects, each representing a reference to a workflow run.
 
-        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
+        .. deprecated::
+            Use ``aio_run_many(wait_for_result=False)`` instead.
         """
-        refs = await self._workflow.aio_run_many_no_wait(workflows)
-
-        return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+        warnings.warn(
+            "aio_run_many_no_wait() is deprecated, use aio_run_many(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aio_run_many(workflows, wait_for_result=False)
 
     def mock_run(
         self,

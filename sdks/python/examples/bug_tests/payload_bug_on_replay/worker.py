@@ -11,7 +11,7 @@ class StepOutput(BaseModel):
     should_cancel: bool
 
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 payload_initial_cancel_bug_workflow = hatchet.workflow(
     name="payload-initial-cancel-test",

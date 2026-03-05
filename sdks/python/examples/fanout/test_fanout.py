@@ -9,8 +9,9 @@ from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run(hatchet: Hatchet) -> None:
-    ref = await parent_wf.aio_run_no_wait(
+    ref = await parent_wf.aio_run(
         ParentInput(n=2),
+        wait_for_result=False,
     )
 
     result = await ref.aio_result()
@@ -22,11 +23,12 @@ async def test_run(hatchet: Hatchet) -> None:
 async def test_additional_metadata_propagation(hatchet: Hatchet) -> None:
     test_run_id = uuid4().hex
 
-    ref = await parent_wf.aio_run_no_wait(
+    ref = await parent_wf.aio_run(
         ParentInput(n=2),
         options=TriggerWorkflowOptions(
             additional_metadata={"test_run_id": test_run_id}
         ),
+        wait_for_result=False,
     )
 
     await ref.aio_result()

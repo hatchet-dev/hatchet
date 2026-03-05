@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import warnings
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, overload
@@ -58,16 +59,31 @@ class Hatchet:
 
     def __init__(
         self,
-        debug: bool = False,
+        debug: bool | None = None,
         client: Client | None = None,
         config: ClientConfig | None = None,
     ):
-        if debug:
+        if debug is not None:
+            warnings.warn(
+                "The `debug` parameter is deprecated and will be removed in v2.0.0. Please set the debug mode using the HATCHET_CLIENT_DEBUG environment variable instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        _config = config or ClientConfig()
+        _debug = _config.debug if debug is None else debug
+
+        if _debug:
             logger.setLevel(logging.DEBUG)
 
-        self._client = (
-            client if client else Client(config=config or ClientConfig(), debug=debug)
-        )
+        if client is not None:
+            warnings.warn(
+                "The `client` parameter is deprecated and will be removed in v2.0.0. The client is not meant to be provided directly.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        self._client = client if client else Client(config=_config, debug=_debug)
 
     @property
     def cel(self) -> CELClient:

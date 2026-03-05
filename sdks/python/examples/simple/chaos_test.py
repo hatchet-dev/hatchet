@@ -12,7 +12,7 @@ from pathlib import Path
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 FAILURE_LOG = Path(__file__).parent / "failures.log"
 
@@ -49,7 +49,7 @@ def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 @hatchet.durable_task()
-def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("Executing durable task!")
     return {"result": "Hello from durable!"}
 
@@ -128,12 +128,12 @@ def main() -> None:
                 time.sleep(1)
                 print(f"\n--- Triggering tasks (tick {tick + 1}/5) ---")
                 try:
-                    ref = simple.run_no_wait()
+                    ref = simple.run(wait_for_result=False)
                     print(f"Task triggered: {ref}")
                 except Exception as e:
                     log_failure(f"task trigger (tick {tick + 1}/5)", e)
                 try:
-                    ref = simple_durable.run_no_wait()
+                    ref = simple_durable.run(wait_for_result=False)
                     print(f"Durable task triggered: {ref}")
                 except Exception as e:
                     log_failure(f"durable task trigger (tick {tick + 1}/5)", e)
