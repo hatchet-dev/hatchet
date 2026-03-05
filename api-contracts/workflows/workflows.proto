@@ -71,41 +71,6 @@ message CreateWorkflowJobOpts {
     repeated CreateWorkflowStepOpts steps = 4; // (required) the job tasks
 }
 
-enum WorkerLabelComparator {
-    EQUAL = 0;
-    NOT_EQUAL = 1;
-    GREATER_THAN = 2;
-    GREATER_THAN_OR_EQUAL = 3;
-    LESS_THAN = 4;
-    LESS_THAN_OR_EQUAL = 5;
-}
-
-message DesiredWorkerLabels {
-    // value of the affinity
-    optional string str_value = 1;
-    optional int32 int_value = 2;
-
-    /**
-    * (optional) Specifies whether the affinity setting is required.
-    * If required, the worker will not accept actions that do not have a truthy affinity setting.
-    *
-    * Defaults to false.
-    */
-    optional bool required = 3;
-
-    /**
-    * (optional) Specifies the comparator for the affinity setting.
-    * If not set, the default is EQUAL.
-    */
-    optional WorkerLabelComparator comparator = 4;
-
-    /**
-    * (optional) Specifies the weight of the affinity setting.
-    * If not set, the default is 100.
-    */
-    optional int32 weight = 5;
-}
-
 // CreateWorkflowStepOpts represents options to create a workflow task.
 message CreateWorkflowStepOpts {
     string readable_id = 1; // (required) the task name
@@ -116,7 +81,7 @@ message CreateWorkflowStepOpts {
     string user_data = 6; // (optional) the custom task user data, assuming string representation of JSON
     int32 retries = 7; // (optional) the number of retries for the task, default 0
     repeated CreateStepRateLimit rate_limits = 8; // (optional) the rate limits for the task
-    map<string, DesiredWorkerLabels> worker_labels = 9; // (optional) the desired worker affinity state for the task
+    map<string, v1.DesiredWorkerLabels> worker_labels = 9; // (optional) the desired worker affinity state for the task
     optional float backoff_factor = 10; // (optional) the retry backoff factor for the task
     optional int32 backoff_max_seconds = 11; // (optional) the maximum backoff time for the task
 }

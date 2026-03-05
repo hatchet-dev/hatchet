@@ -473,11 +473,11 @@ trigger:
     tags:
       - Workflow Runs
 
-forkDurableTask:
+branchDurableTask:
   post:
     x-resources: ["tenant"]
-    description: Fork a durable task from a specific node, creating a new branch and re-processing its matches.
-    operationId: v1-durable-task:fork
+    description: Branch a durable task from a specific node, creating a new branch and re-processing its matches.
+    operationId: v1-durable-task:branch
     parameters:
       - description: The tenant id
         in: path
@@ -492,16 +492,16 @@ forkDurableTask:
       content:
         application/json:
           schema:
-            $ref: "../../../components/schemas/_index.yaml#/V1ForkDurableTaskRequest"
-      description: The fork request
+            $ref: "../../../components/schemas/_index.yaml#/V1BranchDurableTaskRequest"
+      description: The branch request
       required: true
     responses:
       "200":
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V1ForkDurableTaskResponse"
-        description: Successfully fork the durable task
+              $ref: "../../../components/schemas/_index.yaml#/V1BranchDurableTaskResponse"
+        description: Successfully branch the durable task
       "400":
         content:
           application/json:
@@ -514,7 +514,7 @@ forkDurableTask:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
-    summary: Fork durable task
+    summary: Branch durable task
     tags:
       - Workflow Runs
 

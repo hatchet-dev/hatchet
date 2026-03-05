@@ -19,6 +19,9 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
 )
+from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
+    PreEvictionDurableEventListener,
+)
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
@@ -29,6 +32,8 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
+from hatchet_sdk.deprecated.deprecation import semver_less_than
+from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import (
     IllegalTaskOutputError,
     NonRetryableException,
@@ -87,9 +92,10 @@ class Runner:
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        engine_version: str | None = None,
     ):
-        # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
+        self.engine_version = engine_version
 
         self.slots = slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
@@ -127,11 +133,22 @@ class Runner:
         has_durable_tasks = any(
             task.is_durable for task in self.action_registry.values()
         )
-        self.durable_event_listener: DurableEventListener | None = (
-            DurableEventListener(self.config, admin_client=self.admin_client)
-            if has_durable_tasks
-            else None
+        self._supports_durable_eviction = bool(
+            engine_version
+            and not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION)
         )
+
+        self.durable_event_listener: (
+            DurableEventListener | PreEvictionDurableEventListener | None
+        )
+        if has_durable_tasks and self._supports_durable_eviction:
+            self.durable_event_listener = DurableEventListener(
+                self.config, admin_client=self.admin_client
+            )
+        elif has_durable_tasks:
+            self.durable_event_listener = PreEvictionDurableEventListener(self.config)
+        else:
+            self.durable_event_listener = None
 
         self.durable_eviction_manager: DurableEvictionManager | None = None
 
@@ -152,7 +169,7 @@ class Runner:
         if self.worker_context.id() is None:
             self.worker_context._worker_id = action.worker_id
 
-            if self.durable_event_listener is not None:
+            if isinstance(self.durable_event_listener, DurableEventListener):
                 self.durable_event_listener_task = asyncio.create_task(
                     self.durable_event_listener.ensure_started(action.worker_id)
                 )
@@ -186,9 +203,9 @@ class Runner:
         if key in self.contexts:
             ctx = self.contexts[key]
             ctx._set_cancellation_flag()
-            if self.durable_event_listener is not None and isinstance(
-                ctx, DurableContext
-            ):
+            if isinstance(
+                self.durable_event_listener, DurableEventListener
+            ) and isinstance(ctx, DurableContext):
                 self.durable_event_listener.cleanup_task_state(
                     ctx.step_run_id, ctx.invocation_count
                 )
@@ -198,7 +215,7 @@ class Runner:
 
     async def _eviction_request(self, key: ActionKey, rec: DurableRunRecord) -> None:
         """Called from DurableEvictionManager when it needs to request eviction from the server."""
-        if self.durable_event_listener is None:
+        if not isinstance(self.durable_event_listener, DurableEventListener):
             return
         invocation_count = 1
         if key in self.contexts:
@@ -463,6 +480,7 @@ class Runner:
                 task_name=task.name,
                 workflow_name=task.workflow.name,
                 durable_eviction_manager=self.durable_eviction_manager,
+                engine_version=self.engine_version,
             )
             if is_durable
             else Context(

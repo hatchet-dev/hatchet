@@ -295,6 +295,7 @@ WHERE
 
 -- name: ListWorkerLabels :many
 SELECT
+    "workerId",
     "id",
     "key",
     "intValue",
@@ -302,7 +303,7 @@ SELECT
     "createdAt",
     "updatedAt"
 FROM "WorkerLabel" wl
-WHERE wl."workerId" = @workerId::uuid;
+WHERE wl."workerId" = ANY(@workerIds::uuid[]);
 
 -- name: UpdateWorker :one
 UPDATE

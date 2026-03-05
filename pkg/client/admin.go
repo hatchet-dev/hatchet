@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -26,13 +26,14 @@ import (
 )
 
 type ChildWorkflowOpts struct {
-	ParentId           string
-	ParentTaskRunId    string
-	ChildIndex         int
-	ChildKey           *string
-	DesiredWorkerId    *string
-	AdditionalMetadata *map[string]string
-	Priority           *int32
+	ParentId            string
+	ParentTaskRunId     string
+	ChildIndex          int
+	ChildKey            *string
+	DesiredWorkerId     *string
+	AdditionalMetadata  *map[string]string
+	Priority            *int32
+	DesiredWorkerLabels map[string]*v1contracts.DesiredWorkerLabels
 }
 
 type WorkflowRun struct {
@@ -276,6 +277,14 @@ func WithPriority(priority int32) RunOptFunc {
 	}
 }
 
+func WithDesiredWorkerLabels(labels map[string]*v1contracts.DesiredWorkerLabels) RunOptFunc {
+	return func(r *v1contracts.TriggerWorkflowRequest) error {
+		r.DesiredWorkerLabels = labels
+
+		return nil
+	}
+}
+
 // func WithSticky(sticky bool) RunOptFunc {
 // 	return func(r *admincontracts.TriggerWorkflowRequest) error {
 // 		r.Sticky = &sticky
@@ -396,6 +405,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		DesiredWorkerId:         opts.DesiredWorkerId,
 		AdditionalMetadata:      &metadata,
 		Priority:                opts.Priority,
+		DesiredWorkerLabels:     opts.DesiredWorkerLabels,
 	})
 
 	if err != nil {
@@ -458,6 +468,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			DesiredWorkerId:         workflow.Opts.DesiredWorkerId,
 			AdditionalMetadata:      &metadata,
 			Priority:                workflow.Opts.Priority,
+			DesiredWorkerLabels:     workflow.Opts.DesiredWorkerLabels,
 		}
 
 	}

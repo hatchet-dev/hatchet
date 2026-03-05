@@ -2,7 +2,9 @@ import { Channel, ClientFactory } from 'nice-grpc';
 import {
   BulkTriggerWorkflowRequest,
   CreateWorkflowVersionOpts,
+  DesiredWorkerLabels,
   RateLimitDuration,
+  WorkerLabelComparator,
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
@@ -26,6 +28,30 @@ import {
   WorkflowRunStatusList,
 } from '../rest/generated/data-contracts';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
+
+type DesiredWorkerLabelOpt = {
+  value: string | number;
+  required?: boolean;
+  weight?: number;
+  comparator?: WorkerLabelComparator;
+};
+
+function convertDesiredWorkerLabels(
+  labels: Record<string, DesiredWorkerLabelOpt>
+): Record<string, DesiredWorkerLabels> {
+  return Object.fromEntries(
+    Object.entries(labels).map(([key, label]) => [
+      key,
+      {
+        strValue: typeof label.value === 'string' ? label.value : undefined,
+        intValue: typeof label.value === 'number' ? label.value : undefined,
+        required: label.required,
+        weight: label.weight,
+        comparator: label.comparator,
+      } satisfies DesiredWorkerLabels,
+    ])
+  );
+}
 
 type WorkflowMetricsQuery = {
   workflowId?: string;
@@ -206,6 +232,7 @@ export class AdminClient {
       additionalMetadata?: Record<string, string> | undefined;
       desiredWorkerId?: string | undefined;
       priority?: Priority;
+      desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
     }
   ) {
     const computedName = applyNamespace(workflowName, this.config.namespace);
@@ -214,7 +241,13 @@ export class AdminClient {
       const inputStr = JSON.stringify(input);
 
       const opts = options ?? {};
-      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
 
       const resp = this.client.triggerWorkflow({
         name: computedName,
@@ -224,6 +257,9 @@ export class AdminClient {
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
         additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
         priority: opts.priority,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       });
 
       return new WorkflowRunRef<P>(resp, this.listenerClient, this.workflows, options?.parentId);
@@ -259,6 +295,7 @@ export class AdminClient {
         additionalMetadata?: Record<string, string> | undefined;
         desiredWorkerId?: string | undefined;
         priority?: Priority;
+        desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
       };
     }>
   ): Promise<WorkflowRunRef<P>[]> {
@@ -268,7 +305,13 @@ export class AdminClient {
       const inputStr = JSON.stringify(input);
 
       const opts = options ?? {};
-      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
 
       return {
         name: computedName,
@@ -276,6 +319,9 @@ export class AdminClient {
         ...rest,
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
         additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       };
     });
 

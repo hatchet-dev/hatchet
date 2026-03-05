@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
+	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	scheduler "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"

@@ -3,6 +3,7 @@
 source "https://rubygems.org"
 
 gem "hatchet-sdk", path: "../src"
+gem "base64"
 
 # Testing
 gem "rspec", "~> 3.0"

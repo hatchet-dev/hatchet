@@ -8,6 +8,8 @@ import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child
 import { Api } from '@hatchet/clients/rest/generated/Api';
 import {
   BulkTriggerWorkflowRequest,
+  DesiredWorkerLabels,
+  WorkerLabelComparator,
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
@@ -20,6 +22,30 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+
+type DesiredWorkerLabelOpt = {
+  value: string | number;
+  required?: boolean;
+  weight?: number;
+  comparator?: WorkerLabelComparator;
+};
+
+function convertDesiredWorkerLabels(
+  labels: Record<string, DesiredWorkerLabelOpt>
+): Record<string, DesiredWorkerLabels> {
+  return Object.fromEntries(
+    Object.entries(labels).map(([key, label]) => [
+      key,
+      {
+        strValue: typeof label.value === 'string' ? label.value : undefined,
+        intValue: typeof label.value === 'number' ? label.value : undefined,
+        required: label.required,
+        weight: label.weight,
+        comparator: label.comparator,
+      } satisfies DesiredWorkerLabels,
+    ])
+  );
+}
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
@@ -103,6 +129,7 @@ export class AdminClient {
       additionalMetadata?: Record<string, string> | undefined;
       desiredWorkerId?: string | undefined;
       priority?: Priority;
+      desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
       _standaloneTaskName?: string | undefined;
     }
   ) {
@@ -112,7 +139,13 @@ export class AdminClient {
       const inputStr = JSON.stringify(input);
 
       const opts = options ?? {};
-      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
 
       const request = {
         name: computedName,
@@ -122,6 +155,9 @@ export class AdminClient {
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
         additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
         priority: opts.priority,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       };
 
       const resp = await retrier(
@@ -174,6 +210,7 @@ export class AdminClient {
         additionalMetadata?: Record<string, string> | undefined;
         desiredWorkerId?: string | undefined;
         priority?: Priority;
+        desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
         _standaloneTaskName?: string | undefined;
       };
     }>,
@@ -185,7 +222,13 @@ export class AdminClient {
       const inputStr = JSON.stringify(input);
 
       const opts = options ?? {};
-      const { additionalMetadata, parentStepRunId, parentTaskRunExternalId, ...rest } = opts;
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
 
       return {
         name: computedName,
@@ -194,6 +237,9 @@ export class AdminClient {
         // API expects `parentTaskRunExternalId`; accept old names as aliases.
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
         additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       };
     });
 

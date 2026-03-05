@@ -27,7 +27,7 @@ type AdminServiceClient interface {
 	ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error)
 	GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error)
-	ForkDurableTask(ctx context.Context, in *ForkDurableTaskRequest, opts ...grpc.CallOption) (*ForkDurableTaskResponse, error)
+	BranchDurableTask(ctx context.Context, in *BranchDurableTaskRequest, opts ...grpc.CallOption) (*BranchDurableTaskResponse, error)
 }
 
 type adminServiceClient struct {
@@ -83,9 +83,9 @@ func (c *adminServiceClient) GetRunDetails(ctx context.Context, in *GetRunDetail
 	return out, nil
 }
 
-func (c *adminServiceClient) ForkDurableTask(ctx context.Context, in *ForkDurableTaskRequest, opts ...grpc.CallOption) (*ForkDurableTaskResponse, error) {
-	out := new(ForkDurableTaskResponse)
-	err := c.cc.Invoke(ctx, "/v1.AdminService/ForkDurableTask", in, out, opts...)
+func (c *adminServiceClient) BranchDurableTask(ctx context.Context, in *BranchDurableTaskRequest, opts ...grpc.CallOption) (*BranchDurableTaskResponse, error) {
+	out := new(BranchDurableTaskResponse)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/BranchDurableTask", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ type AdminServiceServer interface {
 	ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error)
 	GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error)
-	ForkDurableTask(context.Context, *ForkDurableTaskRequest) (*ForkDurableTaskResponse, error)
+	BranchDurableTask(context.Context, *BranchDurableTaskRequest) (*BranchDurableTaskResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -124,8 +124,8 @@ func (UnimplementedAdminServiceServer) TriggerWorkflowRun(context.Context, *Trig
 func (UnimplementedAdminServiceServer) GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRunDetails not implemented")
 }
-func (UnimplementedAdminServiceServer) ForkDurableTask(context.Context, *ForkDurableTaskRequest) (*ForkDurableTaskResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ForkDurableTask not implemented")
+func (UnimplementedAdminServiceServer) BranchDurableTask(context.Context, *BranchDurableTaskRequest) (*BranchDurableTaskResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BranchDurableTask not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 
@@ -230,20 +230,20 @@ func _AdminService_GetRunDetails_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AdminService_ForkDurableTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ForkDurableTaskRequest)
+func _AdminService_BranchDurableTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BranchDurableTaskRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AdminServiceServer).ForkDurableTask(ctx, in)
+		return srv.(AdminServiceServer).BranchDurableTask(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/v1.AdminService/ForkDurableTask",
+		FullMethod: "/v1.AdminService/BranchDurableTask",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).ForkDurableTask(ctx, req.(*ForkDurableTaskRequest))
+		return srv.(AdminServiceServer).BranchDurableTask(ctx, req.(*BranchDurableTaskRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -276,8 +276,8 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AdminService_GetRunDetails_Handler,
 		},
 		{
-			MethodName: "ForkDurableTask",
-			Handler:    _AdminService_ForkDurableTask_Handler,
+			MethodName: "BranchDurableTask",
+			Handler:    _AdminService_BranchDurableTask_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

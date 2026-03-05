@@ -3583,7 +3583,7 @@ WITH tenants AS (
         e.task_id,
         e.task_inserted_at,
         e.retry_count,
-        MAX(e.readable_status) AS max_readable_status
+        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS max_readable_status
     FROM
         locked_events e
     JOIN
@@ -3705,10 +3705,10 @@ WITH tenants AS (
                     tu.retry_count > t.latest_retry_count
                     AND tu.max_readable_status != t.readable_status
                 ) OR
-                -- if the retry count is equal to the latest retry count, update the status if the status is greater
+                -- if the retry count is equal to the latest retry count, update the status if the priority is higher
                 (
                     tu.retry_count = t.latest_retry_count
-                    AND tu.max_readable_status > t.readable_status
+                    AND v1_status_to_priority(tu.max_readable_status) > v1_status_to_priority(t.readable_status)
                 ) OR
                 -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
                 (

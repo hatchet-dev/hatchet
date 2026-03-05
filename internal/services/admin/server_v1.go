@@ -8,10 +8,11 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
+	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -186,6 +187,12 @@ func (i *AdminServiceImpl) newTriggerOpt(
 ) (*v1.WorkflowNameTriggerOpts, error) {
 	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
+		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
+		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
+	)
 
 	var parentTask *sqlcv1.FlattenExternalIdsRow
 

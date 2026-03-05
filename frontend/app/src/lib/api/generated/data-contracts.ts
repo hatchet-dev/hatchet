@@ -673,9 +673,9 @@ export interface V1WorkflowRunDetails {
   workflowConfig?: object;
 }
 
-export interface V1ForkDurableTaskRequest {
+export interface V1BranchDurableTaskRequest {
   /**
-   * The external id of the durable task to fork.
+   * The external id of the durable task to branch.
    * @format uuid
    * @minLength 36
    * @maxLength 36
@@ -693,7 +693,7 @@ export interface V1ForkDurableTaskRequest {
   branchId: number;
 }
 
-export interface V1ForkDurableTaskResponse {
+export interface V1BranchDurableTaskResponse {
   /**
    * The external id of the durable task.
    * @format uuid

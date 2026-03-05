@@ -45,8 +45,9 @@ module HatchetWorkerFixture
     LOGGER.info("Starting background worker: #{command.join(' ')}")
 
     ENV["HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT"] = healthcheck_port.to_s
+    ENV["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED"] = "true"
 
-    stdin, stdout, stderr, wait_thr = Open3.popen3(*command)
+    stdin, stdout, stderr, wait_thr = Open3.popen3(*command, pgroup: true)
     pid = wait_thr.pid
 
     # Log output in background threads

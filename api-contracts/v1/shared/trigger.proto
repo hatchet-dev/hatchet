@@ -4,6 +4,42 @@ option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/pro
 
 package v1;
 
+enum WorkerLabelComparator {
+    EQUAL = 0;
+    NOT_EQUAL = 1;
+    GREATER_THAN = 2;
+    GREATER_THAN_OR_EQUAL = 3;
+    LESS_THAN = 4;
+    LESS_THAN_OR_EQUAL = 5;
+}
+
+message DesiredWorkerLabels {
+    // value of the affinity
+    optional string str_value = 1;
+    optional int32 int_value = 2;
+
+    /**
+    * (optional) Specifies whether the affinity setting is required.
+    * If required, the worker will not accept actions that do not have a truthy affinity setting.
+    *
+    * Defaults to false.
+    */
+    optional bool required = 3;
+
+    /**
+    * (optional) Specifies the comparator for the affinity setting.
+    * If not set, the default is EQUAL.
+    */
+    optional WorkerLabelComparator comparator = 4;
+
+    /**
+    * (optional) Specifies the weight of the affinity setting.
+    * If not set, the default is 100.
+    */
+    optional int32 weight = 5;
+}
+
+
 message TriggerWorkflowRequest {
     string name = 1;
 
@@ -35,4 +71,7 @@ message TriggerWorkflowRequest {
 
     // (optional) override for the priority of the workflow tasks, will set all tasks to this priority
     optional int32 priority = 9;
+
+    // (optional) the desired worker labels for the workflow run, which will be used to determine which workers can pick up the workflow's tasks. if not set, defaults to an empty set of labels, which means any worker can pick up the tasks.
+    map<string, DesiredWorkerLabels> desired_worker_labels = 10;
 }

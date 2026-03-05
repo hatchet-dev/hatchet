@@ -306,6 +306,7 @@ CREATE TABLE v1_task (
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
     is_durable BOOLEAN,
+    desired_worker_label JSONB,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -385,6 +386,7 @@ CREATE TABLE v1_queue_item (
     sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
+    desired_worker_label JSONB,
     CONSTRAINT v1_queue_item_pkey PRIMARY KEY (id)
 );
 
@@ -501,6 +503,7 @@ CREATE TABLE v1_rate_limited_queue_items (
     sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
+    desired_worker_label JSONB,
 
     CONSTRAINT v1_rate_limited_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -1108,7 +1111,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         tenant_id,
@@ -1125,7 +1129,8 @@ BEGIN
         COALESCE(priority, 1),
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM new_table
     WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
 
@@ -1319,7 +1324,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         nt.tenant_id,
@@ -1336,7 +1342,8 @@ BEGIN
         4,
         nt.sticky,
         nt.desired_worker_id,
-        nt.retry_count
+        nt.retry_count,
+        nt.desired_worker_label
     FROM new_table nt
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'
@@ -1460,7 +1467,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         tenant_id,
@@ -1477,7 +1485,8 @@ BEGIN
         4,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM tasks;
 
     RETURN NULL;
@@ -1599,7 +1608,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         tenant_id,
@@ -1616,7 +1626,8 @@ BEGIN
         COALESCE(priority, 1),
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM tasks;
 
     RETURN NULL;
