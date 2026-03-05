@@ -249,6 +249,7 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
     message = str(uuid4())
