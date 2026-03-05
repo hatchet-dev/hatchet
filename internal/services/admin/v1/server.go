@@ -428,7 +428,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}, nil
 }
 
-func (a *AdminServiceImpl) ForkDurableTask(ctx context.Context, req *contracts.ForkDurableTaskRequest) (*contracts.ForkDurableTaskResponse, error) {
+func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts.BranchDurableTaskRequest) (*contracts.BranchDurableTaskResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -442,10 +442,10 @@ func (a *AdminServiceImpl) ForkDurableTask(ctx context.Context, req *contracts.F
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	result, err := a.repo.DurableEvents().HandleFork(ctx, tenantId, req.NodeId, task)
+	result, err := a.repo.DurableEvents().HandleBranch(ctx, tenantId, req.NodeId, task)
 
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to fork durable task: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to branch durable task: %v", err)
 	}
 
 	replayPayload := tasktypes.ReplayTasksPayload{
@@ -469,7 +469,7 @@ func (a *AdminServiceImpl) ForkDurableTask(ctx context.Context, req *contracts.F
 		return nil, status.Errorf(codes.Internal, "failed to send replay message: %v", err)
 	}
 
-	return &contracts.ForkDurableTaskResponse{
+	return &contracts.BranchDurableTaskResponse{
 		TaskExternalId: taskExternalId.String(),
 		NodeId:         result.NodeId,
 		BranchId:       result.EventLogFile.LatestBranchID,
@@ -540,7 +540,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 	}, nil
 }
 
-func (i *AdminServiceImpl) newTriggerOpt(
+func (a *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	req *contracts.TriggerWorkflowRunRequest,
@@ -567,11 +567,11 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}, nil
 }
 
-func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
-	return i.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
+func (a *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
+	return a.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 }
 
-func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) error {
+func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) error {
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {
@@ -586,28 +586,28 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		return nil
 	}
 
-	if i.localScheduler != nil {
+	if a.localScheduler != nil {
 		localWorkerIds := map[uuid.UUID]struct{}{}
 
-		if i.localDispatcher != nil {
-			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()
+		if a.localDispatcher != nil {
+			localWorkerIds = a.localDispatcher.GetLocalWorkerIds()
 		}
 
-		localAssigned, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+		localAssigned, schedulingErr := a.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
-				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+				a.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
 			}
 		}
 
-		if i.localDispatcher != nil && len(localAssigned) > 0 {
+		if a.localDispatcher != nil && len(localAssigned) > 0 {
 			eg := errgroup.Group{}
 
 			for workerId, assignedItems := range localAssigned {
 				eg.Go(func() error {
-					err := i.localDispatcher.HandleLocalAssignments(ctx, tenantId, workerId, assignedItems)
+					err := a.localDispatcher.HandleLocalAssignments(ctx, tenantId, workerId, assignedItems)
 
 					if err != nil {
 						return fmt.Errorf("could not dispatch assigned items: %w", err)
@@ -620,7 +620,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			dispatcherErr := eg.Wait()
 
 			if dispatcherErr != nil {
-				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+				a.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 
 			// we return nil because the failed assignments would have been requeued by the local dispatcher,
@@ -632,18 +632,18 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		if schedulingErr == nil {
 			return nil
 		}
-	} else if i.tw != nil {
-		triggerErr := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
+	} else if a.tw != nil {
+		triggerErr := a.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
 
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			i.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+			a.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
 		} else if triggerErr == nil {
 			return nil
 		}
 	}
 
-	verifyErr := i.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+	verifyErr := a.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
 
 	if verifyErr != nil {
 		namesNotFound := &v1.ErrNamesNotFound{}
@@ -667,7 +667,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		return fmt.Errorf("could not create event task: %w", err)
 	}
 
-	err = i.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return fmt.Errorf("could not add event to task queue: %w", err)
