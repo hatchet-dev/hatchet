@@ -386,7 +386,7 @@ export class InternalWorker {
           ),
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
-          conditions: taskConditionsToPb(task),
+          conditions: taskConditionsToPb(task, this.client.config.namespace),
           isDurable: durableTaskSet.has(task),
           slotRequests:
             task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),

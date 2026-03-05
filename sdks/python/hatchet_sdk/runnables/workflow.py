@@ -35,7 +35,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
-from hatchet_sdk.contracts.workflows.workflows_pb2 import WorkflowVersion
+from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel, transform_desired_worker_label
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.contextvars import (
@@ -1344,7 +1344,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         durable_ctx = ctx_durable_context.get()
-        if durable_ctx is not None:
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
             raw = await durable_ctx._spawn_child(self, input, options)
             return cast(
                 R,

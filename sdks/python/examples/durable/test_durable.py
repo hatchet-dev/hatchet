@@ -20,8 +20,9 @@ from examples.durable.worker import (
 )
 from hatchet_sdk import Hatchet
 
+requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
-# TODO-DURABLE: we should add a test suite for API Status correctness
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable(hatchet: Hatchet) -> None:
     ref = durable_workflow.run_no_wait()
@@ -54,6 +55,7 @@ async def test_durable(hatchet: Hatchet) -> None:
     assert "event" in wait_group_2["event_id"]
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     first_sleep = await wait_for_sleep_twice.aio_run_no_wait()
@@ -83,6 +85,7 @@ async def test_durable_child_spawn() -> None:
     assert result["child_output"] == {"message": "hello from child"}
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
     start = time.time()
@@ -106,6 +109,7 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
     assert replay_elapsed < SLEEP_TIME
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     ref = wait_for_sleep_twice.run_no_wait()
@@ -138,6 +142,7 @@ async def test_durable_spawn_dag() -> None:
     assert elapsed <= 15
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_non_determinism(hatchet: Hatchet) -> None:
     ref = await durable_non_determinism.aio_run_no_wait()
@@ -158,6 +163,7 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
     assert replayed_result.attempt_number == 2
 
 
+@requires_durable_eviction
 @pytest.mark.parametrize("node_id", [1, 2, 3])
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
@@ -191,6 +197,7 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
     assert reset_elapsed >= sleeps_to_redo * REPLAY_RESET_SLEEP_TIME
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
     message = str(uuid4())
