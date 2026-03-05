@@ -27,7 +27,6 @@ from examples.dependency_injection.worker import (
     async_task_with_dependencies,
     di_workflow,
     durable_async_task_with_dependencies,
-    durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
     task_with_type_aliases,
 )
@@ -107,7 +106,6 @@ def main() -> None:
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_sync_task_with_dependencies,
             task_with_type_aliases,
             say_hello,
             say_hello_unsafely,
