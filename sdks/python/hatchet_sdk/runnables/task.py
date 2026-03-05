@@ -1,4 +1,5 @@
 import asyncio
+import warnings
 from collections.abc import AsyncIterator, Callable
 from contextlib import (
     AbstractAsyncContextManager,
@@ -159,6 +160,14 @@ class Task(Generic[TWorkflowInput, R]):
 
         self.fn = _fn
         self.is_async_function = is_async_fn(self.fn)  # type: ignore
+
+        if is_durable and not self.is_async_function:
+            warnings.warn(
+                "Non-async durable tasks are deprecated and will be removed in v2.0.0. "
+                "Please convert your durable task to an async function.",
+                DeprecationWarning,
+                stacklevel=4,
+            )
 
         self.workflow = workflow
 
