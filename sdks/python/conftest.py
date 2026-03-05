@@ -12,9 +12,7 @@ from tests.worker_fixture import hatchet_worker
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def hatchet() -> AsyncGenerator[Hatchet, None]:
-    yield Hatchet(
-        debug=True,
-    )
+    yield Hatchet()
 
 
 @pytest.fixture(scope="session", autouse=True)
