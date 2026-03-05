@@ -20,6 +20,10 @@ export interface DurableRunRecord {
   waitingSince: number | undefined;
   waitKind: string | undefined;
   waitResourceId: string | undefined;
+  // Ref-counted so concurrent waits (e.g. multiple child results via
+  // Promise.all) don't prematurely clear the waiting flag when one
+  // child completes before the others.
+  _waitCount: number;
 
   evictionReason: string | undefined;
 }
@@ -41,6 +45,7 @@ export class DurableEvictionCache {
       waitingSince: undefined,
       waitKind: undefined,
       waitResourceId: undefined,
+      _waitCount: 0,
       evictionReason: undefined,
     });
   }
@@ -54,13 +59,16 @@ export class DurableEvictionCache {
   }
 
   getAllWaiting(): DurableRunRecord[] {
-    return [...this._runs.values()].filter((r) => r.waitingSince !== undefined);
+    return [...this._runs.values()].filter((r) => r._waitCount > 0);
   }
 
   markWaiting(key: ActionKey, now: number, waitKind: string, resourceId: string): void {
     const rec = this._runs.get(key);
     if (!rec) return;
-    rec.waitingSince = now;
+    rec._waitCount += 1;
+    if (rec._waitCount === 1) {
+      rec.waitingSince = now;
+    }
     rec.waitKind = waitKind;
     rec.waitResourceId = resourceId;
   }
@@ -68,9 +76,12 @@ export class DurableEvictionCache {
   markActive(key: ActionKey): void {
     const rec = this._runs.get(key);
     if (!rec) return;
-    rec.waitingSince = undefined;
-    rec.waitKind = undefined;
-    rec.waitResourceId = undefined;
+    rec._waitCount = Math.max(0, rec._waitCount - 1);
+    if (rec._waitCount === 0) {
+      rec.waitingSince = undefined;
+      rec.waitKind = undefined;
+      rec.waitResourceId = undefined;
+    }
   }
 
   selectEvictionCandidate(
@@ -80,7 +91,7 @@ export class DurableEvictionCache {
     minWaitForCapacityEvictionMs: number
   ): ActionKey | undefined {
     const waiting = [...this._runs.values()].filter(
-      (r) => r.waitingSince !== undefined && r.evictionPolicy !== undefined
+      (r) => r._waitCount > 0 && r.evictionPolicy !== undefined
     );
 
     if (waiting.length === 0) return undefined;

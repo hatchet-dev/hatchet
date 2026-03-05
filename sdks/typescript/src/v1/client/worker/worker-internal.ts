@@ -15,11 +15,7 @@ import {
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
-import {
-  CreateStepRateLimit,
-  DesiredWorkerLabels,
-  StickyStrategy,
-} from '@hatchet/protoc/workflows';
+import { CreateStepRateLimit, StickyStrategy } from '@hatchet/protoc/workflows';
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
@@ -37,6 +33,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
+import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
 import { Duration, durationToString } from '../duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';

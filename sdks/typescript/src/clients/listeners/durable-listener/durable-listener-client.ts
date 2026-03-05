@@ -39,6 +39,11 @@ const DEFAULT_RECONNECT_INTERVAL = 3000;
 const EVICTION_ACK_TIMEOUT_MS = 30_000;
 const WORKER_STATUS_POLL_INTERVAL_MS = 1000;
 
+export interface DurableTaskRunAckEntryResult {
+  nodeId: number;
+  branchId: number;
+}
+
 export interface DurableTaskEventAck {
   invocationCount: number;
   durableTaskExternalId: string;
@@ -46,6 +51,7 @@ export interface DurableTaskEventAck {
   nodeId: number;
   memoAlreadyExisted: boolean;
   memoResultPayload?: Uint8Array;
+  runEntries: DurableTaskRunAckEntryResult[];
 }
 
 export interface DurableTaskEventLogEntryResult {
@@ -73,9 +79,9 @@ export interface WaitForEvent {
   waitForConditions: DurableEventListenerConditions;
 }
 
-export interface RunChildEvent {
-  kind: 'runChild';
-  triggerOpts: TriggerWorkflowRequest;
+export interface RunChildrenEvent {
+  kind: 'runChildren';
+  triggerOpts: TriggerWorkflowRequest[];
 }
 
 export interface MemoEvent {
@@ -84,7 +90,7 @@ export interface MemoEvent {
   payload?: Uint8Array;
 }
 
-export type DurableTaskSendEvent = WaitForEvent | RunChildEvent | MemoEvent;
+export type DurableTaskSendEvent = WaitForEvent | RunChildrenEvent | MemoEvent;
 
 type TaskExternalId = string;
 type InvocationCount = number;
@@ -330,6 +336,10 @@ export class DurableListenerClient {
           nodeId: ack.nodeId,
           memoAlreadyExisted: ack.memoAlreadyExisted,
           memoResultPayload: ack.memoResultPayload,
+          runEntries: (ack.runEntries || []).map((e) => ({
+            nodeId: e.nodeId,
+            branchId: e.branchId,
+          })),
         });
         this._pendingEventAcks.delete(key);
       }
@@ -414,7 +424,7 @@ export class DurableListenerClient {
     let eventRequest: DurableTaskEventRequest;
 
     switch (event.kind) {
-      case 'runChild':
+      case 'runChildren':
         eventRequest = {
           invocationCount,
           durableTaskExternalId,
@@ -429,6 +439,7 @@ export class DurableListenerClient {
           durableTaskExternalId,
           kind: DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
           waitForConditions: event.waitForConditions,
+          triggerOpts: [],
         };
         break;
 
@@ -439,6 +450,7 @@ export class DurableListenerClient {
           kind: DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
           memoKey: event.memoKey,
           payload: event.payload,
+          triggerOpts: [],
         };
         break;
 

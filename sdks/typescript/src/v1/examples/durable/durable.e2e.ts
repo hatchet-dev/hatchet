@@ -8,6 +8,7 @@ import {
   REPLAY_RESET_SLEEP_SECONDS,
   waitForSleepTwice,
   durableWithSpawn,
+  durableWithBulkSpawn,
   durableSleepEventSpawn,
   durableSpawnDag,
   durableNonDeterminism,
@@ -76,6 +77,13 @@ describe('durable-e2e', () => {
   it('durable child spawn', async () => {
     const result = await durableWithSpawn.run({});
     expect(result.child_output).toEqual({ message: 'hello from child' });
+  }, 300_000);
+
+  it('durable child bulk spawn', async () => {
+    const result = await durableWithBulkSpawn.run({});
+    expect(result.child_outputs).toEqual(
+      Array.from({ length: 10 }, () => ({ message: 'hello from child' }))
+    );
   }, 300_000);
 
   it('durable sleep + event + spawn replay', async () => {

@@ -5,9 +5,11 @@ import {
   evictableSleep,
   evictableWaitForEvent,
   evictableChildSpawn,
+  evictableChildBulkSpawn,
   multipleEviction,
   nonEvictableSleep,
   LONG_SLEEP_SECONDS,
+  EVICTION_TTL_SECONDS,
   EVENT_KEY,
 } from './workflow';
 
@@ -176,6 +178,46 @@ describe('durable-eviction-e2e', () => {
     expect(result.child).toEqual({ child_status: 'completed' });
   }, 180_000);
 
+  it('evictable child spawn restore re-enqueues', async () => {
+    const ref = await evictableChildSpawn.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const taskId = getTaskExternalId(details);
+    expect(taskId).toBeDefined();
+
+    await hatchet.runs.restoreTask(taskId!);
+
+    const restored = await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+    const statuses = getTaskStatuses(restored);
+    expect(statuses).toContain(V1TaskStatus.RUNNING);
+  }, 120_000);
+
+  it('evictable child bulk spawn restore completes', async () => {
+    const ref = await evictableChildBulkSpawn.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    let evictionCount = 0;
+    for (let i = 0; i < 3; i += 1) {
+      await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+      evictionCount += 1;
+      const taskId = getTaskExternalId(details)!;
+      await hatchet.runs.restoreTask(taskId);
+    }
+
+    const result = await ref.output;
+    expect(evictionCount).toBe(3);
+    expect(result.status).toBe('completed');
+    expect(result.child_results).toEqual(
+      Array.from({ length: 3 }, (_, i) => ({
+        sleepSeconds: (EVICTION_TTL_SECONDS + 5) * (i + 1),
+        status: 'completed',
+      }))
+    );
+  }, 300_000);
+
   it('multiple eviction cycles', async () => {
     const start = Date.now();
     const ref = await multipleEviction.runNoWait({});
@@ -204,4 +246,94 @@ describe('durable-eviction-e2e', () => {
     expect(result.status).toBe('completed');
     expect(elapsed).toBeGreaterThanOrEqual(2 * LONG_SLEEP_SECONDS);
   }, 300_000);
+
+  it('eviction plus replay completes', async () => {
+    const ref = await evictableSleep.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+    await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+
+    await hatchet.runs.replay({ ids: [runId] });
+
+    const result = await ref.output;
+    expect(result.status).toBe('completed');
+  }, 180_000);
+
+  it('cancel after eviction transitions to CANCELLED', async () => {
+    const ref = await evictableSleep.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const statuses = getTaskStatuses(details);
+    expect(statuses).toContain(V1TaskStatus.EVICTED);
+
+    await hatchet.runs.cancel({ ids: [runId] });
+
+    const cancelled = await pollUntilStatus(runId, V1TaskStatus.CANCELLED, 30);
+    const cancelledStatuses = getTaskStatuses(cancelled);
+    expect(cancelledStatuses).toContain(V1TaskStatus.CANCELLED);
+  }, 120_000);
+
+  it('restore idempotency - double restore completes once', async () => {
+    const ref = await evictableSleep.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const taskId = getTaskExternalId(details)!;
+
+    await hatchet.runs.restoreTask(taskId);
+    await hatchet.runs.restoreTask(taskId);
+
+    const result = await ref.output;
+    expect(result.status).toBe('completed');
+  }, 180_000);
+
+  it('graceful termination evicts waiting runs', async () => {
+    const { spawn } = await import('child_process');
+
+    const workerProc = spawn(
+      'npx',
+      ['ts-node', '--project', 'tsconfig.json', 'src/v1/examples/durable_eviction/worker.ts'],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8104',
+        },
+        stdio: 'pipe',
+      }
+    );
+
+    await poll(
+      async () => {
+        try {
+          const resp = await fetch('http://localhost:8104/health');
+          return resp.ok;
+        } catch {
+          return false;
+        }
+      },
+      {
+        timeoutMs: 30_000,
+        intervalMs: 1000,
+        shouldStop: (healthy) => healthy === true,
+        label: 'worker-health',
+      }
+    );
+
+    const ref = await evictableSleep.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+
+    workerProc.kill('SIGTERM');
+
+    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const evictedStatuses = getTaskStatuses(details);
+    expect(evictedStatuses).toContain(V1TaskStatus.EVICTED);
+  }, 120_000);
 });

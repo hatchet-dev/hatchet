@@ -62,6 +62,27 @@ export const multipleEviction = hatchet.durableTask({
   },
 });
 
+export const bulkChildTask = hatchet.task({
+  name: 'eviction-bulk-child-task',
+  fn: async (input: { sleepSeconds: number }) => {
+    await sleep(input.sleepSeconds * 1000);
+    return { sleepSeconds: input.sleepSeconds, status: 'completed' };
+  },
+});
+
+export const evictableChildBulkSpawn = hatchet.durableTask({
+  name: 'evictable-child-bulk-spawn',
+  executionTimeout: '5m',
+  evictionPolicy: EVICTION_POLICY,
+  fn: async (_input, ctx) => {
+    const inputs = Array.from({ length: 3 }, (_, i) => ({
+      sleepSeconds: (EVICTION_TTL_SECONDS + 5) * (i + 1),
+    }));
+    const childResults = await bulkChildTask.run(inputs);
+    return { child_results: childResults, status: 'completed' };
+  },
+});
+
 export const nonEvictableSleep = hatchet.durableTask({
   name: 'non-evictable-sleep',
   executionTimeout: '5m',

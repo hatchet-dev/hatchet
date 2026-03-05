@@ -16,7 +16,6 @@ import {
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
-import { WorkerLabelComparator } from '@hatchet/protoc/v1/workflows';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -27,6 +26,7 @@ import {
   CreateOnSuccessTaskOpts,
   Concurrency,
   DurableTaskFn,
+  WorkerLabelComparator,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -491,8 +491,12 @@ export class BaseWorkflowDeclaration<
     }
 
     const durableCtx = parentRunContextManager.getContext()?.durableContext;
-    if (durableCtx && !Array.isArray(input)) {
-      // TODO-DURABLE: batch child spawns
+    if (durableCtx) {
+      if (Array.isArray(input)) {
+        return durableCtx.spawnChildren(
+          input.map((inp) => ({ workflow: this as any, input: inp as any, options }))
+        ) as Promise<O[]> as Promise<O | O[]>;
+      }
       return durableCtx.spawnChild(this as any, input as any, options) as Promise<O>;
     }
 

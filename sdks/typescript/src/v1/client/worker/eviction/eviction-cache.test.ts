@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 import {
   DurableEvictionCache,
   DurableRunRecord,
@@ -64,6 +65,42 @@ describe('DurableEvictionCache', () => {
       expect(rec.waitingSince).toBeUndefined();
       expect(rec.waitKind).toBeUndefined();
       expect(rec.waitResourceId).toBeUndefined();
+    });
+
+    it('ref-counts concurrent waits so one markActive does not clear waiting', () => {
+      cache.registerRun('k1', 'ext-1', T0, makePolicy());
+      cache.markWaiting('k1', T0, 'runChild', 'child-0');
+      cache.markWaiting('k1', T0, 'runChild', 'child-1');
+      cache.markWaiting('k1', T0, 'runChild', 'child-2');
+
+      cache.markActive('k1');
+      const rec = cache.get('k1')!;
+      expect(rec._waitCount).toBe(2);
+      expect(rec.waitingSince).toBe(T0);
+
+      cache.markActive('k1');
+      expect(rec._waitCount).toBe(1);
+      expect(rec.waitingSince).toBe(T0);
+
+      cache.markActive('k1');
+      expect(rec._waitCount).toBe(0);
+      expect(rec.waitingSince).toBeUndefined();
+    });
+
+    it('waitingSince is set only on the first markWaiting call', () => {
+      cache.registerRun('k1', 'ext-1', T0, makePolicy());
+      cache.markWaiting('k1', T0, 'runChild', 'child-0');
+      cache.markWaiting('k1', T0 + ONE_SEC, 'runChild', 'child-1');
+      const rec = cache.get('k1')!;
+      expect(rec.waitingSince).toBe(T0);
+    });
+
+    it('markActive never goes below zero', () => {
+      cache.registerRun('k1', 'ext-1', T0, makePolicy());
+      cache.markWaiting('k1', T0, 'sleep', 'r');
+      cache.markActive('k1');
+      cache.markActive('k1');
+      expect(cache.get('k1')!._waitCount).toBe(0);
     });
 
     it('getAllWaiting returns only waiting runs', () => {
@@ -391,6 +428,7 @@ describe('buildEvictionReason', () => {
       waitingSince: T0,
       waitKind: 'sleep',
       waitResourceId: 'res-1',
+      _waitCount: 1,
       evictionReason: undefined,
       ...overrides,
     };

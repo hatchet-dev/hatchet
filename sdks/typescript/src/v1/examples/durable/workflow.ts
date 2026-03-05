@@ -141,6 +141,16 @@ export const durableWithSpawn = hatchet.durableTask({
   },
 });
 
+export const durableWithBulkSpawn = hatchet.durableTask({
+  name: 'durable-with-bulk-spawn',
+  executionTimeout: '10m',
+  fn: async (_input, ctx) => {
+    const inputs = Array.from({ length: 10 }, () => ({}));
+    const childResults = await spawnChildTask.run(inputs);
+    return { child_outputs: childResults };
+  },
+});
+
 export const durableSleepEventSpawn = hatchet.durableTask({
   name: 'durable-sleep-event-spawn',
   executionTimeout: '10m',

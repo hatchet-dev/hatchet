@@ -10,8 +10,8 @@ import { Logger } from '../util/logger';
 import { parseJSON } from '../util/parse';
 import WorkflowRunRef from '../util/workflow-run-ref';
 import { WorkerLabels } from '../clients/dispatcher/dispatcher-client';
-import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from '../protoc/workflows';
-import { CreateWorkflowTaskOpts, Priority } from '../v1';
+import { CreateStepRateLimit, RateLimitDuration } from '../protoc/workflows';
+import { CreateWorkflowTaskOpts, Priority, WorkerLabelComparator } from '../v1';
 import {
   RunOpts,
   TaskWorkflowDeclaration,

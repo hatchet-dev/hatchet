@@ -921,20 +921,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     });
   }
 
-  /**
-   * Spawns a child workflow through the durable event log, waits for the child to complete.
-   * @param workflow - The workflow to spawn.
-   * @param input - The input data for the child workflow.
-   * @param options - Options for spawning the child workflow.
-   * @returns The result of the child workflow.
-   */
-  async spawnChild<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+  private _buildTriggerOpts<Q extends JsonObject>(
+    workflow: string | WorkflowV1<Q, any> | TaskWorkflowDeclaration<Q, any>,
     input?: Q,
     options?: ChildRunOpts
-  ): Promise<P> {
-    this.throwIfCancelled();
-
+  ) {
     let workflowName: string;
     if (typeof workflow === 'string') {
       workflowName = workflow;
@@ -943,9 +934,6 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     }
 
     workflowName = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
-
-    const standaloneTaskName =
-      workflow instanceof TaskWorkflowDeclaration ? workflow._standalone_task_name : undefined;
 
     const triggerOpts = {
       name: workflowName,
@@ -959,28 +947,75 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         : undefined,
       desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
       priority: options?.priority,
+      desiredWorkerLabels: {},
     };
 
     this.spawnIndex += 1;
+
+    return { workflowName, triggerOpts };
+  }
+
+  /**
+   * Spawns a child workflow through the durable event log, waits for the child to complete.
+   * @param workflow - The workflow to spawn.
+   * @param input - The input data for the child workflow.
+   * @param options - Options for spawning the child workflow.
+   * @returns The result of the child workflow.
+   */
+  async spawnChild<Q extends JsonObject, P extends JsonObject>(
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    input?: Q,
+    options?: ChildRunOpts
+  ): Promise<P> {
+    const results = await this.spawnChildren<Q, P>([
+      { workflow, input: (input || {}) as Q, options },
+    ]);
+    return results[0];
+  }
+
+  /**
+   * Spawns multiple child workflows through the durable event log, waits for all to complete.
+   * @param children - An array of objects containing the workflow, input, and options for each child.
+   * @returns A list of results from the child workflows.
+   */
+  async spawnChildren<Q extends JsonObject, P extends JsonObject>(
+    children: Array<{
+      workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>;
+      input: Q;
+      options?: ChildRunOpts;
+    }>
+  ): Promise<P[]> {
+    this.throwIfCancelled();
+
+    const triggerOptsList = children.map((child) => {
+      const { triggerOpts } = this._buildTriggerOpts(child.workflow, child.input, child.options);
+      return triggerOpts;
+    });
 
     const ack = await this._durableListener.sendEvent(
       this.action.taskRunExternalId,
       this.invocationCount,
       {
-        kind: 'runChild',
-        triggerOpts,
+        kind: 'runChildren',
+        triggerOpts: triggerOptsList,
       }
     );
 
-    return this.withEvictionWait('runChild', `workflow:${workflowName}`, async () => {
-      const result = await this._durableListener.waitForCallback(
-        this.action.taskRunExternalId,
-        this.invocationCount,
-        ack.branchId,
-        ack.nodeId
-      );
-      return (result.payload || {}) as P;
-    });
+    const results = await Promise.all(
+      ack.runEntries.map((entry) =>
+        this.withEvictionWait('runChild', `workflow:bulk-child`, async () => {
+          const result = await this._durableListener.waitForCallback(
+            this.action.taskRunExternalId,
+            this.invocationCount,
+            entry.branchId,
+            entry.nodeId
+          );
+          return (result.payload || {}) as P;
+        })
+      )
+    );
+
+    return results;
   }
 
   /**

@@ -1,13 +1,10 @@
-import {
-  ConcurrencyLimitStrategy,
-  RateLimitDuration,
-  WorkerLabelComparator,
-} from '@hatchet/protoc/v1/workflows';
+import { ConcurrencyLimitStrategy, RateLimitDuration } from '@hatchet/protoc/v1/workflows';
 import { Conditions } from './conditions';
 import { Duration } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
+import { WorkerLabelComparator } from '../protoc/v1/shared/trigger';
 
 export { ConcurrencyLimitStrategy, WorkerLabelComparator };
 
