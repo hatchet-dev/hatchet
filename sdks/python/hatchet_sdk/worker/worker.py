@@ -299,6 +299,9 @@ class Worker:
 
             await self.action_listener_health_check
 
+            if self.action_runner:
+                await self.action_runner.wait_for_tasks()
+
             try:
                 await self._cleanup_lifespan()
             except LifespanSetupError:
@@ -348,7 +351,9 @@ class Worker:
     async def _cleanup_lifespan(self) -> None:
         try:
             if self.lifespan_stack is not None:
-                await self.lifespan_stack.aclose()
+                stack = self.lifespan_stack
+                self.lifespan_stack = None
+                await stack.aclose()
         except Exception as e:
             logger.exception("error during lifespan cleanup")
             raise LifespanSetupError("An error occurred during lifespan cleanup") from e
