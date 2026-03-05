@@ -30,7 +30,7 @@ from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.conditions import Condition, OrGroup
-from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.context.context import Context, DurableContext, DurableWorkflowRunRef
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
 )
@@ -686,20 +686,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary.
         """
-
-        ref = self.client._client.admin.run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(options),
-        )
-
+        ref = self.run_no_wait(input, options)
         return ref.result()
 
     async def aio_run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
+    ) -> WorkflowRunRef | DurableWorkflowRunRef:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
         This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
@@ -709,6 +703,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            config = WorkflowRunTriggerConfig(
+                workflow_name=self.config.name,
+                input=self._serialize_input(input, target="string"),
+                options=self._create_options_with_combined_additional_meta(options),
+            )
+            refs = await durable_ctx._spawn_children_no_wait(self, [config])
+            return refs[0]
 
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
@@ -731,12 +734,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary.
         """
-        ref = await self.client._client.admin.aio_run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(options),
-        )
-
+        ref = await self.aio_run_no_wait(input, options)
         return await ref.aio_result()
 
     def _get_result(
@@ -776,10 +774,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
-        refs = self.client._client.admin.run_workflows(
-            workflows=workflows,
-        )
-
+        refs = self.run_many_no_wait(workflows)
         return [self._get_result(ref, return_exceptions) for ref in refs]
 
     @overload
@@ -809,10 +804,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
-        refs = await self.client._client.admin.aio_run_workflows(
-            workflows=workflows,
-        )
-
+        refs = await self.aio_run_many_no_wait(workflows)
         return await asyncio.gather(
             *[ref.aio_result() for ref in refs], return_exceptions=return_exceptions
         )
@@ -836,7 +828,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_run_many_no_wait(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[WorkflowRunRef]:
+    ) -> list[WorkflowRunRef | DurableWorkflowRunRef]:
         """
         Run a workflow in bulk without waiting for all runs to complete.
 
@@ -846,8 +838,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
         """
-        return await self.client._client.admin.aio_run_workflows(
-            workflows=workflows,
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            return cast(
+                list[WorkflowRunRef | DurableWorkflowRunRef],
+                await durable_ctx._spawn_children_no_wait(self, workflows),
+            )
+
+        return cast(
+            list[WorkflowRunRef | DurableWorkflowRunRef],
+            await self.client._client.admin.aio_run_workflows(workflows=workflows),
         )
 
     def _parse_task_name(
@@ -1238,7 +1238,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
     def __init__(
         self,
         standalone: "Standalone[TWorkflowInput, R]",
-        workflow_run_ref: WorkflowRunRef,
+        workflow_run_ref: WorkflowRunRef | DurableWorkflowRunRef,
     ):
         self._s = standalone
         self._wrr = workflow_run_ref
@@ -1249,9 +1249,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self.workflow_run_id
 
     async def aio_result(self) -> R:
-        result = await self._wrr.workflow_run_listener.aio_result(
-            self._wrr.workflow_run_id
-        )
+        result = await self._wrr.aio_result()
         return self._s._extract_result(result)
 
     def result(self) -> R:
@@ -1341,18 +1339,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :returns: The extracted result of the workflow execution.
         """
-        from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-
-        durable_ctx = ctx_durable_context.get()
-        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
-            raw = await durable_ctx._spawn_child(self, input, options)
-            return cast(
-                R,
-                self._output_validator.validate_python(
-                    raw, context=HATCHET_PYDANTIC_SENTINEL
-                ),
-            )
-
         result = await self._workflow.aio_run(input, options)
         return self._extract_result(result)
 

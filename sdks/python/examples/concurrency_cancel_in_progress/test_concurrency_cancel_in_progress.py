@@ -14,7 +14,7 @@ from hatchet_sdk import Hatchet, TriggerWorkflowOptions, V1TaskStatus, WorkflowR
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
-    refs: list[WorkflowRunRef] = []
+    refs = []
 
     for i in range(10):
         ref = await concurrency_cancel_in_progress_workflow.aio_run_no_wait(

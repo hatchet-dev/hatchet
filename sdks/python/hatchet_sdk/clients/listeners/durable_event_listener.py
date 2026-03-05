@@ -51,17 +51,27 @@ class RunChildEvent:
 
 
 @dataclass(frozen=True)
+class RunChildrenEvent:
+    children: list[RunChildEvent]
+
+
+@dataclass(frozen=True)
 class MemoEvent:
     memo_key: bytes
     result: str | None
 
 
-DurableTaskSendEvent = WaitForEvent | RunChildEvent | MemoEvent
+DurableTaskSendEvent = WaitForEvent | RunChildrenEvent | MemoEvent
 
 
 class MaybeCachedMemoEntry(BaseModel):
     found: bool
     data: bytes | None = None
+
+
+class DurableTaskRunAckEntry(BaseModel):
+    node_id: int
+    branch_id: int
 
 
 class DurableTaskEventAck(BaseModel):
@@ -71,6 +81,7 @@ class DurableTaskEventAck(BaseModel):
     node_id: int
     memo_already_existed: bool
     memo_result_payload: bytes | None = None
+    run_entries: list[DurableTaskRunAckEntry] = []
 
 
 class DurableTaskEventLogEntryResult(BaseModel):
@@ -298,6 +309,14 @@ class DurableEventListener:
                 trigger_ack.invocation_count,
             )
             if event_key in self._pending_event_acks:
+                run_entries = [
+                    DurableTaskRunAckEntry(
+                        node_id=e.node_id,
+                        branch_id=e.branch_id,
+                    )
+                    for e in trigger_ack.run_entries
+                ]
+
                 self._pending_event_acks[event_key].set_result(
                     DurableTaskEventAck(
                         invocation_count=trigger_ack.invocation_count,
@@ -306,6 +325,7 @@ class DurableEventListener:
                         branch_id=trigger_ack.branch_id,
                         memo_already_existed=trigger_ack.memo_already_existed,
                         memo_result_payload=trigger_ack.memo_result_payload,
+                        run_entries=run_entries,
                     )
                 )
                 del self._pending_event_acks[event_key]
@@ -409,18 +429,21 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
-        if isinstance(event, RunChildEvent):
-            _trigger_opts = self.admin_client._create_workflow_run_request(
-                workflow_name=event.workflow_name,
-                input=event.input,
-                options=event.trigger_workflow_opts,
-            )
+        if isinstance(event, RunChildrenEvent):
+            trigger_opts_list = [
+                self.admin_client._create_workflow_run_request(
+                    workflow_name=child.workflow_name,
+                    input=child.input,
+                    options=child.trigger_workflow_opts,
+                )
+                for child in event.children
+            ]
 
             event_request = DurableTaskEventRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
                 kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
-                trigger_opts=_trigger_opts,
+                trigger_opts=trigger_opts_list,
             )
 
         elif isinstance(event, WaitForEvent):

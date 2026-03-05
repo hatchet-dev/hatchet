@@ -45,10 +45,15 @@ message DurableTaskEventRequest {
     optional DurableEventListenerConditions wait_for_conditions = 5;
 
     // Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows)
-    optional TriggerWorkflowRequest trigger_opts  = 6;
+    repeated TriggerWorkflowRequest trigger_opts = 6;
 
     // Fields for DURABLE_TASK_TRIGGER_KIND_MEMO
     optional bytes memo_key = 7;
+}
+
+message DurableTaskRunAckEntry {
+    int64 node_id = 1;
+    int64 branch_id = 2;
 }
 
 message DurableTaskEventAckResponse {
@@ -60,6 +65,9 @@ message DurableTaskEventAckResponse {
     // memo fields
     bool memo_already_existed = 5;
     optional bytes memo_result_payload = 6;
+
+    // run fields -- populated when kind = RUN
+    repeated DurableTaskRunAckEntry run_entries = 8;
 }
 
 message DurableTaskEventLogEntryCompletedResponse {

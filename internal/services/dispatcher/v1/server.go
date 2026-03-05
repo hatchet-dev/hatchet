@@ -482,27 +482,12 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.InvalidArgument, "invalid event kind: %v", err)
 	}
 
-	var triggerOpts *v1.WorkflowNameTriggerOpts
-
+	// RUN events use the bulk path
 	if kind == sqlcv1.V1DurableEventLogKindRUN {
-		ttd, err := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, req.TriggerOpts, task)
-
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
-		}
-
-		optsSlice := []*v1.WorkflowNameTriggerOpts{{
-			TriggerTaskData: ttd,
-		}}
-
-		err = d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, optsSlice)
-
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", err)
-		}
-
-		triggerOpts = optsSlice[0]
+		return d.handleDurableTaskRunEvent(ctx, invocation, req, task, taskExternalId)
 	}
+
+	var triggerOpts *v1.WorkflowNameTriggerOpts
 
 	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
@@ -572,12 +557,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
 	}
 
-	if len(ingestionResult.CreatedTasks) > 0 || len(ingestionResult.CreatedDAGs) > 0 {
-		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, ingestionResult.CreatedTasks, ingestionResult.CreatedDAGs); sigErr != nil {
-			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
-		}
-	}
-
 	ackResp := &contracts.DurableTaskEventAckResponse{
 		InvocationCount:       req.InvocationCount,
 		DurableTaskExternalId: req.DurableTaskExternalId,
@@ -609,6 +588,110 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		if err != nil {
 			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, ingestionResult.NodeId)
 			return status.Errorf(codes.Internal, "failed to deliver callback completion: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) handleDurableTaskRunEvent(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskEventRequest,
+	task *sqlcv1.FlattenExternalIdsRow,
+	taskExternalId uuid.UUID,
+) error {
+	optsSlice := make([]*v1.WorkflowNameTriggerOpts, 0, len(req.TriggerOpts))
+
+	for _, triggerReq := range req.TriggerOpts {
+		ttd, err := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, triggerReq, task)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to create trigger options: %v", err)
+		}
+
+		optsSlice = append(optsSlice, &v1.WorkflowNameTriggerOpts{
+			TriggerTaskData: ttd,
+		})
+	}
+
+	if err := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, optsSlice); err != nil {
+		return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", err)
+	}
+
+	bulkResult, err := d.repo.DurableEvents().IngestBulkDurableTaskRunEvents(
+		ctx,
+		invocation.tenantId,
+		task,
+		req.InvocationCount,
+		optsSlice,
+	)
+
+	var nde *v1.NonDeterminismError
+	if err != nil && errors.As(err, &nde) {
+		sendErr := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_Error{
+				Error: &contracts.DurableTaskErrorResponse{
+					DurableTaskExternalId: taskExternalId.String(),
+					BranchId:              nde.BranchId,
+					NodeId:                nde.NodeId,
+					InvocationCount:       req.InvocationCount,
+					ErrorType:             contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM,
+					ErrorMessage:          nde.Error(),
+				},
+			},
+		})
+
+		if sendErr != nil {
+			return fmt.Errorf("failed to send non-determinism error to worker: %w", sendErr)
+		}
+
+		return nil
+	} else if err != nil {
+		return status.Errorf(codes.Internal, "failed to ingest bulk durable task run events: %v", err)
+	}
+
+	// Signal created tasks/DAGs and build ack entries
+	ackResp := &contracts.DurableTaskEventAckResponse{
+		InvocationCount:       req.InvocationCount,
+		DurableTaskExternalId: req.DurableTaskExternalId,
+	}
+
+	for _, entry := range bulkResult.Entries {
+		if len(entry.CreatedTasks) > 0 || len(entry.CreatedDAGs) > 0 {
+			if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, entry.CreatedTasks, entry.CreatedDAGs); sigErr != nil {
+				d.l.Error().Err(sigErr).Msgf("failed to signal created tasks/DAGs for durable run trigger at node %d", entry.NodeId)
+			}
+		}
+
+		ackResp.RunEntries = append(ackResp.RunEntries, &contracts.DurableTaskRunAckEntry{
+			NodeId:   entry.NodeId,
+			BranchId: entry.BranchId,
+		})
+	}
+
+	err = invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_TriggerAck{
+			TriggerAck: ackResp,
+		},
+	})
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
+	}
+
+	// Deliver immediate completions for any already-satisfied entries
+	for _, entry := range bulkResult.Entries {
+		if entry.IsSatisfied {
+			if err := d.DeliverDurableEventLogEntryCompletion(
+				taskExternalId,
+				bulkResult.InvocationCount,
+				entry.BranchId,
+				entry.NodeId,
+				entry.ResultPayload,
+			); err != nil {
+				d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, entry.NodeId)
+				return status.Errorf(codes.Internal, "failed to deliver callback completion: %v", err)
+			}
 		}
 	}
 

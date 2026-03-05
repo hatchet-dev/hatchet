@@ -92,8 +92,24 @@ type CompleteMemoEntryOpts struct {
 	Payload         []byte
 }
 
+type IngestBulkDurableTaskRunEntry struct {
+	ResultPayload  []byte
+	CreatedTasks   []*V1TaskWithPayload
+	CreatedDAGs    []*DAGWithData
+	NodeId         int64
+	BranchId       int64
+	IsSatisfied    bool
+	AlreadyExisted bool
+}
+
+type IngestBulkDurableTaskRunResult struct {
+	Entries         []IngestBulkDurableTaskRunEntry
+	InvocationCount int32
+}
+
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
+	IngestBulkDurableTaskRunEvents(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, invocationCount int32, triggerOptsList []*WorkflowNameTriggerOpts) (*IngestBulkDurableTaskRunResult, error)
 	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
@@ -623,6 +639,153 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		ResultPayload:   logEntry.ResultPayload,
 		CreatedTasks:    spawnedTasks,
 		CreatedDAGs:     spawnedDAGs,
+	}, nil
+}
+
+func createRunIdempotencyKey(triggerOpts *WorkflowNameTriggerOpts) ([]byte, error) {
+	dataToHash := []byte(sqlcv1.V1DurableEventLogKindRUN)
+	dataToHash = append(dataToHash, triggerOpts.Data...)
+	dataToHash = append(dataToHash, []byte(triggerOpts.WorkflowName)...)
+
+	h := sha256.New()
+	h.Write(dataToHash)
+	hashBytes := h.Sum(nil)
+	idempotencyKey := make([]byte, hex.EncodedLen(len(hashBytes)))
+	hex.Encode(idempotencyKey, hashBytes)
+
+	return idempotencyKey, nil
+}
+
+func (r *durableEventsRepository) IngestBulkDurableTaskRunEvents(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	task *sqlcv1.FlattenExternalIdsRow,
+	invocationCount int32,
+	triggerOptsList []*WorkflowNameTriggerOpts,
+) (*IngestBulkDurableTaskRunResult, error) {
+	if len(triggerOptsList) == 0 {
+		return &IngestBulkDurableTaskRunResult{InvocationCount: invocationCount}, nil
+	}
+
+	optTx, err := r.PrepareOptimisticTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare tx: %w", err)
+	}
+	defer optTx.Rollback()
+
+	tx := optTx.tx
+
+	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock log file: %w", err)
+	}
+
+	if logFile.LatestInvocationCount != invocationCount {
+		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d, rejecting event write", logFile.LatestInvocationCount, invocationCount)
+	}
+
+	baseNodeId := logFile.LatestNodeID
+	entries := make([]IngestBulkDurableTaskRunEntry, 0, len(triggerOptsList))
+
+	var inputPayload []byte
+	var logEntry *EventLogEntryWithPayloads
+	var idempotencyKey []byte
+	var spawnedDAGs []*DAGWithData
+	var spawnedTasks []*V1TaskWithPayload
+
+	for i, triggerOpts := range triggerOptsList {
+		nodeId := baseNodeId + 1 + int64(i)
+
+		var parentNodeId *int64
+		if prevNode := baseNodeId + int64(i); prevNode > 0 {
+			parentNodeId = &prevNode
+		}
+
+		branchId := logFile.LatestBranchID
+		parentBranchId := logFile.LatestBranchID
+
+		if logFile.LatestBranchFirstParentNodeID > 0 && nodeId <= logFile.LatestBranchFirstParentNodeID {
+			parentBranch := logFile.LatestBranchID - 1
+			branchId = parentBranch
+			parentBranchId = parentBranch
+		}
+
+		if logFile.LatestBranchFirstParentNodeID > 0 && nodeId == logFile.LatestBranchFirstParentNodeID+1 {
+			parentBranchId = logFile.LatestBranchID - 1
+		}
+
+		inputPayload, err = json.Marshal(triggerOpts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal trigger opts: %w", err)
+		}
+
+		idempotencyKey, err = createRunIdempotencyKey(triggerOpts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create idempotency key: %w", err)
+		}
+
+		logEntry, err = r.getOrCreateEventLogEntry(
+			ctx,
+			tx,
+			GetOrCreateLogEntryOpts{
+				TenantId:              tenantId,
+				DurableTaskExternalId: task.ExternalID,
+				DurableTaskId:         task.ID,
+				DurableTaskInsertedAt: task.InsertedAt,
+				Kind:                  sqlcv1.V1DurableEventLogKindRUN,
+				NodeId:                nodeId,
+				ParentNodeId:          parentNodeId,
+				ParentBranchId:        &parentBranchId,
+				BranchId:              branchId,
+				InvocationCount:       invocationCount,
+				IsSatisfied:           false,
+				IdempotencyKey:        idempotencyKey,
+				InputPayload:          inputPayload,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get or create event log entry at node %d: %w", nodeId, err)
+		}
+
+		entry := IngestBulkDurableTaskRunEntry{
+			NodeId:         nodeId,
+			BranchId:       branchId,
+			IsSatisfied:    logEntry.Entry.IsSatisfied,
+			AlreadyExisted: logEntry.AlreadyExisted,
+			ResultPayload:  logEntry.ResultPayload,
+		}
+
+		if !logEntry.AlreadyExisted {
+			spawnedDAGs, spawnedTasks, err = r.handleTriggerRuns(ctx, optTx, tenantId, branchId, nodeId, triggerOpts, task)
+			if err != nil {
+				return nil, fmt.Errorf("failed to handle trigger runs at node %d: %w", nodeId, err)
+			}
+			entry.CreatedTasks = spawnedTasks
+			entry.CreatedDAGs = spawnedDAGs
+		}
+
+		entries = append(entries, entry)
+	}
+
+	finalNodeId := baseNodeId + int64(len(triggerOptsList))
+	_, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
+		NodeId:                sqlchelpers.ToBigInt(&finalNodeId),
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update latest node id: %w", err)
+	}
+
+	if err := optTx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return &IngestBulkDurableTaskRunResult{
+		Entries:         entries,
+		InvocationCount: invocationCount,
 	}, nil
 }
 
