@@ -299,8 +299,7 @@ class Worker:
 
             await self.action_listener_health_check
 
-            if self.action_runner:
-                await self.action_runner.wait_for_tasks()
+            await self.action_runner.wait_for_tasks()
 
             try:
                 await self._cleanup_lifespan()
