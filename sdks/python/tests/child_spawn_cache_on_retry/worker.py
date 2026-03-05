@@ -7,7 +7,7 @@ PARENT_EXECUTION_TIMEOUT_SECONDS = 5
 PARENT_RETRIES = 2
 
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 @hatchet.task(
