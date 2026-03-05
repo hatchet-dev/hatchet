@@ -553,13 +553,19 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to ingest durable task event: %v", err)
 	}
 
+	if len(ingestionResult.Entries) == 0 {
+		return status.Errorf(codes.Internal, "failed to ingest durable task event: no entries returned")
+	}
+
+	entry := ingestionResult.Entries[0]
+
 	ackResp := &contracts.DurableTaskEventAckResponse{
 		InvocationCount:       req.InvocationCount,
 		DurableTaskExternalId: req.DurableTaskExternalId,
-		NodeId:                ingestionResult.NodeId,
-		BranchId:              ingestionResult.BranchId,
-		MemoAlreadyExisted:    ingestionResult.AlreadyExisted,
-		MemoResultPayload:     ingestionResult.ResultPayload,
+		NodeId:                entry.NodeId,
+		BranchId:              entry.BranchId,
+		MemoAlreadyExisted:    entry.AlreadyExisted,
+		MemoResultPayload:     entry.ResultPayload,
 	}
 
 	err = invocation.send(&contracts.DurableTaskResponse{
@@ -572,17 +578,17 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
 	}
 
-	if ingestionResult.IsSatisfied {
+	if entry.IsSatisfied {
 		err := d.DeliverDurableEventLogEntryCompletion(
 			taskExternalId,
 			ingestionResult.InvocationCount,
-			ingestionResult.BranchId,
-			ingestionResult.NodeId,
-			ingestionResult.ResultPayload,
+			entry.BranchId,
+			entry.NodeId,
+			entry.ResultPayload,
 		)
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, ingestionResult.NodeId)
+			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s node %d", taskExternalId, entry.NodeId)
 			return status.Errorf(codes.Internal, "failed to deliver callback completion: %v", err)
 		}
 	}

@@ -58,17 +58,9 @@ type IngestDurableTaskEventEntry struct {
 }
 
 type IngestDurableTaskEventResult struct {
-	// Flat fields populated from Entries[0] for single-event callers (WAIT_FOR, MEMO).
-	BranchId        int64
-	NodeId          int64
 	InvocationCount int32
-	IsSatisfied     bool
-	ResultPayload   []byte
-	AlreadyExisted  bool
-	CreatedTasks    []*V1TaskWithPayload
-	CreatedDAGs     []*DAGWithData
 
-	// Populated for all kinds; bulk RUN callers should iterate this.
+	// Populated for all kinds; callers should iterate entries.
 	Entries []IngestDurableTaskEventEntry
 }
 
@@ -814,22 +806,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, err
 	}
 
-	result := &IngestDurableTaskEventResult{
+	return &IngestDurableTaskEventResult{
 		Entries:         entries,
 		InvocationCount: invocationCount,
-	}
-
-	if len(entries) > 0 {
-		result.NodeId = entries[0].NodeId
-		result.BranchId = entries[0].BranchId
-		result.IsSatisfied = entries[0].IsSatisfied
-		result.AlreadyExisted = entries[0].AlreadyExisted
-		result.ResultPayload = entries[0].ResultPayload
-		result.CreatedTasks = entries[0].CreatedTasks
-		result.CreatedDAGs = entries[0].CreatedDAGs
-	}
-
-	return result, nil
+	}, nil
 }
 
 func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, branchId, nodeId int64, waitForConditions []CreateExternalSignalConditionOpt, task *sqlcv1.FlattenExternalIdsRow) error {
