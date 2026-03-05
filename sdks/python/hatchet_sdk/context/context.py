@@ -25,7 +25,11 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import ActionPayload
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import (
+    Duration,
+    _warn_if_str_duration,
+    timedelta_to_expr,
+)
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
@@ -434,11 +438,7 @@ class Context:
         :return: None
         """
 
-        warn(
-            "Support for providing a duration as a string is deprecated and will be removed in v2.0.0. Use `timedelta` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        _warn_if_str_duration(increment_by, stacklevel=2)
 
         if isinstance(increment_by, timedelta):
             increment_by = timedelta_to_expr(increment_by)
@@ -695,6 +695,7 @@ class DurableContext(Context):
 
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
+        _warn_if_str_duration(duration, stacklevel=2)
 
         wait_index = self._increment_wait_index()
 

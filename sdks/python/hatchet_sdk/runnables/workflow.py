@@ -54,7 +54,7 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration
+from hatchet_sdk.utils.timedelta_to_expression import Duration, _warn_if_str_duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -1009,6 +1009,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
+
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
@@ -1111,6 +1113,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
+
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
@@ -1189,6 +1193,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a `Task` object.
         """
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[
@@ -1259,6 +1264,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a Task object.
         """
+        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[
