@@ -23,7 +23,7 @@ async def test_list_runs(hatchet: Hatchet) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_run(hatchet: Hatchet) -> None:
-    dag_ref = await dag_workflow.aio_run_no_wait()
+    dag_ref = await dag_workflow.aio_run(wait_for_result=False)
 
     await asyncio.sleep(5)
 
