@@ -260,7 +260,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
               <p className="text-lg font-semibold">No runs found</p>
               <div className="w-fit">
                 <DocsButton
-                  doc={docsPages.home['your-first-task']}
+                  doc={docsPages.v1.quickstart}
                   label={'Learn more about tasks'}
                 />
               </div>
