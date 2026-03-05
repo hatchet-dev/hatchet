@@ -747,5 +747,3 @@ class DurableContext(Context):
             )
 
         return result
-
-
