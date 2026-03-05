@@ -486,8 +486,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return d.handleDurableTaskRunEvent(ctx, invocation, req, task, taskExternalId)
 	}
 
-	var triggerOpts *v1.WorkflowNameTriggerOpts
-
 	createConditionOpts := make([]v1.CreateExternalSignalConditionOpt, 0)
 
 	if req.WaitForConditions != nil {
@@ -528,7 +526,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		Payload:           req.Payload,
 		WaitForConditions: createConditionOpts,
 		InvocationCount:   req.InvocationCount,
-		TriggerOpts:       triggerOpts,
 		MemoKey:           req.MemoKey,
 	})
 
@@ -617,13 +614,13 @@ func (d *DispatcherServiceImpl) handleDurableTaskRunEvent(
 		return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", err)
 	}
 
-	bulkResult, err := d.repo.DurableEvents().IngestBulkDurableTaskRunEvents(
-		ctx,
-		invocation.tenantId,
-		task,
-		req.InvocationCount,
-		optsSlice,
-	)
+	result, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
+		TenantId:        invocation.tenantId,
+		Task:            task,
+		Kind:            sqlcv1.V1DurableEventLogKindRUN,
+		InvocationCount: req.InvocationCount,
+		TriggerOptsList: optsSlice,
+	})
 
 	var nde *v1.NonDeterminismError
 	if err != nil && errors.As(err, &nde) {
@@ -646,7 +643,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskRunEvent(
 
 		return nil
 	} else if err != nil {
-		return status.Errorf(codes.Internal, "failed to ingest bulk durable task run events: %v", err)
+		return status.Errorf(codes.Internal, "failed to ingest durable task run events: %v", err)
 	}
 
 	// Signal created tasks/DAGs and build ack entries
@@ -655,7 +652,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskRunEvent(
 		DurableTaskExternalId: req.DurableTaskExternalId,
 	}
 
-	for _, entry := range bulkResult.Entries {
+	for _, entry := range result.Entries {
 		if len(entry.CreatedTasks) > 0 || len(entry.CreatedDAGs) > 0 {
 			if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, entry.CreatedTasks, entry.CreatedDAGs); sigErr != nil {
 				d.l.Error().Err(sigErr).Msgf("failed to signal created tasks/DAGs for durable run trigger at node %d", entry.NodeId)
@@ -678,12 +675,11 @@ func (d *DispatcherServiceImpl) handleDurableTaskRunEvent(
 		return status.Errorf(codes.Internal, "failed to send trigger ack: %v", err)
 	}
 
-	// Deliver immediate completions for any already-satisfied entries
-	for _, entry := range bulkResult.Entries {
+	for _, entry := range result.Entries {
 		if entry.IsSatisfied {
 			if err := d.DeliverDurableEventLogEntryCompletion(
 				taskExternalId,
-				bulkResult.InvocationCount,
+				result.InvocationCount,
 				entry.BranchId,
 				entry.NodeId,
 				entry.ResultPayload,
