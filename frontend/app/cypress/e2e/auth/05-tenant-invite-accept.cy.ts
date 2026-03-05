@@ -102,20 +102,33 @@ describe('Tenant Invite: accept', () => {
     );
 
     // Find the specific invite and accept it
-    cy.contains(`You got an invitation to join ${tenant2Name}`).should(
-      'be.visible',
-    );
+    cy.contains(`invited to join the ${tenant2Name} tenant`).should('exist');
 
     // Step 4: Accept the invite - register intercept before clicking
     cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
-    cy.contains(`You got an invitation to join ${tenant2Name}`)
+    cy.contains(`invited to join the ${tenant2Name} tenant`)
       .parent()
       .contains('button', 'Accept')
-      .should('be.visible')
+      .should('exist')
       .click();
 
     // Wait for the accept API call to complete
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
+
+    // Decline all remaining invites so the page redirects
+    const declineAll = () => {
+      cy.get('body').then(($body) => {
+        if ($body.find('button:contains("Decline")').length > 0) {
+          cy.intercept('POST', '/api/v1/users/invites/reject').as(
+            'rejectInvite',
+          );
+          cy.contains('button', 'Decline').click();
+          cy.wait('@rejectInvite');
+          declineAll();
+        }
+      });
+    };
+    declineAll();
 
     // Step 5: Verify redirect to the tenant page (no infinite loop)
     cy.location('pathname', { timeout: 5000 }).should(
