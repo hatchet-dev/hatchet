@@ -15,7 +15,7 @@ service AdminService {
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
     rpc GetRunDetails(GetRunDetailsRequest) returns (GetRunDetailsResponse);
-    rpc ForkDurableTask(ForkDurableTaskRequest) returns (ForkDurableTaskResponse);
+    rpc BranchDurableTask(BranchDurableTaskRequest) returns (BranchDurableTaskResponse);
 }
 
 message CancelTasksRequest {
@@ -56,12 +56,12 @@ message TriggerWorkflowRunResponse {
     string external_id = 1;
 }
 
-message ForkDurableTaskRequest {
+message BranchDurableTaskRequest {
     string task_external_id = 1; // (required) the external id (uuid) of the durable task
-    int64 node_id = 2; // (required) the node id to fork from
+    int64 node_id = 2; // (required) the node id to branch from
 }
 
-message ForkDurableTaskResponse {
+message BranchDurableTaskResponse {
     string task_external_id = 1; // the external id of the durable task
     int64 node_id = 2; // the node id of the new entry
     int64 branch_id = 3; // the branch id of the new entry

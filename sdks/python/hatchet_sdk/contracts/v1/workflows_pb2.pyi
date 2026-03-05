@@ -133,7 +133,7 @@ class TriggerWorkflowRunResponse(_message.Message):
     external_id: str
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
-class ForkDurableTaskRequest(_message.Message):
+class BranchDurableTaskRequest(_message.Message):
     __slots__ = ("task_external_id", "node_id")
     TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -141,7 +141,7 @@ class ForkDurableTaskRequest(_message.Message):
     node_id: int
     def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
 
-class ForkDurableTaskResponse(_message.Message):
+class BranchDurableTaskResponse(_message.Message):
     __slots__ = ("task_external_id", "node_id", "branch_id")
     TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]

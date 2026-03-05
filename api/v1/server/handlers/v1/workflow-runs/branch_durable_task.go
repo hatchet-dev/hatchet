@@ -11,15 +11,15 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *V1WorkflowRunsService) V1DurableTaskFork(ctx echo.Context, request gen.V1DurableTaskForkRequestObject) (gen.V1DurableTaskForkResponseObject, error) {
+func (t *V1WorkflowRunsService) V1DurableTaskBranch(ctx echo.Context, request gen.V1DurableTaskBranchRequestObject) (gen.V1DurableTaskBranchResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	grpcReq := &contracts.ForkDurableTaskRequest{
+	grpcReq := &contracts.BranchDurableTaskRequest{
 		TaskExternalId: request.Body.TaskExternalId.String(),
 		NodeId:         request.Body.NodeId,
 	}
 
-	resp, err := t.proxyForkDurableTask.Do(
+	resp, err := t.proxyBranchDurableTask.Do(
 		ctx.Request().Context(),
 		tenant,
 		grpcReq,
@@ -29,7 +29,7 @@ func (t *V1WorkflowRunsService) V1DurableTaskFork(ctx echo.Context, request gen.
 		if e, ok := status.FromError(err); ok {
 			switch e.Code() {
 			case codes.InvalidArgument:
-				return gen.V1DurableTaskFork400JSONResponse(
+				return gen.V1DurableTaskBranch400JSONResponse(
 					apierrors.NewAPIErrors(e.Message()),
 				), nil
 			}
@@ -38,7 +38,7 @@ func (t *V1WorkflowRunsService) V1DurableTaskFork(ctx echo.Context, request gen.
 		return nil, err
 	}
 
-	return gen.V1DurableTaskFork200JSONResponse{
+	return gen.V1DurableTaskBranch200JSONResponse{
 		TaskExternalId: request.Body.TaskExternalId,
 		NodeId:         resp.NodeId,
 		BranchId:       resp.BranchId,

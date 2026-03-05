@@ -1389,6 +1389,27 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V1BranchDurableTaskRequest defines model for V1BranchDurableTaskRequest.
+type V1BranchDurableTaskRequest struct {
+	// NodeId The node id to replay from.
+	NodeId int64 `json:"nodeId"`
+
+	// TaskExternalId The external id of the durable task to branch.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+}
+
+// V1BranchDurableTaskResponse defines model for V1BranchDurableTaskResponse.
+type V1BranchDurableTaskResponse struct {
+	// BranchId The branch id of the new entry.
+	BranchId int64 `json:"branchId"`
+
+	// NodeId The node id of the new entry.
+	NodeId int64 `json:"nodeId"`
+
+	// TaskExternalId The external id of the durable task.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+}
+
 // V1CELDebugRequest defines model for V1CELDebugRequest.
 type V1CELDebugRequest struct {
 	// AdditionalMetadata Additional metadata, which simulates metadata that could be sent with an event or a workflow run
@@ -1635,27 +1656,6 @@ type V1Filter struct {
 type V1FilterList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]V1Filter         `json:"rows,omitempty"`
-}
-
-// V1ForkDurableTaskRequest defines model for V1ForkDurableTaskRequest.
-type V1ForkDurableTaskRequest struct {
-	// NodeId The node id to replay from.
-	NodeId int64 `json:"nodeId"`
-
-	// TaskExternalId The external id of the durable task to fork.
-	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
-}
-
-// V1ForkDurableTaskResponse defines model for V1ForkDurableTaskResponse.
-type V1ForkDurableTaskResponse struct {
-	// BranchId The branch id of the new entry.
-	BranchId int64 `json:"branchId"`
-
-	// NodeId The node id of the new entry.
-	NodeId int64 `json:"nodeId"`
-
-	// TaskExternalId The external id of the durable task.
-	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
 }
 
 // V1LogLine defines model for V1LogLine.
@@ -2967,8 +2967,8 @@ type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 // V1CelDebugJSONRequestBody defines body for V1CelDebug for application/json ContentType.
 type V1CelDebugJSONRequestBody = V1CELDebugRequest
 
-// V1DurableTaskForkJSONRequestBody defines body for V1DurableTaskFork for application/json ContentType.
-type V1DurableTaskForkJSONRequestBody = V1ForkDurableTaskRequest
+// V1DurableTaskBranchJSONRequestBody defines body for V1DurableTaskBranch for application/json ContentType.
+type V1DurableTaskBranchJSONRequestBody = V1BranchDurableTaskRequest
 
 // V1FilterCreateJSONRequestBody defines body for V1FilterCreate for application/json ContentType.
 type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
@@ -3306,10 +3306,10 @@ type ClientInterface interface {
 
 	V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1DurableTaskForkWithBody request with any body
-	V1DurableTaskForkWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1DurableTaskBranchWithBody request with any body
+	V1DurableTaskBranchWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	V1DurableTaskFork(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskForkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1DurableTaskBranch(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1EventList request
 	V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3995,8 +3995,8 @@ func (c *Client) V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1DurableTaskForkWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1DurableTaskForkRequestWithBody(c.Server, tenant, contentType, body)
+func (c *Client) V1DurableTaskBranchWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1DurableTaskBranchRequestWithBody(c.Server, tenant, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4007,8 +4007,8 @@ func (c *Client) V1DurableTaskForkWithBody(ctx context.Context, tenant openapi_t
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1DurableTaskFork(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskForkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1DurableTaskForkRequest(c.Server, tenant, body)
+func (c *Client) V1DurableTaskBranch(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1DurableTaskBranchRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6722,19 +6722,19 @@ func NewV1CelDebugRequestWithBody(server string, tenant openapi_types.UUID, cont
 	return req, nil
 }
 
-// NewV1DurableTaskForkRequest calls the generic V1DurableTaskFork builder with application/json body
-func NewV1DurableTaskForkRequest(server string, tenant openapi_types.UUID, body V1DurableTaskForkJSONRequestBody) (*http.Request, error) {
+// NewV1DurableTaskBranchRequest calls the generic V1DurableTaskBranch builder with application/json body
+func NewV1DurableTaskBranchRequest(server string, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewV1DurableTaskForkRequestWithBody(server, tenant, "application/json", bodyReader)
+	return NewV1DurableTaskBranchRequestWithBody(server, tenant, "application/json", bodyReader)
 }
 
-// NewV1DurableTaskForkRequestWithBody generates requests for V1DurableTaskFork with any type of body
-func NewV1DurableTaskForkRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+// NewV1DurableTaskBranchRequestWithBody generates requests for V1DurableTaskBranch with any type of body
+func NewV1DurableTaskBranchRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6749,7 +6749,7 @@ func NewV1DurableTaskForkRequestWithBody(server string, tenant openapi_types.UUI
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/durable-tasks/fork", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/durable-tasks/branch", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -13433,10 +13433,10 @@ type ClientWithResponsesInterface interface {
 
 	V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
 
-	// V1DurableTaskForkWithBodyWithResponse request with any body
-	V1DurableTaskForkWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskForkResponse, error)
+	// V1DurableTaskBranchWithBodyWithResponse request with any body
+	V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error)
 
-	V1DurableTaskForkWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskForkJSONRequestBody, reqEditors ...RequestEditorFn) (*V1DurableTaskForkResponse, error)
+	V1DurableTaskBranchWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error)
 
 	// V1EventListWithResponse request
 	V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error)
@@ -14333,16 +14333,16 @@ func (r V1CelDebugResponse) StatusCode() int {
 	return 0
 }
 
-type V1DurableTaskForkResponse struct {
+type V1DurableTaskBranchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1ForkDurableTaskResponse
+	JSON200      *V1BranchDurableTaskResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1DurableTaskForkResponse) Status() string {
+func (r V1DurableTaskBranchResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14350,7 +14350,7 @@ func (r V1DurableTaskForkResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1DurableTaskForkResponse) StatusCode() int {
+func (r V1DurableTaskBranchResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17356,21 +17356,21 @@ func (c *ClientWithResponses) V1CelDebugWithResponse(ctx context.Context, tenant
 	return ParseV1CelDebugResponse(rsp)
 }
 
-// V1DurableTaskForkWithBodyWithResponse request with arbitrary body returning *V1DurableTaskForkResponse
-func (c *ClientWithResponses) V1DurableTaskForkWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskForkResponse, error) {
-	rsp, err := c.V1DurableTaskForkWithBody(ctx, tenant, contentType, body, reqEditors...)
+// V1DurableTaskBranchWithBodyWithResponse request with arbitrary body returning *V1DurableTaskBranchResponse
+func (c *ClientWithResponses) V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error) {
+	rsp, err := c.V1DurableTaskBranchWithBody(ctx, tenant, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1DurableTaskForkResponse(rsp)
+	return ParseV1DurableTaskBranchResponse(rsp)
 }
 
-func (c *ClientWithResponses) V1DurableTaskForkWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskForkJSONRequestBody, reqEditors ...RequestEditorFn) (*V1DurableTaskForkResponse, error) {
-	rsp, err := c.V1DurableTaskFork(ctx, tenant, body, reqEditors...)
+func (c *ClientWithResponses) V1DurableTaskBranchWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error) {
+	rsp, err := c.V1DurableTaskBranch(ctx, tenant, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1DurableTaskForkResponse(rsp)
+	return ParseV1DurableTaskBranchResponse(rsp)
 }
 
 // V1EventListWithResponse request returning *V1EventListResponse
@@ -19469,22 +19469,22 @@ func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
 	return response, nil
 }
 
-// ParseV1DurableTaskForkResponse parses an HTTP response from a V1DurableTaskForkWithResponse call
-func ParseV1DurableTaskForkResponse(rsp *http.Response) (*V1DurableTaskForkResponse, error) {
+// ParseV1DurableTaskBranchResponse parses an HTTP response from a V1DurableTaskBranchWithResponse call
+func ParseV1DurableTaskBranchResponse(rsp *http.Response) (*V1DurableTaskBranchResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1DurableTaskForkResponse{
+	response := &V1DurableTaskBranchResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1ForkDurableTaskResponse
+		var dest V1BranchDurableTaskResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
