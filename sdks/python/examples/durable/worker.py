@@ -13,7 +13,7 @@ from hatchet_sdk import (
     or_,
 )
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 # > Create a durable workflow
 durable_workflow = hatchet.workflow(name="DurableWorkflow")

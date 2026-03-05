@@ -1,7 +1,7 @@
 from hatchet_sdk import Context, EmptyModel, Hatchet, WorkerLabelComparator
 from hatchet_sdk.labels import DesiredWorkerLabel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > AffinityWorkflow

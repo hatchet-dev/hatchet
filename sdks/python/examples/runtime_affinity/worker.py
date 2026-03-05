@@ -3,7 +3,7 @@ import argparse
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from pydantic import BaseModel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 class AffinityResult(BaseModel):
