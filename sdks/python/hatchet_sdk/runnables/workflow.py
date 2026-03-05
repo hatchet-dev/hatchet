@@ -811,7 +811,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
-            refs = await durable_ctx._spawn_children_no_wait(self, workflows)
+            spawned_refs = await durable_ctx._spawn_children_no_wait(self, workflows)
             return await asyncio.gather(
                 *[
                     durable_ctx._aio_result_for_spawned_child(
@@ -819,14 +819,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                         branch_id=branch_id,
                         workflow_name=workflow_name,
                     )
-                    for node_id, branch_id, workflow_name in refs
+                    for node_id, branch_id, workflow_name in spawned_refs
                 ],
                 return_exceptions=return_exceptions,
             )
 
-        refs = await self.aio_run_many_no_wait(workflows)
+        workflow_refs = await self.aio_run_many_no_wait(workflows)
         return await asyncio.gather(
-            *[ref.aio_result() for ref in refs], return_exceptions=return_exceptions
+            *[ref.aio_result() for ref in workflow_refs],
+            return_exceptions=return_exceptions,
         )
 
     def run_many_no_wait(
