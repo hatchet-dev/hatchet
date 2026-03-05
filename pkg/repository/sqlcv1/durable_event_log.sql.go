@@ -130,30 +130,27 @@ func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX,
 const bulkGetDurableEventLogEntries = `-- name: BulkGetDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST($3::BIGINT[]) AS branch_id,
         UNNEST($4::BIGINT[]) AS node_id
 )
 SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.parent_node_id, e.branch_id, e.parent_branch_id, e.invocation_count, e.idempotency_key, e.is_satisfied
 FROM v1_durable_event_log_entry e
-JOIN inputs i ON e.durable_task_id = i.durable_task_id
-    AND e.durable_task_inserted_at = i.durable_task_inserted_at
-    AND e.branch_id = i.branch_id
-    AND e.node_id = i.node_id
+JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
+WHERE e.durable_task_id = $1::BIGINT
+  AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
 `
 
 type BulkGetDurableEventLogEntriesParams struct {
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Branchids              []int64              `json:"branchids"`
-	Nodeids                []int64              `json:"nodeids"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Branchids             []int64            `json:"branchids"`
+	Nodeids               []int64            `json:"nodeids"`
 }
 
 func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, arg BulkGetDurableEventLogEntriesParams) ([]*V1DurableEventLogEntry, error) {
 	rows, err := db.Query(ctx, bulkGetDurableEventLogEntries,
-		arg.Durabletaskids,
-		arg.Durabletaskinsertedats,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
 		arg.Branchids,
 		arg.Nodeids,
 	)

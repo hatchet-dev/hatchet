@@ -730,18 +730,17 @@ func (r *durableEventsRepository) IngestBulkDurableTaskRunEvents(
 	}
 
 	// bulk-get existing entries
-	getParams := sqlcv1.BulkGetDurableEventLogEntriesParams{
-		Durabletaskids:         make([]int64, n),
-		Durabletaskinsertedats: make([]pgtype.Timestamptz, n),
-		Branchids:              make([]int64, n),
-		Nodeids:                make([]int64, n),
-	}
-
+	branchIds := make([]int64, n)
+	nodeIds := make([]int64, n)
 	for i, m := range metas {
-		getParams.Durabletaskids[i] = task.ID
-		getParams.Durabletaskinsertedats[i] = task.InsertedAt
-		getParams.Branchids[i] = m.branchId
-		getParams.Nodeids[i] = m.nodeId
+		branchIds[i] = m.branchId
+		nodeIds[i] = m.nodeId
+	}
+	getParams := sqlcv1.BulkGetDurableEventLogEntriesParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Branchids:             branchIds,
+		Nodeids:               nodeIds,
 	}
 
 	existingEntries, err := r.queries.BulkGetDurableEventLogEntries(ctx, tx, getParams)
