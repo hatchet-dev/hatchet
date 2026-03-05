@@ -218,6 +218,7 @@ type BulkUpdateDurableEventLogEntryInvocationCountsParams struct {
 	Idempotencykeys        [][]byte             `json:"idempotencykeys"`
 }
 
+// TODO-DURABLE:  I'm not 100% sure that we should be updating invocation counts for previous event log entries? I haven't really thought it all the way through though, but it seems like we should be treating previous entries in the event log as immutable. I'm also not sure we should be updating idempotency keys ever - would be curious to hear a situation in which we'd need to update an idempotency key that wouldn't throw a NonDeterminismError
 func (q *Queries) BulkUpdateDurableEventLogEntryInvocationCounts(ctx context.Context, db DBTX, arg BulkUpdateDurableEventLogEntryInvocationCountsParams) ([]*V1DurableEventLogEntry, error) {
 	rows, err := db.Query(ctx, bulkUpdateDurableEventLogEntryInvocationCounts,
 		arg.Durabletaskids,
