@@ -136,6 +136,30 @@ func (q *Queries) CleanupV1TaskRuntime(ctx context.Context, db DBTX, batchsize i
 	return db.Exec(ctx, cleanupV1TaskRuntime, batchsize)
 }
 
+const cleanupV1WorkflowConcurrencySlot = `-- name: CleanupV1WorkflowConcurrencySlot :execresult
+WITH orphaned_slots AS (
+    SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+    FROM v1_workflow_concurrency_slot wcs
+    WHERE NOT EXISTS (
+        SELECT 1 FROM v1_concurrency_slot cs
+        WHERE cs.tenant_id = wcs.tenant_id
+          AND cs.strategy_id = ANY(wcs.child_strategy_ids)
+    )
+    ORDER BY wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_workflow_concurrency_slot
+WHERE (strategy_id, workflow_version_id, workflow_run_id) IN (
+    SELECT strategy_id, workflow_version_id, workflow_run_id
+    FROM orphaned_slots
+)
+`
+
+func (q *Queries) CleanupV1WorkflowConcurrencySlot(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1WorkflowConcurrencySlot, batchsize)
+}
+
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 WITH input AS (
     SELECT

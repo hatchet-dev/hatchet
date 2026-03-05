@@ -928,6 +928,25 @@ BEGIN
             wcs.strategy_id = p_strategy_id
             AND wcs.workflow_version_id = p_workflow_version_id
             AND wcs.workflow_run_id = p_workflow_run_id
+    ), final_concurrency_slots_for_orphans AS (
+        -- If no child concurrency slots exist for any of the child strategies, the workflow
+        -- concurrency slot is orphaned and can be safely deleted. This handles the case where
+        -- tasks have been purged from partitions and the original cleanup paths above fail.
+        SELECT
+            wcs.strategy_id,
+            wcs.workflow_version_id,
+            wcs.workflow_run_id
+        FROM
+            v1_workflow_concurrency_slot wcs
+        WHERE
+            wcs.strategy_id = p_strategy_id
+            AND wcs.workflow_version_id = p_workflow_version_id
+            AND wcs.workflow_run_id = p_workflow_run_id
+            AND NOT EXISTS (
+                SELECT 1 FROM v1_concurrency_slot cs
+                WHERE cs.tenant_id = wcs.tenant_id
+                  AND cs.strategy_id = ANY(wcs.child_strategy_ids)
+            )
     ), all_parent_slots_to_delete AS (
         SELECT
             strategy_id,
@@ -942,6 +961,13 @@ BEGIN
             workflow_run_id
         FROM
             final_concurrency_slots_for_tasks
+        UNION ALL
+        SELECT
+            strategy_id,
+            workflow_version_id,
+            workflow_run_id
+        FROM
+            final_concurrency_slots_for_orphans
     ), locked_parent_slots AS (
         SELECT
             wcs.strategy_id,
