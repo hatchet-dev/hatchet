@@ -270,9 +270,10 @@ async def test_evictable_child_bulk_spawn_restore_completes(hatchet: Hatchet) ->
     result = await ref.aio_result()
     assert eviction_count == 3, f"Expected 3 evictions, got {eviction_count}"
     assert result["child_results"] == [
-        {"message": "hello from child"} for _ in range(10)
+        {"sleep_for": 10, "status": "completed"},
+        {"sleep_for": 20, "status": "completed"},
+        {"sleep_for": 30, "status": "completed"},
     ]
-    assert result["status"] == "completed"
 
 
 @requires_durable_eviction
