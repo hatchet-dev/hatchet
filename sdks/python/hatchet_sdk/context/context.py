@@ -19,7 +19,6 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
     DispatcherClient,
 )
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.workflow_run import WorkflowRunRef
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     MemoEvent,
@@ -57,6 +56,7 @@ from hatchet_sdk.worker.durable_eviction.instrumentation import (
 )
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
+from hatchet_sdk.workflow_run import WorkflowRunRef
 
 PMemo = ParamSpec("PMemo")
 TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
@@ -620,7 +620,7 @@ class DurableContext(Context):
         self,
         workflow: BaseWorkflow[TWorkflowInput],
         configs: list[WorkflowRunTriggerConfig],
-    ) -> list[DurableWorkflowRunRef]:
+    ) -> list[WorkflowRunRef]:
         listener = self._durable_listener
 
         await self._ensure_stream_started()

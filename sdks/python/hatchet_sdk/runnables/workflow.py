@@ -840,15 +840,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
-            return cast(
-                list[WorkflowRunRef],
-                await durable_ctx._spawn_children_no_wait(self, workflows),
-            )
+            return await durable_ctx._spawn_children_no_wait(self, workflows)
 
-        return cast(
-            list[WorkflowRunRef],
-            await self.client._client.admin.aio_run_workflows(workflows=workflows),
-        )
+        return await self.client._client.admin.aio_run_workflows(workflows=workflows)
 
     def _parse_task_name(
         self,
