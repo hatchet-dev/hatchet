@@ -51,9 +51,11 @@ SELECT
     NOW(),
     i.kind::v1_durable_event_log_kind,
     i.node_id,
-    i.parent_node_id,
+    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
+    NULLIF(i.parent_node_id, -1),
     i.branch_id,
-    i.parent_branch_id,
+    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
+    NULLIF(i.parent_branch_id, -1),
     i.invocation_count,
     i.idempotency_key,
     i.is_satisfied
@@ -69,9 +71,9 @@ type BulkCreateDurableEventLogEntriesParams struct {
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Kinds                  []string             `json:"kinds"`
 	Nodeids                []int64              `json:"nodeids"`
-	Parentnodeids          []pgtype.Int8        `json:"parentnodeids"`
+	Parentnodeids          []int64              `json:"parentnodeids"`
 	Branchids              []int64              `json:"branchids"`
-	Parentbranchids        []pgtype.Int8        `json:"parentbranchids"`
+	Parentbranchids        []int64              `json:"parentbranchids"`
 	Invocationcounts       []int32              `json:"invocationcounts"`
 	Idempotencykeys        [][]byte             `json:"idempotencykeys"`
 	Issatisfieds           []bool               `json:"issatisfieds"`

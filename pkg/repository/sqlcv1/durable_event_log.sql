@@ -215,9 +215,11 @@ SELECT
     NOW(),
     i.kind::v1_durable_event_log_kind,
     i.node_id,
-    i.parent_node_id,
+    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
+    NULLIF(i.parent_node_id, -1),
     i.branch_id,
-    i.parent_branch_id,
+    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
+    NULLIF(i.parent_branch_id, -1),
     i.invocation_count,
     i.idempotency_key,
     i.is_satisfied

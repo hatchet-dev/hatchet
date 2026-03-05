@@ -824,9 +824,9 @@ func (r *durableEventsRepository) IngestBulkDurableTaskRunEvents(
 			Durabletaskinsertedats: make([]pgtype.Timestamptz, len(newEntries)),
 			Kinds:                  make([]string, len(newEntries)),
 			Nodeids:                make([]int64, len(newEntries)),
-			Parentnodeids:          make([]pgtype.Int8, len(newEntries)),
+			Parentnodeids:          make([]int64, len(newEntries)),
 			Branchids:              make([]int64, len(newEntries)),
-			Parentbranchids:        make([]pgtype.Int8, len(newEntries)),
+			Parentbranchids:        make([]int64, len(newEntries)),
 			Invocationcounts:       make([]int32, len(newEntries)),
 			Idempotencykeys:        make([][]byte, len(newEntries)),
 			Issatisfieds:           make([]bool, len(newEntries)),
@@ -840,9 +840,9 @@ func (r *durableEventsRepository) IngestBulkDurableTaskRunEvents(
 			createParams.Durabletaskinsertedats[j] = task.InsertedAt
 			createParams.Kinds[j] = string(sqlcv1.V1DurableEventLogKindRUN)
 			createParams.Nodeids[j] = m.nodeId
-			createParams.Parentnodeids[j] = sqlchelpers.ToBigInt(m.parentNodeId)
+			createParams.Parentnodeids[j] = int64OrNull(m.parentNodeId)
 			createParams.Branchids[j] = m.branchId
-			createParams.Parentbranchids[j] = sqlchelpers.ToBigInt(m.parentBranchId)
+			createParams.Parentbranchids[j] = int64OrNull(m.parentBranchId)
 			createParams.Invocationcounts[j] = invocationCount
 			createParams.Idempotencykeys[j] = m.idempotencyKey
 			createParams.Issatisfieds[j] = false
@@ -1271,4 +1271,12 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 	}
 
 	return result, nil
+}
+
+// HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
+func int64OrNull(v *int64) int64 {
+	if v == nil {
+		return -1
+	}
+	return *v
 }
