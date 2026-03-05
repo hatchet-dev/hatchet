@@ -218,7 +218,6 @@ export const memoTask = hatchet.durableTask({
   },
 });
 
-
 // --- Replay reset ---
 
 export const REPLAY_RESET_SLEEP_SECONDS = 1;
