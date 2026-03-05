@@ -1,5 +1,6 @@
 import asyncio
 import json
+import warnings
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
@@ -657,18 +658,39 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param options: Additional options for workflow execution.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+
+        .. deprecated::
+            Use ``run(wait_for_result=False)`` instead.
         """
-        return self.client._client.admin.run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(options),
+        warnings.warn(
+            "run_no_wait() is deprecated, use run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return self.run(input=input, options=options, wait_for_result=False)
+
+    @overload
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[True] = True,
+    ) -> dict[str, Any]: ...
+
+    @overload
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> WorkflowRunRef: ...
 
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> dict[str, Any]:
+        wait_for_result: bool = True,
+    ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow synchronously and wait for it to complete.
 
@@ -676,8 +698,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param wait_for_result: If True, block until completion and return the result. If False, return a WorkflowRunRef immediately.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
 
         ref = self.client._client.admin.run_workflow(
@@ -685,6 +708,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
+
+        if not wait_for_result:
+            return ref
 
         return ref.result()
 
@@ -701,19 +727,39 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param options: Additional options for workflow execution.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
-        """
 
-        return await self.client._client.admin.aio_run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(options),
+        .. deprecated::
+            Use ``aio_run(wait_for_result=False)`` instead.
+        """
+        warnings.warn(
+            "aio_run_no_wait() is deprecated, use aio_run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return await self.aio_run(input=input, options=options, wait_for_result=False)
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[True] = True,
+    ) -> dict[str, Any]: ...
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> WorkflowRunRef: ...
 
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> dict[str, Any]:
+        wait_for_result: bool = True,
+    ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow asynchronously and wait for it to complete.
 
@@ -721,14 +767,18 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param wait_for_result: If True, await completion and return the result. If False, return a WorkflowRunRef immediately.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
+
+        if not wait_for_result:
+            return ref
 
         return await ref.aio_result()
 
@@ -1298,11 +1348,28 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             ),
         )
 
+    @overload
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> R:
+        wait_for_result: Literal[True] = True,
+    ) -> R: ...
+
+    @overload
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> TaskRunRef[TWorkflowInput, R]: ...
+
+    def run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: bool = True,
+    ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow synchronously and wait for it to complete.
 
@@ -1310,16 +1377,40 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
+        :param wait_for_result: If True, block until completion and return the result. If False, return a TaskRunRef immediately.
 
-        :returns: The extracted result of the workflow execution.
+        :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
-        return self._extract_result(self._workflow.run(input, options))
+        if not wait_for_result:
+            ref = self._workflow.run(input, options, wait_for_result=False)
+            return TaskRunRef[TWorkflowInput, R](self, ref)
+
+        return self._extract_result(
+            self._workflow.run(input, options, wait_for_result=True)
+        )
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[True] = True,
+    ) -> R: ...
+
+    @overload
+    async def aio_run(
+        self,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        wait_for_result: Literal[False] = False,
+    ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> R:
+        wait_for_result: bool = True,
+    ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow asynchronously and wait for it to complete.
 
@@ -1327,11 +1418,17 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param wait_for_result: If True, await completion and return the result. If False, return a TaskRunRef immediately.
 
-        :returns: The extracted result of the workflow execution.
+        :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
-        result = await self._workflow.aio_run(input, options)
-        return self._extract_result(result)
+
+        if not wait_for_result:
+            ref = await self._workflow.aio_run(input, options, wait_for_result=False)
+            return TaskRunRef[TWorkflowInput, R](self, ref)
+
+        res = await self._workflow.aio_run(input, options, wait_for_result=True)
+        return await asyncio.to_thread(self._extract_result, res)
 
     def run_no_wait(
         self,
@@ -1347,10 +1444,16 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
-        """
-        ref = self._workflow.run_no_wait(input, options)
 
-        return TaskRunRef[TWorkflowInput, R](self, ref)
+        .. deprecated::
+            Use ``run(wait_for_result=False)`` instead.
+        """
+        warnings.warn(
+            "run_no_wait() is deprecated, use run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.run(input=input, options=options, wait_for_result=False)
 
     async def aio_run_no_wait(
         self,
@@ -1365,10 +1468,16 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param options: Additional options for workflow execution.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
-        """
-        ref = await self._workflow.aio_run_no_wait(input, options)
 
-        return TaskRunRef[TWorkflowInput, R](self, ref)
+        .. deprecated::
+            Use ``aio_run(wait_for_result=False)`` instead.
+        """
+        warnings.warn(
+            "aio_run_no_wait() is deprecated, use aio_run(wait_for_result=False) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aio_run(input=input, options=options, wait_for_result=False)
 
     @overload
     def run_many(
