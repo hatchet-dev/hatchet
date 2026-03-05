@@ -30,7 +30,7 @@ from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.conditions import Condition, OrGroup
-from hatchet_sdk.context.context import Context, DurableContext, DurableWorkflowRunRef
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
 )
@@ -693,7 +693,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> WorkflowRunRef | DurableWorkflowRunRef:
+    ) -> WorkflowRunRef:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
         This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
@@ -828,7 +828,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_run_many_no_wait(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[WorkflowRunRef | DurableWorkflowRunRef]:
+    ) -> list[WorkflowRunRef]:
         """
         Run a workflow in bulk without waiting for all runs to complete.
 
@@ -841,12 +841,12 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
             return cast(
-                list[WorkflowRunRef | DurableWorkflowRunRef],
+                list[WorkflowRunRef],
                 await durable_ctx._spawn_children_no_wait(self, workflows),
             )
 
         return cast(
-            list[WorkflowRunRef | DurableWorkflowRunRef],
+            list[WorkflowRunRef],
             await self.client._client.admin.aio_run_workflows(workflows=workflows),
         )
 
@@ -1238,7 +1238,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
     def __init__(
         self,
         standalone: "Standalone[TWorkflowInput, R]",
-        workflow_run_ref: WorkflowRunRef | DurableWorkflowRunRef,
+        workflow_run_ref: WorkflowRunRef,
     ):
         self._s = standalone
         self._wrr = workflow_run_ref

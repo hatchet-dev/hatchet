@@ -19,6 +19,7 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
     DispatcherClient,
 )
 from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.workflow_run import WorkflowRunRef
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     MemoEvent,
@@ -735,7 +736,7 @@ class DurableContext(Context):
         return result
 
 
-class DurableWorkflowRunRef:
+class DurableWorkflowRunRef(WorkflowRunRef):
     """A ref for durable child workflow runs that resolves via the durable event listener."""
 
     def __init__(
@@ -758,9 +759,6 @@ class DurableWorkflowRunRef:
         self._workflow_name = workflow_name
         self._action_key = action_key
         self._eviction_manager = eviction_manager
-
-    def __str__(self) -> str:
-        return self.workflow_run_id
 
     async def aio_result(self) -> dict[str, Any]:
         async with aio_durable_eviction_wait(

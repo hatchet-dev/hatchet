@@ -482,7 +482,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskEvent(
 		return status.Errorf(codes.InvalidArgument, "invalid event kind: %v", err)
 	}
 
-	// RUN events use the bulk path
 	if kind == sqlcv1.V1DurableEventLogKindRUN {
 		return d.handleDurableTaskRunEvent(ctx, invocation, req, task, taskExternalId)
 	}
