@@ -313,6 +313,7 @@ async def test_graceful_termination_evicts_waiting_runs(hatchet: Hatchet) -> Non
         ), f"Expected EVICTED after SIGTERM, got: {statuses}"
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_eviction_plus_replay(hatchet: Hatchet) -> None:
     """After eviction, replay (not restore) should re-queue the run from the beginning."""
@@ -327,6 +328,7 @@ async def test_eviction_plus_replay(hatchet: Hatchet) -> None:
     assert result["status"] == "completed"
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
     """Cancelling an evicted run should transition it to CANCELLED."""
@@ -353,6 +355,7 @@ async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
     assert status == V1TaskStatus.CANCELLED
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_restore_idempotency(hatchet: Hatchet) -> None:
     """Restoring twice on the same evicted task should not cause duplicate execution."""
