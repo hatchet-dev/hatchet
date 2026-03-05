@@ -5,6 +5,19 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-03-04
+
+### Added
+
+- Adds `wait_for_result` parameter to `run()`, `aio_run()`, `run_many()`, and `aio_run_many()` on both `Workflow` and `Standalone`. Passing `wait_for_result=False` replaces the `run_no_wait` / `aio_run_no_wait` / `run_many_no_wait` / `aio_run_many_no_wait` methods.
+
+### Deprecated
+
+- `run_no_wait()`, `aio_run_no_wait()`, `run_many_no_wait()`, and `aio_run_many_no_wait()` are deprecated in favor of `run(wait_for_result=False)`, `aio_run(wait_for_result=False)`, `run_many(wait_for_result=False)`, and `aio_run_many(wait_for_result=False)` respectively.
+- Passing duration parameters (e.g. `schedule_timeout`, `execution_timeout`) as strings is deprecated. Use `timedelta` objects instead.
+- Non-async durable tasks are deprecated. Please convert durable task functions to async.
+- Deprecates a number of internal properties and methods on the `Context` that are not intended for public use, such as `Context._action`, `Context._runs_client`, and `Context._durable_event_listener`. These will be removed in v2.0.0.
+
 ## [1.28.2] - 2026-03-12
 
 ### Changed
