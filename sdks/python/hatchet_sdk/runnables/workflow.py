@@ -1309,11 +1309,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if isinstance(result, BaseException):
             return result
 
-        ## if a task is cancelled, we can get `None` back here
+        # if a task is cancelled, we can get `None` back here
         ## this is a bit of an edge case since both `None` and an empty dict
         ## would cause Pydantic validation errors, but if you were expecting a `dict`
         ## return, then the empty dict would not error and would work correctly
-        output = result.get(self._task.name) or {}
+
+        # Durable child callbacks can return the task payload directly, while
+        # non-durable child runs typically return {task_name: payload}.
+        output = result.get(self._task.name) or result or {}
 
         return cast(
             R,

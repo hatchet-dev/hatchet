@@ -82,10 +82,12 @@ class BulkChildTaskInput(BaseModel):
 @hatchet.task(
     input_validator=BulkChildTaskInput,
 )
-async def bulk_child_task(input: BulkChildTaskInput, ctx: Context) -> dict[str, Any]:
+async def bulk_child_task(
+    input: BulkChildTaskInput, ctx: Context
+) -> dict[str, str | int]:
     """Simple child that sleeps long enough for the parent's TTL to fire."""
     await asyncio.sleep(input.sleep_for.total_seconds())
-    return {"sleep_for": input.sleep_for.total_seconds(), "status": "completed"}
+    return {"sleep_for": int(input.sleep_for.total_seconds()), "status": "completed"}
 
 
 @hatchet.durable_task(
