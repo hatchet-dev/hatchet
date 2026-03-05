@@ -116,15 +116,15 @@ describe('Tenant Invite: accept', () => {
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
 
     // Decline all remaining invites so the page redirects
-    const declineAll = () => {
+    const declineAll = (remaining = 20) => {
       cy.get('body').then(($body) => {
-        if ($body.find('button:contains("Decline")').length > 0) {
+        if (remaining > 0 && $body.find('button:contains("Decline")').length > 0) {
           cy.intercept('POST', '/api/v1/users/invites/reject').as(
             'rejectInvite',
           );
-          cy.contains('button', 'Decline').click();
+          cy.contains('button', 'Decline').click({ force: true });
           cy.wait('@rejectInvite');
-          declineAll();
+          declineAll(remaining - 1);
         }
       });
     };
