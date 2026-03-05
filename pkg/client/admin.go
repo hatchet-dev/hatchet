@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"

@@ -12,7 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/workflows"
+	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"

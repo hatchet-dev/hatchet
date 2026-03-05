@@ -67,7 +67,7 @@ poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
 proto_paths=(
   "../../api-contracts/dispatcher dispatcher.proto"
   "../../api-contracts/events events.proto"
-  "../../api-contracts workflows/workflows.proto"
+  "../../api-contracts/workflows workflows.proto"
   "../../api-contracts v1/shared/condition.proto"
   "../../api-contracts v1/shared/trigger.proto"
   "../../api-contracts v1/dispatcher.proto"
@@ -82,6 +82,7 @@ for entry in "${proto_paths[@]}"; do
 
   poetry run python -m grpc_tools.protoc \
     --proto_path="$proto_path" \
+    --proto_path=../../api-contracts \
     --python_out=./hatchet_sdk/contracts \
     --pyi_out=./hatchet_sdk/contracts \
     --grpc_python_out=./hatchet_sdk/contracts \

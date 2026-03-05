@@ -30,15 +30,6 @@ class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     GROUP_ROUND_ROBIN: _ClassVar[ConcurrencyLimitStrategy]
     CANCEL_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
 
-class WorkerLabelComparator(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    EQUAL: _ClassVar[WorkerLabelComparator]
-    NOT_EQUAL: _ClassVar[WorkerLabelComparator]
-    GREATER_THAN: _ClassVar[WorkerLabelComparator]
-    GREATER_THAN_OR_EQUAL: _ClassVar[WorkerLabelComparator]
-    LESS_THAN: _ClassVar[WorkerLabelComparator]
-    LESS_THAN_OR_EQUAL: _ClassVar[WorkerLabelComparator]
-
 class RateLimitDuration(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     SECOND: _ClassVar[RateLimitDuration]
@@ -58,12 +49,6 @@ DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
 GROUP_ROUND_ROBIN: ConcurrencyLimitStrategy
 CANCEL_NEWEST: ConcurrencyLimitStrategy
-EQUAL: WorkerLabelComparator
-NOT_EQUAL: WorkerLabelComparator
-GREATER_THAN: WorkerLabelComparator
-GREATER_THAN_OR_EQUAL: WorkerLabelComparator
-LESS_THAN: WorkerLabelComparator
-LESS_THAN_OR_EQUAL: WorkerLabelComparator
 SECOND: RateLimitDuration
 MINUTE: RateLimitDuration
 HOUR: RateLimitDuration
@@ -132,20 +117,6 @@ class CreateWorkflowJobOpts(_message.Message):
     steps: _containers.RepeatedCompositeFieldContainer[CreateWorkflowStepOpts]
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., steps: _Optional[_Iterable[_Union[CreateWorkflowStepOpts, _Mapping]]] = ...) -> None: ...
 
-class DesiredWorkerLabels(_message.Message):
-    __slots__ = ("str_value", "int_value", "required", "comparator", "weight")
-    STR_VALUE_FIELD_NUMBER: _ClassVar[int]
-    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
-    REQUIRED_FIELD_NUMBER: _ClassVar[int]
-    COMPARATOR_FIELD_NUMBER: _ClassVar[int]
-    WEIGHT_FIELD_NUMBER: _ClassVar[int]
-    str_value: str
-    int_value: int
-    required: bool
-    comparator: WorkerLabelComparator
-    weight: int
-    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
-
 class CreateWorkflowStepOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds")
     class WorkerLabelsEntry(_message.Message):
@@ -153,8 +124,8 @@ class CreateWorkflowStepOpts(_message.Message):
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
-        value: DesiredWorkerLabels
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
+        value: _trigger_pb2.DesiredWorkerLabels
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[_trigger_pb2.DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_FIELD_NUMBER: _ClassVar[int]
@@ -174,10 +145,10 @@ class CreateWorkflowStepOpts(_message.Message):
     user_data: str
     retries: int
     rate_limits: _containers.RepeatedCompositeFieldContainer[CreateStepRateLimit]
-    worker_labels: _containers.MessageMap[str, DesiredWorkerLabels]
+    worker_labels: _containers.MessageMap[str, _trigger_pb2.DesiredWorkerLabels]
     backoff_factor: float
     backoff_max_seconds: int
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateStepRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ...) -> None: ...
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateStepRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ...) -> None: ...
 
 class CreateStepRateLimit(_message.Message):
     __slots__ = ("key", "units", "key_expr", "units_expr", "limit_values_expr", "duration")
@@ -294,3 +265,8 @@ class PutRateLimitRequest(_message.Message):
 class PutRateLimitResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+# Re-export for backwards compatibility
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import TriggerWorkflowRequest as TriggerWorkflowRequest
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels as DesiredWorkerLabels
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import WorkerLabelComparator as WorkerLabelComparator
