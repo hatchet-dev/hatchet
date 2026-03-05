@@ -130,6 +130,8 @@ class ClientConfig(BaseSettings):
     token: str = ""
     logger: Logger = getLogger()
 
+    debug: bool = False
+
     tenant_id: str = ""
     host_port: str = DEFAULT_HOST_PORT
     server_url: str = "https://app.dev.hatchet-tools.com"
