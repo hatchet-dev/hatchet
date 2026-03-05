@@ -6,7 +6,11 @@ from typing import Any
 
 import pytest
 
-from examples.durable_complex.conftest import get_task_output
+from examples.durable_complex.conftest import (
+    assert_evicted,
+    get_task_output,
+    requires_durable_eviction,
+)
 from examples.durable_complex.rate_limit.worker import (
     DynamicRateLimitInput,
     RATE_LIMIT_KEY,
@@ -17,6 +21,7 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.rate_limit import RateLimitDuration
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_rate_limit(hatchet: Hatchet) -> None:
     """Durable task with rate limit: run 3 workflows, all complete (rate limit throttles); evicted."""
@@ -26,6 +31,9 @@ async def test_durable_rate_limit(hatchet: Hatchet) -> None:
     refs = await asyncio.gather(
         *[durable_rate_limit_workflow.aio_run_no_wait() for _ in range(3)]
     )
+
+    await assert_evicted(hatchet, refs[0].workflow_run_id)
+
     results: list[dict[str, Any]] = await asyncio.gather(
         *[ref.aio_result() for ref in refs]
     )
@@ -42,15 +50,18 @@ async def test_durable_rate_limit(hatchet: Hatchet) -> None:
     assert elapsed >= 2.5
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_rate_limit_dynamic_key(hatchet: Hatchet) -> None:
     """Durable task with dynamic rate limit key from input; evicted during sleep."""
     dynamic_key = "dynamic-rate-limit-test"
     hatchet.rate_limits.put(dynamic_key, 2, RateLimitDuration.SECOND)
 
-    result: dict[str, Any] = await durable_rate_limit_dynamic_workflow.aio_run(
+    ref = durable_rate_limit_dynamic_workflow.run_no_wait(
         DynamicRateLimitInput(group=dynamic_key)
     )
+    await assert_evicted(hatchet, ref.workflow_run_id)
+    result: dict[str, Any] = await ref.aio_result()
     out = get_task_output(
         result,
         "durable_rate_limit_dynamic_task",

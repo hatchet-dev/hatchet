@@ -6,7 +6,11 @@ from typing import Any
 
 import pytest
 
-from examples.durable_complex.conftest import get_task_output
+from examples.durable_complex.conftest import (
+    assert_evicted,
+    get_task_output,
+    requires_durable_eviction,
+)
 from examples.durable_complex.retries.worker import (
     durable_retries_backoff_workflow,
     durable_retries_exhausted_workflow,
@@ -66,10 +70,13 @@ async def test_durable_retries_backoff() -> None:
     assert elapsed >= 2
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_retries_sleep() -> None:
+async def test_durable_retries_sleep(hatchet: Hatchet) -> None:
     """Durable task that fails after sleep succeeds on retry; evicted during sleep."""
-    result: dict[str, Any] = await durable_retries_sleep_workflow.aio_run()
+    ref = durable_retries_sleep_workflow.run_no_wait()
+    await assert_evicted(hatchet, ref.workflow_run_id)
+    result: dict[str, Any] = await ref.aio_result()
 
     out = get_task_output(
         result,

@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from examples.durable_complex.conftest import assert_evicted, requires_durable_eviction
 from examples.durable_complex.dag.worker import (
     durable_dag_diamond_workflow,
     durable_dag_durable_parent_workflow,
@@ -18,10 +19,13 @@ POLL_INTERVAL = 0.2
 MAX_POLLS = 150
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_dag() -> None:
+async def test_durable_dag(hatchet: Hatchet) -> None:
     """Durable child task receives output from ephemeral parent; evicted during sleep."""
-    result: dict[str, Any] = await durable_dag_workflow.aio_run()
+    ref = durable_dag_workflow.run_no_wait()
+    await assert_evicted(hatchet, ref.workflow_run_id)
+    result: dict[str, Any] = await ref.aio_result()
 
     child_result = result.get("durable_child", result)
     assert child_result["status"] == "completed"
@@ -29,10 +33,13 @@ async def test_durable_dag() -> None:
     assert child_result["parent_status"] == "from_parent"
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_dag_durable_parent() -> None:
+async def test_durable_dag_durable_parent(hatchet: Hatchet) -> None:
     """Durable child receives output from durable parent; evicted during sleep."""
-    result: dict[str, Any] = await durable_dag_durable_parent_workflow.aio_run()
+    ref = durable_dag_durable_parent_workflow.run_no_wait()
+    await assert_evicted(hatchet, ref.workflow_run_id)
+    result: dict[str, Any] = await ref.aio_result()
 
     child_result = result.get("durable_child_of_durable", result)
     assert child_result["status"] == "completed"
@@ -40,10 +47,13 @@ async def test_durable_dag_durable_parent() -> None:
     assert child_result["parent_status"] == "from_durable_parent"
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_dag_diamond() -> None:
+async def test_durable_dag_diamond(hatchet: Hatchet) -> None:
     """Diamond DAG: A -> B, A -> C, B+C -> D; fan-out and fan-in; evicted during sleep."""
-    result: dict[str, Any] = await durable_dag_diamond_workflow.aio_run()
+    ref = durable_dag_diamond_workflow.run_no_wait()
+    await assert_evicted(hatchet, ref.workflow_run_id)
+    result: dict[str, Any] = await ref.aio_result()
 
     d_result = result.get("diamond_d", result)
     assert d_result["status"] == "completed"

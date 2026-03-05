@@ -6,7 +6,11 @@ from uuid import uuid4
 
 import pytest
 
-from examples.durable_complex.conftest import get_task_output
+from examples.durable_complex.conftest import (
+    assert_evicted,
+    get_task_output,
+    requires_durable_eviction,
+)
 from examples.durable_complex.concurrency.worker import (
     ConcurrencyInput,
     durable_concurrency_cancel_in_progress_workflow,
@@ -18,9 +22,8 @@ from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
-requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
-
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_concurrency(hatchet: Hatchet) -> None:
     """Durable task with workflow-level concurrency: 4 runs across 2 groups, all complete.
@@ -32,6 +35,8 @@ async def test_durable_concurrency(hatchet: Hatchet) -> None:
         )
         refs.append(ref)
         await asyncio.sleep(0.3)
+
+    await assert_evicted(hatchet, refs[0].workflow_run_id)
 
     results: list[dict[str, Any]] = await asyncio.wait_for(
         asyncio.gather(*[ref.aio_result() for ref in refs]),
@@ -50,6 +55,7 @@ async def test_durable_concurrency(hatchet: Hatchet) -> None:
         assert out.get("group") in ("A", "B"), f"Expected group in (A, B), got {r}"
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_concurrency_cancel_in_progress(hatchet: Hatchet) -> None:
     """CANCEL_IN_PROGRESS: new run cancels the in-progress run; last run completes."""
@@ -65,6 +71,8 @@ async def test_durable_concurrency_cancel_in_progress(hatchet: Hatchet) -> None:
         )
         refs.append(ref)
         await asyncio.sleep(1)
+
+    await assert_evicted(hatchet, refs[-1].workflow_run_id)
 
     for ref in refs:
         try:
@@ -85,6 +93,7 @@ async def test_durable_concurrency_cancel_in_progress(hatchet: Hatchet) -> None:
     assert all(r.status == V1TaskStatus.CANCELLED for r in runs[:-1])
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_concurrency_cancel_newest(hatchet: Hatchet) -> None:
     """CANCEL_NEWEST: first run completes; subsequent runs in same group are cancelled."""
@@ -96,6 +105,8 @@ async def test_durable_concurrency_cancel_newest(hatchet: Hatchet) -> None:
         ),
     )
     await asyncio.sleep(1)
+
+    await assert_evicted(hatchet, to_run.workflow_run_id)
 
     to_cancel = await durable_concurrency_cancel_newest_workflow.aio_run_many_no_wait(
         [

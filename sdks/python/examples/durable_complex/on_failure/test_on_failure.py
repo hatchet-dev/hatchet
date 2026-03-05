@@ -5,7 +5,11 @@ from typing import Any
 
 import pytest
 
-from examples.durable_complex.conftest import get_task_output
+from examples.durable_complex.conftest import (
+    assert_evicted,
+    get_task_output,
+    requires_durable_eviction,
+)
 from examples.durable_complex.on_failure.worker import (
     durable_on_failure_details_workflow,
     durable_on_failure_workflow,
@@ -18,10 +22,12 @@ POLL_INTERVAL = 0.2
 MAX_POLLS = 150
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_on_failure_fires(hatchet: Hatchet) -> None:
     """on_failure_task fires when durable task fails; receives task_run_errors; evicted during sleep."""
     ref = await durable_on_failure_workflow.aio_run_no_wait()
+    await assert_evicted(hatchet, ref.workflow_run_id)
     try:
         await ref.aio_result()
     except Exception:
@@ -34,10 +40,13 @@ async def test_durable_on_failure_fires(hatchet: Hatchet) -> None:
     assert any("on_failure" in t.display_name for t in completed_tasks)
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_on_success_fires() -> None:
+async def test_durable_on_success_fires(hatchet: Hatchet) -> None:
     """on_success_task fires when all tasks succeed; evicted during sleep."""
-    result: dict[str, Any] = await durable_on_success_workflow.aio_run()
+    ref = durable_on_success_workflow.run_no_wait()
+    await assert_evicted(hatchet, ref.workflow_run_id)
+    result: dict[str, Any] = await ref.aio_result()
 
     handler_result = next(
         (
@@ -54,10 +63,12 @@ async def test_durable_on_success_fires() -> None:
     assert handler_result.get("status") == "success_handled"
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_on_failure_get_task_run_error(hatchet: Hatchet) -> None:
     """get_task_run_error returns correct error info in on_failure handler; evicted during sleep."""
     ref = await durable_on_failure_details_workflow.aio_run_no_wait()
+    await assert_evicted(hatchet, ref.workflow_run_id)
     try:
         await ref.aio_result()
     except Exception:
