@@ -642,20 +642,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}, nil
 }
 
-func createRunIdempotencyKey(triggerOpts *WorkflowNameTriggerOpts) ([]byte, error) {
-	dataToHash := []byte(sqlcv1.V1DurableEventLogKindRUN)
-	dataToHash = append(dataToHash, triggerOpts.Data...)
-	dataToHash = append(dataToHash, []byte(triggerOpts.WorkflowName)...)
-
-	h := sha256.New()
-	h.Write(dataToHash)
-	hashBytes := h.Sum(nil)
-	idempotencyKey := make([]byte, hex.EncodedLen(len(hashBytes)))
-	hex.Encode(idempotencyKey, hashBytes)
-
-	return idempotencyKey, nil
-}
-
 func (r *durableEventsRepository) IngestBulkDurableTaskRunEvents(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -727,7 +713,7 @@ func (r *durableEventsRepository) IngestBulkDurableTaskRunEvents(
 			return nil, fmt.Errorf("failed to marshal trigger opts: %w", marshalErr)
 		}
 
-		idempotencyKey, keyErr := createRunIdempotencyKey(triggerOpts)
+		idempotencyKey, keyErr := r.createIdempotencyKey(IngestDurableTaskEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN, TriggerOpts: triggerOpts})
 		if keyErr != nil {
 			return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
 		}
