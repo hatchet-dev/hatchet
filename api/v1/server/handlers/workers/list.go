@@ -139,6 +139,13 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		return nil, err
 	}
 
+	workerIdToLabels, err := t.config.V1.Workers().ListWorkerLabels(listCtx, tenantId, workerIds)
+
+	if err != nil {
+		actionsSpan.RecordError(err)
+		return nil, err
+	}
+
 	workerSlotConfig, err := buildWorkerSlotConfig(listCtx, t.config.V1.Workers(), tenant.ID, workerIds)
 	if err != nil {
 		actionsSpan.RecordError(err)
@@ -155,8 +162,9 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		workerCp := worker
 		actions := workerIdToActionIds[workerCp.Worker.ID.String()]
 		slotConfig := workerSlotConfig[workerCp.Worker.ID]
+		labels := workerIdToLabels[workerCp.Worker.ID]
 
-		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, slotConfig, actions, nil)
+		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, slotConfig, actions, nil, labels)
 	}
 
 	return gen.WorkerList200JSONResponse(

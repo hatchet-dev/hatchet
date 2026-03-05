@@ -1,7 +1,7 @@
 PATH
   remote: ../src
   specs:
-    hatchet-sdk (0.1.1)
+    hatchet-sdk (0.2.0)
       concurrent-ruby (>= 1.1)
       faraday (~> 2.0)
       faraday-multipart
@@ -13,6 +13,7 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
+    base64 (0.3.0)
     bigdecimal (4.0.1)
     concurrent-ruby (1.3.6)
     diff-lcs (1.6.2)
@@ -72,6 +73,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  base64
   hatchet-sdk!
   net-http
   rspec (~> 3.0)

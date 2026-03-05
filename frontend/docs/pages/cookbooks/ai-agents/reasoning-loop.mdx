@@ -1,0 +1,261 @@
+import { Callout, Cards, Steps, Tabs } from "nextra/components";
+import AgentLoopDiagram from "@/components/AgentLoopDiagramWrapper";
+import LLMIntegrationTabs from "@/components/LLMIntegrationTabs.mdx";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import UniversalTabs from "@/components/UniversalTabs";
+
+# Reasoning Loop
+
+AI agents follow a **reason-act-observe** loop that can run for minutes or hours, repeating until the LLM determines the task is complete or a deterministic exit condition is met (max iterations, timeout, tool signal).
+
+<AgentLoopDiagram />
+
+In Hatchet, this is implemented as a [durable task](/v1/patterns/durable-task-execution) with a loop. At each iteration, the task [spawns a child](/v1/durable-workflows/child-spawning) to call the LLM, execute any tool calls, and determine whether additional iterations are required. Each completed iteration is checkpointed, so the agent survives crashes and worker slots are freed between iterations.
+
+## When to use
+
+| Scenario                                        | Fit                                                               |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| Chatbot that picks tools based on user messages | Good: the loop runs until the agent has a final answer            |
+| Multi-step research that may take minutes       | Good: durable execution survives long-running loops               |
+| Agent that needs human approval mid-loop        | Good: combine with [Human-in-the-Loop](/guides/human-in-the-loop) |
+| Fixed pipeline (prompt, generate, validate)     | Skip: use [LLM Pipelines](/guides/llm-pipelines) instead          |
+| One-shot classification or extraction           | Skip: a single [task](/v1/tasks) is simpler                       |
+
+## Step-by-step walkthrough
+
+You'll build a durable agent task that streams tokens and survives restarts.
+
+<Steps>
+
+### Reasoning loop
+
+Define the core loop. Each iteration calls the LLM, executes any tool calls, and checks whether the task is complete.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.ai_agents.worker.step_02_reasoning_loop}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={snippets.typescript.guides.ai_agents.workflow.step_02_reasoning_loop}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.guides.ai_agents.main.step_02_reasoning_loop} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.ai_agents.worker.step_02_reasoning_loop}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+The examples above use a mock LLM. To call a real provider, swap `get_llm_service()` with one of these. Tool execution is typically your own APIs; encapsulate them in a service module like the `get_tool_service()` helper shown above.
+
+<LLMIntegrationTabs />
+
+### Wrap it in a durable task
+
+Create a [durable task](/v1/patterns/durable-task-execution) that invokes the reasoning loop from Step 1. Concurrency is set to `CANCEL_IN_PROGRESS` so new user messages cancel stale runs.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.ai_agents.worker.step_01_define_agent_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.ai_agents.workflow.step_01_define_agent_task
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.ai_agents.main.step_01_define_agent_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.ai_agents.worker.step_01_define_agent_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Stream the response
+
+Emit LLM tokens from the task as they are generated. Clients subscribe to the stream and receive them in real-time. See [Streaming](/v1/streaming) for the full API.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.guides.ai_agents.worker.step_03_stream_response}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.ai_agents.workflow.step_03_stream_response
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.guides.ai_agents.main.step_03_stream_response} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.ai_agents.worker.step_03_stream_response}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Run the worker
+
+Start the worker. The task definitions above use `CANCEL_IN_PROGRESS` concurrency so new user messages cancel stale runs. Pass `session_id` in input for per-session grouping.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.guides.ai_agents.worker.step_04_run_worker} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={snippets.typescript.guides.ai_agents.worker.step_04_run_worker}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.guides.ai_agents.main.step_04_run_worker} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.guides.ai_agents.worker.step_04_run_worker} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+</Steps>
+
+<Callout type="warning">
+  Always set a **timeout** and **max iteration count** on agent loops. Without
+  bounds, an agent can loop indefinitely. See [Timeouts](/v1/timeouts) for
+  configuration.
+</Callout>
+
+## Variant: Evaluator-Optimizer
+
+The evaluator-optimizer is a specialized reasoning loop that uses two LLM calls per iteration: one to **generate** a candidate output and one to **evaluate** it against a rubric. If the score is below a threshold, the evaluator provides feedback and the generator tries again. This trades compute cost for output quality.
+
+| Use case            | Generator                | Evaluator                                             |
+| ------------------- | ------------------------ | ----------------------------------------------------- |
+| **Content writing** | Draft post/email/copy    | Score clarity, tone, length; provide edit suggestions |
+| **Code generation** | Write function or query  | Run tests or linter; feed back errors                 |
+| **Data extraction** | Extract fields from text | Validate against schema; flag missing fields          |
+| **Translation**     | Translate text           | Back-translate and compare; score fidelity            |
+
+<Steps>
+
+### Define the generator and evaluator tasks
+
+Create separate tasks for generation and evaluation. The generator takes a topic and optional feedback; the evaluator scores a draft.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={
+        snippets.python.guides.evaluator_optimizer.worker.step_01_define_tasks
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.evaluator_optimizer.workflow
+          .step_01_define_tasks
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={snippets.go.guides.evaluator_optimizer.main.step_01_define_tasks}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.guides.evaluator_optimizer.worker.step_01_define_tasks}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Optimization loop
+
+The evaluator-optimizer task loops: generate, evaluate, check score. Each generator and evaluator call is a [spawned child task](/v1/durable-workflows/child-spawning) that is checkpointed on completion.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={
+        snippets.python.guides.evaluator_optimizer.worker
+          .step_02_optimization_loop
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.guides.evaluator_optimizer.workflow
+          .step_02_optimization_loop
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet
+      src={
+        snippets.go.guides.evaluator_optimizer.main.step_02_optimization_loop
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={
+        snippets.ruby.guides.evaluator_optimizer.worker
+          .step_02_optimization_loop
+      }
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+</Steps>
+
+## Related Patterns
+
+<Cards>
+  <Cards.Card
+    title="Child Spawning"
+    href="/v1/durable-workflows/child-spawning"
+  >
+    The core loop pattern behind agent reasoning, where a task re-spawns itself
+    until a goal is met.
+  </Cards.Card>
+  <Cards.Card title="Long Waits" href="/v1/durable-workflows/sleep">
+    Pause agents for human feedback or scheduled retries without holding worker
+    slots.
+  </Cards.Card>
+  <Cards.Card title="Human-in-the-Loop" href="/cookbooks/human-in-the-loop">
+    Add approval gates to agent workflows. Pause for human review, then resume.
+  </Cards.Card>
+  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
+    Agents that spawn parallel tool calls or sub-agent tasks.
+  </Cards.Card>
+  <Cards.Card title="Branching" href="/v1/durable-workflows/conditions">
+    Route agent behavior based on LLM tool call decisions or user preferences.
+  </Cards.Card>
+</Cards>
+
+## Next Steps
+
+- [What is an Agent?](/guides/ai-agents): overview and pattern index
+- [Durable Workflows](/v1/patterns/durable-task-execution): understand checkpointing and replay
+- [Streaming](/v1/streaming): set up real-time LLM output streaming
+- [Concurrency Control](/v1/concurrency): configure CANCEL_IN_PROGRESS for chat agents

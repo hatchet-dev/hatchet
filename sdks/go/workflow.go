@@ -21,11 +21,16 @@ import (
 
 type RunPriority = features.RunPriority
 
+type DesiredWorkerLabel = types.DesiredWorkerLabel
+
+type WorkerLabelComparator = types.WorkerLabelComparator
+
 type runOpts struct {
-	AdditionalMetadata *map[string]string
-	Priority           *RunPriority
-	Sticky             *bool
-	Key                *string
+	AdditionalMetadata  *map[string]string
+	Priority            *RunPriority
+	Sticky              *bool
+	Key                 *string
+	DesiredWorkerLabels map[string]*DesiredWorkerLabel
 }
 
 type RunOptFunc func(*runOpts)
@@ -55,6 +60,13 @@ func WithRunSticky(sticky bool) RunOptFunc {
 func WithRunKey(key string) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.Key = &key
+	}
+}
+
+// WithDesiredWorkerLabels sets desired worker labels for routing the workflow run to specific workers.
+func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.DesiredWorkerLabels = labels
 	}
 }
 
@@ -602,16 +614,21 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
 	}
 
+	if runOpts.DesiredWorkerLabels != nil {
+		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
+	}
+
 	var v0Workflow *v0Client.Workflow
 	var err error
 
 	hCtx, ok := ctx.(Context)
 	if ok {
 		v0Workflow, err = hCtx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
-			Key:                runOpts.Key,
-			Sticky:             runOpts.Sticky,
-			Priority:           priority,
-			AdditionalMetadata: runOpts.AdditionalMetadata,
+			Key:                 runOpts.Key,
+			Sticky:              runOpts.Sticky,
+			Priority:            priority,
+			AdditionalMetadata:  runOpts.AdditionalMetadata,
+			DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
 		})
 	} else {
 		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)

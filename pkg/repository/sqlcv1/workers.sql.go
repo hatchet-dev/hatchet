@@ -855,7 +855,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, desired_worker_label
 FROM
     v1_task_runtime runtime
 JOIN
@@ -917,6 +917,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
+	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
@@ -972,6 +973,7 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
+			&i.DesiredWorkerLabel,
 		); err != nil {
 			return nil, err
 		}
@@ -1024,6 +1026,7 @@ func (q *Queries) ListTotalActiveSlotsPerTenant(ctx context.Context, db DBTX) ([
 
 const listWorkerLabels = `-- name: ListWorkerLabels :many
 SELECT
+    "workerId",
     "id",
     "key",
     "intValue",
@@ -1031,10 +1034,11 @@ SELECT
     "createdAt",
     "updatedAt"
 FROM "WorkerLabel" wl
-WHERE wl."workerId" = $1::uuid
+WHERE wl."workerId" = ANY($1::uuid[])
 `
 
 type ListWorkerLabelsRow struct {
+	WorkerId  uuid.UUID        `json:"workerId"`
 	ID        int64            `json:"id"`
 	Key       string           `json:"key"`
 	IntValue  pgtype.Int4      `json:"intValue"`
@@ -1043,8 +1047,8 @@ type ListWorkerLabelsRow struct {
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 }
 
-func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.UUID) ([]*ListWorkerLabelsRow, error) {
-	rows, err := db.Query(ctx, listWorkerLabels, workerid)
+func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerids []uuid.UUID) ([]*ListWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, listWorkerLabels, workerids)
 	if err != nil {
 		return nil, err
 	}
@@ -1053,6 +1057,7 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid uuid.U
 	for rows.Next() {
 		var i ListWorkerLabelsRow
 		if err := rows.Scan(
+			&i.WorkerId,
 			&i.ID,
 			&i.Key,
 			&i.IntValue,
