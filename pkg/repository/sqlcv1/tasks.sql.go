@@ -160,34 +160,23 @@ func (q *Queries) CleanupV1WorkflowConcurrencySlot(ctx context.Context, db DBTX,
 	return db.Exec(ctx, cleanupV1WorkflowConcurrencySlot, batchsize)
 }
 
-const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
-WITH input AS (
-    SELECT
-        UNNEST($1::bigint[]) AS parent_strategy_id,
-        UNNEST($2::uuid[]) AS workflow_version_id,
-        UNNEST($3::uuid[]) AS workflow_run_id
-    ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id
-)
+const cleanupWorkflowConcurrencySlotsBeforePartitionDrop = `-- name: CleanupWorkflowConcurrencySlotsBeforePartitionDrop :exec
 SELECT
     cleanup_workflow_concurrency_slots(
-            rec.parent_strategy_id,
-            rec.workflow_version_id,
-            rec.workflow_run_id
-        )
-FROM
-    input rec
+        wcs.strategy_id,
+        wcs.workflow_version_id,
+        wcs.workflow_run_id
+    )
+FROM v1_workflow_concurrency_slot wcs
+JOIN v1_lookup_table lt ON lt.external_id = wcs.workflow_run_id
+WHERE lt.inserted_at < $1::timestamptz
 `
 
-type CleanupWorkflowConcurrencySlotsAfterInsertParams struct {
-	Concurrencyparentstrategyids []int64     `json:"concurrencyparentstrategyids"`
-	Workflowversionids           []uuid.UUID `json:"workflowversionids"`
-	Workflowrunids               []uuid.UUID `json:"workflowrunids"`
-}
-
-// Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
-// NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
-func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context, db DBTX, arg CleanupWorkflowConcurrencySlotsAfterInsertParams) error {
-	_, err := db.Exec(ctx, cleanupWorkflowConcurrencySlotsAfterInsert, arg.Concurrencyparentstrategyids, arg.Workflowversionids, arg.Workflowrunids)
+// Cleans up workflow concurrency slots for workflow runs older than the retention period,
+// before their v1_task partitions are dropped. This ensures cleanup_workflow_concurrency_slots
+// can still access task data for its cleanup logic.
+func (q *Queries) CleanupWorkflowConcurrencySlotsBeforePartitionDrop(ctx context.Context, db DBTX, removebefore pgtype.Timestamptz) error {
+	_, err := db.Exec(ctx, cleanupWorkflowConcurrencySlotsBeforePartitionDrop, removebefore)
 	return err
 }
 

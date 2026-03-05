@@ -361,6 +361,17 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 
 	if len(partitions) > 0 {
 		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
+
+		// Clean up workflow concurrency slots for runs older than retention before dropping
+		// partitions, while the v1_task data is still accessible.
+		err = r.queries.CleanupWorkflowConcurrencySlotsBeforePartitionDrop(ctx, r.pool, pgtype.Timestamptz{
+			Time:  removeBefore,
+			Valid: true,
+		})
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("failed to cleanup workflow concurrency slots before partition drop")
+		}
 	}
 
 	for _, partition := range partitions {
@@ -1764,10 +1775,6 @@ func (r *sharedRepository) insertTasks(
 
 	unix := time.Now().UnixMilli()
 
-	cleanupParentStrategyIds := make([]int64, 0)
-	cleanupWorkflowVersionIds := make([]uuid.UUID, 0)
-	cleanupWorkflowRunIds := make([]uuid.UUID, 0)
-
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
 		tenantIds[i] = tenantId
@@ -1875,14 +1882,6 @@ func (r *sharedRepository) insertTasks(
 				taskStrategyIds = append(taskStrategyIds, strat.ID)
 				taskParentStrategyIds = append(taskParentStrategyIds, strat.ParentStrategyID)
 				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
-
-				// we only need to cleanup parent strategy ids if the task is not in a QUEUED state, because
-				// this skips the creation of a concurrency slot and means we might want to cleanup the workflow slot
-				if strat.ParentStrategyID.Valid && task.InitialState != sqlcv1.V1TaskInitialStateQUEUED {
-					cleanupParentStrategyIds = append(cleanupParentStrategyIds, strat.ParentStrategyID.Int64)
-					cleanupWorkflowRunIds = append(cleanupWorkflowRunIds, task.WorkflowRunId)
-					cleanupWorkflowVersionIds = append(cleanupWorkflowVersionIds, stepConfig.WorkflowVersionId)
-				}
 			}
 		}
 
@@ -2200,22 +2199,6 @@ func (r *sharedRepository) insertTasks(
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create expression evals: %w", err)
-		}
-	}
-
-	if len(cleanupParentStrategyIds) > 0 {
-		err = r.queries.CleanupWorkflowConcurrencySlotsAfterInsert(
-			ctx,
-			tx,
-			sqlcv1.CleanupWorkflowConcurrencySlotsAfterInsertParams{
-				Concurrencyparentstrategyids: cleanupParentStrategyIds,
-				Workflowrunids:               cleanupWorkflowRunIds,
-				Workflowversionids:           cleanupWorkflowVersionIds,
-			},
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to cleanup workflow concurrency slots after insert: %w", err)
 		}
 	}
 
