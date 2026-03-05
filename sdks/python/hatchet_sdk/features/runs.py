@@ -114,9 +114,36 @@ class RunsClient(BaseRestClient):
     ) -> None:
         super().__init__(config)
 
-        self.workflow_run_listener = workflow_run_listener
-        self.workflow_run_event_listener = workflow_run_event_listener
-        self.admin_client = admin_client
+        self._workflow_run_listener = workflow_run_listener
+        self._workflow_run_event_listener = workflow_run_event_listener
+        self._admin_client = admin_client
+
+    @property
+    def workflow_run_listener(self) -> PooledWorkflowRunListener:
+        warn(
+            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_listener
+
+    @property
+    def workflow_run_event_listener(self) -> RunEventListenerClient:
+        warn(
+            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_event_listener
+
+    @property
+    def admin_client(self) -> AdminClient:
+        warn(
+            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._admin_client
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -841,9 +868,9 @@ class RunsClient(BaseRestClient):
 
         return WorkflowRunRef(
             workflow_run_id=workflow_run_id,
-            workflow_run_event_listener=self.workflow_run_event_listener,
-            workflow_run_listener=self.workflow_run_listener,
-            admin_client=self.admin_client,
+            workflow_run_event_listener=self._workflow_run_event_listener,
+            workflow_run_listener=self._workflow_run_listener,
+            admin_client=self._admin_client,
         )
 
     async def subscribe_to_stream(
@@ -857,7 +884,7 @@ class RunsClient(BaseRestClient):
                 yield chunk.payload
 
     def get_details(self, external_id: str) -> WorkflowRunDetail:
-        return self.admin_client.get_details(external_id=external_id)
+        return self._admin_client.get_details(external_id=external_id)
 
     async def aio_get_details(self, external_id: str) -> WorkflowRunDetail:
-        return await asyncio.to_thread(self.admin_client.get_details, external_id)
+        return await asyncio.to_thread(self._admin_client.get_details, external_id)
