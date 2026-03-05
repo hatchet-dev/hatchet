@@ -331,7 +331,7 @@ class Context:
             stacklevel=2,
         )
 
-        return self.exit_flag
+        return self.is_cancelled
 
     @property
     def is_cancelled(self) -> bool:
@@ -340,7 +340,7 @@ class Context:
 
         :return: True if the task run has been cancelled, False otherwise.
         """
-        return self.exit_flag
+        return self._exit_flag
 
     def log(
         self, line: str | JSONSerializableMapping, raise_on_error: bool = False

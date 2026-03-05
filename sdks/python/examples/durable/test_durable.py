@@ -13,7 +13,7 @@ from hatchet_sdk import Hatchet
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable(hatchet: Hatchet) -> None:
-    ref = durable_workflow.run_no_wait()
+    ref = durable_workflow.run(wait_for_result=False)
 
     await asyncio.sleep(SLEEP_TIME + 10)
 
@@ -51,7 +51,7 @@ async def test_durable(hatchet: Hatchet) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
-    first_sleep = await wait_for_sleep_twice.aio_run_no_wait()
+    first_sleep = await wait_for_sleep_twice.aio_run(wait_for_result=False)
 
     await asyncio.sleep(SLEEP_TIME / 2)
 
