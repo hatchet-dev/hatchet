@@ -195,9 +195,7 @@ WITH inputs AS (
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@kinds::text[]) AS kind,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@parentNodeIds::BIGINT[]) AS parent_node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
-        UNNEST(@parentBranchIds::BIGINT[]) AS parent_branch_id,
         UNNEST(@invocationCounts::INTEGER[]) AS invocation_count,
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
@@ -210,9 +208,7 @@ INSERT INTO v1_durable_event_log_entry (
     inserted_at,
     kind,
     node_id,
-    parent_node_id,
     branch_id,
-    parent_branch_id,
     invocation_count,
     idempotency_key,
     is_satisfied
@@ -225,11 +221,7 @@ SELECT
     NOW(),
     i.kind::v1_durable_event_log_kind,
     i.node_id,
-    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
-    NULLIF(i.parent_node_id, -1),
     i.branch_id,
-    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
-    NULLIF(i.parent_branch_id, -1),
     i.invocation_count,
     i.idempotency_key,
     i.is_satisfied

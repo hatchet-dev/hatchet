@@ -21,12 +21,10 @@ WITH inputs AS (
         UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST($5::text[]) AS kind,
         UNNEST($6::BIGINT[]) AS node_id,
-        UNNEST($7::BIGINT[]) AS parent_node_id,
-        UNNEST($8::BIGINT[]) AS branch_id,
-        UNNEST($9::BIGINT[]) AS parent_branch_id,
-        UNNEST($10::INTEGER[]) AS invocation_count,
-        UNNEST($11::BYTEA[]) AS idempotency_key,
-        UNNEST($12::BOOLEAN[]) AS is_satisfied
+        UNNEST($7::BIGINT[]) AS branch_id,
+        UNNEST($8::INTEGER[]) AS invocation_count,
+        UNNEST($9::BYTEA[]) AS idempotency_key,
+        UNNEST($10::BOOLEAN[]) AS is_satisfied
 )
 INSERT INTO v1_durable_event_log_entry (
     tenant_id,
@@ -36,9 +34,7 @@ INSERT INTO v1_durable_event_log_entry (
     inserted_at,
     kind,
     node_id,
-    parent_node_id,
     branch_id,
-    parent_branch_id,
     invocation_count,
     idempotency_key,
     is_satisfied
@@ -51,11 +47,7 @@ SELECT
     NOW(),
     i.kind::v1_durable_event_log_kind,
     i.node_id,
-    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
-    NULLIF(i.parent_node_id, -1),
     i.branch_id,
-    -- HACK: sqlc wont correctly typecast to Int8 neatly here so we need to use NULLIF
-    NULLIF(i.parent_branch_id, -1),
     i.invocation_count,
     i.idempotency_key,
     i.is_satisfied
@@ -71,9 +63,7 @@ type BulkCreateDurableEventLogEntriesParams struct {
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Kinds                  []string             `json:"kinds"`
 	Nodeids                []int64              `json:"nodeids"`
-	Parentnodeids          []int64              `json:"parentnodeids"`
 	Branchids              []int64              `json:"branchids"`
-	Parentbranchids        []int64              `json:"parentbranchids"`
 	Invocationcounts       []int32              `json:"invocationcounts"`
 	Idempotencykeys        [][]byte             `json:"idempotencykeys"`
 	Issatisfieds           []bool               `json:"issatisfieds"`
@@ -87,9 +77,7 @@ func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX,
 		arg.Durabletaskinsertedats,
 		arg.Kinds,
 		arg.Nodeids,
-		arg.Parentnodeids,
 		arg.Branchids,
-		arg.Parentbranchids,
 		arg.Invocationcounts,
 		arg.Idempotencykeys,
 		arg.Issatisfieds,
