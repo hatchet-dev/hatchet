@@ -17,6 +17,7 @@ func (t *V1WorkflowRunsService) V1DurableTaskBranch(ctx echo.Context, request ge
 	grpcReq := &contracts.BranchDurableTaskRequest{
 		TaskExternalId: request.Body.TaskExternalId.String(),
 		NodeId:         request.Body.NodeId,
+		BranchId:       request.Body.BranchId,
 	}
 
 	resp, err := t.proxyBranchDurableTask.Do(

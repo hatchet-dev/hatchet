@@ -437,12 +437,12 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 		return nil, status.Error(codes.InvalidArgument, "invalid task_external_id")
 	}
 
-	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	result, err := a.repo.DurableEvents().HandleBranch(ctx, tenantId, req.NodeId, task)
+	result, err := a.repo.DurableEvents().HandleBranch(ctx, tenantId, req.NodeId, req.BranchId, task)
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to branch durable task: %v", err)

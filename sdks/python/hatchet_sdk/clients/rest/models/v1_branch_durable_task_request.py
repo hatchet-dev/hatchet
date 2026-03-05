@@ -37,7 +37,10 @@ class V1BranchDurableTaskRequest(BaseModel):
     node_id: StrictInt = Field(
         description="The node id to replay from.", alias="nodeId"
     )
-    __properties: ClassVar[List[str]] = ["taskExternalId", "nodeId"]
+    branch_id: StrictInt = Field(
+        description="The branch id to replay from.", alias="branchId"
+    )
+    __properties: ClassVar[List[str]] = ["taskExternalId", "nodeId", "branchId"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -88,6 +91,10 @@ class V1BranchDurableTaskRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate(
-            {"taskExternalId": obj.get("taskExternalId"), "nodeId": obj.get("nodeId")}
+            {
+                "taskExternalId": obj.get("taskExternalId"),
+                "nodeId": obj.get("nodeId"),
+                "branchId": obj.get("branchId"),
+            }
         )
         return _obj
