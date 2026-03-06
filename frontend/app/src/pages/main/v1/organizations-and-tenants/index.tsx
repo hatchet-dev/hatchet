@@ -336,7 +336,7 @@ const fetchOrganizationInvites = (
 
 export default function OrganizationsPage() {
   const loaderData = useLoaderData({
-    from: '/tenants/$tenant/organizations',
+    from: '/tenants/$tenant/organizations-and-tenants',
   }) as Awaited<ReturnType<typeof loader>>;
 
   const [_organizationRefetchPromises, setOrganizationRefetchPromises] =
