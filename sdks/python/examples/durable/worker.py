@@ -192,7 +192,7 @@ def spawn_child_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"message": "hello from child"}
 
 
-@hatchet.durable_task()
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
     child_result = await spawn_child_task.aio_run()
     return {"child_output": child_result}
