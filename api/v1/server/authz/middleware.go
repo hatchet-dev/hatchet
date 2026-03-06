@@ -6,10 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -22,7 +21,7 @@ type AuthZ struct {
 	l      *zerolog.Logger
 }
 
-func NewAuthZ(config *server.ServerConfig, spec *openapi3.T) *AuthZ {
+func NewAuthZ(config *server.ServerConfig) *AuthZ {
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
