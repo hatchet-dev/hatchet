@@ -500,7 +500,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := d.DeliverDurableEventLogEntryCompletion(
 				taskExtId,
-				result.TriggerRunsResult.InvocationCount,
+				result.MemoResult.InvocationCount,
 				result.MemoResult.BranchId,
 				result.MemoResult.NodeId,
 				result.MemoResult.ResultPayload,
@@ -513,7 +513,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := d.DeliverDurableEventLogEntryCompletion(
 				taskExtId,
-				result.TriggerRunsResult.InvocationCount,
+				result.WaitForResult.InvocationCount,
 				result.WaitForResult.BranchId,
 				result.WaitForResult.NodeId,
 				nil,
