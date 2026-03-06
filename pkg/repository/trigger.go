@@ -1712,37 +1712,7 @@ func getParentInDAGGroupMatch(
 }
 
 func getChildWorkflowGroupMatches(taskExternalId uuid.UUID, stepReadableId string) []GroupMatchCondition {
-	groupId := uuid.New()
-	hint := taskExternalId.String()
-	return []GroupMatchCondition{
-		{
-			GroupId:           groupId,
-			EventType:         sqlcv1.V1EventTypeINTERNAL,
-			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
-			ReadableDataKey:   stepReadableId,
-			EventResourceHint: &hint,
-			Expression:        "true",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
-		},
-		{
-			GroupId:           groupId,
-			EventType:         sqlcv1.V1EventTypeINTERNAL,
-			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-			ReadableDataKey:   stepReadableId,
-			EventResourceHint: &hint,
-			Expression:        "true",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
-		},
-		{
-			GroupId:           groupId,
-			EventType:         sqlcv1.V1EventTypeINTERNAL,
-			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-			ReadableDataKey:   stepReadableId,
-			EventResourceHint: &hint,
-			Expression:        "true",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
-		},
-	}
+	return ChildTerminalMatchConditions([]string{taskExternalId.String()}, stepReadableId)
 }
 
 func getParentOnFailureGroupMatches(createGroupId, parentExternalId uuid.UUID, parentReadableId string) []GroupMatchCondition {

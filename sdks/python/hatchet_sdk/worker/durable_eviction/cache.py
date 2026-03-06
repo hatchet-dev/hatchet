@@ -23,17 +23,20 @@ class DurableRunRecord(BaseModel):
     eviction_policy: EvictionPolicy | None
     registered_at: datetime
 
-    # Waiting state
+    # Waiting state -- ref-counted so concurrent waits (e.g. asyncio.gather
+    # over multiple child results) don't prematurely clear the waiting flag
+    # when one child completes before the others.
     waiting_since: datetime | None = None
     wait_kind: str | None = None
     wait_resource_id: str | None = None
+    _wait_count: int = 0
 
     # Set by the eviction manager before requesting eviction
     eviction_reason: str | None = None
 
     @property
     def is_waiting(self) -> bool:
-        return self.waiting_since is not None
+        return self._wait_count > 0
 
 
 class DurableEvictionCache:
@@ -74,7 +77,9 @@ class DurableEvictionCache:
         if not rec:
             return
 
-        rec.waiting_since = now
+        rec._wait_count += 1
+        if rec._wait_count == 1:
+            rec.waiting_since = now
         rec.wait_kind = wait_kind
         rec.wait_resource_id = resource_id
 
@@ -83,10 +88,11 @@ class DurableEvictionCache:
         if not rec:
             return
 
-        # Clear waiting state
-        rec.waiting_since = None
-        rec.wait_kind = None
-        rec.wait_resource_id = None
+        rec._wait_count = max(0, rec._wait_count - 1)
+        if rec._wait_count == 0:
+            rec.waiting_since = None
+            rec.wait_kind = None
+            rec.wait_resource_id = None
 
     def _capacity_pressure(
         self, durable_slots: int, reserve_slots: int, waiting_count: int

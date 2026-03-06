@@ -17,6 +17,7 @@ import pytest
 
 from examples.durable_eviction.worker import (
     EVENT_KEY,
+    evictable_child_bulk_spawn,
     evictable_child_spawn,
     evictable_sleep,
     evictable_wait_for_event,
@@ -248,6 +249,31 @@ async def test_evictable_child_spawn_restore_completes(hatchet: Hatchet) -> None
     result = await ref.aio_result()
     assert result["status"] == "completed"
     assert result["child"] == {"child_status": "completed"}
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_evictable_child_bulk_spawn_restore_completes(hatchet: Hatchet) -> None:
+    ref = evictable_child_bulk_spawn.run_no_wait()
+
+    eviction_count = 0
+    for _ in range(3):
+        await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+        details = await _poll_until_status(
+            hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+        )
+        eviction_count += 1
+        task_id = _get_task_id(details)
+        with hatchet.runs.client() as client:
+            TaskApi(client).v1_task_restore(task=task_id)
+
+    result = await ref.aio_result()
+    assert eviction_count == 3, f"Expected 3 evictions, got {eviction_count}"
+    assert result["child_results"] == [
+        {"sleep_for": 10, "status": "completed"},
+        {"sleep_for": 20, "status": "completed"},
+        {"sleep_for": 30, "status": "completed"},
+    ]
 
 
 @requires_durable_eviction

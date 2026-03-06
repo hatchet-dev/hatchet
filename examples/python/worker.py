@@ -33,6 +33,7 @@ from examples.dependency_injection.worker import (
 from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import (
     durable_sleep_event_spawn,
+    durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
     spawn_child_task,
@@ -43,8 +44,14 @@ from examples.durable.worker import (
     durable_replay_reset,
     memo_task,
 )
+from examples.durable_event.worker import (
+    durable_event_task,
+    durable_event_task_with_filter,
+)
 from examples.durable_eviction.worker import (
+    bulk_child_task as eviction_bulk_child_task,
     child_task as eviction_child_task,
+    evictable_child_bulk_spawn,
     evictable_child_spawn,
     evictable_sleep,
     evictable_wait_for_event,
@@ -124,7 +131,10 @@ def main() -> None:
             wait_for_sleep_twice,
             spawn_child_task,
             durable_with_spawn,
+            durable_with_bulk_spawn,
             durable_sleep_event_spawn,
+            durable_event_task,
+            durable_event_task_with_filter,
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
@@ -140,9 +150,11 @@ def main() -> None:
             evictable_sleep,
             evictable_wait_for_event,
             evictable_child_spawn,
+            evictable_child_bulk_spawn,
             multiple_eviction,
             non_evictable_sleep,
             eviction_child_task,
+            eviction_bulk_child_task,
         ],
         lifespan=lifespan,
     )

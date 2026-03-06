@@ -9,6 +9,7 @@ from examples.durable.worker import (
     SLEEP_TIME,
     REPLAY_RESET_SLEEP_TIME,
     durable_sleep_event_spawn,
+    durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
     wait_for_sleep_twice,
@@ -83,6 +84,15 @@ async def test_durable_child_spawn() -> None:
     result = await durable_with_spawn.aio_run()
 
     assert result["child_output"] == {"message": "hello from child"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_child_bulk_spawn() -> None:
+    result = await durable_with_bulk_spawn.aio_run()
+
+    assert result["child_outputs"] == [
+        {"message": "hello from child"} for _ in range(10)
+    ]
 
 
 @requires_durable_eviction

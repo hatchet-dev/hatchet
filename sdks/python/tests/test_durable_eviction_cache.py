@@ -112,3 +112,69 @@ def test_capacity_eviction_respects_allow_capacity_and_min_wait() -> None:
         min_wait_for_capacity_eviction=timedelta(seconds=10),
     )
     assert chosen == key_ok
+
+
+def test_concurrent_waits_keep_waiting_until_all_resolved() -> None:
+    """Simulates asyncio.gather over 3 child aio_result() calls on the same run.
+
+    When one child completes (mark_active), the run must remain in waiting
+    state until *all* concurrent waits have resolved.
+    """
+    cache = DurableEvictionCache()
+    key = "run-bulk/0"
+    policy = EvictionPolicy(ttl=timedelta(seconds=5), priority=0)
+
+    cache.register_run(key, "run-bulk", now=dt(0), eviction_policy=policy)
+
+    cache.mark_waiting(key, now=dt(1), wait_kind="spawn_child", resource_id="child0")
+    cache.mark_waiting(key, now=dt(1), wait_kind="spawn_child", resource_id="child1")
+    cache.mark_waiting(key, now=dt(1), wait_kind="spawn_child", resource_id="child2")
+
+    rec = cache.get(key)
+    assert rec is not None
+    assert rec.is_waiting
+    assert rec._wait_count == 3
+
+    # child0 completes -- run should still be waiting
+    cache.mark_active(key, now=dt(2))
+    assert rec.is_waiting
+    assert rec._wait_count == 2
+    assert rec.waiting_since == dt(1)
+
+    # TTL still fires while 2 children are pending
+    chosen = cache.select_eviction_candidate(
+        now=dt(10),
+        durable_slots=100,
+        reserve_slots=0,
+        min_wait_for_capacity_eviction=timedelta(seconds=0),
+    )
+    assert chosen == key
+
+    # child1 completes
+    cache.mark_active(key, now=dt(11))
+    assert rec.is_waiting
+    assert rec._wait_count == 1
+
+    # child2 completes -- now the run is truly active
+    cache.mark_active(key, now=dt(12))
+    assert not rec.is_waiting
+    assert rec._wait_count == 0
+    assert rec.waiting_since is None
+
+
+def test_mark_active_floors_at_zero() -> None:
+    """Extra mark_active calls (defensive) should not go negative."""
+    cache = DurableEvictionCache()
+    key = "run-extra/0"
+    policy = EvictionPolicy(ttl=timedelta(seconds=5), priority=0)
+
+    cache.register_run(key, "run-extra", now=dt(0), eviction_policy=policy)
+    cache.mark_waiting(key, now=dt(0), wait_kind="sleep", resource_id="s")
+
+    cache.mark_active(key, now=dt(1))
+    cache.mark_active(key, now=dt(2))  # extra call
+
+    rec = cache.get(key)
+    assert rec is not None
+    assert rec._wait_count == 0
+    assert not rec.is_waiting

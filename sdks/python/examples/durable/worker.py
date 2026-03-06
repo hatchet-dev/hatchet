@@ -199,6 +199,22 @@ async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str
 
 
 @hatchet.durable_task()
+async def durable_with_bulk_spawn(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
+    child_results = await spawn_child_task.aio_run_many(
+        [
+            spawn_child_task.create_bulk_run_item(
+                input=EmptyModel(),
+                key=f"child{i}",
+            )
+            for i in range(10)
+        ]
+    )
+    return {"child_outputs": child_results}
+
+
+@hatchet.durable_task()
 async def durable_sleep_event_spawn(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, Any]:
@@ -314,6 +330,7 @@ def main() -> None:
             wait_for_sleep_twice,
             spawn_child_task,
             durable_with_spawn,
+            durable_with_bulk_spawn,
             durable_sleep_event_spawn,
             durable_non_determinism,
             durable_replay_reset,

@@ -53,25 +53,35 @@ class DurableTaskEventRequest(_message.Message):
     kind: DurableTaskEventKind
     payload: bytes
     wait_for_conditions: _condition_pb2.DurableEventListenerConditions
-    trigger_opts: _trigger_pb2.TriggerWorkflowRequest
+    trigger_opts: _containers.RepeatedCompositeFieldContainer[_trigger_pb2.TriggerWorkflowRequest]
     memo_key: bytes
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]] = ..., memo_key: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., kind: _Optional[_Union[DurableTaskEventKind, str]] = ..., payload: _Optional[bytes] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., trigger_opts: _Optional[_Iterable[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]]] = ..., memo_key: _Optional[bytes] = ...) -> None: ...
+
+class DurableTaskRunAckEntry(_message.Message):
+    __slots__ = ("node_id", "branch_id")
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
+    node_id: int
+    branch_id: int
+    def __init__(self, node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEventAckResponse(_message.Message):
-    __slots__ = ("invocation_count", "durable_task_external_id", "branch_id", "node_id", "memo_already_existed", "memo_result_payload")
+    __slots__ = ("invocation_count", "durable_task_external_id", "branch_id", "node_id", "memo_already_existed", "memo_result_payload", "run_entries")
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     MEMO_ALREADY_EXISTED_FIELD_NUMBER: _ClassVar[int]
     MEMO_RESULT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    RUN_ENTRIES_FIELD_NUMBER: _ClassVar[int]
     invocation_count: int
     durable_task_external_id: str
     branch_id: int
     node_id: int
     memo_already_existed: bool
     memo_result_payload: bytes
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ..., memo_already_existed: bool = ..., memo_result_payload: _Optional[bytes] = ...) -> None: ...
+    run_entries: _containers.RepeatedCompositeFieldContainer[DurableTaskRunAckEntry]
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ..., memo_already_existed: bool = ..., memo_result_payload: _Optional[bytes] = ..., run_entries: _Optional[_Iterable[_Union[DurableTaskRunAckEntry, _Mapping]]] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
     __slots__ = ("durable_task_external_id", "invocation_count", "branch_id", "node_id", "payload")

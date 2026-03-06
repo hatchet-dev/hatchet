@@ -15,6 +15,7 @@ from typing import Any
 
 from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventCondition
 from hatchet_sdk.runnables.eviction import EvictionPolicy
+from pydantic import BaseModel
 
 hatchet = Hatchet(debug=True)
 
@@ -74,6 +75,42 @@ async def evictable_child_spawn(
     return {"child": child_result, "status": "completed"}
 
 
+class BulkChildTaskInput(BaseModel):
+    sleep_for: timedelta
+
+
+@hatchet.task(
+    input_validator=BulkChildTaskInput,
+)
+async def bulk_child_task(
+    input: BulkChildTaskInput, ctx: Context
+) -> dict[str, str | int]:
+    """Simple child that sleeps long enough for the parent's TTL to fire."""
+    await asyncio.sleep(input.sleep_for.total_seconds())
+    return {"sleep_for": int(input.sleep_for.total_seconds()), "status": "completed"}
+
+
+@hatchet.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=EVICTION_POLICY,
+)
+async def evictable_child_bulk_spawn(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
+    child_results = await child_task.aio_run_many(
+        [
+            bulk_child_task.create_bulk_run_item(
+                input=BulkChildTaskInput(
+                    sleep_for=timedelta(seconds=(EVICTION_TTL_SECONDS + 5) * (i + 1))
+                ),
+                key=f"child{i}",
+            )
+            for i in range(3)
+        ]
+    )
+    return {"child_results": child_results}
+
+
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
@@ -106,9 +143,11 @@ def main() -> None:
             evictable_sleep,
             evictable_wait_for_event,
             evictable_child_spawn,
+            evictable_child_bulk_spawn,
             multiple_eviction,
             non_evictable_sleep,
             child_task,
+            bulk_child_task,
         ],
     )
     worker.start()

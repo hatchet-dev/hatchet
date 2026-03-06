@@ -10,7 +10,10 @@ from warnings import warn
 
 from pydantic import TypeAdapter
 
-from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
+from hatchet_sdk.clients.admin import (
+    AdminClient,
+    WorkflowRunTriggerConfig,
+)
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
@@ -20,6 +23,7 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     MemoEvent,
     RunChildEvent,
+    RunChildrenEvent,
     WaitForEvent,
 )
 from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
@@ -40,7 +44,6 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import (
-    EmptyModel,
     R,
     TWorkflowInput,
     ValidTaskReturnType,
@@ -612,12 +615,11 @@ class DurableContext(Context):
         )
 
     # todo: instrumentor for this
-    async def _spawn_child(
+    async def _spawn_children_no_wait(
         self,
         workflow: BaseWorkflow[TWorkflowInput],
-        input: TWorkflowInput = cast(Any, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
-    ) -> dict[str, Any]:
+        configs: list[WorkflowRunTriggerConfig],
+    ) -> list[tuple[int, int, str]]:
         listener = self._durable_listener
 
         await self._ensure_stream_started()
@@ -625,23 +627,41 @@ class DurableContext(Context):
         ack = await listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
-            event=RunChildEvent(
-                workflow_name=workflow.config.name,
-                input=workflow._serialize_input(input, target="string"),
-                trigger_workflow_opts=options or TriggerWorkflowOptions(),
+            event=RunChildrenEvent(
+                children=[
+                    RunChildEvent(
+                        workflow_name=c.workflow_name,
+                        input=c.input,
+                        trigger_workflow_opts=c.options,
+                    )
+                    for c in configs
+                ]
             ),
         )
 
+        return [
+            (entry.node_id, entry.branch_id, configs[i].workflow_name)
+            for i, entry in enumerate(ack.run_entries)
+        ]
+
+    async def _aio_result_for_spawned_child(
+        self,
+        node_id: int,
+        branch_id: int,
+        workflow_name: str,
+    ) -> dict[str, Any]:
+        listener = self._durable_listener
+
         async with aio_durable_eviction_wait(
             wait_kind="spawn_child",
-            resource_id=workflow.config.name,
+            resource_id=workflow_name,
             action_key=self.action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
                 durable_task_external_id=self.step_run_id,
-                node_id=ack.node_id,
-                branch_id=ack.branch_id,
+                node_id=node_id,
+                branch_id=branch_id,
                 invocation_count=self.invocation_count,
             )
 

@@ -174,6 +174,83 @@ RETURNING *
 ;
 
 
+-- name: BulkGetDurableEventLogEntries :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@branchIds::BIGINT[]) AS branch_id,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id
+)
+SELECT e.*
+FROM v1_durable_event_log_entry e
+JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
+WHERE e.durable_task_id = @durableTaskId::BIGINT
+  AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ;
+
+-- name: BulkCreateDurableEventLogEntries :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@kinds::text[]) AS kind,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@branchIds::BIGINT[]) AS branch_id,
+        UNNEST(@invocationCounts::INTEGER[]) AS invocation_count,
+        UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
+        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+)
+INSERT INTO v1_durable_event_log_entry (
+    tenant_id,
+    external_id,
+    durable_task_id,
+    durable_task_inserted_at,
+    inserted_at,
+    kind,
+    node_id,
+    branch_id,
+    invocation_count,
+    idempotency_key,
+    is_satisfied
+)
+SELECT
+    i.tenant_id,
+    i.external_id,
+    i.durable_task_id,
+    i.durable_task_inserted_at,
+    NOW(),
+    i.kind::v1_durable_event_log_kind,
+    i.node_id,
+    i.branch_id,
+    i.invocation_count,
+    i.idempotency_key,
+    i.is_satisfied
+FROM inputs i
+ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
+RETURNING *;
+
+-- TODO-DURABLE:  I'm not 100% sure that we should be updating invocation counts for previous event log entries? I haven't really thought it all the way through though, but it seems like we should be treating previous entries in the event log as immutable. I'm also not sure we should be updating idempotency keys ever - would be curious to hear a situation in which we'd need to update an idempotency key that wouldn't throw a NonDeterminismError
+-- name: BulkUpdateDurableEventLogEntryInvocationCounts :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@branchIds::BIGINT[]) AS branch_id,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@invocationCounts::INTEGER[]) AS invocation_count,
+        UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key
+)
+UPDATE v1_durable_event_log_entry
+SET
+    invocation_count = inputs.invocation_count,
+    idempotency_key = inputs.idempotency_key
+FROM inputs
+WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
+  AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
+  AND v1_durable_event_log_entry.branch_id = inputs.branch_id
+  AND v1_durable_event_log_entry.node_id = inputs.node_id
+RETURNING v1_durable_event_log_entry.*;
+
 -- name: GetDurableTaskLogFiles :many
 WITH inputs AS (
     SELECT
