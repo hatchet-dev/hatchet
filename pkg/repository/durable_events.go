@@ -622,14 +622,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	return results, nil
 }
 
-func resolveIsSatisfied(le *EventLogEntryWithPayloads, o GetOrCreateLogEntryOpt) bool {
-	if le.AlreadyExisted {
-		return le.Entry.IsSatisfied
-	}
-
-	return o.IsSatisfied
-}
-
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, fmt.Errorf("invalid opts: %w", err)
@@ -767,8 +759,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
-	// todo: probably need to return a map from node + branch to entry
-	// or ensure these are sorted
 	logEntries, err := r.getOrCreateEventLogEntries(ctx, tx, getOrCreateOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or create event log entries: %w", err)
@@ -782,16 +772,13 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	case sqlcv1.V1DurableEventLogKindRUN:
 		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
-		for i := range getOrCreateOpts.Entries {
-			le := logEntries[i]
-			o := getOrCreateOpts.Entries[i]
-
+		for i, entry := range logEntries {
 			entries[i] = &IngestTriggerRunsEntry{
-				NodeId:         o.NodeId,
-				BranchId:       o.BranchId,
-				IsSatisfied:    resolveIsSatisfied(le, o),
-				AlreadyExisted: le.AlreadyExisted,
-				ResultPayload:  le.ResultPayload,
+				NodeId:         entry.Entry.NodeID,
+				BranchId:       entry.Entry.BranchID,
+				IsSatisfied:    entry.Entry.IsSatisfied,
+				AlreadyExisted: entry.AlreadyExisted,
+				ResultPayload:  entry.ResultPayload,
 			}
 		}
 
@@ -895,31 +882,29 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
 		// TODO-DURABLE: Figure out what to do here if we read more than one row out of the db
 		le := logEntries[0]
-		o := getOrCreateOpts.Entries[0]
 
 		if !le.AlreadyExisted {
-			if err = r.handleWaitFor(ctx, tx, tenantId, o.BranchId, o.NodeId, opts.WaitFor.WaitForConditions, task); err != nil {
+			if err = r.handleWaitFor(ctx, tx, tenantId, le.Entry.BranchID, le.Entry.NodeID, opts.WaitFor.WaitForConditions, task); err != nil {
 				return nil, fmt.Errorf("failed to handle wait for conditions: %w", err)
 			}
 		}
 
 		waitForResult = &IngestWaitForResult{
 			InvocationCount: opts.InvocationCount,
-			IsSatisfied:     resolveIsSatisfied(le, o),
-			NodeId:          o.NodeId,
-			BranchId:        o.BranchId,
+			IsSatisfied:     le.Entry.IsSatisfied,
+			NodeId:          le.Entry.NodeID,
+			BranchId:        le.Entry.BranchID,
 			AlreadyExisted:  le.AlreadyExisted,
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		// TODO-DURABLE: Figure out what to do here if we read more than one row out of the db
 		le := logEntries[0]
-		o := getOrCreateOpts.Entries[0]
 
 		memoResult = &IngestMemoResult{
 			InvocationCount: opts.InvocationCount,
-			IsSatisfied:     resolveIsSatisfied(le, o),
-			NodeId:          o.NodeId,
-			BranchId:        o.BranchId,
+			IsSatisfied:     le.Entry.IsSatisfied,
+			NodeId:          le.Entry.NodeID,
+			BranchId:        le.Entry.BranchID,
 			ResultPayload:   le.ResultPayload,
 			AlreadyExisted:  le.AlreadyExisted,
 		}
@@ -933,6 +918,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to update latest node id: %w", err)
 	}
