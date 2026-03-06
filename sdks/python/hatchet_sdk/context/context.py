@@ -21,6 +21,9 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
+    DurableTaskEventMemoAck,
+    DurableTaskEventRunAck,
+    DurableTaskEventWaitForAck,
     MemoEvent,
     RunChildEvent,
     RunChildrenEvent,
@@ -582,6 +585,10 @@ class DurableContext(Context):
             invocation_count=self.invocation_count,
             event=WaitForEvent(wait_for_conditions=conditions_proto),
         )
+
+        if not isinstance(ack, DurableTaskEventWaitForAck):
+            raise TypeError(f"Expected wait-for ack, got {type(ack).__name__}")
+
         node_id = ack.node_id
         branch_id = ack.branch_id
 
@@ -638,6 +645,9 @@ class DurableContext(Context):
                 ]
             ),
         )
+
+        if not isinstance(ack, DurableTaskEventRunAck):
+            raise TypeError(f"Expected run ack, got {type(ack).__name__}")
 
         return [
             (entry.node_id, entry.branch_id, configs[i].workflow_name)
@@ -718,6 +728,9 @@ class DurableContext(Context):
             invocation_count=self.invocation_count,
             event=MemoEvent(memo_key=key, result=None),
         )
+
+        if not isinstance(ack, DurableTaskEventMemoAck):
+            raise TypeError(f"Expected memo ack, got {type(ack).__name__}")
 
         if ack.memo_already_existed and ack.memo_result_payload is None:
             logger.warning(
