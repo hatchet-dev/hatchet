@@ -77,7 +77,7 @@ describe('bulk-replay-e2e', () => {
     const rows = replayedRuns.rows || [];
     expect(rows).toHaveLength(expectedTotal);
 
-    const namespace = hatchet.config.namespace;
+    const { namespace } = hatchet.config;
     const byName = (name: string) => {
       const expectedName = applyNamespace(name, namespace);
       return rows.filter((r: any) => r.workflowName === expectedName);
