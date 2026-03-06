@@ -60,7 +60,7 @@ export function CreateInviteForm({
   return (
     <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
-        <DialogTitle>Invite new member</DialogTitle>
+        <DialogTitle>Invite new tenant member</DialogTitle>
       </DialogHeader>
       <div className={cn('grid gap-6', className)}>
         <form

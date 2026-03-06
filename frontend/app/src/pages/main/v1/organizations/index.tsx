@@ -1,12 +1,6 @@
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
 import type { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
 import {
@@ -20,12 +14,7 @@ import { DeleteTenantModal } from '@/pages/organizations/$organization/component
 import { userUniverseQuery, useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import {
-  ArrowRightIcon,
-  EllipsisVerticalIcon,
-  TrashIcon,
-  PlusIcon,
-} from '@heroicons/react/24/outline';
+import { PlusIcon } from '@heroicons/react/24/outline';
 import { Link, useLoaderData, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import invariant from 'tiny-invariant';
@@ -104,11 +93,15 @@ export const loader = async (): Promise<
 };
 
 const makeTenantColumns = ({
+  isCloudEnabled,
   onArchive,
   onViewTenant,
+  onInviteMember,
 }: {
+  isCloudEnabled: boolean;
   onArchive?: (tenant: TenantWithRole) => void;
   onViewTenant: (tenantId: string) => void;
+  onInviteMember: (tenantId: string) => void;
 }) => [
   {
     columnLabel: 'Name',
@@ -139,27 +132,26 @@ const makeTenantColumns = ({
   },
   {
     columnLabel: 'Actions',
-    cellRenderer: (tenant: TenantWithRole) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <EllipsisVerticalIcon className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onViewTenant(tenant.metadata.id)}>
-            <ArrowRightIcon className="mr-2 size-4" />
-            View Tenant
-          </DropdownMenuItem>
-          {onArchive && (
-            <DropdownMenuItem onClick={() => onArchive(tenant)}>
-              <TrashIcon className="mr-2 size-4" />
-              Archive Tenant
-            </DropdownMenuItem>
+    cellRenderer: (tenant: TenantWithRole) => {
+      const canManage =
+        tenant.currentUsersRole === TenantMemberRole.OWNER ||
+        tenant.currentUsersRole === TenantMemberRole.ADMIN;
+
+      return (
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onInviteMember(tenant.metadata.id)}
+              leftIcon={<PlusIcon className="size-4" />}
+            >
+              Invite new member
+            </Button>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
+        </div>
+      );
+    },
   },
 ];
 
@@ -178,11 +170,14 @@ const TenantList = ({ tenants }: { tenants: TenantWithRole[] }) => {
   }
 
   const columns = makeTenantColumns({
+    isCloudEnabled: false,
     onViewTenant: (tenantId) =>
       navigate({
         to: appRoutes.tenantRoute.to,
         params: { tenant: tenantId },
       }),
+    onInviteMember: (tenantId) =>
+      globalEmitter.emit('create-tenant-invite', { tenantId }),
   });
 
   return (
@@ -206,11 +201,14 @@ const OrganizationList = ({
   } | null>(null);
 
   const tenantColumns = makeTenantColumns({
+    isCloudEnabled: true,
     onViewTenant: (tenantId) =>
       navigate({
         to: appRoutes.tenantRoute.to,
         params: { tenant: tenantId },
       }),
+    onInviteMember: (tenantId) =>
+      globalEmitter.emit('create-tenant-invite', { tenantId }),
     onArchive: (tenant) => {
       const org = organizationsWithTenants.find((o) =>
         o.tenants.some((t) => t.metadata.id === tenant.metadata.id),

@@ -10,15 +10,18 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
+import { useOrganizations } from '@/hooks/use-organizations';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { User } from '@/lib/api';
+import api, { CreateTenantInviteRequest, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
+import { useApiError } from '@/lib/hooks';
 import { useContextFromParent } from '@/lib/outlet';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { CreateInviteForm } from '@/pages/main/v1/tenant-settings/members/components/create-invite-form';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -46,6 +49,9 @@ function AuthenticatedInner() {
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
+    string | undefined
+  >();
+  const [inviteModalTenantId, setInviteModalTenantId] = useState<
     string | undefined
   >();
 
@@ -263,6 +269,14 @@ function AuthenticatedInner() {
     [],
   );
 
+  useEffect(
+    () =>
+      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
+        setInviteModalTenantId(tenantId);
+      }),
+    [],
+  );
+
   if (!currentUser) {
     return <Loading />;
   }
@@ -314,10 +328,53 @@ function AuthenticatedInner() {
             </div>
           </DialogContent>
         </Dialog>
+        {inviteModalTenantId && (
+          <CreateTenantInviteModal
+            tenantId={inviteModalTenantId}
+            onClose={() => setInviteModalTenantId(undefined)}
+          />
+        )}
       </SupportChat>
     </PostHogProvider>
   );
 }
+
+const CreateTenantInviteModal = ({
+  tenantId,
+  onClose,
+}: {
+  tenantId: string;
+  onClose: () => void;
+}) => {
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors,
+  });
+
+  const organizationId = getOrganizationIdForTenant(tenantId);
+
+  const createMutation = useMutation({
+    mutationKey: ['tenant-invite:create', tenantId],
+    mutationFn: async (data: CreateTenantInviteRequest) => {
+      await api.tenantInviteCreate(tenantId, data);
+    },
+    onSuccess: onClose,
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <CreateInviteForm
+        isLoading={createMutation.isPending}
+        onSubmit={createMutation.mutate}
+        fieldErrors={fieldErrors}
+        isCloudEnabled={isCloudEnabled}
+        organizationId={organizationId}
+      />
+    </Dialog>
+  );
+};
 
 export default function Authenticated() {
   return <AuthenticatedInner />;
