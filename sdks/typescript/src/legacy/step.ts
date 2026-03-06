@@ -653,7 +653,10 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
-    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions), this.v0.config.namespace);
+    const pbConditions = conditionsToPb(
+      Render(ConditionAction.CREATE, conditions),
+      this.v0.config.namespace
+    );
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
