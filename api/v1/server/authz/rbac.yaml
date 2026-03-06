@@ -13,19 +13,6 @@ roles:
       - TenantMemberList
       - TenantInviteUpdate
       - TenantInviteDelete
-  BEARERTOKEN:
-    inherits: [MEMBER]
-    permissions:
-      - TenantInviteList
-      - TenantInviteCreate
-      - TenantMemberList
-      - TenantInviteUpdate
-      - TenantInviteDelete
-      - TenantMemberUpdate
-  UNVERIFIEDEMAIL:
-    permissions:
-      - UserGetCurrent
-      - UserUpdateLogout
   MEMBER:
     permissions:
       - TenantAlertingSettingsGet

@@ -112,10 +112,17 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return nil
 }
 
+var restrictedWithBearerToken = []string{
+	// bearer tokens cannot read, list, or write other bearer tokens
+	"ApiTokenList",
+	"ApiTokenCreate",
+	"ApiTokenUpdateRevoke",
+}
+
 // At the moment, there's no further bearer auth because bearer tokens are admin-scoped
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if !a.rbac.IsAuthorized(sqlcv1.TenantMemberRoleBEARERTOKEN, r.OperationID) {
+	if operationIn(r.OperationID, restrictedWithBearerToken) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
@@ -130,6 +137,11 @@ func (a *AuthZ) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return a.config.Auth.CustomAuthenticator.Authorize(c, r)
 }
 
+var permittedWithUnverifiedEmail = []string{
+	"UserGetCurrent",
+	"UserUpdateLogout",
+}
+
 func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
 	user, ok := c.Get("user").(*sqlcv1.User)
 
@@ -137,7 +149,7 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 		return nil
 	}
 
-	if a.rbac.IsAuthorized(sqlcv1.TenantMemberRoleUNVERIFIEDEMAIL, r.OperationID) {
+	if operationIn(r.OperationID, permittedWithUnverifiedEmail) {
 		return nil
 	}
 

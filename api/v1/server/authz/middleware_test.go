@@ -9,18 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var permittedWithUnverifiedEmail = []string{
-	"UserGetCurrent",
-	"UserUpdateLogout",
-}
-
-var restrictedWithBearerToken = []string{
-	// bearer tokens cannot read, list, or write other bearer tokens
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-}
-
 var adminAndOwnerOnly = []string{
 	"TenantInviteList",
 	"TenantInviteCreate",
@@ -60,46 +48,15 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 		rbac:   NewAuthorizer(),
 		l:      nil,
 	}
-	for i := 0; i < len(adminAndOwnerOnly); i++ {
-		operationId := adminAndOwnerOnly[i]
+	allOperations := operationIdsFromSpec()
+	for i := 0; i < len(allOperations); i++ {
+		operationId := allOperations[i]
 		assert.Equal(t, az.authorizeTenantOperations(sqlcv1.TenantMemberRoleADMIN, createRouteInfo(operationId)), nil)
 		assert.Equal(t, az.authorizeTenantOperations(sqlcv1.TenantMemberRoleOWNER, createRouteInfo(operationId)), nil)
-		assert.NotEqual(t, az.authorizeTenantOperations(sqlcv1.TenantMemberRoleMEMBER, createRouteInfo(operationId)), nil)
-	}
-}
-
-func TestAuthorizeUnverifiedEmailOperations(t *testing.T) {
-	allOperations := operationIdsFromSpec()
-	az := AuthZ{
-		config: nil,
-		rbac:   NewAuthorizer(),
-		l:      nil,
-	}
-	for i := 0; i < len(allOperations); i++ {
-		operationId := allOperations[i]
-		isPermed := az.authorizeTenantOperations(sqlcv1.TenantMemberRoleUNVERIFIEDEMAIL, createRouteInfo(operationId))
-		if operationIn(operationId, permittedWithUnverifiedEmail) {
-			assert.Equal(t, isPermed, nil)
+		if operationIn(operationId, adminAndOwnerOnly) {
+			assert.NotEqual(t, az.authorizeTenantOperations(sqlcv1.TenantMemberRoleMEMBER, createRouteInfo(operationId)), nil)
 		} else {
-			assert.NotEqual(t, isPermed, nil)
-		}
-	}
-}
-
-func TestAuthorizeBearerTokenOperations(t *testing.T) {
-	allOperations := operationIdsFromSpec()
-	az := AuthZ{
-		config: nil,
-		rbac:   NewAuthorizer(),
-		l:      nil,
-	}
-	for i := 0; i < len(allOperations); i++ {
-		operationId := allOperations[i]
-		isPermed := az.authorizeTenantOperations(sqlcv1.TenantMemberRoleBEARERTOKEN, createRouteInfo(operationId))
-		if operationIn(operationId, restrictedWithBearerToken) {
-			assert.NotEqual(t, isPermed, nil)
-		} else {
-			assert.Equal(t, isPermed, nil)
+			assert.Equal(t, az.authorizeTenantOperations(sqlcv1.TenantMemberRoleMEMBER, createRouteInfo(operationId)), nil)
 		}
 	}
 }
