@@ -817,8 +817,18 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				childTaskExternalIds = append(childTaskExternalIds, task.ExternalID)
 			}
 
-			for _, childTask := range createdTasks {
-				childHint := childTask.ExternalID.String()
+			childExternalIdsForMatches := make([]uuid.UUID, len(createdTasks))
+
+			for _, dag := range createdDags {
+				childExternalIdsForMatches = append(childExternalIdsForMatches, dag.ExternalID)
+			}
+
+			for _, task := range createdTasks {
+				childExternalIdsForMatches = append(childExternalIdsForMatches, task.ExternalID)
+			}
+
+			for _, child := range childExternalIdsForMatches {
+				childHint := child.String()
 				orGroupId := uuid.New()
 
 				conditions := []GroupMatchCondition{
@@ -851,7 +861,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 					},
 				}
 
-				nodeIdBranchId := runExternalIdToNodeIdBranchId[childTask.ExternalID]
+				nodeIdBranchId := runExternalIdToNodeIdBranchId[child]
 
 				nodeId := nodeIdBranchId.NodeId
 				branchId := nodeIdBranchId.BranchId
@@ -865,7 +875,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 					Conditions:                   conditions,
 					SignalTaskId:                 &taskId,
 					SignalTaskInsertedAt:         task.InsertedAt,
-					SignalExternalId:             &childTask.ExternalID,
+					SignalExternalId:             &child,
 					SignalTaskExternalId:         &task.ExternalID,
 					SignalKey:                    &runEventLogEntrySignalKey,
 					DurableEventLogEntryNodeId:   &nodeId,
