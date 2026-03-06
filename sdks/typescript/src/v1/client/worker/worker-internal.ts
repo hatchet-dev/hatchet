@@ -1,6 +1,10 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-nested-ternary */
 import HatchetError from '@util/errors/hatchet-error';
+import {
+  TaskRunTerminatedError,
+  isTaskRunTerminatedError,
+} from '@util/errors/task-run-terminated-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import {
   StepActionEvent,
@@ -11,11 +15,7 @@ import {
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
-import {
-  CreateStepRateLimit,
-  DesiredWorkerLabels,
-  StickyStrategy,
-} from '@hatchet/protoc/workflows';
+import { CreateStepRateLimit, StickyStrategy } from '@hatchet/protoc/workflows';
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
@@ -33,10 +33,16 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
+import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
+import { Duration, durationToString } from '../duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
 import { SlotConfig } from '../../slot-types';
+import { DurableEvictionManager } from './eviction/eviction-manager';
+import { EvictionPolicy, DEFAULT_DURABLE_TASK_EVICTION_POLICY } from './eviction/eviction-policy';
+import { ActionKey, DurableRunRecord } from './eviction/eviction-cache';
+import { supportsEviction } from './engine-version';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -58,6 +64,9 @@ export class InternalWorker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
+  durable_action_set: Set<string> = new Set();
+  eviction_policies: Map<string, EvictionPolicy | undefined> = new Map();
+  evictionManager: DurableEvictionManager | undefined;
   workflow_registry: Array<WorkflowDefinition> = [];
   listener: ActionListener | undefined;
   futures: Record<Action['taskRunExternalId'], HatchetPromise<any>> = {};
@@ -65,6 +74,7 @@ export class InternalWorker {
   slots?: number;
   durableSlots?: number;
   slotConfig: SlotConfig;
+  engineVersion: string | undefined;
 
   logger: Logger;
 
@@ -161,12 +171,19 @@ export class InternalWorker {
     const newActions = workflow._durableTasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
-        acc[
-          `${applyNamespace(
-            workflow.name,
-            this.client.config.namespace
-          ).toLowerCase()}:${task.name.toLowerCase()}`
-        ] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx as DurableContext<any, any>);
+        const actionId = `${applyNamespace(
+          workflow.name,
+          this.client.config.namespace
+        ).toLowerCase()}:${task.name.toLowerCase()}`;
+        acc[actionId] = (ctx: Context<any, any>) =>
+          task.fn!(ctx.input, ctx as DurableContext<any, any>);
+        this.durable_action_set.add(actionId);
+        this.eviction_policies.set(
+          actionId,
+          task.evictionPolicy !== undefined
+            ? task.evictionPolicy
+            : DEFAULT_DURABLE_TASK_EVICTION_POLICY
+        );
         return acc;
       }, {});
 
@@ -244,8 +261,15 @@ export class InternalWorker {
         onFailureTask = {
           readableId: 'on-failure-task',
           action: onFailureTaskName(workflow),
-          timeout: onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
-          scheduleTimeout: onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          timeout: durationToString(
+            onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s'
+          ),
+          scheduleTimeout:
+            onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout
+              ? durationToString(
+                  onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout!
+                )
+              : undefined,
           inputs: '{}',
           parents: [],
           retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
@@ -370,12 +394,8 @@ export class InternalWorker {
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
-          timeout:
-            task.executionTimeout ||
-            task.timeout ||
-            workflow.taskDefaults?.executionTimeout ||
-            '60s',
-          scheduleTimeout: task.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          timeout: resolveExecutionTimeout(task, workflow.taskDefaults),
+          scheduleTimeout: resolveScheduleTimeout(task, workflow.taskDefaults),
           inputs: '{}',
           parents: task.parents?.map((p) => p.name) ?? [],
           userData: '{}',
@@ -418,12 +438,81 @@ export class InternalWorker {
     this.registerActions(workflow);
   }
 
+  private ensureEvictionManager(): DurableEvictionManager {
+    if (this.evictionManager) return this.evictionManager;
+
+    const totalDurableSlots = this.slotConfig?.durable ?? this.durableSlots ?? 0;
+
+    this.evictionManager = new DurableEvictionManager({
+      durableSlots: totalDurableSlots,
+      cancelLocal: (key: ActionKey) => {
+        const err = new TaskRunTerminatedError('evicted');
+        const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
+        if (ctx) {
+          const invocationCount = ctx.invocationCount ?? 1;
+          this.client.durableListener.cleanupTaskState(key, invocationCount);
+          if (ctx.abortController) {
+            ctx.abortController.abort(err);
+          }
+        }
+        const future = this.futures[key];
+        if (future) {
+          future.promise.catch(() => undefined);
+          future.cancel(err);
+        }
+      },
+      requestEvictionWithAck: async (_key: ActionKey, rec: DurableRunRecord) => {
+        const ctx = this.contexts[rec.taskRunExternalId] as DurableContext<any, any> | undefined;
+        const invocationCount = ctx?.invocationCount ?? 1;
+        await this.client.durableListener.sendEvictInvocation(
+          rec.taskRunExternalId,
+          invocationCount,
+          rec.evictionReason
+        );
+      },
+      logger: this.logger,
+    });
+
+    this.evictionManager.start();
+    return this.evictionManager;
+  }
+
+  private cleanupRun(taskRunExternalId: string): void {
+    this.evictionManager?.unregisterRun(taskRunExternalId);
+    delete this.futures[taskRunExternalId];
+    delete this.contexts[taskRunExternalId];
+  }
+
   async handleStartStepRun(action: Action) {
     const { actionId, taskRunExternalId, taskName } = action;
 
     try {
-      // Note: we always use a DurableContext since its a superset of the Context class
-      const context = new DurableContext(action, this.client, this);
+      const isDurable = this.durable_action_set.has(actionId);
+      let context: Context<any, any>;
+
+      if (isDurable) {
+        const { durableListener } = this.client;
+        let mgr: DurableEvictionManager | undefined;
+
+        if (supportsEviction(this.engineVersion)) {
+          await durableListener.ensureStarted(this.workerId || '');
+          mgr = this.ensureEvictionManager();
+          const evictionPolicy = this.eviction_policies.get(actionId);
+          mgr.registerRun(taskRunExternalId, taskRunExternalId, evictionPolicy);
+        }
+
+        context = new DurableContext(
+          action,
+          this.client,
+          this,
+          durableListener,
+          mgr,
+          this.engineVersion
+        );
+      } else {
+        context = new Context(action, this.client, this);
+      }
+
       this.contexts[taskRunExternalId] = context;
 
       const step = this.action_registry[actionId];
@@ -431,6 +520,7 @@ export class InternalWorker {
       if (!step) {
         this.logger.error(`Registered actions: '${Object.keys(this.action_registry).join(', ')}'`);
         this.logger.error(`Could not find step '${actionId}'`);
+        this.cleanupRun(taskRunExternalId);
         return;
       }
 
@@ -458,9 +548,9 @@ export class InternalWorker {
             childIndex: 0,
             desiredWorkerId: this.workerId || '',
             signal: context.abortController.signal,
+            durableContext: isDurable && context instanceof DurableContext ? context : undefined,
           },
           () => {
-            // Precheck: if cancellation already happened, don't execute user code.
             throwIfAborted(context.abortController.signal);
             return step(context);
           }
@@ -487,7 +577,6 @@ export class InternalWorker {
 
           this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
 
-          // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
@@ -501,7 +590,6 @@ export class InternalWorker {
             `Could not send completed action event: ${actionEventError.message || actionEventError}`
           );
 
-          // send a failure event
           const failureEvent = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_FAILED,
@@ -522,9 +610,7 @@ export class InternalWorker {
             `Could not send action event: ${actionEventError.message || actionEventError}`
           );
         } finally {
-          // delete the run from the futures
-          delete this.futures[taskRunExternalId];
-          delete this.contexts[taskRunExternalId];
+          this.cleanupRun(taskRunExternalId);
         }
       };
 
@@ -542,7 +628,6 @@ export class InternalWorker {
             this.logger.error(error.stack);
           }
 
-          // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_FAILED,
@@ -557,9 +642,7 @@ export class InternalWorker {
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
-          // delete the run from the futures
-          delete this.futures[taskRunExternalId];
-          delete this.contexts[taskRunExternalId];
+          this.cleanupRun(taskRunExternalId);
         }
       };
 
@@ -605,112 +688,19 @@ export class InternalWorker {
       try {
         await future.promise;
       } catch (e: any) {
-        const message = e?.message || String(e);
-        // TODO is this cased correctly...
-        if (!message.includes('Cancelled')) {
+        if (!isTaskRunTerminatedError(e)) {
           this.logger.error(
             `Could not wait for task run ${taskRunExternalId} to finish. ` +
               `See https://docs.hatchet.run/home/cancellation for best practices on handling cancellation: `,
             e
           );
         }
+      } finally {
+        this.cleanupRun(taskRunExternalId);
       }
     } catch (e: any) {
+      this.cleanupRun(taskRunExternalId);
       this.logger.error('Could not send action event (outer): ', e);
-    }
-  }
-
-  async handleStartGroupKeyRun(action: Action) {
-    const { actionId, getGroupKeyRunId, taskRunExternalId, taskName } = action;
-
-    this.logger.error(
-      'Concurrency Key Functions have been deprecated and will be removed in a future release. Use Concurrency Expressions instead.'
-    );
-
-    try {
-      const context = new Context(action, this.client, this);
-
-      const key = getGroupKeyRunId;
-
-      if (!key) {
-        this.logger.error(`No group key run id provided for action ${actionId}`);
-        return;
-      }
-
-      this.contexts[key] = context;
-
-      this.logger.debug(`Starting group key run ${key}`);
-
-      const step = this.action_registry[actionId];
-
-      if (!step) {
-        this.logger.error(`Could not find step '${actionId}'`);
-        return;
-      }
-
-      const run = async () => {
-        return step(context);
-      };
-
-      const success = (result: any) => {
-        this.logger.info(taskRunLog(taskName, taskRunExternalId, 'completed'));
-
-        try {
-          // Send the action event to the dispatcher
-          const event = this.getGroupKeyActionEvent(
-            action,
-            GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED,
-            result
-          );
-          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
-            this.logger.error(`Could not send action event: ${e.message}`);
-          });
-        } catch (e: any) {
-          this.logger.error(`Could not send action event: ${e.message}`);
-        } finally {
-          // delete the run from the futures
-          delete this.futures[key];
-          delete this.contexts[key];
-        }
-      };
-
-      const failure = (error: any) => {
-        this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
-
-        try {
-          // Send the action event to the dispatcher
-          const event = this.getGroupKeyActionEvent(
-            action,
-            GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED,
-            error
-          );
-          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
-            this.logger.error(`Could not send action event: ${e.message}`);
-          });
-        } catch (e: any) {
-          this.logger.error(`Could not send action event: ${e.message}`);
-        } finally {
-          // delete the run from the futures
-          delete this.futures[key];
-          delete this.contexts[key];
-        }
-      };
-
-      const future = new HatchetPromise(run().then(success).catch(failure));
-      this.futures[key] = future;
-
-      // Send the action event to the dispatcher
-      const event = this.getGroupKeyActionEvent(
-        action,
-        GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED
-      );
-      this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
-        this.logger.error(`Could not send action event: ${e.message}`);
-      });
-
-      await future.promise;
-    } catch (e: any) {
-      this.logger.error(`Could not send action event: ${e.message}`);
     }
   }
 
@@ -762,8 +752,9 @@ export class InternalWorker {
       const future = this.futures[taskRunExternalId];
       const context = this.contexts[taskRunExternalId];
 
+      const cancelErr = new TaskRunTerminatedError('cancelled', 'Cancelled by worker');
       if (context && context.abortController) {
-        context.abortController.abort('Cancelled by worker'); // TODO this reason is nonsensical
+        context.abortController.abort(cancelErr);
       }
 
       if (future) {
@@ -778,7 +769,7 @@ export class InternalWorker {
         future.promise.catch(() => undefined);
 
         // Cancel the future (rejects the wrapper); user code must still cooperate with AbortSignal.
-        future.cancel('Cancelled by worker'); // TODO this reason is nonsensical
+        future.cancel(cancelErr);
 
         // Track completion of the underlying work (not the cancelable wrapper).
         // Ensure this promise never throws into our supervision flow.
@@ -824,8 +815,7 @@ export class InternalWorker {
         `Cancellation: error while supervising cancellation for task run ${taskRunExternalId}: ${e?.message || e}`
       );
     } finally {
-      delete this.futures[taskRunExternalId];
-      delete this.contexts[taskRunExternalId];
+      this.cleanupRun(taskRunExternalId);
     }
   }
 
@@ -838,6 +828,33 @@ export class InternalWorker {
     this.setStatus(workerStatus.UNHEALTHY);
 
     this.logger.info('Starting to exit...');
+
+    // Pause the worker on the server so it stops receiving new task assignments
+    // before we evict waiting durable runs, mirroring Python's pause_task_assignment().
+    if (this.workerId) {
+      try {
+        await this.client.workers.pause(this.workerId);
+      } catch (e: any) {
+        this.logger.error(`Could not pause worker: ${e.message}`);
+      }
+    }
+
+    if (this.evictionManager) {
+      try {
+        const evicted = await this.evictionManager.evictAllWaiting();
+        if (evicted > 0) {
+          this.logger.info(`Evicted ${evicted} waiting durable run(s) during shutdown`);
+        }
+      } catch (e: any) {
+        this.logger.error(`Could not evict waiting runs: ${e.message}`);
+      }
+    }
+
+    try {
+      await this.client.durableListener.stop();
+    } catch (e: any) {
+      this.logger.error(`Could not stop durable listener: ${e.message}`);
+    }
 
     try {
       await this.listener?.unregister();
@@ -929,17 +946,26 @@ export class InternalWorker {
   }
 
   async handleAction(action: Action) {
-    const type = action.actionType
-      ? actionTypeFromJSON(action.actionType)
-      : ActionType.START_STEP_RUN;
-    if (type === ActionType.START_STEP_RUN) {
-      await this.handleStartStepRun(action);
-    } else if (type === ActionType.CANCEL_STEP_RUN) {
-      await this.handleCancelStepRun(action);
-    } else if (type === ActionType.START_GET_GROUP_KEY) {
-      await this.handleStartGroupKeyRun(action);
-    } else {
-      this.logger.error(`Worker ${this.name} received unknown action type ${type}`);
+    const type = actionTypeFromJSON(action.actionType) || ActionType.START_STEP_RUN;
+    switch (type) {
+      case ActionType.START_STEP_RUN:
+        return this.handleStartStepRun(action);
+      case ActionType.CANCEL_STEP_RUN:
+        return this.handleCancelStepRun(action);
+      case ActionType.START_GET_GROUP_KEY:
+        this.logger.error(
+          `Worker ${this.name} received unsupported action type START_GET_GROUP_KEY, please upgrade to V1...`
+        );
+        return Promise.resolve();
+      case ActionType.UNRECOGNIZED:
+        this.logger.error(
+          `Worker ${this.name} received unrecognized action type ${action.actionType}`
+        );
+        return Promise.resolve();
+      default: {
+        const _: never = type;
+        throw new Error(`Unhandled action type: ${_}`);
+      }
     }
   }
 
@@ -1105,4 +1131,21 @@ function validateCelExpression(_expr: string): boolean {
   // FIXME: this is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
   // For now, we'll just return true to mimic the behavior.
   return true;
+}
+
+export function resolveExecutionTimeout(
+  task: { executionTimeout?: Duration; timeout?: Duration },
+  workflowDefaults?: { executionTimeout?: Duration }
+): string {
+  return durationToString(
+    task.executionTimeout || task.timeout || workflowDefaults?.executionTimeout || '60s'
+  );
+}
+
+export function resolveScheduleTimeout(
+  task: { scheduleTimeout?: Duration },
+  workflowDefaults?: { scheduleTimeout?: Duration }
+): string | undefined {
+  const value = task.scheduleTimeout || workflowDefaults?.scheduleTimeout;
+  return value ? durationToString(value) : undefined;
 }

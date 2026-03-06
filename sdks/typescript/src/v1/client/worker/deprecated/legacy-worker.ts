@@ -15,19 +15,34 @@ import { LegacyV1Worker } from './legacy-v1-worker';
 import { emitDeprecationNotice, semverLessThan } from './deprecation';
 import { transformLegacyWorkflow } from '../../../../legacy/legacy-transformer';
 
+import { MinEngineVersion } from '../engine-version';
+
 const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
 /** The date when slot_config support was released. */
 const LEGACY_ENGINE_START = new Date('2026-02-12T00:00:00Z');
 
-/** Minimum engine version that supports multiple slot types. */
-const MIN_SLOT_CONFIG_VERSION = 'v0.78.23';
-
 const LEGACY_ENGINE_MESSAGE =
   'Connected to an older Hatchet engine that does not support multiple slot types. ' +
   'Falling back to legacy worker registration. ' +
   'Please upgrade your Hatchet engine to the latest version.';
+
+/**
+ * Fetches the engine version from the dispatcher.
+ * Returns the semver string, or undefined if the engine is too old to support GetVersion.
+ */
+export async function fetchEngineVersion(v1: HatchetClient): Promise<string | undefined> {
+  try {
+    const version = await v1.dispatcher.getVersion();
+    return version || undefined;
+  } catch (e: any) {
+    if (e?.code === Status.UNIMPLEMENTED) {
+      return undefined;
+    }
+    throw e;
+  }
+}
 
 /**
  * Checks if the connected engine is legacy by comparing its semantic version
@@ -36,30 +51,20 @@ const LEGACY_ENGINE_MESSAGE =
  * Emits a time-aware deprecation notice when a legacy engine is detected.
  */
 export async function isLegacyEngine(v1: HatchetClient): Promise<boolean> {
-  try {
-    const version = await v1.dispatcher.getVersion();
+  const version = await fetchEngineVersion(v1).catch((e) => {
+    if (e?.code === Status.UNIMPLEMENTED) return undefined;
+    return undefined;
+  });
 
-    // If the version is empty or older than the minimum, treat as legacy
-    if (!version || semverLessThan(version, MIN_SLOT_CONFIG_VERSION)) {
-      const logger = v1.config.logger('Worker', v1.config.log_level);
-      emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
-        errorDays: 180,
-      });
-      return true;
-    }
-
-    return false;
-  } catch (e: any) {
-    if (e?.code === Status.UNIMPLEMENTED) {
-      const logger = v1.config.logger('Worker', v1.config.log_level);
-      emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
-        errorDays: 180,
-      });
-      return true;
-    }
-    // For other errors, assume new engine and let registration fail naturally
-    return false;
+  if (!version || semverLessThan(version, MinEngineVersion.SLOT_CONFIG)) {
+    const logger = v1.config.logger('Worker', v1.config.log_level);
+    emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
+      errorDays: 180,
+    });
+    return true;
   }
+
+  return false;
 }
 
 /**

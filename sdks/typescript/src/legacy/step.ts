@@ -10,8 +10,8 @@ import { Logger } from '../util/logger';
 import { parseJSON } from '../util/parse';
 import WorkflowRunRef from '../util/workflow-run-ref';
 import { WorkerLabels } from '../clients/dispatcher/dispatcher-client';
-import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from '../protoc/workflows';
-import { CreateWorkflowTaskOpts, Priority } from '../v1';
+import { CreateStepRateLimit, RateLimitDuration } from '../protoc/workflows';
+import { CreateWorkflowTaskOpts, Priority, WorkerLabelComparator } from '../v1';
 import {
   RunOpts,
   TaskWorkflowDeclaration,
@@ -20,7 +20,7 @@ import {
 import { Conditions, Render } from '../v1/conditions';
 import { Action as ConditionAction } from '../protoc/v1/shared/condition';
 import { conditionsToPb } from '../v1/conditions/transformer';
-import { Duration } from '../v1/client/duration';
+import { Duration, durationToString } from '../v1/client/duration';
 import { JsonValue, OutputType } from '../v1/types';
 import { InternalWorker } from '../v1/client/worker/worker-internal';
 import { LegacyHatchetClient } from './legacy-client';
@@ -353,7 +353,7 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    await this.v0.dispatcher.refreshTimeout(incrementBy, taskRunExternalId);
+    await this.v0.dispatcher.refreshTimeout(durationToString(incrementBy), taskRunExternalId);
   }
 
   /**

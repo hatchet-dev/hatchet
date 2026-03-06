@@ -8,8 +8,197 @@
 import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 import type { CallContext, CallOptions } from 'nice-grpc-common';
 import { DurableEventListenerConditions } from './shared/condition';
+import { TriggerWorkflowRequest } from './shared/trigger';
 
 export const protobufPackage = 'v1';
+
+export enum DurableTaskEventKind {
+  DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED = 0,
+  DURABLE_TASK_TRIGGER_KIND_RUN = 1,
+  DURABLE_TASK_TRIGGER_KIND_WAIT_FOR = 2,
+  DURABLE_TASK_TRIGGER_KIND_MEMO = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function durableTaskEventKindFromJSON(object: any): DurableTaskEventKind {
+  switch (object) {
+    case 0:
+    case 'DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED':
+      return DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED;
+    case 1:
+    case 'DURABLE_TASK_TRIGGER_KIND_RUN':
+      return DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN;
+    case 2:
+    case 'DURABLE_TASK_TRIGGER_KIND_WAIT_FOR':
+      return DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR;
+    case 3:
+    case 'DURABLE_TASK_TRIGGER_KIND_MEMO':
+      return DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return DurableTaskEventKind.UNRECOGNIZED;
+  }
+}
+
+export function durableTaskEventKindToJSON(object: DurableTaskEventKind): string {
+  switch (object) {
+    case DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED:
+      return 'DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED';
+    case DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN:
+      return 'DURABLE_TASK_TRIGGER_KIND_RUN';
+    case DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR:
+      return 'DURABLE_TASK_TRIGGER_KIND_WAIT_FOR';
+    case DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO:
+      return 'DURABLE_TASK_TRIGGER_KIND_MEMO';
+    case DurableTaskEventKind.UNRECOGNIZED:
+    default:
+      return 'UNRECOGNIZED';
+  }
+}
+
+export enum DurableTaskErrorType {
+  DURABLE_TASK_ERROR_TYPE_UNSPECIFIED = 0,
+  DURABLE_TASK_ERROR_TYPE_NONDETERMINISM = 1,
+  UNRECOGNIZED = -1,
+}
+
+export function durableTaskErrorTypeFromJSON(object: any): DurableTaskErrorType {
+  switch (object) {
+    case 0:
+    case 'DURABLE_TASK_ERROR_TYPE_UNSPECIFIED':
+      return DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_UNSPECIFIED;
+    case 1:
+    case 'DURABLE_TASK_ERROR_TYPE_NONDETERMINISM':
+      return DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_NONDETERMINISM;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return DurableTaskErrorType.UNRECOGNIZED;
+  }
+}
+
+export function durableTaskErrorTypeToJSON(object: DurableTaskErrorType): string {
+  switch (object) {
+    case DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_UNSPECIFIED:
+      return 'DURABLE_TASK_ERROR_TYPE_UNSPECIFIED';
+    case DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
+      return 'DURABLE_TASK_ERROR_TYPE_NONDETERMINISM';
+    case DurableTaskErrorType.UNRECOGNIZED:
+    default:
+      return 'UNRECOGNIZED';
+  }
+}
+
+export interface DurableTaskRequestRegisterWorker {
+  workerId: string;
+}
+
+export interface DurableTaskResponseRegisterWorker {
+  workerId: string;
+}
+
+export interface DurableTaskEventRequest {
+  /**
+   * The invocation_count is a monotonically increasing count that uniquely identifies an "attempt"
+   * at running a durable task. Each time the task is started, it gets a new invocation count (which has)
+   * incremented by one since the previous invocation. This allows the server (and the worker) to have a way of
+   * differentiating between different attempts of the same task running in different places, to prevent race conditions
+   * and other problems from duplication. It also allows for older invocations to be evicted cleanly
+   */
+  invocationCount: number;
+  durableTaskExternalId: string;
+  kind: DurableTaskEventKind;
+  payload?: Uint8Array | undefined;
+  /** Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR */
+  waitForConditions?: DurableEventListenerConditions | undefined;
+  /** Fields for DURABLE_TASK_TRIGGER_KIND_RUN (spawning child workflows) */
+  triggerOpts: TriggerWorkflowRequest[];
+  /** Fields for DURABLE_TASK_TRIGGER_KIND_MEMO */
+  memoKey?: Uint8Array | undefined;
+}
+
+export interface DurableTaskRunAckEntry {
+  nodeId: number;
+  branchId: number;
+}
+
+export interface DurableTaskEventAckResponse {
+  invocationCount: number;
+  durableTaskExternalId: string;
+  branchId: number;
+  nodeId: number;
+  /** memo fields */
+  memoAlreadyExisted: boolean;
+  memoResultPayload?: Uint8Array | undefined;
+  /** run fields -- populated when kind = RUN */
+  runEntries: DurableTaskRunAckEntry[];
+}
+
+export interface DurableTaskEventLogEntryCompletedResponse {
+  durableTaskExternalId: string;
+  invocationCount: number;
+  branchId: number;
+  nodeId: number;
+  payload: Uint8Array;
+}
+
+export interface DurableTaskEvictInvocationRequest {
+  invocationCount: number;
+  durableTaskExternalId: string;
+  reason?: string | undefined;
+}
+
+/** Sent by the server after recording eviction for an evict_invocation request. */
+export interface DurableTaskEvictionAckResponse {
+  invocationCount: number;
+  durableTaskExternalId: string;
+}
+
+export interface DurableTaskAwaitedCompletedEntry {
+  durableTaskExternalId: string;
+  branchId: number;
+  nodeId: number;
+}
+
+export interface DurableTaskWorkerStatusRequest {
+  workerId: string;
+  waitingEntries: DurableTaskAwaitedCompletedEntry[];
+}
+
+export interface DurableTaskCompleteMemoRequest {
+  durableTaskExternalId: string;
+  invocationCount: number;
+  branchId: number;
+  nodeId: number;
+  payload: Uint8Array;
+  memoKey: Uint8Array;
+}
+
+export interface DurableTaskRequest {
+  registerWorker?: DurableTaskRequestRegisterWorker | undefined;
+  event?: DurableTaskEventRequest | undefined;
+  evictInvocation?: DurableTaskEvictInvocationRequest | undefined;
+  workerStatus?: DurableTaskWorkerStatusRequest | undefined;
+  completeMemo?: DurableTaskCompleteMemoRequest | undefined;
+}
+
+export interface DurableTaskErrorResponse {
+  durableTaskExternalId: string;
+  invocationCount: number;
+  branchId: number;
+  nodeId: number;
+  errorType: DurableTaskErrorType;
+  errorMessage: string;
+}
+
+export interface DurableTaskResponse {
+  registerWorker?: DurableTaskResponseRegisterWorker | undefined;
+  triggerAck?: DurableTaskEventAckResponse | undefined;
+  entryCompleted?: DurableTaskEventLogEntryCompletedResponse | undefined;
+  error?: DurableTaskErrorResponse | undefined;
+  evictionAck?: DurableTaskEvictionAckResponse | undefined;
+}
 
 export interface RegisterDurableEventRequest {
   /** external uuid for the task run */
@@ -35,6 +224,1719 @@ export interface DurableEvent {
   /** the data for the event */
   data: Uint8Array;
 }
+
+function createBaseDurableTaskRequestRegisterWorker(): DurableTaskRequestRegisterWorker {
+  return { workerId: '' };
+}
+
+export const DurableTaskRequestRegisterWorker: MessageFns<DurableTaskRequestRegisterWorker> = {
+  encode(
+    message: DurableTaskRequestRegisterWorker,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.workerId !== '') {
+      writer.uint32(10).string(message.workerId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskRequestRegisterWorker {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskRequestRegisterWorker();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workerId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskRequestRegisterWorker {
+    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '' };
+  },
+
+  toJSON(message: DurableTaskRequestRegisterWorker): unknown {
+    const obj: any = {};
+    if (message.workerId !== '') {
+      obj.workerId = message.workerId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskRequestRegisterWorker>): DurableTaskRequestRegisterWorker {
+    return DurableTaskRequestRegisterWorker.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<DurableTaskRequestRegisterWorker>
+  ): DurableTaskRequestRegisterWorker {
+    const message = createBaseDurableTaskRequestRegisterWorker();
+    message.workerId = object.workerId ?? '';
+    return message;
+  },
+};
+
+function createBaseDurableTaskResponseRegisterWorker(): DurableTaskResponseRegisterWorker {
+  return { workerId: '' };
+}
+
+export const DurableTaskResponseRegisterWorker: MessageFns<DurableTaskResponseRegisterWorker> = {
+  encode(
+    message: DurableTaskResponseRegisterWorker,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.workerId !== '') {
+      writer.uint32(10).string(message.workerId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskResponseRegisterWorker {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskResponseRegisterWorker();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workerId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskResponseRegisterWorker {
+    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '' };
+  },
+
+  toJSON(message: DurableTaskResponseRegisterWorker): unknown {
+    const obj: any = {};
+    if (message.workerId !== '') {
+      obj.workerId = message.workerId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskResponseRegisterWorker>): DurableTaskResponseRegisterWorker {
+    return DurableTaskResponseRegisterWorker.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<DurableTaskResponseRegisterWorker>
+  ): DurableTaskResponseRegisterWorker {
+    const message = createBaseDurableTaskResponseRegisterWorker();
+    message.workerId = object.workerId ?? '';
+    return message;
+  },
+};
+
+function createBaseDurableTaskEventRequest(): DurableTaskEventRequest {
+  return {
+    invocationCount: 0,
+    durableTaskExternalId: '',
+    kind: 0,
+    payload: undefined,
+    waitForConditions: undefined,
+    triggerOpts: [],
+    memoKey: undefined,
+  };
+}
+
+export const DurableTaskEventRequest: MessageFns<DurableTaskEventRequest> = {
+  encode(
+    message: DurableTaskEventRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.invocationCount !== 0) {
+      writer.uint32(8).int32(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(18).string(message.durableTaskExternalId);
+    }
+    if (message.kind !== 0) {
+      writer.uint32(24).int32(message.kind);
+    }
+    if (message.payload !== undefined) {
+      writer.uint32(34).bytes(message.payload);
+    }
+    if (message.waitForConditions !== undefined) {
+      DurableEventListenerConditions.encode(
+        message.waitForConditions,
+        writer.uint32(42).fork()
+      ).join();
+    }
+    for (const v of message.triggerOpts) {
+      TriggerWorkflowRequest.encode(v!, writer.uint32(50).fork()).join();
+    }
+    if (message.memoKey !== undefined) {
+      writer.uint32(58).bytes(message.memoKey);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskEventRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskEventRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.kind = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.payload = reader.bytes();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.waitForConditions = DurableEventListenerConditions.decode(
+            reader,
+            reader.uint32()
+          );
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.triggerOpts.push(TriggerWorkflowRequest.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.memoKey = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskEventRequest {
+    return {
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+      kind: isSet(object.kind) ? durableTaskEventKindFromJSON(object.kind) : 0,
+      payload: isSet(object.payload) ? bytesFromBase64(object.payload) : undefined,
+      waitForConditions: isSet(object.waitForConditions)
+        ? DurableEventListenerConditions.fromJSON(object.waitForConditions)
+        : undefined,
+      triggerOpts: globalThis.Array.isArray(object?.triggerOpts)
+        ? object.triggerOpts.map((e: any) => TriggerWorkflowRequest.fromJSON(e))
+        : [],
+      memoKey: isSet(object.memoKey) ? bytesFromBase64(object.memoKey) : undefined,
+    };
+  },
+
+  toJSON(message: DurableTaskEventRequest): unknown {
+    const obj: any = {};
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.kind !== 0) {
+      obj.kind = durableTaskEventKindToJSON(message.kind);
+    }
+    if (message.payload !== undefined) {
+      obj.payload = base64FromBytes(message.payload);
+    }
+    if (message.waitForConditions !== undefined) {
+      obj.waitForConditions = DurableEventListenerConditions.toJSON(message.waitForConditions);
+    }
+    if (message.triggerOpts?.length) {
+      obj.triggerOpts = message.triggerOpts.map((e) => TriggerWorkflowRequest.toJSON(e));
+    }
+    if (message.memoKey !== undefined) {
+      obj.memoKey = base64FromBytes(message.memoKey);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskEventRequest>): DurableTaskEventRequest {
+    return DurableTaskEventRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskEventRequest>): DurableTaskEventRequest {
+    const message = createBaseDurableTaskEventRequest();
+    message.invocationCount = object.invocationCount ?? 0;
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    message.kind = object.kind ?? 0;
+    message.payload = object.payload ?? undefined;
+    message.waitForConditions =
+      object.waitForConditions !== undefined && object.waitForConditions !== null
+        ? DurableEventListenerConditions.fromPartial(object.waitForConditions)
+        : undefined;
+    message.triggerOpts =
+      object.triggerOpts?.map((e) => TriggerWorkflowRequest.fromPartial(e)) || [];
+    message.memoKey = object.memoKey ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDurableTaskRunAckEntry(): DurableTaskRunAckEntry {
+  return { nodeId: 0, branchId: 0 };
+}
+
+export const DurableTaskRunAckEntry: MessageFns<DurableTaskRunAckEntry> = {
+  encode(message: DurableTaskRunAckEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.nodeId !== 0) {
+      writer.uint32(8).int64(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(16).int64(message.branchId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskRunAckEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskRunAckEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskRunAckEntry {
+    return {
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+    };
+  },
+
+  toJSON(message: DurableTaskRunAckEntry): unknown {
+    const obj: any = {};
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskRunAckEntry>): DurableTaskRunAckEntry {
+    return DurableTaskRunAckEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskRunAckEntry>): DurableTaskRunAckEntry {
+    const message = createBaseDurableTaskRunAckEntry();
+    message.nodeId = object.nodeId ?? 0;
+    message.branchId = object.branchId ?? 0;
+    return message;
+  },
+};
+
+function createBaseDurableTaskEventAckResponse(): DurableTaskEventAckResponse {
+  return {
+    invocationCount: 0,
+    durableTaskExternalId: '',
+    branchId: 0,
+    nodeId: 0,
+    memoAlreadyExisted: false,
+    memoResultPayload: undefined,
+    runEntries: [],
+  };
+}
+
+export const DurableTaskEventAckResponse: MessageFns<DurableTaskEventAckResponse> = {
+  encode(
+    message: DurableTaskEventAckResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.invocationCount !== 0) {
+      writer.uint32(8).int32(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(18).string(message.durableTaskExternalId);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(24).int64(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(32).int64(message.nodeId);
+    }
+    if (message.memoAlreadyExisted !== false) {
+      writer.uint32(40).bool(message.memoAlreadyExisted);
+    }
+    if (message.memoResultPayload !== undefined) {
+      writer.uint32(50).bytes(message.memoResultPayload);
+    }
+    for (const v of message.runEntries) {
+      DurableTaskRunAckEntry.encode(v!, writer.uint32(66).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskEventAckResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskEventAckResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.memoAlreadyExisted = reader.bool();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.memoResultPayload = reader.bytes();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.runEntries.push(DurableTaskRunAckEntry.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskEventAckResponse {
+    return {
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      memoAlreadyExisted: isSet(object.memoAlreadyExisted)
+        ? globalThis.Boolean(object.memoAlreadyExisted)
+        : false,
+      memoResultPayload: isSet(object.memoResultPayload)
+        ? bytesFromBase64(object.memoResultPayload)
+        : undefined,
+      runEntries: globalThis.Array.isArray(object?.runEntries)
+        ? object.runEntries.map((e: any) => DurableTaskRunAckEntry.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: DurableTaskEventAckResponse): unknown {
+    const obj: any = {};
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    if (message.memoAlreadyExisted !== false) {
+      obj.memoAlreadyExisted = message.memoAlreadyExisted;
+    }
+    if (message.memoResultPayload !== undefined) {
+      obj.memoResultPayload = base64FromBytes(message.memoResultPayload);
+    }
+    if (message.runEntries?.length) {
+      obj.runEntries = message.runEntries.map((e) => DurableTaskRunAckEntry.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskEventAckResponse>): DurableTaskEventAckResponse {
+    return DurableTaskEventAckResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskEventAckResponse>): DurableTaskEventAckResponse {
+    const message = createBaseDurableTaskEventAckResponse();
+    message.invocationCount = object.invocationCount ?? 0;
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    message.branchId = object.branchId ?? 0;
+    message.nodeId = object.nodeId ?? 0;
+    message.memoAlreadyExisted = object.memoAlreadyExisted ?? false;
+    message.memoResultPayload = object.memoResultPayload ?? undefined;
+    message.runEntries = object.runEntries?.map((e) => DurableTaskRunAckEntry.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseDurableTaskEventLogEntryCompletedResponse(): DurableTaskEventLogEntryCompletedResponse {
+  return {
+    durableTaskExternalId: '',
+    invocationCount: 0,
+    branchId: 0,
+    nodeId: 0,
+    payload: new Uint8Array(0),
+  };
+}
+
+export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEventLogEntryCompletedResponse> =
+  {
+    encode(
+      message: DurableTaskEventLogEntryCompletedResponse,
+      writer: BinaryWriter = new BinaryWriter()
+    ): BinaryWriter {
+      if (message.durableTaskExternalId !== '') {
+        writer.uint32(10).string(message.durableTaskExternalId);
+      }
+      if (message.invocationCount !== 0) {
+        writer.uint32(16).int32(message.invocationCount);
+      }
+      if (message.branchId !== 0) {
+        writer.uint32(24).int64(message.branchId);
+      }
+      if (message.nodeId !== 0) {
+        writer.uint32(32).int64(message.nodeId);
+      }
+      if (message.payload.length !== 0) {
+        writer.uint32(42).bytes(message.payload);
+      }
+      return writer;
+    },
+
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number
+    ): DurableTaskEventLogEntryCompletedResponse {
+      const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseDurableTaskEventLogEntryCompletedResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.durableTaskExternalId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.invocationCount = reader.int32();
+            continue;
+          }
+          case 3: {
+            if (tag !== 24) {
+              break;
+            }
+
+            message.branchId = longToNumber(reader.int64());
+            continue;
+          }
+          case 4: {
+            if (tag !== 32) {
+              break;
+            }
+
+            message.nodeId = longToNumber(reader.int64());
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.payload = reader.bytes();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    },
+
+    fromJSON(object: any): DurableTaskEventLogEntryCompletedResponse {
+      return {
+        durableTaskExternalId: isSet(object.durableTaskExternalId)
+          ? globalThis.String(object.durableTaskExternalId)
+          : '',
+        invocationCount: isSet(object.invocationCount)
+          ? globalThis.Number(object.invocationCount)
+          : 0,
+        branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+        nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+        payload: isSet(object.payload) ? bytesFromBase64(object.payload) : new Uint8Array(0),
+      };
+    },
+
+    toJSON(message: DurableTaskEventLogEntryCompletedResponse): unknown {
+      const obj: any = {};
+      if (message.durableTaskExternalId !== '') {
+        obj.durableTaskExternalId = message.durableTaskExternalId;
+      }
+      if (message.invocationCount !== 0) {
+        obj.invocationCount = Math.round(message.invocationCount);
+      }
+      if (message.branchId !== 0) {
+        obj.branchId = Math.round(message.branchId);
+      }
+      if (message.nodeId !== 0) {
+        obj.nodeId = Math.round(message.nodeId);
+      }
+      if (message.payload.length !== 0) {
+        obj.payload = base64FromBytes(message.payload);
+      }
+      return obj;
+    },
+
+    create(
+      base?: DeepPartial<DurableTaskEventLogEntryCompletedResponse>
+    ): DurableTaskEventLogEntryCompletedResponse {
+      return DurableTaskEventLogEntryCompletedResponse.fromPartial(base ?? {});
+    },
+    fromPartial(
+      object: DeepPartial<DurableTaskEventLogEntryCompletedResponse>
+    ): DurableTaskEventLogEntryCompletedResponse {
+      const message = createBaseDurableTaskEventLogEntryCompletedResponse();
+      message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+      message.invocationCount = object.invocationCount ?? 0;
+      message.branchId = object.branchId ?? 0;
+      message.nodeId = object.nodeId ?? 0;
+      message.payload = object.payload ?? new Uint8Array(0);
+      return message;
+    },
+  };
+
+function createBaseDurableTaskEvictInvocationRequest(): DurableTaskEvictInvocationRequest {
+  return { invocationCount: 0, durableTaskExternalId: '', reason: undefined };
+}
+
+export const DurableTaskEvictInvocationRequest: MessageFns<DurableTaskEvictInvocationRequest> = {
+  encode(
+    message: DurableTaskEvictInvocationRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.invocationCount !== 0) {
+      writer.uint32(8).int32(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(18).string(message.durableTaskExternalId);
+    }
+    if (message.reason !== undefined) {
+      writer.uint32(26).string(message.reason);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskEvictInvocationRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskEvictInvocationRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.reason = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskEvictInvocationRequest {
+    return {
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+      reason: isSet(object.reason) ? globalThis.String(object.reason) : undefined,
+    };
+  },
+
+  toJSON(message: DurableTaskEvictInvocationRequest): unknown {
+    const obj: any = {};
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.reason !== undefined) {
+      obj.reason = message.reason;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskEvictInvocationRequest>): DurableTaskEvictInvocationRequest {
+    return DurableTaskEvictInvocationRequest.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<DurableTaskEvictInvocationRequest>
+  ): DurableTaskEvictInvocationRequest {
+    const message = createBaseDurableTaskEvictInvocationRequest();
+    message.invocationCount = object.invocationCount ?? 0;
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    message.reason = object.reason ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDurableTaskEvictionAckResponse(): DurableTaskEvictionAckResponse {
+  return { invocationCount: 0, durableTaskExternalId: '' };
+}
+
+export const DurableTaskEvictionAckResponse: MessageFns<DurableTaskEvictionAckResponse> = {
+  encode(
+    message: DurableTaskEvictionAckResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.invocationCount !== 0) {
+      writer.uint32(8).int32(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(18).string(message.durableTaskExternalId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskEvictionAckResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskEvictionAckResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskEvictionAckResponse {
+    return {
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+    };
+  },
+
+  toJSON(message: DurableTaskEvictionAckResponse): unknown {
+    const obj: any = {};
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskEvictionAckResponse>): DurableTaskEvictionAckResponse {
+    return DurableTaskEvictionAckResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskEvictionAckResponse>): DurableTaskEvictionAckResponse {
+    const message = createBaseDurableTaskEvictionAckResponse();
+    message.invocationCount = object.invocationCount ?? 0;
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    return message;
+  },
+};
+
+function createBaseDurableTaskAwaitedCompletedEntry(): DurableTaskAwaitedCompletedEntry {
+  return { durableTaskExternalId: '', branchId: 0, nodeId: 0 };
+}
+
+export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedCompletedEntry> = {
+  encode(
+    message: DurableTaskAwaitedCompletedEntry,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(10).string(message.durableTaskExternalId);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(16).int64(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(24).int64(message.nodeId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskAwaitedCompletedEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskAwaitedCompletedEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskAwaitedCompletedEntry {
+    return {
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+    };
+  },
+
+  toJSON(message: DurableTaskAwaitedCompletedEntry): unknown {
+    const obj: any = {};
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskAwaitedCompletedEntry>): DurableTaskAwaitedCompletedEntry {
+    return DurableTaskAwaitedCompletedEntry.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<DurableTaskAwaitedCompletedEntry>
+  ): DurableTaskAwaitedCompletedEntry {
+    const message = createBaseDurableTaskAwaitedCompletedEntry();
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    message.branchId = object.branchId ?? 0;
+    message.nodeId = object.nodeId ?? 0;
+    return message;
+  },
+};
+
+function createBaseDurableTaskWorkerStatusRequest(): DurableTaskWorkerStatusRequest {
+  return { workerId: '', waitingEntries: [] };
+}
+
+export const DurableTaskWorkerStatusRequest: MessageFns<DurableTaskWorkerStatusRequest> = {
+  encode(
+    message: DurableTaskWorkerStatusRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.workerId !== '') {
+      writer.uint32(10).string(message.workerId);
+    }
+    for (const v of message.waitingEntries) {
+      DurableTaskAwaitedCompletedEntry.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskWorkerStatusRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskWorkerStatusRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workerId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.waitingEntries.push(
+            DurableTaskAwaitedCompletedEntry.decode(reader, reader.uint32())
+          );
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskWorkerStatusRequest {
+    return {
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
+      waitingEntries: globalThis.Array.isArray(object?.waitingEntries)
+        ? object.waitingEntries.map((e: any) => DurableTaskAwaitedCompletedEntry.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: DurableTaskWorkerStatusRequest): unknown {
+    const obj: any = {};
+    if (message.workerId !== '') {
+      obj.workerId = message.workerId;
+    }
+    if (message.waitingEntries?.length) {
+      obj.waitingEntries = message.waitingEntries.map((e) =>
+        DurableTaskAwaitedCompletedEntry.toJSON(e)
+      );
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskWorkerStatusRequest>): DurableTaskWorkerStatusRequest {
+    return DurableTaskWorkerStatusRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskWorkerStatusRequest>): DurableTaskWorkerStatusRequest {
+    const message = createBaseDurableTaskWorkerStatusRequest();
+    message.workerId = object.workerId ?? '';
+    message.waitingEntries =
+      object.waitingEntries?.map((e) => DurableTaskAwaitedCompletedEntry.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseDurableTaskCompleteMemoRequest(): DurableTaskCompleteMemoRequest {
+  return {
+    durableTaskExternalId: '',
+    invocationCount: 0,
+    branchId: 0,
+    nodeId: 0,
+    payload: new Uint8Array(0),
+    memoKey: new Uint8Array(0),
+  };
+}
+
+export const DurableTaskCompleteMemoRequest: MessageFns<DurableTaskCompleteMemoRequest> = {
+  encode(
+    message: DurableTaskCompleteMemoRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(10).string(message.durableTaskExternalId);
+    }
+    if (message.invocationCount !== 0) {
+      writer.uint32(16).int32(message.invocationCount);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(24).int64(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(32).int64(message.nodeId);
+    }
+    if (message.payload.length !== 0) {
+      writer.uint32(42).bytes(message.payload);
+    }
+    if (message.memoKey.length !== 0) {
+      writer.uint32(50).bytes(message.memoKey);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskCompleteMemoRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskCompleteMemoRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.payload = reader.bytes();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.memoKey = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskCompleteMemoRequest {
+    return {
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      payload: isSet(object.payload) ? bytesFromBase64(object.payload) : new Uint8Array(0),
+      memoKey: isSet(object.memoKey) ? bytesFromBase64(object.memoKey) : new Uint8Array(0),
+    };
+  },
+
+  toJSON(message: DurableTaskCompleteMemoRequest): unknown {
+    const obj: any = {};
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    if (message.payload.length !== 0) {
+      obj.payload = base64FromBytes(message.payload);
+    }
+    if (message.memoKey.length !== 0) {
+      obj.memoKey = base64FromBytes(message.memoKey);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskCompleteMemoRequest>): DurableTaskCompleteMemoRequest {
+    return DurableTaskCompleteMemoRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskCompleteMemoRequest>): DurableTaskCompleteMemoRequest {
+    const message = createBaseDurableTaskCompleteMemoRequest();
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    message.invocationCount = object.invocationCount ?? 0;
+    message.branchId = object.branchId ?? 0;
+    message.nodeId = object.nodeId ?? 0;
+    message.payload = object.payload ?? new Uint8Array(0);
+    message.memoKey = object.memoKey ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseDurableTaskRequest(): DurableTaskRequest {
+  return {
+    registerWorker: undefined,
+    event: undefined,
+    evictInvocation: undefined,
+    workerStatus: undefined,
+    completeMemo: undefined,
+  };
+}
+
+export const DurableTaskRequest: MessageFns<DurableTaskRequest> = {
+  encode(message: DurableTaskRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.registerWorker !== undefined) {
+      DurableTaskRequestRegisterWorker.encode(
+        message.registerWorker,
+        writer.uint32(10).fork()
+      ).join();
+    }
+    if (message.event !== undefined) {
+      DurableTaskEventRequest.encode(message.event, writer.uint32(18).fork()).join();
+    }
+    if (message.evictInvocation !== undefined) {
+      DurableTaskEvictInvocationRequest.encode(
+        message.evictInvocation,
+        writer.uint32(26).fork()
+      ).join();
+    }
+    if (message.workerStatus !== undefined) {
+      DurableTaskWorkerStatusRequest.encode(message.workerStatus, writer.uint32(34).fork()).join();
+    }
+    if (message.completeMemo !== undefined) {
+      DurableTaskCompleteMemoRequest.encode(message.completeMemo, writer.uint32(42).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.registerWorker = DurableTaskRequestRegisterWorker.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.event = DurableTaskEventRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.evictInvocation = DurableTaskEvictInvocationRequest.decode(
+            reader,
+            reader.uint32()
+          );
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.workerStatus = DurableTaskWorkerStatusRequest.decode(reader, reader.uint32());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.completeMemo = DurableTaskCompleteMemoRequest.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskRequest {
+    return {
+      registerWorker: isSet(object.registerWorker)
+        ? DurableTaskRequestRegisterWorker.fromJSON(object.registerWorker)
+        : undefined,
+      event: isSet(object.event) ? DurableTaskEventRequest.fromJSON(object.event) : undefined,
+      evictInvocation: isSet(object.evictInvocation)
+        ? DurableTaskEvictInvocationRequest.fromJSON(object.evictInvocation)
+        : undefined,
+      workerStatus: isSet(object.workerStatus)
+        ? DurableTaskWorkerStatusRequest.fromJSON(object.workerStatus)
+        : undefined,
+      completeMemo: isSet(object.completeMemo)
+        ? DurableTaskCompleteMemoRequest.fromJSON(object.completeMemo)
+        : undefined,
+    };
+  },
+
+  toJSON(message: DurableTaskRequest): unknown {
+    const obj: any = {};
+    if (message.registerWorker !== undefined) {
+      obj.registerWorker = DurableTaskRequestRegisterWorker.toJSON(message.registerWorker);
+    }
+    if (message.event !== undefined) {
+      obj.event = DurableTaskEventRequest.toJSON(message.event);
+    }
+    if (message.evictInvocation !== undefined) {
+      obj.evictInvocation = DurableTaskEvictInvocationRequest.toJSON(message.evictInvocation);
+    }
+    if (message.workerStatus !== undefined) {
+      obj.workerStatus = DurableTaskWorkerStatusRequest.toJSON(message.workerStatus);
+    }
+    if (message.completeMemo !== undefined) {
+      obj.completeMemo = DurableTaskCompleteMemoRequest.toJSON(message.completeMemo);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskRequest>): DurableTaskRequest {
+    return DurableTaskRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskRequest>): DurableTaskRequest {
+    const message = createBaseDurableTaskRequest();
+    message.registerWorker =
+      object.registerWorker !== undefined && object.registerWorker !== null
+        ? DurableTaskRequestRegisterWorker.fromPartial(object.registerWorker)
+        : undefined;
+    message.event =
+      object.event !== undefined && object.event !== null
+        ? DurableTaskEventRequest.fromPartial(object.event)
+        : undefined;
+    message.evictInvocation =
+      object.evictInvocation !== undefined && object.evictInvocation !== null
+        ? DurableTaskEvictInvocationRequest.fromPartial(object.evictInvocation)
+        : undefined;
+    message.workerStatus =
+      object.workerStatus !== undefined && object.workerStatus !== null
+        ? DurableTaskWorkerStatusRequest.fromPartial(object.workerStatus)
+        : undefined;
+    message.completeMemo =
+      object.completeMemo !== undefined && object.completeMemo !== null
+        ? DurableTaskCompleteMemoRequest.fromPartial(object.completeMemo)
+        : undefined;
+    return message;
+  },
+};
+
+function createBaseDurableTaskErrorResponse(): DurableTaskErrorResponse {
+  return {
+    durableTaskExternalId: '',
+    invocationCount: 0,
+    branchId: 0,
+    nodeId: 0,
+    errorType: 0,
+    errorMessage: '',
+  };
+}
+
+export const DurableTaskErrorResponse: MessageFns<DurableTaskErrorResponse> = {
+  encode(
+    message: DurableTaskErrorResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(10).string(message.durableTaskExternalId);
+    }
+    if (message.invocationCount !== 0) {
+      writer.uint32(16).int32(message.invocationCount);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(24).int64(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(32).int64(message.nodeId);
+    }
+    if (message.errorType !== 0) {
+      writer.uint32(40).int32(message.errorType);
+    }
+    if (message.errorMessage !== '') {
+      writer.uint32(50).string(message.errorMessage);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskErrorResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskErrorResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.errorType = reader.int32() as any;
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.errorMessage = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskErrorResponse {
+    return {
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      errorType: isSet(object.errorType) ? durableTaskErrorTypeFromJSON(object.errorType) : 0,
+      errorMessage: isSet(object.errorMessage) ? globalThis.String(object.errorMessage) : '',
+    };
+  },
+
+  toJSON(message: DurableTaskErrorResponse): unknown {
+    const obj: any = {};
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    if (message.errorType !== 0) {
+      obj.errorType = durableTaskErrorTypeToJSON(message.errorType);
+    }
+    if (message.errorMessage !== '') {
+      obj.errorMessage = message.errorMessage;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskErrorResponse>): DurableTaskErrorResponse {
+    return DurableTaskErrorResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskErrorResponse>): DurableTaskErrorResponse {
+    const message = createBaseDurableTaskErrorResponse();
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    message.invocationCount = object.invocationCount ?? 0;
+    message.branchId = object.branchId ?? 0;
+    message.nodeId = object.nodeId ?? 0;
+    message.errorType = object.errorType ?? 0;
+    message.errorMessage = object.errorMessage ?? '';
+    return message;
+  },
+};
+
+function createBaseDurableTaskResponse(): DurableTaskResponse {
+  return {
+    registerWorker: undefined,
+    triggerAck: undefined,
+    entryCompleted: undefined,
+    error: undefined,
+    evictionAck: undefined,
+  };
+}
+
+export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
+  encode(message: DurableTaskResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.registerWorker !== undefined) {
+      DurableTaskResponseRegisterWorker.encode(
+        message.registerWorker,
+        writer.uint32(10).fork()
+      ).join();
+    }
+    if (message.triggerAck !== undefined) {
+      DurableTaskEventAckResponse.encode(message.triggerAck, writer.uint32(18).fork()).join();
+    }
+    if (message.entryCompleted !== undefined) {
+      DurableTaskEventLogEntryCompletedResponse.encode(
+        message.entryCompleted,
+        writer.uint32(26).fork()
+      ).join();
+    }
+    if (message.error !== undefined) {
+      DurableTaskErrorResponse.encode(message.error, writer.uint32(34).fork()).join();
+    }
+    if (message.evictionAck !== undefined) {
+      DurableTaskEvictionAckResponse.encode(message.evictionAck, writer.uint32(42).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.registerWorker = DurableTaskResponseRegisterWorker.decode(
+            reader,
+            reader.uint32()
+          );
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.triggerAck = DurableTaskEventAckResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.entryCompleted = DurableTaskEventLogEntryCompletedResponse.decode(
+            reader,
+            reader.uint32()
+          );
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.error = DurableTaskErrorResponse.decode(reader, reader.uint32());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.evictionAck = DurableTaskEvictionAckResponse.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskResponse {
+    return {
+      registerWorker: isSet(object.registerWorker)
+        ? DurableTaskResponseRegisterWorker.fromJSON(object.registerWorker)
+        : undefined,
+      triggerAck: isSet(object.triggerAck)
+        ? DurableTaskEventAckResponse.fromJSON(object.triggerAck)
+        : undefined,
+      entryCompleted: isSet(object.entryCompleted)
+        ? DurableTaskEventLogEntryCompletedResponse.fromJSON(object.entryCompleted)
+        : undefined,
+      error: isSet(object.error) ? DurableTaskErrorResponse.fromJSON(object.error) : undefined,
+      evictionAck: isSet(object.evictionAck)
+        ? DurableTaskEvictionAckResponse.fromJSON(object.evictionAck)
+        : undefined,
+    };
+  },
+
+  toJSON(message: DurableTaskResponse): unknown {
+    const obj: any = {};
+    if (message.registerWorker !== undefined) {
+      obj.registerWorker = DurableTaskResponseRegisterWorker.toJSON(message.registerWorker);
+    }
+    if (message.triggerAck !== undefined) {
+      obj.triggerAck = DurableTaskEventAckResponse.toJSON(message.triggerAck);
+    }
+    if (message.entryCompleted !== undefined) {
+      obj.entryCompleted = DurableTaskEventLogEntryCompletedResponse.toJSON(message.entryCompleted);
+    }
+    if (message.error !== undefined) {
+      obj.error = DurableTaskErrorResponse.toJSON(message.error);
+    }
+    if (message.evictionAck !== undefined) {
+      obj.evictionAck = DurableTaskEvictionAckResponse.toJSON(message.evictionAck);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskResponse>): DurableTaskResponse {
+    return DurableTaskResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskResponse>): DurableTaskResponse {
+    const message = createBaseDurableTaskResponse();
+    message.registerWorker =
+      object.registerWorker !== undefined && object.registerWorker !== null
+        ? DurableTaskResponseRegisterWorker.fromPartial(object.registerWorker)
+        : undefined;
+    message.triggerAck =
+      object.triggerAck !== undefined && object.triggerAck !== null
+        ? DurableTaskEventAckResponse.fromPartial(object.triggerAck)
+        : undefined;
+    message.entryCompleted =
+      object.entryCompleted !== undefined && object.entryCompleted !== null
+        ? DurableTaskEventLogEntryCompletedResponse.fromPartial(object.entryCompleted)
+        : undefined;
+    message.error =
+      object.error !== undefined && object.error !== null
+        ? DurableTaskErrorResponse.fromPartial(object.error)
+        : undefined;
+    message.evictionAck =
+      object.evictionAck !== undefined && object.evictionAck !== null
+        ? DurableTaskEvictionAckResponse.fromPartial(object.evictionAck)
+        : undefined;
+    return message;
+  },
+};
 
 function createBaseRegisterDurableEventRequest(): RegisterDurableEventRequest {
   return { taskId: '', signalKey: '', conditions: undefined };
@@ -355,6 +2257,15 @@ export const V1DispatcherDefinition = {
   name: 'V1Dispatcher',
   fullName: 'v1.V1Dispatcher',
   methods: {
+    durableTask: {
+      name: 'DurableTask',
+      requestType: DurableTaskRequest,
+      requestStream: true,
+      responseType: DurableTaskResponse,
+      responseStream: true,
+      options: {},
+    },
+    /** NOTE: deprecated after DurableEventLog is implemented */
     registerDurableEvent: {
       name: 'RegisterDurableEvent',
       requestType: RegisterDurableEventRequest,
@@ -375,6 +2286,11 @@ export const V1DispatcherDefinition = {
 } as const;
 
 export interface V1DispatcherServiceImplementation<CallContextExt = {}> {
+  durableTask(
+    request: AsyncIterable<DurableTaskRequest>,
+    context: CallContext & CallContextExt
+  ): ServerStreamingMethodResult<DeepPartial<DurableTaskResponse>>;
+  /** NOTE: deprecated after DurableEventLog is implemented */
   registerDurableEvent(
     request: RegisterDurableEventRequest,
     context: CallContext & CallContextExt
@@ -386,6 +2302,11 @@ export interface V1DispatcherServiceImplementation<CallContextExt = {}> {
 }
 
 export interface V1DispatcherClient<CallOptionsExt = {}> {
+  durableTask(
+    request: AsyncIterable<DeepPartial<DurableTaskRequest>>,
+    options?: CallOptions & CallOptionsExt
+  ): AsyncIterable<DurableTaskResponse>;
+  /** NOTE: deprecated after DurableEventLog is implemented */
   registerDurableEvent(
     request: DeepPartial<RegisterDurableEventRequest>,
     options?: CallOptions & CallOptionsExt
@@ -432,6 +2353,17 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+  }
+  return num;
+}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

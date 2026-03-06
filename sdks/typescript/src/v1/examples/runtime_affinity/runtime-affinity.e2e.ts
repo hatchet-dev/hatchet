@@ -1,6 +1,6 @@
-import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
-import { WorkerList } from '@hatchet-dev/typescript-sdk/clients/rest/generated/data-contracts';
-import { stopWorker } from '../__e2e__/harness';
+import sleep from '@hatchet/util/sleep';
+import { WorkerList } from '@hatchet/clients/rest/generated/data-contracts';
+import { checkDurableEvictionSupport, stopWorker } from '../__e2e__/harness';
 import { Worker } from '../../client/worker/worker';
 import { hatchet } from '../hatchet-client';
 import { affinityExampleTask } from './workflow';
@@ -10,6 +10,11 @@ const labels = ['foo', 'bar'] as const;
 describe('runtime-affinity-e2e', () => {
   let workerA: Worker | undefined;
   let workerB: Worker | undefined;
+  let evictionSupported = false;
+
+  beforeAll(async () => {
+    evictionSupported = await checkDurableEvictionSupport(hatchet);
+  });
 
   afterAll(async () => {
     await stopWorker(workerA);
@@ -17,6 +22,11 @@ describe('runtime-affinity-e2e', () => {
   });
 
   it('routes runs to the correct worker based on desired labels', async () => {
+    if (!evictionSupported) {
+      // eslint-disable-next-line no-console
+      return;
+    }
+
     workerA = await hatchet.worker('runtime-affinity-worker', {
       workflows: [affinityExampleTask],
       labels: { affinity: labels[0] },

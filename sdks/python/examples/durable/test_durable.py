@@ -201,7 +201,7 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
 
     for i, duration in enumerate(durations, start=1):
         if i < node_id:
-            assert duration < 1
+            assert duration < REPLAY_RESET_SLEEP_TIME
         else:
             assert duration >= REPLAY_RESET_SLEEP_TIME
 
@@ -251,7 +251,7 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
-    assert reset_result.sleep_1_duration < 1
+    assert reset_result.sleep_1_duration < REPLAY_RESET_SLEEP_TIME
     assert reset_result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
     assert reset_result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
 

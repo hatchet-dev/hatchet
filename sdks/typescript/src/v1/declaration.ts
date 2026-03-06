@@ -16,7 +16,6 @@ import {
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
-import { WorkerLabelComparator } from '@hatchet/protoc/v1/workflows';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -27,12 +26,14 @@ import {
   CreateOnSuccessTaskOpts,
   Concurrency,
   DurableTaskFn,
+  WorkerLabelComparator,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
+import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -204,7 +205,10 @@ export type CreateTaskWorkflowOpts<
 export type CreateDurableTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
-> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>>;
+> = CreateBaseWorkflowOpts &
+  CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>> & {
+    evictionPolicy?: EvictionPolicy;
+  };
 
 /**
  * Options for creating a new workflow.
@@ -484,6 +488,16 @@ export class BaseWorkflowDeclaration<
   async run(input: I | I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
+    }
+
+    const durableCtx = parentRunContextManager.getContext()?.durableContext;
+    if (durableCtx) {
+      if (Array.isArray(input)) {
+        return durableCtx.spawnChildren(
+          input.map((inp) => ({ workflow: this, input: inp, options }))
+        );
+      }
+      return durableCtx.spawnChild(this, input, options);
     }
 
     if (Array.isArray(input)) {

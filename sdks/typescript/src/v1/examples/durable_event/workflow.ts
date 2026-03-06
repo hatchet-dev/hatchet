@@ -1,13 +1,15 @@
-// import sleep from '@hatchet/util/sleep';
+/* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
+
+export const EVENT_KEY = 'user:update';
 
 // > Durable Event
 export const durableEvent = hatchet.durableTask({
   name: 'durable-event',
   executionTimeout: '10m',
   fn: async (_, ctx) => {
-    const res = ctx.waitFor({
-      eventKey: 'user:update',
+    const res = await ctx.waitFor({
+      eventKey: EVENT_KEY,
     });
 
     console.log('res', res);
@@ -24,8 +26,8 @@ export const durableEventWithFilter = hatchet.durableTask({
   executionTimeout: '10m',
   fn: async (_, ctx) => {
     // > Durable Event With Filter
-    const res = ctx.waitFor({
-      eventKey: 'user:update',
+    const res = await ctx.waitFor({
+      eventKey: EVENT_KEY,
       expression: "input.userId == '1234'",
     });
     // !!

@@ -16,7 +16,6 @@ import {
   BaseWorkflowDeclaration as WorkflowV1,
 } from '@hatchet/v1/declaration';
 import HatchetError from '@util/errors/hatchet-error';
-import { JsonObject } from '@bufbuild/protobuf';
 import { Action } from '@hatchet/clients/dispatcher/action-listener';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
@@ -24,15 +23,20 @@ import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
-import { OutputType } from '@hatchet/v1/types';
+import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
+import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
+import { createHash } from 'crypto';
 import { InternalWorker } from './worker-internal';
-import { Duration } from '../duration';
+import { Duration, durationToString } from '../duration';
+import { DurableEvictionManager } from './eviction/eviction-manager';
+import { supportsEviction } from './engine-version';
+import { waitForPreEviction } from './deprecated/pre-eviction';
 // TODO remove this once we have a proper next step type
 
 type TriggerData = Record<string, Record<string, any>>;
@@ -412,7 +416,7 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.v1.dispatcher.refreshTimeout(incrementBy, taskRunExternalId);
+    await this.v1.dispatcher.refreshTimeout(durationToString(incrementBy), taskRunExternalId);
   }
 
   /**
@@ -445,7 +449,7 @@ export class Context<T, K = {}> {
     await this.v1.events.putStream(taskRunExternalId, data, index);
   }
 
-  private spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
+  protected spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
     this.throwIfCancelled();
 
     let workflowName: string;
@@ -829,7 +833,52 @@ export class Context<T, K = {}> {
  * It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
  */
 export class DurableContext<T, K = {}> extends Context<T, K> {
-  waitKey: number = 0;
+  private _durableListener: DurableListenerClient;
+  private _evictionManager: DurableEvictionManager | undefined;
+  private _engineVersion: string | undefined;
+  private _waitKey: number = 0;
+
+  constructor(
+    action: Action,
+    v1: HatchetClient,
+    worker: InternalWorker,
+    durableListener: DurableListenerClient,
+    evictionManager?: DurableEvictionManager,
+    engineVersion?: string
+  ) {
+    super(action, v1, worker);
+    this._durableListener = durableListener;
+    this._evictionManager = evictionManager;
+    this._engineVersion = engineVersion;
+  }
+
+  get supportsEviction(): boolean {
+    return supportsEviction(this._engineVersion);
+  }
+
+  get durableListener(): DurableListenerClient {
+    return this._durableListener;
+  }
+
+  /**
+   * The invocation count for the current durable task. Used for deduplication across replays.
+   */
+  get invocationCount(): number {
+    return this.action.durableTaskInvocationCount ?? 1;
+  }
+
+  private async withEvictionWait<R>(
+    waitKind: string,
+    resourceId: string,
+    fn: () => Promise<R>
+  ): Promise<R> {
+    this._evictionManager?.markWaiting(this.action.taskRunExternalId, waitKind, resourceId);
+    try {
+      return await fn();
+    } finally {
+      this._evictionManager?.markActive(this.action.taskRunExternalId);
+    }
+  }
 
   /**
    * Pauses execution for the specified duration.
@@ -849,32 +898,224 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     this.throwIfCancelled();
-    const pbConditions = conditionsToPb(
-      Render(ConditionAction.CREATE, conditions),
-      this.v1.config.namespace
-    );
 
-    // eslint-disable-next-line no-plusplus
-    const key = `waitFor-${this.waitKey++}`;
-    await this.v1.durableListener.registerDurableEvent({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-      sleepConditions: pbConditions.sleepConditions,
-      userEventConditions: pbConditions.userEventConditions,
-    });
-    const event = await this.v1.durableListener.result(
+    if (!this.supportsEviction) {
+      return this._waitForPreEviction(conditions);
+    }
+
+    const rendered = Render(ConditionAction.CREATE, conditions);
+    const pbConditions = conditionsToPb(rendered, this.v1.config.namespace);
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
       {
-        taskId: this.action.taskRunExternalId,
-        signalKey: key,
-      },
-      { signal: this.abortController.signal }
+        kind: 'waitFor',
+        waitForConditions: {
+          sleepConditions: pbConditions.sleepConditions,
+          userEventConditions: pbConditions.userEventConditions,
+        },
+      }
     );
 
-    // Convert event.data from Uint8Array to string if needed
-    const eventData =
-      event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
+    const resourceId =
+      rendered
+        .map((c) => c.base.readableDataKey)
+        .filter(Boolean)
+        .join(',') || `node:${ack.nodeId}`;
 
-    const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
-    return res.CREATE;
+    return this.withEvictionWait('waitFor', resourceId, async () => {
+      const result = await this._durableListener.waitForCallback(
+        this.action.taskRunExternalId,
+        this.invocationCount,
+        ack.branchId,
+        ack.nodeId
+      );
+      return result.payload || {};
+    });
   }
+
+  private async _waitForPreEviction(
+    conditions: Conditions | Conditions[]
+  ): Promise<Record<string, any>> {
+    const { result, nextWaitKey } = await waitForPreEviction(
+      this._durableListener,
+      this.action.taskRunExternalId,
+      this._waitKey,
+      conditions,
+      this.v1.config.namespace,
+      this.abortController.signal
+    );
+    this._waitKey = nextWaitKey;
+    return result;
+  }
+
+  private _buildTriggerOpts<Q extends JsonObject>(
+    workflow: string | WorkflowV1<Q, any> | TaskWorkflowDeclaration<Q, any>,
+    input?: Q,
+    options?: ChildRunOpts
+  ) {
+    let workflowName: string;
+    if (typeof workflow === 'string') {
+      workflowName = workflow;
+    } else {
+      workflowName = workflow.name;
+    }
+
+    workflowName = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
+
+    const triggerOpts = {
+      name: workflowName,
+      input: JSON.stringify(input || {}),
+      parentId: this.action.workflowRunId,
+      parentTaskRunExternalId: this.action.taskRunExternalId,
+      childIndex: this.spawnIndex,
+      childKey: options?.key,
+      additionalMetadata: options?.additionalMetadata
+        ? JSON.stringify(options.additionalMetadata)
+        : undefined,
+      desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
+      priority: options?.priority,
+      desiredWorkerLabels: {},
+    };
+
+    this.spawnIndex += 1;
+
+    return { workflowName, triggerOpts };
+  }
+
+  /**
+   * Spawns a child workflow through the durable event log, waits for the child to complete.
+   * @param workflow - The workflow to spawn.
+   * @param input - The input data for the child workflow.
+   * @param options - Options for spawning the child workflow.
+   * @returns The result of the child workflow.
+   */
+  async spawnChild<Q extends JsonObject, P extends OutputType>(
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    input?: Q,
+    options?: ChildRunOpts
+  ): Promise<P> {
+    if (!this.supportsEviction) {
+      const { workflowName, opts } = this.spawnOptions(workflow, options);
+      const ref = await this.v1.admin.runWorkflow(workflowName, (input || {}) as Q, opts);
+      ref.defaultSignal = this.abortController.signal;
+      return ref.output as Promise<P>;
+    }
+
+    const results = await this.spawnChildren<Q, P>([
+      { workflow, input: (input || {}) as Q, options },
+    ]);
+    return results[0];
+  }
+
+  /**
+   * Spawns multiple child workflows through the durable event log, waits for all to complete.
+   * @param children - An array of objects containing the workflow, input, and options for each child.
+   * @returns A list of results from the child workflows.
+   */
+  async spawnChildren<Q extends JsonObject, P extends OutputType>(
+    children: Array<{
+      workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>;
+      input: Q;
+      options?: ChildRunOpts;
+    }>
+  ): Promise<P[]> {
+    this.throwIfCancelled();
+
+    if (!this.supportsEviction) {
+      const workflows = children.map((c) => {
+        const { workflowName, opts } = this.spawnOptions(c.workflow, c.options);
+        return { workflowName, input: c.input, options: opts };
+      });
+      const refs = await this.v1.admin.runWorkflows(workflows);
+      for (const r of refs) {
+        // eslint-disable-next-line no-param-reassign
+        r.defaultSignal = this.abortController.signal;
+      }
+      return Promise.all(refs.map((r) => r.output)) as Promise<P[]>;
+    }
+
+    const triggerOptsList = children.map((child) => {
+      const { triggerOpts } = this._buildTriggerOpts(child.workflow, child.input, child.options);
+      return triggerOpts;
+    });
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      {
+        kind: 'runChildren',
+        triggerOpts: triggerOptsList,
+      }
+    );
+
+    const results = await Promise.all(
+      ack.runEntries.map((entry) =>
+        this.withEvictionWait('runChild', `workflow:bulk-child`, async () => {
+          const result = await this._durableListener.waitForCallback(
+            this.action.taskRunExternalId,
+            this.invocationCount,
+            entry.branchId,
+            entry.nodeId
+          );
+          return (result.payload || {}) as P;
+        })
+      )
+    );
+
+    return results;
+  }
+
+  /**
+   * Memoize a function by storing its result in durable storage. Avoids recomputation on replay.
+   *
+   * @param fn - The async function to compute the value.
+   * @param deps - Dependency values that form the memoization key.
+   * @returns The memoized value, either from durable storage or freshly computed.
+   */
+  async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
+    this.throwIfCancelled();
+
+    if (!this.supportsEviction) {
+      return fn();
+    }
+
+    const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      {
+        kind: 'memo',
+        memoKey,
+      }
+    );
+
+    if (ack.memoAlreadyExisted && ack.memoResultPayload && ack.memoResultPayload.length > 0) {
+      const serialized = new TextDecoder().decode(ack.memoResultPayload);
+      return JSON.parse(serialized) as R;
+    }
+
+    const result = await fn();
+    const serializedResult = new TextEncoder().encode(JSON.stringify(result));
+
+    await this._durableListener.sendMemoCompletedNotification(
+      this.action.taskRunExternalId,
+      ack.nodeId,
+      ack.branchId,
+      this.invocationCount,
+      memoKey,
+      serializedResult
+    );
+
+    return result;
+  }
+}
+
+function computeMemoKey(taskRunExternalId: string, args: readonly unknown[]): Uint8Array {
+  const h = createHash('sha256');
+  h.update(taskRunExternalId);
+  h.update(JSON.stringify(args));
+  return new Uint8Array(h.digest());
 }
