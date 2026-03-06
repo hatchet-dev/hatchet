@@ -6,6 +6,7 @@ import {
   EVENT_KEY,
   SLEEP_TIME_SECONDS,
   REPLAY_RESET_SLEEP_SECONDS,
+  REPLAY_RESET_MEMOIZED_MAX_SECONDS,
   waitForSleepTwice,
   durableWithSpawn,
   durableWithBulkSpawn,
@@ -209,7 +210,7 @@ describe('durable-e2e', () => {
         if (i + 1 >= nodeId) {
           expect(durations[i]).toBeGreaterThanOrEqual(REPLAY_RESET_SLEEP_SECONDS);
         } else {
-          expect(durations[i]).toBeLessThan(REPLAY_RESET_SLEEP_SECONDS);
+          expect(durations[i]).toBeLessThan(REPLAY_RESET_MEMOIZED_MAX_SECONDS);
         }
       }
 

@@ -230,7 +230,9 @@ export const memoTask = hatchet.durableTask({
 
 // --- Replay reset ---
 
-export const REPLAY_RESET_SLEEP_SECONDS = 1;
+export const REPLAY_RESET_SLEEP_SECONDS = 3;
+/** Max duration (seconds) for a replayed/memoized step; above this we treat it as a real sleep. */
+export const REPLAY_RESET_MEMOIZED_MAX_SECONDS = 5;
 const REPLAY_RESET_SLEEP = `${REPLAY_RESET_SLEEP_SECONDS}s` as const;
 
 export const durableReplayReset = hatchet.durableTask({
