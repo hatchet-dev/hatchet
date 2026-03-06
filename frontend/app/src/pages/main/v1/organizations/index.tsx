@@ -1,13 +1,12 @@
+import { makeTenantColumns, TenantList } from './tenant-list';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import type {
   OrganizationForUser,
   OrganizationMember,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
 import {
   Tenant,
   TenantMember,
@@ -15,16 +14,14 @@ import {
 } from '@/lib/api/generated/data-contracts';
 import { globalEmitter } from '@/lib/global-emitter';
 import { getCloudMetadataQuery } from '@/pages/auth/hooks/use-cloud';
-import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
-import { userUniverseQuery, useUserUniverse } from '@/providers/user-universe';
+import { userUniverseQuery } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { PlusIcon } from '@heroicons/react/24/outline';
-import { Link, useLoaderData, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useLoaderData, useNavigate } from '@tanstack/react-router';
 import invariant from 'tiny-invariant';
 
-type TenantWithRole = Tenant & {
+export type TenantWithRole = Tenant & {
   currentUsersRole: TenantMemberRole;
 };
 
@@ -124,116 +121,14 @@ export const loader = async (): Promise<
   };
 };
 
-const makeTenantColumns = ({
-  isCloudEnabled,
-  onArchive,
-  onViewTenant,
-  onInviteMember,
-}: {
-  isCloudEnabled: boolean;
-  onArchive?: (tenant: TenantWithRole) => void;
-  onViewTenant: (tenantId: string) => void;
-  onInviteMember: (tenantId: string) => void;
-}) => [
-  {
-    columnLabel: 'Name',
-    cellRenderer: (tenant: TenantWithRole) => (
-      <Link
-        to={appRoutes.tenantRoute.to}
-        params={{ tenant: tenant.metadata.id }}
-        className="font-medium hover:underline"
-      >
-        {tenant.name}
-      </Link>
-    ),
-  },
-  {
-    columnLabel: 'ID',
-    cellRenderer: (tenant: TenantWithRole) => (
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-sm">{tenant.metadata.id}</span>
-        <CopyToClipboard text={tenant.metadata.id} />
-      </div>
-    ),
-  },
-  {
-    columnLabel: 'Slug',
-    cellRenderer: (tenant: TenantWithRole) => (
-      <span className="text-muted-foreground">{tenant.slug}</span>
-    ),
-  },
-  {
-    columnLabel: 'Actions',
-    cellRenderer: (tenant: TenantWithRole) => {
-      const canManage =
-        tenant.currentUsersRole === TenantMemberRole.OWNER ||
-        tenant.currentUsersRole === TenantMemberRole.ADMIN;
-
-      return (
-        <div className="flex items-center gap-2">
-          {canManage && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onInviteMember(tenant.metadata.id)}
-              leftIcon={<PlusIcon className="size-4" />}
-            >
-              Invite new member
-            </Button>
-          )}
-        </div>
-      );
-    },
-  },
-];
-
-const TenantList = ({ tenants }: { tenants: TenantWithRole[] }) => {
-  const navigate = useNavigate();
-
-  if (tenants.length === 0) {
-    return (
-      <div className="py-16 text-center">
-        <h3 className="mb-2 text-lg font-medium">No Tenants</h3>
-        <p className="text-muted-foreground">
-          You are not a member of any tenants.
-        </p>
-      </div>
-    );
-  }
-
-  const columns = makeTenantColumns({
-    isCloudEnabled: false,
-    onViewTenant: (tenantId) =>
-      navigate({
-        to: appRoutes.tenantRoute.to,
-        params: { tenant: tenantId },
-      }),
-    onInviteMember: (tenantId) =>
-      globalEmitter.emit('create-tenant-invite', { tenantId }),
-  });
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Tenants</h2>
-      <SimpleTable data={tenants} columns={columns} />
-    </div>
-  );
-};
-
 const OrganizationList = ({
   organizationsWithTenants,
 }: {
   organizationsWithTenants: OrgWithTenants[];
 }) => {
   const navigate = useNavigate();
-  const { invalidate: invalidateUserUniverse } = useUserUniverse();
-  const [tenantToArchive, setTenantToArchive] = useState<{
-    tenant: TenantWithRole;
-    orgName: string;
-  } | null>(null);
 
   const tenantColumns = makeTenantColumns({
-    isCloudEnabled: true,
     onViewTenant: (tenantId) =>
       navigate({
         to: appRoutes.tenantRoute.to,
@@ -241,12 +136,6 @@ const OrganizationList = ({
       }),
     onInviteMember: (tenantId) =>
       globalEmitter.emit('create-tenant-invite', { tenantId }),
-    onArchive: (tenant) => {
-      const org = organizationsWithTenants.find((o) =>
-        o.tenants.some((t) => t.metadata.id === tenant.metadata.id),
-      );
-      setTenantToArchive({ tenant, orgName: org?.name ?? '' });
-    },
   });
 
   if (organizationsWithTenants.length === 0) {
@@ -261,61 +150,42 @@ const OrganizationList = ({
   }
 
   return (
-    <>
-      <div className="space-y-8">
-        {organizationsWithTenants.map((org) => (
-          <div key={org.metadata.id} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{org.name}</h2>
-              {org.isOwner && (
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled>
-                    Invite to organization...
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      globalEmitter.emit('new-tenant', {
-                        defaultOrganizationId: org.metadata.id,
-                      });
-                    }}
-                    leftIcon={<PlusIcon className="size-4" />}
-                  >
-                    Add Tenant
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {org.tenants.length > 0 ? (
-              <SimpleTable data={org.tenants} columns={tenantColumns} />
-            ) : (
-              <p className="py-4 text-center text-muted-foreground">
-                No tenants in this organization.
-              </p>
+    <div className="space-y-8">
+      {organizationsWithTenants.map((org) => (
+        <div key={org.metadata.id} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">{org.name}</h2>
+            {org.isOwner && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled>
+                  Invite to organization...
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    globalEmitter.emit('new-tenant', {
+                      defaultOrganizationId: org.metadata.id,
+                    });
+                  }}
+                  leftIcon={<PlusIcon className="size-4" />}
+                >
+                  Add Tenant
+                </Button>
+              </div>
             )}
           </div>
-        ))}
-      </div>
 
-      {tenantToArchive && (
-        <DeleteTenantModal
-          open={!!tenantToArchive}
-          onOpenChange={(open) => !open && setTenantToArchive(null)}
-          tenant={{
-            id: tenantToArchive.tenant.metadata.id,
-            status: TenantStatusType.ACTIVE,
-          }}
-          tenantName={tenantToArchive.tenant.name}
-          organizationName={tenantToArchive.orgName}
-          onSuccess={() => {
-            invalidateUserUniverse();
-            setTenantToArchive(null);
-          }}
-        />
-      )}
-    </>
+          {org.tenants.length > 0 ? (
+            <SimpleTable data={org.tenants} columns={tenantColumns} />
+          ) : (
+            <p className="py-4 text-center text-muted-foreground">
+              No tenants in this organization.
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
   );
 };
 
