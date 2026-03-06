@@ -630,10 +630,6 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return status.Errorf(codes.Internal, "failed to ingest trigger runs event: %v", err)
 	}
 
-	if (len(ingestionResult.TriggerRunsResult.CreatedDAGs) + len(ingestionResult.TriggerRunsResult.CreatedTasks)) == 0 {
-		return status.Errorf(codes.Internal, "failed to ingest trigger runs event: no entries returned")
-	}
-
 	ackResp := &contracts.DurableTaskEventTriggerRunsAckResponse{
 		DurableTaskExternalId: req.DurableTaskExternalId,
 		InvocationCount:       req.InvocationCount,
