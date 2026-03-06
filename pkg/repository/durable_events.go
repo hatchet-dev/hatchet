@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/google/uuid"
@@ -441,122 +442,103 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		Branchids:             branchIds,
 		Nodeids:               nodeIds,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk-get existing entries: %w", err)
 	}
 
-	type branchNodeKey struct {
-		branchId int64
-		nodeId   int64
-	}
-
-	existingByKey := make(map[branchNodeKey]*sqlcv1.BulkGetDurableEventLogEntriesRow, len(existingEntries))
+	nodeIdBranchIdToExistingEntry := make(map[NodeIdBranchIdTuple]*sqlcv1.BulkGetDurableEventLogEntriesRow, len(existingEntries))
 	for _, e := range existingEntries {
-		existingByKey[branchNodeKey{e.BranchID, e.NodeID}] = e
+		nodeIdBranchIdToExistingEntry[NodeIdBranchIdTuple{e.NodeID, e.BranchID}] = e
 	}
 
-	type newEntryInfo struct{ optIdx int }
+	existedEntries := make(map[NodeIdBranchIdTuple]*sqlcv1.BulkGetDurableEventLogEntriesRow)
+	nodeIdBranchIdToNewEntry := make(map[NodeIdBranchIdTuple]GetOrCreateLogEntryOpt, 0)
 
-	var newEntries []newEntryInfo
-	existedEntries := make(map[int]*sqlcv1.BulkGetDurableEventLogEntriesRow)
-
-	for i, o := range opts.Entries {
-		key := branchNodeKey{o.BranchId, o.NodeId}
-		existing, found := existingByKey[key]
+	for _, o := range opts.Entries {
+		key := NodeIdBranchIdTuple{o.NodeId, o.BranchId}
+		existingEntry, found := nodeIdBranchIdToExistingEntry[key]
 
 		if !found {
-			newEntries = append(newEntries, newEntryInfo{optIdx: i})
+			nodeIdBranchIdToNewEntry[key] = o
 			continue
 		}
 
-		if !bytes.Equal(o.IdempotencyKey, existing.IdempotencyKey) {
+		if !bytes.Equal(o.IdempotencyKey, existingEntry.IdempotencyKey) {
 			return nil, &NonDeterminismError{
 				BranchId:               o.BranchId,
 				NodeId:                 o.NodeId,
 				TaskExternalId:         opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey: existing.IdempotencyKey,
+				ExpectedIdempotencyKey: existingEntry.IdempotencyKey,
 				ActualIdempotencyKey:   o.IdempotencyKey,
 			}
 		}
 
-		existedEntries[i] = existing
+		existedEntries[key] = existingEntry
 	}
 
-	var createdByNodeId map[int64]*sqlcv1.BulkGetDurableEventLogEntriesRow
+	nodeIdBranchIdToCreatedEntry := make(map[NodeIdBranchIdTuple]*sqlcv1.BulkCreateDurableEventLogEntriesRow)
 
-	if len(newEntries) > 0 {
+	if len(nodeIdBranchIdToNewEntry) > 0 {
 		createParams := sqlcv1.BulkCreateDurableEventLogEntriesParams{
-			Tenantids:              make([]uuid.UUID, len(newEntries)),
-			Externalids:            make([]uuid.UUID, len(newEntries)),
-			Durabletaskids:         make([]int64, len(newEntries)),
-			Durabletaskinsertedats: make([]pgtype.Timestamptz, len(newEntries)),
-			Kinds:                  make([]string, len(newEntries)),
-			Nodeids:                make([]int64, len(newEntries)),
-			Branchids:              make([]int64, len(newEntries)),
-			Idempotencykeys:        make([][]byte, len(newEntries)),
-			Issatisfieds:           make([]bool, len(newEntries)),
+			Tenantids:              make([]uuid.UUID, 0),
+			Externalids:            make([]uuid.UUID, 0),
+			Durabletaskids:         make([]int64, 0),
+			Durabletaskinsertedats: make([]pgtype.Timestamptz, 0),
+			Kinds:                  make([]string, 0),
+			Nodeids:                make([]int64, 0),
+			Branchids:              make([]int64, 0),
+			Idempotencykeys:        make([][]byte, 0),
+			Issatisfieds:           make([]bool, 0),
 		}
 
-		for j, ne := range newEntries {
-			o := opts.Entries[ne.optIdx]
-			createParams.Tenantids[j] = opts.TenantId
-			createParams.Externalids[j] = uuid.New()
-			createParams.Durabletaskids[j] = opts.DurableTaskId
-			createParams.Durabletaskinsertedats[j] = opts.DurableTaskInsertedAt
-			createParams.Kinds[j] = string(o.Kind)
-			createParams.Nodeids[j] = o.NodeId
-			createParams.Branchids[j] = o.BranchId
-			createParams.Idempotencykeys[j] = o.IdempotencyKey
-			createParams.Issatisfieds[j] = o.IsSatisfied
+		for _, entry := range nodeIdBranchIdToNewEntry {
+			createParams.Tenantids = append(createParams.Tenantids, opts.TenantId)
+			createParams.Externalids = append(createParams.Externalids, uuid.New())
+			createParams.Durabletaskids = append(createParams.Durabletaskids, opts.DurableTaskId)
+			createParams.Durabletaskinsertedats = append(createParams.Durabletaskinsertedats, opts.DurableTaskInsertedAt)
+			createParams.Kinds = append(createParams.Kinds, string(entry.Kind))
+			createParams.Nodeids = append(createParams.Nodeids, entry.NodeId)
+			createParams.Branchids = append(createParams.Branchids, entry.BranchId)
+			createParams.Idempotencykeys = append(createParams.Idempotencykeys, entry.IdempotencyKey)
+			createParams.Issatisfieds = append(createParams.Issatisfieds, entry.IsSatisfied)
 		}
 
-		createdRows, createErr := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
-		if createErr != nil {
-			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", createErr)
+		createdRows, err := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
+		if err != nil {
+			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", err)
 		}
 
-		createdByNodeId = make(map[int64]*sqlcv1.BulkGetDurableEventLogEntriesRow, len(createdRows))
-		for _, row := range createdRows {
-			createdByNodeId[row.NodeID] = &sqlcv1.BulkGetDurableEventLogEntriesRow{
-				TenantID:              row.TenantID,
-				ExternalID:            row.ExternalID,
-				InsertedAt:            row.InsertedAt,
-				ID:                    row.ID,
-				DurableTaskID:         row.DurableTaskID,
-				DurableTaskInsertedAt: row.DurableTaskInsertedAt,
-				Kind:                  row.Kind,
-				NodeID:                row.NodeID,
-				BranchID:              row.BranchID,
-				IdempotencyKey:        row.IdempotencyKey,
-				IsSatisfied:           row.IsSatisfied,
-				InvocationCount:       row.InvocationCount,
-			}
+		for _, createdRow := range createdRows {
+			nodeIdBranchIdToCreatedEntry[NodeIdBranchIdTuple{createdRow.NodeID, createdRow.BranchID}] = createdRow
 		}
 
-		storePayloadOpts := make([]StorePayloadOpts, 0, len(newEntries)*2)
-		for _, ne := range newEntries {
-			o := opts.Entries[ne.optIdx]
-			created, ok := createdByNodeId[o.NodeId]
+		storePayloadOpts := make([]StorePayloadOpts, 0, len(nodeIdBranchIdToNewEntry)*2)
+		for _, createdRow := range createdRows {
+			opt, ok := nodeIdBranchIdToNewEntry[NodeIdBranchIdTuple{createdRow.NodeID, createdRow.BranchID}]
+
 			if !ok {
 				continue
 			}
-			if len(o.InputPayload) > 0 {
+
+			if len(opt.InputPayload) > 0 {
 				storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-					Id:         created.ID,
-					InsertedAt: created.InsertedAt,
-					ExternalId: created.ExternalID,
+					Id:         createdRow.ID,
+					InsertedAt: createdRow.InsertedAt,
+					ExternalId: createdRow.ExternalID,
 					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
-					Payload:    o.InputPayload,
+					Payload:    opt.InputPayload,
 					TenantId:   opts.TenantId,
 				})
 			}
-			if len(o.ResultPayload) > 0 {
+
+			if len(opt.ResultPayload) > 0 {
 				storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-					Id:         created.ID,
-					InsertedAt: created.InsertedAt,
-					ExternalId: created.ExternalID,
+					Id:         createdRow.ID,
+					InsertedAt: createdRow.InsertedAt,
+					ExternalId: createdRow.ExternalID,
 					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-					Payload:    o.ResultPayload,
+					Payload:    opt.ResultPayload,
 					TenantId:   opts.TenantId,
 				})
 			}
@@ -589,7 +571,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 
 	results := make([]*EventLogEntryWithPayloads, n)
 	for i, o := range opts.Entries {
-		if existingEntry, ok := existedEntries[i]; ok {
+		key := NodeIdBranchIdTuple{o.NodeId, o.BranchId}
+		if existingEntry, ok := existedEntries[key]; ok {
 			var resultPayload []byte
 			if existingPayloads != nil {
 				resultPayload = existingPayloads[RetrievePayloadOpts{
@@ -606,15 +589,35 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 				AlreadyExisted: true,
 			}
 		} else {
-			created := createdByNodeId[o.NodeId]
+			created := nodeIdBranchIdToCreatedEntry[key]
 			results[i] = &EventLogEntryWithPayloads{
-				Entry:          created,
+				Entry: &sqlcv1.BulkGetDurableEventLogEntriesRow{
+					TenantID:              created.TenantID,
+					ExternalID:            created.ExternalID,
+					ID:                    created.ID,
+					DurableTaskID:         created.DurableTaskID,
+					DurableTaskInsertedAt: created.DurableTaskInsertedAt,
+					Kind:                  created.Kind,
+					NodeID:                created.NodeID,
+					BranchID:              created.BranchID,
+					IdempotencyKey:        created.IdempotencyKey,
+					IsSatisfied:           created.IsSatisfied,
+					InvocationCount:       created.InvocationCount,
+				},
 				InputPayload:   o.InputPayload,
 				ResultPayload:  o.ResultPayload,
 				AlreadyExisted: false,
 			}
 		}
 	}
+
+	slices.SortFunc(results, func(i, j *EventLogEntryWithPayloads) int {
+		if i.Entry.NodeID != j.Entry.NodeID {
+			return int(i.Entry.NodeID - j.Entry.NodeID)
+		}
+
+		return int(i.Entry.BranchID - j.Entry.BranchID)
+	})
 
 	return results, nil
 }
