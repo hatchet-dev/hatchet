@@ -759,6 +759,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	tasksByIdx := make(map[int][]*V1TaskWithPayload)
 	dagsByIdx := make(map[int][]*DAGWithData)
 
+	var memoResult *IngestMemoResult
+	var waitForResult *IngestWaitForResult
+	var triggerRunsResult *IngestTriggerRunsResult
+
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		var newTriggerOpts []*WorkflowNameTriggerOpts
@@ -768,7 +772,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			if le.AlreadyExisted {
 				continue
 			}
-			
+
 			newTriggerOpts = append(newTriggerOpts, triggerOptsByIdx[i])
 			newTriggerIdxs = append(newTriggerIdxs, i)
 		}
@@ -885,11 +889,9 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	return &IngestDurableTaskEventResult{
-		TriggerRunsResult: &IngestTriggerRunsResult{
-			InvocationCount: opts.InvocationCount,
-			Entries:         entries,
-			CreatedTasks: ,
-		},
+		MemoResult:        memoResult,
+		WaitForResult:     waitForResult,
+		TriggerRunsResult: triggerRunsResult,
 	}, nil
 }
 
