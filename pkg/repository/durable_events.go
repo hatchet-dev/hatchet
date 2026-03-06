@@ -91,6 +91,7 @@ type IngestWaitForResult struct {
 }
 
 type IngestDurableTaskEventResult struct {
+	Kind              sqlcv1.V1DurableEventLogKind
 	MemoResult        *IngestMemoResult
 	TriggerRunsResult *IngestTriggerRunsResult
 	WaitForResult     *IngestWaitForResult
@@ -889,6 +890,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	return &IngestDurableTaskEventResult{
+		Kind:              opts.Kind,
 		MemoResult:        memoResult,
 		WaitForResult:     waitForResult,
 		TriggerRunsResult: triggerRunsResult,
