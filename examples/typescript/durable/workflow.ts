@@ -139,6 +139,16 @@ export const durableWithSpawn = hatchet.durableTask({
   },
 });
 
+export const durableWithBulkSpawn = hatchet.durableTask({
+  name: 'durable-with-bulk-spawn',
+  executionTimeout: '10m',
+  fn: async (_input, ctx) => {
+    const inputs = Array.from({ length: 10 }, () => ({}));
+    const childResults = await spawnChildTask.run(inputs);
+    return { child_outputs: childResults };
+  },
+});
+
 export const durableSleepEventSpawn = hatchet.durableTask({
   name: 'durable-sleep-event-spawn',
   executionTimeout: '10m',
@@ -203,26 +213,24 @@ export const durableNonDeterminism = hatchet.durableTask({
 
 const MEMO_SLEEP_MS = 2000;
 
-async function expensiveComputation(
-  message: string
-): Promise<{ message: string; duration: number }> {
-  await sleep(MEMO_SLEEP_MS);
-  return { message, duration: MEMO_SLEEP_MS / 1000 };
-}
-
 export const memoTask = hatchet.durableTask({
   name: 'memo-task',
   executionTimeout: '10m',
   fn: async (input: { message: string }, ctx) => {
     const start = Date.now();
-    const res = await ctx.memo(expensiveComputation, input.message);
+    const res = await ctx.memo(async () => {
+      await sleep(MEMO_SLEEP_MS);
+      return { message: input.message, duration: MEMO_SLEEP_MS / 1000 };
+    }, [input.message]);
     return { message: res.message, duration: (Date.now() - start) / 1000 };
   },
 });
 
 // --- Replay reset ---
 
-export const REPLAY_RESET_SLEEP_SECONDS = 1;
+export const REPLAY_RESET_SLEEP_SECONDS = 3;
+/** Max duration (seconds) for a replayed/memoized step; above this we treat it as a real sleep. */
+export const REPLAY_RESET_MEMOIZED_MAX_SECONDS = 5;
 const REPLAY_RESET_SLEEP = `${REPLAY_RESET_SLEEP_SECONDS}s` as const;
 
 export const durableReplayReset = hatchet.durableTask({

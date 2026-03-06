@@ -30,6 +30,21 @@ export const evictableSleep = hatchet.durableTask({
   },
 });
 
+// NOTE: DO NOT REGISTER ON E2E TEST WORKER
+export const evictableSleepForGracefulTermination = hatchet.durableTask({
+  name: 'evictable-sleep-for-graceful-termination',
+  executionTimeout: '5m',
+  evictionPolicy: {
+    ttl: `30m`,
+    allowCapacityEviction: true,
+    priority: 0,
+  },
+  fn: async (_input, ctx) => {
+    await ctx.sleepFor(`5m`);
+    return { status: 'completed' };
+  },
+});
+
 export const evictableWaitForEvent = hatchet.durableTask({
   name: 'evictable-wait-for-event',
   executionTimeout: '5m',
@@ -58,6 +73,27 @@ export const multipleEviction = hatchet.durableTask({
     await ctx.sleepFor(`${LONG_SLEEP_SECONDS}s`);
     await ctx.sleepFor(`${LONG_SLEEP_SECONDS}s`);
     return { status: 'completed' };
+  },
+});
+
+export const bulkChildTask = hatchet.task({
+  name: 'eviction-bulk-child-task',
+  fn: async (input: { sleepSeconds: number }) => {
+    await sleep(input.sleepSeconds * 1000);
+    return { sleepSeconds: input.sleepSeconds, status: 'completed' };
+  },
+});
+
+export const evictableChildBulkSpawn = hatchet.durableTask({
+  name: 'evictable-child-bulk-spawn',
+  executionTimeout: '5m',
+  evictionPolicy: EVICTION_POLICY,
+  fn: async (_input, ctx) => {
+    const inputs = Array.from({ length: 3 }, (_, i) => ({
+      sleepSeconds: (EVICTION_TTL_SECONDS + 5) * (i + 1),
+    }));
+    const childResults = await bulkChildTask.run(inputs);
+    return { child_results: childResults, status: 'completed' };
   },
 });
 

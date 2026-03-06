@@ -19,6 +19,7 @@ import {
   waitForSleepTwice,
   spawnChildTask,
   durableWithSpawn,
+  durableWithBulkSpawn,
   durableSleepEventSpawn,
   durableWithExplicitSpawn,
   durableNonDeterminism,
@@ -35,6 +36,8 @@ import {
   multipleEviction,
   nonEvictableSleep,
   childTask as evictionChildTask,
+  bulkChildTask,
+  evictableChildBulkSpawn,
 } from './durable_eviction/workflow';
 import { durableSleep } from './durable_sleep/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
@@ -65,6 +68,7 @@ const workflows = [
   waitForSleepTwice,
   spawnChildTask,
   durableWithSpawn,
+  durableWithBulkSpawn,
   durableSleepEventSpawn,
   durableWithExplicitSpawn,
   durableNonDeterminism,
@@ -81,6 +85,8 @@ const workflows = [
   multipleEviction,
   nonEvictableSleep,
   evictionChildTask,
+  bulkChildTask,
+  evictableChildBulkSpawn,
   createLoggingWorkflow(hatchet),
   nonRetryableWorkflow,
   failureWorkflow,
