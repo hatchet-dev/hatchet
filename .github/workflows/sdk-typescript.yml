@@ -211,7 +211,18 @@ jobs:
 
       - name: Pull release images
         working-directory: .
-        run: docker compose -f docker-compose.yml -f docker-compose.release.yml pull hatchet-migrate hatchet-admin hatchet-engine hatchet-api
+        run: |
+          for i in 1 2 3; do
+            if docker compose -f docker-compose.yml -f docker-compose.release.yml pull hatchet-migrate hatchet-admin hatchet-engine hatchet-api; then
+              exit 0
+            fi
+            if [ "$i" -lt 3 ]; then
+              echo "Pull failed (attempt $i/3), retrying in 45s..."
+              sleep 45
+            fi
+          done
+          echo "Pull failed after 3 attempts"
+          exit 1
 
       - name: Run migrations
         working-directory: .
