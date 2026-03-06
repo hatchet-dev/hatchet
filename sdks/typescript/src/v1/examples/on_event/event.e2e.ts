@@ -205,13 +205,15 @@ describe('events-e2e', () => {
 
     expect(result.events.length).toBe(3);
 
-    // Sort and verify namespacing
+    // Sort and verify: returned keys may be namespaced (e.g. namespace_simple-event:create)
     const sortedEvents = [...events].sort((a, b) => a.key.localeCompare(b.key));
     const sortedResults = [...result.events].sort((a, b) => a.key.localeCompare(b.key));
 
     sortedEvents.forEach((originalEvent, index) => {
       const returnedEvent = sortedResults[index];
-      expect(returnedEvent.key.endsWith(originalEvent.key)).toBe(true);
+      expect(
+        returnedEvent.key === originalEvent.key || returnedEvent.key.endsWith(originalEvent.key)
+      ).toBe(true);
     });
   }, 15000);
 
