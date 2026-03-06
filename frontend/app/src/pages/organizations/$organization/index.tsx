@@ -559,7 +559,7 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  globalEmitter.emit('new-tenant', {
+                  globalEmitter.emit('create-new-tenant', {
                     defaultOrganizationId: organization.metadata.id,
                   });
                 }}
@@ -620,7 +620,7 @@ export default function OrganizationPage() {
                     </p>
                     <Button
                       onClick={() => {
-                        globalEmitter.emit('new-tenant', {
+                        globalEmitter.emit('create-new-tenant', {
                           defaultOrganizationId: organization.metadata.id,
                         });
                       }}

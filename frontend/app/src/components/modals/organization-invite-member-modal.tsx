@@ -9,7 +9,10 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { cloudApi } from '@/lib/api/api';
-import { OrganizationMemberRoleType } from '@/lib/api/generated/cloud/data-contracts';
+import {
+  CreateOrganizationInviteRequest,
+  OrganizationMemberRoleType,
+} from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,24 +26,22 @@ const schema = z.object({
 });
 
 export type OrganizationInviteMemberModalProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   organizationId: string;
   organizationName: string;
-  onSuccess: () => void;
+  onClose: () => void;
+  onCreated: (invite: CreateOrganizationInviteRequest) => void;
 };
 
 export const OrganizationInviteMemberModal = ({
-  open,
-  onOpenChange,
   organizationId,
   organizationName,
-  onSuccess,
+  onClose,
+  onCreated,
 }: OrganizationInviteMemberModalProps) => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const { handleApiError } = useApiError({
-    setFieldErrors: setFieldErrors,
+    setFieldErrors,
   });
 
   const {
@@ -57,16 +58,17 @@ export const OrganizationInviteMemberModal = ({
 
   const inviteMemberMutation = useMutation({
     mutationFn: async (data: { email: string }) => {
-      const result = await cloudApi.organizationInviteCreate(organizationId, {
+      const request: CreateOrganizationInviteRequest = {
         inviteeEmail: data.email,
         role: OrganizationMemberRoleType.OWNER,
-      });
-      return result.data;
+      };
+      await cloudApi.organizationInviteCreate(organizationId, request);
+      return request;
     },
-    onSuccess: () => {
+    onSuccess: (request) => {
       reset();
-      onSuccess();
-      onOpenChange(false);
+      onCreated(request);
+      onClose();
     },
     onError: handleApiError,
   });
@@ -74,14 +76,12 @@ export const OrganizationInviteMemberModal = ({
   const emailError = errors.email?.message?.toString() || fieldErrors?.email;
 
   useEffect(() => {
-    if (!open) {
-      reset();
-      setFieldErrors({});
-    }
-  }, [open, reset]);
+    reset();
+    setFieldErrors({});
+  }, [reset]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -119,11 +119,7 @@ export const OrganizationInviteMemberModal = ({
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={inviteMemberMutation.isPending}>

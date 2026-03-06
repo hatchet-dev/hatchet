@@ -17,6 +17,7 @@ import {
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api, { CreateTenantInviteRequest, TenantMemberRole } from '@/lib/api';
+import { TenantInvite } from '@/lib/api/generated/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -130,9 +131,11 @@ const CreateTenantInviteForm = ({
 export const CreateTenantInviteModal = ({
   tenantId,
   onClose,
+  onCreated,
 }: {
   tenantId: string;
   onClose: () => void;
+  onCreated: (invite: TenantInvite) => void;
 }) => {
   const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -145,9 +148,13 @@ export const CreateTenantInviteModal = ({
   const createMutation = useMutation({
     mutationKey: ['tenant-invite:create', tenantId],
     mutationFn: async (data: CreateTenantInviteRequest) => {
-      await api.tenantInviteCreate(tenantId, data);
+      const res = await api.tenantInviteCreate(tenantId, data);
+      return res.data;
     },
-    onSuccess: onClose,
+    onSuccess: (invite) => {
+      onCreated(invite);
+      onClose();
+    },
     onError: handleApiError,
   });
 

@@ -264,7 +264,7 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
+      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
         setDefaultOrganizationId(defaultOrganizationId);
         setNewTenantModalOpen(true);
       }),
@@ -345,15 +345,25 @@ function AuthenticatedInner() {
           <CreateTenantInviteModal
             tenantId={inviteModalTenantId}
             onClose={() => setInviteModalTenantId(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('tenant-invite-created', {
+                tenantId: inviteModalTenantId,
+                invite,
+              });
+            }}
           />
         )}
         {orgInviteModal && (
           <OrganizationInviteMemberModal
-            open={!!orgInviteModal}
-            onOpenChange={(open) => !open && setOrgInviteModal(undefined)}
             organizationId={orgInviteModal.organizationId}
             organizationName={orgInviteModal.organizationName}
-            onSuccess={() => setOrgInviteModal(undefined)}
+            onClose={() => setOrgInviteModal(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('organization-invite-created', {
+                organizationId: orgInviteModal.organizationId,
+                invite,
+              });
+            }}
           />
         )}
       </SupportChat>

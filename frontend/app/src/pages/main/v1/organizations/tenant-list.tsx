@@ -10,6 +10,7 @@ import {
   TableRow,
 } from '@/components/v1/ui/table';
 import {
+  TenantInvite,
   TenantMember,
   TenantMemberRole,
 } from '@/lib/api/generated/data-contracts';
@@ -17,16 +18,19 @@ import { globalEmitter } from '@/lib/global-emitter';
 import { capitalize } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
+import { formatInviteExpiry } from './format-invite-expiry';
 import { useState } from 'react';
 
 export const TenantTable = ({
   tenants,
   tenantMembers,
+  tenantInvites,
   onInviteMember,
 }: {
   tenants: TenantWithRole[];
   tenantMembers: Map<string, null | TenantMember[]>;
+  tenantInvites: Map<string, null | TenantInvite[]>;
   onInviteMember: (tenantId: string) => void;
 }) => {
   const [expandedTenants, setExpandedTenants] = useState<Set<string>>(
@@ -63,6 +67,7 @@ export const TenantTable = ({
               tenant.currentUsersRole === TenantMemberRole.OWNER ||
               tenant.currentUsersRole === TenantMemberRole.ADMIN;
             const members = tenantMembers.get(tenant.metadata.id);
+            const invites = tenantInvites.get(tenant.metadata.id) ?? [];
             const isExpanded = expandedTenants.has(tenant.metadata.id);
 
             return (
@@ -97,7 +102,7 @@ export const TenantTable = ({
                         <ChevronRightIcon
                           className={`size-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                         />
-                        {members.length}
+                        {members.length + invites.length}
                       </button>
                     ) : null}
                   </TableCell>
@@ -135,6 +140,25 @@ export const TenantTable = ({
                       <TableCell />
                     </TableRow>
                   ))}
+                {isExpanded &&
+                  invites.map((invite) => (
+                    <TableRow
+                      key={`${tenant.metadata.id}-invite-${invite.metadata.id}`}
+                      className="bg-muted/30 text-muted-foreground"
+                    >
+                      <TableCell />
+                      <TableCell>
+                        <span className="text-sm">{invite.email}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          Invited {formatInviteExpiry(invite.expires)}
+                        </span>
+                      </TableCell>
+                      <TableCell />
+                      <TableCell />
+                    </TableRow>
+                  ))}
               </>
             );
           })}
@@ -147,9 +171,11 @@ export const TenantTable = ({
 export const TenantList = ({
   tenants,
   tenantMembers,
+  tenantInvites,
 }: {
   tenants: TenantWithRole[];
   tenantMembers: Map<string, null | TenantMember[]>;
+  tenantInvites: Map<string, null | TenantInvite[]>;
 }) => {
   if (tenants.length === 0) {
     return (
@@ -168,6 +194,7 @@ export const TenantList = ({
       <TenantTable
         tenants={tenants}
         tenantMembers={tenantMembers}
+        tenantInvites={tenantInvites}
         onInviteMember={(tenantId) =>
           globalEmitter.emit('create-tenant-invite', { tenantId })
         }

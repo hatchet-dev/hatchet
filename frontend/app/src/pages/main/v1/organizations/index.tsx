@@ -1,4 +1,5 @@
 import { TenantList, TenantTable } from './tenant-list';
+import { Button } from '@/components/v1/ui/button';
 import {
   Table,
   TableBody,
@@ -7,7 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
-import { Button } from '@/components/v1/ui/button';
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import type {
@@ -16,6 +16,7 @@ import type {
   OrganizationMember,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { OrganizationInviteStatus } from '@/lib/api/generated/cloud/data-contracts';
+import type { CreateOrganizationInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
 import {
   Tenant,
   TenantInvite,
@@ -29,7 +30,8 @@ import { userUniverseQuery } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { useLoaderData } from '@tanstack/react-router';
-import { differenceInCalendarDays } from 'date-fns';
+import { formatInviteExpiry } from './format-invite-expiry';
+import { useEffect, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export type TenantWithRole = Tenant & {
@@ -157,23 +159,15 @@ export const loader = async (): Promise<
   };
 };
 
-const formatInviteExpiry = (expires: string) => {
-  const days = differenceInCalendarDays(new Date(expires), new Date());
-  if (days < 0) return 'Invited (expired)';
-  if (days === 0) return 'Invited (expires today)';
-  if (days === 1) return 'Invited (expires in 1 day)';
-  return `Invited (expires in ${days} days)`;
-};
-
 const OrganizationMembersTable = ({
   members,
   invites,
 }: {
   members: OrganizationMember[];
-  invites: OrganizationInvite[];
+  invites: (OrganizationInvite | CreateOrganizationInviteRequest)[];
 }) => {
   const pendingInvites = invites.filter(
-    (i) => i.status === OrganizationInviteStatus.PENDING,
+    (i) => !('status' in i) || i.status === OrganizationInviteStatus.PENDING,
   );
 
   return (
@@ -195,9 +189,17 @@ const OrganizationMembersTable = ({
             </TableRow>
           ))}
           {pendingInvites.map((invite) => (
-            <TableRow key={invite.metadata.id} className="text-muted-foreground">
+            <TableRow
+              key={
+                'metadata' in invite ? invite.metadata.id : invite.inviteeEmail
+              }
+              className="text-muted-foreground"
+            >
               <TableCell>{invite.inviteeEmail}</TableCell>
-              <TableCell>{formatInviteExpiry(invite.expires)}</TableCell>
+              <TableCell>
+                Invited{' '}
+                {'expires' in invite && formatInviteExpiry(invite.expires)}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -211,11 +213,16 @@ const OrganizationList = ({
   organizationMembers,
   organizationInvites,
   tenantMembers,
+  tenantInvites,
 }: {
   organizationsWithTenants: OrgWithTenants[];
   organizationMembers: Map<string, OrganizationMember[]>;
-  organizationInvites: Map<string, OrganizationInvite[]>;
+  organizationInvites: Map<
+    string,
+    (OrganizationInvite | CreateOrganizationInviteRequest)[]
+  >;
   tenantMembers: Map<string, null | TenantMember[]>;
+  tenantInvites: Map<string, null | TenantInvite[]>;
 }) => {
   if (organizationsWithTenants.length === 0) {
     return (
@@ -246,7 +253,7 @@ const OrganizationList = ({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      globalEmitter.emit('new-tenant', {
+                      globalEmitter.emit('create-new-tenant', {
                         defaultOrganizationId: org.metadata.id,
                       });
                     }}
@@ -260,6 +267,7 @@ const OrganizationList = ({
                 <TenantTable
                   tenants={org.tenants}
                   tenantMembers={tenantMembers}
+                  tenantInvites={tenantInvites}
                   onInviteMember={(tenantId) =>
                     globalEmitter.emit('create-tenant-invite', { tenantId })
                   }
@@ -314,11 +322,46 @@ export default function OrganizationsPage() {
     from: '/tenants/$tenant/organizations',
   }) as Awaited<ReturnType<typeof loader>>;
 
+  const [organizationInvites, setOrganizationInvites] = useState<
+    Map<string, (OrganizationInvite | CreateOrganizationInviteRequest)[]>
+  >(loaderData.isCloudEnabled ? loaderData.organizationInvites : new Map());
+  const [tenantInvites, setTenantInvites] = useState(loaderData.tenantInvites);
+
+  useEffect(
+    () =>
+      globalEmitter.on(
+        'organization-invite-created',
+        ({ organizationId, invite }) => {
+          setOrganizationInvites((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(organizationId) ?? [];
+            next.set(organizationId, [...existing, invite]);
+            return next;
+          });
+        },
+      ),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on('tenant-invite-created', ({ tenantId, invite }) => {
+        setTenantInvites((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(tenantId) ?? [];
+          next.set(tenantId, [...existing, invite]);
+          return next;
+        });
+      }),
+    [],
+  );
+
   if (!loaderData.isCloudEnabled) {
     return (
       <TenantList
         tenants={loaderData.tenants}
         tenantMembers={loaderData.tenantMembers}
+        tenantInvites={tenantInvites}
       />
     );
   }
@@ -327,8 +370,9 @@ export default function OrganizationsPage() {
     <OrganizationList
       organizationsWithTenants={loaderData.organizationsWithTenants}
       organizationMembers={loaderData.organizationMembers}
-      organizationInvites={loaderData.organizationInvites}
+      organizationInvites={organizationInvites}
       tenantMembers={loaderData.tenantMembers}
+      tenantInvites={tenantInvites}
     />
   );
 }
