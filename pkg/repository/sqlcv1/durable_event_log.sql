@@ -79,48 +79,6 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND branch_id = @branchId::BIGINT
   AND node_id = @nodeId::BIGINT;
 
--- name: CreateDurableEventLogEntry :one
-INSERT INTO v1_durable_event_log_entry (
-    tenant_id,
-    external_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    inserted_at,
-    kind,
-    node_id,
-    branch_id,
-    invocation_count,
-    idempotency_key,
-    is_satisfied
-)
-VALUES (
-    @tenantId::UUID,
-    @externalId::UUID,
-    @durableTaskId::BIGINT,
-    @durableTaskInsertedAt::TIMESTAMPTZ,
-    NOW(),
-    @kind::v1_durable_event_log_kind,
-    @nodeId::BIGINT,
-    @branchId::BIGINT,
-    @invocationCount::INTEGER,
-    @idempotencyKey::BYTEA,
-    @isSatisfied::BOOLEAN
-)
-ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
-RETURNING *
-;
-
--- name: UpdateDurableEventLogEntryInvocationCount :one
-UPDATE v1_durable_event_log_entry
-SET
-    invocation_count = @invocationCount::INTEGER,
-    idempotency_key = @idempotencyKey::BYTEA
-WHERE durable_task_id = @durableTaskId::BIGINT
-  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-  AND branch_id = @branchId::BIGINT
-  AND node_id = @nodeId::BIGINT
-RETURNING *
-;
 
 -- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
