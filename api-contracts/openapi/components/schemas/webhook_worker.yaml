@@ -66,6 +66,7 @@ WebhookWorkerCreated:
     - url
     - secret
   type: object
+  x-rbac: ["member"]
 
 WebhookWorkerCreateRequest:
   properties:

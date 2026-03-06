@@ -645,7 +645,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	authnMW := authn.NewAuthN(t.config)
-	authzMW := authz.NewAuthZ(t.config)
+	authzMW := authz.NewAuthZ(t.config, spec)
 
 	mw, err := hatchetmiddleware.NewMiddlewareHandler(spec)
 

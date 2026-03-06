@@ -3,10 +3,13 @@ package authz
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
+	"gopkg.in/yaml.v3"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -15,14 +18,15 @@ import (
 
 type AuthZ struct {
 	config *server.ServerConfig
-
-	l *zerolog.Logger
+	rbac   *Authorizer
+	l      *zerolog.Logger
 }
 
-func NewAuthZ(config *server.ServerConfig) *AuthZ {
+func NewAuthZ(config *server.ServerConfig, spec *openapi3.T) *AuthZ {
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
+		rbac:   NewAuthorizer(),
 	}
 }
 
@@ -95,7 +99,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		c.Set("tenant-member", tenantMember)
 
 		// authorize tenant operations
-		if err := a.authorizeTenantOperations(tenant, tenantMember, r); err != nil {
+		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
 			a.l.Debug().Err(err).Msgf("error authorizing tenant operations")
 
 			return unauthorized
@@ -109,17 +113,10 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return nil
 }
 
-var restrictedWithBearerToken = []string{
-	// bearer tokens cannot read, list, or write other bearer tokens
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-}
-
 // At the moment, there's no further bearer auth because bearer tokens are admin-scoped
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if operationIn(r.OperationID, restrictedWithBearerToken) {
+	if !a.rbac.IsAuthorized(sqlcv1.TenantMemberRoleBEARERTOKEN, r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
@@ -134,11 +131,6 @@ func (a *AuthZ) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return a.config.Auth.CustomAuthenticator.Authorize(c, r)
 }
 
-var permittedWithUnverifiedEmail = []string{
-	"UserGetCurrent",
-	"UserUpdateLogout",
-}
-
 func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
 	user, ok := c.Get("user").(*sqlcv1.User)
 
@@ -146,7 +138,7 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 		return nil
 	}
 
-	if operationIn(r.OperationID, permittedWithUnverifiedEmail) {
+	if a.rbac.IsAuthorized(sqlcv1.TenantMemberRoleUNVERIFIEDEMAIL, r.OperationID) {
 		return nil
 	}
 
@@ -157,33 +149,10 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 	return nil
 }
 
-var adminAndOwnerOnly = []string{
-	"TenantInviteList",
-	"TenantInviteCreate",
-	"TenantInviteUpdate",
-	"TenantInviteDelete",
-	"TenantMemberList",
-	"TenantMemberUpdate",
-	// members cannot create API tokens for a tenant, because they have admin permissions
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-}
-
-func (a *AuthZ) authorizeTenantOperations(tenant *sqlcv1.Tenant, tenantMember *sqlcv1.PopulateTenantMembersRow, r *middleware.RouteInfo) error {
-	// if the user is an owner, they can do anything
-	if tenantMember.Role == sqlcv1.TenantMemberRoleOWNER {
-		return nil
-	}
-
-	// if the user is an admin, they can do anything at the moment. Some downstream handlers will case on
-	// admin roles, for example admins cannot mark users as owners.
-	if tenantMember.Role == sqlcv1.TenantMemberRoleADMIN {
-		return nil
-	}
+func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRole, r *middleware.RouteInfo) error {
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if operationIn(r.OperationID, adminAndOwnerOnly) {
+	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
@@ -200,4 +169,68 @@ func operationIn(operationId string, operationIds []string) bool {
 	}
 
 	return false
+}
+
+type Authorizer struct {
+	permissionMap PermissionMap
+}
+
+func NewAuthorizer() *Authorizer {
+	permMap, err := LoadYaml()
+	if err != nil {
+		return nil
+	}
+	return &Authorizer{
+		permissionMap: *permMap,
+	}
+}
+
+func (a *Authorizer) IsAuthorized(role sqlcv1.TenantMemberRole, operation string) bool {
+	return operationIn(operation, *a.permissionMap.Roles[string(role)].Permissions)
+}
+
+type Role struct {
+	Inherits    *[]string
+	Permissions *[]string
+	propagated  bool
+}
+type PermissionMap struct {
+	Roles map[string]*Role
+}
+
+func (b *PermissionMap) RecurseOnRole(role *Role) []string {
+	if role.Inherits == nil || role.propagated {
+		role.propagated = true
+		return *role.Permissions
+	}
+	mergedPerms := make([]string, 0)
+	for _, perm := range *role.Inherits {
+		mergedPerms = append(mergedPerms, b.RecurseOnRole(b.Roles[perm])...)
+	}
+	if role.Permissions != nil {
+		mergedPerms = append(mergedPerms, *role.Permissions...)
+	}
+	role.Permissions = &mergedPerms
+	role.propagated = true
+	return mergedPerms
+}
+
+func (b *PermissionMap) PropagatePerms() {
+	for _, role := range b.Roles {
+		b.RecurseOnRole(role)
+	}
+}
+
+func LoadYaml() (*PermissionMap, error) {
+	yamlFile, err := os.ReadFile("rbac.yaml")
+	if err != nil {
+		return nil, err
+	}
+	var yamlContents PermissionMap
+	err = yaml.Unmarshal(yamlFile, &yamlContents)
+	if err != nil {
+		return nil, err
+	}
+	yamlContents.PropagatePerms()
+	return &yamlContents, nil
 }
