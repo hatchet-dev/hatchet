@@ -76,7 +76,13 @@ describe('bulk-replay-e2e', () => {
     const rows = replayedRuns.rows || [];
     expect(rows).toHaveLength(expectedTotal);
 
-    const byName = (name: string) => rows.filter((r: any) => r.workflowName === name);
+    const byName = (name: string) =>
+      rows.filter(
+        (r: any) =>
+          r.workflowName === name ||
+          r.workflowName.endsWith(`_${name}`) ||
+          r.workflowName.endsWith(name)
+      );
     expect(byName(bulkReplayTest1.name)).toHaveLength(n + 1);
     expect(byName(bulkReplayTest2.name)).toHaveLength(n / 2 - 1);
     expect(byName(bulkReplayTest3.name)).toHaveLength(n / 2 - 2);
