@@ -37,7 +37,7 @@ func main() {
 
 	_ = func() error {
 		// > AffinityRun
-		result, err := affinityWorkflow.RunNoWait(context.Background(), nil,
+		result, runErr := affinityWorkflow.RunNoWait(context.Background(), nil,
 			hatchet.WithDesiredWorkerLabels(map[string]*hatchet.DesiredWorkerLabel{
 				"model": {
 					Value:  "fancy-ai-model-v2",
@@ -50,8 +50,8 @@ func main() {
 				},
 			}),
 		)
-		if err != nil {
-			return fmt.Errorf("failed to run workflow: %w", err)
+		if runErr != nil {
+			return fmt.Errorf("failed to run workflow: %w", runErr)
 		}
 
 		fmt.Println(result.RunId)

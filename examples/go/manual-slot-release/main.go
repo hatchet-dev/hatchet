@@ -29,9 +29,8 @@ func main() {
 
 		// Release the slot after the resource-intensive process,
 		// so that other steps can run on this worker.
-		err := ctx.ReleaseSlot()
-		if err != nil {
-			return nil, fmt.Errorf("failed to release slot: %w", err)
+		if releaseErr := ctx.ReleaseSlot(); releaseErr != nil {
+			return nil, fmt.Errorf("failed to release slot: %w", releaseErr)
 		}
 
 		fmt.Println("NON RESOURCE INTENSIVE PROCESS")
