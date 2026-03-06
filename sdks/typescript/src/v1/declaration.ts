@@ -494,10 +494,10 @@ export class BaseWorkflowDeclaration<
     if (durableCtx) {
       if (Array.isArray(input)) {
         return durableCtx.spawnChildren(
-          input.map((inp) => ({ workflow: this as any, input: inp as any, options }))
-        ) as Promise<O[]> as Promise<O | O[]>;
+          input.map((inp) => ({ workflow: this, input: inp, options }))
+        );
       }
-      return durableCtx.spawnChild(this as any, input as any, options) as Promise<O>;
+      return durableCtx.spawnChild(this, input, options);
     }
 
     if (Array.isArray(input)) {

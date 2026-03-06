@@ -16,7 +16,6 @@ import {
   BaseWorkflowDeclaration as WorkflowV1,
 } from '@hatchet/v1/declaration';
 import HatchetError from '@util/errors/hatchet-error';
-import { JsonObject } from '@bufbuild/protobuf';
 import { Action } from '@hatchet/clients/dispatcher/action-listener';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
@@ -24,7 +23,7 @@ import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
-import { OutputType } from '@hatchet/v1/types';
+import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
@@ -991,7 +990,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param options - Options for spawning the child workflow.
    * @returns The result of the child workflow.
    */
-  async spawnChild<Q extends JsonObject, P extends JsonObject>(
+  async spawnChild<Q extends JsonObject, P extends OutputType>(
     workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input?: Q,
     options?: ChildRunOpts
@@ -1007,7 +1006,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param children - An array of objects containing the workflow, input, and options for each child.
    * @returns A list of results from the child workflows.
    */
-  async spawnChildren<Q extends JsonObject, P extends JsonObject>(
+  async spawnChildren<Q extends JsonObject, P extends OutputType>(
     children: Array<{
       workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>;
       input: Q;
