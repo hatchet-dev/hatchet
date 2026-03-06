@@ -24,10 +24,14 @@ type AuthZ struct {
 }
 
 func NewAuthZ(config *server.ServerConfig) *AuthZ {
+	rbacAuthorizer, err := NewAuthorizer()
+	if err != nil {
+		panic(err)
+	}
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
-		rbac:   NewAuthorizer(),
+		rbac:   rbacAuthorizer,
 	}
 }
 
@@ -188,50 +192,77 @@ type Authorizer struct {
 	permissionMap PermissionMap
 }
 
-func NewAuthorizer() *Authorizer {
+func NewAuthorizer() (*Authorizer, error) {
 	permMap, err := LoadYaml()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	return &Authorizer{
 		permissionMap: *permMap,
-	}
+	}, nil
 }
 
 func (a *Authorizer) IsAuthorized(role sqlcv1.TenantMemberRole, operation string) bool {
-	return operationIn(operation, *a.permissionMap.Roles[string(role)].Permissions)
+	return a.permissionMap.HasPermission(string(role), operation)
 }
 
 type Role struct {
 	Inherits    *[]string
 	Permissions *[]string
-	propagated  bool
 }
+
+type PermissionError struct {
+	Message string
+}
+
+func (e *PermissionError) Error() string {
+	return e.Message
+}
+
 type PermissionMap struct {
 	Roles map[string]*Role
 }
 
-func (p *PermissionMap) RecurseOnRole(role *Role) []string {
-	if role.Inherits == nil || role.propagated {
-		role.propagated = true
-		return *role.Permissions
+func (p *PermissionMap) HasPermission(roleName string, operation string) bool {
+	curRole := p.Roles[roleName]
+	if curRole.Permissions != nil {
+		inRole := operationIn(operation, *curRole.Permissions)
+		if inRole {
+			return true
+		}
 	}
-	mergedPerms := []string{}
-	for _, perm := range *role.Inherits {
-		mergedPerms = append(mergedPerms, p.RecurseOnRole(p.Roles[perm])...)
+	if curRole.Inherits != nil {
+		for _, inheritedRoleName := range *curRole.Inherits {
+			if p.HasPermission(inheritedRoleName, operation) {
+				return true
+			}
+		}
 	}
-	if role.Permissions != nil {
-		mergedPerms = append(mergedPerms, *role.Permissions...)
-	}
-	role.Permissions = &mergedPerms
-	role.propagated = true
-	return mergedPerms
+	return false
 }
 
-func (p *PermissionMap) PropagatePerms() {
-	for _, role := range p.Roles {
-		p.RecurseOnRole(role)
+func (p *PermissionMap) ValidInheritance(roleName string) error {
+	if p.Roles[roleName].Inherits == nil {
+		return nil
 	}
+	for _, inheritedRole := range *p.Roles[roleName].Inherits {
+		_, ok := p.Roles[inheritedRole]
+		if !ok {
+			return &PermissionError{
+				Message: fmt.Sprintf("%s inherits from %s which does not exist", roleName, inheritedRole),
+			}
+		}
+	}
+	return nil
+}
+
+func (p *PermissionMap) Validate() error {
+	for roleName := range p.Roles {
+		if err := p.ValidInheritance(roleName); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func LoadYaml() (*PermissionMap, error) {
@@ -245,6 +276,8 @@ func LoadYaml() (*PermissionMap, error) {
 	if err != nil {
 		return nil, err
 	}
-	yamlContents.PropagatePerms()
+	if err := yamlContents.Validate(); err != nil {
+		return nil, err
+	}
 	return &yamlContents, nil
 }

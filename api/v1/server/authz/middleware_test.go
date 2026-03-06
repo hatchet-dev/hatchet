@@ -43,9 +43,11 @@ func operationIdsFromSpec() []string {
 }
 
 func TestAuthorizeTenantOperations(t *testing.T) {
+	r, err := NewAuthorizer()
+	assert.Nil(t, err)
 	az := AuthZ{
 		config: nil,
-		rbac:   NewAuthorizer(),
+		rbac:   r,
 		l:      nil,
 	}
 	allOperations := operationIdsFromSpec()
