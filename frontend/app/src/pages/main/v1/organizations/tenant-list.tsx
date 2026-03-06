@@ -1,77 +1,156 @@
 import type { TenantWithRole } from './index';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
-import { TenantMemberRole } from '@/lib/api/generated/data-contracts';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
+import {
+  TenantMember,
+  TenantMemberRole,
+} from '@/lib/api/generated/data-contracts';
 import { globalEmitter } from '@/lib/global-emitter';
+import { capitalize } from '@/lib/utils';
 import { appRoutes } from '@/router';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 
-const makeTenantColumns = ({
-  onViewTenant,
+export const TenantTable = ({
+  tenants,
+  tenantMembers,
   onInviteMember,
 }: {
-  onViewTenant: (tenantId: string) => void;
+  tenants: TenantWithRole[];
+  tenantMembers: Map<string, null | TenantMember[]>;
   onInviteMember: (tenantId: string) => void;
-}) => [
-  {
-    columnLabel: 'Name',
-    cellRenderer: (tenant: TenantWithRole) => (
-      <Link
-        to={appRoutes.tenantRoute.to}
-        params={{ tenant: tenant.metadata.id }}
-        className="font-medium hover:underline"
-      >
-        {tenant.name}
-      </Link>
-    ),
-  },
-  {
-    columnLabel: 'ID',
-    cellRenderer: (tenant: TenantWithRole) => (
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-sm">{tenant.metadata.id}</span>
-        <CopyToClipboard text={tenant.metadata.id} />
-      </div>
-    ),
-  },
-  {
-    columnLabel: 'Slug',
-    cellRenderer: (tenant: TenantWithRole) => (
-      <span className="text-muted-foreground">{tenant.slug}</span>
-    ),
-  },
-  {
-    columnLabel: 'Actions',
-    cellRenderer: (tenant: TenantWithRole) => {
-      const canManage =
-        tenant.currentUsersRole === TenantMemberRole.OWNER ||
-        tenant.currentUsersRole === TenantMemberRole.ADMIN;
+}) => {
+  const [expandedTenants, setExpandedTenants] = useState<Set<string>>(
+    new Set(),
+  );
 
-      return (
-        <div className="flex items-center gap-2">
-          {canManage && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onInviteMember(tenant.metadata.id)}
-              leftIcon={<PlusIcon className="size-4" />}
-            >
-              Invite new member
-            </Button>
-          )}
-        </div>
-      );
-    },
-  },
-];
+  const toggleExpanded = (tenantId: string) => {
+    setExpandedTenants((prev) => {
+      const next = new Set(prev);
+      if (next.has(tenantId)) {
+        next.delete(tenantId);
+      } else {
+        next.add(tenantId);
+      }
+      return next;
+    });
+  };
 
-export { makeTenantColumns };
+  return (
+    <div className="overflow-hidden rounded-md border bg-background">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>ID</TableHead>
+            <TableHead>Slug</TableHead>
+            <TableHead>Members</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {tenants.map((tenant) => {
+            const canManage =
+              tenant.currentUsersRole === TenantMemberRole.OWNER ||
+              tenant.currentUsersRole === TenantMemberRole.ADMIN;
+            const members = tenantMembers.get(tenant.metadata.id);
+            const isExpanded = expandedTenants.has(tenant.metadata.id);
 
-export const TenantList = ({ tenants }: { tenants: TenantWithRole[] }) => {
-  const navigate = useNavigate();
+            return (
+              <>
+                <TableRow key={tenant.metadata.id}>
+                  <TableCell>
+                    <Link
+                      to={appRoutes.tenantRoute.to}
+                      params={{ tenant: tenant.metadata.id }}
+                      className="font-medium hover:underline"
+                    >
+                      {tenant.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm">
+                        {tenant.metadata.id}
+                      </span>
+                      <CopyToClipboard text={tenant.metadata.id} />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-muted-foreground">{tenant.slug}</span>
+                  </TableCell>
+                  <TableCell>
+                    {members != null ? (
+                      <button
+                        onClick={() => toggleExpanded(tenant.metadata.id)}
+                        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronRightIcon
+                          className={`size-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        />
+                        {members.length}
+                      </button>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    {canManage && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onInviteMember(tenant.metadata.id)}
+                        leftIcon={<PlusIcon className="size-4" />}
+                      >
+                        Invite new member
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+                {isExpanded &&
+                  members?.map((member) => (
+                    <TableRow
+                      key={`${tenant.metadata.id}-${member.metadata?.id}`}
+                      className="bg-muted/30"
+                    >
+                      <TableCell />
+                      <TableCell>
+                        <span className="text-sm">
+                          {member.user?.email ?? '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium">
+                          {capitalize(member.role)}
+                        </span>
+                      </TableCell>
+                      <TableCell />
+                      <TableCell />
+                    </TableRow>
+                  ))}
+              </>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
 
+export const TenantList = ({
+  tenants,
+  tenantMembers,
+}: {
+  tenants: TenantWithRole[];
+  tenantMembers: Map<string, null | TenantMember[]>;
+}) => {
   if (tenants.length === 0) {
     return (
       <div className="py-16 text-center">
@@ -83,20 +162,16 @@ export const TenantList = ({ tenants }: { tenants: TenantWithRole[] }) => {
     );
   }
 
-  const columns = makeTenantColumns({
-    onViewTenant: (tenantId) =>
-      navigate({
-        to: appRoutes.tenantRoute.to,
-        params: { tenant: tenantId },
-      }),
-    onInviteMember: (tenantId) =>
-      globalEmitter.emit('create-tenant-invite', { tenantId }),
-  });
-
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Tenants</h2>
-      <SimpleTable data={tenants} columns={columns} />
+      <TenantTable
+        tenants={tenants}
+        tenantMembers={tenantMembers}
+        onInviteMember={(tenantId) =>
+          globalEmitter.emit('create-tenant-invite', { tenantId })
+        }
+      />
     </div>
   );
 };

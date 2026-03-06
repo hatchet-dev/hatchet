@@ -1,4 +1,4 @@
-import { makeTenantColumns, TenantList } from './tenant-list';
+import { TenantList, TenantTable } from './tenant-list';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import api from '@/lib/api';
@@ -17,9 +17,8 @@ import { capitalize } from '@/lib/utils';
 import { getCloudMetadataQuery } from '@/pages/auth/hooks/use-cloud';
 import { userUniverseQuery } from '@/providers/user-universe';
 import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
 import { PlusIcon } from '@heroicons/react/24/outline';
-import { useLoaderData, useNavigate } from '@tanstack/react-router';
+import { useLoaderData } from '@tanstack/react-router';
 import invariant from 'tiny-invariant';
 
 export type TenantWithRole = Tenant & {
@@ -138,21 +137,12 @@ const organizationMemberColumns = [
 const OrganizationList = ({
   organizationsWithTenants,
   organizationMembers,
+  tenantMembers,
 }: {
   organizationsWithTenants: OrgWithTenants[];
   organizationMembers: Map<string, OrganizationMember[]>;
+  tenantMembers: Map<string, null | TenantMember[]>;
 }) => {
-  const navigate = useNavigate();
-
-  const tenantColumns = makeTenantColumns({
-    onViewTenant: (tenantId) =>
-      navigate({
-        to: appRoutes.tenantRoute.to,
-        params: { tenant: tenantId },
-      }),
-    onInviteMember: (tenantId) =>
-      globalEmitter.emit('create-tenant-invite', { tenantId }),
-  });
 
   if (organizationsWithTenants.length === 0) {
     return (
@@ -193,7 +183,13 @@ const OrganizationList = ({
                 )}
               </div>
               {org.tenants.length > 0 ? (
-                <SimpleTable data={org.tenants} columns={tenantColumns} />
+                <TenantTable
+                  tenants={org.tenants}
+                  tenantMembers={tenantMembers}
+                  onInviteMember={(tenantId) =>
+                    globalEmitter.emit('create-tenant-invite', { tenantId })
+                  }
+                />
               ) : (
                 <p className="py-4 text-center text-muted-foreground">
                   No tenants in this organization.
@@ -243,13 +239,19 @@ export default function OrganizationsPage() {
   }) as Awaited<ReturnType<typeof loader>>;
 
   if (!loaderData.isCloudEnabled) {
-    return <TenantList tenants={loaderData.tenants} />;
+    return (
+      <TenantList
+        tenants={loaderData.tenants}
+        tenantMembers={loaderData.tenantMembers}
+      />
+    );
   }
 
   return (
     <OrganizationList
       organizationsWithTenants={loaderData.organizationsWithTenants}
       organizationMembers={loaderData.organizationMembers}
+      tenantMembers={loaderData.tenantMembers}
     />
   );
 }
