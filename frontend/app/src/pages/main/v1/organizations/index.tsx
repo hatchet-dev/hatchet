@@ -1,3 +1,5 @@
+import { formatInviteExpiry } from './format-invite-expiry';
+import sortByExpires from './sort-by-expires';
 import { TenantList, TenantTable } from './tenant-list';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -30,7 +32,6 @@ import { userUniverseQuery } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { useLoaderData } from '@tanstack/react-router';
-import { formatInviteExpiry } from './format-invite-expiry';
 import { useEffect, useState } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -128,7 +129,10 @@ export const loader = async (): Promise<
           cloudApi.organizationInviteList(org.metadata.id),
         ]);
         organizationMembers.set(org.metadata.id, orgRes.data.members ?? []);
-        organizationInvites.set(org.metadata.id, invitesRes.data.rows ?? []);
+        organizationInvites.set(
+          org.metadata.id,
+          sortByExpires(invitesRes.data.rows ?? []),
+        );
       }),
     );
 
@@ -317,10 +321,28 @@ const OrganizationList = ({
   );
 };
 
+const fetchOrganizationInvites = (
+  organizationId: string,
+): { promise: Promise<OrganizationInvite[]>; cancel: () => void } => {
+  const controller = new AbortController();
+  const promise = cloudApi
+    .organizationInviteList(organizationId, { signal: controller.signal })
+    .then((res) => sortByExpires(res.data.rows ?? []));
+  return {
+    promise,
+    cancel: () => controller.abort(),
+  };
+};
+
 export default function OrganizationsPage() {
   const loaderData = useLoaderData({
     from: '/tenants/$tenant/organizations',
   }) as Awaited<ReturnType<typeof loader>>;
+
+  const [_organizationRefetchPromises, setOrganizationRefetchPromises] =
+    useState<Map<string, ReturnType<typeof fetchOrganizationInvites>>>(
+      new Map(),
+    );
 
   const [organizationInvites, setOrganizationInvites] = useState<
     Map<string, (OrganizationInvite | CreateOrganizationInviteRequest)[]>
@@ -337,6 +359,33 @@ export default function OrganizationsPage() {
             const existing = next.get(organizationId) ?? [];
             next.set(organizationId, [...existing, invite]);
             return next;
+          });
+
+          setOrganizationRefetchPromises((previousOrganizationRefetches) => {
+            const nextOrganizationRefetches = new Map(
+              previousOrganizationRefetches,
+            );
+            const existingRequest =
+              nextOrganizationRefetches.get(organizationId);
+            if (existingRequest) {
+              existingRequest.cancel();
+            }
+            const request = fetchOrganizationInvites(organizationId);
+            request.promise.then((organizationInvites) =>
+              setOrganizationInvites((previousOrganizationInvites) => {
+                const nextOrganizationInvites = new Map(
+                  previousOrganizationInvites,
+                );
+                nextOrganizationInvites.set(
+                  organizationId,
+                  organizationInvites,
+                );
+                return nextOrganizationInvites;
+              }),
+            );
+
+            nextOrganizationRefetches.set(organizationId, request);
+            return nextOrganizationRefetches;
           });
         },
       ),
