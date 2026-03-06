@@ -55,7 +55,7 @@ WITH inputs AS (
 
 SELECT i.tenant_id, i.external_id, i.inserted_at, i.id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, lf.latest_invocation_count AS invocation_count
 FROM inserts i
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (inserts.durable_task_id, inserts.durable_task_inserted_at)
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 `
 
 type BulkCreateDurableEventLogEntriesParams struct {

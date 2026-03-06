@@ -196,7 +196,7 @@ WITH inputs AS (
 
 SELECT i.*, lf.latest_invocation_count AS invocation_count
 FROM inserts i
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (inserts.durable_task_id, inserts.durable_task_inserted_at)
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 ;
 
 
