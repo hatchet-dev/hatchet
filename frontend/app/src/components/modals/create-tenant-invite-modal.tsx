@@ -112,18 +112,6 @@ const CreateTenantInviteForm = ({
                   );
                 }}
               />
-              {props.isCloudEnabled && props.organizationId && (
-                <div className="text-sm text-muted-foreground">
-                  Organization owner invitations have moved to{' '}
-                  <a
-                    href={`/organizations/${props.organizationId}`}
-                    className="text-primary hover:underline"
-                  >
-                    organization settings
-                  </a>
-                  .
-                </div>
-              )}
               {roleError && (
                 <div className="text-sm text-red-500">{roleError}</div>
               )}
