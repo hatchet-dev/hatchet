@@ -42,8 +42,9 @@ message DurableTaskEventMemoAckResponse {
 }
 
 message DurableTaskEventTriggerRunsAckResponse {
-    DurableEventLogEntryRef ref = 1;
-    repeated DurableTaskRunAckEntry run_entries = 2;
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    repeated DurableTaskRunAckEntry run_entries = 3;
 }
 
 message DurableTaskEventWaitForAckResponse {

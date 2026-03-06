@@ -452,12 +452,12 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	})
 }
 
-func newEntryRef(taskExternalId string, invocationCount int32, entry v1.IngestDurableTaskEventEntry) *contracts.DurableEventLogEntryRef {
+func newEntryRef(taskExternalId string, invocationCount int32, nodeAndBranch v1.NodeIdBranchIdTuple) *contracts.DurableEventLogEntryRef {
 	return &contracts.DurableEventLogEntryRef{
 		DurableTaskExternalId: taskExternalId,
 		InvocationCount:       invocationCount,
-		BranchId:              entry.BranchId,
-		NodeId:                entry.NodeId,
+		BranchId:              nodeAndBranch.BranchId,
+		NodeId:                nodeAndBranch.NodeId,
 	}
 }
 
@@ -512,12 +512,16 @@ func (d *DispatcherServiceImpl) handleMemo(
 	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
-		TenantId:        invocation.tenantId,
-		Task:            task,
-		Kind:            sqlcv1.V1DurableEventLogKindMEMO,
-		Payload:         req.Payload,
-		InvocationCount: req.InvocationCount,
-		MemoKey:         req.Key,
+		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
+			TenantId:        invocation.tenantId,
+			Task:            task,
+			Kind:            sqlcv1.V1DurableEventLogKindMEMO,
+			InvocationCount: req.InvocationCount,
+		},
+		Memo: &v1.IngestMemoOpts{
+			Payload: req.Payload,
+			MemoKey: req.Key,
+		},
 	})
 
 	var nde *v1.NonDeterminismError
@@ -527,18 +531,15 @@ func (d *DispatcherServiceImpl) handleMemo(
 		return status.Errorf(codes.Internal, "failed to ingest memo event: %v", err)
 	}
 
-	if len(ingestionResult.Entries) == 0 {
-		return status.Errorf(codes.Internal, "failed to ingest memo event: no entries returned")
-	}
-
-	entry := ingestionResult.Entries[0]
-
 	err = invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_MemoAck{
 			MemoAck: &contracts.DurableTaskEventMemoAckResponse{
-				Ref:                newEntryRef(req.DurableTaskExternalId, req.InvocationCount, entry),
-				MemoAlreadyExisted: entry.AlreadyExisted,
-				MemoResultPayload:  entry.ResultPayload,
+				Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, v1.NodeIdBranchIdTuple{
+					NodeId:   ingestionResult.NodeId,
+					BranchId: ingestionResult.BranchId,
+				}),
+				MemoAlreadyExisted: ingestionResult.MemoResult.AlreadyExisted,
+				MemoResultPayload:  ingestionResult.MemoResult.ResultPayload,
 			},
 		},
 	})
@@ -564,28 +565,32 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	optsSlice := make([]*v1.WorkflowNameTriggerOpts, 0, len(req.TriggerOpts))
+	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, 0, len(req.TriggerOpts))
 	for _, triggerReq := range req.TriggerOpts {
 		triggerTaskData, triggerErr := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, triggerReq, task)
 		if triggerErr != nil {
 			return status.Errorf(codes.Internal, "failed to create trigger options: %v", triggerErr)
 		}
-		optsSlice = append(optsSlice, &v1.WorkflowNameTriggerOpts{
+		triggerOpts = append(triggerOpts, &v1.WorkflowNameTriggerOpts{
 			TriggerTaskData: triggerTaskData,
 		})
 	}
 
-	if populateErr := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, optsSlice); populateErr != nil {
+	if populateErr := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, invocation.tenantId, triggerOpts); populateErr != nil {
 		return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", populateErr)
 	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
-		TenantId:        invocation.tenantId,
-		Task:            task,
-		Kind:            sqlcv1.V1DurableEventLogKindRUN,
-		Payload:         req.Payload,
-		InvocationCount: req.InvocationCount,
-		TriggerOptsList: optsSlice,
+		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
+			TenantId:        invocation.tenantId,
+			Task:            task,
+			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			InvocationCount: req.InvocationCount,
+		},
+		TriggerRuns: &v1.IngestTriggerRunsOpts{
+			Payload:     req.Payload,
+			TriggerOpts: triggerOpts,
+		},
 	})
 
 	var nde *v1.NonDeterminismError
@@ -595,28 +600,29 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return status.Errorf(codes.Internal, "failed to ingest trigger runs event: %v", err)
 	}
 
-	if len(ingestionResult.Entries) == 0 {
+	if (len(ingestionResult.TriggerRunsResult.CreatedDAGs) + len(ingestionResult.TriggerRunsResult.CreatedTasks)) == 0 {
 		return status.Errorf(codes.Internal, "failed to ingest trigger runs event: no entries returned")
 	}
 
 	ackResp := &contracts.DurableTaskEventTriggerRunsAckResponse{
-		Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, ingestionResult.Entries[0]),
+		Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, v1.NodeIdBranchIdTuple{
+			NodeId:   ingestionResult.NodeId,
+			BranchId: ingestionResult.BranchId,
+		}),
 	}
-
-	var createdTasks []*v1.V1TaskWithPayload
-	var createdDAGs []*v1.DAGWithData
 
 	for _, entry := range ingestionResult.Entries {
 		ackResp.RunEntries = append(ackResp.RunEntries, &contracts.DurableTaskRunAckEntry{
 			NodeId:   entry.NodeId,
 			BranchId: entry.BranchId,
 		})
-		createdTasks = append(createdTasks, entry.CreatedTasks...)
-		createdDAGs = append(createdDAGs, entry.CreatedDAGs...)
 	}
 
-	if len(createdTasks) > 0 || len(createdDAGs) > 0 {
-		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, createdTasks, createdDAGs); sigErr != nil {
+	dags := ingestionResult.TriggerRunsResult.CreatedDAGs
+	tasks := ingestionResult.TriggerRunsResult.CreatedTasks
+
+	if len(dags) > 0 || len(tasks) > 0 {
+		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, tasks, dags); sigErr != nil {
 			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
 		}
 	}
@@ -680,11 +686,15 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
-		TenantId:          invocation.tenantId,
-		Task:              task,
-		Kind:              sqlcv1.V1DurableEventLogKindWAITFOR,
-		InvocationCount:   req.InvocationCount,
-		WaitForConditions: createConditionOpts,
+		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
+			TenantId:        invocation.tenantId,
+			Task:            task,
+			Kind:            sqlcv1.V1DurableEventLogKindWAITFOR,
+			InvocationCount: req.InvocationCount,
+		},
+		WaitFor: &v1.IngestWaitForOpts{
+			WaitForConditions: createConditionOpts,
+		},
 	})
 
 	var nde *v1.NonDeterminismError
@@ -694,16 +704,13 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		return status.Errorf(codes.Internal, "failed to ingest wait_for event: %v", err)
 	}
 
-	if len(ingestionResult.Entries) == 0 {
-		return status.Errorf(codes.Internal, "failed to ingest wait_for event: no entries returned")
-	}
-
-	entry := ingestionResult.Entries[0]
-
 	err = invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_WaitForAck{
 			WaitForAck: &contracts.DurableTaskEventWaitForAckResponse{
-				Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, entry),
+				Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, v1.NodeIdBranchIdTuple{
+					NodeId:   ingestionResult.NodeId,
+					BranchId: ingestionResult.BranchId,
+				}),
 			},
 		},
 	})
