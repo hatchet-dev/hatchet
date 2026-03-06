@@ -47,3 +47,8 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSpec(t *testing.T) {
+	_, err := NewAuthorizer()
+	assert.Nil(t, err)
+}
