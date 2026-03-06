@@ -1,7 +1,12 @@
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
-import type { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import api from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import type {
+  OrganizationForUser,
+  OrganizationMember,
+} from '@/lib/api/generated/cloud/data-contracts';
 import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
 import {
   Tenant,
@@ -56,11 +61,14 @@ export const loader = async (): Promise<
       isCloudEnabled: true;
       organizationsWithTenants: OrgWithTenants[];
       tenantIdToTenant: Map<string, TenantWithRole>;
+      organizationMembers: Map<string, OrganizationMember[]>;
+      tenantMembers: Map<string, null | TenantMember[]>;
     }
   | {
       isCloudEnabled: false;
       tenants: TenantWithRole[];
       tenantIdToTenant: Map<string, TenantWithRole>;
+      tenantMembers: Map<string, null | TenantMember[]>;
     }
 > => {
   const { isCloudEnabled } = await queryClient.fetchQuery(
@@ -73,8 +81,29 @@ export const loader = async (): Promise<
 
   const tenantIdToTenant = makeMapOfTenantIdsToTenantMember(tenantMemberships);
 
+  const tenantMembers = new Map<string, null | TenantMember[]>();
+  const tenantMembersPromise = Promise.all(
+    Array.from(tenantIdToTenant.values()).map(async (tenant) => {
+      const memberList =
+        tenant.currentUsersRole === TenantMemberRole.OWNER ||
+        tenant.currentUsersRole === TenantMemberRole.ADMIN
+          ? ((await api.tenantMemberList(tenant.metadata.id)).data.rows ?? [])
+          : null;
+      tenantMembers.set(tenant.metadata.id, memberList);
+    }),
+  ).then(() => tenantMembers);
+
   if (isCloudEnabled) {
     invariant(organizations);
+
+    const organizationMembers = new Map<string, OrganizationMember[]>();
+    const organizationMembersPromise = Promise.all(
+      organizations.map(async (org) => {
+        const res = await cloudApi.organizationGet(org.metadata.id);
+        organizationMembers.set(org.metadata.id, res.data.members ?? []);
+      }),
+    ).then(() => organizationMembers);
+
     return {
       isCloudEnabled: true,
       organizationsWithTenants: mapTenantsToOrganizations(
@@ -82,6 +111,8 @@ export const loader = async (): Promise<
         tenantIdToTenant,
       ),
       tenantIdToTenant,
+      organizationMembers: await organizationMembersPromise,
+      tenantMembers: await tenantMembersPromise,
     };
   }
 
@@ -89,6 +120,7 @@ export const loader = async (): Promise<
     isCloudEnabled: false,
     tenants: Array.from(tenantIdToTenant.values()),
     tenantIdToTenant,
+    tenantMembers: await tenantMembersPromise,
   };
 };
 
