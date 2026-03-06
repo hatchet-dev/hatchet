@@ -18,6 +18,7 @@ from examples.durable.worker import (
     durable_replay_reset,
     memo_task,
     MemoInput,
+    DurableBulkSpawnInput,
 )
 from hatchet_sdk import Hatchet
 
@@ -88,10 +89,11 @@ async def test_durable_child_spawn() -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_child_bulk_spawn() -> None:
-    result = await durable_with_bulk_spawn.aio_run()
+    n = 10
+    result = await durable_with_bulk_spawn.aio_run(DurableBulkSpawnInput(n=n))
 
     assert result["child_outputs"] == [
-        {"message": "hello from child"} for _ in range(10)
+        {"message": "hello from child " + str(i)} for i in range(n)
     ]
 
 

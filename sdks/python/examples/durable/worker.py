@@ -187,9 +187,13 @@ async def wait_for_sleep_twice(
         return {"runtime": -1}
 
 
-@hatchet.task()
-def spawn_child_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    return {"message": "hello from child"}
+class DurableBulkSpawnInput(BaseModel):
+    n: int = 1
+
+
+@hatchet.task(input_validator=DurableBulkSpawnInput)
+def spawn_child_task(input: DurableBulkSpawnInput, ctx: Context) -> dict[str, str]:
+    return {"message": "hello from child " + str(input.n)}
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
@@ -198,17 +202,16 @@ async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str
     return {"child_output": child_result}
 
 
-@hatchet.durable_task()
+@hatchet.durable_task(input_validator=DurableBulkSpawnInput)
 async def durable_with_bulk_spawn(
-    input: EmptyModel, ctx: DurableContext
+    input: DurableBulkSpawnInput, ctx: DurableContext
 ) -> dict[str, Any]:
     child_results = await spawn_child_task.aio_run_many(
         [
             spawn_child_task.create_bulk_run_item(
-                input=EmptyModel(),
-                key=f"child{i}",
+                input=DurableBulkSpawnInput(n=i),
             )
-            for i in range(10)
+            for i in range(input.n)
         ]
     )
     return {"child_outputs": child_results}
