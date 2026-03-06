@@ -337,6 +337,10 @@ describe('durable-eviction-e2e', () => {
       }
     );
 
+    // Drain stdout/stderr so the subprocess never blocks on a full pipe buffer.
+    workerProc.stdout?.on('data', () => {});
+    workerProc.stderr?.on('data', () => {});
+
     await poll(
       async () => {
         try {

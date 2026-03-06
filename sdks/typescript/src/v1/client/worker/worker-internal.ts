@@ -823,6 +823,16 @@ export class InternalWorker {
 
     this.logger.info('Starting to exit...');
 
+    // Pause the worker on the server so it stops receiving new task assignments
+    // before we evict waiting durable runs, mirroring Python's pause_task_assignment().
+    if (this.workerId) {
+      try {
+        await this.client.workers.pause(this.workerId);
+      } catch (e: any) {
+        this.logger.error(`Could not pause worker: ${e.message}`);
+      }
+    }
+
     if (this.evictionManager) {
       try {
         const evicted = await this.evictionManager.evictAllWaiting();
