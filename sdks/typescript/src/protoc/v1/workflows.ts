@@ -269,6 +269,8 @@ export interface BranchDurableTaskRequest {
   taskExternalId: string;
   /** (required) the node id to branch from */
   nodeId: number;
+  /** (required) the branch id to branch from */
+  branchId: number;
 }
 
 export interface BranchDurableTaskResponse {
@@ -1178,7 +1180,7 @@ export const TriggerWorkflowRunResponse: MessageFns<TriggerWorkflowRunResponse> 
 };
 
 function createBaseBranchDurableTaskRequest(): BranchDurableTaskRequest {
-  return { taskExternalId: "", nodeId: 0 };
+  return { taskExternalId: "", nodeId: 0, branchId: 0 };
 }
 
 export const BranchDurableTaskRequest: MessageFns<BranchDurableTaskRequest> = {
@@ -1188,6 +1190,9 @@ export const BranchDurableTaskRequest: MessageFns<BranchDurableTaskRequest> = {
     }
     if (message.nodeId !== 0) {
       writer.uint32(16).int64(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(24).int64(message.branchId);
     }
     return writer;
   },
@@ -1215,6 +1220,14 @@ export const BranchDurableTaskRequest: MessageFns<BranchDurableTaskRequest> = {
           message.nodeId = longToNumber(reader.int64());
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1228,6 +1241,7 @@ export const BranchDurableTaskRequest: MessageFns<BranchDurableTaskRequest> = {
     return {
       taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : "",
       nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
     };
   },
 
@@ -1239,6 +1253,9 @@ export const BranchDurableTaskRequest: MessageFns<BranchDurableTaskRequest> = {
     if (message.nodeId !== 0) {
       obj.nodeId = Math.round(message.nodeId);
     }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
     return obj;
   },
 
@@ -1249,6 +1266,7 @@ export const BranchDurableTaskRequest: MessageFns<BranchDurableTaskRequest> = {
     const message = createBaseBranchDurableTaskRequest();
     message.taskExternalId = object.taskExternalId ?? "";
     message.nodeId = object.nodeId ?? 0;
+    message.branchId = object.branchId ?? 0;
     return message;
   },
 };

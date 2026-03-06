@@ -15,13 +15,13 @@ import { LegacyV1Worker } from './legacy-v1-worker';
 import { emitDeprecationNotice, semverLessThan } from './deprecation';
 import { transformLegacyWorkflow } from '../../../../legacy/legacy-transformer';
 
+import { MinEngineVersion } from '../engine-version';
+
 const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
 /** The date when slot_config support was released. */
 const LEGACY_ENGINE_START = new Date('2026-02-12T00:00:00Z');
-
-import { MinEngineVersion } from '../engine-version';
 
 const LEGACY_ENGINE_MESSAGE =
   'Connected to an older Hatchet engine that does not support multiple slot types. ' +

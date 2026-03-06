@@ -193,7 +193,7 @@ describe('durable-e2e', () => {
 
       const runId = await ref.getWorkflowRunId();
       const taskExternalId = await hatchet.runs.getTaskExternalId(runId);
-      await hatchet.runs.resetDurableTask(taskExternalId, nodeId);
+      await hatchet.runs.branchDurableTask(taskExternalId, nodeId);
 
       const resetStart = Date.now();
       const resetResult = await ref.output;

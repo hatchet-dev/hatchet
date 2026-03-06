@@ -225,10 +225,11 @@ export class RunsClient {
    * @param taskExternalId - The external ID of the durable task to reset.
    * @param nodeId - The node ID to replay from.
    */
-  async resetDurableTask(taskExternalId: string, nodeId: number) {
-    return this.api.v1DurableTaskFork(this.tenantId, {
+  async branchDurableTask(taskExternalId: string, nodeId: number, branchId: number = 0) {
+    return this.api.v1DurableTaskBranch(this.tenantId, {
       taskExternalId,
       nodeId,
+      branchId,
     });
   }
 
