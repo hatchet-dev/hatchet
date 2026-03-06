@@ -354,7 +354,9 @@ function InvitesList() {
         </h3>
         <Button
           key="create-tenant-invite"
-          onClick={() => globalEmitter.emit('create-tenant-invite', { tenantId })}
+          onClick={() =>
+            globalEmitter.emit('create-tenant-invite', { tenantId })
+          }
         >
           Create Invite
         </Button>

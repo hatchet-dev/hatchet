@@ -1,5 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import {
+  Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -14,25 +15,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { TenantMemberRole } from '@/lib/api';
+import { useOrganizations } from '@/hooks/use-organizations';
+import api, { CreateTenantInviteRequest, TenantMemberRole } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-interface CreateInviteFormProps {
+type CreateTenantInviteFormProps = {
   className?: string;
   onSubmit: (opts: { email: string; role: TenantMemberRole }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   isCloudEnabled?: boolean;
   organizationId?: string | null;
-}
+};
 
-export function CreateInviteForm({
+const CreateTenantInviteForm = ({
   className,
   ...props
-}: CreateInviteFormProps) {
+}: CreateTenantInviteFormProps) => {
   const availableRoles = props.isCloudEnabled
     ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
     : [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.MEMBER];
@@ -132,4 +137,41 @@ export function CreateInviteForm({
       </div>
     </DialogContent>
   );
-}
+};
+
+export const CreateTenantInviteModal = ({
+  tenantId,
+  onClose,
+}: {
+  tenantId: string;
+  onClose: () => void;
+}) => {
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors,
+  });
+
+  const organizationId = getOrganizationIdForTenant(tenantId);
+
+  const createMutation = useMutation({
+    mutationKey: ['tenant-invite:create', tenantId],
+    mutationFn: async (data: CreateTenantInviteRequest) => {
+      await api.tenantInviteCreate(tenantId, data);
+    },
+    onSuccess: onClose,
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <CreateTenantInviteForm
+        isLoading={createMutation.isPending}
+        onSubmit={createMutation.mutate}
+        fieldErrors={fieldErrors}
+        isCloudEnabled={isCloudEnabled}
+        organizationId={organizationId}
+      />
+    </Dialog>
+  );
+};

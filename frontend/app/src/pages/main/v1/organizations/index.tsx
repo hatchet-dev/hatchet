@@ -13,6 +13,7 @@ import {
   TenantMemberRole,
 } from '@/lib/api/generated/data-contracts';
 import { globalEmitter } from '@/lib/global-emitter';
+import { capitalize } from '@/lib/utils';
 import { getCloudMetadataQuery } from '@/pages/auth/hooks/use-cloud';
 import { userUniverseQuery } from '@/providers/user-universe';
 import queryClient from '@/query-client';
@@ -121,10 +122,25 @@ export const loader = async (): Promise<
   };
 };
 
+const organizationMemberColumns = [
+  {
+    columnLabel: 'Email',
+    cellRenderer: (member: OrganizationMember) => <span>{member.email}</span>,
+  },
+  {
+    columnLabel: 'Role',
+    cellRenderer: (member: OrganizationMember) => (
+      <span className="font-medium">{capitalize(member.role)}</span>
+    ),
+  },
+];
+
 const OrganizationList = ({
   organizationsWithTenants,
+  organizationMembers,
 }: {
   organizationsWithTenants: OrgWithTenants[];
+  organizationMembers: Map<string, OrganizationMember[]>;
 }) => {
   const navigate = useNavigate();
 
@@ -150,41 +166,73 @@ const OrganizationList = ({
   }
 
   return (
-    <div className="space-y-8">
-      {organizationsWithTenants.map((org) => (
-        <div key={org.metadata.id} className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{org.name}</h2>
+    <div className="space-y-12">
+      {organizationsWithTenants.map((org) => {
+        const members = organizationMembers.get(org.metadata.id) ?? [];
+
+        return (
+          <div key={org.metadata.id} className="space-y-6">
+            <h1 className="text-2xl font-bold">{org.name}</h1>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Tenants</h2>
+                {org.isOwner && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      globalEmitter.emit('new-tenant', {
+                        defaultOrganizationId: org.metadata.id,
+                      });
+                    }}
+                    leftIcon={<PlusIcon className="size-4" />}
+                  >
+                    Add tenant to {org.name}
+                  </Button>
+                )}
+              </div>
+              {org.tenants.length > 0 ? (
+                <SimpleTable data={org.tenants} columns={tenantColumns} />
+              ) : (
+                <p className="py-4 text-center text-muted-foreground">
+                  No tenants in this organization.
+                </p>
+              )}
+            </div>
+
             {org.isOwner && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled>
-                  Invite to organization...
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    globalEmitter.emit('new-tenant', {
-                      defaultOrganizationId: org.metadata.id,
-                    });
-                  }}
-                  leftIcon={<PlusIcon className="size-4" />}
-                >
-                  Add Tenant
-                </Button>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Members</h2>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      globalEmitter.emit('create-organization-invite', {
+                        organizationId: org.metadata.id,
+                        organizationName: org.name,
+                      })
+                    }
+                  >
+                    Invite new member to {org.name}
+                  </Button>
+                </div>
+                {members.length > 0 ? (
+                  <SimpleTable
+                    data={members}
+                    columns={organizationMemberColumns}
+                  />
+                ) : (
+                  <p className="py-4 text-center text-muted-foreground">
+                    No members in this organization.
+                  </p>
+                )}
               </div>
             )}
           </div>
-
-          {org.tenants.length > 0 ? (
-            <SimpleTable data={org.tenants} columns={tenantColumns} />
-          ) : (
-            <p className="py-4 text-center text-muted-foreground">
-              No tenants in this organization.
-            </p>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -201,6 +249,7 @@ export default function OrganizationsPage() {
   return (
     <OrganizationList
       organizationsWithTenants={loaderData.organizationsWithTenants}
+      organizationMembers={loaderData.organizationMembers}
     />
   );
 }

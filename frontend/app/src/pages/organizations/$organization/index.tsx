@@ -3,7 +3,6 @@ import { CreateTokenModal } from './components/create-token-modal';
 import { DeleteMemberModal } from './components/delete-member-modal';
 import { DeleteTenantModal } from './components/delete-tenant-modal';
 import { DeleteTokenModal } from './components/delete-token-modal';
-import { InviteMemberModal } from './components/invite-member-modal';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -74,7 +73,6 @@ export default function OrganizationPage() {
   const queryClient = useQueryClient();
   const { handleUpdateOrganization, updateOrganizationLoading } =
     useOrganizations();
-  const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
@@ -574,7 +572,12 @@ export default function OrganizationPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowInviteMemberModal(true)}
+                onClick={() =>
+                  globalEmitter.emit('create-organization-invite', {
+                    organizationId: orgId,
+                    organizationName: organization.name,
+                  })
+                }
                 leftIcon={<PlusIcon className="size-4" />}
               >
                 Invite Member
@@ -704,19 +707,6 @@ export default function OrganizationPage() {
           </div>
         </div>
       </div>
-
-      {orgId && organization && (
-        <InviteMemberModal
-          open={showInviteMemberModal}
-          onOpenChange={setShowInviteMemberModal}
-          organizationId={orgId}
-          organizationName={organization.name}
-          onSuccess={() => {
-            organizationQuery.refetch();
-            organizationInvitesQuery.refetch();
-          }}
-        />
-      )}
 
       {memberToDelete && organization && (
         <DeleteMemberModal
