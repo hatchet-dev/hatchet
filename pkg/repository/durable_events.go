@@ -6,12 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -146,140 +144,6 @@ type EventLogEntryWithPayloads struct {
 	AlreadyExisted bool
 }
 
-func (r *durableEventsRepository) getOrCreateEventLogEntry(
-	ctx context.Context,
-	tx sqlcv1.DBTX,
-	opts GetOrCreateLogEntryOpts,
-) (*EventLogEntryWithPayloads, error) {
-	alreadyExisted := true
-	entry, err := r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
-		Durabletaskid:         opts.DurableTaskId,
-		Durabletaskinsertedat: opts.DurableTaskInsertedAt,
-		Nodeid:                opts.NodeId,
-		Branchid:              opts.BranchId,
-	})
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-
-	isStaleEntry := err == nil && entry != nil && entry.InvocationCount != opts.InvocationCount
-
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		alreadyExisted = false
-		entry, err = r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
-			Tenantid:              opts.TenantId,
-			Externalid:            uuid.New(),
-			Durabletaskid:         opts.DurableTaskId,
-			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
-			Kind:                  opts.Kind,
-			Nodeid:                opts.NodeId,
-			Branchid:              opts.BranchId,
-			Idempotencykey:        opts.IdempotencyKey,
-			Issatisfied:           opts.IsSatisfied,
-			Invocationcount:       opts.InvocationCount,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		storePayloadOpts := make([]StorePayloadOpts, 0)
-
-		if len(opts.InputPayload) > 0 {
-			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-				Id:         entry.ID,
-				InsertedAt: entry.InsertedAt,
-				ExternalId: entry.ExternalID,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
-				Payload:    opts.InputPayload,
-				TenantId:   opts.TenantId,
-			})
-		}
-
-		if len(opts.ResultPayload) > 0 {
-			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-				Id:         entry.ID,
-				InsertedAt: entry.InsertedAt,
-				ExternalId: entry.ExternalID,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-				Payload:    opts.ResultPayload,
-				TenantId:   opts.TenantId,
-			})
-		}
-
-		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
-		if err != nil {
-			return nil, err
-		}
-	case isStaleEntry:
-		// TODO-DURABLE: I don't think this should be required or at least should not be handled here...
-		// NOTE: entry exists but belongs to a previous invocation (e.g. after eviction+restore
-		// or cancel+replay). Check idempotency key for non-determinism; if it matches, update
-		// invocation_count so callbacks route correctly and reuse existing wait conditions.
-		incomingIdempotencyKey := opts.IdempotencyKey
-		existingIdempotencyKey := entry.IdempotencyKey
-
-		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
-			return nil, &NonDeterminismError{
-				BranchId:               opts.BranchId,
-				NodeId:                 opts.NodeId,
-				TaskExternalId:         opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey: existingIdempotencyKey,
-				ActualIdempotencyKey:   incomingIdempotencyKey,
-			}
-		}
-
-		entry, err = r.queries.UpdateDurableEventLogEntryInvocationCount(ctx, tx, sqlcv1.UpdateDurableEventLogEntryInvocationCountParams{
-			Invocationcount:       opts.InvocationCount,
-			Idempotencykey:        opts.IdempotencyKey,
-			Durabletaskid:         opts.DurableTaskId,
-			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
-			Branchid:              opts.BranchId,
-			Nodeid:                opts.NodeId,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to update invocation count on stale log entry: %w", err)
-		}
-	default:
-		incomingIdempotencyKey := opts.IdempotencyKey
-		existingIdempotencyKey := entry.IdempotencyKey
-
-		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
-			return nil, &NonDeterminismError{
-				BranchId:               opts.BranchId,
-				NodeId:                 opts.NodeId,
-				TaskExternalId:         opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey: existingIdempotencyKey,
-				ActualIdempotencyKey:   incomingIdempotencyKey,
-			}
-		}
-	}
-
-	var resultPayload []byte
-
-	if alreadyExisted {
-		resultPayload, err = r.payloadStore.RetrieveSingle(ctx, tx, RetrievePayloadOpts{
-			Id:         entry.ID,
-			InsertedAt: entry.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-			TenantId:   opts.TenantId,
-		})
-
-		if err != nil {
-			resultPayload = nil
-		}
-	}
-
-	return &EventLogEntryWithPayloads{
-		Entry:          entry,
-		InputPayload:   opts.InputPayload,
-		ResultPayload:  resultPayload,
-		AlreadyExisted: alreadyExisted,
-	}, nil
-}
 func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error) {
 	if len(events) == 0 {
 		return nil, nil
@@ -780,40 +644,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	if len(staleEntries) > 0 {
-		updateParams := sqlcv1.BulkUpdateDurableEventLogEntryInvocationCountsParams{
-			Durabletaskids:         make([]int64, len(staleEntries)),
-			Durabletaskinsertedats: make([]pgtype.Timestamptz, len(staleEntries)),
-			Branchids:              make([]int64, len(staleEntries)),
-			Nodeids:                make([]int64, len(staleEntries)),
-			Invocationcounts:       make([]int32, len(staleEntries)),
-			Idempotencykeys:        make([][]byte, len(staleEntries)),
-		}
-
-		for j, se := range staleEntries {
-			m := metas[se.metaIdx]
-			updateParams.Durabletaskids[j] = task.ID
-			updateParams.Durabletaskinsertedats[j] = task.InsertedAt
-			updateParams.Branchids[j] = m.branchId
-			updateParams.Nodeids[j] = m.nodeId
-			updateParams.Invocationcounts[j] = invocationCount
-			updateParams.Idempotencykeys[j] = m.idempotencyKey
-		}
-
-		updatedRows, updateErr := r.queries.BulkUpdateDurableEventLogEntryInvocationCounts(ctx, tx, updateParams)
-		if updateErr != nil {
-			return nil, fmt.Errorf("failed to bulk-update stale entry invocation counts: %w", updateErr)
-		}
-
-		for _, row := range updatedRows {
-			for _, se := range staleEntries {
-				m := metas[se.metaIdx]
-				if row.NodeID == m.nodeId && row.BranchID == m.branchId {
-					existedEntries[se.metaIdx] = row
-					break
-				}
-			}
-		}
+	for _, se := range staleEntries {
+		existedEntries[se.metaIdx] = se.entry
 	}
 
 	var retrieveOpts []RetrievePayloadOpts
