@@ -42,6 +42,7 @@ import { SlotConfig } from '../../slot-types';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { EvictionPolicy, DEFAULT_DURABLE_TASK_EVICTION_POLICY } from './eviction/eviction-policy';
 import { ActionKey, DurableRunRecord } from './eviction/eviction-cache';
+import { supportsEviction } from './engine-version';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -491,10 +492,15 @@ export class InternalWorker {
 
       if (isDurable) {
         const { durableListener } = this.client;
-        await durableListener.ensureStarted(this.workerId || '');
-        const mgr = this.ensureEvictionManager();
-        const evictionPolicy = this.eviction_policies.get(actionId);
-        mgr.registerRun(taskRunExternalId, taskRunExternalId, evictionPolicy);
+        let mgr: DurableEvictionManager | undefined;
+
+        if (supportsEviction(this.engineVersion)) {
+          await durableListener.ensureStarted(this.workerId || '');
+          mgr = this.ensureEvictionManager();
+          const evictionPolicy = this.eviction_policies.get(actionId);
+          mgr.registerRun(taskRunExternalId, taskRunExternalId, evictionPolicy);
+        }
+
         context = new DurableContext(
           action,
           this.client,

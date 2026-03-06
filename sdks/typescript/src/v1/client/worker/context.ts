@@ -449,7 +449,7 @@ export class Context<T, K = {}> {
     await this.v1.events.putStream(taskRunExternalId, data, index);
   }
 
-  private spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
+  protected spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
     this.throwIfCancelled();
 
     let workflowName: string;
@@ -996,6 +996,13 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     input?: Q,
     options?: ChildRunOpts
   ): Promise<P> {
+    if (!this.supportsEviction) {
+      const { workflowName, opts } = this.spawnOptions(workflow, options);
+      const ref = await this.v1.admin.runWorkflow(workflowName, (input || {}) as Q, opts);
+      ref.defaultSignal = this.abortController.signal;
+      return ref.output as Promise<P>;
+    }
+
     const results = await this.spawnChildren<Q, P>([
       { workflow, input: (input || {}) as Q, options },
     ]);
@@ -1015,6 +1022,18 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     }>
   ): Promise<P[]> {
     this.throwIfCancelled();
+
+    if (!this.supportsEviction) {
+      const workflows = children.map((c) => {
+        const { workflowName, opts } = this.spawnOptions(c.workflow, c.options);
+        return { workflowName, input: c.input, options: opts };
+      });
+      const refs = await this.v1.admin.runWorkflows(workflows);
+      refs.forEach((ref) => {
+        ref.defaultSignal = this.abortController.signal;
+      });
+      return Promise.all(refs.map((ref) => ref.output)) as Promise<P[]>;
+    }
 
     const triggerOptsList = children.map((child) => {
       const { triggerOpts } = this._buildTriggerOpts(child.workflow, child.input, child.options);
@@ -1056,6 +1075,10 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    */
   async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
     this.throwIfCancelled();
+
+    if (!this.supportsEviction) {
+      return fn();
+    }
 
     const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
 
