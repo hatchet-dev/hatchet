@@ -38,7 +38,7 @@ import { HATCHET_VERSION } from '@hatchet/version';
 import { Action } from '@hatchet/clients/dispatcher/action-listener';
 import type { EventClient, PushEventOptions, EventWithMetadata } from '@hatchet/clients/event/event-client';
 import type { AdminClient } from '@hatchet/v1/client/admin';
-import type { V1Worker } from '@hatchet/v1/client/worker/worker-internal';
+import type { InternalWorker  } from '@hatchet/v1/client/worker/worker-internal';
 import { OTelAttribute } from '../util/opentelemetry';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
@@ -48,7 +48,7 @@ type HatchetInstrumentationConfig = OpenTelemetryConfig & InstrumentationConfig;
 type Carrier = Record<string, string>;
 
 const INSTRUMENTOR_NAME = '@hatchet-dev/typescript-sdk';
-const SUPPORTED_VERSIONS = ['>=1.9.0'];
+const SUPPORTED_VERSIONS = ['>=1.16.0'];
 
 function extractContext(carrier: Carrier | undefined | null): OtelContext {
   return propagation.extract(context.active(), carrier ?? {});
@@ -480,42 +480,42 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
   }
 
   private patchWorker(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.V1Worker?.prototype) {
-      diag.debug('hatchet instrumentation: V1Worker not found in module exports');
+    if (!moduleExports?.InternalWorker?.prototype) {
+      diag.debug('hatchet instrumentation: InternalWorker not found in module exports');
       return moduleExports;
     }
 
-    this._patchHandleStartStepRun(moduleExports.V1Worker.prototype);
-    this._patchHandleCancelStepRun(moduleExports.V1Worker.prototype);
+    this._patchHandleStartStepRun(moduleExports.InternalWorker.prototype);
+    this._patchHandleCancelStepRun(moduleExports.InternalWorker.prototype);
 
     return moduleExports;
   }
 
   private unpatchWorker(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.V1Worker?.prototype) {
+    if (!moduleExports?.InternalWorker?.prototype) {
       return moduleExports;
     }
 
-    if (isWrapped(moduleExports.V1Worker.prototype.handleStartStepRun)) {
-      this._unwrap(moduleExports.V1Worker.prototype, 'handleStartStepRun');
+    if (isWrapped(moduleExports.InternalWorker.prototype.handleStartStepRun)) {
+      this._unwrap(moduleExports.InternalWorker.prototype, 'handleStartStepRun');
     }
-    if (isWrapped(moduleExports.V1Worker.prototype.handleCancelStepRun)) {
-      this._unwrap(moduleExports.V1Worker.prototype, 'handleCancelStepRun');
+    if (isWrapped(moduleExports.InternalWorker.prototype.handleCancelStepRun)) {
+      this._unwrap(moduleExports.InternalWorker.prototype, 'handleCancelStepRun');
     }
 
     return moduleExports;
   }
 
-  // IMPORTANT: Keep this wrapper's signature in sync with V1Worker.handleStartStepRun
-  private _patchHandleStartStepRun(prototype: V1Worker): void {
+  // IMPORTANT: Keep this wrapper's signature in sync with InternalWorker.handleStartStepRun
+  private _patchHandleStartStepRun(prototype: InternalWorker): void {
     if (isWrapped(prototype.handleStartStepRun)) {
       this._unwrap(prototype, 'handleStartStepRun');
     }
     const self = this;
 
-    this._wrap(prototype, 'handleStartStepRun', (original: V1Worker['handleStartStepRun']) => {
+    this._wrap(prototype, 'handleStartStepRun', (original: InternalWorker['handleStartStepRun']) => {
       return async function wrappedHandleStartStepRun(
-        this: V1Worker,
+        this: InternalWorker,
         action: Action
       ): Promise<Error | undefined> {
         const additionalMetadata = parseAdditionalMetadata(action);
@@ -552,15 +552,15 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     });
   }
 
-  private _patchHandleCancelStepRun(prototype: V1Worker): void {
+  private _patchHandleCancelStepRun(prototype: InternalWorker): void {
     if (isWrapped(prototype.handleCancelStepRun)) {
       this._unwrap(prototype, 'handleCancelStepRun');
     }
     const self = this;
 
-    this._wrap(prototype, 'handleCancelStepRun', (original: V1Worker['handleCancelStepRun']) => {
+    this._wrap(prototype, 'handleCancelStepRun', (original: InternalWorker['handleCancelStepRun']) => {
       return async function wrappedHandleCancelStepRun(
-        this: V1Worker,
+        this: InternalWorker,
         action: Action
       ): Promise<void> {
         const attributes: Attributes = {

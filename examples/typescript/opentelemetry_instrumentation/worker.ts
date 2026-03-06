@@ -10,7 +10,7 @@ export const otelWorkflow = hatchet.workflow({
 
 otelWorkflow.task({
   name: 'step-with-custom-spans',
-  fn: async (input, ctx) => {
+  fn: async () => {
     return tracer.startActiveSpan('custom-business-logic', async (span) => {
       try {
         console.log('Executing step with custom tracing...');
@@ -29,7 +29,7 @@ otelWorkflow.task({
  */
 otelWorkflow.task({
   name: 'step-with-error',
-  fn: async (input, ctx) => {
+  fn: async () => {
     return tracer.startActiveSpan('custom-span-with-error', async (span) => {
       try {
         throw new Error('Intentional error for demonstration');
@@ -49,7 +49,7 @@ otelWorkflow.task({
  */
 otelWorkflow.task({
   name: 'auto-instrumented-step',
-  fn: async (input, ctx) => {
+  fn: async () => {
     console.log('This step is automatically traced without manual span code');
     return { automatically: 'instrumented' };
   },
@@ -60,7 +60,7 @@ otelWorkflow.task({
  */
 otelWorkflow.task({
   name: 'auto-instrumented-step-with-error',
-  fn: async (input, ctx) => {
+  fn: async () => {
     throw new Error('Auto-instrumented step error');
   },
 });
