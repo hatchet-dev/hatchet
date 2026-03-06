@@ -30,44 +30,36 @@ enum DurableTaskEventKind {
     DURABLE_TASK_TRIGGER_KIND_MEMO = 3;
 }
 
+message DurableEventLogEntryRef {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+}
+
 message DurableTaskRunAckEntry {
     int64 node_id = 1;
     int64 branch_id = 2;
 }
 
 message DurableTaskEventMemoAckResponse {
-    int32 invocation_count = 1;
-    string durable_task_external_id = 2;
-    int64 branch_id = 3;
-    int64 node_id = 4;
-
-    bool memo_already_existed = 5;
-    optional bytes memo_result_payload = 6;
+    DurableEventLogEntryRef ref = 1;
+    bool memo_already_existed = 2;
+    optional bytes memo_result_payload = 3;
 }
 
 message DurableTaskEventTriggerRunsAckResponse {
-    int32 invocation_count = 1;
-    string durable_task_external_id = 2;
-    int64 branch_id = 3;
-    int64 node_id = 4;
-
-    repeated DurableTaskRunAckEntry run_entries = 5;
+    DurableEventLogEntryRef ref = 1;
+    repeated DurableTaskRunAckEntry run_entries = 2;
 }
 
 message DurableTaskEventWaitForAckResponse {
-    int32 invocation_count = 1;
-    string durable_task_external_id = 2;
-    int64 branch_id = 3;
-    int64 node_id = 4;
+    DurableEventLogEntryRef ref = 1;
 }
 
-
 message DurableTaskEventLogEntryCompletedResponse {
-    string durable_task_external_id = 1;
-    int32 invocation_count = 2;
-    int64 branch_id = 3;
-    int64 node_id = 4;
-    bytes payload = 5;
+    DurableEventLogEntryRef ref = 1;
+    bytes payload = 2;
 }
 
 message DurableTaskEvictInvocationRequest {
@@ -93,14 +85,10 @@ message DurableTaskWorkerStatusRequest {
     repeated DurableTaskAwaitedCompletedEntry waiting_entries = 2;
 }
 
-
 message DurableTaskCompleteMemoRequest {
-    string durable_task_external_id = 1;
-    int32 invocation_count = 2;
-    int64 branch_id = 3;
-    int64 node_id = 4;
-    bytes payload = 5;
-    bytes memo_key = 6;
+    DurableEventLogEntryRef ref = 1;
+    bytes payload = 2;
+    bytes memo_key = 3;
 }
 
 message DurableTaskMemoRequest {
@@ -167,12 +155,9 @@ enum DurableTaskErrorType {
 }
 
 message DurableTaskErrorResponse {
-    string durable_task_external_id = 1;
-    int32 invocation_count = 2;
-    int64 branch_id = 3;
-    int64 node_id = 4;
-    DurableTaskErrorType error_type = 5;
-    string error_message = 6;
+    DurableEventLogEntryRef ref = 1;
+    DurableTaskErrorType error_type = 2;
+    string error_message = 3;
 }
 
 message DurableTaskResponse {
