@@ -8,6 +8,7 @@ import {
   nonEvictableSleep,
   childTask,
   bulkChildTask,
+  evictableSleepForGracefulTermination,
 } from './workflow';
 
 async function main() {
@@ -21,6 +22,7 @@ async function main() {
       nonEvictableSleep,
       childTask,
       bulkChildTask,
+      evictableSleepForGracefulTermination,
     ],
   });
 

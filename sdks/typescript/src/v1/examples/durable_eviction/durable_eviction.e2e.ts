@@ -11,7 +11,9 @@ import {
   LONG_SLEEP_SECONDS,
   EVICTION_TTL_SECONDS,
   EVENT_KEY,
+  evictableSleepForGracefulTermination,
 } from './workflow';
+import Hatchet from '@hatchet-dev/typescript-sdk/index';
 
 function getTaskStatuses(details: any): V1TaskStatus[] {
   return (details?.tasks || []).map((t: any) => t.status);
@@ -323,15 +325,31 @@ describe('durable-eviction-e2e', () => {
     if (requireEviction()) return;
     const { spawn } = await import('child_process');
 
+
+    const namespace = 'graceful-termination-evicts-waiting-runs';
+
+    const hatchetWithNamespace = Hatchet.init({
+      namespace,
+    });
+
     const workerProc = spawn(
-      'npx',
-      ['ts-node', '--project', 'tsconfig.json', 'src/v1/examples/durable_eviction/worker.ts'],
+      'pnpm',
+      [
+        'exec',
+        'ts-node',
+        '-r',
+        'tsconfig-paths/register',
+        '-P',
+        'tsconfig.json',
+        'src/v1/examples/durable_eviction/worker.ts',
+      ],
       {
         cwd: process.cwd(),
         env: {
           ...process.env,
           HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
           HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8104',
+          HATCHET_CLIENT_NAMESPACE: 'graceful-termination-evicts-waiting-runs',
         },
         stdio: 'pipe',
       }
@@ -341,32 +359,41 @@ describe('durable-eviction-e2e', () => {
     workerProc.stdout?.on('data', () => {});
     workerProc.stderr?.on('data', () => {});
 
-    await poll(
-      async () => {
-        try {
-          const resp = await fetch('http://localhost:8104/health');
-          return resp.ok;
-        } catch {
-          return false;
+    try {
+      await poll(
+        async () => {
+          try {
+            const resp = await fetch('http://localhost:8104/health');
+            return resp.ok;
+          } catch {
+            return false;
+          }
+        },
+        {
+          timeoutMs: 30_000,
+          intervalMs: 1000,
+          shouldStop: (healthy) => healthy === true,
+          label: 'worker-health',
         }
-      },
-      {
-        timeoutMs: 30_000,
-        intervalMs: 1000,
-        shouldStop: (healthy) => healthy === true,
-        label: 'worker-health',
+      );
+
+      const ref = await hatchetWithNamespace.admin.runWorkflow(evictableSleepForGracefulTermination.name, {});
+
+      const runId = await ref.getWorkflowRunId();
+
+      await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+
+      workerProc.kill('SIGTERM');
+
+      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+      const evictedStatuses = getTaskStatuses(details);
+      expect(evictedStatuses).toContain(V1TaskStatus.EVICTED);
+    } finally {
+      try {
+        workerProc.kill('SIGKILL');
+      } catch {
+        // ignore
       }
-    );
-
-    const ref = await evictableSleep.runNoWait({});
-    const runId = await ref.getWorkflowRunId();
-
-    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-
-    workerProc.kill('SIGTERM');
-
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-    const evictedStatuses = getTaskStatuses(details);
-    expect(evictedStatuses).toContain(V1TaskStatus.EVICTED);
+    }
   }, 120_000);
 });
