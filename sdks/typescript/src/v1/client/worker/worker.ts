@@ -236,6 +236,12 @@ export class Worker {
     const pollInterval = 200;
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
+      // start() may asynchronously detect a legacy engine and set _legacyWorker
+      // after waitUntilReady has already entered this loop
+      if (this._legacyWorker) {
+        await sleep(2000);
+        return;
+      }
       if (this._internal?.workerId) return;
       await sleep(pollInterval);
     }
