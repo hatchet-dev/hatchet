@@ -403,33 +403,24 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	for _, partition := range partitions {
 		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
-
-		if err != nil {
-			return err
-		}
-
-		_, err = conn.Exec(
-			ctx,
+		// Use simple query protocol to combine SET + DDL in a single protocol message.
+		// This is required for pgbouncer transaction pooling mode where separate statements
+		// outside a transaction may be routed to different backend connections.
+		err = sqlchelpers.ExecWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000, // 30 minutes
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
 		if err != nil {
-			release()
 			return err
 		}
 
-		_, err = conn.Exec(
-			ctx,
+		err = sqlchelpers.ExecWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000, // 30 minutes
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
 
 		if err != nil {
-			release()
 			return err
 		}
-
-		release()
 	}
 
 	return nil
