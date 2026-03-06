@@ -479,19 +479,50 @@ func (d *DispatcherServiceImpl) sendNonDeterminismError(invocation *durableTaskI
 }
 
 func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, result *v1.IngestDurableTaskEventResult) error {
-	for _, entry := range result.Entries {
-		if entry.IsSatisfied {
+	switch result.Kind {
+	case sqlcv1.V1DurableEventLogKindRUN:
+		for _, entry := range result.TriggerRunsResult.Entries {
+			if entry.IsSatisfied {
+				taskExtId, _ := uuid.Parse(taskExternalId)
+				if err := d.DeliverDurableEventLogEntryCompletion(
+					taskExtId,
+					result.TriggerRunsResult.InvocationCount,
+					entry.BranchId,
+					entry.NodeId,
+					entry.ResultPayload,
+				); err != nil {
+					return fmt.Errorf("failed to deliver callback completion for node %d: %w", entry.NodeId, err)
+				}
+			}
+		}
+	case sqlcv1.V1DurableEventLogKindMEMO:
+		if result.MemoResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := d.DeliverDurableEventLogEntryCompletion(
 				taskExtId,
-				result.InvocationCount,
-				entry.BranchId,
-				entry.NodeId,
-				entry.ResultPayload,
+				result.TriggerRunsResult.InvocationCount,
+				result.MemoResult.BranchId,
+				result.MemoResult.NodeId,
+				result.MemoResult.ResultPayload,
 			); err != nil {
-				return fmt.Errorf("failed to deliver callback completion for node %d: %w", entry.NodeId, err)
+				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.MemoResult.NodeId, err)
 			}
 		}
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		if result.WaitForResult.IsSatisfied {
+			taskExtId, _ := uuid.Parse(taskExternalId)
+			if err := d.DeliverDurableEventLogEntryCompletion(
+				taskExtId,
+				result.TriggerRunsResult.InvocationCount,
+				result.WaitForResult.BranchId,
+				result.WaitForResult.NodeId,
+				nil,
+			); err != nil {
+				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.WaitForResult.NodeId, err)
+			}
+		}
+	default:
+		return fmt.Errorf("unknown durable event log kind: %s", result.Kind)
 	}
 	return nil
 }
@@ -535,8 +566,8 @@ func (d *DispatcherServiceImpl) handleMemo(
 		Message: &contracts.DurableTaskResponse_MemoAck{
 			MemoAck: &contracts.DurableTaskEventMemoAckResponse{
 				Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, v1.NodeIdBranchIdTuple{
-					NodeId:   ingestionResult.NodeId,
-					BranchId: ingestionResult.BranchId,
+					NodeId:   ingestionResult.MemoResult.NodeId,
+					BranchId: ingestionResult.MemoResult.BranchId,
 				}),
 				MemoAlreadyExisted: ingestionResult.MemoResult.AlreadyExisted,
 				MemoResultPayload:  ingestionResult.MemoResult.ResultPayload,
@@ -605,13 +636,11 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	}
 
 	ackResp := &contracts.DurableTaskEventTriggerRunsAckResponse{
-		Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, v1.NodeIdBranchIdTuple{
-			NodeId:   ingestionResult.NodeId,
-			BranchId: ingestionResult.BranchId,
-		}),
+		DurableTaskExternalId: req.DurableTaskExternalId,
+		InvocationCount:       req.InvocationCount,
 	}
 
-	for _, entry := range ingestionResult.Entries {
+	for _, entry := range ingestionResult.TriggerRunsResult.Entries {
 		ackResp.RunEntries = append(ackResp.RunEntries, &contracts.DurableTaskRunAckEntry{
 			NodeId:   entry.NodeId,
 			BranchId: entry.BranchId,
@@ -708,8 +737,8 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		Message: &contracts.DurableTaskResponse_WaitForAck{
 			WaitForAck: &contracts.DurableTaskEventWaitForAckResponse{
 				Ref: newEntryRef(req.DurableTaskExternalId, req.InvocationCount, v1.NodeIdBranchIdTuple{
-					NodeId:   ingestionResult.NodeId,
-					BranchId: ingestionResult.BranchId,
+					NodeId:   ingestionResult.WaitForResult.NodeId,
+					BranchId: ingestionResult.WaitForResult.BranchId,
 				}),
 			},
 		},

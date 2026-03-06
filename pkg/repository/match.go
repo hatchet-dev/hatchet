@@ -155,45 +155,6 @@ type GroupMatchCondition struct {
 	Data []byte
 }
 
-func ChildTerminalMatchConditions(childExternalIdHints []string, readableDataKey string) []GroupMatchCondition {
-	hintCopies := make([]string, len(childExternalIdHints))
-	copy(hintCopies, childExternalIdHints)
-	var conditions []GroupMatchCondition
-	for i := range hintCopies {
-		orGroupId := uuid.New()
-		conditions = append(conditions,
-			GroupMatchCondition{
-				GroupId:           orGroupId,
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
-				ReadableDataKey:   readableDataKey,
-				EventResourceHint: &hintCopies[i],
-				Expression:        "true",
-				Action:            sqlcv1.V1MatchConditionActionCREATE,
-			},
-			GroupMatchCondition{
-				GroupId:           orGroupId,
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-				ReadableDataKey:   readableDataKey,
-				EventResourceHint: &hintCopies[i],
-				Expression:        "true",
-				Action:            sqlcv1.V1MatchConditionActionCREATE,
-			},
-			GroupMatchCondition{
-				GroupId:           orGroupId,
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-				ReadableDataKey:   readableDataKey,
-				EventResourceHint: &hintCopies[i],
-				Expression:        "true",
-				Action:            sqlcv1.V1MatchConditionActionCREATE,
-			},
-		)
-	}
-	return conditions
-}
-
 type SatisfiedEntry struct {
 	DurableTaskExternalId uuid.UUID
 	DurableTaskId         int64
