@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -233,7 +235,8 @@ func (b *PermissionMap) PropagatePerms() {
 }
 
 func LoadYaml() (*PermissionMap, error) {
-	yamlFile, err := os.ReadFile("rbac.yaml")
+	_, yamlPath, _, _ := runtime.Caller(0)
+	yamlFile, err := os.ReadFile(filepath.Join(filepath.Dir(yamlPath), "rbac.yaml"))
 	if err != nil {
 		return nil, err
 	}
