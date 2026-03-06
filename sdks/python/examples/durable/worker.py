@@ -29,13 +29,13 @@ async def dag_child_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "child1"}
 
 
-@dag_child_workflow.task()
+@dag_child_workflow.task(parents=[dag_child_1])
 async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
     await asyncio.sleep(5)
     return {"result": "child2"}
 
 
-@hatchet.durable_task()
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
     # NOTE: typically its not safe to use time.time() in a durable task, but
     # this test assumes that the task is not replayed or evicted and it is
