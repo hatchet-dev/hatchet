@@ -551,7 +551,7 @@ class DurableContext(Context):
 
         return index
 
-    # todo: instrumentor for this
+    # TODO-DURABLE: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -564,7 +564,9 @@ class DurableContext(Context):
         :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
+
         :raises ValueError: If the durable task client is not available.
+        :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
@@ -621,9 +623,10 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
-    # todo: instrumentor for this
+    # TODO-DURABLE: instrumentor for this
     async def _spawn_children_no_wait(
         self,
+        ## TODO-DURABLE: Remove this param?
         workflow: BaseWorkflow[TWorkflowInput],
         configs: list[WorkflowRunTriggerConfig],
     ) -> list[tuple[int, int, str]]:
@@ -706,6 +709,8 @@ class DurableContext(Context):
         :param **kwargs: The keyword arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different keyword arguments will result in different cached values.
 
         :return: The memoized value, either retrieved from durable storage or computed by calling the function.
+
+        :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if not self._supports_durable_eviction:
             logger.warning(

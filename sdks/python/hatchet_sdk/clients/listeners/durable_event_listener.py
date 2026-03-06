@@ -331,9 +331,9 @@ class DurableEventListener:
                 trigger_ack.durable_task_external_id,
                 trigger_ack.invocation_count,
             )
-            event_ack_future = self._pending_event_acks.pop(event_key, None)
-            if event_ack_future is not None and not event_ack_future.done():
-                event_ack_future.set_result(
+            trigger_ack_future = self._pending_event_acks.pop(event_key, None)
+            if trigger_ack_future is not None and not trigger_ack_future.done():
+                trigger_ack_future.set_result(
                     DurableTaskEventRunAck(
                         invocation_count=trigger_ack.invocation_count,
                         durable_task_external_id=trigger_ack.durable_task_external_id,
@@ -352,9 +352,9 @@ class DurableEventListener:
                 memo_ack.ref.durable_task_external_id,
                 memo_ack.ref.invocation_count,
             )
-            event_ack_future = self._pending_event_acks.pop(event_key, None)
-            if event_ack_future is not None and not event_ack_future.done():
-                event_ack_future.set_result(
+            memo_ack_future = self._pending_event_acks.pop(event_key, None)
+            if memo_ack_future is not None and not memo_ack_future.done():
+                memo_ack_future.set_result(
                     DurableTaskEventMemoAck(
                         invocation_count=memo_ack.ref.invocation_count,
                         durable_task_external_id=memo_ack.ref.durable_task_external_id,
@@ -370,9 +370,9 @@ class DurableEventListener:
                 wait_for_ack.ref.durable_task_external_id,
                 wait_for_ack.ref.invocation_count,
             )
-            event_ack_future = self._pending_event_acks.pop(event_key, None)
-            if event_ack_future is not None and not event_ack_future.done():
-                event_ack_future.set_result(
+            wait_for_ack_future = self._pending_event_acks.pop(event_key, None)
+            if wait_for_ack_future is not None and not wait_for_ack_future.done():
+                wait_for_ack_future.set_result(
                     DurableTaskEventWaitForAck(
                         invocation_count=wait_for_ack.ref.invocation_count,
                         durable_task_external_id=wait_for_ack.ref.durable_task_external_id,
@@ -402,9 +402,10 @@ class DurableEventListener:
                 eviction_ack.durable_task_external_id,
                 eviction_ack.invocation_count,
             )
-            eviction_future = self._pending_eviction_acks.pop(eviction_key, None)
-            if eviction_future is not None and not eviction_future.done():
-                eviction_future.set_result(None)
+            if eviction_key in self._pending_eviction_acks:
+                future = self._pending_eviction_acks.pop(eviction_key)
+                if not future.done():
+                    future.set_result(None)
         elif response.HasField("error"):
             error = response.error
             exc: Exception
