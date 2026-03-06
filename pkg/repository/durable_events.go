@@ -456,13 +456,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	}
 
 	type newEntryInfo struct{ optIdx int }
-	type staleEntryInfo struct {
-		entry  *sqlcv1.BulkGetDurableEventLogEntriesRow
-		optIdx int
-	}
 
 	var newEntries []newEntryInfo
-	var staleEntries []staleEntryInfo
 	existedEntries := make(map[int]*sqlcv1.BulkGetDurableEventLogEntriesRow)
 
 	for i, o := range opts.Entries {
@@ -484,11 +479,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			}
 		}
 
-		if existing.InvocationCount != o.InvocationCount {
-			staleEntries = append(staleEntries, staleEntryInfo{optIdx: i, entry: existing})
-		} else {
-			existedEntries[i] = existing
-		}
+		existedEntries[i] = existing
 	}
 
 	var createdByNodeId map[int64]*sqlcv1.BulkGetDurableEventLogEntriesRow
@@ -576,10 +567,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 				return nil, fmt.Errorf("failed to store payloads for new entries: %w", storeErr)
 			}
 		}
-	}
-
-	for _, se := range staleEntries {
-		existedEntries[se.optIdx] = se.entry
 	}
 
 	var retrieveOpts []RetrievePayloadOpts
