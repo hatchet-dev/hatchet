@@ -1029,10 +1029,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         return { workflowName, input: c.input, options: opts };
       });
       const refs = await this.v1.admin.runWorkflows(workflows);
-      refs.forEach((ref) => {
-        ref.defaultSignal = this.abortController.signal;
-      });
-      return Promise.all(refs.map((ref) => ref.output)) as Promise<P[]>;
+      for (const r of refs) {
+        // eslint-disable-next-line no-param-reassign
+        r.defaultSignal = this.abortController.signal;
+      }
+      return Promise.all(refs.map((r) => r.output)) as Promise<P[]>;
     }
 
     const triggerOptsList = children.map((child) => {
