@@ -1,0 +1,33 @@
+---
+description: How to edit guide code examples and regenerate snippets
+globs: sdks/guides/**/*,frontend/docs/pages/guides/**/*.mdx,examples/*/guides/**/*
+alwaysApply: false
+---
+
+# Guide Snippet Workflow
+
+## Source of truth
+
+All guide code lives in `sdks/guides/{lang}/`. The files under `examples/{lang}/guides/` are **generated** mirrors. Never edit the `examples/` copies directly.
+
+## Snippet markers
+
+Use `# > Step Title` (or `// >` for TS/Go) to open a snippet and `# !!` (or `// !!`) to close it. The generator converts the title to snake_case for the snippet key (e.g. `# > Step 04 Rate Limited Scrape` → `step_04_rate_limited_scrape`).
+
+## Referencing snippets in MDX
+
+```
+snippets.{lang}.guides.{guide_dir}.{file_stem}.{snippet_key}
+```
+
+Example: `snippets.python.guides.web_scraping.worker.step_01_define_scrape_task`
+
+## Regenerating
+
+After editing any file in `sdks/guides/`, run:
+
+```
+cd frontend/snippets && python3 generate.py
+```
+
+This regenerates both `examples/*/guides/` mirror files and `frontend/docs/lib/generated/snippets/index.ts`.

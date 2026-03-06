@@ -1,0 +1,22 @@
+---
+description: Writing style conventions for Hatchet documentation
+globs: frontend/docs/**/*.mdx
+alwaysApply: false
+---
+
+# Docs Writing Style
+
+## Punctuation
+
+- Do NOT use em dashes (—). Use commas, parentheses, or separate sentences instead.
+- Prefer short, direct sentences over long compound ones.
+
+## Phrases to Avoid
+
+- Do not use "under the hood." Just state the fact directly.
+
+## Terminology
+
+- Do not use the word "cycle" to describe agent loops. Use "child spawning" or "self-spawning child task" instead.
+- Use "durable task" (not "durable function" or "durable workflow step") for the core execution primitive.
+- Link concept terms to their concept pages on first use (e.g. `[durable task](/concepts/durable-workflows/durable-task-execution)`).

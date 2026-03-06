@@ -30,7 +30,7 @@ import { HatchetClient } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
+import { NextStep } from '@hatchet/legacy/step';
 import { InternalWorker } from './worker-internal';
 import { Duration } from '../duration';
 // TODO remove this once we have a proper next step type
@@ -849,7 +849,10 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     this.throwIfCancelled();
-    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+    const pbConditions = conditionsToPb(
+      Render(ConditionAction.CREATE, conditions),
+      this.v1.config.namespace
+    );
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;

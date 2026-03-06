@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -525,7 +524,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			DesiredWorkerId:     desiredWorker,
 			AdditionalMetadata:  opts.AdditionalMetadata,
 			Priority:            opts.Priority,
-			DesiredWorkerLabels: desiredWorkerLabelsToProto(opts.DesiredWorkerLabels),
+			DesiredWorkerLabels: opts.DesiredWorkerLabels,
 		},
 	)
 
@@ -534,40 +533,6 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	}
 
 	return client.NewWorkflow(workflowRunId, listener), nil
-}
-
-func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map[string]*admincontracts.DesiredWorkerLabels {
-	if labels == nil {
-		return nil
-	}
-
-	result := make(map[string]*admincontracts.DesiredWorkerLabels, len(labels))
-
-	for key, label := range labels {
-		proto := &admincontracts.DesiredWorkerLabels{
-			Required: &label.Required,
-			Weight:   &label.Weight,
-		}
-
-		if label.Comparator != nil {
-			comparator := admincontracts.WorkerLabelComparator(*label.Comparator)
-			proto.Comparator = &comparator
-		}
-
-		switch v := label.Value.(type) {
-		case string:
-			proto.StrValue = &v
-		case int:
-			intVal := int32(v) // nolint: gosec
-			proto.IntValue = &intVal
-		case int32:
-			proto.IntValue = &v
-		}
-
-		result[key] = proto
-	}
-
-	return result
 }
 
 // Deprecated: SpawnWorkflowsOpts is an internal type used by the new Go SDK.
@@ -624,7 +589,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 				ChildKey:            c.Key,
 				DesiredWorkerId:     desiredWorker,
 				AdditionalMetadata:  c.AdditionalMetadata,
-				DesiredWorkerLabels: desiredWorkerLabelsToProto(c.DesiredWorkerLabels),
+				DesiredWorkerLabels: c.DesiredWorkerLabels,
 			},
 		}
 	}

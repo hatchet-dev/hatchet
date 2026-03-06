@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cron expressions now support an optional leading seconds field (6-part expressions), e.g. `30 * * * * *` to trigger at 30 seconds past every minute.
 
 
+## [1.28.1] - 2026-03-05
+
+### Changed
+
+- Fixes a bug where lifespans are shut down eagerly before the worker is drained, causing unexpected behavior in still-running tasks.
+
 ## [1.28.0] - 2026-03-02
 
 ### Added
