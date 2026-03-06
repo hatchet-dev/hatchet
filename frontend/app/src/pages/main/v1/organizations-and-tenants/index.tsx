@@ -339,10 +339,9 @@ export default function OrganizationsPage() {
     from: '/tenants/$tenant/organizations-and-tenants',
   }) as Awaited<ReturnType<typeof loader>>;
 
-  const [_organizationRefetchPromises, setOrganizationRefetchPromises] =
-    useState<Map<string, ReturnType<typeof fetchOrganizationInvites>>>(
-      new Map(),
-    );
+  const [, setOrganizationRefetchPromises] = useState<
+    Map<string, ReturnType<typeof fetchOrganizationInvites>>
+  >(new Map());
 
   const [organizationInvites, setOrganizationInvites] = useState<
     Map<string, (OrganizationInvite | CreateOrganizationInviteRequest)[]>
