@@ -170,7 +170,7 @@ type GetOrCreateLogEntryOpts struct {
 }
 
 type EventLogEntryWithPayloads struct {
-	Entry          *sqlcv1.V1DurableEventLogEntry
+	Entry          *sqlcv1.BulkGetDurableEventLogEntriesRow
 	InputPayload   []byte
 	ResultPayload  []byte
 	AlreadyExisted bool
@@ -446,20 +446,20 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		nodeId   int64
 	}
 
-	existingByKey := make(map[branchNodeKey]*sqlcv1.V1DurableEventLogEntry, len(existingEntries))
+	existingByKey := make(map[branchNodeKey]*sqlcv1.BulkGetDurableEventLogEntriesRow, len(existingEntries))
 	for _, e := range existingEntries {
 		existingByKey[branchNodeKey{e.BranchID, e.NodeID}] = e
 	}
 
 	type newEntryInfo struct{ optIdx int }
 	type staleEntryInfo struct {
-		entry  *sqlcv1.V1DurableEventLogEntry
+		entry  *sqlcv1.BulkGetDurableEventLogEntriesRow
 		optIdx int
 	}
 
 	var newEntries []newEntryInfo
 	var staleEntries []staleEntryInfo
-	existedEntries := make(map[int]*sqlcv1.V1DurableEventLogEntry)
+	existedEntries := make(map[int]*sqlcv1.BulkGetDurableEventLogEntriesRow)
 
 	for i, o := range opts {
 		key := branchNodeKey{o.BranchId, o.NodeId}
@@ -487,7 +487,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 	}
 
-	var createdByNodeId map[int64]*sqlcv1.V1DurableEventLogEntry
+	var createdByNodeId map[int64]*sqlcv1.BulkGetDurableEventLogEntriesRow
 
 	if len(newEntries) > 0 {
 		createParams := sqlcv1.BulkCreateDurableEventLogEntriesParams{
@@ -498,7 +498,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			Kinds:                  make([]string, len(newEntries)),
 			Nodeids:                make([]int64, len(newEntries)),
 			Branchids:              make([]int64, len(newEntries)),
-			Invocationcounts:       make([]int32, len(newEntries)),
 			Idempotencykeys:        make([][]byte, len(newEntries)),
 			Issatisfieds:           make([]bool, len(newEntries)),
 		}
@@ -512,7 +511,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			createParams.Kinds[j] = string(o.Kind)
 			createParams.Nodeids[j] = o.NodeId
 			createParams.Branchids[j] = o.BranchId
-			createParams.Invocationcounts[j] = o.InvocationCount
 			createParams.Idempotencykeys[j] = o.IdempotencyKey
 			createParams.Issatisfieds[j] = o.IsSatisfied
 		}
@@ -522,9 +520,22 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", createErr)
 		}
 
-		createdByNodeId = make(map[int64]*sqlcv1.V1DurableEventLogEntry, len(createdRows))
+		createdByNodeId = make(map[int64]*sqlcv1.BulkGetDurableEventLogEntriesRow, len(createdRows))
 		for _, row := range createdRows {
-			createdByNodeId[row.NodeID] = row
+			createdByNodeId[row.NodeID] = &sqlcv1.BulkGetDurableEventLogEntriesRow{
+				TenantID:              row.TenantID,
+				ExternalID:            row.ExternalID,
+				InsertedAt:            row.InsertedAt,
+				ID:                    row.ID,
+				DurableTaskID:         row.DurableTaskID,
+				DurableTaskInsertedAt: row.DurableTaskInsertedAt,
+				Kind:                  row.Kind,
+				NodeID:                row.NodeID,
+				BranchID:              row.BranchID,
+				IdempotencyKey:        row.IdempotencyKey,
+				IsSatisfied:           row.IsSatisfied,
+				InvocationCount:       row.InvocationCount,
+			}
 		}
 
 		storePayloadOpts := make([]StorePayloadOpts, 0, len(newEntries)*2)

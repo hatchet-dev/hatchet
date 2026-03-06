@@ -87,16 +87,20 @@ WITH inputs AS (
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id
+), updated AS (
+    UPDATE v1_durable_event_log_entry
+    SET is_satisfied = true
+    FROM inputs
+    WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
+      AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
+      AND v1_durable_event_log_entry.node_id = inputs.node_id
+      AND v1_durable_event_log_entry.branch_id = inputs.branch_id
+    RETURNING v1_durable_event_log_entry.*
 )
 
-UPDATE v1_durable_event_log_entry
-SET is_satisfied = true
-FROM inputs
-WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
-  AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
-  AND v1_durable_event_log_entry.node_id = inputs.node_id
-  AND v1_durable_event_log_entry.branch_id = inputs.branch_id
-RETURNING v1_durable_event_log_entry.*
+SELECT updated.*, lf.latest_invocation_count AS invocation_count
+FROM updated
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
@@ -112,9 +116,13 @@ WITH inputs AS (
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
 )
 
-SELECT e.*, twn.external_id AS task_external_id
+SELECT
+    e.*,
+    twn.external_id AS task_external_id,
+    lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN tasks_with_nodes twn ON (twn.id, twn.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
     e.branch_id = twn.requested_branch_id
     AND e.node_id = twn.requested_node_id
@@ -138,9 +146,10 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@nodeIds::BIGINT[]) AS node_id
 )
-SELECT e.*
+SELECT e.*, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE e.durable_task_id = @durableTaskId::BIGINT
   AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ;
 
@@ -154,38 +163,42 @@ WITH inputs AS (
         UNNEST(@kinds::text[]) AS kind,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
-        UNNEST(@invocationCounts::INTEGER[]) AS invocation_count,
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+), inserts AS (
+    INSERT INTO v1_durable_event_log_entry (
+        tenant_id,
+        external_id,
+        durable_task_id,
+        durable_task_inserted_at,
+        inserted_at,
+        kind,
+        node_id,
+        branch_id,
+        idempotency_key,
+        is_satisfied
+    )
+    SELECT
+        i.tenant_id,
+        i.external_id,
+        i.durable_task_id,
+        i.durable_task_inserted_at,
+        NOW(),
+        i.kind::v1_durable_event_log_kind,
+        i.node_id,
+        i.branch_id,
+        i.idempotency_key,
+        i.is_satisfied
+    FROM inputs i
+    ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
+    RETURNING *
 )
-INSERT INTO v1_durable_event_log_entry (
-    tenant_id,
-    external_id,
-    durable_task_id,
-    durable_task_inserted_at,
-    inserted_at,
-    kind,
-    node_id,
-    branch_id,
-    invocation_count,
-    idempotency_key,
-    is_satisfied
-)
-SELECT
-    i.tenant_id,
-    i.external_id,
-    i.durable_task_id,
-    i.durable_task_inserted_at,
-    NOW(),
-    i.kind::v1_durable_event_log_kind,
-    i.node_id,
-    i.branch_id,
-    i.invocation_count,
-    i.idempotency_key,
-    i.is_satisfied
-FROM inputs i
-ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
-RETURNING *;
+
+SELECT i.*, lf.latest_invocation_count AS invocation_count
+FROM inserts i
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (inserts.durable_task_id, inserts.durable_task_inserted_at)
+;
+
 
 -- name: GetDurableTaskLogFiles :many
 WITH inputs AS (
