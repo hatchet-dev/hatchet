@@ -904,7 +904,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     }
 
     const rendered = Render(ConditionAction.CREATE, conditions);
-    const pbConditions = conditionsToPb(rendered);
+    const pbConditions = conditionsToPb(rendered, this.v1.config.namespace);
 
     const ack = await this._durableListener.sendEvent(
       this.action.taskRunExternalId,
@@ -943,6 +943,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       this.action.taskRunExternalId,
       this._waitKey,
       conditions,
+      this.v1.config.namespace,
       this.abortController.signal
     );
     this._waitKey = nextWaitKey;

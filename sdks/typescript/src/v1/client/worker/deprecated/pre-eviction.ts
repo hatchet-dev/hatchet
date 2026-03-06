@@ -14,9 +14,10 @@ export async function waitForPreEviction(
   taskRunExternalId: string,
   waitKey: number,
   conditions: Conditions | Conditions[],
+  namespace?: string,
   signal?: AbortSignal
 ): Promise<{ result: Record<string, any>; nextWaitKey: number }> {
-  const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+  const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions), namespace);
   const key = `waitFor-${waitKey}`;
 
   await durableListener.registerDurableEvent({
