@@ -1,5 +1,6 @@
 import sleep from '@hatchet/util/sleep';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import Hatchet from '@hatchet/index';
 import { makeE2EClient, poll, checkDurableEvictionSupport } from '../__e2e__/harness';
 import {
   evictableSleep,
@@ -13,7 +14,6 @@ import {
   EVENT_KEY,
   evictableSleepForGracefulTermination,
 } from './workflow';
-import Hatchet from '@hatchet-dev/typescript-sdk/index';
 
 function getTaskStatuses(details: any): V1TaskStatus[] {
   return (details?.tasks || []).map((t: any) => t.status);
@@ -325,7 +325,6 @@ describe('durable-eviction-e2e', () => {
     if (requireEviction()) return;
     const { spawn } = await import('child_process');
 
-
     const namespace = 'graceful-termination-evicts-waiting-runs';
 
     const hatchetWithNamespace = Hatchet.init({
@@ -377,7 +376,10 @@ describe('durable-eviction-e2e', () => {
         }
       );
 
-      const ref = await hatchetWithNamespace.admin.runWorkflow(evictableSleepForGracefulTermination.name, {});
+      const ref = await hatchetWithNamespace.admin.runWorkflow(
+        evictableSleepForGracefulTermination.name,
+        {}
+      );
 
       const runId = await ref.getWorkflowRunId();
 
